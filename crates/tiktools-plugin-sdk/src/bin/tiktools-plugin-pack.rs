@@ -14,12 +14,22 @@ use tiktools_plugin_api::manifest::{is_safe_relative_path, PluginManifest};
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 const USAGE: &str =
-    "Usage: tiktools-plugin-pack --manifest <plugin.json> --entry <built-entry> --output <plugin.plugin>";
+    "Usage: tiktools-plugin-pack --manifest <plugin.json> --entry <built-entry> --output <plugin.plugin> [--target <plugin-target>]";
+
+const SUPPORTED_PLUGIN_TARGETS: [&str; 6] = [
+    "win32-x64-msvc",
+    "win32-arm64-msvc",
+    "linux-x64-gnu",
+    "linux-arm64-gnu",
+    "darwin-x64-darwin",
+    "darwin-arm64-darwin",
+];
 
 struct Options {
     manifest: PathBuf,
     entry: PathBuf,
     output: PathBuf,
+    target: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -37,10 +47,24 @@ fn parse_args() -> Result<Option<Options>, Box<dyn Error>> {
     let mut manifest = None;
     let mut entry = None;
     let mut output = None;
+    let mut target: Option<String> = None;
     let mut args = env::args().skip(1);
     while let Some(argument) = args.next() {
-        let target = match argument.as_str() {
-            "--help" | "-h" => return Ok(None),
+        if argument == "--help" || argument == "-h" {
+            return Ok(None);
+        }
+        if argument == "--target" {
+            let value = args
+                .next()
+                .ok_or_else(|| invalid(format!("{argument} requires a value\n{USAGE}")))?;
+            target = Some(value);
+            continue;
+        }
+        if let Some(value) = argument.strip_prefix("--target=") {
+            target = Some(value.to_owned());
+            continue;
+        }
+        let slot = match argument.as_str() {
             "--manifest" => &mut manifest,
             "--entry" => &mut entry,
             "--output" => &mut output,
@@ -49,13 +73,35 @@ fn parse_args() -> Result<Option<Options>, Box<dyn Error>> {
         let value = args
             .next()
             .ok_or_else(|| invalid(format!("{argument} requires a value\n{USAGE}")))?;
-        *target = Some(PathBuf::from(value));
+        *slot = Some(PathBuf::from(value));
     }
+    let target = target
+        .map(|value| validate_plugin_target(&value))
+        .transpose()?;
     Ok(Some(Options {
         manifest: manifest.ok_or_else(|| invalid(format!("--manifest is required\n{USAGE}")))?,
         entry: entry.ok_or_else(|| invalid(format!("--entry is required\n{USAGE}")))?,
         output: output.ok_or_else(|| invalid(format!("--output is required\n{USAGE}")))?,
+        target,
     }))
+}
+
+fn validate_plugin_target(value: &str) -> Result<String, Box<dyn Error>> {
+    let normalized = value.trim().to_owned();
+    if normalized.is_empty() || normalized.len() > 64 || normalized.chars().any(char::is_whitespace)
+    {
+        return Err(invalid(format!(
+            "unsupported --target {value}; expected one of {}",
+            SUPPORTED_PLUGIN_TARGETS.join(", ")
+        )));
+    }
+    if !SUPPORTED_PLUGIN_TARGETS.contains(&normalized.as_str()) {
+        return Err(invalid(format!(
+            "unsupported --target {value}; expected one of {}",
+            SUPPORTED_PLUGIN_TARGETS.join(", ")
+        )));
+    }
+    Ok(normalized)
 }
 
 fn package(options: Options) -> Result<(), Box<dyn Error>> {
@@ -82,17 +128,24 @@ fn package(options: Options) -> Result<(), Box<dyn Error>> {
         return Err(invalid("entry must be a regular, non-symlink file"));
     }
     let entry_bytes = fs::read(&options.entry)?;
-    let staged_entry = staged_entry_name(&manifest.entry);
+    let staged_entry = staged_entry_name(&manifest.entry, options.target.as_deref());
 
     let mut files = BTreeMap::new();
     let mut manifest_value = manifest_value;
-    manifest_value
+    let packaged_object = manifest_value
         .as_object_mut()
-        .ok_or_else(|| invalid("manifest must be a JSON object"))?
-        .insert(
-            "entry".to_owned(),
-            serde_json::Value::String(staged_entry.clone()),
+        .ok_or_else(|| invalid("manifest must be a JSON object"))?;
+    packaged_object.insert(
+        "entry".to_owned(),
+        serde_json::Value::String(staged_entry.clone()),
+    );
+    if let Some(target) = options.target.as_deref() {
+        enforce_target_rules(&manifest, target)?;
+        packaged_object.insert(
+            "targets".to_owned(),
+            serde_json::Value::Array(vec![serde_json::Value::String(target.to_owned())]),
         );
+    }
     let mut manifest_bytes = serde_json::to_vec_pretty(&manifest_value)?;
     manifest_bytes.push(b'\n');
     insert_file(&mut files, "plugin.json", manifest_bytes)?;
@@ -203,11 +256,27 @@ fn write_archive(
     Ok(())
 }
 
-fn staged_entry_name(entry: &str) -> String {
-    if cfg!(target_os = "windows") && !entry.to_ascii_lowercase().ends_with(".exe") {
+fn staged_entry_name(entry: &str, target: Option<&str>) -> String {
+    // The executable suffix derives from the requested packaged target, not
+    // the packager's own build platform, so cross-target builds keep `.exe`.
+    let wants_exe = match target {
+        Some(value) => value.starts_with("win32-"),
+        None => cfg!(target_os = "windows"),
+    };
+    if wants_exe && !entry.to_ascii_lowercase().ends_with(".exe") {
         format!("{entry}.exe")
     } else {
         entry.to_owned()
+    }
+}
+
+fn enforce_target_rules(manifest: &PluginManifest, _target: &str) -> Result<(), Box<dyn Error>> {
+    use tiktools_plugin_api::PluginRuntimeKind;
+    match manifest.runtime {
+        PluginRuntimeKind::Native | PluginRuntimeKind::Process => Ok(()),
+        PluginRuntimeKind::Wasm => Err(invalid(
+            "--target must not be used for wasm plugins; keep targets empty for portable WASM",
+        )),
     }
 }
 
@@ -225,4 +294,149 @@ fn sha256(bytes: &[u8]) -> String {
 
 fn invalid(message: impl Into<String>) -> Box<dyn Error> {
     Box::new(io::Error::new(io::ErrorKind::InvalidInput, message.into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Read;
+
+    #[test]
+    fn supported_targets_validate() {
+        for target in SUPPORTED_PLUGIN_TARGETS {
+            assert_eq!(validate_plugin_target(target).unwrap(), target);
+        }
+        for unsupported in [
+            "winx64",
+            "windows64",
+            "linux64",
+            "macarm",
+            "i686-pc-windows-msvc",
+            "wasm32-unknown-unknown",
+            "x86_64-unknown-linux-musl",
+            "",
+        ] {
+            assert!(
+                validate_plugin_target(unsupported).is_err(),
+                "{unsupported} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn staged_entry_suffix_follows_requested_target() {
+        assert_eq!(
+            staged_entry_name("plugin", Some("win32-x64-msvc")),
+            "plugin.exe"
+        );
+        assert_eq!(
+            staged_entry_name("plugin.exe", Some("win32-x64-msvc")),
+            "plugin.exe"
+        );
+        assert_eq!(staged_entry_name("plugin", Some("linux-x64-gnu")), "plugin");
+        assert_eq!(
+            staged_entry_name("plugin", Some("darwin-arm64-darwin")),
+            "plugin"
+        );
+    }
+
+    fn test_manifest(runtime: &str) -> serde_json::Value {
+        serde_json::json!({
+            "schemaVersion": 2,
+            "id": "target-test",
+            "name": "Target Test",
+            "version": "1.0.0",
+            "runtime": runtime,
+            "entry": "target-test",
+            "protocolVersion": 1,
+        })
+    }
+
+    fn unique_dir(name: &str) -> PathBuf {
+        let suffix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("tiktools-pack-{name}-{suffix}"))
+    }
+
+    fn read_archive_entry(archive: &Path, entry: &str) -> Vec<u8> {
+        let file = File::open(archive).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        let mut contents = Vec::new();
+        archive
+            .by_name(entry)
+            .unwrap()
+            .read_to_end(&mut contents)
+            .unwrap();
+        contents
+    }
+
+    #[test]
+    fn package_injects_target_without_touching_source_manifest() {
+        let directory = unique_dir("inject");
+        fs::create_dir_all(&directory).unwrap();
+        let manifest_path = directory.join("plugin.json");
+        let source = test_manifest("process");
+        fs::write(&manifest_path, serde_json::to_vec_pretty(&source).unwrap()).unwrap();
+        let entry_path = directory.join("built-entry");
+        fs::write(&entry_path, b"binary").unwrap();
+        let output = directory.join("target-test-1.0.0-linux-x64-gnu.plugin");
+
+        package(Options {
+            manifest: manifest_path.clone(),
+            entry: entry_path,
+            output: output.clone(),
+            target: Some("linux-x64-gnu".to_owned()),
+        })
+        .unwrap();
+
+        // Source manifest on disk is unchanged.
+        let after: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        assert_eq!(after, source);
+
+        // Packaged manifest carries exactly the requested target.
+        let packaged: serde_json::Value =
+            serde_json::from_slice(&read_archive_entry(&output, "target-test/plugin.json"))
+                .unwrap();
+        assert_eq!(
+            packaged.get("targets").unwrap(),
+            &serde_json::json!(["linux-x64-gnu"])
+        );
+
+        // Checksums cover the modified manifest and the staged entry.
+        let checksums: serde_json::Value =
+            serde_json::from_slice(&read_archive_entry(&output, "target-test/checksums.json"))
+                .unwrap();
+        let object = checksums.as_object().unwrap();
+        assert!(object.contains_key("plugin.json"));
+        assert!(object.contains_key("target-test"));
+
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn package_rejects_target_for_wasm() {
+        let directory = unique_dir("wasm");
+        fs::create_dir_all(&directory).unwrap();
+        let manifest_path = directory.join("plugin.json");
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec_pretty(&test_manifest("wasm")).unwrap(),
+        )
+        .unwrap();
+        let entry_path = directory.join("plugin.wasm");
+        fs::write(&entry_path, b"wasm").unwrap();
+
+        let result = package(Options {
+            manifest: manifest_path,
+            entry: entry_path,
+            output: directory.join("out.plugin"),
+            target: Some("linux-x64-gnu".to_owned()),
+        });
+        assert!(result.is_err());
+
+        let _ = fs::remove_dir_all(&directory);
+    }
 }

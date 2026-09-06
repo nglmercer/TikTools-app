@@ -300,3 +300,45 @@ standard asset directories, writes SHA-256 checksums, and creates the ZIP-based
 invoke this common CLI.
 `tiktools-plugin-api` crate remains available for other languages and custom
 runtime adapters.
+
+## Target-aware builds
+
+Compiled `native` and `process` plugins are platform-specific. The canonical
+packaged target identifiers are:
+
+```text
+win32-x64-msvc
+win32-arm64-msvc
+linux-x64-gnu
+linux-arm64-gnu
+darwin-x64-darwin
+darwin-arm64-darwin
+```
+
+Build with the shared script (defaults to the host target):
+
+```bash
+bun run build:plugins
+bun run build:plugin -- --plugin audio-process-plugin
+bun run build:plugin -- --plugin audio-process-plugin --target x86_64-pc-windows-msvc
+bun run build:plugins -- --target aarch64-apple-darwin
+```
+
+The script passes `--target <rust-triple>` to Cargo, reads
+`target/<rust-triple>/<profile>/` for the entry (`.exe` is derived from the
+requested target, never from the build host), and names archives
+`<id>-<version>-<plugin-target>.plugin`. `tiktools-plugin-pack --target`
+injects exactly that target into the packaged `plugin.json` without rewriting
+the source manifest:
+
+```bash
+tiktools-plugin-pack --manifest plugin.json --entry target/.../plugin \
+  --target linux-x64-gnu --output dist/my-plugin-1.0.0-linux-x64-gnu.plugin
+```
+
+WASM plugins stay target-independent (`"targets": []`) and omit the target
+suffix. The loader treats `targets == []` as portable and otherwise requires
+the current platform target, reporting `plugin has no build for this
+platform` when nothing matches. The Rust triple ↔ plugin target mapping
+lives in `scripts/lib/plugin-targets.ts`; do not invent alternate names such
+as `winx64` or `linux64`.

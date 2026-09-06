@@ -1,5 +1,6 @@
 import { chmod, cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
+import { detectHostTarget } from './lib/plugin-targets.ts';
 
 export const repositoryRoot = resolve(import.meta.dir, '..');
 const examplesRoot = join(repositoryRoot, 'examples');
@@ -62,10 +63,14 @@ async function stageExample(exampleDirectory: string): Promise<boolean> {
   console.log(`Building development plugin ${id}...`);
   run('cargo', ['build', '--manifest-path', cargoManifestPath]);
 
+  // Development builds are host-only, but resolve the executable suffix
+  // through the same shared target helper so dev and release naming agree.
+  const hostTarget = detectHostTarget();
   const sourceEntryName = basename(sourceEntry);
-  const stagedEntry = process.platform === 'win32' && !sourceEntryName.toLowerCase().endsWith('.exe')
-    ? `${sourceEntry}.exe`
-    : sourceEntry;
+  const stagedEntry =
+    hostTarget.os === 'windows' && !sourceEntryName.toLowerCase().endsWith('.exe')
+      ? `${sourceEntry}.exe`
+      : sourceEntry;
   const builtEntryPath = join(exampleDirectory, 'target', 'debug', stagedEntry);
   if (!(await exists(builtEntryPath))) {
     throw new Error(`Cargo built ${id}, but its declared entry was not found at ${builtEntryPath}`);
@@ -76,7 +81,7 @@ async function stageExample(exampleDirectory: string): Promise<boolean> {
   await rm(packageDirectory, { recursive: true, force: true });
   await mkdir(dirname(stagedEntryPath), { recursive: true });
   await cp(builtEntryPath, stagedEntryPath);
-  if (process.platform !== 'win32') {
+  if (hostTarget.os !== 'windows') {
     await chmod(stagedEntryPath, 0o755);
   }
 
