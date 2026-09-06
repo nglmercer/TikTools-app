@@ -192,6 +192,27 @@ export type TopViewerPayload = {
   userId: string;
 };
 
+export type HotkeyBackendCapabilities = {
+  globalChords: boolean;
+  arbitraryKeys: boolean;
+  sequences: boolean;
+  keyRelease: boolean;
+};
+
+export type HotkeyBackendStatus = {
+  backend: string;
+  state: string;
+  detail: string;
+  summary: string;
+  capabilities?: Partial<HotkeyBackendCapabilities>;
+};
+
+export type HotkeyStatusData = {
+  platform: string;
+  session: string;
+  backends: HotkeyBackendStatus[];
+};
+
 export type HostMessage =
   | {
       type: 'connection';
@@ -225,6 +246,7 @@ export type HostMessage =
   | { type: 'automation-context'; event: AutomationEvent | null; capturedAt?: number }
   | { type: 'automation-script-analysis'; analysis: AutomationScriptAnalysis }
   | { type: 'automation-error'; message: string }
+  | { type: 'hotkey-status'; status: HotkeyStatusData }
   | { type: 'behavior'; snapshot: BehaviorSnapshot }
   | { type: 'behavior-runs'; runs: BehaviorRun[] }
   | { type: 'behavior-test-result'; runs: BehaviorRun[] }

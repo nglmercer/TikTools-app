@@ -4,6 +4,7 @@ import type {
   ActionOptionItem,
   GiftCatalogEntry,
   HostMessage,
+  HotkeyStatusData,
   MediaPickerOptions,
   MediaSelectionHandler,
   PageMessage,
@@ -116,6 +117,7 @@ export function useAppController() {
   const behaviorRuns = ref<BehaviorRun[]>([]);
   const behaviorTestRuns = ref<BehaviorRun[]>([]);
   const behaviorError = ref('');
+  const hotkeyStatus = ref<HotkeyStatusData | null>(null);
   const pluginSettings = ref<Record<string, PluginSettingsState>>({});
   const actionOptions = ref<Record<string, ActionOptionItem[]>>({});
   const pluginInstallState = ref<PluginInstallState>({ ...initialPluginInstallState });
@@ -279,8 +281,12 @@ export function useAppController() {
       setPluginTranslations(message.snapshot.translations);
       setPluginEventTypes(message.snapshot.eventTypes ?? []);
       behavior.value = message.snapshot;
+      if (!message.snapshot.plugins.some((plugin) => plugin.descriptor.id === 'hotkeys' && plugin.installed && plugin.enabled)) {
+        hotkeyStatus.value = null;
+      }
       behaviorError.value = '';
     }
+    if (message.type === 'hotkey-status') hotkeyStatus.value = message.status;
     if (message.type === 'behavior-runs') behaviorRuns.value = message.runs;
     if (message.type === 'behavior-test-result') behaviorTestRuns.value = message.runs;
     if (message.type === 'behavior-error') behaviorError.value = message.message;
@@ -549,6 +555,7 @@ export function useAppController() {
     behaviorRuns,
     behaviorTestRuns,
     behaviorError,
+    hotkeyStatus,
     pluginSettings,
     actionOptions,
     pluginProgress,

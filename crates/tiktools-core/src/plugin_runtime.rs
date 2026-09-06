@@ -219,6 +219,7 @@ impl AppCore {
     }
 
     pub(crate) async fn poll_plugin_events(self: &Arc<Self>) {
+        self.sync_hotkey_bindings().await;
         let candidates: Vec<(String, Vec<String>)> = self
             .plugins
             .list()
@@ -340,7 +341,7 @@ impl AppCore {
         }
     }
 
-    fn plugin_retry_allowed(&self, id: &str) -> bool {
+    pub(crate) fn plugin_retry_allowed(&self, id: &str) -> bool {
         self.plugin_health
             .lock()
             .expect("plugin health lock poisoned")
@@ -349,7 +350,7 @@ impl AppCore {
             .is_none_or(|next_retry_at| std::time::Instant::now() >= next_retry_at)
     }
 
-    fn record_plugin_failure(&self, id: &str, error: String) {
+    pub(crate) fn record_plugin_failure(&self, id: &str, error: String) {
         let mut health = self
             .plugin_health
             .lock()
@@ -379,7 +380,7 @@ impl AppCore {
         }
     }
 
-    fn record_plugin_success(&self, id: &str) {
+    pub(crate) fn record_plugin_success(&self, id: &str) {
         let was_unhealthy = self
             .plugin_health
             .lock()

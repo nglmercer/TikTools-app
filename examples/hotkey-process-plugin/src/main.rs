@@ -19,14 +19,15 @@
 //! macOS needs an Accessibility grant (silently delivers nothing without it),
 //! Linux uses X11 on X11 sessions, the XDG Desktop Portal GlobalShortcuts
 //! backend for registered chords on Wayland, and an opt-in evdev backend for
-//! arbitrary keys/sequences (input-group membership, never root). Windows
+//! arbitrary keys/sequences (automatic per-device ACL, never a root app). Windows
 //! needs nothing beyond a normal user session.
 //!
 //! Listener health is explicit: `hotkey.status` poll events plus the
 //! `hotkey.status` and `hotkey.diagnostics` actions report which backend is
 //! active, which needs permission, and which is unsupported — the plugin
-//! never polls silently after a listener failure. See `hotkeys/` for the
-//! backend layout and `docs/HOTKEYS_LINUX.md` for setup.
+//! never polls silently after a listener failure. On Linux, raw input asks
+//! Polkit for a per-device ACL automatically when a Behavior needs it. See
+//! `hotkeys/` for the backend layout and `docs/HOTKEYS_LINUX.md` for setup.
 
 mod hotkeys;
 

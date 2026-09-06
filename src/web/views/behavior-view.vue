@@ -26,9 +26,10 @@ import type {
   LiveAction,
   LiveEvent,
 } from '../../automation/behavior/types.ts';
-import type { ActionOptionItem, GiftCatalogEntry, OpenMediaPicker, ViewerRecord } from '../../shared/messages.ts';
+import type { ActionOptionItem, GiftCatalogEntry, HotkeyStatusData, OpenMediaPicker, ViewerRecord } from '../../shared/messages.ts';
 import { t, type Locale } from '../i18n.ts';
 import { useDialogs } from '../composables/useDialogs.ts';
+import { summarizeHotkeyStatus } from '../components/ui/hotkey-status.ts';
 
 type BehaviorViewProps = {
   locale: Locale;
@@ -38,6 +39,7 @@ type BehaviorViewProps = {
   viewers: ViewerRecord[];
   runs: BehaviorRun[];
   testRuns: BehaviorRun[];
+  hotkeyStatus?: HotkeyStatusData | null;
   error?: string;
   onSaveAction: (action: LiveAction) => void;
   onDeleteAction: (id: string) => void;
@@ -68,6 +70,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     'viewers',
     'runs',
     'testRuns',
+    'hotkeyStatus',
     'error',
     'onSaveAction',
     'onDeleteAction',
@@ -108,6 +111,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
   const testRuns = props.testRuns;
   const error = props.error;
   const currentScreen = screen.value;
+  const hotkeySummary = props.hotkeyStatus ? summarizeHotkeyStatus(props.hotkeyStatus) : null;
 
   if (currentScreen.kind === 'picker') {
     return (
@@ -158,6 +162,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
         isNew={currentScreen.isNew}
         actions={snapshot.actions}
         eventTypes={snapshot.eventTypes ?? []}
+        hotkeyStatus={props.hotkeyStatus}
         gifts={props.gifts}
         viewers={props.viewers}
         error={error}
@@ -206,6 +211,21 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
       </div>
 
       {error && <div class="plg-stack"><div class="plg-alert">{error}</div></div>}
+
+      {hotkeySummary?.needsAttention && (
+        <div class="plg-stack plg-hotkey-status" role="status" aria-live="polite">
+          <div class={`plg-panel plg-hotkey-status__panel${hotkeySummary.needsPermission ? ' plg-panel--err' : ' plg-panel--ok'}`}>
+            <div class="plg-hotkey-status__head">
+              <span class={`plg-dot${hotkeySummary.needsPermission ? ' is-err' : hotkeySummary.chordsSupported ? ' is-ok' : ''}`} />
+              <strong>{t(locale, 'hotkeyStatusTitle')}</strong>
+              <span class="plg-hotkey-status__headline">{hotkeySummary.headline}</span>
+            </div>
+            {hotkeySummary.lines
+              .filter((line) => line !== hotkeySummary.headline && (!hotkeySummary.needsPermission || !line.includes('active via')))
+              .map((line) => <span class="plg-hotkey-status__line plg-mono" key={line}>{line}</span>)}
+          </div>
+        </div>
+      )}
 
       <div class="plg-body">
         <div class="plg-scroll">

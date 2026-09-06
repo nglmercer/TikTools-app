@@ -134,9 +134,9 @@ async fn bind_current(
     session: &ashpd::desktop::Session<GlobalShortcuts>,
     chords: &[Chord],
 ) -> Result<usize, String> {
-    if chords.is_empty() {
-        return Ok(0);
-    }
+    // An empty list is intentional: BindShortcuts replaces the session's
+    // current set, so this also removes a chord when its Behavior is deleted
+    // or changed to a raw-only trigger.
     let mut shortcuts = Vec::with_capacity(chords.len());
     let mut triggers = Vec::with_capacity(chords.len());
     for chord in chords {

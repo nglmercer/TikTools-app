@@ -664,6 +664,8 @@ pub enum HostMessage {
         #[serde(skip_serializing_if = "Option::is_none", rename = "capturedAt")]
         captured_at: Option<u64>,
     },
+    #[serde(rename = "hotkey-status")]
+    HotkeyStatus { status: Value },
     #[serde(rename = "automation-script-analysis")]
     AutomationScriptAnalysis { analysis: Value },
     #[serde(rename = "automation-error")]

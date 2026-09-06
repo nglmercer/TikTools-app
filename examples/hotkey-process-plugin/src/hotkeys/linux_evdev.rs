@@ -25,6 +25,7 @@
 use std::collections::HashSet;
 use std::io;
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::Duration;
 
 use evdev::{Device, EventSummary};
@@ -35,9 +36,9 @@ use super::{emit_press, BackendHandles};
 
 const RESCAN_SECS: u64 = 10;
 
-/// udev/input-group setup hint shown when no device is readable.
+/// Automatic per-device permission hint shown when no device is readable.
 pub const EVDEV_PERMISSION_HINT: &str =
-    "no readable /dev/input/event* devices; grant input access (see docs/HOTKEYS_LINUX.md) — never run TikTools as root";
+    "no readable /dev/input/event* devices; TikTools will request a per-device ACL automatically (see docs/HOTKEYS_LINUX.md) — never run TikTools as root";
 
 pub fn spawn_evdev_listener(handles: BackendHandles) {
     set_status(
@@ -53,6 +54,7 @@ pub fn spawn_evdev_listener(handles: BackendHandles) {
 
 fn supervise_keyboards(handles: BackendHandles) {
     let mut managed: HashSet<PathBuf> = HashSet::new();
+    let mut permission_requests: HashSet<PathBuf> = HashSet::new();
     loop {
         if !sequences_enabled(&handles) {
             set_status(
@@ -77,11 +79,31 @@ fn supervise_keyboards(handles: BackendHandles) {
             .ok();
         if survey.readable_keyboards.is_empty() {
             if survey.permission_denied > 0 {
-                set_status(
-                    &handles,
-                    BackendRunState::PermissionRequired,
-                    EVDEV_PERMISSION_HINT,
-                );
+                let pending = survey
+                    .permission_denied_paths
+                    .iter()
+                    .filter(|path| !permission_requests.contains(*path))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                if !pending.is_empty() {
+                    set_status(
+                        &handles,
+                        BackendRunState::Starting,
+                        "requesting raw-input permission from the system",
+                    );
+                    let request_result = request_device_access(&pending);
+                    permission_requests.extend(pending);
+                    if let Err(error) = request_result {
+                        set_status(
+                            &handles,
+                            BackendRunState::PermissionRequired,
+                            format!("{EVDEV_PERMISSION_HINT}; automatic request failed: {error}"),
+                        );
+                    }
+                    std::thread::sleep(Duration::from_millis(250));
+                    continue;
+                }
+                set_status(&handles, BackendRunState::PermissionRequired, EVDEV_PERMISSION_HINT);
             } else {
                 set_status(
                     &handles,
@@ -219,6 +241,7 @@ struct DeviceSurvey {
     discovered: usize,
     readable_keyboards: Vec<PathBuf>,
     permission_denied: usize,
+    permission_denied_paths: Vec<PathBuf>,
 }
 
 /// Lists `/dev/input/event*` nodes, counts them, and keeps the readable
@@ -232,6 +255,7 @@ fn survey_devices_in(root: &std::path::Path) -> DeviceSurvey {
         discovered: 0,
         readable_keyboards: Vec::new(),
         permission_denied: 0,
+        permission_denied_paths: Vec::new(),
     };
     let entries = match std::fs::read_dir(root) {
         Ok(entries) => entries,
@@ -253,12 +277,65 @@ fn survey_devices_in(root: &std::path::Path) -> DeviceSurvey {
             }
             Err(error) if error.kind() == io::ErrorKind::PermissionDenied => {
                 survey.permission_denied += 1;
+                survey.permission_denied_paths.push(path);
             }
             Err(_) => {}
         }
     }
     survey.readable_keyboards.sort();
+    survey.permission_denied_paths.sort();
     survey
+}
+
+/// Requests a narrow, immediate read ACL for the denied event nodes. Polkit
+/// displays the authentication prompt; the TikTools process itself never
+/// becomes root and no broad `input` group membership is changed.
+fn request_device_access(paths: &[PathBuf]) -> Result<(), String> {
+    let uid = current_uid()?;
+    let rule = format!("u:{uid}:r");
+    let pkexec = system_program("pkexec")
+        .ok_or_else(|| "pkexec is not installed".to_owned())?;
+    let setfacl = system_program("setfacl")
+        .ok_or_else(|| "setfacl is not installed (install the acl package)".to_owned())?;
+    let output = Command::new(pkexec)
+        .arg(setfacl)
+        .arg("-m")
+        .arg(rule)
+        .args(paths)
+        .output()
+        .map_err(|error| format!("could not start the system permission helper: {error}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+    if stderr.is_empty() {
+        Err(format!("system permission helper exited with {}", output.status))
+    } else {
+        Err(stderr.chars().take(240).collect())
+    }
+}
+
+fn current_uid() -> Result<String, String> {
+    let id = system_program("id").ok_or_else(|| "id is not installed".to_owned())?;
+    let output = Command::new(id)
+        .arg("-u")
+        .output()
+        .map_err(|error| format!("could not determine the current user id: {error}"))?;
+    if !output.status.success() {
+        return Err("could not determine the current user id".to_owned());
+    }
+    let uid = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if uid.is_empty() || !uid.chars().all(|character| character.is_ascii_digit()) {
+        return Err("the current user id was invalid".to_owned());
+    }
+    Ok(uid)
+}
+
+fn system_program(name: &str) -> Option<PathBuf> {
+    ["/usr/bin", "/usr/sbin", "/bin", "/sbin"]
+        .into_iter()
+        .map(|directory| PathBuf::from(directory).join(name))
+        .find(|path| path.is_file())
 }
 
 /// Keyboard heuristic: the device exposes the core alphanumeric block.
@@ -287,5 +364,10 @@ mod tests {
     fn permission_hint_points_at_docs_not_root() {
         assert!(EVDEV_PERMISSION_HINT.contains("docs/HOTKEYS_LINUX.md"));
         assert!(EVDEV_PERMISSION_HINT.contains("never run TikTools as root"));
+    }
+
+    #[test]
+    fn current_uid_is_numeric() {
+        assert!(current_uid().is_ok_and(|uid| !uid.is_empty()));
     }
 }

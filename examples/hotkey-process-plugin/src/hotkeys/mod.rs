@@ -47,7 +47,7 @@ use tiktools_plugin_sdk::prelude::*;
 
 use self::event::{KeyState, MAX_PENDING_EVENTS};
 use self::shortcuts::{
-    default_shortcuts, parse_bind_config, sequences_needed_from_config, shortcuts_from_env, Chord,
+    parse_bind_config, sequences_needed_from_config, shortcuts_from_env, Chord,
 };
 use self::state::{capabilities, BackendReport, SharedStatus, SharedStatusHandle};
 
@@ -75,15 +75,14 @@ pub struct SharedConfig {
 
 impl SharedConfig {
     pub fn initial() -> Self {
-        let mut bindings = default_shortcuts();
-        for chord in shortcuts_from_env() {
-            if !bindings.contains(&chord) {
-                bindings.push(chord);
-            }
-        }
+        // The host sends the persisted Behavior projection as soon as the
+        // plugin is started. Keep startup quiet until that first bind call:
+        // otherwise a chord-only user could briefly get raw-input prompts
+        // before the host has had a chance to disable sequences.
+        let bindings = shortcuts_from_env();
         Self {
             bindings,
-            sequences_needed: true,
+            sequences_needed: false,
             generation: 0,
         }
     }
@@ -409,5 +408,15 @@ impl HotkeyPlugin {
         };
         linux_evdev::spawn_evdev_listener(handles);
         self.evdev_started = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn startup_waits_for_host_projection_before_enabling_raw_input() {
+        assert!(!SharedConfig::initial().sequences_needed);
     }
 }

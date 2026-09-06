@@ -57,13 +57,12 @@ silence (sleep/resume, hotplug, missed releases).
    - wlroots (Sway/Hyprland): `xdg-desktop-portal` + `xdg-desktop-portal-wlr`
      (GlobalShortcuts support depends on the back-end version; see
      limitations below).
-2. Register the chords TikTools should listen for, once:
-   - call the plugin action `hotkey.bind` with
-     `{"shortcuts": [{"key": "k", "modifiers": "ctrl+shift"}]}`, or
-   - set `TIKTOOLS_HOTKEY_SHORTCUTS='[{"key":"k","modifiers":"ctrl+shift"}]'`
-     before starting TikTools.
-   - three defaults (`Ctrl+Shift+K/T/M`) are bound automatically so the
-     feature works out of the box.
+2. Create an enabled `hotkey.pressed` Behavior. Complete `key eq` plus
+   non-empty `modifiers eq` filters are synchronized automatically through
+   `hotkey.bind`; bare keys such as `Key = a`, sequences, and other arbitrary
+   input keep evdev enabled instead. `hotkey.bind` can still be called
+   manually with `{"shortcuts": [{"key": "k", "modifiers": "ctrl+shift"}]}`
+   or seeded with `TIKTOOLS_HOTKEY_SHORTCUTS` before starting TikTools.
 3. Approve each shortcut when the compositor prompts. KDE Plasma Wayland and
    GNOME Wayland (with a recent portal) show a system dialog; the choice is
    remembered per shortcut.
@@ -75,14 +74,17 @@ Chords that have no portal spelling (punctuation beyond single characters,
 
 `sequence contains g o` behaviors need the evdev backend, which reads
 `/dev/input/event*`. Device nodes are normally `root:input` mode `660`.
-Pick **one**, in order of preference:
+When a raw-input Behavior is enabled, TikTools automatically asks Polkit for
+a narrow read ACL on the discovered event devices. Approve the system dialog;
+the app remains an ordinary user process and the permission applies immediately.
+If the system has no Polkit agent or `setfacl`, use one of these fallbacks:
 
 ### Option A — active-seat ACL (default on most desktops)
 
 systemd-logind already grants the active local session access. If
 `hotkey.diagnostics` reports `readable 0`, continue below.
 
-### Option B — `input` group (Arch / CachyOS)
+### Option B — `input` group (Arch / CachyOS fallback)
 
 ```bash
 sudo usermod -aG input "$USER"
@@ -91,8 +93,8 @@ groups | tr ' ' '\n' | grep '^input$'
 ```
 
 This grants read access to **all** input devices (keyboard and mouse), so
-treat it as a sensitive grant — but it never elevates TikTools itself, and
-no root process is involved.
+treat it as a sensitive grant. A complete logout/login is required before a
+running desktop process receives the new group membership.
 
 ### Option C — narrow udev rule (one keyboard, one group)
 
@@ -146,7 +148,8 @@ input destined for other applications. That is inherent to sequence triggers
 (`g o` cannot be recognized without observing `g` and `o` globally). The
 exposure is bounded by:
 
-- the plugin runs as your user, never as root;
+- the plugin runs as your user, never as root; only the user-approved Polkit
+  helper applies a per-device read ACL;
 - access is granted by the OS (seat ACL, group, udev) and revocable by
   removing that grant;
 - the plugin forwards only normalized `(key, pressed)` pairs to the host —
@@ -211,8 +214,8 @@ equivalents for unsupported backends.
 | Symptom | Cause | Fix |
 |---|---|---|
 | X11: `X11 display unavailable` | plugin lost `DISPLAY`/`XAUTHORITY` | fixed in the loader (forwards desktop env); check `hotkey.diagnostics` env block |
-| Wayland chords never fire | shortcuts not registered/approved | call `hotkey.bind`, approve the compositor prompt |
-| Wayland sequences never fire | evdev permission | input group / udev rule above; never root |
+| Wayland chords never fire | shortcuts not registered/approved | save an enabled chord Behavior, then approve the compositor prompt |
+| Wayland sequences never fire | evdev permission | approve the automatic Polkit request; input group / udev rule are fallbacks |
 | `hotkey.status` shows portal `unsupported` | old `xdg-desktop-portal-wlr` or missing back-end | update portal packages; chords need a back-end with GlobalShortcuts |
 | Duplicate events for one press | portal + evdev both emitted | evdev yields bound chords to a running portal; if you see this, report backend names from `event.data.backend` |
 | Stuck modifier after sleep | missed release | state expires after 120 s idle and resets on reconnect |
@@ -228,9 +231,13 @@ equivalents for unsupported backends.
   design; anything beyond registered chords needs evdev.
 - Portal preferred triggers are advisory: the compositor may assign a
   different trigger, shown in system settings.
-- `hotkey.bind` is the synchronization point from configured behaviors to
-  portal bindings. A future host change can call it automatically when
-  chord filters change; until then, mirror new chords with one action call.
+- `hotkey.bind` is the host synchronization point from enabled behavior
+  filters to portal bindings. The host sends it asynchronously after Behavior
+  changes, so a complete chord is registered without blocking the webview.
+- A bare key filter such as `event.data.key eq a` cannot be served by the
+  portal. The editor marks it as requiring raw keyboard access on Wayland and
+  the plugin automatically requests the evdev/input-device permission when
+  that Behavior is enabled.
 - Non-US layouts: key names are physical (`KeyK` → `k`) on rdev and kernel
   codes on evdev, so positions stay stable while labels vary; dead keys
   produce no press event on either path.

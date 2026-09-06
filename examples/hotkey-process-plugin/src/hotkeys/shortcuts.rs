@@ -286,16 +286,6 @@ pub fn sequences_needed_from_config(config: &Value) -> bool {
         .unwrap_or(true)
 }
 
-/// Chords bound when nothing was configured yet. Kept deliberately small:
-/// the portal prompts the user to approve each one, so the plugin must not
-/// squat on dozens of system shortcuts by default.
-pub fn default_shortcuts() -> Vec<Chord> {
-    ["k", "t", "m"]
-        .into_iter()
-        .filter_map(|key| Chord::new(key, "ctrl+shift"))
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

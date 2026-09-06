@@ -14,8 +14,10 @@ import type {
   PluginEventType,
 } from '../../../automation/behavior/types.ts';
 import type { GiftCatalogEntry, ViewerRecord } from '../../../shared/messages.ts';
+import type { HotkeyStatusData } from '../../../shared/messages.ts';
 import { t, type Locale } from '../../i18n.ts';
 import { useDialogs } from '../../composables/useDialogs.ts';
+import { rawHotkeyInputHint, requiresRawHotkeyInput } from '../../components/ui/hotkey-status.ts';
 
 type EventEditorProps = {
   locale: Locale;
@@ -26,6 +28,7 @@ type EventEditorProps = {
   viewers: ViewerRecord[];
   error?: string;
   testRuns: BehaviorRun[];
+  hotkeyStatus?: HotkeyStatusData | null;
   eventTypes?: PluginEventType[];
   onCancel: () => void;
   onSave: (event: LiveEvent) => void;
@@ -34,7 +37,7 @@ type EventEditorProps = {
 };
 
 export const EventEditor = defineVueComponent<EventEditorProps>(
-  ['locale', 'event', 'isNew', 'actions', 'gifts', 'viewers', 'error', 'testRuns', 'eventTypes', 'onCancel', 'onSave', 'onDelete', 'onTest'],
+  ['locale', 'event', 'isNew', 'actions', 'gifts', 'viewers', 'error', 'testRuns', 'hotkeyStatus', 'eventTypes', 'onCancel', 'onSave', 'onDelete', 'onTest'],
   (props) => {
   const draft = ref<LiveEvent>(props.event);
   const step = ref(1);
@@ -49,6 +52,8 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
   const chosenNames = draftValue.actionIds
     .map((id) => props.actions.find((action) => action.id === id)?.name)
     .filter((name): name is string => Boolean(name));
+  const rawHotkeyRequested = draftValue.trigger === 'hotkey.pressed' && requiresRawHotkeyInput(draftValue.filters);
+  const rawHotkeyWarning = rawHotkeyInputHint(props.hotkeyStatus, rawHotkeyRequested);
 
   const steps = [
     { number: 1, label: t(props.locale, 'behavior.copy.stepWhen'), sub: triggerLabel(draftValue.trigger, props.eventTypes ?? [], props.locale) },
@@ -150,6 +155,12 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
                   <span class="plg-label">{t(props.locale, 'behavior.copy.stepFiltersHint')}</span>
                   <InfoTip text={t(props.locale, 'behavior.copy.orHint')} position="right" />
                 </div>
+
+                {rawHotkeyWarning && (
+                  <div class="plg-alert plg-hotkey-warning" role="note">
+                    {t(props.locale, 'hotkeyRawInputHint')}
+                  </div>
+                )}
 
                 <ConditionTable
                   locale={props.locale}

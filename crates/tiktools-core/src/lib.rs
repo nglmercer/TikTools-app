@@ -13,6 +13,7 @@ pub mod services;
 
 mod automation_runtime;
 mod helpers;
+mod hotkey_bindings;
 mod ipc_handlers;
 mod live_events;
 mod persistence;
@@ -95,6 +96,11 @@ pub struct AppCore {
     last_automation_event_at: RwLock<Option<u64>>,
     last_automation_context_emit_at: AtomicU64,
     automation_sequence: AtomicU64,
+    /// Monotonic revision of the persisted hotkey behavior projection. The
+    /// plugin poll consumes this asynchronously so UI writes never wait for
+    /// a process-plugin round trip.
+    hotkey_sync_revision: AtomicU64,
+    hotkey_synced_revision: AtomicU64,
     /// Bounds native-live automation work. Events arriving while all slots
     /// are occupied are intentionally dropped; live delivery must remain
     /// responsive and disposable events must not create an unbounded task
@@ -197,6 +203,8 @@ impl AppCore {
             last_automation_event_at: RwLock::new(None),
             last_automation_context_emit_at: AtomicU64::new(0),
             automation_sequence: AtomicU64::new(0),
+            hotkey_sync_revision: AtomicU64::new(1),
+            hotkey_synced_revision: AtomicU64::new(0),
             #[cfg(feature = "native-tiktok")]
             automation_slots: Arc::new(Semaphore::new(32)),
             last_leaderboard_emit_at: AtomicU64::new(0),

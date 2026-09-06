@@ -118,6 +118,40 @@ async fn native_event_runner_executes_saved_behavior() {
 }
 
 #[tokio::test]
+async fn hotkey_status_event_reaches_the_ui_message_boundary() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter.clone()));
+
+    core.publish_automation_event(json!({
+        "id": "hotkey-status-1",
+        "type": "hotkey.status",
+        "timestamp": 1,
+        "data": {
+            "platform": "linux",
+            "session": "wayland",
+            "backends": [{
+                "backend": "evdev",
+                "state": "permission required",
+                "detail": "no readable devices",
+                "summary": "Global Hotkeys: permission required via raw input (evdev)"
+            }]
+        }
+    }))
+    .await;
+
+    assert!(emitter
+        .messages
+        .lock()
+        .expect("test emitter poisoned")
+        .iter()
+        .any(|message| matches!(
+            message,
+            HostMessage::HotkeyStatus { status }
+                if status["session"] == "wayland"
+        )));
+}
+
+#[tokio::test]
 async fn public_media_api_returns_a_reference_and_revalidates_playback() {
     let (root, file) = media_fixture();
     let emitter = Arc::new(RecordingEmitter::default());

@@ -62,6 +62,11 @@ Testing notes:
 
 - the host starts this plugin automatically on its first poll tick; no
   manual start is needed after install/enable.
+- enabled `hotkey.pressed` Behavior filters are synchronized automatically:
+  complete `key` + non-empty `modifiers` equality filters become portal
+  chords, while bare keys and sequences request raw input. A bare `Key = a`
+  trigger therefore causes the plugin to request a per-device Wayland evdev
+  ACL automatically through the system authorization dialog.
 - the editor Run test button checks filters against the manifest sample
   (`key "k"`) or the most recent live press of the same trigger — not
   against keys pressed while the dialog is open. To verify live behavior,
@@ -92,10 +97,11 @@ Platform notes:
 - Linux X11: rdev/X11 listener. The host forwards `DISPLAY`/`XAUTHORITY`
   across the plugin environment boundary, so a healthy X11 session works.
 - Linux Wayland: XDG Desktop Portal GlobalShortcuts serves registered
-  chords (no root, no device access); arbitrary keys and `sequence`
-  triggers use the evdev backend, which needs input-device permission —
-  `input` group membership or a narrow udev rule, never root, never
-  `chmod 777`. Full setup, diagnostics, and the security model live in
+  chords (no device access); arbitrary keys and `sequence` triggers use the
+  evdev backend. The plugin automatically requests a narrow per-device ACL
+  through Polkit when raw input is needed; `input` group membership or a
+  narrow udev rule remain fallbacks, never root and never `chmod 777`. Full
+  setup, diagnostics, and the security model live in
   `docs/HOTKEYS_LINUX.md`.
 
 Evaluation note on `rdev::unstable_grab`: the pinned fork has the grab

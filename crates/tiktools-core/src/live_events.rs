@@ -692,6 +692,11 @@ impl AppCore {
             .last_automation_event_at
             .write()
             .expect("automation timestamp lock poisoned") = Some(now_millis());
+        if event.get("type").and_then(Value::as_str) == Some("hotkey.status") {
+            self.emit(HostMessage::HotkeyStatus {
+                status: event.get("data").cloned().unwrap_or_else(|| json!({})),
+            });
+        }
         self.events.publish(AppEvent::TikTok(event.clone()));
         let now = now_millis();
         let last = self

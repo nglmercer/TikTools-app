@@ -85,6 +85,7 @@ const app = reactive(useAppController());
         :snapshot="app.behavior"
         :runs="app.behaviorRuns"
         :test-runs="app.behaviorTestRuns"
+        :hotkey-status="app.hotkeyStatus"
         :error="app.behaviorError"
         :on-save-action="app.handleSaveAction"
         :on-delete-action="app.handleDeleteAction"

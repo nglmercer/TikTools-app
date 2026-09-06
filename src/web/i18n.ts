@@ -68,6 +68,8 @@ const english = {
   dialogClose: 'Close',
   dialogPromptLabel: 'Value',
   dialogRequired: 'This field is required.',
+  hotkeyStatusTitle: 'Global Hotkeys',
+  hotkeyRawInputHint: 'This trigger needs raw keyboard access on Wayland. TikTools will request it automatically through the system authorization dialog.',
 
   // Minimalist Tabs & Tooltips
   tabFeed: 'Live Stream Feed',
@@ -382,6 +384,8 @@ const spanish: Record<TranslationKey, string> = {
   dialogClose: 'Cerrar',
   dialogPromptLabel: 'Valor',
   dialogRequired: 'Este campo es obligatorio.',
+  hotkeyStatusTitle: 'Atajos globales',
+  hotkeyRawInputHint: 'Este disparador necesita acceso al teclado sin procesar en Wayland. TikTools lo solicitará automáticamente mediante el diálogo de autorización del sistema.',
 
   // Minimalist Tabs & Tooltips
   tabFeed: 'Feed en Vivo',

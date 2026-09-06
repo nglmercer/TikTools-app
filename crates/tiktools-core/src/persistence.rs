@@ -46,7 +46,24 @@ impl AppCore {
         let mut snapshot = empty_behavior_snapshot();
         self.merge_runtime_catalog(&mut snapshot);
         self.automation.replace_snapshot(&snapshot);
+        self.request_hotkey_sync();
         self.emit(HostMessage::Behavior { snapshot });
+    }
+
+    /// Loads only the persisted records needed by the asynchronous hotkey
+    /// projection. Runtime catalog entries are deliberately not required.
+    pub(super) fn load_behavior_snapshot_for_hotkey_sync(&self) -> serde_json::Value {
+        #[cfg(feature = "persistence")]
+        {
+            self.db.load_behavior_snapshot().unwrap_or_else(|error| {
+                tracing::warn!(%error, "could not load behavior for hotkey synchronization");
+                empty_behavior_snapshot()
+            })
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            empty_behavior_snapshot()
+        }
     }
 
     pub(super) fn merge_runtime_catalog(&self, snapshot: &mut serde_json::Value) {

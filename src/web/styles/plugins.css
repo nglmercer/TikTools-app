@@ -369,6 +369,12 @@
 }
 .plg-panel--ok { border-color: rgba(6, 214, 160, 0.4); }
 .plg-panel--err { border-color: rgba(239, 71, 111, 0.4); }
+.plg-hotkey-status { padding-top: 12px; padding-bottom: 0; }
+.plg-hotkey-status__panel { gap: 7px; }
+.plg-hotkey-status__head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.plg-hotkey-status__head strong { flex-shrink: 0; font-size: 12px; }
+.plg-hotkey-status__headline { min-width: 0; overflow: hidden; color: var(--plg-muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.plg-hotkey-status__line { display: block; overflow-wrap: anywhere; }
 .plg-kv { display: flex; gap: 8px; font-family: var(--plg-mono); font-size: 11.5px; }
 .plg-kv__key { width: 72px; flex-shrink: 0; color: var(--plg-dim); }
 .plg-kv__value { color: var(--plg-muted); word-break: break-all; }

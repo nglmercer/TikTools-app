@@ -11,11 +11,93 @@
   "capabilities": [
     "events.publish"
   ],
-  "permissions": [],
+  "permissions": [
+    "input.raw"
+  ],
   "targets": [
     "win32",
     "darwin",
     "linux"
+  ],
+  "actionTypes": [
+    {
+      "id": "hotkey.bind",
+      "version": 1,
+      "title": {
+        "default": "Synchronize hotkey bindings",
+        "i18key": "hotkeys.bind.title"
+      },
+      "description": {
+        "default": "Register configured chords with the desktop portal and enable raw input when needed.",
+        "i18key": "hotkeys.bind.description"
+      },
+      "tag": "hotkeys",
+      "requiredCapabilities": [
+        "events.publish"
+      ],
+      "fields": [
+        {
+          "key": "shortcuts",
+          "label": {
+            "default": "Portal shortcuts",
+            "i18key": "hotkeys.bind.shortcuts.label"
+          },
+          "kind": "code",
+          "value": "[]",
+          "advanced": true,
+          "hint": {
+            "default": "The host normally fills this from enabled hotkey.pressed behaviors.",
+            "i18key": "hotkeys.bind.shortcuts.hint"
+          }
+        },
+        {
+          "key": "sequencesNeeded",
+          "label": {
+            "default": "Enable raw keyboard input",
+            "i18key": "hotkeys.bind.sequences.label"
+          },
+          "kind": "boolean",
+          "value": "true",
+          "advanced": true,
+          "hint": {
+            "default": "Required for bare keys, arbitrary keys, and sequence filters on Wayland.",
+            "i18key": "hotkeys.bind.sequences.hint"
+          }
+        }
+      ]
+    },
+    {
+      "id": "hotkey.status",
+      "version": 1,
+      "title": {
+        "default": "Read hotkey status",
+        "i18key": "hotkeys.status.action.title"
+      },
+      "description": {
+        "default": "Return the current backend and permission status.",
+        "i18key": "hotkeys.status.action.description"
+      },
+      "tag": "hotkeys",
+      "requiredCapabilities": [
+        "events.publish"
+      ]
+    },
+    {
+      "id": "hotkey.diagnostics",
+      "version": 1,
+      "title": {
+        "default": "Read hotkey diagnostics",
+        "i18key": "hotkeys.diagnostics.action.title"
+      },
+      "description": {
+        "default": "Return environment and backend diagnostics for troubleshooting.",
+        "i18key": "hotkeys.diagnostics.action.description"
+      },
+      "tag": "hotkeys",
+      "requiredCapabilities": [
+        "events.publish"
+      ]
+    }
   ],
   "eventTypes": [
     {
