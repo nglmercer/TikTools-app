@@ -6,6 +6,7 @@
   "packageManager": "bun@1.4.1",
   "scripts": {
     "start": "bun run scripts/start-dev.ts",
+    "start:packaged": "bun run scripts/start-packaged.ts",
     "prepare:dev-plugins": "bun run scripts/prepare-dev-plugins.ts",
     "start:rust": "cargo run -p tiktools-desktop",
     "dev": "bun run serve:web",

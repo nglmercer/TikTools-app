@@ -52,6 +52,12 @@ enum StartupState {
     ShuttingDown,
 }
 
+/// How long the hidden window waits for the `frontend-ready` IPC before
+/// reporting a startup failure. The deadline bounds total startup time; on
+/// Linux the loop still wakes every pump interval inside it (see
+/// `platform::prepare_for_startup_wait`) so GTK/WebKit keeps progressing.
+const FRONTEND_STARTUP_TIMEOUT: Duration = Duration::from_secs(10);
+
 impl DesktopApp {
     pub fn new(
         core: Arc<AppCore>,
@@ -80,6 +86,7 @@ impl DesktopApp {
     }
 
     fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {
+        tracing::debug!("creating desktop window");
         let window_icon =
             WindowIcon::from_rgba(crate::icon::rgba(), crate::icon::SIZE, crate::icon::SIZE)
                 .map_err(|error| format!("could not create window icon: {error}"))?;
@@ -113,8 +120,13 @@ impl DesktopApp {
                 wry::NewWindowResponse::Deny
             })
             .with_on_page_load_handler(|event, url| {
-                if matches!(event, PageLoadEvent::Finished) {
-                    tracing::debug!(url = %url, "frontend page load finished; waiting for frontend-ready");
+                match event {
+                    PageLoadEvent::Started => {
+                        tracing::debug!(url = %url, "frontend page load started");
+                    }
+                    PageLoadEvent::Finished => {
+                        tracing::debug!(url = %url, "frontend page load finished; waiting for frontend-ready");
+                    }
                 }
             })
             .with_ipc_handler(move |request| {
@@ -152,13 +164,19 @@ impl DesktopApp {
             });
         }
         builder = builder.with_url(self.frontend.url().as_str());
+        tracing::debug!(
+            url = %self.frontend.url(),
+            "creating TikTools frontend WebView"
+        );
         let webview = platform::build_webview(builder, &window)
             .map_err(|error| format!("could not create Wry WebView: {error}"))?;
+        tracing::debug!("Wry WebView created successfully");
 
         self.window = Some(window);
         self.webview = Some(webview);
         self.startup_state = StartupState::WebViewLoading;
-        self.startup_deadline = Some(Instant::now() + Duration::from_secs(10));
+        self.startup_deadline = Some(Instant::now() + FRONTEND_STARTUP_TIMEOUT);
+        tracing::debug!("waiting for frontend-ready");
         if self.tray.is_none() {
             match TrayController::create(self.proxy.clone()) {
                 Ok(tray) => self.tray = Some(tray),
@@ -282,6 +300,7 @@ impl DesktopApp {
             tracing::debug!(state = ?self.startup_state, "ignoring frontend-ready outside WebView startup");
             return;
         }
+        tracing::debug!("frontend-ready IPC received");
         self.startup_state = StartupState::Ready;
         self.startup_deadline = None;
         self.core.spawn_plugin_event_poll(&self.runtime);
@@ -404,13 +423,20 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
         if self.startup_state == StartupState::WebViewLoading {
             if let Some(deadline) = self.startup_deadline {
                 if Instant::now() >= deadline {
+                    tracing::error!(
+                        state = ?self.startup_state,
+                        "frontend startup timeout"
+                    );
                     self.fail_startup(
                         event_loop,
                         "The packaged web application did not become ready within 10 seconds.",
                     );
                     return;
                 }
-                event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+                // On Linux this wakes at the next GTK pump interval (capped by
+                // the deadline) instead of sleeping through the whole startup
+                // timeout; other platforms wait for the deadline directly.
+                platform::prepare_for_startup_wait(event_loop, deadline);
                 return;
             }
         }

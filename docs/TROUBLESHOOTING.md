@@ -28,6 +28,51 @@ cargo run -p tiktools-desktop
 Platform-specific setup belongs in `crates/tiktools-desktop/src/platform.rs`;
 the core does not require GTK.
 
+Current Linux desktop WebViews require X11/XWayland; native Wayland without
+`DISPLAY` is rejected with a warning. When both `DISPLAY` and
+`WAYLAND_DISPLAY` are present, the host selects the X11 backend for GTK and
+Winit so the raw handles stay compatible.
+
+## The packaged web application did not become ready
+
+The hidden window waits up to 10 seconds for the `frontend-ready` IPC after
+the WebView is created. On Linux the event loop keeps pumping GTK every 50 ms
+inside that deadline so WebKit can progress; Windows/macOS wait for the
+deadline directly.
+
+Run with debug logging and inspect the startup transitions:
+
+```bash
+RUST_LOG=tiktools=debug bun run start:packaged
+tail -n 200 ~/.local/share/TikTools/logs/tiktools.log
+```
+
+Expected sequence:
+
+```text
+Linux desktop display environment
+creating TikTools frontend WebView
+Wry WebView created successfully
+frontend page load started
+frontend page load finished
+frontend-ready IPC received
+```
+
+If only `frontend page load finished` appears, the page loaded but the ready
+signal never arrived; a missing `window.ipc` bridge now throws during
+frontend startup instead of timing out silently. To isolate a custom-protocol
+problem from an event-loop problem, compare with the Vite dev server path:
+
+```bash
+bun run serve:web
+RUST_LOG=tiktools=debug \
+TIKTOOLS_DEV_URL=http://127.0.0.1:3000 \
+cargo run -p tiktools-desktop
+```
+
+If the dev-server path works but the packaged path fails, suspect asset
+loading; if both fail, suspect the GTK/Wry/IPC bridge.
+
 ## The page loads but does not respond
 
 The Vue app expects the Wry bridge `window.ipc.postMessage`. A normal

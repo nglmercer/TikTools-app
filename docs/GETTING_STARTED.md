@@ -26,13 +26,14 @@ bun run test
 bun run start
 ```
 
-The `start` script builds the Vue assets into `dist/web`, compiles and stages
+The `start` script launches the Vite dev server, compiles and stages
 the checked-in process-plugin examples into the ignored `.dev-plugins`
-directory, then runs `tiktools-desktop` with that directory as a development
-plugin root. The Rust host reads the assets through the
-`tiktools://app/index.html` custom protocol and does not start a production
-localhost server. Use `bun run start:rust` when you do not need the example
-plugin build.
+directory, then runs `tiktools-desktop` against `TIKTOOLS_DEV_URL` with that
+directory as a development plugin root. Use `bun run start:rust` when you do
+not need the example plugin build. To exercise the packaged-asset path
+instead (Vue assets built into `dist/web` and served through the
+`tiktools://app/index.html` custom protocol, as releases use), run
+`bun run start:packaged`.
 
 For UI-only iteration:
 
