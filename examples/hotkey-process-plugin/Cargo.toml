@@ -1,6 +1,6 @@
 [package]
 name = "tiktools-hotkey-process-plugin"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 
@@ -10,3 +10,13 @@ tiktools-plugin-sdk = { path = "../../crates/tiktools-plugin-sdk" }
 # Actively maintained rdev fork (RustDesk): global key listening on
 # Windows, macOS, and Linux/X11. Pinned like every other git dependency.
 rdev = { git = "https://github.com/rustdesk-org/rdev", rev = "23e24dd6b35452a495dae0ae6d99395e9755ab0f" }
+
+# Linux Wayland support. The XDG Desktop Portal GlobalShortcuts interface is
+# the preferred backend for registered chords (compositor-authorized, no raw
+# input access); the evdev backend covers arbitrary keys and key sequences
+# where the portal intentionally cannot observe input.
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.13", default-features = false, features = ["global_shortcuts", "tokio"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "time", "net", "io-util", "sync", "macros"] }
+futures-util = "0.3"
+evdev = "0.13"

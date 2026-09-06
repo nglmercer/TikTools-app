@@ -2,8 +2,8 @@
   "schemaVersion": 2,
   "id": "hotkeys",
   "name": "Global Hotkeys",
-  "version": "0.1.0",
-  "description": "Publishes global shortcut and key-sequence events (hotkey.pressed) that behaviors can trigger on.",
+  "version": "0.2.0",
+  "description": "Publishes global shortcut and key-sequence events (hotkey.pressed) that behaviors can trigger on. Reports listener health as hotkey.status; see docs/HOTKEYS_LINUX.md for Wayland setup.",
   "runtime": "process",
   "trust": "trusted",
   "entry": "tiktools-hotkey-process-plugin",
@@ -389,12 +389,81 @@
             "default": "Recent keys, oldest first, space separated. Match chords with eq, phrases with contains.",
             "i18key": "hotkeys.field.sequence.hint"
           }
+        },
+        {
+          "path": "event.data.backend",
+          "kind": "text",
+          "label": {
+            "default": "Backend",
+            "i18key": "hotkeys.field.backend.label"
+          },
+          "hint": {
+            "default": "Listener that observed the press: rdev, x11, portal, or evdev.",
+            "i18key": "hotkeys.field.backend.hint"
+          }
+        },
+        {
+          "path": "event.data.shortcut_id",
+          "kind": "text",
+          "label": {
+            "default": "Shortcut ID",
+            "i18key": "hotkeys.field.shortcut.label"
+          },
+          "hint": {
+            "default": "Portal shortcut id (for example ctrl-shift-k). Only set on portal events.",
+            "i18key": "hotkeys.field.shortcut.hint"
+          }
         }
       ],
       "sample": {
         "key": "k",
         "modifiers": "ctrl",
         "sequence": "g k"
+      }
+    },
+    {
+      "type": "hotkey.status",
+      "title": {
+        "default": "Hotkey listener status",
+        "i18key": "hotkeys.status.title"
+      },
+      "description": {
+        "default": "Emitted when a keyboard backend starts, fails, or needs permission. Use it to show listener health instead of polling blindly.",
+        "i18key": "hotkeys.status.description"
+      },
+      "fields": [
+        {
+          "path": "event.data.platform",
+          "kind": "text",
+          "label": {
+            "default": "Platform",
+            "i18key": "hotkeys.status.field.platform.label"
+          }
+        },
+        {
+          "path": "event.data.session",
+          "kind": "text",
+          "label": {
+            "default": "Session",
+            "i18key": "hotkeys.status.field.session.label"
+          },
+          "hint": {
+            "default": "linux session kind: wayland, x11, or unknown. n/a on Windows/macOS.",
+            "i18key": "hotkeys.status.field.session.hint"
+          }
+        }
+      ],
+      "sample": {
+        "platform": "linux",
+        "session": "wayland",
+        "backends": [
+          {
+            "backend": "portal",
+            "state": "active",
+            "detail": "3 shortcuts bound",
+            "summary": "Global Hotkeys: active via XDG Desktop Portal (3 shortcuts bound)"
+          }
+        ]
       }
     }
   ]

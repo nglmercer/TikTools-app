@@ -67,8 +67,12 @@ impl PluginRuntime for ProcessPluginRuntime {
             .current_dir(&package_root)
             // A process plugin is still trusted executable code, but it does
             // not need the host's complete environment. Only the explicit
-            // plugin contract is passed across this boundary.
-            .env_clear()
+            // plugin contract is passed across this boundary, plus the
+            // desktop-session variables below so display/input integrations
+            // (X11, Wayland, D-Bus) keep working inside the child.
+            .env_clear();
+        forward_desktop_environment(&mut command);
+        command
             .env("TIKTOOLS_PLUGIN_ID", &manifest.id)
             .env("TIKTOOLS_PLUGIN_VERSION", &manifest.version)
             .env("TIKTOOLS_PLUGIN_DIRECTORY", &package_root)
@@ -137,6 +141,54 @@ impl PluginRuntime for ProcessPluginRuntime {
             next_request_id: 0,
             terminated: false,
         }))
+    }
+}
+
+/// Desktop-session variables forwarded across the `.env_clear()` boundary.
+///
+/// Process plugins are launched with a cleared environment for hygiene, but
+/// display/input integrations resolve their session from the environment:
+/// X11 needs `DISPLAY`/`XAUTHORITY`, Wayland needs `WAYLAND_DISPLAY`, and the
+/// desktop portal needs the D-Bus session address plus the XDG session
+/// descriptors. Without these, an X11 listener fails with a display error
+/// even on a healthy X11 session, and Wayland portal/evdev backends cannot
+/// find the session bus.
+///
+/// The list is intentionally conservative: only session/locale/identity
+/// variables are forwarded, never the host's complete environment (no
+/// `LD_PRELOAD`, no tokens, no app-specific secrets).
+pub const FORWARDED_DESKTOP_ENV_KEYS: &[&str] = &[
+    "DISPLAY",
+    "XAUTHORITY",
+    "WAYLAND_DISPLAY",
+    "XDG_RUNTIME_DIR",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "XDG_SESSION_TYPE",
+    "XDG_CURRENT_DESKTOP",
+    "DESKTOP_SESSION",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "PATH",
+    "HOME",
+];
+
+/// Copies the known desktop-session variables from the host environment into
+/// a cleared plugin command. Missing variables are skipped.
+pub fn forward_desktop_environment(command: &mut Command) {
+    forward_desktop_environment_from(|key| std::env::var_os(key), command);
+}
+
+fn forward_desktop_environment_from(
+    lookup: impl Fn(&str) -> Option<std::ffi::OsString>,
+    command: &mut Command,
+) {
+    for key in FORWARDED_DESKTOP_ENV_KEYS {
+        if let Some(value) = lookup(key) {
+            if !value.is_empty() {
+                command.env(key, value);
+            }
+        }
     }
 }
 
@@ -392,6 +444,79 @@ mod tests {
         let error =
             decode_process_response(Err(FrameError::Json(json_error)), "request-1").unwrap_err();
         assert!(error.to_string().contains("not valid JSON"));
+    }
+
+    #[test]
+    fn forwards_desktop_session_variables_and_skips_missing() {
+        use std::collections::HashMap;
+        use std::ffi::OsString;
+
+        let mut source = HashMap::new();
+        source.insert("DISPLAY".to_owned(), OsString::from(":0"));
+        source.insert("WAYLAND_DISPLAY".to_owned(), OsString::from("wayland-0"));
+        source.insert(
+            "DBUS_SESSION_BUS_ADDRESS".to_owned(),
+            OsString::from("unix:path=/run/user/1000/bus"),
+        );
+        source.insert("HOME".to_owned(), OsString::from("/home/tester"));
+        // Present but empty values carry no session information.
+        source.insert("XAUTHORITY".to_owned(), OsString::new());
+
+        let mut command = Command::new("true");
+        command.env_clear();
+        forward_desktop_environment_from(|key| source.get(key).cloned(), &mut command);
+
+        let forwarded: std::collections::HashMap<String, String> = command
+            .get_envs()
+            .filter_map(|(key, value)| {
+                Some((key.to_str()?.to_owned(), value?.to_str()?.to_owned()))
+            })
+            .collect();
+        assert_eq!(forwarded.get("DISPLAY").map(String::as_str), Some(":0"));
+        assert_eq!(
+            forwarded.get("WAYLAND_DISPLAY").map(String::as_str),
+            Some("wayland-0")
+        );
+        assert_eq!(
+            forwarded
+                .get("DBUS_SESSION_BUS_ADDRESS")
+                .map(String::as_str),
+            Some("unix:path=/run/user/1000/bus")
+        );
+        assert_eq!(
+            forwarded.get("HOME").map(String::as_str),
+            Some("/home/tester")
+        );
+        // Missing and empty variables are never injected.
+        assert!(!forwarded.contains_key("XAUTHORITY"));
+        assert!(!forwarded.contains_key("XDG_SESSION_TYPE"));
+        // The allowlist never grows silently: every forwarded key is known.
+        for key in forwarded.keys() {
+            assert!(
+                FORWARDED_DESKTOP_ENV_KEYS.contains(&key.as_str()),
+                "unexpected forwarded variable {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn forwarded_allowlist_stays_conservative() {
+        // Guard against accidentally forwarding secrets or loader internals.
+        for forbidden in [
+            "LD_PRELOAD",
+            "LD_LIBRARY_PATH",
+            "TIKTOOLS_PLUGIN_STORAGE_FILE",
+            "TOKENS",
+            "SECRET",
+        ] {
+            assert!(
+                !FORWARDED_DESKTOP_ENV_KEYS.contains(&forbidden),
+                "{forbidden} must never cross the plugin environment boundary"
+            );
+        }
+        assert!(FORWARDED_DESKTOP_ENV_KEYS.contains(&"DISPLAY"));
+        assert!(FORWARDED_DESKTOP_ENV_KEYS.contains(&"WAYLAND_DISPLAY"));
+        assert!(FORWARDED_DESKTOP_ENV_KEYS.contains(&"DBUS_SESSION_BUS_ADDRESS"));
     }
 
     #[test]
