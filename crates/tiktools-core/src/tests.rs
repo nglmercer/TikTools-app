@@ -262,17 +262,24 @@ async fn test_action_is_a_dry_run_for_audio() {
 async fn native_live_event_reaches_the_host_message_boundary() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter.clone()));
-    core.handle_native_event(ClientEvent::Event(NativeLiveEvent::Chat {
-        user: tiktools_tiktok::events::EventUser {
-            user_id: Some("42".to_owned()),
-            unique_id: "alice".to_owned(),
-            nickname: "Alice".to_owned(),
-            sec_uid: String::new(),
+    core.handle_native_event(ClientEvent::Event(NativeLiveEvent {
+        base: tiktools_tiktok::events::CanonicalLiveEvent::Chat(
+            tiktools_tiktok::events::ChatEvent {
+                user: tiktools_tiktok::events::EventUser {
+                    id: 42,
+                    unique_id: "alice".to_owned(),
+                    nickname: "Alice".to_owned(),
+                    sec_uid: String::new(),
+                },
+                comment: "hello".to_owned(),
+            },
+        ),
+        metadata: tiktools_tiktok::events::EventMetadata {
+            method: "WebcastChatMessage".to_owned(),
+            msg_id: 1,
+            is_history: false,
         },
-        comment: "hello".to_owned(),
-        method: "WebcastChatMessage".to_owned(),
-        msg_id: 1,
-        is_history: false,
+        gift: None,
     }))
     .await;
 

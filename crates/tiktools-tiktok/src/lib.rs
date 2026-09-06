@@ -127,7 +127,7 @@ pub enum TikTokError {
 #[derive(Debug, Clone)]
 pub enum ClientEvent {
     Connected(ConnectionInfo),
-    Event(events::LiveEvent),
+    Event(events::TikToolsEvent),
     Reconnecting { attempt: u32, delay_ms: u64 },
     Disconnected { reason: String },
     Error { phase: ErrorPhase, message: String },
@@ -463,7 +463,7 @@ async fn run_connection(
                                 return;
                             }
                             tracing::debug!(method = %decoded.raw.method, "TikTok live event decoded");
-                            let event = events::from_decoded(decoded, &gifts);
+                            let event = events::TikToolsEvent::from_decoded(decoded, &gifts);
                             if event_sender.send(ClientEvent::Event(event)).is_err() {
                                 tracing::debug!("TikTok live event has no consumers");
                             }

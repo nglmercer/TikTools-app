@@ -14,23 +14,11 @@ import { fieldsForTrigger } from './behavior/fields.ts';
 import { matchesFilter } from './behavior/filters.ts';
 import { sampleEventFor } from './behavior/samples.ts';
 import type { AutomationEventType, JsonValue } from './types.ts';
+import { BUILTIN_EVENT_TYPES } from './contracts/events.ts';
 import { normalizeEvent } from './behavior/schema.ts';
 import type { PluginEventType } from './behavior/types.ts';
 
-const ALL_TYPES: AutomationEventType[] = [
-  'tiktok.chat',
-  'tiktok.gift',
-  'tiktok.like',
-  'tiktok.follow',
-  'tiktok.share',
-  'tiktok.join',
-  'tiktok.social',
-  'tiktok.room_stats',
-  'tiktok.connected',
-  'tiktok.disconnected',
-  'points.awarded',
-  'plugin.emit',
-];
+const ALL_TYPES: AutomationEventType[] = [...BUILTIN_EVENT_TYPES];
 
 function readPath(root: JsonValue, path: string): JsonValue | undefined {
   const parts = path.split('.').filter(Boolean);
@@ -142,6 +130,7 @@ describe('plugin event-type overlay', () => {
       expect(keyFields[0]?.options?.[1]?.label.default).toBe('Space');
       // Empty-string options ("none") survive the overlay.
       expect(keyFields[1]?.options?.map((option) => option.value)).toEqual(['', 'ctrl']);
+      expect(allRegistryFields().some((field) => field.path === 'event.data.key')).toBe(true);
       expect(normalizeEvent(liveEvent('hotkey.pressed'), ['hotkey.pressed']).trigger).toBe('hotkey.pressed');
       expect(() => normalizeEvent(liveEvent('nope.dots'), ['hotkey.pressed'])).toThrow();
     } finally {

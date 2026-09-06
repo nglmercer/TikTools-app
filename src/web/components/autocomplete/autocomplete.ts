@@ -1,5 +1,8 @@
 import type { JsonObject, JsonValue } from '../../../automation/types.ts';
 
+// Compatibility entrypoint. New controls import from ./index.ts and the
+// focused modules beside it; existing extensions may keep this path.
+
 /**
  * Generic autocomplete item. Any input can push these — from a live event
  * object, a JSON schema, a static list, or a mix of all three.

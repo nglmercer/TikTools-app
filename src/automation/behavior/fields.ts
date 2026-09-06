@@ -88,8 +88,7 @@ export function fieldsForTrigger(trigger: string): EventFieldDefinition[] {
   const identity: EventFieldDefinition[] = [];
   for (const field of registryFieldsFor(trigger)) {
     if (EXCLUDED_PATHS.has(field.path)) continue;
-    // Array-element shapes (`topViewers.0.rank`) document the payload but the
-    // filter engine compares scalar leaves, so they are not offered.
+    // Array-element shapes are not filterable scalar fields.
     if (field.path.includes('.0.')) continue;
     if (!field.path.startsWith('event.data.') && !field.path.startsWith('event.user.')) continue;
     const kind = kindForPath(field.path, field.kind);

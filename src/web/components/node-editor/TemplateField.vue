@@ -2,16 +2,17 @@
 import { computed, ref, watch } from 'vue';
 import type { VNode } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
-import { applyFetchUrlTemplate, type FetchUrlTemplate, type TemplateSuggestion } from './template-suggestions.ts';
-import type { AutocompleteItem } from '../autocomplete/autocomplete.ts';
-import { filterSuggestions, highlightSegments } from '../autocomplete/autocomplete.ts';
+import { applyFetchUrlTemplate, type FetchUrlTemplate } from './template-suggestions.ts';
+import type { AutocompleteItem } from '../autocomplete/index.ts';
+import { filterSuggestions, moveAutocompleteSelection, normalizeAutocompleteItems } from '../autocomplete/index.ts';
+import { getAutocompleteToken } from '../autocomplete/token.ts';
+import { AutocompleteList } from '../autocomplete/AutocompleteList.vue';
 import { AutocompletePortal } from './AutocompletePortal.vue';
 import { InfoTip } from '../ui/InfoTip.vue';
 import { dispatchControlEvent, normalizeControlString, syncNativeControlValue } from '../ui/control-events.ts';
 import { t, type Locale } from '../../i18n.ts';
 
-/** Anything list-like works: TemplateSuggestion is an AutocompleteItem. */
-export type TemplateFieldSuggestion = TemplateSuggestion | AutocompleteItem;
+export type TemplateFieldSuggestion = AutocompleteItem;
 
 type TemplateFieldProps = {
   value: string;
@@ -59,28 +60,6 @@ function toPresetItem(preset: FetchUrlTemplate): AutocompleteItem & { label: str
     preview: preset.label,
     preset,
   };
-}
-
-function toItem(suggestion: TemplateFieldSuggestion): AutocompleteItem & { label: string; value: string } {
-  const item = suggestion as AutocompleteItem;
-  return {
-    value: String((suggestion as { value: unknown }).value ?? ''),
-    label: String((suggestion as { label: unknown }).label ?? (suggestion as { value: unknown }).value ?? ''),
-    kind: item.kind,
-    detail: item.detail ?? (item.kind ? String(item.kind) : undefined),
-    documentation: item.documentation,
-    preview: item.preview,
-  };
-}
-
-/** Drop duplicate values (first wins) so merged scopes never list a path twice. */
-function dedupeItems<T extends { value: string }>(list: T[]): T[] {
-  const seen = new Set<string>();
-  return list.filter((entry) => {
-    if (!entry.value || seen.has(entry.value)) return false;
-    seen.add(entry.value);
-    return true;
-  });
 }
 
 /**
@@ -149,8 +128,8 @@ export const TemplateField = defineVueComponent<TemplateFieldProps>(
   };
 
   const suggestionMode = computed(() => props.suggestionMode ?? 'template');
-  const token = computed(() => getToken(value.value, cursor.value, suggestionMode.value));
-  const items = computed(() => dedupeItems(props.suggestions.map(toItem)));
+  const token = computed(() => getAutocompleteToken(value.value, cursor.value, suggestionMode.value));
+  const items = computed(() => normalizeAutocompleteItems(props.suggestions));
   // URL mode: presets live in the same dropdown; bare words match presets
   // only, variables stay behind `{{ }}` / Ctrl+Space.
   const urlMode = computed(() => suggestionMode.value === 'template' && Boolean(props.urlPresets && props.urlPresets.length > 0));
@@ -196,7 +175,7 @@ export const TemplateField = defineVueComponent<TemplateFieldProps>(
   const insertSuggestion = (suggestion: { value: string }): void => {
     const element = inputRef.value;
     const offset = element?.selectionStart ?? cursor.value;
-    const current = getToken(value.value, offset, suggestionMode.value);
+    const current = getAutocompleteToken(value.value, offset, suggestionMode.value);
     // Replace the exact range being typed: the `{{ …` span when inside
     // braces, the bare word (`event.us`) when completing outside them.
     // Inserting at the cursor without replacing duplicated the word.
@@ -237,10 +216,10 @@ export const TemplateField = defineVueComponent<TemplateFieldProps>(
     if (!showSuggestions.value || visible.value.length === 0) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      suggestionIndex.value = (suggestionIndex.value + 1) % visible.value.length;
+      suggestionIndex.value = moveAutocompleteSelection(suggestionIndex.value, 1, visible.value.length);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      suggestionIndex.value = (suggestionIndex.value - 1 + visible.value.length) % visible.value.length;
+      suggestionIndex.value = moveAutocompleteSelection(suggestionIndex.value, -1, visible.value.length);
     } else if (event.key === 'Tab' || event.key === 'Enter') {
       // Enter on multiline without a query inserts a newline; Tab always picks.
       if (event.key === 'Enter' && (props.multiline ?? false) && !token.value.inside && !forcedOpen.value && token.value.query.length < 2) return;
@@ -307,20 +286,19 @@ export const TemplateField = defineVueComponent<TemplateFieldProps>(
   const presetCount = showPresetRows.value ? presetRows.value.length : 0;
   const dropdown = (
     <AutocompletePortal anchorRef={fieldRef} cursorRef={inputRef} cursorOffset={cursor.value} open={showSuggestions.value}>
-      <div class="tpl-suggest" role="listbox" aria-label={props.ariaLabel ?? props.label ?? 'Suggestions'}>
-        {presetCount > 0 && <div class="tpl-group">{t(locale, 'behavior.editor.urlPresets')}</div>}
-        {visible.value.map(({ key, preset, item, ranges }, index) => (
-          <SuggestionRow
-            key={key}
-            item={item}
-            ranges={ranges}
-            selected={index === suggestionIndex.value}
-            onHover={() => { suggestionIndex.value = index; }}
-            onPick={() => (preset ? insertPreset(preset) : insertSuggestion(item))}
-          />
-        ))}
-        <div class="tpl-foot">{t(locale, 'autocompleteNavigateInsert')}</div>
-      </div>
+      <AutocompleteList
+        rows={visible.value.map(({ key, preset, item, ranges }) => ({ key, item, ranges, meta: preset }))}
+        selectedIndex={suggestionIndex.value}
+        onHover={(index) => { suggestionIndex.value = index; }}
+        onPick={(row) => {
+          const preset = row.meta as FetchUrlTemplate | undefined;
+          if (preset) insertPreset(preset);
+          else insertSuggestion(row.item);
+        }}
+        ariaLabel={props.ariaLabel ?? props.label ?? 'Suggestions'}
+        groupLabel={presetCount > 0 ? t(locale, 'behavior.editor.urlPresets') : undefined}
+        footer={t(locale, 'autocompleteNavigateInsert')}
+      />
     </AutocompletePortal>
   );
 
@@ -366,70 +344,6 @@ function renderHighlight(value: string): VNode[] | string {
     if (index % 2 === 1) return <span key={index} class="tpl-var">{part || '{{'}</span>;
     return <span key={index}>{part}</span>;
   });
-}
-
-function SuggestionRow({
-  item,
-  ranges,
-  selected,
-  onHover,
-  onPick,
-}: {
-  item: AutocompleteItem & { label: string; value: string };
-  ranges: Array<{ start: number; end: number }>;
-  selected: boolean;
-  onHover: () => void;
-  onPick: () => void;
-}) {
-  const valueSegments = highlightSegments(item.value, ranges);
-  const hoverTitle = [
-    item.value,
-    item.detail ?? item.kind ? `type: ${item.detail ?? item.kind}` : '',
-    item.preview ? `= ${item.preview}` : '',
-    item.documentation ?? '',
-  ].filter(Boolean).join('\n');
-  return (
-    <button
-      type="button"
-      role="option"
-      aria-selected={selected}
-      class={selected ? 'is-selected' : ''}
-      title={hoverTitle || item.value}
-      onMousedown={(event) => event.preventDefault()}
-      onMouseenter={onHover}
-      onFocus={onHover}
-      onClick={onPick}
-    >
-      <i class={`tpl-dot tpl-dot--${item.kind ?? 'unknown'}`} aria-hidden="true" />
-      <code class="tpl-path">
-        {valueSegments.map((segment, index) => (
-          segment.highlight ? <mark key={index}>{segment.text}</mark> : <span key={index}>{segment.text}</span>
-        ))}
-      </code>
-      {item.detail ?? item.kind ? <span class="tpl-kind">{item.detail ?? item.kind}</span> : null}
-      {item.preview ? <span class="tpl-preview" title={item.preview}>{item.preview}</span> : null}
-    </button>
-  );
-}
-
-type Token = { start: number; query: string; inside: boolean };
-
-function getToken(value: string, cursor: number, mode: 'template' | 'path'): Token {
-  const before = value.slice(0, cursor);
-  if (mode === 'template') {
-    const start = before.lastIndexOf('{{');
-    if (start >= 0 && !before.slice(start).includes('}}')) {
-      return { start, query: before.slice(start + 2).trim(), inside: true };
-    }
-    // Outside braces: track the word being typed so `event.us` still suggests.
-    const match = before.match(/[A-Za-z0-9_$.]*$/);
-    const word = match?.[0] ?? '';
-    return { start: cursor - word.length, query: word, inside: false };
-  }
-
-  const match = before.match(/[A-Za-z0-9_$.]*$/);
-  const text = match?.[0] ?? '';
-  return { start: cursor - text.length, query: text, inside: true };
 }
 
 export default TemplateField;

@@ -15,6 +15,9 @@
     "lint": "eslint src scripts vite.config.ts --max-warnings=0",
     "typecheck": "vue-tsc --noEmit",
     "test": "bun test src/web src/automation",
+    "contracts:generate": "bun run scripts/generate-contracts.ts",
+    "contracts:check": "bun run scripts/generate-contracts.ts --check",
+    "deps:check": "bun run scripts/check-tiktok-signer-revision.ts",
     "check:web": "bun run lint && bun run typecheck && bun run test && bun run build:web",
     "check:rust": "cargo check --workspace --locked",
     "lint:rust": "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings",
@@ -25,7 +28,7 @@
     "build:plugin": "bun run scripts/build-plugin.ts",
     "build:plugins": "bun run scripts/build-plugin.ts --all",
     "package:release": "bun run scripts/package-release.ts",
-    "ci": "bun run check:web"
+    "ci": "bun run contracts:check && bun run deps:check && bun run check:web && bun run test:rust"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

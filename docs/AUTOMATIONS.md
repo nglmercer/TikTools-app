@@ -49,8 +49,25 @@ contract.
 
 Filters use dotted JSON paths such as `event.data.diamondCount` and
 `event.user.uniqueId`. The registry at
-`src/automation/event-registry.json` is aligned with the Rust event model and
-provides editor samples, labels, types, and source-field metadata.
+`src/automation/contracts/generated/event-registry.generated.ts` is generated
+from the Rust contracts in `crates/tiktools-core/src/contracts/` and provides
+editor samples, labels, types, and source-field metadata. `AutomationEvent` and
+the per-event data types in `src/automation/contracts/generated/` are the only
+frontend contract source; consumers must not recreate TikTok event interfaces
+in feature code.
+
+Regenerate and verify the checked-in artifacts with:
+
+```bash
+bun run contracts:generate
+bun run contracts:check
+bun run deps:check
+```
+
+The host intentionally exposes only fields it emits. For example, user
+`avatarUrl`, gift `toUser`, and room-stat `topViewers` are not automation fields
+unless the Rust boundary starts emitting them and the generated contracts are
+updated together.
 
 ## Built-in action types
 
@@ -106,7 +123,8 @@ and cannot be sandboxed by a JSON manifest.
 The core keeps only the most recent normalized event in memory and exposes it
 through `get-automation-context`. The WebView uses that value, plus registry
 samples, for template suggestions and script-editor previews. Live user data is
-not persisted as editor context.
+not persisted as editor context. `TemplateField` and `CodeEditor` share the
+autocomplete controller, token parser, scoring, and `AutocompleteList`.
 
 ## Testing
 

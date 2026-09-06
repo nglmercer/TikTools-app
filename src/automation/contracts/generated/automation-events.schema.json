@@ -1,0 +1,487 @@
+{
+  "$defs": {
+    "AutomationCreator": {
+      "properties": {
+        "roomId": {
+          "type": "string"
+        },
+        "uniqueId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uniqueId",
+        "roomId"
+      ],
+      "type": "object"
+    },
+    "AutomationEvent": {
+      "properties": {
+        "connectionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "creator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationCreator"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data": true,
+        "id": {
+          "type": "string"
+        },
+        "points": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationPoints"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceEventId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "type": {
+          "type": "string"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationUser"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "timestamp",
+        "data"
+      ],
+      "type": "object"
+    },
+    "AutomationPoints": {
+      "properties": {
+        "delta": {
+          "format": "double",
+          "type": "number"
+        },
+        "level": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "delta",
+        "total",
+        "level"
+      ],
+      "type": "object"
+    },
+    "AutomationUser": {
+      "properties": {
+        "nickname": {
+          "type": "string"
+        },
+        "secUid": {
+          "type": "string"
+        },
+        "uniqueId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "uniqueId",
+        "nickname",
+        "secUid"
+      ],
+      "type": "object"
+    },
+    "ChatAutomationData": {
+      "properties": {
+        "comment": {
+          "type": "string"
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "comment",
+        "method",
+        "msgId",
+        "isHistory"
+      ],
+      "type": "object"
+    },
+    "ConnectionAutomationData": {
+      "properties": {
+        "roomId": {
+          "type": "string"
+        },
+        "uniqueId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uniqueId",
+        "roomId"
+      ],
+      "type": "object"
+    },
+    "GiftAutomationData": {
+      "properties": {
+        "comboCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "diamondCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "giftIconUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "giftId": {
+          "type": "string"
+        },
+        "giftName": {
+          "type": "string"
+        },
+        "groupId": {
+          "type": "string"
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        },
+        "repeatCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "repeatEnd": {
+          "type": "boolean"
+        },
+        "streakable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "giftId",
+        "giftName",
+        "diamondCount",
+        "repeatCount",
+        "comboCount",
+        "groupId",
+        "repeatEnd",
+        "streakable",
+        "method",
+        "msgId",
+        "isHistory"
+      ],
+      "type": "object"
+    },
+    "LikeAutomationData": {
+      "properties": {
+        "count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        },
+        "total": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "count",
+        "total",
+        "method",
+        "msgId",
+        "isHistory"
+      ],
+      "type": "object"
+    },
+    "MemberAutomationData": {
+      "properties": {
+        "action": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "memberCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "memberCount",
+        "action",
+        "method",
+        "msgId",
+        "isHistory"
+      ],
+      "type": "object"
+    },
+    "PluginEmitAutomationData": {
+      "properties": {
+        "depth": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "emitType": {
+          "type": "string"
+        },
+        "payload": true
+      },
+      "required": [
+        "emitType",
+        "depth",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "PointsAwardedAutomationData": {
+      "properties": {
+        "currencyName": {
+          "type": "string"
+        },
+        "delta": {
+          "format": "double",
+          "type": "number"
+        },
+        "level": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "totalPoints": {
+          "format": "double",
+          "type": "number"
+        },
+        "uniqueId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uniqueId",
+        "delta",
+        "totalPoints",
+        "level",
+        "currencyName",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "RoomStatsAutomationData": {
+      "properties": {
+        "anonymous": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        },
+        "popularity": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "totalUsers": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "viewers": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "viewers",
+        "totalUsers",
+        "popularity",
+        "anonymous",
+        "method",
+        "msgId",
+        "isHistory"
+      ],
+      "type": "object"
+    },
+    "SocialAutomationData": {
+      "properties": {
+        "action": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "followCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        },
+        "shareCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "followCount",
+        "shareCount",
+        "method",
+        "msgId",
+        "isHistory"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Root used by the schema generator so every public automation contract is\nemitted into one deterministic `$defs` collection.",
+  "properties": {
+    "automationCreator": {
+      "$ref": "#/$defs/AutomationCreator"
+    },
+    "automationEvent": {
+      "$ref": "#/$defs/AutomationEvent"
+    },
+    "automationPoints": {
+      "$ref": "#/$defs/AutomationPoints"
+    },
+    "automationUser": {
+      "$ref": "#/$defs/AutomationUser"
+    },
+    "chat": {
+      "$ref": "#/$defs/ChatAutomationData"
+    },
+    "connection": {
+      "$ref": "#/$defs/ConnectionAutomationData"
+    },
+    "gift": {
+      "$ref": "#/$defs/GiftAutomationData"
+    },
+    "like": {
+      "$ref": "#/$defs/LikeAutomationData"
+    },
+    "member": {
+      "$ref": "#/$defs/MemberAutomationData"
+    },
+    "pluginEmit": {
+      "$ref": "#/$defs/PluginEmitAutomationData"
+    },
+    "pointsAwarded": {
+      "$ref": "#/$defs/PointsAwardedAutomationData"
+    },
+    "roomStats": {
+      "$ref": "#/$defs/RoomStatsAutomationData"
+    },
+    "social": {
+      "$ref": "#/$defs/SocialAutomationData"
+    }
+  },
+  "required": [
+    "automationUser",
+    "automationCreator",
+    "automationPoints",
+    "automationEvent",
+    "chat",
+    "gift",
+    "like",
+    "social",
+    "member",
+    "roomStats",
+    "connection",
+    "pointsAwarded",
+    "pluginEmit"
+  ],
+  "title": "AutomationContracts",
+  "type": "object"
+}

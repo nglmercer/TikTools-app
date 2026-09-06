@@ -117,13 +117,18 @@ first, then tag. To ship `vX.Y.Z`:
 - `crates/tiktools-plugin-loader`: runtime scanning, validation, installation,
   dynamic native libraries, process plugins, and the optional WASM boundary.
 - `src/web`: Vue presentation only.
-- `src/automation`: editor contracts and the native event registry consumed by
-  the Vue UI.
+- `src/automation`: generated editor contracts, the native event registry, and
+  the single built-in event-type list consumed by the Vue UI.
 
 Keep Wry/Winit types out of core services. Use `HostEmitter` for outbound UI
 messages and `EventLoopProxy` for UI-thread work. Never put database handles,
 VM values, native TikTok objects, or plugin instances into an automation JSON
 event.
+
+Automation contracts are generated from
+`crates/tiktools-core/src/contracts/`. Run `bun run contracts:generate` after a
+Rust contract change and `bun run contracts:check` in CI. Do not add manual
+TikTok event interfaces or a second event registry in the frontend.
 
 ## Adding an IPC message
 

@@ -89,9 +89,12 @@ objects to the core. The core:
 4. updates points and SQLite;
 5. emits the existing UI event shape and a JSON automation event.
 
-The event registry in `src/automation/event-registry.json` is the editor-side
-shape contract for those native events. Its tests ensure every advertised path
-exists in its sample payload.
+The event registry in `src/automation/contracts/generated/` is the editor-side
+shape contract for those native events. Rust contract structs in
+`crates/tiktools-core/src/contracts/` generate the JSON Schema, TypeScript
+types, registry entries, and sample payloads. Its tests ensure every advertised
+path exists in its sample payload; consumers must not recreate event
+interfaces manually.
 
 ## Persistence
 

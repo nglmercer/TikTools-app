@@ -260,11 +260,17 @@ impl AppCore {
 
         self.emit(HostMessage::GiftCatalog { gifts });
 
-        self.queue_automation_event(self.make_automation_event(
-            "tiktok.connected",
-            json!({"uniqueId": info.unique_id, "roomId": info.room_id}),
-            None,
-        ));
+        self.queue_automation_event(
+            self.make_automation_event(
+                "tiktok.connected",
+                serde_json::to_value(crate::contracts::ConnectionAutomationData {
+                    unique_id: info.unique_id,
+                    room_id: info.room_id,
+                })
+                .expect("connection automation data must serialize"),
+                None,
+            ),
+        );
     }
 
     #[cfg(feature = "native-tiktok")]
@@ -274,13 +280,10 @@ impl AppCore {
             if let Some(event) = automation_event {
                 self.queue_automation_event(event);
             }
-            if let NativeLiveEvent::RoomUser {
-                total, total_user, ..
-            } = event
-            {
+            if let tiktools_tiktok::events::CanonicalLiveEvent::RoomUser(room) = &event.base {
                 self.emit(HostMessage::RoomStats {
-                    viewers: total,
-                    total_users: total_user,
+                    viewers: room.total,
+                    total_users: room.total_user,
                     top_viewers: Vec::new(),
                 });
             }
@@ -288,12 +291,9 @@ impl AppCore {
         };
 
         let should_award = !matches!(
-            event,
-            NativeLiveEvent::Gift {
-                streakable: true,
-                repeat_end: false,
-                ..
-            }
+            &event.base,
+            tiktools_tiktok::events::CanonicalLiveEvent::Gift(gift)
+                if event.gift_streakable() && !gift.repeat_end
         );
         let point_award = if should_award {
             let unique_id = ui_event["author"].as_str().unwrap_or("viewer").to_owned();
@@ -340,28 +340,32 @@ impl AppCore {
                 if let Some(object) = event.as_object_mut() {
                     object.insert(
                         "points".to_owned(),
-                        json!({
-                            "delta": award.delta,
-                            "total": award.total_points,
-                            "level": award.level
-                        }),
+                        serde_json::to_value(crate::contracts::AutomationPoints {
+                            delta: award.delta,
+                            total: award.total_points,
+                            level: award.level,
+                        })
+                        .expect("automation points must serialize"),
                     );
                 }
             }
             self.queue_automation_event(event);
             if let Some(award) = point_award.as_ref().filter(|award| award.delta != 0.0) {
-                self.queue_automation_event(self.make_automation_event(
-                    "points.awarded",
-                    json!({
-                        "uniqueId": award.unique_id,
-                        "delta": award.delta,
-                        "totalPoints": award.total_points,
-                        "level": award.level,
-                        "currencyName": award.currency_name,
-                        "reason": reason
-                    }),
-                    None,
-                ));
+                self.queue_automation_event(
+                    self.make_automation_event(
+                        "points.awarded",
+                        serde_json::to_value(crate::contracts::PointsAwardedAutomationData {
+                            unique_id: award.unique_id.clone(),
+                            delta: award.delta,
+                            total_points: award.total_points,
+                            level: award.level,
+                            currency_name: award.currency_name.clone(),
+                            reason: reason.to_owned(),
+                        })
+                        .expect("points awarded automation data must serialize"),
+                        None,
+                    ),
+                );
             }
         }
         self.emit(HostMessage::LiveEvent { event: ui_event });
@@ -376,39 +380,32 @@ impl AppCore {
         let user = native_user(event)?;
         let unique_id = clean_unique_id(&user.unique_id).unwrap_or_else(|| "viewer".to_owned());
         let base_options = || AwardOptions {
-            user_id: user.user_id.clone(),
+            user_id: (user.id != 0).then(|| user.id.to_string()),
             nickname: (!user.nickname.is_empty()).then(|| user.nickname.clone()),
             ..AwardOptions::default()
         };
-        match event {
-            NativeLiveEvent::Chat { comment, .. } => Some((
+        match &event.base {
+            tiktools_tiktok::events::CanonicalLiveEvent::Chat(chat) => Some((
                 json!({
                     "kind": "chat",
                     "author": unique_id,
                     "nickname": user.nickname,
-                    "text": comment,
+                    "text": chat.comment,
                     "i18nKey": "chatMessage",
-                    "i18nParams": {"comment": comment}
+                    "i18nParams": {"comment": chat.comment}
                 }),
                 PointAction::Chat,
                 base_options(),
                 "chat",
             )),
-            NativeLiveEvent::Gift {
-                gift_name,
-                diamond_count,
-                repeat_count,
-                combo_count,
-                repeat_end,
-                streakable,
-                gift_icon_url,
-                ..
-            } => {
-                let count = (*repeat_count).max(*combo_count).max(1);
-                let diamonds = (*diamond_count).max(1);
+            tiktools_tiktok::events::CanonicalLiveEvent::Gift(gift) => {
+                let gift_name = event.gift_name().unwrap_or("Gift");
+                let diamond_count = event.gift_diamond_count().unwrap_or(gift.diamond_count);
+                let count = gift.repeat_count.max(gift.combo_count).max(1);
+                let diamonds = diamond_count.max(1);
                 let total_diamonds = diamonds.saturating_mul(count);
                 let mut options = base_options();
-                if !*streakable || *repeat_end {
+                if !event.gift_streakable() || gift.repeat_end {
                     options.diamond_count = Some(total_diamonds as f64);
                 }
                 let event = json!({
@@ -420,15 +417,15 @@ impl AppCore {
                         "name": gift_name,
                         "count": count,
                         "diamonds": total_diamonds,
-                        "imageUrl": gift_icon_url
+                        "imageUrl": event.gift_icon_url()
                     },
                     "i18nKey": "giftSent",
                     "i18nParams": {"count": count, "giftName": gift_name, "diamonds": total_diamonds}
                 });
                 Some((event, PointAction::Gift, options, "gift"))
             }
-            NativeLiveEvent::Like { count, .. } => {
-                let count = (*count).max(1);
+            tiktools_tiktok::events::CanonicalLiveEvent::Like(like) => {
+                let count = like.count.max(1);
                 let mut options = base_options();
                 options.count = Some(count as f64);
                 Some((
@@ -446,7 +443,7 @@ impl AppCore {
                     "like",
                 ))
             }
-            NativeLiveEvent::Member { .. } => Some((
+            tiktools_tiktok::events::CanonicalLiveEvent::Member(_) => Some((
                 json!({
                     "kind": "member",
                     "author": unique_id,
@@ -459,9 +456,9 @@ impl AppCore {
                 base_options(),
                 "join",
             )),
-            NativeLiveEvent::Social { action, .. } => {
-                let is_follow = *action == 1;
-                let is_share = *action == 3;
+            tiktools_tiktok::events::CanonicalLiveEvent::Social(social) => {
+                let is_follow = social.action == 1;
+                let is_share = social.action == 3;
                 let (text, i18n_key, point_action, reason) = if is_follow {
                     (
                         "followed the creator",
@@ -493,7 +490,8 @@ impl AppCore {
                     reason,
                 ))
             }
-            NativeLiveEvent::RoomUser { .. } | NativeLiveEvent::Unknown { .. } => None,
+            tiktools_tiktok::events::CanonicalLiveEvent::RoomUser(_)
+            | tiktools_tiktok::events::CanonicalLiveEvent::Unknown { .. } => None,
         }
     }
 
@@ -507,105 +505,93 @@ impl AppCore {
             .read()
             .expect("connection context lock poisoned")
             .clone()?;
-        let (event_type, data, user) = match event {
-            NativeLiveEvent::Chat {
-                user,
-                comment,
-                method,
-                msg_id,
-                is_history,
-            } => (
+        let (event_type, data, user) = match &event.base {
+            tiktools_tiktok::events::CanonicalLiveEvent::Chat(chat) => (
                 "tiktok.chat",
-                json!({"comment": comment, "method": method, "msgId": msg_id.to_string(), "isHistory": is_history}),
-                Some(user_value(user)),
+                serde_json::to_value(crate::contracts::ChatAutomationData {
+                    comment: chat.comment.clone(),
+                    method: event.method().to_owned(),
+                    msg_id: event.msg_id().to_string(),
+                    is_history: event.is_history(),
+                })
+                .expect("chat automation data must serialize"),
+                Some(user_value(&chat.user)),
             ),
-            NativeLiveEvent::Gift {
-                user,
-                gift_id,
-                gift_name,
-                diamond_count,
-                repeat_count,
-                combo_count,
-                group_id,
-                repeat_end,
-                streakable,
-                gift_icon_url,
-                method,
-                msg_id,
-                is_history,
-            } => (
+            tiktools_tiktok::events::CanonicalLiveEvent::Gift(gift) => (
                 "tiktok.gift",
-                json!({
-                    "giftId": gift_id.to_string(),
-                    "giftName": gift_name,
-                    "diamondCount": diamond_count,
-                    "repeatCount": repeat_count,
-                    "comboCount": combo_count,
-                    "groupId": group_id.to_string(),
-                    "repeatEnd": repeat_end,
-                    "streakable": streakable,
-                    "giftIconUrl": gift_icon_url,
-                    "method": method,
-                    "msgId": msg_id.to_string(),
-                    "isHistory": is_history
-                }),
-                Some(user_value(user)),
+                serde_json::to_value(crate::contracts::GiftAutomationData {
+                    gift_id: gift.gift_id.to_string(),
+                    gift_name: event.gift_name().unwrap_or("Gift").to_owned(),
+                    diamond_count: event.gift_diamond_count().unwrap_or(gift.diamond_count),
+                    repeat_count: gift.repeat_count,
+                    combo_count: gift.combo_count,
+                    group_id: gift.group_id.to_string(),
+                    repeat_end: gift.repeat_end,
+                    streakable: event.gift_streakable(),
+                    gift_icon_url: event.gift_icon_url().map(str::to_owned),
+                    method: event.method().to_owned(),
+                    msg_id: event.msg_id().to_string(),
+                    is_history: event.is_history(),
+                })
+                .expect("gift automation data must serialize"),
+                Some(user_value(&gift.user)),
             ),
-            NativeLiveEvent::Like {
-                user,
-                count,
-                total,
-                method,
-                msg_id,
-                is_history,
-            } => (
+            tiktools_tiktok::events::CanonicalLiveEvent::Like(like) => (
                 "tiktok.like",
-                json!({"count": count, "total": total, "method": method, "msgId": msg_id.to_string(), "isHistory": is_history}),
-                Some(user_value(user)),
+                serde_json::to_value(crate::contracts::LikeAutomationData {
+                    count: like.count,
+                    total: like.total,
+                    method: event.method().to_owned(),
+                    msg_id: event.msg_id().to_string(),
+                    is_history: event.is_history(),
+                })
+                .expect("like automation data must serialize"),
+                Some(user_value(&like.user)),
             ),
-            NativeLiveEvent::Member {
-                user,
-                member_count,
-                action,
-                method,
-                msg_id,
-                is_history,
-            } => (
+            tiktools_tiktok::events::CanonicalLiveEvent::Member(member) => (
                 "tiktok.join",
-                json!({"memberCount": member_count, "action": action, "method": method, "msgId": msg_id.to_string(), "isHistory": is_history}),
-                Some(user_value(user)),
+                serde_json::to_value(crate::contracts::MemberAutomationData {
+                    member_count: member.member_count,
+                    action: member.action,
+                    method: event.method().to_owned(),
+                    msg_id: event.msg_id().to_string(),
+                    is_history: event.is_history(),
+                })
+                .expect("member automation data must serialize"),
+                Some(user_value(&member.user)),
             ),
-            NativeLiveEvent::Social {
-                user,
-                action,
-                follow_count,
-                share_count,
-                method,
-                msg_id,
-                is_history,
-            } => (
-                match action {
+            tiktools_tiktok::events::CanonicalLiveEvent::Social(social) => (
+                match social.action {
                     1 => "tiktok.follow",
                     3 => "tiktok.share",
                     _ => "tiktok.social",
                 },
-                json!({"action": action, "followCount": follow_count, "shareCount": share_count, "method": method, "msgId": msg_id.to_string(), "isHistory": is_history}),
-                Some(user_value(user)),
+                serde_json::to_value(crate::contracts::SocialAutomationData {
+                    action: social.action,
+                    follow_count: social.follow_count,
+                    share_count: social.share_count,
+                    method: event.method().to_owned(),
+                    msg_id: event.msg_id().to_string(),
+                    is_history: event.is_history(),
+                })
+                .expect("social automation data must serialize"),
+                Some(user_value(&social.user)),
             ),
-            NativeLiveEvent::RoomUser {
-                total,
-                popularity,
-                total_user,
-                anonymous,
-                method,
-                msg_id,
-                is_history,
-            } => (
+            tiktools_tiktok::events::CanonicalLiveEvent::RoomUser(room) => (
                 "tiktok.room_stats",
-                json!({"viewers": total, "totalUsers": total_user, "popularity": popularity, "anonymous": anonymous, "topViewers": [], "method": method, "msgId": msg_id.to_string(), "isHistory": is_history}),
+                serde_json::to_value(crate::contracts::RoomStatsAutomationData {
+                    viewers: room.total,
+                    total_users: room.total_user,
+                    popularity: room.popularity,
+                    anonymous: room.anonymous,
+                    method: event.method().to_owned(),
+                    msg_id: event.msg_id().to_string(),
+                    is_history: event.is_history(),
+                })
+                .expect("room stats automation data must serialize"),
                 None,
             ),
-            NativeLiveEvent::Unknown { .. } => return None,
+            tiktools_tiktok::events::CanonicalLiveEvent::Unknown { .. } => return None,
         };
         Some(self.make_automation_event_with_context(event_type, data, user, &context))
     }
@@ -730,12 +716,18 @@ impl AppCore {
             .expect("connection context lock poisoned")
             .take();
         let Some(context) = context else { return };
-        self.publish_automation_event(self.make_automation_event_with_context(
-            "tiktok.disconnected",
-            json!({"uniqueId": context.unique_id, "roomId": context.room_id}),
-            None,
-            &context,
-        ))
+        self.publish_automation_event(
+            self.make_automation_event_with_context(
+                "tiktok.disconnected",
+                serde_json::to_value(crate::contracts::ConnectionAutomationData {
+                    unique_id: context.unique_id.clone(),
+                    room_id: context.room_id.clone(),
+                })
+                .expect("disconnection automation data must serialize"),
+                None,
+                &context,
+            ),
+        )
         .await;
     }
 }

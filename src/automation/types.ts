@@ -1,129 +1,31 @@
-/**
- * JSON-safe values are the only values allowed to cross the automation
- * boundary. Native TikTok objects, VM handles, database connections, and
- * service instances must never be placed in an AutomationEvent.
- */
-export type JsonPrimitive = null | boolean | number | string;
-export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
-export interface JsonObject {
-  [key: string]: JsonValue | undefined;
-}
-export type JsonArray = JsonValue[];
+/** JSON-safe values and automation contracts are generated from Rust. */
+import type {
+  AutomationCreator as GeneratedAutomationCreator,
+  AutomationEvent as GeneratedAutomationEvent,
+  AutomationPoints as GeneratedAutomationPoints,
+  AutomationUser as GeneratedAutomationUser,
+  ConnectionAutomationData,
+  PointsAwardedAutomationData,
+} from './contracts/generated/automation-events.ts';
+import type {
+  JsonObject,
+  JsonValue,
+} from './contracts/generated/json-value.ts';
+import type { AutomationEventType } from './contracts/events.ts';
 
-export type AutomationEventType =
-  | 'tiktok.chat'
-  | 'tiktok.gift'
-  | 'tiktok.like'
-  | 'tiktok.follow'
-  | 'tiktok.share'
-  | 'tiktok.join'
-  | 'tiktok.social'
-  | 'tiktok.room_stats'
-  | 'tiktok.connected'
-  | 'tiktok.disconnected'
-  | 'points.awarded'
-  /** Internal event published by a live plugin's `emit` action. */
-  | 'plugin.emit';
+export type { JsonArray, JsonObject, JsonPrimitive, JsonValue } from './contracts/generated/json-value.ts';
+export type { AutomationEventType } from './contracts/events.ts';
+export type AutomationUser = GeneratedAutomationUser & JsonObject;
+export type AutomationCreator = GeneratedAutomationCreator & JsonObject;
+export type AutomationPoints = GeneratedAutomationPoints & JsonObject;
+export type ConnectionData = ConnectionAutomationData & JsonObject;
+export type PointsAwardedData = PointsAwardedAutomationData & JsonObject;
 
-export interface AutomationUser extends JsonObject {
-  userId?: string;
-  uniqueId: string;
-  nickname?: string;
-  avatarUrl?: string;
-}
-
-export interface AutomationCreator extends JsonObject {
-  uniqueId: string;
-  roomId?: string;
-}
-
-export interface AutomationConnectionContext {
-  connectionId?: string;
-  uniqueId: string;
-  roomId?: string;
-}
-
-export interface AutomationPoints extends JsonObject {
-  delta?: number;
-  total?: number;
-  level?: number;
-}
-
-export interface AutomationEvent<T extends JsonValue = JsonValue> extends JsonObject {
-  id: string;
-  type: AutomationEventType;
-  timestamp: number;
-  connectionId?: string;
-  creator?: AutomationCreator;
-  user?: AutomationUser;
-  data: T;
-  points?: AutomationPoints;
-  sourceEventId?: string;
-}
-
-export interface TikTokChatData extends JsonObject {
-  comment: string;
-  method: string;
-  msgId?: string;
-  isHistory: boolean;
-}
-
-export interface TikTokGiftData extends JsonObject {
-  giftId: string;
-  giftName: string;
-  diamondCount: number;
-  repeatCount: number;
-  comboCount: number;
-  groupId: string;
-  repeatEnd: boolean;
-  streakable: boolean;
-  giftIconUrl?: string;
-  toUser?: AutomationUser;
-}
-
-export interface TikTokLikeData extends JsonObject {
-  count: number;
-  total: number;
-  method: string;
-  msgId?: string;
-}
-
-export interface TikTokSocialData extends JsonObject {
-  action: number;
-  followCount: number;
-  shareCount: number;
-  method: string;
-  msgId?: string;
-}
-
-export interface TikTokMemberData extends JsonObject {
-  memberCount: number;
-  action: number;
-  method: string;
-  msgId?: string;
-}
-
-export interface TikTokRoomStatsData extends JsonObject {
-  viewers: number;
-  totalUsers: number;
-  popularity: number;
-  anonymous: number;
-  topViewers: JsonArray;
-}
-
-export interface ConnectionData extends JsonObject {
-  uniqueId: string;
-  roomId?: string;
-}
-
-export interface PointsAwardedData extends JsonObject {
-  uniqueId: string;
-  delta: number;
-  totalPoints: number;
-  level: number;
-  currencyName: string;
-  reason: string;
-}
+export type AutomationEvent<T extends JsonValue = JsonValue> =
+  Omit<GeneratedAutomationEvent, 'type' | 'data'> & JsonObject & {
+    type: AutomationEventType;
+    data: T;
+  };
 
 export type PortKind = 'flow' | 'data';
 

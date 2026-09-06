@@ -1,4 +1,5 @@
 import type { AutomationEventType, JsonObject, JsonValue } from '../types.ts';
+import { BUILTIN_EVENT_TYPES } from '../contracts/events.ts';
 import type {
   ActionTypeDefinition,
   EventFilter,
@@ -8,20 +9,7 @@ import type {
 } from './types.ts';
 
 /** Events an event record can listen to. Kept explicit so the picker cannot offer a type the host never publishes. */
-export const BEHAVIOR_TRIGGERS: AutomationEventType[] = [
-  'tiktok.gift',
-  'tiktok.chat',
-  'tiktok.follow',
-  'tiktok.share',
-  'tiktok.like',
-  'tiktok.join',
-  'tiktok.social',
-  'tiktok.room_stats',
-  'tiktok.connected',
-  'tiktok.disconnected',
-  'points.awarded',
-  'plugin.emit',
-];
+export const BEHAVIOR_TRIGGERS = BUILTIN_EVENT_TYPES;
 
 const OPERATORS: FilterOperator[] = [
   'gte',

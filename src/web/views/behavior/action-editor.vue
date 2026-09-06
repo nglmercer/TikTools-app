@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { PermissionCards, TestConsole } from '../../components/ui/FieldPanels.vue';
-import { SchemaForm, schemaForAction, useFieldSuggestions } from '../../components/ui/SchemaForm.vue';
+import { SchemaForm, schemaForAction, resolveAutocompleteSources } from '../../components/ui/SchemaForm.vue';
 import { CodeEditor, formatJsonText } from '../../components/ui/CodeEditor.vue';
 import { TemplateField } from '../../components/node-editor/TemplateField.vue';
 import { TextInput } from '../../components/ui/TextInput.vue';
@@ -90,7 +90,7 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
   const permissionsValue = permissions.value;
   const testRunValue = testRun.value;
   const locale = props.locale;
-  const suggestionsFor = useFieldSuggestions({ locale: props.locale, suggestionContext, suggestionScopes: suggestionScopes.value });
+  const suggestionsFor = resolveAutocompleteSources({ locale: props.locale, suggestionContext, suggestionScopes: suggestionScopes.value });
   const isFetch = draftValue.typeId === 'core.fetch';
   return (
     <div class="plg">

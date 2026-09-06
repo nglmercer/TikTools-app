@@ -117,7 +117,7 @@ crates/tiktools-plugin-loader/ Runtime discovery and plugin runtimes
 crates/tiktools-tiktok/        Native signer, discovery, WebSocket, event model
 src/web/                       Vue application and styles
 src/shared/messages.ts         Frontend compatibility contract
-src/automation/                Editor schemas and native event registry
+src/automation/                Generated contracts, registry, and event types
 docs/                          Architecture and development documentation
 ```
 

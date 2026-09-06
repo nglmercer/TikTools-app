@@ -8,7 +8,7 @@ import type { OpenMediaPicker } from '../../../shared/messages.ts';
 import { Button } from './Button.vue';
 import { Modal } from './Modal.vue';
 import { SchemaForm } from './SchemaForm.vue';
-import type { TemplateSuggestion } from '../node-editor/template-suggestions.ts';
+import type { AutocompleteItem } from '../autocomplete/index.ts';
 
 export type SchemaModalProps = {
   locale: Locale;
@@ -19,7 +19,7 @@ export type SchemaModalProps = {
   initialValue: JsonObject;
   cancelLabel: string;
   applyLabel: string;
-  templateSuggestions?: TemplateSuggestion[];
+  templateSuggestions?: AutocompleteItem[];
   onApply: (value: JsonObject) => void;
   onClose: () => void;
   onOpenMediaPicker?: OpenMediaPicker;

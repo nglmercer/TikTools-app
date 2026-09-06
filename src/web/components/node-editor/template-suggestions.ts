@@ -5,14 +5,8 @@ import {
   registryEntryFor,
   type RegistryField,
 } from '../../../automation/event-registry.ts';
-import { mergeSuggestions, suggestionsFromObject, type AutocompleteItem } from '../autocomplete/autocomplete.ts';
+import { mergeSuggestions, suggestionsFromObject, type AutocompleteItem } from '../autocomplete/index.ts';
 import type { Locale } from '../../i18n.ts';
-
-export type TemplateSuggestion = AutocompleteItem & {
-  value: string;
-  label: string;
-  preview?: string;
-};
 
 export type TemplateSuggestionScope =
   | 'message'
@@ -28,7 +22,8 @@ type ObservedPathMode = 'all' | 'identity' | 'text' | 'path';
 /**
  * Declarative input contracts. A form chooses one scope — a filter over the
  * event registry — instead of receiving hardcoded path lists. The candidates
- * always come from `event-registry.json` (the native Rust event boundary) plus
+ * always come from the generated automation registry (the native Rust event
+ * boundary) plus
  * whatever the last live event actually carried.
  */
 export const TEMPLATE_INPUT_DEFINITIONS: Record<TemplateSuggestionScope, { observed: ObservedPathMode }> = {
@@ -50,17 +45,17 @@ export function getTemplateSuggestions(
   lastEvent?: AutomationEvent,
   scope: TemplateSuggestionScope = 'message',
   extraContext?: JsonValue,
-): TemplateSuggestion[] {
+): AutocompleteItem[] {
   const definition = TEMPLATE_INPUT_DEFINITIONS[scope];
   const matchingLastEvent = lastEvent && (!eventType || lastEvent.type === eventType) ? lastEvent : undefined;
   const registryFields = eventType ? fieldsForEventType(eventType) : allRegistryFields();
-  const base: TemplateSuggestion[] = registryFields
+  const base: AutocompleteItem[] = registryFields
     .filter((field) => matchesPathScope(field.path, undefined, definition.observed))
     .map((field) => toSuggestion(field, locale, eventType, matchingLastEvent ? readTemplatePath(matchingLastEvent, field.path) : undefined));
 
   // Existent data: paths the last live event really carried (custom payloads,
   // plugin emits) that the static registry cannot know about.
-  const observed: TemplateSuggestion[] = matchingLastEvent
+  const observed: AutocompleteItem[] = matchingLastEvent
     ? flattenJsonPaths(matchingLastEvent, 'event')
       .filter((path) => matchesPathScope(path, readTemplatePath(matchingLastEvent, path), definition.observed))
       .filter((path) => !base.some((entry) => entry.value === path))
@@ -78,10 +73,10 @@ export function getTemplateSuggestions(
     : [];
 
   const merged = mergeSuggestions(base, observed);
-  if (extraContext === undefined) return merged as TemplateSuggestion[];
+  if (extraContext === undefined) return merged;
   // Generic: push any object as extra autocomplete items (custom schema/event).
   const extra = suggestionsFromObject(extraContext, 'event', { maxItems: 60 });
-  return mergeSuggestions(merged, extra) as TemplateSuggestion[];
+  return mergeSuggestions(merged, extra);
 }
 
 function toSuggestion(
@@ -89,7 +84,7 @@ function toSuggestion(
   locale: Locale,
   eventType: string | undefined,
   liveValue: JsonValue | undefined,
-): TemplateSuggestion {
+): AutocompleteItem {
   const label = field.label[locale === 'es' ? 'es' : 'en'];
   const hint = field.hint?.[locale === 'es' ? 'es' : 'en'];
   const source = sourceDetail(eventType, field);

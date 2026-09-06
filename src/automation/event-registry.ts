@@ -1,11 +1,14 @@
-import registryFile from './event-registry.json';
+import {
+  EVENT_REGISTRY_VERSION as GENERATED_EVENT_REGISTRY_VERSION,
+  GENERATED_EVENT_REGISTRY,
+} from './contracts/generated/event-registry.generated.ts';
 import type { AutomationEvent, JsonObject } from './types.ts';
 import type { PluginEventType } from './behavior/types.ts';
 
 /**
  * Runtime loader for the generated event registry
- * (`src/automation/event-registry.json`, checked in from the Rust live-event
- * boundary and the shared automation schemas).
+ * (`src/automation/contracts/generated/event-registry.generated.ts`, emitted
+ * from the Rust automation schema).
  *
  * This module is UI-agnostic on purpose: `src/automation` never imports from
  * `src/web`. It exposes registry fields (path, TS type, kind, labels, live
@@ -53,9 +56,9 @@ interface RegistryFile {
   events: Record<string, RegistryEventEntry>;
 }
 
-const REGISTRY = registryFile as unknown as RegistryFile;
+const REGISTRY = GENERATED_EVENT_REGISTRY as unknown as RegistryFile;
 
-export const EVENT_REGISTRY_VERSION = REGISTRY.version;
+export const EVENT_REGISTRY_VERSION = GENERATED_EVENT_REGISTRY_VERSION;
 
 /**
  * Plugin-declared event types merged from the behavior snapshot (see
@@ -141,7 +144,11 @@ export function fieldsForEventType(eventType: string): RegistryField[] {
 export function allRegistryFields(): RegistryField[] {
   const seen = new Set<string>();
   const out: RegistryField[] = [];
-  for (const entry of Object.values(REGISTRY.events)) {
+  const entries = [
+    ...Object.values(REGISTRY.events),
+    ...[...PLUGIN_OVERLAY.values()].map(({ entry }) => entry),
+  ];
+  for (const entry of entries) {
     for (const field of entry.fields) {
       if (seen.has(field.path)) continue;
       seen.add(field.path);

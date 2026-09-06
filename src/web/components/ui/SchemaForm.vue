@@ -6,9 +6,9 @@ import { readFormValues, type FormSchema } from './control-events.ts';
 import type { AutomationEvent, AutomationEventType, JsonObject, JsonValue } from '../../../automation/types.ts';
 import type { ActionTypeDefinition } from '../../../automation/behavior/types.ts';
 import { TemplateField } from '../node-editor/TemplateField.vue';
-import { getFetchUrlTemplates, getTemplateSuggestions, type TemplateSuggestion, type TemplateSuggestionScope } from '../node-editor/template-suggestions.ts';
-import type { AutocompleteItem } from '../autocomplete/autocomplete.ts';
-import { mergeSuggestions, suggestionsFromObject } from '../autocomplete/autocomplete.ts';
+import { getFetchUrlTemplates, getTemplateSuggestions, type TemplateSuggestionScope } from '../node-editor/template-suggestions.ts';
+import type { AutocompleteItem } from '../autocomplete/index.ts';
+import { resolveAutocompleteSources as mergeAutocompleteSources, suggestionsFromObject } from '../autocomplete/index.ts';
 import { AdvancedSection } from './FieldPanels.vue';
 import { CodeEditor, formatJsonText } from './CodeEditor.vue';
 import { InfoTip } from './InfoTip.vue';
@@ -37,7 +37,7 @@ export type SchemaFormProps = {
   value: JsonObject;
   onChange: (value: JsonObject) => void;
   /** Additional suggestions merged with the host-provided context. */
-  templateSuggestions?: TemplateSuggestion[];
+  templateSuggestions?: AutocompleteItem[];
   /** Any object pushed as autocomplete (live event, custom schema sample…). */
   suggestionContext?: JsonValue | AutomationEvent;
   /** Per-field scopes, e.g. `{ url: 'http-url', body: 'http-data' }`. */
@@ -71,15 +71,15 @@ function defaultScopeFor(name: string, template: boolean): TemplateSuggestionSco
  * exactly the same variables as the generic form: trigger scope plus any
  * object pushed via `suggestionContext`.
  */
-export function useFieldSuggestions(args: {
+export function resolveAutocompleteSources(args: {
   locale: Locale;
   suggestionContext?: JsonValue | AutomationEvent;
   suggestionScopes?: Partial<Record<string, TemplateSuggestionScope>>;
   eventType?: AutomationEventType;
   lastEvent?: AutomationEvent;
-  templateSuggestions?: TemplateSuggestion[];
-}): (name: string, template: boolean) => TemplateSuggestion[] {
-  return (name: string, template: boolean): TemplateSuggestion[] => {
+  templateSuggestions?: AutocompleteItem[];
+}): (name: string, template: boolean) => AutocompleteItem[] {
+  return (name: string, template: boolean): AutocompleteItem[] => {
     const {
       locale,
       suggestionContext,
@@ -100,8 +100,7 @@ export function useFieldSuggestions(args: {
     }
     const scope = suggestionScopes[name] ?? defaultScopeFor(name, template);
     const scoped = getTemplateSuggestions(eventType, locale, lastEvent, scope, undefined);
-    const merged = mergeSuggestions(scoped, contextItems, templateSuggestions);
-    return merged as TemplateSuggestion[];
+    return mergeAutocompleteSources(scoped, contextItems, templateSuggestions);
   };
 }
 
@@ -146,7 +145,7 @@ export const SchemaForm = defineVueComponent<SchemaFormProps>(
   const advanced = visible.filter(([key]) => hints[key]?.advanced === true);
   const update = (key: string, next: JsonValue): void => props.onChange({ ...props.value, [key]: next });
 
-  const suggestionsFor = useFieldSuggestions({
+  const suggestionsFor = resolveAutocompleteSources({
     locale: props.locale,
     suggestionContext: props.suggestionContext,
     suggestionScopes,
@@ -230,7 +229,7 @@ function SchemaField({ locale, name, schema, hint, value, onChange, templateSugg
   hint?: JsonObject;
   value: JsonValue | undefined;
   onChange: (value: JsonValue) => void;
-  templateSuggestions: TemplateSuggestion[];
+  templateSuggestions: AutocompleteItem[];
   fieldOptions?: FieldOption[];
   onOpenMediaPicker?: OpenMediaPicker;
 }) {
@@ -624,7 +623,7 @@ function KeyValueEditor({
   hintText: string;
   placeholder?: string;
   entries: JsonObject;
-  suggestions: TemplateSuggestion[];
+  suggestions: AutocompleteItem[];
   onChange: (value: JsonValue) => void;
 }) {
   const removeLabel = t(locale, 'removeHeader');

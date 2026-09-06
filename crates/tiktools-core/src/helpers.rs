@@ -283,14 +283,7 @@ pub(crate) fn clean_unique_id(value: &str) -> Option<String> {
 
 #[cfg(feature = "native-tiktok")]
 pub(crate) fn native_user(event: &NativeLiveEvent) -> Option<&tiktools_tiktok::events::EventUser> {
-    match event {
-        NativeLiveEvent::Chat { user, .. }
-        | NativeLiveEvent::Gift { user, .. }
-        | NativeLiveEvent::Like { user, .. }
-        | NativeLiveEvent::Member { user, .. }
-        | NativeLiveEvent::Social { user, .. } => Some(user),
-        NativeLiveEvent::RoomUser { .. } | NativeLiveEvent::Unknown { .. } => None,
-    }
+    event.user()
 }
 
 #[cfg(feature = "native-tiktok")]
@@ -306,11 +299,13 @@ pub(crate) fn client_event_kind(event: &ClientEvent) -> &'static str {
 
 #[cfg(feature = "native-tiktok")]
 pub(crate) fn user_value(user: &tiktools_tiktok::events::EventUser) -> serde_json::Value {
-    json!({
-        "userId": user.user_id,
-        "uniqueId": clean_unique_id(&user.unique_id).unwrap_or_else(|| "viewer".to_owned()),
-        "nickname": user.nickname,
+    serde_json::to_value(crate::contracts::AutomationUser {
+        user_id: (user.id != 0).then(|| user.id.to_string()),
+        unique_id: clean_unique_id(&user.unique_id).unwrap_or_else(|| "viewer".to_owned()),
+        nickname: user.nickname.clone(),
+        sec_uid: user.sec_uid.clone(),
     })
+    .expect("automation user must serialize")
 }
 
 #[cfg(feature = "native-tiktok")]

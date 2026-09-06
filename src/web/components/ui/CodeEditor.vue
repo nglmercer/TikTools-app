@@ -2,9 +2,10 @@
 import { computed, ref, watch } from 'vue';
 import type { VNode } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
-import type { TemplateSuggestion } from '../node-editor/template-suggestions.ts';
-import type { AutocompleteItem } from '../autocomplete/autocomplete.ts';
-import { filterSuggestions, highlightSegments } from '../autocomplete/autocomplete.ts';
+import type { AutocompleteItem } from '../autocomplete/index.ts';
+import { filterSuggestions, moveAutocompleteSelection, normalizeAutocompleteItems } from '../autocomplete/index.ts';
+import { getAutocompleteToken } from '../autocomplete/token.ts';
+import { AutocompleteList } from '../autocomplete/AutocompleteList.vue';
 import { AutocompletePortal } from '../node-editor/AutocompletePortal.vue';
 import { t, type Locale } from '../../i18n.ts';
 import { formatJsonText, tokenizeJson } from './code-editor-logic.ts';
@@ -18,7 +19,7 @@ type CodeEditorProps = {
   value: string;
   onValueChange: (value: string) => void;
   /** Variable suggestions for `{{ }}` autocomplete. */
-  suggestions?: Array<TemplateSuggestion | AutocompleteItem>;
+  suggestions?: AutocompleteItem[];
   language?: CodeEditorLanguage;
   locale?: Locale;
   /** File tab shown in the header, e.g. `payload.json`. */
@@ -72,8 +73,8 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
     (props.language ?? 'text') === 'json' ? highlightJson(value.value) : highlightText(value.value)
   ));
 
-  const token = computed(() => getToken(value.value, cursor.value));
-  const items = computed(() => dedupeItems((props.suggestions ?? []).map(toItem)));
+  const token = computed(() => getAutocompleteToken(value.value, cursor.value));
+  const items = computed(() => normalizeAutocompleteItems(props.suggestions ?? []));
   const scored = computed(() => filterSuggestions(items.value, token.value.query, 7));
   const visible = computed(() => scored.value.map((entry) => ({ item: entry.item, ranges: entry.matchRanges })));
   const showSuggestions = computed(() => (
@@ -121,7 +122,7 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
 
   const insertSuggestion = (suggestion: { value: string }): void => {
     const offset = inputRef.value?.selectionStart ?? cursor.value;
-    const current = getToken(value.value, offset);
+    const current = getAutocompleteToken(value.value, offset);
     // Replace the exact word/`{{ …` span being typed; inserting at the
     // cursor without replacing duplicated the typed text.
     const start = current.inside || current.query.length > 0 ? current.start : offset;
@@ -147,10 +148,10 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
     if (!showSuggestions.value || visible.value.length === 0) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      suggestionIndex.value = (suggestionIndex.value + 1) % visible.value.length;
+      suggestionIndex.value = moveAutocompleteSelection(suggestionIndex.value, 1, visible.value.length);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      suggestionIndex.value = (suggestionIndex.value - 1 + visible.value.length) % visible.value.length;
+      suggestionIndex.value = moveAutocompleteSelection(suggestionIndex.value, -1, visible.value.length);
     } else if (event.key === 'Tab' || (event.key === 'Enter' && (token.value.inside || forcedOpen.value))) {
       event.preventDefault();
       const selected = visible.value[suggestionIndex.value]?.item;
@@ -230,80 +231,20 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
         </div>
       </div>
       <AutocompletePortal anchorRef={boxRef} cursorRef={inputRef} cursorOffset={cursor.value} open={showSuggestions.value}>
-        <div class="tpl-suggest" role="listbox" aria-label={props.ariaLabel ?? 'Suggestions'}>
-          {visible.value.map(({ item, ranges }, index) => {
-            const valueSegments = highlightSegments(item.value, ranges);
-            const hoverTitle = [
-              item.value,
-              item.detail ?? item.kind ? `type: ${item.detail ?? item.kind}` : '',
-              item.preview ? `= ${item.preview}` : '',
-              item.documentation ?? '',
-            ].filter(Boolean).join('\n');
-            return (
-              <button
-                key={`${item.value}:${index}`}
-                type="button"
-                role="option"
-                aria-selected={index === suggestionIndex.value}
-                class={index === suggestionIndex.value ? 'is-selected' : ''}
-                title={hoverTitle || item.value}
-                onMousedown={(event) => event.preventDefault()}
-                onMouseenter={() => { suggestionIndex.value = index; }}
-                onFocus={() => { suggestionIndex.value = index; }}
-                onClick={() => insertSuggestion(item)}
-              >
-                <i class={`tpl-dot tpl-dot--${item.kind ?? 'unknown'}`} aria-hidden="true" />
-                <code class="tpl-path">
-                  {valueSegments.map((segment, segmentIndex) => (
-                    segment.highlight ? <mark key={segmentIndex}>{segment.text}</mark> : <span key={segmentIndex}>{segment.text}</span>
-                  ))}
-                </code>
-                {item.detail ?? item.kind ? <span class="tpl-kind">{item.detail ?? item.kind}</span> : null}
-                {item.preview ? <span class="tpl-preview" title={item.preview}>{item.preview}</span> : null}
-              </button>
-            );
-          })}
-          <div class="tpl-foot">{t(locale, 'autocompleteNavigateInsert')}</div>
-        </div>
+        <AutocompleteList
+          rows={visible.value.map(({ item, ranges }) => ({ item, ranges }))}
+          selectedIndex={suggestionIndex.value}
+          onHover={(index) => { suggestionIndex.value = index; }}
+          onPick={(row) => insertSuggestion(row.item)}
+          ariaLabel={props.ariaLabel ?? 'Suggestions'}
+          footer={t(locale, 'autocompleteNavigateInsert')}
+        />
       </AutocompletePortal>
     </div>
   );
   };
   },
 );
-
-function toItem(suggestion: TemplateSuggestion | AutocompleteItem): AutocompleteItem & { label: string; value: string } {
-  const item = suggestion as AutocompleteItem;
-  return {
-    value: String((suggestion as { value: unknown }).value ?? ''),
-    label: String((suggestion as { label: unknown }).label ?? (suggestion as { value: unknown }).value ?? ''),
-    kind: item.kind,
-    detail: item.detail ?? (item.kind ? String(item.kind) : undefined),
-    documentation: item.documentation,
-    preview: item.preview,
-  };
-}
-
-/** Drop duplicate values (first wins) so merged scopes never list a path twice. */
-function dedupeItems<T extends { value: string }>(list: T[]): T[] {
-  const seen = new Set<string>();
-  return list.filter((entry) => {
-    if (!entry.value || seen.has(entry.value)) return false;
-    seen.add(entry.value);
-    return true;
-  });
-}
-
-function getToken(value: string, cursor: number): { start: number; query: string; inside: boolean } {
-  const before = value.slice(0, cursor);
-  const start = before.lastIndexOf('{{');
-  if (start >= 0 && !before.slice(start).includes('}}')) {
-    return { start, query: before.slice(start + 2).trim(), inside: true };
-  }
-  const match = before.match(/[A-Za-z0-9_$.]*$/);
-  const word = match?.[0] ?? '';
-  return { start: cursor - word.length, query: word, inside: false };
-}
 
 /** Plain text: only `{{ }}` spans get the pill treatment. */
 function highlightText(value: string): VNode[] {

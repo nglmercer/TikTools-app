@@ -13,7 +13,7 @@ import type { PluginEventType, PluginStatus } from './types.ts';
 
 /** True for host-owned triggers; anything else must come from a plugin. */
 export function isBuiltinTrigger(type: string): boolean {
-  return (BEHAVIOR_TRIGGERS as string[]).includes(type);
+  return (BEHAVIOR_TRIGGERS as readonly string[]).includes(type);
 }
 
 export function findEventType(

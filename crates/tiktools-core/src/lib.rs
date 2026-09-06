@@ -5,6 +5,7 @@
 //! implementation. The desktop crate supplies a `HostEmitter` and forwards
 //! UI work to this crate from its Tokio runtime.
 
+pub mod contracts;
 pub mod db;
 pub mod events;
 pub mod ipc;
@@ -43,7 +44,7 @@ use tokio::sync::Notify;
 use tokio::sync::Semaphore;
 
 #[cfg(feature = "native-tiktok")]
-use tiktools_tiktok::{events::LiveEvent as NativeLiveEvent, ClientEvent, ConnectRequest};
+use tiktools_tiktok::{events::TikToolsEvent as NativeLiveEvent, ClientEvent, ConnectRequest};
 
 #[cfg(not(feature = "native-tiktok"))]
 #[derive(Debug)]
