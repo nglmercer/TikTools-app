@@ -10,12 +10,14 @@ import { SettingsView } from './views/settings-view.vue';
 import NavigationRail from './components/nav-rail.vue';
 import TopNav from './components/top-nav.vue';
 import PluginProgressNotification from './components/plugin-progress-notification.vue';
+import DialogHost from './components/ui/dialog-host.vue';
 import { useAppController } from './composables/useAppController.ts';
 
 const app = reactive(useAppController());
 </script>
 <template>
   <div class="app-shell">
+    <DialogHost :locale="app.locale" />
     <PluginProgressNotification
       v-if="app.pluginProgress"
       :notification="app.pluginProgress"

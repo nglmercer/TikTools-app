@@ -28,6 +28,7 @@ import type {
 } from '../../automation/behavior/types.ts';
 import type { ActionOptionItem, GiftCatalogEntry, OpenMediaPicker, ViewerRecord } from '../../shared/messages.ts';
 import { t, type Locale } from '../i18n.ts';
+import { useDialogs } from '../composables/useDialogs.ts';
 
 type BehaviorViewProps = {
   locale: Locale;
@@ -87,6 +88,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
   const eventQuery = ref('');
   const actionSort = ref<SortMode>('name');
   const eventSort = ref<SortMode>('name');
+  const dialogs = useDialogs();
 
   const lastRunByAction = computed(() => {
     const map = new Map<string, BehaviorRun>();
@@ -297,8 +299,14 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                         aria-label={t(locale, 'behavior.copy.remove')}
                         data-tooltip={t(locale, 'behavior.copy.remove')}
                         data-tooltip-pos="left"
-                        onClick={() => {
-                          if (confirm(t(locale, 'behavior.copy.confirmDeleteAction'))) props.onDeleteAction(action.id);
+                        onClick={async () => {
+                          const confirmed = await dialogs.confirm(t(locale, 'behavior.copy.confirmDeleteAction'), {
+                            title: t(locale, 'behavior.copy.remove'),
+                            confirmLabel: t(locale, 'behavior.copy.remove'),
+                            cancelLabel: t(locale, 'cancel'),
+                            danger: true,
+                          });
+                          if (confirmed) props.onDeleteAction(action.id);
                         }}
                       >
                         <IconTrash />
@@ -400,8 +408,14 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                       aria-label={t(locale, 'behavior.copy.remove')}
                       data-tooltip={t(locale, 'behavior.copy.remove')}
                       data-tooltip-pos="left"
-                      onClick={() => {
-                        if (confirm(t(locale, 'behavior.copy.confirmDeleteEvent'))) props.onDeleteEvent(event.id);
+                      onClick={async () => {
+                        const confirmed = await dialogs.confirm(t(locale, 'behavior.copy.confirmDeleteEvent'), {
+                          title: t(locale, 'behavior.copy.remove'),
+                          confirmLabel: t(locale, 'behavior.copy.remove'),
+                          cancelLabel: t(locale, 'cancel'),
+                          danger: true,
+                        });
+                        if (confirmed) props.onDeleteEvent(event.id);
                       }}
                     >
                       <IconTrash />

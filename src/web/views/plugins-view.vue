@@ -9,6 +9,7 @@ import type { PluginSettingsState } from '../types.ts';
 import { SchemaForm } from '../components/ui/SchemaForm.vue';
 import { Switch } from '../components/ui/Checkbox.vue';
 import { i18nText, t, type Locale } from '../i18n.ts';
+import { useDialogs } from '../composables/useDialogs.ts';
 
 export type PluginInstallViewState = {
   installing: boolean;
@@ -74,6 +75,7 @@ export const PluginsView = defineVueComponent<PluginsViewProps>(
   ['locale', 'plugins', 'actions', 'actionTypes', 'error', 'onSetInstalled', 'onUninstall', 'onSetEnabled', 'settings', 'onGetSettings', 'onSaveSettings', 'onOpenMediaPicker', 'onInstallPlugin', 'pluginInstallState', 'onConfirmReplace', 'onCancelReplace'],
   (props) => {
   const tab = ref<'installed' | 'store'>('installed');
+  const dialogs = useDialogs();
 
   return () => {
   const copy = pluginCopy(props.locale);
@@ -213,11 +215,17 @@ export const PluginsView = defineVueComponent<PluginsViewProps>(
                     <button
                       type="button"
                       class={`plg-btn plg-btn--sm${plugin.installed ? ' plg-btn--danger' : ' plg-btn--primary'}`}
-                      onClick={() => {
+                      onClick={async () => {
                         if (!plugin.installed) {
                           props.onSetInstalled(plugin.descriptor.id, true);
                         } else if (canUninstall) {
-                          if (confirm(copy.confirm)) props.onUninstall(plugin.descriptor.id);
+                          const confirmed = await dialogs.confirm(copy.confirm, {
+                            title: copy.uninstall,
+                            confirmLabel: copy.uninstall,
+                            cancelLabel: copy.cancel,
+                            danger: true,
+                          });
+                          if (confirmed) props.onUninstall(plugin.descriptor.id);
                         } else {
                           props.onSetInstalled(plugin.descriptor.id, false);
                         }

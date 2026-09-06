@@ -15,6 +15,7 @@ import type {
 } from '../../../automation/behavior/types.ts';
 import type { GiftCatalogEntry, ViewerRecord } from '../../../shared/messages.ts';
 import { t, type Locale } from '../../i18n.ts';
+import { useDialogs } from '../../composables/useDialogs.ts';
 
 type EventEditorProps = {
   locale: Locale;
@@ -37,6 +38,7 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
   (props) => {
   const draft = ref<LiveEvent>(props.event);
   const step = ref(1);
+  const dialogs = useDialogs();
   watch(() => props.event, (event) => { draft.value = event; });
 
   const update = (patch: Partial<LiveEvent>): void => { draft.value = { ...draft.value, ...patch }; };
@@ -73,8 +75,14 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
             <button
               type="button"
               class="plg-btn plg-btn--danger plg-btn--sm"
-              onClick={() => {
-                if (confirm(t(props.locale, 'behavior.copy.confirmDeleteEvent'))) props.onDelete(draftValue.id);
+              onClick={async () => {
+                const confirmed = await dialogs.confirm(t(props.locale, 'behavior.copy.confirmDeleteEvent'), {
+                  title: t(props.locale, 'behavior.copy.remove'),
+                  confirmLabel: t(props.locale, 'behavior.copy.remove'),
+                  cancelLabel: t(props.locale, 'cancel'),
+                  danger: true,
+                });
+                if (confirmed) props.onDelete(draftValue.id);
               }}
             >
               {t(props.locale, 'behavior.copy.remove')}

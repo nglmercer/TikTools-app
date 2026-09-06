@@ -27,6 +27,7 @@ import type {
 import type { JsonObject } from '../../../automation/types.ts';
 import type { ActionOptionItem, OpenMediaPicker } from '../../../shared/messages.ts';
 import { i18nText, t, type Locale } from '../../i18n.ts';
+import { useDialogs } from '../../composables/useDialogs.ts';
 
 type ActionEditorProps = {
   locale: Locale;
@@ -48,6 +49,7 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
   ['locale', 'action', 'actionTypes', 'isNew', 'error', 'testRuns', 'actionOptions', 'onGetActionOptions', 'onOpenMediaPicker', 'onCancel', 'onSave', 'onDelete', 'onTest'],
   (props) => {
   const draft = ref<LiveAction>(props.action);
+  const dialogs = useDialogs();
   watch(() => props.action, (action) => { draft.value = action; });
   const type = computed(() => props.actionTypes.find((entry) => entry.id === draft.value.typeId));
   const permissions = computed(() => deriveActionPermissions(draft.value, type.value));
@@ -123,8 +125,14 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
               data-tooltip={t(props.locale, 'behavior.copy.deleteHint')}
               data-tooltip-pos="bottom"
               data-tooltip-wide=""
-              onClick={() => {
-                if (confirm(t(props.locale, 'behavior.copy.confirmDeleteAction'))) props.onDelete(draftValue.id);
+              onClick={async () => {
+                const confirmed = await dialogs.confirm(t(props.locale, 'behavior.copy.confirmDeleteAction'), {
+                  title: t(props.locale, 'behavior.copy.remove'),
+                  confirmLabel: t(props.locale, 'behavior.copy.remove'),
+                  cancelLabel: t(props.locale, 'cancel'),
+                  danger: true,
+                });
+                if (confirmed) props.onDelete(draftValue.id);
               }}
             >
               {t(props.locale, 'behavior.copy.remove')}

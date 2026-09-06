@@ -13,6 +13,7 @@ import { SplitLayout } from '../components/ui/Page.vue';
 import { DataTable, RowActions, type Column } from '../components/ui/Table.vue';
 import { t, type Locale } from '../i18n.ts';
 import type { ConnectionStatus, PointsConfig, ViewerRecord } from '../types.ts';
+import { useDialogs } from '../composables/useDialogs.ts';
 
 type PointsViewProps = {
   locale: Locale;
@@ -38,6 +39,7 @@ export const PointsView = defineVueComponent<PointsViewProps>(
   const sortBy = ref<string>('points');
   const sortDir = ref<'asc' | 'desc'>('desc');
   const leaderboardWrapRef = ref<HTMLDivElement | null>(null);
+  const dialogs = useDialogs();
 
   const isLive = computed(() => props.status === 'connected' || props.status === 'connecting' || props.status === 'retrying');
 
@@ -81,8 +83,24 @@ export const PointsView = defineVueComponent<PointsViewProps>(
     setTimeout(() => { saveSuccess.value = false; }, 3000);
   };
 
-  const handleResetAll = () => {
-    if (window.confirm(t(props.locale, 'resetPointsConfirm'))) props.onResetPoints();
+  const handleResetAll = async () => {
+    const confirmed = await dialogs.confirm(t(props.locale, 'resetPointsConfirm'), {
+      title: t(props.locale, 'resetPoints'),
+      confirmLabel: t(props.locale, 'resetPoints'),
+      cancelLabel: t(props.locale, 'cancel'),
+      danger: true,
+    });
+    if (confirmed) props.onResetPoints();
+  };
+
+  const handleResetViewer = async (uniqueId: string) => {
+    const confirmed = await dialogs.confirm(t(props.locale, 'resetViewerConfirm', { uniqueId }), {
+      title: t(props.locale, 'resetPoints'),
+      confirmLabel: t(props.locale, 'resetPoints'),
+      cancelLabel: t(props.locale, 'cancel'),
+      danger: true,
+    });
+    if (confirmed) props.onResetPoints(uniqueId);
   };
 
   const handleAdjustSubmit = (e: SubmitEvent) => {
@@ -191,7 +209,7 @@ export const PointsView = defineVueComponent<PointsViewProps>(
           <Button size="sm" variant="soft" tooltip={t(locale, 'addPoints')} onClick={() => openAdd(row.uniqueId)}>
             +
           </Button>
-          <RowActions onAdd={() => openAdd(row.uniqueId)} onDeduct={() => openDeduct(row.uniqueId)} onReset={() => { if (confirm(`Reset @${row.uniqueId}?`)) props.onResetPoints(row.uniqueId); }} />
+          <RowActions onAdd={() => openAdd(row.uniqueId)} onDeduct={() => openDeduct(row.uniqueId)} onReset={() => { void handleResetViewer(row.uniqueId); }} />
         </div>
       ),
     },

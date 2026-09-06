@@ -96,13 +96,15 @@ export type TextPromptModalProps = {
   placeholder?: string;
   confirmLabel: string;
   cancelLabel: string;
-  requiredMessage: string;
+  requiredMessage?: string;
+  closeLabel?: string;
+  closeOnBackdrop?: boolean;
   onConfirm: (value: string) => void;
   onClose: () => void;
 };
 
 export const TextPromptModal = defineVueComponent<TextPromptModalProps>(
-  ['title', 'description', 'label', 'initialValue', 'placeholder', 'confirmLabel', 'cancelLabel', 'requiredMessage', 'onConfirm', 'onClose'],
+  ['title', 'description', 'label', 'initialValue', 'placeholder', 'confirmLabel', 'cancelLabel', 'requiredMessage', 'closeLabel', 'closeOnBackdrop', 'onConfirm', 'onClose'],
   (props) => {
   const value = ref(props.initialValue ?? '');
   const error = ref('');
@@ -110,7 +112,7 @@ export const TextPromptModal = defineVueComponent<TextPromptModalProps>(
 
   const confirm = (): void => {
     const nextValue = value.value.trim();
-    if (!nextValue) {
+    if (props.requiredMessage && !nextValue) {
       error.value = props.requiredMessage;
       inputRef.value?.focus();
       return;
@@ -119,20 +121,22 @@ export const TextPromptModal = defineVueComponent<TextPromptModalProps>(
   };
 
   return () => {
-    const { title, description, label, placeholder, confirmLabel, cancelLabel, onClose } = props;
+    const { title, description, label, placeholder, confirmLabel, cancelLabel, closeLabel, closeOnBackdrop, onClose } = props;
     return (
     <Modal
       title={title}
       description={description}
       onClose={onClose}
+      closeLabel={closeLabel}
+      closeOnBackdrop={closeOnBackdrop}
       footer={
         <div class="ui-modal-card__actions">
         <Button variant="soft" onClick={onClose}>{cancelLabel}</Button>
           <Button variant="primary" onClick={confirm}>{confirmLabel}</Button>
         </div>
       }
-    >
-        <FormField label={label} error={error.value} required>
+      >
+        <FormField label={label} error={error.value} required={Boolean(props.requiredMessage)}>
         <TextInput
           ref={inputRef}
           value={value.value}
@@ -141,7 +145,7 @@ export const TextPromptModal = defineVueComponent<TextPromptModalProps>(
             if (error.value) error.value = '';
           }}
           placeholder={placeholder}
-          required
+          required={Boolean(props.requiredMessage)}
           onEnter={confirm}
           spellCheck={false}
         />
@@ -152,11 +156,46 @@ export const TextPromptModal = defineVueComponent<TextPromptModalProps>(
   },
 );
 
+export type AlertModalProps = {
+  title: string;
+  description?: string;
+  okLabel: string;
+  closeLabel?: string;
+  closeOnBackdrop?: boolean;
+  onClose: () => void;
+};
+
+export function AlertModal({
+  title,
+  description,
+  okLabel,
+  closeLabel,
+  closeOnBackdrop,
+  onClose,
+}: AlertModalProps) {
+  return (
+    <Modal
+      title={title}
+      description={description}
+      onClose={onClose}
+      closeLabel={closeLabel}
+      closeOnBackdrop={closeOnBackdrop}
+      footer={
+        <div class="ui-modal-card__actions">
+          <Button variant="primary" onClick={onClose}>{okLabel}</Button>
+        </div>
+      }
+    />
+  );
+}
+
 export type ConfirmModalProps = {
   title: string;
   description?: string;
   confirmLabel: string;
   cancelLabel: string;
+  closeLabel?: string;
+  closeOnBackdrop?: boolean;
   onConfirm: () => void;
   onClose: () => void;
   danger?: boolean;
@@ -167,6 +206,8 @@ export function ConfirmModal({
   description,
   confirmLabel,
   cancelLabel,
+  closeLabel,
+  closeOnBackdrop,
   onConfirm,
   onClose,
   danger = false,
@@ -176,6 +217,8 @@ export function ConfirmModal({
       title={title}
       description={description}
       onClose={onClose}
+      closeLabel={closeLabel}
+      closeOnBackdrop={closeOnBackdrop}
       footer={
         <div class="ui-modal-card__actions">
           <Button variant="soft" onClick={onClose}>{cancelLabel}</Button>
