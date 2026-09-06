@@ -112,6 +112,7 @@ pub fn prepare_for_startup_wait(event_loop: &ActiveEventLoop, deadline: Instant)
 
 /// Pure deadline helper behind [`prepare_for_startup_wait`]: wake at the next
 /// pump interval, but never past the startup deadline.
+#[allow(dead_code)]
 fn next_startup_wake(now: Instant, deadline: Instant, interval: std::time::Duration) -> Instant {
     std::cmp::min(deadline, now + interval)
 }
