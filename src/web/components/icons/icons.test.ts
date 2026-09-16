@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import { createSSRApp, h } from 'vue';
+import { renderToString } from 'vue/server-renderer';
 
 import {
   ICONS,
@@ -26,12 +28,42 @@ function propsOf(vnode: unknown): VNodeProps {
   return ((vnode as { props?: VNodeProps }).props ?? {}) as VNodeProps;
 }
 
-test('SvgIcon renders an accessible svg that inherits currentColor', () => {
-  const props = propsOf(SvgIcon({ children: [] }));
-  expect(props.width).toBe(16);
-  expect(props.height).toBe(16);
-  expect(props.stroke).toBe('currentColor');
-  expect(props['aria-hidden']).toBe('true');
+/**
+ * Bun's JSX transform passes component children as arrays where Vite emits
+ * slot functions; silence only that transform artifact so render assertions
+ * stay readable.
+ */
+function quietApp(root: Parameters<typeof h>[0], props?: Parameters<typeof h>[1], slots?: Parameters<typeof h>[2]) {
+  const app = createSSRApp({ render: () => h(root, props ?? {}, slots ?? {}) });
+  app.config.warnHandler = (message) => {
+    if (typeof message === 'string' && message.includes('Non-function value encountered for default slot')) return;
+    console.warn(message);
+  };
+  return app;
+}
+
+test('SvgIcon renders slot children into an accessible svg that inherits currentColor', async () => {
+  const app = quietApp(SvgIcon, { size: 18, className: 'my-icon' }, {
+    default: () => h('path', { d: 'M0 0h1v1H0z' }),
+  });
+  const html = await renderToString(app);
+  expect(html).toContain('<svg');
+  expect(html).toContain('width="18"');
+  expect(html).toContain('height="18"');
+  expect(html).toContain('stroke="currentColor"');
+  expect(html).toContain('aria-hidden="true"');
+  expect(html).toContain('class="my-icon"');
+  expect(html).toContain('<path d="M0 0h1v1H0z">');
+});
+
+test('SvgIcon filled variant uses currentColor fills without a stroke', async () => {
+  const app = quietApp(SvgIcon, { filled: true }, {
+    default: () => h('circle', { cx: 12, cy: 12, r: 8 }),
+  });
+  const html = await renderToString(app);
+  expect(html).toContain('fill="currentColor"');
+  expect(html).toContain('stroke="none"');
+  expect(html).toContain('<circle');
 });
 
 test('icon size and class propagate through the shared primitive', () => {
@@ -41,13 +73,9 @@ test('icon size and class propagate through the shared primitive', () => {
   expect(vnode.props?.className).toBe('my-icon');
 });
 
-test('filled icons delegate with the filled flag, strokes stay currentColor', () => {
+test('filled icons delegate with the filled flag', () => {
   const filled = propsOf(IconHeart({}));
   expect(filled.filled).toBe(true);
-  const svgProps = propsOf(SvgIcon({ filled: true, children: [] }));
-  expect(svgProps.fill).toBe('currentColor');
-  expect(svgProps.stroke).toBe('none');
-  expect(svgProps['aria-hidden']).toBe('true');
 });
 
 test('sparkles icon is a multi-glint composition, not a single star', () => {
@@ -63,6 +91,18 @@ test('every IconName resolves to a component delegating to SvgIcon', () => {
     const vnode = ICONS[name]({ size: 20 }) as { type?: unknown; props?: VNodeProps };
     expect(vnode.type).toBe(SvgIcon);
     expect(vnode.props?.size).toBe(20);
+  }
+});
+
+test('every registered icon renders a non-empty svg', async () => {
+  const drawable = /<(path|polygon|polyline|line|circle|rect|ellipse)\b/;
+  for (const name of Object.keys(ICONS) as IconName[]) {
+    const app = quietApp(ICONS[name], { size: 20 });
+    const html = await renderToString(app);
+    expect(html).toContain('<svg');
+    expect(html).toContain('width="20"');
+    expect(html.includes('aria-hidden="true"')).toBe(true);
+    expect(drawable.test(html)).toBe(true);
   }
 });
 

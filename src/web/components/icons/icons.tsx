@@ -1,4 +1,5 @@
 import type { VNode, VNodeChild } from 'vue';
+import { defineVueFunctional } from '../../vue/component.ts';
 
 export type IconProps = {
   size?: number;
@@ -10,15 +11,11 @@ export type IconComponent = (props?: IconProps) => VNode;
 
 /**
  * Shared SVG primitive. Icons inherit `currentColor` so they follow the
- * surrounding text color in both light and dark themes.
+ * surrounding text color in both light and dark themes. Built on the shared
+ * functional wrapper so JSX children arrive through Vue slots.
  */
-export function SvgIcon({
-  size = 16,
-  strokeWidth = 2,
-  className,
-  filled = false,
-  children,
-}: IconProps & { filled?: boolean; children?: VNodeChild }): VNode {
+export const SvgIcon = defineVueFunctional<IconProps & { filled?: boolean; children?: VNodeChild }>((props) => {
+  const { size = 16, strokeWidth = 2, className, filled = false, children } = props;
   return (
     <svg
       width={size}
@@ -35,7 +32,7 @@ export function SvgIcon({
       {children}
     </svg>
   );
-}
+});
 
 export function IconTikTok({ size = 18, strokeWidth = 2, className }: IconProps = {}): VNode {
   return (

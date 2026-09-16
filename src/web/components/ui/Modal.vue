@@ -1,7 +1,7 @@
 <script lang="tsx">
 import { onMounted, onUnmounted, ref, Teleport } from 'vue';
-import type { VNode, VNodeChild } from 'vue';
-import { defineVueComponent } from '../../vue/component.ts';
+import type { VNodeChild } from 'vue';
+import { defineVueComponent, defineVueFunctional } from '../../vue/component.ts';
 
 import { IconClose } from '../icons/index.ts';
 import { Button } from './Button.vue';
@@ -33,9 +33,9 @@ export type ModalProps = {
 };
 
 /** Shared footer actions row so confirm/alert/prompt modals stay consistent. */
-export function ModalActions({ children }: { children?: VNodeChild }): VNode {
-  return <div class="ui-modal-card__actions">{children}</div>;
-}
+export const ModalActions = defineVueFunctional<{ children?: VNodeChild }>((props) => (
+  <div class="ui-modal-card__actions">{props.children}</div>
+));
 
 /**
  * Small, application-owned dialog primitive. Keeping this outside the
