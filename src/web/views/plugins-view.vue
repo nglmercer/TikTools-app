@@ -216,7 +216,7 @@ export const PluginsView = defineVueComponent<PluginsViewProps>(
           )}
 
           {visible.length > 0 && (
-            <div class="plg-grid">
+            <div class="plg-plugin-grid">
               {visible.map((plugin) => {
                 const usedBy = props.actions.filter((action) => {
                   const type = props.actionTypes.find((entry) => entry.id === action.typeId);

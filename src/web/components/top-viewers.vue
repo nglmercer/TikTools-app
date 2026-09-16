@@ -1,6 +1,7 @@
 <script lang="tsx">
 import { t, type Locale } from '../i18n.ts';
 import type { TopViewerPayload, ViewerRecord } from '../types.ts';
+import { Tooltip } from './ui/Tooltip.vue';
 
 type Props = {
   locale: Locale;
@@ -50,12 +51,14 @@ export function TopViewersRibbon({ locale, topViewers = [], leaderboard = [], li
 
   return (
     <div class="tt-viewers-ribbon">
-      <div class="tt-ribbon-title" data-tooltip={t(locale, 'topContributors')} data-tooltip-pos="bottom">
-        <span>
-          {t(locale, 'viewersCount')} · {totalLabel}
-        </span>
-        <span style={{ opacity: 0.6, fontSize: '11px' }} title="TikTok native ranking">ⓘ</span>
-      </div>
+      <Tooltip text={t(locale, 'topContributors')} position="bottom">
+        <div class="tt-ribbon-title">
+          <span>
+            {t(locale, 'viewersCount')} · {totalLabel}
+          </span>
+          <span style={{ opacity: 0.6, fontSize: '11px' }} title="TikTok native ranking">ⓘ</span>
+        </div>
+      </Tooltip>
       <div class="tt-top-contributors">
         {ribbonItems.map((viewer, idx) => {
           const rankNum = hasNative ? viewer.rank || idx + 1 : idx + 1;

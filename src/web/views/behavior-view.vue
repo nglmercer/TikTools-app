@@ -4,6 +4,7 @@ import { defineVueComponent } from '../vue/component.ts';
 import { IconPencil, IconTrash } from '../components/icons.vue';
 import { Switch } from '../components/ui/Checkbox.vue';
 import { SearchInput } from '../components/ui/TextInput.vue';
+import { Tooltip } from '../components/ui/Tooltip.vue';
 import { ActionEditor } from './behavior/action-editor.vue';
 import { ActionPicker } from './behavior/action-picker.vue';
 import { EventEditor } from './behavior/event-editor.vue';
@@ -303,34 +304,34 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                           : t(locale, 'behavior.copy.noRuns')}
                     </span>
                     <span class="plg-table__actions">
-                      <button
-                        type="button"
-                        class="plg-iconbtn"
-                        aria-label={t(locale, 'behavior.copy.edit')}
-                        data-tooltip={t(locale, 'behavior.copy.edit')}
-                        data-tooltip-pos="left"
-                        onClick={() => { screen.value = { kind: 'action', action, isNew: false }; }}
-                      >
-                        <IconPencil />
-                      </button>
-                      <button
-                        type="button"
-                        class="plg-iconbtn is-danger"
-                        aria-label={t(locale, 'behavior.copy.remove')}
-                        data-tooltip={t(locale, 'behavior.copy.remove')}
-                        data-tooltip-pos="left"
-                        onClick={async () => {
-                          const confirmed = await dialogs.confirm(t(locale, 'behavior.copy.confirmDeleteAction'), {
-                            title: t(locale, 'behavior.copy.remove'),
-                            confirmLabel: t(locale, 'behavior.copy.remove'),
-                            cancelLabel: t(locale, 'cancel'),
-                            danger: true,
-                          });
-                          if (confirmed) props.onDeleteAction(action.id);
-                        }}
-                      >
-                        <IconTrash />
-                      </button>
+                      <Tooltip text={t(locale, 'behavior.copy.edit')} position="left">
+                        <button
+                          type="button"
+                          class="plg-iconbtn"
+                          aria-label={t(locale, 'behavior.copy.edit')}
+                          onClick={() => { screen.value = { kind: 'action', action, isNew: false }; }}
+                        >
+                          <IconPencil />
+                        </button>
+                      </Tooltip>
+                      <Tooltip text={t(locale, 'behavior.copy.remove')} position="left">
+                        <button
+                          type="button"
+                          class="plg-iconbtn is-danger"
+                          aria-label={t(locale, 'behavior.copy.remove')}
+                          onClick={async () => {
+                            const confirmed = await dialogs.confirm(t(locale, 'behavior.copy.confirmDeleteAction'), {
+                              title: t(locale, 'behavior.copy.remove'),
+                              confirmLabel: t(locale, 'behavior.copy.remove'),
+                              cancelLabel: t(locale, 'cancel'),
+                              danger: true,
+                            });
+                            if (confirmed) props.onDeleteAction(action.id);
+                          }}
+                        >
+                          <IconTrash />
+                        </button>
+                      </Tooltip>
                     </span>
                   </div>
                 );
@@ -412,34 +413,34 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                     ))}
                   </span>
                   <span class="plg-table__actions">
-                    <button
-                      type="button"
-                      class="plg-iconbtn"
-                      aria-label={t(locale, 'behavior.copy.edit')}
-                      data-tooltip={t(locale, 'behavior.copy.edit')}
-                      data-tooltip-pos="left"
-                      onClick={() => { screen.value = { kind: 'event', event, isNew: false }; }}
-                    >
-                      <IconPencil />
-                    </button>
-                    <button
-                      type="button"
-                      class="plg-iconbtn is-danger"
-                      aria-label={t(locale, 'behavior.copy.remove')}
-                      data-tooltip={t(locale, 'behavior.copy.remove')}
-                      data-tooltip-pos="left"
-                      onClick={async () => {
-                        const confirmed = await dialogs.confirm(t(locale, 'behavior.copy.confirmDeleteEvent'), {
-                          title: t(locale, 'behavior.copy.remove'),
-                          confirmLabel: t(locale, 'behavior.copy.remove'),
-                          cancelLabel: t(locale, 'cancel'),
-                          danger: true,
-                        });
-                        if (confirmed) props.onDeleteEvent(event.id);
-                      }}
-                    >
-                      <IconTrash />
-                    </button>
+                    <Tooltip text={t(locale, 'behavior.copy.edit')} position="left">
+                      <button
+                        type="button"
+                        class="plg-iconbtn"
+                        aria-label={t(locale, 'behavior.copy.edit')}
+                        onClick={() => { screen.value = { kind: 'event', event, isNew: false }; }}
+                      >
+                        <IconPencil />
+                      </button>
+                    </Tooltip>
+                    <Tooltip text={t(locale, 'behavior.copy.remove')} position="left">
+                      <button
+                        type="button"
+                        class="plg-iconbtn is-danger"
+                        aria-label={t(locale, 'behavior.copy.remove')}
+                        onClick={async () => {
+                          const confirmed = await dialogs.confirm(t(locale, 'behavior.copy.confirmDeleteEvent'), {
+                            title: t(locale, 'behavior.copy.remove'),
+                            confirmLabel: t(locale, 'behavior.copy.remove'),
+                            cancelLabel: t(locale, 'cancel'),
+                            danger: true,
+                          });
+                          if (confirmed) props.onDeleteEvent(event.id);
+                        }}
+                      >
+                        <IconTrash />
+                      </button>
+                    </Tooltip>
                   </span>
                 </div>
               ))}

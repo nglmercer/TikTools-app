@@ -5,6 +5,7 @@ import { PermissionCards, TestConsole } from '../../components/ui/FieldPanels.vu
 import { SchemaForm, schemaForAction, resolveAutocompleteSources } from '../../components/ui/SchemaForm.vue';
 import { IconChevronLeft } from '../../components/icons/index.ts';
 import { TextInput } from '../../components/ui/TextInput.vue';
+import { Tooltip } from '../../components/ui/Tooltip.vue';
 import { HttpRequestEditor } from '../../components/http/index.ts';
 import type { TemplateSuggestionScope } from '../../components/node-editor/template-suggestions.ts';
 import {
@@ -89,59 +90,57 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
   return (
     <div class="plg">
       <div class="plg-topbar">
-        <button
-          type="button"
-          class="plg-btn plg-btn--icon"
-          onClick={props.onCancel}
-          aria-label={t(props.locale, 'behavior.copy.back')}
-          data-tooltip={t(props.locale, 'behavior.copy.backHint')}
-          data-tooltip-pos="bottom"
-          data-tooltip-wide=""
-        >
-          <IconChevronLeft size={16} />
-        </button>
+        <Tooltip text={t(props.locale, 'behavior.copy.backHint')} position="bottom" wide>
+          <button
+            type="button"
+            class="plg-btn plg-btn--icon"
+            onClick={props.onCancel}
+            aria-label={t(props.locale, 'behavior.copy.back')}
+          >
+            <IconChevronLeft size={16} />
+          </button>
+        </Tooltip>
         <div class="plg-topbar__text">
           <h2 class="plg-topbar__title">{draftValue.name || t(props.locale, 'behavior.copy.newAction')}</h2>
-          <span
-            class="plg-topbar__subtitle plg-mono"
-            data-tooltip={typeValue ? `${i18nText(props.locale, typeValue.description)}${t(props.locale, 'behavior.copy.typeHint') ? ` — ${t(props.locale, 'behavior.copy.typeHint')}` : ''}` : draftValue.typeId}
-            data-tooltip-pos="bottom"
-            data-tooltip-wide=""
+          <Tooltip
+            text={typeValue ? `${i18nText(props.locale, typeValue.description)}${t(props.locale, 'behavior.copy.typeHint') ? ` — ${t(props.locale, 'behavior.copy.typeHint')}` : ''}` : draftValue.typeId}
+            position="bottom"
+            wide
           >
-            {typeValue ? `${originLabel(typeValue, props.locale, t(props.locale, 'behavior.copy.builtIn'))} · ${typeValue.tag}` : draftValue.typeId}
-          </span>
+            <span class="plg-topbar__subtitle plg-mono">
+              {typeValue ? `${originLabel(typeValue, props.locale, t(props.locale, 'behavior.copy.builtIn'))} · ${typeValue.tag}` : draftValue.typeId}
+            </span>
+          </Tooltip>
         </div>
         <div class="plg-topbar__actions">
           {!props.isNew && (
+            <Tooltip text={t(props.locale, 'behavior.copy.deleteHint')} position="bottom" wide>
+              <button
+                type="button"
+                class="plg-btn plg-btn--danger plg-btn--sm"
+                onClick={async () => {
+                  const confirmed = await dialogs.confirm(t(props.locale, 'behavior.copy.confirmDeleteAction'), {
+                    title: t(props.locale, 'behavior.copy.remove'),
+                    confirmLabel: t(props.locale, 'behavior.copy.remove'),
+                    cancelLabel: t(props.locale, 'cancel'),
+                    danger: true,
+                  });
+                  if (confirmed) props.onDelete(draftValue.id);
+                }}
+              >
+                {t(props.locale, 'behavior.copy.remove')}
+              </button>
+            </Tooltip>
+          )}
+          <Tooltip text={t(props.locale, 'behavior.copy.saveHint')} position="bottom" wide>
             <button
               type="button"
-              class="plg-btn plg-btn--danger plg-btn--sm"
-              data-tooltip={t(props.locale, 'behavior.copy.deleteHint')}
-              data-tooltip-pos="bottom"
-              data-tooltip-wide=""
-              onClick={async () => {
-                const confirmed = await dialogs.confirm(t(props.locale, 'behavior.copy.confirmDeleteAction'), {
-                  title: t(props.locale, 'behavior.copy.remove'),
-                  confirmLabel: t(props.locale, 'behavior.copy.remove'),
-                  cancelLabel: t(props.locale, 'cancel'),
-                  danger: true,
-                });
-                if (confirmed) props.onDelete(draftValue.id);
-              }}
+              class="plg-btn plg-btn--primary plg-btn--sm"
+              onClick={() => props.onSave(draftValue)}
             >
-              {t(props.locale, 'behavior.copy.remove')}
+              {t(props.locale, 'behavior.copy.save')}
             </button>
-          )}
-          <button
-            type="button"
-            class="plg-btn plg-btn--primary plg-btn--sm"
-            data-tooltip={t(props.locale, 'behavior.copy.saveHint')}
-            data-tooltip-pos="bottom"
-            data-tooltip-wide=""
-            onClick={() => props.onSave(draftValue)}
-          >
-            {t(props.locale, 'behavior.copy.save')}
-          </button>
+          </Tooltip>
         </div>
       </div>
 

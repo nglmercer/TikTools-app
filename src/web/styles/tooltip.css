@@ -1,89 +1,15 @@
-/* Base Minimalist Tooltip System */
-[data-tooltip] {
-  position: relative;
-}
-
-[data-tooltip]::before {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 7px);
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  padding: 5px 9px;
-  border-radius: 7px;
-  background: var(--tooltip-bg);
-  color: var(--tooltip-color);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--tooltip-border);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity 0.16s ease, transform 0.16s ease;
-  z-index: var(--z-tooltip);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-}
-
-[data-tooltip]:hover::before {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(-50%) translateY(0);
-}
-
-[data-tooltip-pos="bottom"]::before {
-  bottom: auto;
-  top: calc(100% + 7px);
-  transform: translateX(-50%) translateY(-4px);
-}
-[data-tooltip-pos="bottom"]:hover::before {
-  transform: translateX(-50%) translateY(0);
-}
-
-[data-tooltip-pos="right"]::before {
-  bottom: auto;
-  left: calc(100% + 9px);
-  top: 50%;
-  transform: translateY(-50%) translateX(-4px);
-}
-[data-tooltip-pos="right"]:hover::before {
-  transform: translateY(-50%) translateX(0);
-}
-
-[data-tooltip-pos="left"]::before {
-  bottom: auto;
-  left: auto;
-  right: calc(100% + 9px);
-  top: 50%;
-  transform: translateY(-50%) translateX(4px);
-}
-[data-tooltip-pos="left"]:hover::before {
-  transform: translateY(-50%) translateX(0);
-}
-
-
-/* Wide variant: hints are sentences, not labels, so they must wrap. */
-[data-tooltip][data-tooltip-wide]::before {
-  white-space: normal;
-  width: max-content;
-  max-width: 260px;
-  font-weight: 500;
-  line-height: 1.45;
-  text-align: left;
-}
-
-[data-tooltip]:focus-visible::before {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* ---- portal tooltip (Tooltip.vue): escapes local stacking contexts ---- */
+/* Portal tooltip (Tooltip.vue): the bubble teleports to body with fixed
+   positioning, so it escapes local stacking contexts (backdrop-filter panes,
+   cards, scroll containers) that trapped the old ::before tooltips. */
 .ui-tooltip-trigger {
   display: inline-flex;
   min-width: 0;
+}
+
+/* A block control keeps filling its container through the trigger wrapper. */
+.ui-tooltip-trigger:has(> .is-block) {
+  display: flex;
+  width: 100%;
 }
 
 .ui-tooltip-portal {

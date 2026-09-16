@@ -79,20 +79,20 @@ export const IconSelect = defineVueComponent<IconSelectProps>(
     const { value, options, ariaLabel, className = '', placeholder } = props;
     const selected = options.find((option) => option.value === value);
     return (
-    <div class={`ui-select ${className}`.trim()} ref={rootRef}>
+    <div class={`ui-icon-select ${className}`.trim()} ref={rootRef}>
       <button
         type="button"
-        class={`ui-select__control${open.value ? ' is-open' : ''}`}
+        class={`ui-icon-select__control${open.value ? ' is-open' : ''}`}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open.value}
         onClick={() => (open.value ? (open.value = false) : openAt())}
         onKeydown={onKeydown}
       >
-        {selected?.icon && <span class="ui-select__icon">{selected.icon}</span>}
-        <span class="ui-select__value">{selected?.label ?? placeholder ?? ''}</span>
+        {selected?.icon && <span class="ui-icon-select__icon">{selected.icon}</span>}
+        <span class="ui-icon-select__value">{selected?.label ?? placeholder ?? ''}</span>
         <svg
-          class="ui-select__caret"
+          class="ui-icon-select__caret"
           width="12"
           height="12"
           viewBox="0 0 24 24"
@@ -108,22 +108,22 @@ export const IconSelect = defineVueComponent<IconSelectProps>(
       </button>
 
       {open.value && (
-        <div class="ui-select__menu" role="listbox" aria-label={ariaLabel}>
+        <div class="ui-icon-select__menu" role="listbox" aria-label={ariaLabel}>
           {options.map((option, index) => (
             <button
               type="button"
               key={option.value}
               role="option"
               aria-selected={option.value === value}
-              class={`ui-select__option${option.value === value ? ' is-selected' : ''}${index === active.value ? ' is-active' : ''}`}
+              class={`ui-icon-select__option${option.value === value ? ' is-selected' : ''}${index === active.value ? ' is-active' : ''}`}
               title={option.hint}
               onMouseenter={() => (active.value = index)}
               onClick={() => commit(index)}
             >
-              {option.icon && <span class="ui-select__icon">{option.icon}</span>}
-              <span class="ui-select__text">
-                <span class="ui-select__label">{option.label}</span>
-                {option.meta && <span class="ui-select__meta">{option.meta}</span>}
+              {option.icon && <span class="ui-icon-select__icon">{option.icon}</span>}
+              <span class="ui-icon-select__text">
+                <span class="ui-icon-select__label">{option.label}</span>
+                {option.meta && <span class="ui-icon-select__meta">{option.meta}</span>}
               </span>
             </button>
           ))}

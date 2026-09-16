@@ -1,6 +1,7 @@
 <script lang="tsx">
 import type { VNodeChild } from 'vue';
 import { defineVueFunctional } from '../../vue/component.ts';
+import { Tooltip } from './Tooltip.vue';
 
 type ButtonProps = {
   children?: VNodeChild;
@@ -30,12 +31,10 @@ export const Button = defineVueFunctional<ButtonProps>((props) => {
     onClick,
     tooltip,
   } = props;
-  return (
+  const node = (
     <button
       type={type}
       disabled={disabled || loading}
-      data-tooltip={tooltip}
-      data-tooltip-pos="top"
       aria-label={iconOnly ? tooltip : undefined}
       onClick={onClick}
       class={`ui-btn ui-btn--${variant} ui-btn--${size} ${block ? 'is-block' : ''} ${iconOnly ? 'is-icon-only' : ''} ${loading ? 'is-loading' : ''}`}
@@ -44,6 +43,9 @@ export const Button = defineVueFunctional<ButtonProps>((props) => {
       {!iconOnly ? <span class="ui-btn__label">{loading ? '…' : children}</span> : null}
     </button>
   );
+  // Portal tooltip: escapes stacking contexts and still shows on disabled
+  // buttons, whose own mouse events never fire.
+  return tooltip ? <Tooltip text={tooltip} position="top">{node}</Tooltip> : node;
 });
 
 export default Button;

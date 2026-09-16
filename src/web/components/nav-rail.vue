@@ -2,6 +2,7 @@
 import { computed, type Component } from 'vue';
 import { t, type Locale } from '../i18n.ts';
 import type { AppTab } from '../types.ts';
+import { Tooltip } from './ui/Tooltip.vue';
 import {
   IconBarChart,
   IconChat,
@@ -39,18 +40,21 @@ const navTabs = computed<NavigationTab[]>(() => [
 
 <template>
   <nav class="nav-rail" aria-label="Main Navigation">
-    <button
+    <Tooltip
       v-for="tab in navTabs"
       :key="tab.id"
-      type="button"
-      :class="['nav-tab-btn', { active: props.activeTab === tab.id }]"
-      :data-tooltip="tab.tooltip"
-      data-tooltip-pos="right"
-      :aria-label="tab.tooltip"
-      :aria-current="props.activeTab === tab.id ? 'page' : undefined"
-      @click="props.onTabChange(tab.id)"
+      :text="tab.tooltip"
+      position="right"
     >
-      <component :is="tab.icon" />
-    </button>
+      <button
+        type="button"
+        :class="['nav-tab-btn', { active: props.activeTab === tab.id }]"
+        :aria-label="tab.tooltip"
+        :aria-current="props.activeTab === tab.id ? 'page' : undefined"
+        @click="props.onTabChange(tab.id)"
+      >
+        <component :is="tab.icon" />
+      </button>
+    </Tooltip>
   </nav>
 </template>

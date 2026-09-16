@@ -8,6 +8,7 @@ import {
   IconClose,
   IconHeart,
   IconSparkles,
+  readIconName,
   resolveIcon,
   SvgIcon,
   type IconName,
@@ -109,6 +110,20 @@ test('every registered icon renders a non-empty svg', async () => {
 test('resolveIcon falls back to a neutral glyph for unknown names', () => {
   expect(resolveIcon('no-such-icon')).toBe(ICONS.dot);
   expect(resolveIcon('close')).toBe(IconClose);
+});
+
+test('readIconName whitelists registry names from untrusted JSON', () => {
+  for (const name of Object.keys(ICONS) as IconName[]) expect(readIconName(name)).toBe(name);
+  expect(readIconName('close')).toBe('close');
+  expect(readIconName('no-such-icon')).toBeUndefined();
+  expect(readIconName('constructor')).toBeUndefined();
+  expect(readIconName('__proto__')).toBeUndefined();
+  expect(readIconName('hasOwnProperty')).toBeUndefined();
+  expect(readIconName(42)).toBeUndefined();
+  expect(readIconName(null)).toBeUndefined();
+  expect(readIconName(undefined)).toBeUndefined();
+  expect(readIconName({})).toBeUndefined();
+  expect(readIconName(['close'])).toBeUndefined();
 });
 
 test('event presentation covers every built-in event type', () => {

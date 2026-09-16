@@ -3,6 +3,7 @@ import { t, type Locale } from '../i18n.ts';
 import type { Theme } from '../preferences.ts';
 import type { ConnectionStatus } from '../types.ts';
 import { AppIcon } from './app-icon.vue';
+import { Tooltip } from './ui/Tooltip.vue';
 import {
   IconGlobe,
   IconMoon,
@@ -28,9 +29,11 @@ const props = defineProps<TopNavProps>();
 <template>
   <header class="top-nav">
     <div class="brand-section">
-      <div class="brand-logo" data-tooltip="TikTok LIVE" data-tooltip-pos="bottom">
-        <AppIcon :size="28" />
-      </div>
+      <Tooltip text="TikTok LIVE" position="bottom">
+        <div class="brand-logo">
+          <AppIcon :size="28" />
+        </div>
+      </Tooltip>
       <div class="brand-info">
         <h1>
           TikTok LIVE
@@ -42,54 +45,57 @@ const props = defineProps<TopNavProps>();
     </div>
 
     <div class="top-center">
-      <div v-if="props.activeCreator" class="active-creator-pill" :data-tooltip="`Status: ${props.status}`" data-tooltip-pos="bottom">
-        <span :class="['status-dot', props.status === 'connected' ? 'online' : props.status === 'connecting' || props.status === 'retrying' ? 'busy' : 'offline']" />
-        <span>@{{ props.activeCreator.replace(/^@/, '') }}</span>
-      </div>
+      <Tooltip v-if="props.activeCreator" :text="`Status: ${props.status}`" position="bottom">
+        <div class="active-creator-pill">
+          <span :class="['status-dot', props.status === 'connected' ? 'online' : props.status === 'connecting' || props.status === 'retrying' ? 'busy' : 'offline']" />
+          <span>@{{ props.activeCreator.replace(/^@/, '') }}</span>
+        </div>
+      </Tooltip>
     </div>
 
     <div class="top-actions">
       <template v-if="props.status === 'connected'">
+        <Tooltip :text="t(props.locale, 'reconnect')" position="bottom">
+          <button
+            class="btn-icon"
+            type="button"
+            @click="props.onReconnect"
+          >
+            <IconRefresh />
+          </button>
+        </Tooltip>
+        <Tooltip :text="t(props.locale, 'disconnect')" position="bottom">
+          <button
+            class="btn-icon btn-danger"
+            type="button"
+            @click="props.onDisconnect"
+          >
+            <IconPower />
+          </button>
+        </Tooltip>
+      </template>
+
+      <Tooltip :text="t(props.locale, 'switchTheme')" position="bottom">
         <button
           class="btn-icon"
           type="button"
-          :data-tooltip="t(props.locale, 'reconnect')"
-          data-tooltip-pos="bottom"
-          @click="props.onReconnect"
+          @click="props.onThemeToggle"
         >
-          <IconRefresh />
+          <IconSun v-if="props.theme === 'dark'" />
+          <IconMoon v-else />
         </button>
+      </Tooltip>
+
+      <Tooltip :text="`${t(props.locale, 'switchLanguage')} (${props.locale.toUpperCase()})`" position="bottom">
         <button
-          class="btn-icon btn-danger"
+          class="btn-icon"
           type="button"
-          :data-tooltip="t(props.locale, 'disconnect')"
-          data-tooltip-pos="bottom"
-          @click="props.onDisconnect"
+          :aria-label="`${t(props.locale, 'switchLanguage')} (${props.locale.toUpperCase()})`"
+          @click="props.onLocaleToggle"
         >
-          <IconPower />
+          <IconGlobe />
         </button>
-      </template>
-
-      <button
-        class="btn-icon"
-        type="button"
-        :data-tooltip="t(props.locale, 'switchTheme')"
-        data-tooltip-pos="bottom"
-        @click="props.onThemeToggle"
-      >
-        <IconSun v-if="props.theme === 'dark'" />
-        <IconMoon v-else />
-      </button>
-
-      <button
-        class="btn-icon"
-        type="button"
-        :data-tooltip="`${t(props.locale, 'switchLanguage')} (${props.locale.toUpperCase()})`"
-        data-tooltip-pos="bottom"
-        @click="props.onLocaleToggle"
-      >
-        <IconGlobe />
-      </button>
+      </Tooltip>
     </div>
   </header>
 </template>

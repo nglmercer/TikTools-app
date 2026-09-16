@@ -19,11 +19,17 @@ export function defineVueComponent<Props extends VueProps>(
   return defineComponent<Props>((rawProps, context) => {
       const propsWithSlots = new Proxy(rawProps as Props, {
         get(target, key, receiver) {
-          if (key === 'children' && !Reflect.has(target, key)) {
-            return context.slots.default?.();
+          // Declared-but-absent props exist on the resolved props object as
+          // `undefined`, so presence alone must not shadow the slot/attr
+          // fallback: an explicit value wins, otherwise the default slot (for
+          // children) or the fallthrough class (for className) applies.
+          if (key === 'children') {
+            const explicit = Reflect.get(target, key, receiver);
+            return explicit !== undefined ? explicit : context.slots.default?.();
           }
-          if (key === 'className' && !Reflect.has(target, key)) {
-            return context.attrs.class;
+          if (key === 'className') {
+            const explicit = Reflect.get(target, key, receiver);
+            return explicit !== undefined ? explicit : context.attrs.class;
           }
           if (Reflect.has(target, key)) return Reflect.get(target, key, receiver);
           return context.attrs[key as string];

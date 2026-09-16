@@ -1,5 +1,6 @@
 <script lang="tsx">
 import { ref, watch } from 'vue';
+import type { VNodeChild } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { InfoTip } from './InfoTip.vue';
 import { dispatchControlEvent, normalizeControlString, syncNativeControlValue } from './control-events.ts';
@@ -29,10 +30,12 @@ type SelectProps = {
   placeholder?: string;
   /** MUI-style floating label. */
   label?: string;
+  /** Decorative icon before the control. Per-option icons need IconSelect: native <option> cannot draw SVGs. */
+  leadingIcon?: VNodeChild;
 };
 
 export const Select = defineVueComponent<SelectProps>(
-  ['value', 'onValueChange', 'options', 'disabled', 'readonly', 'required', 'ariaLabel', 'error', 'hint', 'id', 'name', 'placeholder', 'label'],
+  ['value', 'onValueChange', 'options', 'disabled', 'readonly', 'required', 'ariaLabel', 'error', 'hint', 'id', 'name', 'placeholder', 'label', 'leadingIcon'],
   (props, context) => {
   const innerRef = ref<HTMLSelectElement | null>(null);
   const commitProgrammaticValue = (value: string): void => {
@@ -66,14 +69,15 @@ export const Select = defineVueComponent<SelectProps>(
   });
 
   return () => {
-    const { options, disabled, readonly, required, ariaLabel, error, hint, id, name, placeholder, label } = props;
+    const { options, disabled, readonly, required, ariaLabel, error, hint, id, name, placeholder, label, leadingIcon } = props;
     const value = normalizeControlString(props.value);
     const isDisabled = disabled || readonly;
     if (label) {
       const filled = value.trim().length > 0;
       return (
       <div class={`ui-float ${filled ? 'is-filled' : ''} ${error ? 'has-error' : ''} ${isDisabled ? 'is-disabled' : ''}`}>
-        <div class="ui-float__control">
+        <div class={`ui-float__control${leadingIcon ? ' has-leading-icon' : ''}`}>
+          {leadingIcon ? <span class="ui-float__leading" aria-hidden="true">{leadingIcon}</span> : null}
           <select ref={innerRef} id={id} name={name} value={value} disabled={isDisabled} required={required} aria-invalid={Boolean(error)} aria-label={ariaLabel ?? label} onChange={handleChange}>
             {placeholder ? (
               <option value="" disabled>
@@ -98,7 +102,8 @@ export const Select = defineVueComponent<SelectProps>(
     }
 
     return (
-    <div class={`ui-select ${error ? 'has-error' : ''} ${isDisabled ? 'is-disabled' : ''}`}>
+    <div class={`ui-select ${error ? 'has-error' : ''} ${isDisabled ? 'is-disabled' : ''} ${leadingIcon ? 'has-leading-icon' : ''}`}>
+      {leadingIcon ? <span class="ui-select__leading" aria-hidden="true">{leadingIcon}</span> : null}
       <select ref={innerRef} id={id} name={name} value={value} disabled={isDisabled} required={required} aria-invalid={Boolean(error)} aria-label={ariaLabel} onChange={handleChange}>
         {placeholder ? (
           <option value="" disabled>

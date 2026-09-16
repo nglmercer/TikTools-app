@@ -696,3 +696,13 @@ export const ICONS: Record<IconName, IconComponent> = {
 export function resolveIcon(name: IconName | string): IconComponent {
   return (ICONS as Record<string, IconComponent>)[name] ?? IconDot;
 }
+
+/**
+ * Strictly read an icon name from untrusted JSON (plugin uiHints, stored
+ * configs). Anything outside the registry — including prototype keys — yields
+ * no icon instead of the neutral fallback, so invalid data never draws a
+ * misleading glyph. Plugins can only name icons, never supply SVG.
+ */
+export function readIconName(value: unknown): IconName | undefined {
+  return typeof value === 'string' && Object.hasOwn(ICONS, value) ? (value as IconName) : undefined;
+}

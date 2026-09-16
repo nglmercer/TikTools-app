@@ -9,10 +9,12 @@ import { TemplateField } from '../node-editor/TemplateField.vue';
 import { getFetchUrlTemplates, getTemplateSuggestions, type TemplateSuggestionScope } from '../node-editor/template-suggestions.ts';
 import type { AutocompleteItem } from '../autocomplete/index.ts';
 import { resolveAutocompleteSources as mergeAutocompleteSources, suggestionsFromObject } from '../autocomplete/index.ts';
-import { IconClose } from '../icons/index.ts';
+import { Icon, IconClose, readIconName, type IconName } from '../icons/index.ts';
 import { AdvancedSection } from './FieldPanels.vue';
 import { CodeEditor, formatJsonText } from './CodeEditor.vue';
+import { IconSelect, type IconSelectOption } from './IconSelect.vue';
 import { InfoTip } from './InfoTip.vue';
+import { Tooltip } from './Tooltip.vue';
 import { i18nText, t, type Locale } from '../../i18n.ts';
 import { MediaField } from './MediaField.vue';
 import { NumberInput } from './NumberInput.vue';
@@ -237,6 +239,7 @@ function SchemaField({ locale, name, schema, hint, value, onChange, templateSugg
   const label = localized(schema.title, locale) || name;
   const description = typeof schema.description === 'string' ? schema.description : localized(schema.description as JsonValue, locale);
   const hintText = localized(hint?.hint, locale) || description;
+  const fieldIconName = readIconName(hint?.icon);
   const kind = typeof hint?.kind === 'string' ? hint.kind : schema.format === 'code' ? 'code' : schema.type;
   const template = hint?.template === true;
   const displayValue = toDisplayValue(value, schema.type);
@@ -265,7 +268,7 @@ function SchemaField({ locale, name, schema, hint, value, onChange, templateSugg
     return (
       <div class="plg-field">
         <div class="plg-switch-row">
-          <label class={`plg-switch plg-switch--field${checked ? ' is-on' : ''}`} for={controlId} data-tooltip={hintText || undefined} data-tooltip-pos="right" data-tooltip-wide={hintText ? '' : undefined}>
+          <label class={`plg-switch plg-switch--field${checked ? ' is-on' : ''}`} for={controlId}>
             <input
               id={controlId}
               class="plg-switch__input"
@@ -441,16 +444,28 @@ function SchemaField({ locale, name, schema, hint, value, onChange, templateSugg
   }
 
   const schemaOptions = Array.isArray(schema.enum) ? schema.enum.filter((entry): entry is string => typeof entry === 'string').map((value) => ({ value, label: value })) : [];
-  const hintedOptions = Array.isArray(hint?.options)
+  const hintedEntries: Array<{ value: string; label: string; hint?: string; icon?: IconName }> = Array.isArray(hint?.options)
     ? hint.options.filter((entry): entry is JsonObject => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)).map((entry) => ({
       value: typeof entry.value === 'string' ? entry.value : '',
       label: localized(entry.label, locale) || (typeof entry.value === 'string' ? entry.value : ''),
-      hint: localized((entry as JsonObject).hint, locale) || undefined,
+      hint: localized(entry.hint, locale) || undefined,
+      icon: readIconName(entry.icon),
     }))
     : [];
   const dynamicOptions = Array.isArray(fieldOptions) ? fieldOptions.filter((entry) => entry && typeof entry.value === 'string') : [];
-  const options = schemaOptions.length > 0 ? schemaOptions : dynamicOptions.length > 0 ? dynamicOptions : hintedOptions;
+  const options = schemaOptions.length > 0 ? schemaOptions : dynamicOptions.length > 0 ? dynamicOptions : hintedEntries;
   if (options.length > 0) {
+    // Only hinted options can carry icons; when any does, the whole list
+    // renders as an IconSelect because native <option> cannot draw SVGs.
+    const useIcons = options === hintedEntries && hintedEntries.some((entry) => entry.icon !== undefined);
+    const iconOptions: IconSelectOption[] | undefined = useIcons
+      ? hintedEntries.map((entry) => ({
+        value: entry.value,
+        label: entry.label,
+        hint: entry.hint,
+        icon: entry.icon ? <Icon name={entry.icon} size={14} /> : undefined,
+      }))
+      : undefined;
     return (
       <SelectField
         name={name}
@@ -459,6 +474,7 @@ function SchemaField({ locale, name, schema, hint, value, onChange, templateSugg
         template={template}
         value={displayValue}
         options={options as SelectOption[]}
+        iconOptions={iconOptions}
         onChange={onChange}
       />
     );
@@ -574,18 +590,20 @@ function SchemaField({ locale, name, schema, hint, value, onChange, templateSugg
         hint={hintText || undefined}
         value={displayValue}
         onValueChange={onChange}
+        leadingIcon={fieldIconName ? <Icon name={fieldIconName} size={14} /> : undefined}
       />
     </div>
   );
 }
 
-/** Select with floating label + tooltips on every option (`title`). */
+/** Select with floating label + tooltips on every option (`title`). Choices with icons use IconSelect. */
 function SelectField({
   name,
   label,
   hintText,
   value,
   options,
+  iconOptions,
   onChange,
 }: {
   name: string;
@@ -594,8 +612,25 @@ function SelectField({
   template?: boolean;
   value: string;
   options: SelectOption[];
+  iconOptions?: IconSelectOption[];
   onChange: (value: JsonValue) => void;
 }) {
+  if (iconOptions) {
+    return (
+      <div class="plg-field">
+        <div class="plg-label-row">
+          <label class="plg-label">{label}</label>
+          {hintText ? <InfoTip text={hintText} position="right" /> : null}
+        </div>
+        <IconSelect
+          ariaLabel={label}
+          value={value}
+          options={iconOptions}
+          onChange={(next) => onChange(next)}
+        />
+      </div>
+    );
+  }
   return (
     <div class="plg-field">
       <Select
@@ -638,13 +673,12 @@ export function KeyValueEditor({
       </div>
       {Object.entries(entries).map(([key, entry], index) => (
         <div class="plg-kv-row" key={`header-${index}`}>
-          <input
-            class="plg-input plg-input--mono plg-input--key"
-            value={key}
-            aria-label={keyLabel}
-            data-tooltip={keyLabel}
-            data-tooltip-pos="right"
-            placeholder="content-type"
+          <Tooltip text={keyLabel} position="right">
+            <input
+              class="plg-input plg-input--mono plg-input--key"
+              value={key}
+              aria-label={keyLabel}
+              placeholder="content-type"
             onInput={(event) => {
               const nextName = (event.currentTarget as HTMLInputElement).value;
               const list = Object.entries(entries);
@@ -654,7 +688,8 @@ export function KeyValueEditor({
               });
               onChange(next);
             }}
-          />
+            />
+          </Tooltip>
           <span class="plg-kv-row__value">
             <TemplateField
               locale={locale}
@@ -672,31 +707,31 @@ export function KeyValueEditor({
               label={valueLabel}
             />
           </span>
-          <button
-            type="button"
-            class="plg-btn plg-btn--icon plg-btn--danger"
-            aria-label={removeLabel}
-            data-tooltip={removeLabel}
-            data-tooltip-pos="left"
-            onClick={() => {
-              const next = { ...entries };
-              delete next[key];
-              onChange(next);
-            }}
-          >
-            <IconClose size={10} />
-          </button>
+          <Tooltip text={removeLabel} position="left">
+            <button
+              type="button"
+              class="plg-btn plg-btn--icon plg-btn--danger"
+              aria-label={removeLabel}
+              onClick={() => {
+                const next = { ...entries };
+                delete next[key];
+                onChange(next);
+              }}
+            >
+              <IconClose size={10} />
+            </button>
+          </Tooltip>
         </div>
       ))}
-      <button
-        type="button"
-        class="plg-btn plg-btn--sm"
-        data-tooltip={t(locale, 'addHeaderTooltip')}
-        data-tooltip-pos="bottom"
-        onClick={() => onChange({ ...entries, [`field-${Object.keys(entries).length + 1}`]: '' })}
-      >
-        + {t(locale, 'add')}
-      </button>
+      <Tooltip text={t(locale, 'addHeaderTooltip')} position="bottom">
+        <button
+          type="button"
+          class="plg-btn plg-btn--sm"
+          onClick={() => onChange({ ...entries, [`field-${Object.keys(entries).length + 1}`]: '' })}
+        >
+          + {t(locale, 'add')}
+        </button>
+      </Tooltip>
     </div>
   );
 }
