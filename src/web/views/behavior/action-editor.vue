@@ -3,18 +3,12 @@ import { computed, ref, watch } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { PermissionCards, TestConsole } from '../../components/ui/FieldPanels.vue';
 import { SchemaForm, schemaForAction, resolveAutocompleteSources } from '../../components/ui/SchemaForm.vue';
-import { CodeEditor, formatJsonText } from '../../components/ui/CodeEditor.vue';
-import { TemplateField } from '../../components/node-editor/TemplateField.vue';
+import { IconChevronLeft } from '../../components/icons/index.ts';
 import { TextInput } from '../../components/ui/TextInput.vue';
-import { InfoTip } from '../../components/ui/InfoTip.vue';
-import {
-  getFetchUrlTemplates,
-  isLocalFetchUrl,
-  type TemplateSuggestionScope,
-} from '../../components/node-editor/template-suggestions.ts';
+import { HttpRequestEditor } from '../../components/http/index.ts';
+import type { TemplateSuggestionScope } from '../../components/node-editor/template-suggestions.ts';
 import {
   deriveActionPermissions,
-  readString,
   readStringMap,
 } from '../../../automation/behavior/schema.ts';
 import { sampleEventFor } from '../../../automation/behavior/samples.ts';
@@ -104,7 +98,7 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
           data-tooltip-pos="bottom"
           data-tooltip-wide=""
         >
-          ‹
+          <IconChevronLeft size={16} />
         </button>
         <div class="plg-topbar__text">
           <h2 class="plg-topbar__title">{draftValue.name || t(props.locale, 'behavior.copy.newAction')}</h2>
@@ -181,7 +175,7 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
                   </div>
                 )}
                 {isFetch ? (
-                  <FetchFields
+                  <BehaviorFetchFields
                     locale={props.locale}
                     draft={draftValue}
                     form={formValue}
@@ -229,8 +223,8 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
   };
   },
 );
-/** Endpoint + tabbed body layout for `core.fetch`, following the webhook-editor mockup. */
-type FetchFieldsProps = {
+/** `core.fetch` adapter: schema-driven labels feed the shared HTTP editor. */
+type BehaviorFetchFieldsProps = {
   locale: Locale;
   draft: LiveAction;
   form: { schema: JsonObject; uiHints?: JsonObject };
@@ -240,185 +234,71 @@ type FetchFieldsProps = {
   onPatchConfig: (patch: JsonObject) => void;
 };
 
-const FetchFields = defineVueComponent<FetchFieldsProps>(
-  ['locale', 'draft', 'form', 'suggestionsFor', 'suggestionContext', 'onOpenMediaPicker', 'onPatchConfig'],
-  (props) => {
-  const tab = ref<'body' | 'headers' | 'auth'>('body');
+/** Config keys rendered natively by the shared editor; the rest stay generic. */
+const NATIVE_HTTP_KEYS = new Set(['method', 'url', 'headers', 'body', 'timeoutMs', 'emitResponseAs', 'allowPrivateNetwork']);
 
-  return () => {
-  const { locale, draft, form, suggestionsFor, suggestionContext, onPatchConfig } = props;
-  const method = readString(draft.config.method) || 'POST';
-  const isGet = method.toUpperCase() === 'GET';
-  const activeTab: 'body' | 'headers' | 'auth' = isGet && tab.value === 'body' ? 'headers' : tab.value;
-  const headers = readStringMap(draft.config.headers);
-  const headerCount = Object.keys(headers).length;
-  const body = readString(draft.config.body);
-
+function BehaviorFetchFields({
+  locale,
+  draft,
+  form,
+  suggestionsFor,
+  suggestionContext,
+  onOpenMediaPicker,
+  onPatchConfig,
+}: BehaviorFetchFieldsProps) {
   const properties = objectPropertiesOf(form.schema.properties);
   const fieldHints = objectPropertiesOf(
     form.uiHints && typeof form.uiHints.fields === 'object' && !Array.isArray(form.uiHints.fields)
       ? form.uiHints.fields as JsonObject
       : undefined,
   );
-  const advancedKeys = Object.keys(properties).filter((key) => {
+  const leftoverKeys = Object.keys(properties).filter((key) => {
     const hint = fieldHints[key];
-    return hint !== undefined && (hint as JsonObject).advanced === true && key !== 'headers';
+    return hint !== undefined && (hint as JsonObject).advanced === true && !NATIVE_HTTP_KEYS.has(key);
   });
-  const advancedSummary = advancedKeys
-    .map((key) => fieldTitle(properties[key], locale) || key)
-    .slice(0, 3)
-    .join(', ');
-  const headersForm = stripAdvanced(pickForm(form, ['headers']));
-  const advancedForm = stripAdvanced(pickForm(form, advancedKeys));
-
-  const formatBody = (): void => {
-    const formatted = formatJsonText(body);
-    if (formatted !== null && formatted !== body) onPatchConfig({ body: formatted });
-  };
-
-  const urlValue = readString(draft.config.url);
-  const allowPrivate = readString(draft.config.allowPrivateNetwork) === 'true';
-  const showLocalHint = urlValue.trim().length > 0 && isLocalFetchUrl(urlValue) && !allowPrivate;
-  const urlPresets = getFetchUrlTemplates();
+  const leftoverForm = stripAdvanced(pickForm(form, leftoverKeys));
 
   return (
-    <div class="act-fetch">
-      <div class="plg-field">
-        <span class="act-label">
-          {t(locale, 'behavior.editor.endpoint')}
-          {fieldHint(fieldHints.url, locale) && <InfoTip text={fieldHint(fieldHints.url, locale)} position="right" />}
-        </span>
-        <div class="act-endpoint">
-          <select
-            class="act-method"
-            name="method"
-            value={method}
-            aria-label={fieldTitle(properties.method, locale) || 'Method'}
-            onChange={(event) => onPatchConfig({ method: (event.currentTarget as HTMLSelectElement).value })}
-          >
-            {methodOptions(properties.method, fieldHints.method, locale).map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-          <TemplateField
-            locale={locale}
-            name="url"
-            value={urlValue}
-            onValueChange={(next) => onPatchConfig({ url: next })}
-            suggestions={suggestionsFor('url', true)}
-            ariaLabel={fieldTitle(properties.url, locale) || 'URL'}
-            placeholder={fieldPlaceholder(fieldHints.url) ?? 'https://'}
-            bareWordTrigger={false}
-            urlPresets={urlPresets}
-          />
-        </div>
-        {showLocalHint && (
-          <p class="act-localhint" role="note">
-            <span>{t(locale, 'behavior.editor.localNetHint')}</span>
-            <button type="button" class="act-preset" onClick={() => onPatchConfig({ allowPrivateNetwork: true })}>
-              {t(locale, 'behavior.editor.enableLocalNet')}
-            </button>
-          </p>
-        )}
-      </div>
-
-      <div class="act-tabrow">
-        <div class="act-tabs" role="tablist">
-          {!isGet && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'body'}
-              class={`act-tab${activeTab === 'body' ? ' is-active' : ''}`}
-              onClick={() => { tab.value = 'body'; }}
-            >
-              {t(locale, 'behavior.editor.bodyTab')}
-            </button>
-          )}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'headers'}
-            class={`act-tab${activeTab === 'headers' ? ' is-active' : ''}`}
-            onClick={() => { tab.value = 'headers'; }}
-          >
-            {t(locale, 'behavior.editor.headersTab')}
-            {headerCount > 0 && <span class="act-tabcount">{headerCount}</span>}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'auth'}
-            class={`act-tab${activeTab === 'auth' ? ' is-active' : ''}`}
-            onClick={() => { tab.value = 'auth'; }}
-          >
-            {t(locale, 'behavior.editor.authTab')}
-          </button>
-        </div>
-        {activeTab === 'body' && (
-          <button type="button" class="act-format" onClick={formatBody}>
-            <span aria-hidden="true">☰</span> {t(locale, 'behavior.editor.format')}
-          </button>
-        )}
-      </div>
-
-      {activeTab === 'body' && (
-        <CodeEditor
+    <HttpRequestEditor
+      locale={locale}
+      config={draft.config}
+      onPatchConfig={onPatchConfig}
+      methodOptions={methodOptions(properties.method, fieldHints.method, locale)}
+      defaultMethod="POST"
+      methodLabel={fieldTitle(properties.method, locale) || 'Method'}
+      urlLabel={t(locale, 'behavior.editor.endpoint')}
+      urlHint={fieldHint(fieldHints.url, locale) || undefined}
+      urlPlaceholder={fieldPlaceholder(fieldHints.url) ?? 'https://'}
+      urlSuggestions={suggestionsFor('url', true)}
+      bodyLabel={fieldTitle(properties.body, locale) || 'Body'}
+      bodySuggestions={suggestionsFor('body', true)}
+      defaultBodyMode="json"
+      headersLabel={fieldTitle(properties.headers, locale) || 'Headers'}
+      headersHint={fieldHint(fieldHints.headers, locale) || undefined}
+      headerSuggestions={suggestionsFor('headers', true)}
+      timeoutLabel={fieldTitle(properties.timeoutMs, locale) || 'Timeout'}
+      timeoutHint={fieldHint(fieldHints.timeoutMs, locale) || undefined}
+      allowPrivateLabel={fieldTitle(properties.allowPrivateNetwork, locale) || 'Allow local network'}
+      allowPrivateHint={fieldHint(fieldHints.allowPrivateNetwork, locale) || undefined}
+      showEmitResponseAs
+      emitResponseAsLabel={fieldTitle(properties.emitResponseAs, locale) || 'Emit the response as'}
+      emitResponseAsHint={fieldHint(fieldHints.emitResponseAs, locale) || undefined}
+      emitResponseAsPlaceholder={fieldPlaceholder(fieldHints.emitResponseAs)}
+      emitResponseAsSuggestions={suggestionsFor('emitResponseAs', false)}
+      extraAdvanced={leftoverKeys.length > 0 ? (
+        <SchemaForm
           locale={locale}
-          name="body"
-          language="json"
-          value={body}
-          onValueChange={(next) => onPatchConfig({ body: next })}
-          suggestions={suggestionsFor('body', true)}
-          filename="payload.json"
-          mime="application/json"
-          rows={7}
-          ariaLabel={fieldTitle(properties.body, locale) || 'Body'}
+          schema={leftoverForm.schema}
+          uiHints={leftoverForm.uiHints}
+          value={draft.config}
+          suggestionContext={suggestionContext}
+          onOpenMediaPicker={onOpenMediaPicker}
+          onChange={onPatchConfig}
         />
-      )}
-
-      {activeTab === 'headers' && (
-        <div class="act-headers">
-          <SchemaForm
-            locale={locale}
-            schema={headersForm.schema}
-            uiHints={headersForm.uiHints}
-            value={draft.config}
-            suggestionContext={suggestionContext}
-            suggestionScopes={{ headers: 'http-data' }}
-            onOpenMediaPicker={props.onOpenMediaPicker}
-            onChange={(config) => onPatchConfig({ headers: config.headers ?? {} })}
-          />
-        </div>
-      )}
-
-      {activeTab === 'auth' && (
-        <div class="act-auth-empty">{t(locale, 'behavior.editor.authEmpty')}</div>
-      )}
-
-      {advancedKeys.length > 0 && (
-        <details class="plg-details act-adv">
-          <summary>
-            <span>{t(locale, 'behavior.copy.advanced')}</span>
-            {advancedSummary && <span class="act-adv__summary">{advancedSummary}</span>}
-          </summary>
-          <div class="plg-details__body">
-            <SchemaForm
-              locale={locale}
-              schema={advancedForm.schema}
-              uiHints={advancedForm.uiHints}
-              value={draft.config}
-              onOpenMediaPicker={props.onOpenMediaPicker}
-              onChange={(config) => onPatchConfig(config)}
-            />
-          </div>
-        </details>
-      )}
-    </div>
+      ) : undefined}
+    />
   );
-  };
-  },
-);
+}
 
 export default ActionEditor;
 </script>

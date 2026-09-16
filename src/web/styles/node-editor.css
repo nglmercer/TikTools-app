@@ -645,7 +645,8 @@
 }
 
 .node-editor-event-picker__selected-icon {
-  font-size: 21px;
+  display: inline-flex;
+  color: var(--tt-cyan);
 }
 
 .node-editor-event-picker__selected small {
@@ -681,6 +682,14 @@
   border-color: var(--line-focus);
   background: rgba(37, 244, 238, 0.1);
   color: var(--text);
+}
+
+.node-editor-event-choice__icon,
+.node-editor-add-step__icon,
+.node-editor-node-card__chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
 }
 
 .node-editor-picker-groups {

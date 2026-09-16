@@ -36,6 +36,7 @@ export const Button = defineVueFunctional<ButtonProps>((props) => {
       disabled={disabled || loading}
       data-tooltip={tooltip}
       data-tooltip-pos="top"
+      aria-label={iconOnly ? tooltip : undefined}
       onClick={onClick}
       class={`ui-btn ui-btn--${variant} ui-btn--${size} ${block ? 'is-block' : ''} ${iconOnly ? 'is-icon-only' : ''} ${loading ? 'is-loading' : ''}`}
     >

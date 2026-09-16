@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { FormField } from './FormField.vue';
+import { IconClose } from '../icons/index.ts';
 import { clampNumber } from './controls.ts';
 
 type RatingProps = {
@@ -76,7 +77,7 @@ export const Rating = defineVueComponent<RatingProps>(
           );
         })}
         {props.allowClear !== false && props.value > 0 ? (
-          <button type="button" class="ui-rating__clear" disabled={props.disabled} aria-label="Clear rating" onClick={() => props.onValueChange(0)}>×</button>
+          <button type="button" class="ui-rating__clear" disabled={props.disabled} aria-label="Clear rating" onClick={() => props.onValueChange(0)}><IconClose size={10} /></button>
         ) : null}
       </div>
     );

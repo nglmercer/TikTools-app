@@ -1,0 +1,51 @@
+/* Shared HTTP request editor: body mode toolbar and advanced layout. */
+
+.http-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.http-body__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.http-body__modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--plg-line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.http-body__mode {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--plg-muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.http-body__mode.is-active {
+  background: rgba(139, 92, 246, 0.22);
+  color: var(--text);
+}
+
+.http-body__format-icon {
+  display: inline-flex;
+  vertical-align: -2px;
+}
+
+.http-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

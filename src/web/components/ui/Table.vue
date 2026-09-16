@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import type { VNodeChild } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
+import { IconChevronLeft, IconChevronRight } from '../icons/index.ts';
 import { Select } from './Select.vue';
 
 export type Column<T> = {
@@ -173,8 +174,8 @@ function PaginationFooter({ pagination, total, totalPages }: { pagination: Pagin
         ) : null}
       </div>
       <div class="ui-pagination__controls">
-        <button type="button" class="ui-pagination__btn" disabled={page <= 1} onClick={() => onPageChange(Math.max(1, page - 1))}>
-          ‹
+        <button type="button" class="ui-pagination__btn" disabled={page <= 1} onClick={() => onPageChange(Math.max(1, page - 1))} aria-label="Previous page">
+          <IconChevronLeft size={14} />
         </button>
         {lo > 1 ? (
           <>
@@ -202,8 +203,8 @@ function PaginationFooter({ pagination, total, totalPages }: { pagination: Pagin
             </button>
           </>
         ) : null}
-        <button type="button" class="ui-pagination__btn" disabled={page >= totalPages} onClick={() => onPageChange(Math.min(totalPages, page + 1))}>
-          ›
+        <button type="button" class="ui-pagination__btn" disabled={page >= totalPages} onClick={() => onPageChange(Math.min(totalPages, page + 1))} aria-label="Next page">
+          <IconChevronRight size={14} />
         </button>
       </div>
     </div>

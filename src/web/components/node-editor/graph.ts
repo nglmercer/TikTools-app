@@ -28,6 +28,8 @@ export function defaultNodeConfig(definition: NodeDefinition): JsonObject {
       return {};
     case 'action.play-sound':
       return {};
+    // Legacy quarantine: kept so older graphs keep their defaults. The host
+    // catalog currently exposes no `action.tts` node; do not build on it.
     case 'action.tts':
       return { text: '' };
     case 'action.adjust-points':

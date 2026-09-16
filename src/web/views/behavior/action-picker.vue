@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { SearchInput } from '../../components/ui/TextInput.vue';
+import { IconChevronLeft } from '../../components/icons/index.ts';
 import type { ActionTypeDefinition, PluginStatus } from '../../../automation/behavior/types.ts';
 import { i18nText, t, type Locale } from '../../i18n.ts';
 
@@ -26,7 +27,7 @@ export const ActionPicker = defineVueComponent<ActionPickerProps>(
   return () => (
     <div class="plg">
       <div class="plg-topbar">
-        <button type="button" class="plg-btn plg-btn--icon" onClick={props.onCancel} aria-label={t(props.locale, 'behavior.copy.back')}>‹</button>
+        <button type="button" class="plg-btn plg-btn--icon" onClick={props.onCancel} aria-label={t(props.locale, 'behavior.copy.back')}><IconChevronLeft size={16} /></button>
         <div class="plg-topbar__text">
           <h2 class="plg-topbar__title">{t(props.locale, 'behavior.copy.pickTitle')}</h2>
           <span class="plg-topbar__subtitle">{t(props.locale, 'behavior.copy.pickLead')}</span>

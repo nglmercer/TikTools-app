@@ -6,7 +6,7 @@ import type { JsonObject } from '../../../automation/types.ts';
 import type { Locale } from '../../i18n.ts';
 import type { OpenMediaPicker } from '../../../shared/messages.ts';
 import { Button } from './Button.vue';
-import { Modal } from './Modal.vue';
+import { Modal, ModalActions } from './Modal.vue';
 import { SchemaForm } from './SchemaForm.vue';
 import type { AutocompleteItem } from '../autocomplete/index.ts';
 
@@ -36,13 +36,13 @@ export const SchemaModal = defineVueComponent<SchemaModalProps>(
     <Modal
       title={title}
       description={description}
-      class="ui-modal-card--wide"
+      size="lg"
       onClose={onClose}
       footer={
-        <div class="ui-modal-card__actions">
+        <ModalActions>
           <Button variant="soft" onClick={onClose}>{cancelLabel}</Button>
           <Button variant="primary" onClick={() => onApply(value.value)}>{applyLabel}</Button>
-        </div>
+        </ModalActions>
       }
     >
       <SchemaForm locale={locale} schema={schema} uiHints={uiHints} value={value.value} onChange={(next) => (value.value = next)} templateSuggestions={templateSuggestions} onOpenMediaPicker={props.onOpenMediaPicker} />

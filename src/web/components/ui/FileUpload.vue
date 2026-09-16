@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { FormField } from './FormField.vue';
+import { IconClose } from '../icons/index.ts';
 import { fieldIds, fileListToArray, formatFileSize, removeFileAt } from './controls.ts';
 
 type FileUploadProps = {
@@ -115,7 +116,7 @@ export const FileUpload = defineVueComponent<FileUploadProps>(
                     if (innerRef.value && props.value.length === 1) innerRef.value.value = '';
                   }}
                 >
-                  ×
+                  <IconClose size={10} />
                 </button>
               </li>
             ))}

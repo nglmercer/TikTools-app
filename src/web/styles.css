@@ -16,3 +16,5 @@
 @import "./styles/node-editor.css";
 @import "./styles/plugins.css";
 @import "./styles/action-editor.css";
+@import "./styles/http-editor.css";
+@import "./styles/workflow-templates.css";

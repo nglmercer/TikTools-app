@@ -5,6 +5,7 @@ import { ConditionTable } from '../../components/ui/ConditionTable.vue';
 import { Switch } from '../../components/ui/Checkbox.vue';
 import { Select } from '../../components/ui/Select.vue';
 import { TextInput } from '../../components/ui/TextInput.vue';
+import { IconChevronLeft } from '../../components/icons/index.ts';
 import { InfoTip } from '../../components/ui/InfoTip.vue';
 import { COOLDOWN_CHOICES, describeFilter, sentenceFor, triggerLabel, triggerSelectOptions } from './helpers.vue';
 import type {
@@ -70,7 +71,7 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
   return (
     <div class="plg">
       <div class="plg-topbar">
-        <button type="button" class="plg-btn plg-btn--icon" onClick={props.onCancel} aria-label={t(props.locale, 'behavior.copy.back')}>‹</button>
+        <button type="button" class="plg-btn plg-btn--icon" onClick={props.onCancel} aria-label={t(props.locale, 'behavior.copy.back')}><IconChevronLeft size={16} /></button>
         <div class="plg-topbar__text">
           <h2 class="plg-topbar__title">{draftValue.name || t(props.locale, 'behavior.copy.newEvent')}</h2>
           <span class="plg-topbar__subtitle plg-mono">{t(props.locale, 'behavior.copy.stepOf', { step: stepValue })} · {draftValue.trigger}</span>

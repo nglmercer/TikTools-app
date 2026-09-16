@@ -1,22 +1,41 @@
 <script lang="tsx">
-import { onMounted, onUnmounted, ref } from 'vue';
-import type { VNodeChild } from 'vue';
+import { onMounted, onUnmounted, ref, Teleport } from 'vue';
+import type { VNode, VNodeChild } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 
+import { IconClose } from '../icons/index.ts';
 import { Button } from './Button.vue';
 import { FormField } from './FormField.vue';
 import { TextInput, type TextInputHandle } from './TextInput.vue';
+import {
+  createModalIds,
+  FOCUSABLE_SELECTOR,
+  isBackdropDismiss,
+  isEscapeDismiss,
+  MODAL_SIZE_CLASS,
+  trapFocusTarget,
+  type ModalSize,
+} from './modal-logic.ts';
+
+export type { ModalSize };
 
 export type ModalProps = {
   title: string;
   description?: string;
   children?: VNodeChild;
   footer?: VNodeChild;
+  size?: ModalSize;
   onClose: () => void;
   closeLabel?: string;
   closeOnBackdrop?: boolean;
+  closeOnEscape?: boolean;
   className?: string;
 };
+
+/** Shared footer actions row so confirm/alert/prompt modals stay consistent. */
+export function ModalActions({ children }: { children?: VNodeChild }): VNode {
+  return <div class="ui-modal-card__actions">{children}</div>;
+}
 
 /**
  * Small, application-owned dialog primitive. Keeping this outside the
@@ -24,16 +43,38 @@ export type ModalProps = {
  * the editor and the rest of the WebView UI.
  */
 export const Modal = defineVueComponent<ModalProps>(
-  ['title', 'description', 'children', 'footer', 'onClose', 'closeLabel', 'closeOnBackdrop', 'className'],
+  ['title', 'description', 'children', 'footer', 'size', 'onClose', 'closeLabel', 'closeOnBackdrop', 'closeOnEscape', 'className'],
   (props) => {
   const dialogRef = ref<HTMLDivElement | null>(null);
+  const ids = createModalIds();
 
   onMounted(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      props.onClose();
+      // With stacked modals only the topmost one handles keyboard dismissal.
+      const backdrops = document.querySelectorAll('.ui-modal-backdrop');
+      const topmost = backdrops[backdrops.length - 1];
+      if (!topmost || (dialogRef.value && !topmost.contains(dialogRef.value))) return;
+
+      if (isEscapeDismiss(props.closeOnEscape ?? true, event.key)) {
+        event.preventDefault();
+        props.onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const dialog = dialogRef.value;
+      if (!dialog) return;
+      const focusables = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+        .filter((element) => element.getClientRects().length > 0);
+      const target = trapFocusTarget(
+        focusables.indexOf(document.activeElement as HTMLElement),
+        focusables.length,
+        event.shiftKey,
+      );
+      if (target !== null) {
+        event.preventDefault();
+        focusables[target]?.focus();
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
@@ -49,62 +90,71 @@ export const Modal = defineVueComponent<ModalProps>(
   });
 
   return () => {
-    const { title, description, children, footer, onClose, closeLabel = 'Close', closeOnBackdrop = true, className = '' } = props;
+    const { title, description, children, footer, size = 'md', onClose, closeLabel = 'Close', closeOnBackdrop = true, className = '' } = props;
+    const sizeClass = MODAL_SIZE_CLASS[size];
     return (
-    <div
-      class="ui-modal-backdrop"
-      role="presentation"
-      onMousedown={(event) => {
-        if (closeOnBackdrop && event.target === event.currentTarget) onClose();
-      }}
-    >
+    <Teleport to="body">
       <div
-        ref={dialogRef}
-        class={`ui-modal-card ${className}`.trim()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ui-modal-title"
-        tabindex={-1}
-        onMousedown={(event) => event.stopPropagation()}
+        class="ui-modal-backdrop"
+        role="presentation"
+        onMousedown={(event) => {
+          if (isBackdropDismiss(closeOnBackdrop, event.target, event.currentTarget)) onClose();
+        }}
       >
-        <header class="ui-modal-card__header">
-          <h2 id="ui-modal-title" class="ui-modal-card__title">{title}</h2>
-          <button
-            type="button"
-            class="ui-modal__close"
-            aria-label={closeLabel}
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </header>
-        {description ? <p class="ui-modal-card__description">{description}</p> : null}
-        {children ? <div class="ui-modal-card__body">{children}</div> : null}
-        {footer ? <footer class="ui-modal-card__footer">{footer}</footer> : null}
+        <div
+          ref={dialogRef}
+          class={`ui-modal-card ${sizeClass} ${className}`.trim().replace(/\s+/g, ' ')}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={ids.titleId}
+          aria-describedby={description ? ids.descriptionId : undefined}
+          tabindex={-1}
+          onMousedown={(event) => event.stopPropagation()}
+        >
+          <header class="ui-modal-card__header">
+            <h2 id={ids.titleId} class="ui-modal-card__title">{title}</h2>
+            <button
+              type="button"
+              class="ui-modal__close"
+              aria-label={closeLabel}
+              onClick={onClose}
+            >
+              <IconClose size={12} />
+            </button>
+          </header>
+          {description ? <p id={ids.descriptionId} class="ui-modal-card__description">{description}</p> : null}
+          {children ? <div class="ui-modal-card__body">{children}</div> : null}
+          {footer ? <footer class="ui-modal-card__footer">{footer}</footer> : null}
+        </div>
       </div>
-    </div>
+    </Teleport>
     );
   };
   },
 );
 
-export type TextPromptModalProps = {
+export type ModalVariantProps = {
   title: string;
   description?: string;
+  size?: ModalSize;
+  closeLabel?: string;
+  closeOnBackdrop?: boolean;
+  closeOnEscape?: boolean;
+  onClose: () => void;
+};
+
+export type TextPromptModalProps = ModalVariantProps & {
   label: string;
   initialValue?: string;
   placeholder?: string;
   confirmLabel: string;
   cancelLabel: string;
   requiredMessage?: string;
-  closeLabel?: string;
-  closeOnBackdrop?: boolean;
   onConfirm: (value: string) => void;
-  onClose: () => void;
 };
 
 export const TextPromptModal = defineVueComponent<TextPromptModalProps>(
-  ['title', 'description', 'label', 'initialValue', 'placeholder', 'confirmLabel', 'cancelLabel', 'requiredMessage', 'closeLabel', 'closeOnBackdrop', 'onConfirm', 'onClose'],
+  ['title', 'description', 'size', 'label', 'initialValue', 'placeholder', 'confirmLabel', 'cancelLabel', 'requiredMessage', 'closeLabel', 'closeOnBackdrop', 'closeOnEscape', 'onConfirm', 'onClose'],
   (props) => {
   const value = ref(props.initialValue ?? '');
   const error = ref('');
@@ -121,19 +171,21 @@ export const TextPromptModal = defineVueComponent<TextPromptModalProps>(
   };
 
   return () => {
-    const { title, description, label, placeholder, confirmLabel, cancelLabel, closeLabel, closeOnBackdrop, onClose } = props;
+    const { title, description, size, label, placeholder, confirmLabel, cancelLabel, closeLabel, closeOnBackdrop, closeOnEscape, onClose } = props;
     return (
     <Modal
       title={title}
       description={description}
+      size={size}
       onClose={onClose}
       closeLabel={closeLabel}
       closeOnBackdrop={closeOnBackdrop}
+      closeOnEscape={closeOnEscape}
       footer={
-        <div class="ui-modal-card__actions">
-        <Button variant="soft" onClick={onClose}>{cancelLabel}</Button>
+        <ModalActions>
+          <Button variant="soft" onClick={onClose}>{cancelLabel}</Button>
           <Button variant="primary" onClick={confirm}>{confirmLabel}</Button>
-        </div>
+        </ModalActions>
       }
       >
         <FormField label={label} error={error.value} required={Boolean(props.requiredMessage)}>
@@ -156,58 +208,54 @@ export const TextPromptModal = defineVueComponent<TextPromptModalProps>(
   },
 );
 
-export type AlertModalProps = {
-  title: string;
-  description?: string;
+export type AlertModalProps = ModalVariantProps & {
   okLabel: string;
-  closeLabel?: string;
-  closeOnBackdrop?: boolean;
-  onClose: () => void;
 };
 
 export function AlertModal({
   title,
   description,
+  size,
   okLabel,
   closeLabel,
   closeOnBackdrop,
+  closeOnEscape,
   onClose,
 }: AlertModalProps) {
   return (
     <Modal
       title={title}
       description={description}
+      size={size}
       onClose={onClose}
       closeLabel={closeLabel}
       closeOnBackdrop={closeOnBackdrop}
+      closeOnEscape={closeOnEscape}
       footer={
-        <div class="ui-modal-card__actions">
+        <ModalActions>
           <Button variant="primary" onClick={onClose}>{okLabel}</Button>
-        </div>
+        </ModalActions>
       }
     />
   );
 }
 
-export type ConfirmModalProps = {
-  title: string;
-  description?: string;
+export type ConfirmModalProps = ModalVariantProps & {
   confirmLabel: string;
   cancelLabel: string;
-  closeLabel?: string;
-  closeOnBackdrop?: boolean;
   onConfirm: () => void;
-  onClose: () => void;
   danger?: boolean;
 };
 
 export function ConfirmModal({
   title,
   description,
+  size,
   confirmLabel,
   cancelLabel,
   closeLabel,
   closeOnBackdrop,
+  closeOnEscape,
   onConfirm,
   onClose,
   danger = false,
@@ -216,14 +264,16 @@ export function ConfirmModal({
     <Modal
       title={title}
       description={description}
+      size={size}
       onClose={onClose}
       closeLabel={closeLabel}
       closeOnBackdrop={closeOnBackdrop}
+      closeOnEscape={closeOnEscape}
       footer={
-        <div class="ui-modal-card__actions">
+        <ModalActions>
           <Button variant="soft" onClick={onClose}>{cancelLabel}</Button>
           <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>{confirmLabel}</Button>
-        </div>
+        </ModalActions>
       }
     />
   );

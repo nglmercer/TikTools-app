@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { FormField } from './FormField.vue';
+import { IconClose } from '../icons/index.ts';
 import { filterMultiOptions } from './controls.ts';
 import { fieldIds, type SelectOption } from './controls.ts';
 
@@ -117,7 +118,7 @@ export const MultiSelect = defineVueComponent<MultiSelectProps>(
                       props.onValueChange(props.value.filter((entry) => entry !== v));
                     }}
                   >
-                    ×
+                    <IconClose size={10} />
                   </button>
                 </span>
               );
@@ -134,7 +135,7 @@ export const MultiSelect = defineVueComponent<MultiSelectProps>(
                   props.onValueChange([]);
                 }}
               >
-                ×
+                <IconClose size={10} />
               </button>
             ) : null}
             <span aria-hidden class="ui-multi-select__arrow">▾</span>

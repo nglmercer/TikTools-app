@@ -48,7 +48,7 @@ export const NodeConfigModal = defineVueComponent<NodeConfigModalProps>(
       title={`${t(locale, 'configureStep')}: ${title}`}
       description={t(locale, 'configureStepHint')}
       onClose={onClose}
-      class="ui-modal-card--wide"
+      size="lg"
       footer={
         <div class="node-editor-modal-actions">
           <Button variant="soft" onClick={onClose}>{t(locale, 'cancel')}</Button>

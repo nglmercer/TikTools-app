@@ -331,6 +331,29 @@
 .codeed-punct { color: #8b949e; }
 .codeed-plain { color: #e6edf3; }
 .codeed-ws { color: inherit; }
+.codeed-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--plg-line);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.codeed-status.is-valid { color: var(--tt-green); }
+.codeed-status.is-invalid { color: var(--tt-danger); }
+.codeed-status__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.codeed-status__text > span {
+  overflow-wrap: anywhere;
+  color: var(--plg-muted);
+  font-family: var(--plg-mono);
+  font-size: 10.5px;
+}
 .codeed-var {
   /* No padding/border here: the backdrop must keep the exact metrics of the
      transparent textarea or cursor and selection drift after the first pill.

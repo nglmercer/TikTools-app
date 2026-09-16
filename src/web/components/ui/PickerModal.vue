@@ -4,6 +4,7 @@ import type { VNodeChild } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 
 import { Modal } from './Modal.vue';
+import { IconClose } from '../icons/index.ts';
 import { SearchInput, TextInput } from './TextInput.vue';
 
 export type PickerOption = {
@@ -185,7 +186,7 @@ export const PickerModal = defineVueComponent<PickerModalProps>(
               onClick={() => (chosen.value = chosen.value.filter((entry) => entry !== value))}
             >
               {props.options.find((option) => option.value === value)?.label ?? value}
-              <span aria-hidden="true">×</span>
+              <span aria-hidden="true" class="ui-picker__chip-icon"><IconClose size={10} /></span>
             </button>
           ))}
         </div>

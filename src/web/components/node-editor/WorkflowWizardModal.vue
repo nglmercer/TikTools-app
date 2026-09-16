@@ -3,39 +3,17 @@ import { ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 
 import type { AutomationEventType } from '../../../automation/types.ts';
-import { BUILTIN_EVENT_TYPES } from '../../../automation/contracts/events.ts';
-import type { I18nText } from '../../../automation/behavior/types.ts';
 import { Button } from '../ui/Button.vue';
 import { FormField } from '../ui/FormField.vue';
 import { Modal } from '../ui/Modal.vue';
 import { TextInput } from '../ui/TextInput.vue';
+import { Icon } from '../icons/Icon.vue';
+import { workflowEventChoices, type EventChoice } from '../icons/event-icons.ts';
 import { i18nText, t, type Locale } from '../../i18n.ts';
 
-type EventChoice = {
-  value: AutomationEventType;
-  label: I18nText;
-  icon: string;
-};
+export type { EventChoice };
 
-const EVENT_METADATA: Record<AutomationEventType, Omit<EventChoice, 'value'>> = {
-  'tiktok.chat': { label: { default: 'Chat message', i18key: 'workflow.event.tiktok.chat' }, icon: '💬' },
-  'tiktok.gift': { label: { default: 'Gift received', i18key: 'workflow.event.tiktok.gift' }, icon: '🎁' },
-  'tiktok.like': { label: { default: 'Likes', i18key: 'workflow.event.tiktok.like' }, icon: '❤️' },
-  'tiktok.follow': { label: { default: 'New follower', i18key: 'workflow.event.tiktok.follow' }, icon: '⭐' },
-  'tiktok.share': { label: { default: 'Live shared', i18key: 'workflow.event.tiktok.share' }, icon: '↗' },
-  'tiktok.join': { label: { default: 'Viewer joined', i18key: 'workflow.event.tiktok.join' }, icon: '👋' },
-  'tiktok.social': { label: { default: 'Social action', i18key: 'workflow.event.tiktok.social' }, icon: '👥' },
-  'tiktok.room_stats': { label: { default: 'Room statistics', i18key: 'workflow.event.tiktok.room_stats' }, icon: '📊' },
-  'tiktok.connected': { label: { default: 'LIVE connected', i18key: 'workflow.event.tiktok.connected' }, icon: '🔌' },
-  'tiktok.disconnected': { label: { default: 'LIVE disconnected', i18key: 'workflow.event.tiktok.disconnected' }, icon: '⏹' },
-  'points.awarded': { label: { default: 'Points awarded', i18key: 'workflow.event.points.awarded' }, icon: '🏆' },
-  'plugin.emit': { label: { default: 'Plugin event', i18key: 'workflow.event.plugin.emit' }, icon: '🧩' },
-};
-
-export const WORKFLOW_EVENT_CHOICES: EventChoice[] = BUILTIN_EVENT_TYPES.map((value) => ({
-  value,
-  ...EVENT_METADATA[value],
-}));
+export const WORKFLOW_EVENT_CHOICES: EventChoice[] = workflowEventChoices();
 
 type WorkflowWizardModalProps = {
   locale: Locale;
@@ -110,7 +88,7 @@ export const WorkflowWizardModal = defineVueComponent<WorkflowWizardModalProps>(
       ) : (
         <div class="node-editor-event-picker">
           <div class="node-editor-event-picker__selected">
-            <span class="node-editor-event-picker__selected-icon">{selected?.icon}</span>
+            <span class="node-editor-event-picker__selected-icon">{selected ? <Icon name={selected.icon} size={20} /> : null}</span>
             <div>
               <strong>{i18nText(locale, selected?.label)}</strong>
               <small>{name.value}</small>
@@ -124,7 +102,7 @@ export const WorkflowWizardModal = defineVueComponent<WorkflowWizardModalProps>(
                 class={`node-editor-event-choice ${eventType.value === choice.value ? 'is-selected' : ''}`}
                 onClick={() => (eventType.value = choice.value)}
               >
-                <span>{choice.icon}</span>
+                <span class="node-editor-event-choice__icon"><Icon name={choice.icon} size={18} /></span>
                 <span>{i18nText(locale, choice.label)}</span>
               </button>
             ))}

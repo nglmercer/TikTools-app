@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { InfoTip } from './InfoTip.vue';
+import { IconClose, IconSearch } from '../icons/index.ts';
 import { dispatchControlEvent, normalizeControlString, syncNativeControlValue } from './control-events.ts';
 
 export type TextInputHandle = {
@@ -96,7 +97,7 @@ export const TextInput = defineVueComponent<TextInputProps>(
             {hint ? <InfoTip text={hint} position="right" /> : null}
           </label>
           {clearable && value ? (
-            <button type="button" class="ui-float__clear" style={{ right: suffix ? 44 : 8 }} onClick={() => commitProgrammaticValue('')} aria-label="Clear">×</button>
+            <button type="button" class="ui-float__clear" style={{ right: suffix ? 44 : 8 }} onClick={() => commitProgrammaticValue('')} aria-label="Clear"><IconClose size={10} /></button>
           ) : null}
           {suffix ? <span class="ui-float__suffix">{suffix}</span> : null}
         </div>
@@ -125,7 +126,7 @@ export const TextInput = defineVueComponent<TextInputProps>(
       />
       {clearable && value ? (
         <button type="button" class="ui-input__clear" onClick={() => commitProgrammaticValue('')} aria-label="Clear">
-          ×
+          <IconClose size={10} />
         </button>
       ) : null}
       {suffix ? <span class="ui-input__suffix">{suffix}</span> : null}
@@ -171,8 +172,8 @@ export const SearchInput = defineVueComponent<SearchInputProps>(
     const value = normalizeControlString(props.value);
     return (
     <div class={`ui-search ${disabled ? 'is-disabled' : ''}`}>
-      <span class="ui-search__icon" aria-hidden>
-        ⌕
+      <span class="ui-search__icon" aria-hidden="true">
+        <IconSearch size={13} />
       </span>
       <input
         ref={innerRef}
@@ -186,7 +187,7 @@ export const SearchInput = defineVueComponent<SearchInputProps>(
       />
       {value ? (
         <button type="button" class="ui-search__clear" onClick={() => commitProgrammaticValue('')} aria-label="Clear search">
-          ×
+          <IconClose size={10} />
         </button>
       ) : null}
     </div>

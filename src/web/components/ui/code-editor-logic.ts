@@ -7,6 +7,52 @@ export function formatJsonText(value: string): string | null {
   }
 }
 
+export type JsonValidation =
+  | { state: 'empty' }
+  | { state: 'valid' }
+  | { state: 'invalid'; message: string };
+
+/**
+ * Lightweight continuous JSON validation for editors. Runs on every keystroke
+ * via native `JSON.parse`; callers show the status without blocking input.
+ */
+export function validateJsonText(value: string): JsonValidation {
+  const trimmed = value.trim();
+  if (!trimmed) return { state: 'empty' };
+  try {
+    JSON.parse(trimmed);
+    return { state: 'valid' };
+  } catch (error) {
+    return {
+      state: 'invalid',
+      message: error instanceof Error ? error.message : 'Invalid JSON',
+    };
+  }
+}
+
+export type PasteFormatOptions = {
+  language: string;
+  validateJson: boolean;
+  formatJsonOnPaste: boolean;
+  pastedText: string;
+  currentValue: string;
+  selectionStart: number;
+  selectionEnd: number;
+};
+
+/**
+ * Auto-format a paste only when the pasted text itself is valid JSON and it
+ * replaces the whole document (empty editor or full selection). Mid-document
+ * pastes keep normal insertion so surrounding content is never rewritten.
+ */
+export function shouldFormatPastedJson(options: PasteFormatOptions): boolean {
+  if (options.language !== 'json') return false;
+  if (!options.validateJson || !options.formatJsonOnPaste) return false;
+  if (validateJsonText(options.pastedText).state !== 'valid') return false;
+  if (options.currentValue.trim().length === 0) return true;
+  return options.selectionStart === 0 && options.selectionEnd === options.currentValue.length;
+}
+
 export type JsonToken = { text: string; cls: string };
 
 /** Fault-tolerant JSON highlighter: broken input while typing still renders. */

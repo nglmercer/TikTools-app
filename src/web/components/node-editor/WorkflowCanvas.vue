@@ -1,6 +1,8 @@
 <script lang="tsx">
 import type { NodeDefinition, WorkflowEdge, WorkflowGraph, WorkflowNode } from '../../../automation/types.ts';
-import { IconTrash } from '../icons.vue';
+import { IconChevronRight, IconPlus, IconTrash } from '../icons.vue';
+import { Icon } from '../icons/Icon.vue';
+import { presentationForEvent } from '../icons/event-icons.ts';
 import { Badge, EmptyState } from '../ui/Card.vue';
 import { Button } from '../ui/Button.vue';
 import { t, type Locale } from '../../i18n.ts';
@@ -70,7 +72,7 @@ export function WorkflowCanvas({
       </div>
 
       <button type="button" class="node-editor-add-step" onClick={onAddNode}>
-        <span>＋</span>
+        <span class="node-editor-add-step__icon"><IconPlus size={14} /></span>
         <span>{t(locale, 'addStep')}</span>
       </button>
     </div>
@@ -97,6 +99,9 @@ function NodeCard({
   onDelete: () => void;
 }) {
   const kind = definition?.kind ?? 'plugin';
+  const triggerIcon = node.type === 'trigger.event'
+    ? presentationForEvent(asString(node.config.eventType, '*')).icon
+    : undefined;
   return (
     <article class={`node-editor-node-card ${selected ? 'is-selected' : ''} is-${kind}`}>
       <div class="node-editor-node-card__main">
@@ -109,13 +114,14 @@ function NodeCard({
           <span class="node-editor-node-card__number">{index + 1}</span>
           <span class="node-editor-node-card__content">
             <span class="node-editor-node-card__topline">
+              {triggerIcon ? <Icon name={triggerIcon} size={14} /> : null}
               <strong>{definition?.title ?? node.type}</strong>
               <Badge tone={kind === 'action' ? 'pink' : kind === 'trigger' ? 'cyan' : 'neutral'}>{kind}</Badge>
             </span>
             <span class="node-editor-node-card__type">{node.type}</span>
             <span class="node-editor-node-card__summary">{nodeSummary(node, definition, locale)}</span>
           </span>
-          <span class="node-editor-node-card__chevron">›</span>
+          <span class="node-editor-node-card__chevron"><IconChevronRight size={16} /></span>
         </button>
         <div class="node-editor-node-card__actions">
           {canDelete ? <Button variant="ghost" size="sm" icon={<IconTrash />} iconOnly tooltip={t(locale, 'removeStep')} onClick={onDelete} /> : <span class="node-editor-node-card__trigger-label">{t(locale, 'triggerStep')}</span>}
@@ -169,6 +175,7 @@ function nodeSummary(node: WorkflowNode, definition: NodeDefinition | undefined,
     case 'action.log': return asString(config.message);
     case 'action.http': return `${asString(config.method, 'GET')} ${asString(config.url)}`;
     case 'action.play-sound': return asString(config.filePath);
+    // Legacy quarantine: see NodeConfigForm. Unreachable from the catalog.
     case 'action.tts': return asString(config.text);
     case 'action.adjust-points': return `${asString(config.uniqueId)} · ${asString(config.delta, '0')}`;
     default: return definition?.title ?? node.type;

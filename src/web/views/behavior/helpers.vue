@@ -1,5 +1,6 @@
 <script lang="tsx">
 import { IconSelect } from '../../components/ui/IconSelect.vue';
+import { SvgIcon } from '../../components/icons/index.ts';
 import { OPERATOR_LABELS } from '../../components/condition-icons.vue';
 import { findField } from '../../../automation/behavior/fields.ts';
 import { defaultActionConfig } from '../../../automation/behavior/action-config.ts';
@@ -173,9 +174,9 @@ export function SortHeader({
       onClick={() => onSort(modes[index === 0 ? 1 : 0]!)}
     >
       {label}
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <SvgIcon size={11} strokeWidth={2.4}>
         {active && index === 1 ? <path d="m6 9 6 6 6-6" /> : <path d="m6 15 6-6 6 6" />}
-      </svg>
+      </SvgIcon>
     </button>
   );
 }
@@ -208,12 +209,12 @@ export function SortControl({
 
 export function SortGlyph({ direction }: { direction: 'up' | 'down' | 'dot' | 'dot-off' }) {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <SvgIcon size={13}>
       {direction === 'up' && <path d="M6 16V5m0 0L3 8m3-3 3 3M12 6h9M12 12h6M12 18h3" />}
       {direction === 'down' && <path d="M6 5v11m0 0 3-3m-3 3-3-3M12 6h9M12 12h6M12 18h3" />}
       {direction === 'dot' && <path d="M5 8h14M5 16h14" />}
       {direction === 'dot-off' && <path d="M5 8h14M5 16h14M4 4l16 16" />}
-    </svg>
+    </SvgIcon>
   );
 }
 

@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { FormField } from './FormField.vue';
+import { IconClose } from '../icons/index.ts';
 import { addTags, fieldIds, splitTagCandidates } from './controls.ts';
 
 type TagsInputProps = {
@@ -65,7 +66,7 @@ export const TagsInput = defineVueComponent<TagsInputProps>(
                 disabled={props.disabled}
                 onClick={() => removeAt(index)}
               >
-                ×
+                <IconClose size={10} />
               </button>
             </span>
           ))}

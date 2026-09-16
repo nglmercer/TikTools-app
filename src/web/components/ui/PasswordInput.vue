@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { FormField } from './FormField.vue';
+import { IconClose } from '../icons/index.ts';
 import { dispatchControlEvent, normalizeControlString, syncNativeControlValue } from './control-events.ts';
 import { fieldIds } from './controls.ts';
 
@@ -74,7 +75,7 @@ export const PasswordInput = defineVueComponent<PasswordInputProps>(
           onInput={(e) => props.onValueChange((e.currentTarget as HTMLInputElement).value)}
         />
         {props.clearable && value ? (
-          <button type="button" class="ui-input__clear" onClick={() => commitProgrammaticValue('')} aria-label="Clear password">×</button>
+          <button type="button" class="ui-input__clear" onClick={() => commitProgrammaticValue('')} aria-label="Clear password"><IconClose size={10} /></button>
         ) : null}
         <button
           type="button"

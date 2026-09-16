@@ -15,9 +15,9 @@ import type {
 import { TextInput } from '../ui/TextInput.vue';
 import { NumberInput } from '../ui/NumberInput.vue';
 import { Select } from '../ui/Select.vue';
-import { Checkbox } from '../ui/Checkbox.vue';
 import { TemplateField } from './TemplateField.vue';
-import { getFetchUrlTemplates, getTemplateSuggestions, isLocalFetchUrl, type TemplateSuggestionScope } from './template-suggestions.ts';
+import { getTemplateSuggestions, type TemplateSuggestionScope } from './template-suggestions.ts';
+import { HttpRequestEditor } from '../http/index.ts';
 import { AutocompletePortal } from './AutocompletePortal.vue';
 import { WORKFLOW_EVENT_CHOICES } from './WorkflowWizardModal.vue';
 import { asNumber, asString } from './graph.ts';
@@ -119,7 +119,32 @@ export function NodeConfigForm({ locale, node, definition, analysis, eventType, 
         </div>
       );
     case 'action.http':
-      return <HttpConfigForm locale={locale} eventType={eventType} lastEvent={lastEvent} config={config} onChange={update} />;
+      return (
+        <HttpRequestEditor
+          locale={locale}
+          config={config}
+          onPatchConfig={(patch) => onChange({ ...config, ...patch })}
+          methodOptions={['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }))}
+          defaultMethod="GET"
+          methodLabel={t(locale, 'nodeMethod')}
+          urlLabel={t(locale, 'nodeUrl')}
+          urlSuggestions={templateValues('http-url')}
+          bodyLabel={t(locale, 'nodeRequestBody')}
+          bodySuggestions={templateValues('http-data')}
+          defaultBodyMode="json"
+          headersLabel={t(locale, 'nodeHeaders')}
+          headersHint={t(locale, 'nodeHeadersHint')}
+          headerSuggestions={templateValues('http-data')}
+          timeoutLabel={t(locale, 'nodeTimeout')}
+          allowPrivateLabel={t(locale, 'nodeAllowPrivateNetwork')}
+          showResponseType
+          responseTypeLabel={t(locale, 'nodeResponseType')}
+          showRedirect
+          redirectLabel={t(locale, 'nodeRedirect')}
+          redirectFollowLabel={t(locale, 'nodeFollowRedirects')}
+          redirectBlockLabel={t(locale, 'nodeBlockRedirects')}
+        />
+      );
     case 'action.play-sound':
       return (
         <div class="node-editor-form-stack">
@@ -128,6 +153,10 @@ export function NodeConfigForm({ locale, node, definition, analysis, eventType, 
           <Select label={t(locale, 'nodeOverlap')} value={asString(config.overlap, 'allow')} options={[{ value: 'allow', label: t(locale, 'nodeAllowOverlap') }, { value: 'restart', label: t(locale, 'nodeRestartOverlap') }, { value: 'drop', label: t(locale, 'nodeDropOverlap') }]} onValueChange={(value) => update('overlap', value)} />
         </div>
       );
+    // Legacy quarantine: the host catalog currently exposes no `action.tts`
+    // node, so this branch is unreachable from the node picker. It stays so
+    // older graphs keep rendering, and so future catalog support lights up
+    // without new UI work. Do not build new features on this specialization.
     case 'action.tts':
       return (
         <div class="node-editor-form-stack">
@@ -293,33 +322,6 @@ const ScriptConfigForm = defineVueComponent<NodeConfigFormProps>(
   },
 );
 
-function HttpConfigForm({ locale, eventType, lastEvent, config, onChange }: { locale: Locale; eventType?: AutomationEventType; lastEvent?: AutomationEvent; config: JsonObject; onChange: (key: string, value: JsonValue) => void }) {
-  const templateValues = (scope: TemplateSuggestionScope) => getTemplateSuggestions(eventType, locale, lastEvent, scope);
-  const urlValue = asString(config.url);
-  const allowPrivate = config.allowPrivateNetwork === true || config.allowPrivateNetwork === 'true';
-  const urlPresets = getFetchUrlTemplates();
-  return (
-    <div class="node-editor-form-stack">
-      <Select label={t(locale, 'nodeMethod')} value={asString(config.method, 'GET')} options={['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ value, label: value }))} onValueChange={(value) => onChange('method', value)} />
-      <TemplateField locale={locale} label={t(locale, 'nodeUrl')} hint={t(locale, 'nodeTemplateHint')} value={urlValue} onValueChange={(value) => onChange('url', value)} suggestions={templateValues('http-url')} bareWordTrigger={false} urlPresets={urlPresets} />
-      {urlValue.trim() && isLocalFetchUrl(urlValue) && !allowPrivate && (
-        <p class="act-localhint" role="note">
-          <span>{t(locale, 'behavior.editor.localNetHint')}</span>
-          <button type="button" class="act-preset" onClick={() => onChange('allowPrivateNetwork', true)}>
-            {t(locale, 'behavior.editor.enableLocalNet')}
-          </button>
-        </p>
-      )}
-      <TemplateField locale={locale} label={t(locale, 'nodeRequestBody')} value={asString(config.body)} onValueChange={(value) => onChange('body', value)} suggestions={templateValues('http-data')} multiline rows={4} />
-      <TemplateField locale={locale} label={t(locale, 'nodeHeaders')} hint={t(locale, 'nodeHeadersHint')} value={headersToText(config.headers)} onValueChange={(value) => onChange('headers', parseHeaders(value))} suggestions={templateValues('http-data')} multiline rows={4} />
-      <NumberInput label={t(locale, 'nodeTimeout')} value={asNumber(config.timeoutMs, 10000)} min={100} max={120000} step={100} suffix="ms" onValueChange={(value) => onChange('timeoutMs', value)} />
-      <Select label={t(locale, 'nodeResponseType')} value={asString(config.responseType, 'auto')} options={[{ value: 'auto', label: 'Auto' }, { value: 'json', label: 'JSON' }, { value: 'text', label: 'Text' }, { value: 'bytes', label: 'Bytes' }]} onValueChange={(value) => onChange('responseType', value)} />
-      <Select label={t(locale, 'nodeRedirect')} value={asString(config.redirect, 'error')} options={[{ value: 'error', label: t(locale, 'nodeBlockRedirects') }, { value: 'follow', label: t(locale, 'nodeFollowRedirects') }]} onValueChange={(value) => onChange('redirect', value)} />
-      <Checkbox checked={allowPrivate} onCheckedChange={(value) => onChange('allowPrivateNetwork', value)} label={t(locale, 'nodeAllowPrivateNetwork')} />
-    </div>
-  );
-}
-
 function GenericConfigForm({ locale, node, definition, onChange, onOpenMediaPicker }: { locale: Locale; node: WorkflowNode; definition?: NodeDefinition; onChange: (config: JsonObject) => void; onOpenMediaPicker?: OpenMediaPicker }) {
   if (!definition || !isJsonObject(definition.configSchema)) return <GenericConfigFormNoForm locale={locale} />;
   const properties = definition.configSchema.properties;
@@ -353,22 +355,6 @@ function parseValue(value: string): JsonValue {
   if (trimmed === 'false') return false;
   const number = Number(trimmed);
   return Number.isFinite(number) && trimmed !== '' ? number : value;
-}
-
-function headersToText(value: JsonValue | undefined): string {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
-  return Object.entries(value).map(([key, raw]) => `${key}: ${typeof raw === 'string' ? raw : String(raw ?? '')}`).join('\n');
-}
-
-function parseHeaders(value: string): JsonObject {
-  const headers: JsonObject = {};
-  for (const line of value.split('\n')) {
-    const separator = line.indexOf(':');
-    if (separator <= 0) continue;
-    const key = line.slice(0, separator).trim();
-    if (key) headers[key] = line.slice(separator + 1).trim();
-  }
-  return headers;
 }
 
 function isJsonObject(value: JsonValue | undefined): value is JsonObject {

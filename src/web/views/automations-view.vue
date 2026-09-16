@@ -11,7 +11,7 @@ import type {
   WorkflowGraph,
 } from '../../automation/types.ts';
 import type { AutomationWorkflowRecord } from '../../shared/messages.ts';
-import { IconSparkles, IconTrash } from '../components/icons.vue';
+import { IconEdit, IconPlus, IconSparkles, IconTemplate, IconTrash } from '../components/icons.vue';
 import { Alert, Badge, EmptyState } from '../components/ui/Card.vue';
 import { Button } from '../components/ui/Button.vue';
 import { Checkbox } from '../components/ui/Checkbox.vue';
@@ -21,6 +21,7 @@ import {
   NodeConfigModal,
   NodePickerModal,
   WorkflowCanvas,
+  WorkflowTemplateModal,
   WorkflowWizardModal,
   appendNodeToGraph,
   createWorkflowGraph,
@@ -49,7 +50,8 @@ type AutomationsViewProps = {
 
 type PendingWorkflowAction =
   | { kind: 'select'; record: AutomationWorkflowRecord }
-  | { kind: 'create' };
+  | { kind: 'create' }
+  | { kind: 'template' };
 
 type WorkflowConfirmState =
   | { kind: 'discard'; action: PendingWorkflowAction }
@@ -66,6 +68,7 @@ export const AutomationsView = defineVueComponent<AutomationsViewProps>(
   const dirty = ref(false);
   const editorError = ref('');
   const wizardOpen = ref(false);
+  const templateOpen = ref(false);
   const pickerOpen = ref(false);
   const configuringNodeId = ref<string | null>(null);
   const renameValue = ref<string | null>(null);
@@ -117,6 +120,10 @@ export const AutomationsView = defineVueComponent<AutomationsViewProps>(
       wizardOpen.value = true;
       return;
     }
+    if (action.kind === 'template') {
+      templateOpen.value = true;
+      return;
+    }
     const nextGraph = prepareGraph(action.record.graph, props.nodes);
     selectedId.value = action.record.id;
     draft.value = nextGraph;
@@ -141,6 +148,8 @@ export const AutomationsView = defineVueComponent<AutomationsViewProps>(
 
   const requestCreateWorkflow = (): void => requestWorkflowAction({ kind: 'create' });
 
+  const requestTemplateWorkflow = (): void => requestWorkflowAction({ kind: 'template' });
+
   const handleCreateWorkflow = (name: string, eventType: AutomationEventType): void => {
     const triggerDefinition = props.nodes.find((definition) => definition.type === 'trigger.event');
     if (!triggerDefinition) {
@@ -152,6 +161,16 @@ export const AutomationsView = defineVueComponent<AutomationsViewProps>(
     selectedId.value = graph.id;
     draft.value = graph;
     selectedNodeId.value = graph.nodes[0]?.id ?? null;
+    configuringNodeId.value = null;
+    dirty.value = true;
+    editorError.value = '';
+  };
+
+  const handleCreateFromTemplate = (graph: WorkflowGraph): void => {
+    templateOpen.value = false;
+    selectedId.value = graph.id;
+    draft.value = graph;
+    selectedNodeId.value = graph.nodes[1]?.id ?? graph.nodes[0]?.id ?? null;
     configuringNodeId.value = null;
     dirty.value = true;
     editorError.value = '';
@@ -238,6 +257,7 @@ export const AutomationsView = defineVueComponent<AutomationsViewProps>(
   const confirmValue = confirmModal.value;
   const rename = renameValue.value;
   const wizard = wizardOpen.value;
+  const template = templateOpen.value;
   const picker = pickerOpen.value;
 
   return (
@@ -249,6 +269,7 @@ export const AutomationsView = defineVueComponent<AutomationsViewProps>(
         action={
           <div class="automation-header-actions">
             <Button variant="ghost" size="sm" onClick={props.onRefresh}>{t(locale, 'refresh')}</Button>
+            <Button variant="soft" size="sm" icon={<IconTemplate size={14} />} onClick={requestTemplateWorkflow}>{t(locale, 'templates')}</Button>
             <Button variant="primary" size="sm" onClick={requestCreateWorkflow}>{t(locale, 'newWorkflow')}</Button>
           </div>
         }
@@ -286,7 +307,7 @@ export const AutomationsView = defineVueComponent<AutomationsViewProps>(
               <Badge>{Math.max(0, nodes.filter((node) => node.kind !== 'trigger').length)}</Badge>
             </div>
             <p class="automation-panel-hint">{t(locale, 'automationAddNodeHint')}</p>
-            <Button variant="cyan" block disabled={!draftValue} onClick={() => { pickerOpen.value = true; }}>{`＋ ${t(locale, 'addStep')}`}</Button>
+            <Button variant="cyan" block disabled={!draftValue} icon={<IconPlus size={14} />} onClick={() => { pickerOpen.value = true; }}>{t(locale, 'addStep')}</Button>
             <p class="automation-panel-hint automation-panel-hint--secondary">{t(locale, 'automationFlowHint')}</p>
           </div>
         </aside>
@@ -300,7 +321,7 @@ export const AutomationsView = defineVueComponent<AutomationsViewProps>(
                 <div class="automation-workflow-name">
                   <button type="button" class="automation-workflow-name-button" onClick={() => { renameValue.value = draftValue.name; }}>
                     <span class="automation-workflow-name-button__value">{draftValue.name}</span>
-                    <span class="automation-workflow-name-button__edit" aria-hidden="true">✎</span>
+                    <span class="automation-workflow-name-button__edit" aria-hidden="true"><IconEdit size={12} /></span>
                   </button>
                   {dirtyValue ? <Badge tone="pink">{t(locale, 'unsavedChanges')}</Badge> : null}
                 </div>
@@ -356,6 +377,7 @@ export const AutomationsView = defineVueComponent<AutomationsViewProps>(
       </div>
 
       {wizard ? <WorkflowWizardModal locale={locale} onClose={() => { wizardOpen.value = false; }} onCreate={handleCreateWorkflow} /> : null}
+      {template ? <WorkflowTemplateModal locale={locale} definitions={nodes} onClose={() => { templateOpen.value = false; }} onCreate={handleCreateFromTemplate} onOpenMediaPicker={props.onOpenMediaPicker} /> : null}
       {picker ? <NodePickerModal locale={locale} definitions={nodes} onClose={() => { pickerOpen.value = false; }} onSelect={handleAddNode} /> : null}
       {configuringNode ? (
         <NodeConfigModal

@@ -8,10 +8,11 @@ import { getAutocompleteToken } from '../autocomplete/token.ts';
 import { AutocompleteList } from '../autocomplete/AutocompleteList.vue';
 import { AutocompletePortal } from '../node-editor/AutocompletePortal.vue';
 import { t, type Locale } from '../../i18n.ts';
-import { formatJsonText, tokenizeJson } from './code-editor-logic.ts';
+import { formatJsonText, shouldFormatPastedJson, tokenizeJson, validateJsonText, type JsonValidation } from './code-editor-logic.ts';
+import { IconCheck, IconWarning } from '../icons/index.ts';
 import { dispatchControlEvent, normalizeControlString, syncNativeControlValue } from './control-events.ts';
 
-export { formatJsonText, tokenizeJson };
+export { formatJsonText, shouldFormatPastedJson, tokenizeJson, validateJsonText, type JsonValidation };
 
 export type CodeEditorLanguage = 'json' | 'text';
 
@@ -32,6 +33,12 @@ type CodeEditorProps = {
   /** When set, a format button renders in the header. */
   onFormat?: () => void;
   formatLabel?: string;
+  /** Continuous JSON validation; defaults to true for `language="json"`. */
+  validateJson?: boolean;
+  /** Auto-format valid JSON pasted over an empty/fully-selected document. */
+  formatJsonOnPaste?: boolean;
+  /** Show the valid/invalid status line; defaults to true. */
+  showValidationStatus?: boolean;
 };
 
 /**
@@ -53,6 +60,9 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
     'name',
     'onFormat',
     'formatLabel',
+    'validateJson',
+    'formatJsonOnPaste',
+    'showValidationStatus',
   ],
   (props) => {
   const inputRef = ref<HTMLTextAreaElement | null>(null);
@@ -64,13 +74,18 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
   const value = computed(() => normalizeControlString(props.value));
   const cursor = ref(value.value.length);
   const suggestionIndex = ref(0);
+  const language = computed(() => props.language ?? 'text');
+  const validateJsonEnabled = computed(() => props.validateJson ?? (language.value === 'json'));
+  const validation = computed<JsonValidation | null>(() => (
+    language.value === 'json' && validateJsonEnabled.value ? validateJsonText(value.value) : null
+  ));
 
   const lineCount = computed(() => Math.max(1, value.value.split('\n').length));
   const lineHeight = 19.2; // 12px mono * 1.6
   const visibleLines = computed(() => Math.max(lineCount.value, props.rows ?? 7));
   const minEditHeight = computed(() => visibleLines.value * lineHeight + 20);
   const nodes = computed(() => (
-    (props.language ?? 'text') === 'json' ? highlightJson(value.value) : highlightText(value.value)
+    language.value === 'json' ? highlightJson(value.value) : highlightText(value.value)
   ));
 
   const token = computed(() => getAutocompleteToken(value.value, cursor.value));
@@ -138,6 +153,29 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
     });
   };
 
+  const handlePaste = (event: ClipboardEvent): void => {
+    const textarea = inputRef.value;
+    const pasted = event.clipboardData?.getData('text/plain') ?? '';
+    if (!shouldFormatPastedJson({
+      language: language.value,
+      validateJson: validateJsonEnabled.value,
+      formatJsonOnPaste: props.formatJsonOnPaste ?? true,
+      pastedText: pasted,
+      currentValue: value.value,
+      selectionStart: textarea?.selectionStart ?? 0,
+      selectionEnd: textarea?.selectionEnd ?? 0,
+    })) return;
+    const formatted = formatJsonText(pasted);
+    if (formatted === null) return;
+    event.preventDefault();
+    commitProgrammaticValue(formatted);
+    cursor.value = formatted.length;
+    requestAnimationFrame(() => {
+      inputRef.value?.focus();
+      inputRef.value?.setSelectionRange(formatted.length, formatted.length);
+    });
+  };
+
   const handleKeyDown = (event: KeyboardEvent): void => {
     if ((event.ctrlKey || event.metaKey) && event.key === ' ') {
       event.preventDefault();
@@ -168,6 +206,7 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
     const rows = props.rows ?? 7;
     const locale = props.locale ?? 'en';
     const showHead = Boolean(props.filename || props.mime || props.onFormat);
+    const showStatus = (props.showValidationStatus ?? true) && validation.value !== null && validation.value.state !== 'empty';
     return (
     <div ref={boxRef} class="codeed">
       {showHead && (
@@ -223,6 +262,7 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
               props.onValueChange(target.value);
               updateCursor();
             }}
+            onPaste={handlePaste}
             onKeyup={updateCursor}
             onSelect={updateCursor}
             onClick={updateCursor}
@@ -230,6 +270,7 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
           />
         </div>
       </div>
+      {showStatus ? <CodeEditorStatus locale={locale} validation={validation.value!} /> : null}
       <AutocompletePortal anchorRef={boxRef} cursorRef={inputRef} cursorOffset={cursor.value} open={showSuggestions.value}>
         <AutocompleteList
           rows={visible.value.map(({ item, ranges }) => ({ item, ranges }))}
@@ -245,6 +286,28 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
   };
   },
 );
+
+/** Small validity indicator below the editor; never blocks typing. */
+function CodeEditorStatus({ locale, validation }: { locale: Locale; validation: JsonValidation }) {
+  if (validation.state === 'empty') return null;
+  if (validation.state === 'valid') {
+    return (
+      <div class="codeed-status is-valid" role="status">
+        <IconCheck size={12} />
+        <span>{t(locale, 'jsonValid')}</span>
+      </div>
+    );
+  }
+  return (
+    <div class="codeed-status is-invalid" role="status">
+      <IconWarning size={12} />
+      <span class="codeed-status__text">
+        <strong>{t(locale, 'jsonInvalid')}</strong>
+        <span>{validation.message}</span>
+      </span>
+    </div>
+  );
+}
 
 /** Plain text: only `{{ }}` spans get the pill treatment. */
 function highlightText(value: string): VNode[] {

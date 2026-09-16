@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { HostMessage } from '../../shared/messages.ts';
+import { IconClose } from './icons/index.ts';
 
 type PluginProgressMessage = Extract<HostMessage, { type: 'plugin-progress' }>;
 
@@ -24,7 +25,7 @@ const percentage = computed(() => {
   >
     <div class="plugin-progress-notification__head">
       <strong>{{ notification.pluginId }}</strong>
-      <button type="button" aria-label="Dismiss" @click="onDismiss">×</button>
+      <button type="button" aria-label="Dismiss" @click="onDismiss"><IconClose :size="10" /></button>
     </div>
     <div class="plugin-progress-notification__status">
       <span>{{ notification.state }}</span>

@@ -66,9 +66,18 @@
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.72);
 }
 
-.ui-modal-card--wide {
-  width: min(100%, 700px);
-  max-height: min(92vh, 780px);
+.ui-modal-card--sm {
+  width: min(100%, 360px);
+}
+
+.ui-modal-card--lg {
+  width: min(100%, 640px);
+  max-height: min(92vh, 760px);
+}
+
+.ui-modal-card--xl {
+  width: min(100%, 860px);
+  max-height: min(94vh, 860px);
 }
 
 .ui-modal-card__header {

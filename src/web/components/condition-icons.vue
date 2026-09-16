@@ -1,6 +1,7 @@
 <script lang="tsx">
 import type { FieldIcon } from '../../automation/behavior/fields.ts';
 import type { FilterOperator, I18nText } from '../../automation/behavior/types.ts';
+import { SvgIcon } from './icons/index.ts';
 
 /**
  * Two icon sets the condition editor leans on: one per kind of field, and one
@@ -67,37 +68,17 @@ type GlyphProps = { size?: number };
 
 export function FieldIconGlyph({ icon, size = 14 }: GlyphProps & { icon: FieldIcon }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.9"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
+    <SvgIcon size={size} strokeWidth={1.9}>
       <path d={FIELD_PATHS[icon]} />
-    </svg>
+    </SvgIcon>
   );
 }
 
 export function OperatorGlyph({ operator, size = 14 }: GlyphProps & { operator: FilterOperator }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.9"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
+    <SvgIcon size={size} strokeWidth={1.9}>
       {OPERATOR_PATHS[operator].map((path) => <path d={path} key={path} />)}
-    </svg>
+    </SvgIcon>
   );
 }
 

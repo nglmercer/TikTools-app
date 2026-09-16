@@ -8,3 +8,5 @@ export * from './AutocompletePortal.vue';
 export * from './template-suggestions.ts';
 export * from './WorkflowCanvas.vue';
 export * from './WorkflowWizardModal.vue';
+export * from './WorkflowTemplateModal.vue';
+export * from './workflow-templates.ts';

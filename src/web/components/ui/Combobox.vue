@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { FormField } from './FormField.vue';
+import { IconClose } from '../icons/index.ts';
 import { filterComboOptions } from './controls.ts';
 import { dispatchControlEvent, normalizeControlString, syncNativeControlValue } from './control-events.ts';
 import { fieldIds, type SelectOption } from './controls.ts';
@@ -151,7 +152,7 @@ export const Combobox = defineVueComponent<ComboboxProps>(
               disabled={props.disabled}
               onClick={() => commitProgrammaticValue('')}
             >
-              ×
+              <IconClose size={10} />
             </button>
           ) : null}
           <button

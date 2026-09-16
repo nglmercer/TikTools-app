@@ -9,6 +9,7 @@ import { TemplateField } from '../node-editor/TemplateField.vue';
 import { getFetchUrlTemplates, getTemplateSuggestions, type TemplateSuggestionScope } from '../node-editor/template-suggestions.ts';
 import type { AutocompleteItem } from '../autocomplete/index.ts';
 import { resolveAutocompleteSources as mergeAutocompleteSources, suggestionsFromObject } from '../autocomplete/index.ts';
+import { IconClose } from '../icons/index.ts';
 import { AdvancedSection } from './FieldPanels.vue';
 import { CodeEditor, formatJsonText } from './CodeEditor.vue';
 import { InfoTip } from './InfoTip.vue';
@@ -610,7 +611,7 @@ function SelectField({
 }
 
 /** Headers-style editor: keys are plain, values get template autocomplete. */
-function KeyValueEditor({
+export function KeyValueEditor({
   locale,
   label,
   hintText,
@@ -683,7 +684,7 @@ function KeyValueEditor({
               onChange(next);
             }}
           >
-            ×
+            <IconClose size={10} />
           </button>
         </div>
       ))}
