@@ -19,6 +19,11 @@
   background: var(--panel);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  /* Both toolbar and ribbon create stacking contexts via backdrop-filter;
+     order them explicitly so toolbar popovers paint above the ribbon. */
+  position: relative;
+  z-index: 30;
+  overflow: visible;
 }
 
 .filter-icon-group {
@@ -222,7 +227,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  z-index: 10;
+  z-index: var(--z-popover);
 }
 
 .feed-footer-info {

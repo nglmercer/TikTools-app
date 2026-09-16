@@ -5,6 +5,7 @@ import { EventCard } from '../components/event-card.vue';
 import { IconArrowDown, IconChat, IconDot, IconGift, IconHeart, IconPause, IconSparkles, IconTrash, IconUsers } from '../components/icons.vue';
 import { Button } from '../components/ui/Button.vue';
 import { SearchInput } from '../components/ui/TextInput.vue';
+import { Tooltip } from '../components/ui/Tooltip.vue';
 import { defineVueComponent } from '../vue/component.ts';
 import { t, type Locale } from '../i18n.ts';
 import type { DisplayEvent, EventFilter, TopViewerPayload, ViewerRecord } from '../types.ts';
@@ -70,18 +71,17 @@ function renderFeedView({
       <div class="feed-toolbar">
         <div class="filter-icon-group">
           {filterButtons.map((btn) => (
-            <button
-              key={btn.key}
-              type="button"
-              class={`filter-icon-btn ${filter === btn.key ? 'active' : ''}`}
-              data-tooltip={btn.tooltip}
-              data-tooltip-pos="bottom"
-              aria-label={btn.tooltip}
-              aria-pressed={filter === btn.key}
-              onClick={() => onFilterChange(btn.key)}
-            >
-              {btn.icon}
-            </button>
+            <Tooltip key={btn.key} text={btn.tooltip} position="bottom">
+              <button
+                type="button"
+                class={`filter-icon-btn ${filter === btn.key ? 'active' : ''}`}
+                aria-label={btn.tooltip}
+                aria-pressed={filter === btn.key}
+                onClick={() => onFilterChange(btn.key)}
+              >
+                {btn.icon}
+              </button>
+            </Tooltip>
           ))}
         </div>
 

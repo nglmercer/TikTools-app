@@ -17,7 +17,7 @@
   background: var(--panel);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  z-index: 30;
+  z-index: var(--z-nav);
 }
 
 .brand-section {
@@ -136,7 +136,7 @@
   padding: 12px 6px;
   background: var(--panel);
   border-right: 1px solid var(--line);
-  z-index: 20;
+  z-index: var(--z-nav);
 }
 
 .nav-tab-btn {

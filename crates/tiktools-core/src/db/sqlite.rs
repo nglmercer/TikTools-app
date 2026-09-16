@@ -136,10 +136,12 @@ impl DatabaseManager {
 
         let automation = self.open(&self.automation_path())?;
         automation.execute_batch(AUTOMATION_SCHEMA)?;
+
+        self.ensure_analytics_schema()?;
         Ok(())
     }
 
-    fn open(&self, path: &std::path::Path) -> Result<Connection, DatabaseError> {
+    pub(super) fn open(&self, path: &std::path::Path) -> Result<Connection, DatabaseError> {
         Ok(Connection::open(path)?)
     }
 

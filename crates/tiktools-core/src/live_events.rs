@@ -111,6 +111,95 @@ impl AppCore {
         });
     }
 
+    #[cfg(feature = "persistence")]
+    pub(super) fn current_creator_unique_id(&self) -> Option<String> {
+        self.connection_context
+            .read()
+            .expect("connection context lock poisoned")
+            .as_ref()
+            .map(|context| context.unique_id.clone())
+    }
+
+    /// Fire-and-forget analytics write. Slow or failed writes only log; live
+    /// delivery never waits for the analytics database.
+    #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
+    fn record_analytics_event(self: &Arc<Self>, event: &NativeLiveEvent) {
+        use crate::db::AnalyticsEventRecord;
+
+        let Some(record) = AnalyticsEventRecord::from_canonical_event(event) else {
+            return;
+        };
+        let Some(creator) = self.current_creator_unique_id() else {
+            return;
+        };
+        let db = std::sync::Arc::clone(&self.db);
+        let now_unix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs() as i64)
+            .unwrap_or(0);
+        tokio::spawn(async move {
+            let outcome = tokio::task::spawn_blocking(move || {
+                db.record_analytics_event(&creator, &record, now_unix)
+            })
+            .await;
+            if let Err(error) = outcome {
+                tracing::warn!(%error, "analytics event write failed");
+            } else if let Ok(Err(error)) = outcome {
+                tracing::warn!(%error, "analytics event write failed");
+            }
+        });
+    }
+
+    #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
+    fn record_analytics_viewers(self: &Arc<Self>, viewers: u64) {
+        let Some(creator) = self.current_creator_unique_id() else {
+            return;
+        };
+        let db = std::sync::Arc::clone(&self.db);
+        let viewers = i64::try_from(viewers).unwrap_or(i64::MAX);
+        let now_unix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs() as i64)
+            .unwrap_or(0);
+        tokio::spawn(async move {
+            let outcome = tokio::task::spawn_blocking(move || {
+                db.record_analytics_viewers(&creator, viewers, now_unix)
+            })
+            .await;
+            if let Err(error) = outcome {
+                tracing::warn!(%error, "analytics viewers write failed");
+            } else if let Ok(Err(error)) = outcome {
+                tracing::warn!(%error, "analytics viewers write failed");
+            }
+        });
+    }
+
+    #[cfg(feature = "persistence")]
+    fn write_live_session(&self, creator: &str, room_id: Option<&str>, open: bool) {
+        let db = std::sync::Arc::clone(&self.db);
+        let creator = creator.to_owned();
+        let room_id = room_id.map(str::to_owned);
+        let now_unix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs() as i64)
+            .unwrap_or(0);
+        tokio::spawn(async move {
+            let outcome = tokio::task::spawn_blocking(move || {
+                if open {
+                    db.open_live_session(&creator, room_id.as_deref(), now_unix)
+                } else {
+                    db.close_live_sessions(&creator, now_unix)
+                }
+            })
+            .await;
+            if let Err(error) = outcome {
+                tracing::warn!(%error, "live session write failed");
+            } else if let Ok(Err(error)) = outcome {
+                tracing::warn!(%error, "live session write failed");
+            }
+        });
+    }
+
     #[cfg(feature = "native-tiktok")]
     pub(super) async fn handle_native_event(self: &Arc<Self>, event: ClientEvent) {
         match event {
@@ -149,6 +238,9 @@ impl AppCore {
             .connection_context
             .write()
             .expect("connection context lock poisoned") = Some(context.clone());
+
+        #[cfg(feature = "persistence")]
+        self.write_live_session(&info.unique_id, Some(info.room_id.as_str()), true);
 
         let gifts = info
             .gifts
@@ -286,9 +378,14 @@ impl AppCore {
                     total_users: room.total_user,
                     top_viewers: Vec::new(),
                 });
+                #[cfg(feature = "persistence")]
+                self.record_analytics_viewers(room.total);
             }
             return;
         };
+
+        #[cfg(feature = "persistence")]
+        self.record_analytics_event(&event);
 
         let should_award = !matches!(
             &event.base,
@@ -720,6 +817,8 @@ impl AppCore {
             .expect("connection context lock poisoned")
             .take();
         let Some(context) = context else { return };
+        #[cfg(feature = "persistence")]
+        self.write_live_session(&context.unique_id, None, false);
         self.publish_automation_event(
             self.make_automation_event_with_context(
                 "tiktok.disconnected",

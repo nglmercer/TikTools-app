@@ -2,10 +2,22 @@
 import type { VNodeChild } from 'vue';
 import { defineVueFunctional } from '../../vue/component.ts';
 
-type PageProps = { children: VNodeChild; narrow?: boolean; className?: string };
+export type PageWidth = 'narrow' | 'medium' | 'normal' | 'wide' | 'full';
+
+type PageProps = { children: VNodeChild; /** @deprecated Use `width="narrow"` instead. */ narrow?: boolean; width?: PageWidth; className?: string };
+
+const PAGE_WIDTH_CLASS: Record<PageWidth, string> = {
+  narrow: 'ui-page--narrow',
+  medium: 'ui-page--medium',
+  normal: '',
+  wide: 'ui-page--wide',
+  full: 'ui-page--full',
+};
+
 export const Page = defineVueFunctional<PageProps>((props) => {
-  const { children, narrow, className = '' } = props;
-  return <div class={`ui-page ${narrow ? 'is-narrow' : ''} ${className}`}>{children}</div>;
+  const { children, narrow, width = 'normal', className = '' } = props;
+  const resolved: PageWidth = narrow ? 'narrow' : width;
+  return <div class={`ui-page ${PAGE_WIDTH_CLASS[resolved]} ${className}`}>{children}</div>;
 });
 
 type PageHeaderProps = { title: string; subtitle?: string; icon?: VNodeChild; meta?: VNodeChild; action?: VNodeChild };

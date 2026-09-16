@@ -69,6 +69,7 @@ input:disabled,
 select:disabled,
 textarea:disabled {
   cursor: not-allowed;
+  color: var(--text-disabled);
 }
 
 input:focus-visible,

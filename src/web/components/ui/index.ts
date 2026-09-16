@@ -26,3 +26,6 @@ export * from './Rating.vue';
 export * from './FileUpload.vue';
 export * from './Combobox.vue';
 export * from './MultiSelect.vue';
+export * from './Tooltip.vue';
+export * from './tooltip-logic.ts';
+export * from './SettingRow.vue';

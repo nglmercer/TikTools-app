@@ -80,6 +80,11 @@ impl AppPaths {
     pub fn automation_database(&self) -> PathBuf {
         self.data.join("tiktok-automation.db")
     }
+
+    /// Aggregate-only analytics store. Counters, never chat text.
+    pub fn analytics_database(&self) -> PathBuf {
+        self.data.join("tiktok-analytics.db")
+    }
 }
 
 fn configured_path(variable: &str, fallback: PathBuf) -> PathBuf {
@@ -147,5 +152,8 @@ mod tests {
         assert!(paths
             .automation_database()
             .ends_with("data/tiktok-automation.db"));
+        assert!(paths
+            .analytics_database()
+            .ends_with("data/tiktok-analytics.db"));
     }
 }

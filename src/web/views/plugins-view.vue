@@ -65,6 +65,7 @@ function pluginCopy(locale: Locale) {
     explore: t(locale, 'pluginsAvailable'),
     usedBy: (count: number) => t(locale, 'pluginUsedBy', { count }),
     confirm: t(locale, 'pluginUninstallConfirm'),
+    details: t(locale, 'pluginDetails'),
     settings: t(locale, 'pluginSettings'),
     saveSettings: t(locale, 'pluginSettingsSave'),
     settingsHint: t(locale, 'pluginSettingsHint'),
@@ -112,7 +113,6 @@ export const PluginsView = defineVueComponent<PluginsViewProps>(
   ['locale', 'plugins', 'actions', 'actionTypes', 'error', 'onSetInstalled', 'onUninstall', 'onSetEnabled', 'settings', 'onGetSettings', 'onSaveSettings', 'onOpenMediaPicker', 'onInstallPlugin', 'pluginInstallState', 'onConfirmReplace', 'onCancelReplace', 'processors', 'processorTest', 'onGetProcessorStatus', 'onTestProcessor'],
   (props) => {
   const tab = ref<'installed' | 'store' | 'processors'>('installed');
-  const dialogs = useDialogs();
 
   return () => {
   const copy = pluginCopy(props.locale);
@@ -215,102 +215,32 @@ export const PluginsView = defineVueComponent<PluginsViewProps>(
             </div>
           )}
 
-          {visible.map((plugin) => {
-            const canUninstall = plugin.descriptor.source === 'user';
-            const usedBy = props.actions.filter((action) => {
-              const type = props.actionTypes.find((entry) => entry.id === action.typeId);
-              return type?.source.kind === 'plugin' && type.source.pluginId === plugin.descriptor.id;
-            }).length;
-
-            return (
-              <div
-                class={`plg-plugin${plugin.installed && !plugin.enabled ? ' is-off' : ''}`}
-                key={plugin.descriptor.id}
-              >
-                <div class="plg-plugin__head">
-                  <div class="plg-field">
-                    <div class="plg-plugin__title">
-                      <span class="plg-plugin__name">{i18nText(props.locale, plugin.descriptor.name)}</span>
-                      <span class="plg-pill plg-pill--mono">{plugin.descriptor.version}</span>
-                      {plugin.installed && (
-                        <span class={`plg-pill${plugin.enabled ? ' plg-pill--accent' : ''}`}>
-                          {plugin.enabled ? copy.active : copy.disabled}
-                        </span>
-                      )}
-                      {!plugin.available && <span class="plg-pill">{copy.unavailable}</span>}
-                    </div>
-                    <span class="plg-plugin__desc">{i18nText(props.locale, plugin.descriptor.description)}</span>
-                    <div class="plg-table__chips">
-                      <span class="plg-group-note">{copy.actionsLabel}</span>
-                      {plugin.descriptor.actionTypeIds.map((id) => (
-                        <span class="plg-pill" key={id}>
-                          {(() => {
-                            const type = props.actionTypes.find((entry) => entry.id === id);
-                            return type ? i18nText(props.locale, type.title) : id;
-                          })()}
-                        </span>
-                      ))}
-                    </div>
-                    <div class="plg-plugin__meta">
-                      <span>{i18nText(props.locale, plugin.descriptor.dependency)}</span>
-                      <span>·</span>
-                      <span>{plugin.descriptor.permissions.join(' · ')}</span>
-                    </div>
-                  </div>
-
-                  <div class="plg-plugin__controls">
-                    {plugin.installed && (
-                      <Switch
-                        checked={plugin.enabled}
-                        onCheckedChange={() => props.onSetEnabled(plugin.descriptor.id, !plugin.enabled)}
-                        ariaLabel={i18nText(props.locale, plugin.descriptor.name)}
-                      />
-                    )}
-                    <button
-                      type="button"
-                      class={`plg-btn plg-btn--sm${plugin.installed ? ' plg-btn--danger' : ' plg-btn--primary'}`}
-                      onClick={async () => {
-                        if (!plugin.installed) {
-                          props.onSetInstalled(plugin.descriptor.id, true);
-                        } else if (canUninstall) {
-                          const confirmed = await dialogs.confirm(copy.confirm, {
-                            title: copy.uninstall,
-                            confirmLabel: copy.uninstall,
-                            cancelLabel: copy.cancel,
-                            danger: true,
-                          });
-                          if (confirmed) props.onUninstall(plugin.descriptor.id);
-                        } else {
-                          props.onSetInstalled(plugin.descriptor.id, false);
-                        }
-                      }}
-                    >
-                      {plugin.installed ? (canUninstall ? copy.uninstall : copy.deactivate) : (canUninstall ? copy.activate : copy.install)}
-                    </button>
-                  </div>
-                </div>
-
-                {plugin.installed && usedBy > 0 && (
-                  <div class="plg-warn">
-                    <strong>{canUninstall ? copy.uninstall : copy.deactivate}:</strong>
-                    {copy.usedBy(usedBy)}
-                  </div>
-                )}
-
-                {plugin.installed && plugin.descriptor.hasSettings && (
-                  <PluginSettingsForm
+          {visible.length > 0 && (
+            <div class="plg-grid">
+              {visible.map((plugin) => {
+                const usedBy = props.actions.filter((action) => {
+                  const type = props.actionTypes.find((entry) => entry.id === action.typeId);
+                  return type?.source.kind === 'plugin' && type.source.pluginId === plugin.descriptor.id;
+                }).length;
+                return (
+                  <PluginCard
+                    key={plugin.descriptor.id}
                     locale={props.locale}
-                    pluginId={plugin.descriptor.id}
                     plugin={plugin}
-                    state={props.settings[plugin.descriptor.id]}
+                    usedBy={usedBy}
+                    actionTypes={props.actionTypes}
+                    settingsState={props.settings[plugin.descriptor.id]}
+                    onSetEnabled={props.onSetEnabled}
+                    onSetInstalled={props.onSetInstalled}
+                    onUninstall={props.onUninstall}
                     onGetSettings={props.onGetSettings}
                     onSaveSettings={props.onSaveSettings}
                     onOpenMediaPicker={props.onOpenMediaPicker}
                   />
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
 
           {visible.length === 0 && (
             <div class="plg-empty">
@@ -324,6 +254,133 @@ export const PluginsView = defineVueComponent<PluginsViewProps>(
           )}
         </div>
       </div>
+    </div>
+  );
+  };
+  },
+);
+
+/** Compact plugin card: name + status + primary action visible, actions/meta/settings behind Details. */
+type PluginCardProps = {
+  locale: Locale;
+  plugin: PluginStatus;
+  usedBy: number;
+  actionTypes: ActionTypeDefinition[];
+  settingsState?: PluginSettingsState;
+  onSetEnabled: (id: string, enabled: boolean) => void;
+  onSetInstalled: (id: string, installed: boolean) => void;
+  onUninstall: (id: string) => void;
+  onGetSettings: (id: string) => void;
+  onSaveSettings: (id: string, values: PluginSettingValues) => void;
+  onOpenMediaPicker?: OpenMediaPicker;
+};
+
+const PluginCard = defineVueComponent<PluginCardProps>(
+  ['locale', 'plugin', 'usedBy', 'actionTypes', 'settingsState', 'onSetEnabled', 'onSetInstalled', 'onUninstall', 'onGetSettings', 'onSaveSettings', 'onOpenMediaPicker'],
+  (props) => {
+  const open = ref(false);
+  const dialogs = useDialogs();
+
+  return () => {
+  const copy = pluginCopy(props.locale);
+  const plugin = props.plugin;
+  const canUninstall = plugin.descriptor.source === 'user';
+
+  return (
+    <div class={`plg-plugin${plugin.installed && !plugin.enabled ? ' is-off' : ''}`}>
+      <div class="plg-plugin__head">
+        <div class="plg-field">
+          <div class="plg-plugin__title">
+            <span class="plg-plugin__name">{i18nText(props.locale, plugin.descriptor.name)}</span>
+            <span class="plg-pill plg-pill--mono">{plugin.descriptor.version}</span>
+            {plugin.installed && (
+              <span class={`plg-pill${plugin.enabled ? ' plg-pill--accent' : ''}`}>
+                {plugin.enabled ? copy.active : copy.disabled}
+              </span>
+            )}
+            {!plugin.available && <span class="plg-pill">{copy.unavailable}</span>}
+          </div>
+          <span class="plg-plugin__desc">{i18nText(props.locale, plugin.descriptor.description)}</span>
+        </div>
+
+        <div class="plg-plugin__controls">
+          {plugin.installed && (
+            <Switch
+              checked={plugin.enabled}
+              onCheckedChange={() => props.onSetEnabled(plugin.descriptor.id, !plugin.enabled)}
+              ariaLabel={i18nText(props.locale, plugin.descriptor.name)}
+            />
+          )}
+          <button
+            type="button"
+            class={`plg-btn plg-btn--sm${open.value ? ' is-active' : ''}`}
+            aria-expanded={open.value ? 'true' : 'false'}
+            onClick={() => { open.value = !open.value; }}
+          >
+            {copy.details}
+          </button>
+          <button
+            type="button"
+            class={`plg-btn plg-btn--sm${plugin.installed ? ' plg-btn--danger' : ' plg-btn--primary'}`}
+            onClick={async () => {
+              if (!plugin.installed) {
+                props.onSetInstalled(plugin.descriptor.id, true);
+              } else if (canUninstall) {
+                const confirmed = await dialogs.confirm(copy.confirm, {
+                  title: copy.uninstall,
+                  confirmLabel: copy.uninstall,
+                  cancelLabel: copy.cancel,
+                  danger: true,
+                });
+                if (confirmed) props.onUninstall(plugin.descriptor.id);
+              } else {
+                props.onSetInstalled(plugin.descriptor.id, false);
+              }
+            }}
+          >
+            {plugin.installed ? (canUninstall ? copy.uninstall : copy.deactivate) : (canUninstall ? copy.activate : copy.install)}
+          </button>
+        </div>
+      </div>
+
+      {plugin.installed && props.usedBy > 0 && (
+        <div class="plg-warn">
+          <strong>{canUninstall ? copy.uninstall : copy.deactivate}:</strong>
+          {copy.usedBy(props.usedBy)}
+        </div>
+      )}
+
+      {open.value && (
+        <div class="plg-plugin__details">
+          <div class="plg-table__chips">
+            <span class="plg-group-note">{copy.actionsLabel}</span>
+            {plugin.descriptor.actionTypeIds.map((id) => (
+              <span class="plg-pill" key={id}>
+                {(() => {
+                  const type = props.actionTypes.find((entry) => entry.id === id);
+                  return type ? i18nText(props.locale, type.title) : id;
+                })()}
+              </span>
+            ))}
+          </div>
+          <div class="plg-plugin__meta">
+            <span>{i18nText(props.locale, plugin.descriptor.dependency)}</span>
+            <span>·</span>
+            <span>{plugin.descriptor.permissions.join(' · ')}</span>
+          </div>
+          {plugin.installed && plugin.descriptor.hasSettings && (
+            <PluginSettingsForm
+              locale={props.locale}
+              pluginId={plugin.descriptor.id}
+              plugin={plugin}
+              state={props.settingsState}
+              onGetSettings={props.onGetSettings}
+              onSaveSettings={props.onSaveSettings}
+              onOpenMediaPicker={props.onOpenMediaPicker}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
   };

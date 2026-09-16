@@ -2,6 +2,7 @@ import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import type {
   ActionOptionItem,
+  AnalyticsSummaryData,
   GiftCatalogEntry,
   HostMessage,
   HotkeyStatusData,
@@ -35,7 +36,6 @@ import type {
   EventFilter,
   PluginSettingsState,
   PointsConfig,
-  StreamTelemetry,
   TopViewerPayload,
   ViewerRecord,
 } from '../types.ts';
@@ -113,6 +113,8 @@ export function useAppController() {
   const activeCreatorRecord = ref<CreatorRecord | null>(null);
   const recentCreators = ref<CreatorRecord[]>([]);
 
+  const analyticsSummary = ref<AnalyticsSummaryData | null>(null);
+
   const behavior = ref<BehaviorSnapshot>({ actions: [], events: [], plugins: [], actionTypes: [], translations: {} });
   const giftCatalog = ref<GiftCatalogEntry[]>([]);
   const behaviorRuns = ref<BehaviorRun[]>([]);
@@ -129,7 +131,6 @@ export function useAppController() {
   let mediaRequestSequence = 0;
   let pluginProgressTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const telemetry = ref<StreamTelemetry>({ chats: 0, gifts: 0, likes: 0, members: 0 });
   const autoScroll = ref(true);
   const unreadCount = ref(0);
 
@@ -144,7 +145,6 @@ export function useAppController() {
     nextEventId.value = 0;
     events.value = [];
     unreadCount.value = 0;
-    telemetry.value = { chats: 0, gifts: 0, likes: 0, members: 0 };
     topViewers.value = [];
     liveViewers.value = 0;
   };
@@ -198,6 +198,7 @@ export function useAppController() {
 
     if (message.type === 'points-config') pointsConfig.value = message.config;
     if (message.type === 'leaderboard') leaderboard.value = message.viewers;
+    if (message.type === 'analytics-summary') analyticsSummary.value = message.summary;
 
     if (message.type === 'points-awarded') {
       const index = leaderboard.value.findIndex((viewer) => viewer.uniqueId === message.uniqueId);
@@ -218,12 +219,6 @@ export function useAppController() {
 
     if (message.type === 'live-event') {
       const event = message.event;
-      telemetry.value = {
-        chats: telemetry.value.chats + (event.kind === 'chat' ? 1 : 0),
-        gifts: telemetry.value.gifts + (event.kind === 'gift' ? 1 : 0),
-        likes: telemetry.value.likes + (event.kind === 'like' ? 1 : 0),
-        members: telemetry.value.members + (event.kind === 'member' || event.kind === 'social' ? 1 : 0),
-      };
       events.value = [
         ...events.value,
         { ...event, id: nextEventId.value++, receivedAt: Date.now() },
@@ -574,7 +569,6 @@ export function useAppController() {
     actionOptions,
     pluginProgress,
     dismissPluginProgress,
-    telemetry,
     autoScroll,
     unreadCount,
     resetEvents,
@@ -614,6 +608,16 @@ export function useAppController() {
     handleGetProcessorStatus,
     handleTestProcessor,
     handleGetActionOptions,
+    analyticsSummary,
+    handleGetAnalyticsRange: (startDay: number, endDay: number): void => {
+      send({
+        type: 'get-analytics-summary',
+        creatorUniqueId: normalizeUsername(activeCreator.value),
+        startDay,
+        endDay,
+        limit: 10,
+      });
+    },
     pluginInstallState,
     handleInstallPlugin,
     handleConfirmPluginReplace,

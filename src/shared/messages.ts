@@ -175,7 +175,14 @@ export type PageMessage =
   | { type: 'save-plugin-settings'; id: string; values: PluginSettingValues }
   | { type: 'get-action-options'; source: string }
   | { type: 'test-processor'; pluginId: string; processorId: string; event: AutomationEvent }
-  | { type: 'get-processor-status' };
+  | { type: 'get-processor-status' }
+  | {
+      type: 'get-analytics-summary';
+      creatorUniqueId?: string;
+      startDay?: number;
+      endDay?: number;
+      limit?: number;
+    };
 
 export type GiftCatalogEntry = {
   id: string;
@@ -280,7 +287,8 @@ export type HostMessage =
       result: JsonObject;
       error?: string;
     }
-  | { type: 'processor-status'; processors: ProcessorStatusEntry[] };
+  | { type: 'processor-status'; processors: ProcessorStatusEntry[] }
+  | { type: 'analytics-summary'; summary: AnalyticsSummaryData };
 
 export type ProcessorStatusMetrics = {
   calls: number;
@@ -303,4 +311,42 @@ export type ProcessorStatusEntry = {
   priority: number;
   status: 'ready' | 'disabled' | 'unavailable' | 'degraded' | 'circuit-open';
   metrics: ProcessorStatusMetrics;
+};
+
+export type AnalyticsTotals = {
+  chats: number;
+  giftEvents: number;
+  gifts: number;
+  diamonds: number;
+  likeEvents: number;
+  likes: number;
+  joins: number;
+  follows: number;
+  shares: number;
+  peakViewers: number;
+};
+
+export type AnalyticsDayRow = {
+  day: number;
+} & AnalyticsTotals;
+
+export type AnalyticsTopViewer = {
+  uniqueId: string;
+  chats: number;
+  gifts: number;
+  diamonds: number;
+  likes: number;
+  shares: number;
+  interactions: number;
+  lastSeen: number;
+};
+
+export type AnalyticsSummaryData = {
+  creatorUniqueId: string;
+  startDay: number;
+  endDay: number;
+  totals: AnalyticsTotals;
+  days: AnalyticsDayRow[];
+  topViewers: AnalyticsTopViewer[];
+  sessions: number;
 };

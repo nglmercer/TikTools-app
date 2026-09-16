@@ -1,11 +1,14 @@
 <script lang="tsx">
 import type { VNodeChild } from 'vue';
 import { defineVueFunctional } from '../../vue/component.ts';
+import { InfoTip } from './InfoTip.vue';
 
 type CardProps = {
   children: VNodeChild;
   title?: string;
   subtitle?: string;
+  /** Longer explanation behind an info icon next to the title. */
+  hint?: string;
   icon?: VNodeChild;
   action?: VNodeChild;
   variant?: 'default' | 'elevated' | 'ghost';
@@ -14,15 +17,20 @@ type CardProps = {
 };
 
 export const Card = defineVueFunctional<CardProps>((props) => {
-  const { children, title, subtitle, icon, action, variant = 'default', padding = 'md', className = '' } = props;
+  const { children, title, subtitle, hint, icon, action, variant = 'default', padding = 'md', className = '' } = props;
   return (
     <div class={`ui-card ui-card--${variant} ui-card--pad-${padding} ${className}`}>
-      {title || icon || subtitle || action ? (
+      {title || icon || subtitle || hint || action ? (
         <header class="ui-card__header">
           <div class="ui-card__title-wrap">
             {icon ? <span class="ui-card__icon">{icon}</span> : null}
             <div>
-              {title ? <h2 class="ui-card__title">{title}</h2> : null}
+              {title ? (
+                <h2 class="ui-card__title">
+                  {title}
+                  {hint ? <InfoTip text={hint} /> : null}
+                </h2>
+              ) : null}
               {subtitle ? <p class="ui-card__subtitle">{subtitle}</p> : null}
             </div>
           </div>

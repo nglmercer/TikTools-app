@@ -40,7 +40,8 @@ export const ConnectView = defineVueComponent<ConnectViewProps>(
     };
 
     return (
-      <Page narrow>
+      <Page>
+        <div class="ui-cols-2">
         <Card title={t(locale, 'connectToLive')} subtitle={t(locale, 'setupLead')} icon={<IconRadio />}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {isLive ? <Alert variant="info">{t(locale, 'live')} — {t(locale, 'disconnectToChangeCreator')}</Alert> : null}
@@ -100,6 +101,7 @@ export const ConnectView = defineVueComponent<ConnectViewProps>(
             <EmptyState title={t(locale, 'noRecents')} description="" />
           )}
         </Card>
+        </div>
       </Page>
     );
   };

@@ -425,6 +425,54 @@ impl AppCore {
                     processors: self.processor_status_snapshot(),
                 });
             }
+            PageMessage::GetAnalyticsSummary {
+                creator_unique_id,
+                start_day,
+                end_day,
+                limit,
+            } => {
+                self.emit_analytics_summary(creator_unique_id, start_day, end_day, limit);
+            }
+        }
+    }
+
+    fn emit_analytics_summary(
+        &self,
+        creator_unique_id: Option<String>,
+        start_day: Option<i64>,
+        end_day: Option<i64>,
+        limit: Option<i64>,
+    ) {
+        #[cfg(feature = "persistence")]
+        {
+            let now_unix = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_secs() as i64)
+                .unwrap_or(0);
+            let today = crate::db::utc_day(now_unix);
+            let end = end_day.unwrap_or(today);
+            let start = start_day.unwrap_or(end - 6).min(end);
+            let creator = creator_unique_id
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| self.current_creator_unique_id())
+                .unwrap_or_default();
+            if creator.is_empty() {
+                return;
+            }
+            match self
+                .db
+                .analytics_summary(&creator, start, end, limit.unwrap_or(10))
+            {
+                Ok(summary) => match serde_json::to_value(summary) {
+                    Ok(summary) => self.emit(HostMessage::AnalyticsSummary { summary }),
+                    Err(error) => tracing::warn!(%error, "could not serialize analytics summary"),
+                },
+                Err(error) => tracing::warn!(%error, "could not load analytics summary"),
+            }
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = (creator_unique_id, start_day, end_day, limit);
         }
     }
 

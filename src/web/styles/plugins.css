@@ -274,7 +274,7 @@
 .plg-modal {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: var(--z-modal);
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -607,6 +607,10 @@
 .plg-plugin__desc { font-size: 12px; color: var(--plg-muted); line-height: 1.5; }
 .plg-plugin__meta { display: flex; flex-wrap: wrap; gap: 8px; font-family: var(--plg-mono); font-size: 11px; color: var(--plg-dim); }
 .plg-plugin__controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.plg-plugin__details { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--plg-line); }
+.plg-plugin__desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.plg-btn.is-active { border-color: var(--plg-accent); color: var(--plg-accent); }
+.plg-grid { display: grid; gap: 10px; align-items: start; }
 .plg-banner {
   display: flex;
   flex-wrap: wrap;
@@ -639,6 +643,7 @@
 }
 
 @media (min-width: 1180px) {
+  .plg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .plg-table { gap: 0; border: 1px solid var(--plg-line); border-radius: 10px; overflow: hidden; }
   .plg-table__head {
     display: grid;
@@ -1052,7 +1057,7 @@
 
 .ui-select__menu {
   position: absolute;
-  z-index: 40;
+  z-index: var(--z-dropdown);
   top: calc(100% + 4px);
   left: 0;
   min-width: max(100%, 220px);

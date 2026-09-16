@@ -12,6 +12,8 @@
   border-bottom: 1px solid var(--line);
   gap: 12px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 }
 
 .tt-ribbon-title {

@@ -1,50 +1,7 @@
-.success-banner {
-  background: rgba(6, 214, 160, 0.15);
-  border: 1px solid rgba(6, 214, 160, 0.4);
-  color: var(--tt-green);
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  text-align: center;
-}
-
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-card {
-  background: var(--panel-solid);
-  border: 1px solid var(--line-focus);
-  border-radius: 14px;
-  padding: 20px;
-  width: 90%;
-  max-width: 360px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
-}
-
-.modal-card h2 {
-  font-size: 15px;
-  margin: 0 0 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .ui-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1100;
+  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;

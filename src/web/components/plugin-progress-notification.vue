@@ -44,7 +44,7 @@ const percentage = computed(() => {
   position: fixed;
   top: 62px;
   right: 18px;
-  z-index: 80;
+  z-index: var(--z-toast);
   width: min(360px, calc(100vw - 36px));
   padding: 12px 14px;
   border: 1px solid var(--line-focus);

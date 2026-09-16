@@ -23,7 +23,7 @@
   visibility: hidden;
   pointer-events: none;
   transition: opacity 0.16s ease, transform 0.16s ease;
-  z-index: 1000;
+  z-index: var(--z-tooltip);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -78,4 +78,36 @@
 [data-tooltip]:focus-visible::before {
   opacity: 1;
   visibility: visible;
+}
+
+/* ---- portal tooltip (Tooltip.vue): escapes local stacking contexts ---- */
+.ui-tooltip-trigger {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.ui-tooltip-portal {
+  position: fixed;
+  z-index: var(--z-tooltip);
+  max-width: 220px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-color);
+  border: 1px solid var(--tooltip-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.ui-tooltip-portal.is-wide {
+  max-width: 280px;
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: left;
 }

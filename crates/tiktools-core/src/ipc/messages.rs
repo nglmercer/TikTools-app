@@ -342,6 +342,17 @@ pub enum PageMessage {
     },
     #[serde(rename = "get-processor-status")]
     GetProcessorStatus,
+    #[serde(rename = "get-analytics-summary")]
+    GetAnalyticsSummary {
+        #[serde(default, rename = "creatorUniqueId")]
+        creator_unique_id: Option<String>,
+        #[serde(default, rename = "startDay")]
+        start_day: Option<i64>,
+        #[serde(default, rename = "endDay")]
+        end_day: Option<i64>,
+        #[serde(default)]
+        limit: Option<i64>,
+    },
 }
 
 impl PageMessage {
@@ -397,6 +408,7 @@ impl PageMessage {
             Self::GetActionOptions { .. } => "get-action-options",
             Self::TestProcessor { .. } => "test-processor",
             Self::GetProcessorStatus => "get-processor-status",
+            Self::GetAnalyticsSummary { .. } => "get-analytics-summary",
         }
     }
 
@@ -497,6 +509,13 @@ impl PageMessage {
                     return Err(IpcMessageError::InvalidField("event"));
                 }
             }
+            Self::GetAnalyticsSummary {
+                creator_unique_id: Some(creator),
+                ..
+            } => {
+                bounded_string(creator, "creatorUniqueId", 256)?;
+            }
+            Self::GetAnalyticsSummary { .. } => {}
             _ => {}
         }
         Ok(())
@@ -760,6 +779,8 @@ pub enum HostMessage {
     },
     #[serde(rename = "processor-status")]
     ProcessorStatus { processors: Value },
+    #[serde(rename = "analytics-summary")]
+    AnalyticsSummary { summary: Value },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -920,6 +941,35 @@ mod tests {
             "x".repeat(4_097)
         ))
         .is_err());
+    }
+
+    #[test]
+    fn analytics_summary_has_a_dedicated_wire_contract() {
+        let message = PageMessage::parse(
+            r#"{"type":"get-analytics-summary","creatorUniqueId":"creator","startDay":20275,"endDay":20281,"limit":10}"#,
+        )
+        .unwrap();
+        assert_eq!(message.type_name(), "get-analytics-summary");
+        assert!(matches!(
+            message,
+            PageMessage::GetAnalyticsSummary {
+                creator_unique_id: Some(_),
+                start_day: Some(20275),
+                end_day: Some(20281),
+                limit: Some(10),
+            }
+        ));
+        assert!(
+            PageMessage::parse(r#"{"type":"get-analytics-summary","creatorUniqueId":""}"#).is_err()
+        );
+
+        let json = HostMessage::AnalyticsSummary {
+            summary: serde_json::json!({"creatorUniqueId": "creator"}),
+        }
+        .to_json()
+        .unwrap();
+        assert!(json.starts_with(r#"{"type":"analytics-summary""#));
+        assert!(json.contains("creatorUniqueId"));
     }
 
     #[test]

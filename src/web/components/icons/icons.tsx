@@ -387,6 +387,16 @@ export function IconCheck({ size = 14, strokeWidth = 3, className }: IconProps =
   );
 }
 
+export function IconInfo({ size = 13, strokeWidth = 2, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 8h.01" />
+    </SvgIcon>
+  );
+}
+
 export function IconWarning({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
@@ -602,6 +612,7 @@ export type IconName =
   | 'chevron-right'
   | 'arrow-down'
   | 'check'
+  | 'info'
   | 'warning'
   | 'close'
   | 'play'
@@ -658,6 +669,7 @@ export const ICONS: Record<IconName, IconComponent> = {
   'chevron-right': IconChevronRight,
   'arrow-down': IconArrowDown,
   check: IconCheck,
+  info: IconInfo,
   warning: IconWarning,
   close: IconClose,
   play: IconPlay,

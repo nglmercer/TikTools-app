@@ -8,7 +8,16 @@
 mod sqlite;
 
 #[cfg(feature = "persistence")]
+mod analytics;
+
+#[cfg(feature = "persistence")]
 pub use sqlite::DatabaseError;
+
+#[cfg(feature = "persistence")]
+pub use analytics::{
+    utc_day, AnalyticsDayRow, AnalyticsEventRecord, AnalyticsSummaryData, AnalyticsTopViewer,
+    AnalyticsTotals,
+};
 
 use std::{
     fs,
@@ -43,6 +52,10 @@ impl DatabaseManager {
 
     pub fn automation_path(&self) -> std::path::PathBuf {
         self.paths.automation_database()
+    }
+
+    pub fn analytics_path(&self) -> std::path::PathBuf {
+        self.paths.analytics_database()
     }
 }
 

@@ -23,7 +23,7 @@
   font-weight: 700;
   color: var(--text-muted);
   border-bottom: 1px solid var(--line);
-  z-index: 2;
+  z-index: var(--z-sticky);
 }
 
 .tikfinity-table td {

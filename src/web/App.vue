@@ -73,8 +73,9 @@ const app = reactive(useAppController());
       <AnalyticsView
         v-else-if="app.activeTab === 'analytics'"
         :locale="app.locale"
-        :telemetry="app.telemetry"
-        :events="app.events"
+        :creator="app.activeCreator"
+        :summary="app.analyticsSummary"
+        :on-request-range="app.handleGetAnalyticsRange"
       />
 
       <BehaviorView

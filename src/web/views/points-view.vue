@@ -5,9 +5,10 @@ import { defineVueComponent } from '../vue/component.ts';
 import { IconBolt, IconCheck, IconCoins, IconFlame, IconStar, IconTrash, IconTrophy } from '../components/icons.vue';
 import { Alert, Badge, Card, EmptyState } from '../components/ui/Card.vue';
 import { Button } from '../components/ui/Button.vue';
-import { Checkbox } from '../components/ui/Checkbox.vue';
-import { FieldRow, FormField } from '../components/ui/FormField.vue';
+import { FormField } from '../components/ui/FormField.vue';
+import { Modal, ModalActions } from '../components/ui/Modal.vue';
 import { NumberInput } from '../components/ui/NumberInput.vue';
+import { SettingRow } from '../components/ui/SettingRow.vue';
 import { SearchInput, TextInput } from '../components/ui/TextInput.vue';
 import { SplitLayout } from '../components/ui/Page.vue';
 import { DataTable, RowActions, type Column } from '../components/ui/Table.vue';
@@ -103,8 +104,8 @@ export const PointsView = defineVueComponent<PointsViewProps>(
     if (confirmed) props.onResetPoints(uniqueId);
   };
 
-  const handleAdjustSubmit = (e: SubmitEvent) => {
-    e.preventDefault();
+  const handleAdjustSubmit = (e?: SubmitEvent) => {
+    e?.preventDefault();
     if (!adjustTarget.value) return;
     const base = parseFloat(adjustDelta.value);
     if (Number.isNaN(base)) return;
@@ -231,104 +232,111 @@ export const PointsView = defineVueComponent<PointsViewProps>(
                 disabled={live}
               />
 
-              <FieldRow label={t(locale, 'pointsPerCoin')}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Checkbox
-                    name="pointsPerCoinEnabled"
-                    checked={config.pointsPerCoinEnabled}
-                    onCheckedChange={(v) => !live && patchConfig('pointsPerCoinEnabled', v)}
-                    disabled={live}
-                  />
-                  <NumberInput
-                    name="pointsPerCoin"
-                    value={config.pointsPerCoin}
-                    onValueChange={(v) => patchConfig('pointsPerCoin', v ?? 0)}
-                    min={0}
-                    step={0.1}
-                    disabled={live || !config.pointsPerCoinEnabled}
-                  />
-                </div>
-              </FieldRow>
+              <SettingRow
+                label={t(locale, 'pointsPerCoin')}
+                hint={t(locale, 'pointsPerCoinHint')}
+                enabled={config.pointsPerCoinEnabled}
+                onEnabledChange={(v) => !live && patchConfig('pointsPerCoinEnabled', v)}
+                disabled={live}
+              >
+                <NumberInput
+                  name="pointsPerCoin"
+                  value={config.pointsPerCoin}
+                  onValueChange={(v) => patchConfig('pointsPerCoin', v ?? 0)}
+                  min={0}
+                  step={0.1}
+                  disabled={live || !config.pointsPerCoinEnabled}
+                />
+              </SettingRow>
 
-              <FieldRow label={t(locale, 'pointsPerShare')}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Checkbox
-                    name="pointsPerShareEnabled"
-                    checked={config.pointsPerShareEnabled}
-                    onCheckedChange={(v) => !live && patchConfig('pointsPerShareEnabled', v)}
-                    disabled={live}
-                  />
-                  <NumberInput
-                    name="pointsPerShare"
-                    value={config.pointsPerShare}
-                    onValueChange={(v) => patchConfig('pointsPerShare', v ?? 0)}
-                    min={0}
-                    step={0.5}
-                    disabled={live || !config.pointsPerShareEnabled}
-                  />
-                </div>
-              </FieldRow>
+              <SettingRow
+                label={t(locale, 'pointsPerShare')}
+                hint={t(locale, 'pointsPerShareHint')}
+                enabled={config.pointsPerShareEnabled}
+                onEnabledChange={(v) => !live && patchConfig('pointsPerShareEnabled', v)}
+                disabled={live}
+              >
+                <NumberInput
+                  name="pointsPerShare"
+                  value={config.pointsPerShare}
+                  onValueChange={(v) => patchConfig('pointsPerShare', v ?? 0)}
+                  min={0}
+                  step={0.5}
+                  disabled={live || !config.pointsPerShareEnabled}
+                />
+              </SettingRow>
 
-              <FieldRow label={t(locale, 'pointsPerChat')}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Checkbox
-                    name="pointsPerChatEnabled"
-                    checked={config.pointsPerChatEnabled}
-                    onCheckedChange={(v) => !live && patchConfig('pointsPerChatEnabled', v)}
-                    disabled={live}
-                  />
-                  <NumberInput
-                    name="pointsPerChat"
-                    value={config.pointsPerChat}
-                    onValueChange={(v) => patchConfig('pointsPerChat', v ?? 0)}
-                    min={0}
-                    step={0.1}
-                    disabled={live || !config.pointsPerChatEnabled}
-                  />
-                </div>
-              </FieldRow>
+              <SettingRow
+                label={t(locale, 'pointsPerChat')}
+                hint={t(locale, 'pointsPerChatHint')}
+                enabled={config.pointsPerChatEnabled}
+                onEnabledChange={(v) => !live && patchConfig('pointsPerChatEnabled', v)}
+                disabled={live}
+              >
+                <NumberInput
+                  name="pointsPerChat"
+                  value={config.pointsPerChat}
+                  onValueChange={(v) => patchConfig('pointsPerChat', v ?? 0)}
+                  min={0}
+                  step={0.1}
+                  disabled={live || !config.pointsPerChatEnabled}
+                />
+              </SettingRow>
 
-              <FieldRow label={t(locale, 'pointsPerLike')}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Checkbox
-                    name="pointsPerLikeEnabled"
-                    checked={config.pointsPerLikeEnabled}
-                    onCheckedChange={(v) => !live && patchConfig('pointsPerLikeEnabled', v)}
-                    disabled={live}
-                  />
-                  <NumberInput
-                    name="pointsPerLike"
-                    value={config.pointsPerLike}
-                    onValueChange={(v) => patchConfig('pointsPerLike', v ?? 0)}
-                    min={0}
-                    step={0.05}
-                    disabled={live || !config.pointsPerLikeEnabled}
-                  />
-                </div>
-              </FieldRow>
+              <SettingRow
+                label={t(locale, 'pointsPerLike')}
+                hint={t(locale, 'pointsPerLikeHint')}
+                enabled={config.pointsPerLikeEnabled}
+                onEnabledChange={(v) => !live && patchConfig('pointsPerLikeEnabled', v)}
+                disabled={live}
+              >
+                <NumberInput
+                  name="pointsPerLike"
+                  value={config.pointsPerLike}
+                  onValueChange={(v) => patchConfig('pointsPerLike', v ?? 0)}
+                  min={0}
+                  step={0.05}
+                  disabled={live || !config.pointsPerLikeEnabled}
+                />
+              </SettingRow>
 
-              <FieldRow label={t(locale, 'pointsPerFollow')}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Checkbox
-                    name="pointsPerFollowEnabled"
-                    checked={config.pointsPerFollowEnabled}
-                    onCheckedChange={(v) => !live && patchConfig('pointsPerFollowEnabled', v)}
-                    disabled={live}
-                  />
-                  <NumberInput
-                    name="pointsPerFollow"
-                    value={config.pointsPerFollow}
-                    onValueChange={(v) => patchConfig('pointsPerFollow', v ?? 0)}
-                    min={0}
-                    step={1}
-                    disabled={live || !config.pointsPerFollowEnabled}
-                  />
-                </div>
-              </FieldRow>
+              <SettingRow
+                label={t(locale, 'pointsPerFollow')}
+                hint={t(locale, 'pointsPerFollowHint')}
+                enabled={config.pointsPerFollowEnabled}
+                onEnabledChange={(v) => !live && patchConfig('pointsPerFollowEnabled', v)}
+                disabled={live}
+              >
+                <NumberInput
+                  name="pointsPerFollow"
+                  value={config.pointsPerFollow}
+                  onValueChange={(v) => patchConfig('pointsPerFollow', v ?? 0)}
+                  min={0}
+                  step={1}
+                  disabled={live || !config.pointsPerFollowEnabled}
+                />
+              </SettingRow>
+
+              <SettingRow
+                label={t(locale, 'pointsPerJoin')}
+                hint={t(locale, 'pointsPerJoinHint')}
+                enabled={config.pointsPerJoinEnabled}
+                onEnabledChange={(v) => !live && patchConfig('pointsPerJoinEnabled', v)}
+                disabled={live}
+              >
+                <NumberInput
+                  name="pointsPerJoin"
+                  value={config.pointsPerJoin}
+                  onValueChange={(v) => patchConfig('pointsPerJoin', v ?? 0)}
+                  min={0}
+                  step={1}
+                  disabled={live || !config.pointsPerJoinEnabled}
+                />
+              </SettingRow>
             </Card>
 
-            <Card title={t(locale, 'subBonus')} subtitle={t(locale, 'subBonusLead')} icon={<IconStar />}>
-              <FieldRow label={t(locale, 'subBonusRatio')}>
+            <Card title={t(locale, 'subBonus')} hint={t(locale, 'subBonusLead')} icon={<IconStar />}>
+              <SettingRow label={t(locale, 'subBonusRatio')}>
                 <NumberInput
                   name="subBonusMultiplier"
                   value={config.subBonusMultiplier}
@@ -339,11 +347,11 @@ export const PointsView = defineVueComponent<PointsViewProps>(
                   suffix="%"
                   disabled={live}
                 />
-              </FieldRow>
+              </SettingRow>
             </Card>
 
-            <Card title={t(locale, 'levelConfig')} subtitle={t(locale, 'levelConfigLead')} icon={<IconFlame />}>
-              <FieldRow label={t(locale, 'pointsPerLevel')}>
+            <Card title={t(locale, 'levelConfig')} hint={t(locale, 'levelConfigLead')} icon={<IconFlame />}>
+              <SettingRow label={t(locale, 'pointsPerLevel')}>
                 <NumberInput
                   name="pointsPerLevel"
                   value={config.pointsPerLevel}
@@ -352,7 +360,7 @@ export const PointsView = defineVueComponent<PointsViewProps>(
                   step={10}
                   disabled={live}
                 />
-              </FieldRow>
+              </SettingRow>
             </Card>
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -394,26 +402,28 @@ export const PointsView = defineVueComponent<PointsViewProps>(
       />
 
       {adjustTarget.value ? (
-        <div class="modal-backdrop">
-          <div class="modal-card">
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <IconCoins /> {deductMode.value ? 'Deduct' : 'Add'} Points: @{adjustTarget.value}
-            </h2>
-            <form onSubmit={handleAdjustSubmit}>
-              <FormField label={deductMode.value ? 'Points to deduct:' : 'Points to add:'}>
-                <NumberInput value={parseFloat(adjustDelta.value) || 0} onValueChange={(value) => { adjustDelta.value = String(Math.abs(value ?? 0)); }} min={0} step={1} />
-              </FormField>
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-                <Button variant="soft" onClick={() => { adjustTarget.value = null; }}>
-                  {t(locale, 'cancel')}
-                </Button>
-                <Button type="submit" variant={deductMode.value ? 'danger' : 'primary'}>
-                  {deductMode.value ? 'Deduct' : t(locale, 'continue')}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <Modal
+          title={t(locale, 'pointsAdjustTitle')}
+          description={`@${adjustTarget.value}`}
+          size="sm"
+          onClose={() => { adjustTarget.value = null; }}
+          footer={
+            <ModalActions>
+              <Button variant="soft" onClick={() => { adjustTarget.value = null; }}>
+                {t(locale, 'cancel')}
+              </Button>
+              <Button variant={deductMode.value ? 'danger' : 'primary'} onClick={() => handleAdjustSubmit()}>
+                {deductMode.value ? t(locale, 'subtractPoints') : t(locale, 'addPoints')}
+              </Button>
+            </ModalActions>
+          }
+        >
+          <form onSubmit={handleAdjustSubmit}>
+            <FormField label={deductMode.value ? t(locale, 'pointsToDeduct') : t(locale, 'pointsToAdd')}>
+              <NumberInput value={parseFloat(adjustDelta.value) || 0} onValueChange={(value) => { adjustDelta.value = String(Math.abs(value ?? 0)); }} min={0} step={1} />
+            </FormField>
+          </form>
+        </Modal>
       ) : null}
     </div>
   );

@@ -24,13 +24,6 @@ export type DisplayEvent = UiEvent & {
 
 export type EventFilter = 'all' | 'chat' | 'gift' | 'like' | 'social';
 
-export type StreamTelemetry = {
-  chats: number;
-  gifts: number;
-  likes: number;
-  members: number;
-};
-
 export type PluginSettingsState = {
   schema: JsonObject;
   uiHints?: JsonObject;
