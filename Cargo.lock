@@ -4401,9 +4401,11 @@ dependencies = [
 name = "tiktools-plugin-api"
 version = "0.2.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "unicode-segmentation",
 ]
 
 [[package]]

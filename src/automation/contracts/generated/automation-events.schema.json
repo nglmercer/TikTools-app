@@ -40,7 +40,7 @@
         "intel": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AutomationIntel"
+              "$ref": "#/$defs/EventIntel"
             },
             {
               "type": "null"
@@ -89,43 +89,6 @@
         "timestamp",
         "data"
       ],
-      "type": "object"
-    },
-    "AutomationIntel": {
-      "description": "Stable provider-neutral enrichment attached by event processors.\nProcessors contribute these shapes; provider-native payloads stay under\n`providers.<pluginId>` as free-form JSON.",
-      "properties": {
-        "comment": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelComment"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "processing": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelProcessing"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "providers": true,
-        "user": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelUser"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
       "type": "object"
     },
     "AutomationPoints": {
@@ -214,6 +177,43 @@
       ],
       "type": "object"
     },
+    "EventIntel": {
+      "description": "Stable provider-neutral enrichment attached by event processors.\nAlways optional on the event: the base trigger contract works with no\nprocessor installed.",
+      "properties": {
+        "comment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelComment"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "processing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelProcessing"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "providers": true,
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelUser"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
     "GiftAutomationData": {
       "properties": {
         "comboCount": {
@@ -279,6 +279,12 @@
     },
     "IntelComment": {
       "properties": {
+        "casefolded": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "composition": {
           "anyOf": [
             {
@@ -297,6 +303,18 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "nfc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nfkc": {
+          "type": [
+            "string",
+            "null"
           ]
         },
         "normalized": {
@@ -335,6 +353,9 @@
             }
           ]
         },
+        "truncated": {
+          "type": "boolean"
+        },
         "tts": {
           "anyOf": [
             {
@@ -343,7 +364,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "HOST-PROJECTED from the selected text view."
         },
         "unicode": {
           "anyOf": [
@@ -435,6 +457,32 @@
       },
       "type": "object"
     },
+    "IntelHandle": {
+      "description": "Language/composition evidence about a stable handle. Never a spoken\nrendering: identity is never rewritten or pronounced from here.",
+      "properties": {
+        "composition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelComposition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "language": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelLanguage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
     "IntelLanguage": {
       "properties": {
         "candidates": {
@@ -502,7 +550,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "HOST-PROJECTED from the selected text view."
         }
       },
       "type": "object"
@@ -518,6 +567,15 @@
         "detected": {
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
             "null"
           ]
         },
@@ -566,6 +624,36 @@
       ],
       "type": "object"
     },
+    "IntelPronunciation": {
+      "properties": {
+        "confidence": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dialect": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ipa": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
     "IntelRebus": {
       "properties": {
         "candidate": {
@@ -575,6 +663,13 @@
           ]
         },
         "confidence": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "score": {
           "format": "double",
           "type": [
             "number",
@@ -592,9 +687,30 @@
     },
     "IntelSpam": {
       "properties": {
+        "calibrated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "detected": {
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
             "null"
           ]
         },
@@ -617,13 +733,23 @@
             "null"
           ]
         },
-        "ipa": {
+        "language": {
           "type": [
             "string",
             "null"
           ]
         },
-        "language": {
+        "pronunciation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelPronunciation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
           "type": [
             "string",
             "null"
@@ -636,10 +762,7 @@
           ]
         },
         "speak": {
-          "type": [
-            "boolean",
-            "null"
-          ]
+          "type": "boolean"
         },
         "text": {
           "type": "string"
@@ -652,6 +775,30 @@
     },
     "IntelUnicode": {
       "properties": {
+        "bidirectional": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "confusables": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "invisible": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "mixedScripts": {
           "type": [
             "boolean",
@@ -680,6 +827,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/IntelNickname"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "uniqueId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelHandle"
             },
             {
               "type": "null"
@@ -894,7 +1051,7 @@
       "$ref": "#/$defs/AutomationEvent"
     },
     "automationIntel": {
-      "$ref": "#/$defs/AutomationIntel"
+      "$ref": "#/$defs/EventIntel"
     },
     "automationPoints": {
       "$ref": "#/$defs/AutomationPoints"

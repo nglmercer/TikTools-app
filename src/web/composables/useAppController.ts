@@ -9,8 +9,9 @@ import type {
   MediaSelectionHandler,
   PageMessage,
   PluginSettingValues,
+  ProcessorStatusEntry,
 } from '../../shared/messages.ts';
-import type { AutomationEventType } from '../../automation/types.ts';
+import type { AutomationEvent, AutomationEventType } from '../../automation/types.ts';
 import type { BehaviorRun, BehaviorSnapshot, LiveAction, LiveEvent } from '../../automation/behavior/types.ts';
 import {
   addRecentUsername,
@@ -119,6 +120,8 @@ export function useAppController() {
   const behaviorError = ref('');
   const hotkeyStatus = ref<HotkeyStatusData | null>(null);
   const pluginSettings = ref<Record<string, PluginSettingsState>>({});
+  const processors = ref<ProcessorStatusEntry[]>([]);
+  const processorTest = ref<Extract<HostMessage, { type: 'processor-test-result' }> | null>(null);
   const actionOptions = ref<Record<string, ActionOptionItem[]>>({});
   const pluginInstallState = ref<PluginInstallState>({ ...initialPluginInstallState });
   const pluginProgress = ref<Extract<HostMessage, { type: 'plugin-progress' }> | null>(null);
@@ -300,6 +303,9 @@ export function useAppController() {
       behaviorError.value = '';
     }
 
+    if (message.type === 'processor-status') processors.value = message.processors;
+    if (message.type === 'processor-test-result') processorTest.value = message;
+
     if (message.type === 'plugin-progress') {
       pluginProgress.value = message;
       if (pluginProgressTimer) clearTimeout(pluginProgressTimer);
@@ -351,6 +357,7 @@ export function useAppController() {
     send({ type: 'get-app-state' });
     send({ type: 'get-behavior' });
     send({ type: 'get-gift-catalog' });
+    send({ type: 'get-processor-status' });
 
     // Keep the saved username in the connect form, but wait for an explicit
     // user action before starting network work on a cold launch.
@@ -446,6 +453,11 @@ export function useAppController() {
   const handleSetPluginEnabled = (id: string, enabled: boolean): void => { clearBehaviorError(); send({ type: 'set-plugin-enabled', id, enabled }); };
   const handleGetPluginSettings = (id: string): void => send({ type: 'get-plugin-settings', id });
   const handleSavePluginSettings = (id: string, values: PluginSettingValues): void => { clearBehaviorError(); send({ type: 'save-plugin-settings', id, values }); };
+  const handleGetProcessorStatus = (): void => send({ type: 'get-processor-status' });
+  const handleTestProcessor = (pluginId: string, processorId: string, event: AutomationEvent): void => {
+    processorTest.value = null;
+    send({ type: 'test-processor', pluginId, processorId, event });
+  };
   const handleGetActionOptions = (source: string): void => send({ type: 'get-action-options', source });
 
   const openMediaPicker = (options: MediaPickerOptions, onSelected: MediaSelectionHandler): void => {
@@ -557,6 +569,8 @@ export function useAppController() {
     behaviorError,
     hotkeyStatus,
     pluginSettings,
+    processors,
+    processorTest,
     actionOptions,
     pluginProgress,
     dismissPluginProgress,
@@ -597,6 +611,8 @@ export function useAppController() {
     handleSetPluginEnabled,
     handleGetPluginSettings,
     handleSavePluginSettings,
+    handleGetProcessorStatus,
+    handleTestProcessor,
     handleGetActionOptions,
     pluginInstallState,
     handleInstallPlugin,

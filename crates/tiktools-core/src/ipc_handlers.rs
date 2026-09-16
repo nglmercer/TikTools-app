@@ -301,6 +301,10 @@ impl AppCore {
                         tracing::debug!(plugin = %id, %error, "plugin was not running during uninstall");
                     }
                 }
+                if state_updated {
+                    self.set_plugin_activation(&id, installed, true);
+                    self.rebuild_processor_index();
+                }
                 self.emit_persisted_behavior();
             }
             PageMessage::SetPluginEnabled { id, enabled } => {
@@ -336,6 +340,8 @@ impl AppCore {
                             message: error.to_string(),
                         });
                     }
+                    self.set_plugin_activation(&id, true, enabled);
+                    self.rebuild_processor_index();
                 }
                 self.emit_persisted_behavior();
             }

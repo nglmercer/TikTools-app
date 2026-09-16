@@ -14,12 +14,16 @@ the `events.enrich` capability, and implement `Plugin::enrich`.
 
 - `plugin.json` — manifest with `processorTypes` and a host-rendered settings
   schema (the host's `SchemaForm` renders it; no plugin UI ships here).
-- `src/main.rs` — thin process adapter: caches the engine per mode and keeps
-  bounded analysis caches.
-- `src/lib.rs` — enrich core (`annotate_event`) plus the FIFO-bounded caches.
-- `src/settings.rs` — validated settings with per-field fallbacks.
-- `src/mapping.rs` — textintel fingerprint → stable `intel` schema mapping.
-- `benches/processor_latency.rs` — dependency-free latency harness.
+- `src/main.rs` — thin process adapter delegating to the library processor.
+- `src/processor.rs` — engine orchestration: `TextIntelProcessor` owns the
+  lazy engine plus generation-scoped analysis caches keyed by full input text.
+- `src/mapping.rs` — output rendering: fingerprints become annotations and
+  the canonical text views (spoken selection, skip policies, nested
+  pronunciation evidence).
+- `src/settings.rs` — lenient serde settings with per-field fallbacks.
+- `src/cache.rs` — the generic FIFO-bounded cache.
+- `benches/processor_latency.rs` — dependency-free latency harness driving
+  the same processor path the host invokes.
 
 ## Engine
 
@@ -45,9 +49,10 @@ malformed values fall back per field.
 
 ## Concurrency note
 
-Plugin instance calls are serialized behind a per-instance mutex. Keep this
-process fast and never combine slow model preparation with enrichment here;
-measure with the bench before raising `timeoutMs`.
+Each plugin instance is served by a single host worker thread with a bounded
+queue, and sibling processors share it: one slow call delays the rest. Keep
+this process fast and never combine slow model preparation with enrichment
+here; measure with the bench before raising `timeoutMs`.
 
 ## Build, test, bench
 

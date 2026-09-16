@@ -151,6 +151,15 @@ results under `event.intel` in deterministic order with strict deadlines and
 circuit breaking. The textintel reference processor lives in
 `examples/textintel-process-plugin/` with its own latency bench.
 
+The processor pipeline keeps three boundaries. The contribution index
+(`plugin_processors::index`) precomputes eligible processors off the hot
+path and is rebuilt only on install, uninstall, enable, and disable. The
+shared invoker (`plugin_invoker`) owns the single timed-call bridge used by
+enrichment, actions, and the event poll. Per-processor health, metrics, and
+settings caches (`plugin_processors::state`) keep one processor's failures
+from affecting its siblings; stable projection into `event.intel`
+(`plugin_processors::merge`) is a pure function of ordered outcomes.
+
 ## Platform code
 
 Winit/Wry platform details are isolated under

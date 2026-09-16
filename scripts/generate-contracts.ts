@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -102,28 +102,6 @@ function generatedJsonValueSource(): string {
   return `// THIS FILE IS GENERATED. Run bun run contracts:generate.\n\nexport type JsonPrimitive = null | boolean | number | string;\nexport type JsonValue = JsonPrimitive | JsonObject | JsonArray;\nexport type JsonObject = { [key: string]: JsonValue | undefined };\nexport type JsonArray = JsonValue[];\n`;
 }
 
-function fileStem(name: string): string {
-  return name
-    .replace(/AutomationData$/, '')
-    .replace(/Automation$/, '')
-    .replace(/([a-z])([A-Z])/g, '$1-$2')
-    .toLowerCase()
-    .replace(/(^|[-_])(.)/g, (_, prefix: string, character: string) => `${prefix}${character.toLowerCase()}`)
-    .replace(/^connection$/, 'connection-event')
-    .replace(/^points-awarded$/, 'points-awarded-event')
-    .replace(/^plugin-emit$/, 'plugin-emit-event')
-    .replace(/^room-stats$/, 'room-stats-event')
-    .replace(/^chat$/, 'chat-event')
-    .replace(/^gift$/, 'gift-event')
-    .replace(/^like$/, 'like-event')
-    .replace(/^social$/, 'social-event')
-    .replace(/^member$/, 'member-event');
-}
-
-function generatedReexportSource(name: string): string {
-  return `// THIS FILE IS GENERATED. Run bun run contracts:generate.\n\nexport type { ${name} } from './automation-events.ts';\n`;
-}
-
 function generatedIndexSource(names: string[]): string {
   return `// THIS FILE IS GENERATED. Run bun run contracts:generate.\n\nexport type { JsonArray, JsonObject, JsonPrimitive, JsonValue } from './json-value.ts';\nexport type { ${names.join(', ')} } from './automation-events.ts';\n`;
 }
@@ -223,7 +201,7 @@ function unwrapOptionalVariant(schema: Schema, root: JsonRecord): Schema | undef
 }
 
 /**
- * Flattens the stable `AutomationIntel` schema into dotted `event.intel.*`
+ * Flattens the stable `EventIntel` schema into dotted `event.intel.*`
  * filter/template paths. Object nodes recurse; arrays and scalars become
  * leaves. The free-form provider namespace is skipped: only stable
  * host-defined fields belong in the picker.
@@ -264,13 +242,13 @@ function intelFieldsFor(schema: JsonRecord, scope: 'chat' | 'user' | 'processing
   const defs = isRecord(schema.$defs) ? schema.$defs : {};
   const out: RegistryFieldJson[] = [];
   if (scope === 'chat') {
-    flattenIntelPaths(schemaObject(defs.AutomationIntel), schema, 'event.intel', 'AutomationIntel', out);
+    flattenIntelPaths(schemaObject(defs.EventIntel), schema, 'event.intel', 'EventIntel', out);
     return out;
   }
   if (scope === 'user') {
-    flattenIntelPaths(schemaObject(defs.IntelNickname), schema, 'event.intel.user.nickname', 'AutomationIntel.user.nickname', out);
+    flattenIntelPaths(schemaObject(defs.IntelNickname), schema, 'event.intel.user.nickname', 'EventIntel.user.nickname', out);
   }
-  flattenIntelPaths(schemaObject(defs.IntelProcessing), schema, 'event.intel.processing', 'AutomationIntel.processing', out);
+  flattenIntelPaths(schemaObject(defs.IntelProcessing), schema, 'event.intel.processing', 'EventIntel.processing', out);
   return out;
 }
 
@@ -313,9 +291,17 @@ function deepMergeSample(base: unknown, overlay: unknown): unknown {
  */
 function intelSampleFor(schema: JsonRecord, curated: boolean): unknown {
   const defs = isRecord(schema.$defs) ? schema.$defs : {};
-  const generated = sampleForSchema(schemaObject(defs.AutomationIntel), schema);
+  const generated = sampleForSchema(schemaObject(defs.EventIntel), schema);
   return curated ? deepMergeSample(generated, INTEL_SAMPLE_EVENT) : generated;
 }
+
+const EVENT_REGISTRY_VERSION = 6;
+
+// Sentinels replaced with shared sample references after stringifying, so
+// the identical `intel` sample is emitted once instead of per event. The
+// runtime value is unchanged; `sampleEventForType` deep-clones on read.
+const INTEL_CHAT_SENTINEL = '@@TIKTOOLS_INTEL_CHAT@@';
+const INTEL_DEFAULT_SENTINEL = '@@TIKTOOLS_INTEL_DEFAULT@@';
 
 function registrySource(schema: JsonRecord): string {
   const defs = isRecord(schema.$defs) ? schema.$defs : {};
@@ -357,14 +343,33 @@ function registrySource(schema: JsonRecord): string {
         timestamp: 0,
         ...(hasUser ? { user: { uniqueId: 'usuario_demo', nickname: 'Viewer Demo', secUid: '', userId: '1' } } : {}),
         data: sampleData,
-        intel: intelSampleFor(schema, eventType === 'tiktok.chat'),
+        intel: eventType === 'tiktok.chat' ? INTEL_CHAT_SENTINEL : INTEL_DEFAULT_SENTINEL,
       },
       fields: [...(hasUser ? envelopePaths : []), ...fields, ...intelFields],
       sourceFields: fields.map((field) => ({ name: field.sourceField, tsType: field.tsType, optional: field.optional })),
       note: `Generated from ${contractName ?? 'the automation envelope'} JSON Schema.`,
     };
   }
-  return `// THIS FILE IS GENERATED. Run bun run contracts:generate.\n\nexport const EVENT_REGISTRY_VERSION = 4 as const;\nexport const GENERATED_EVENT_REGISTRY = ${JSON.stringify({ version: 4, generatedBy: 'tiktools-core automation contracts', generatedFrom: ['crates/tiktools-core/src/contracts', 'src/automation/contracts/generated/automation-events.schema.json'], events }, null, 2)} as const satisfies Record<string, unknown>;\n`;
+  const body = JSON.stringify(
+    {
+      version: EVENT_REGISTRY_VERSION,
+      generatedBy: 'tiktools-core automation contracts',
+      generatedFrom: [
+        'crates/tiktools-core/src/contracts',
+        'src/automation/contracts/generated/automation-events.schema.json',
+      ],
+      events,
+    },
+    null,
+    2,
+  )
+    .split(`"${INTEL_CHAT_SENTINEL}"`)
+    .join('INTEL_SAMPLE_CHAT')
+    .split(`"${INTEL_DEFAULT_SENTINEL}"`)
+    .join('INTEL_SAMPLE_DEFAULT');
+  const chatSample = JSON.stringify(intelSampleFor(schema, true), null, 2);
+  const defaultSample = JSON.stringify(intelSampleFor(schema, false), null, 2);
+  return `// THIS FILE IS GENERATED. Run bun run contracts:generate.\n\nexport const EVENT_REGISTRY_VERSION = ${EVENT_REGISTRY_VERSION} as const;\n\nconst INTEL_SAMPLE_CHAT = ${chatSample} as const;\n\nconst INTEL_SAMPLE_DEFAULT = ${defaultSample} as const;\n\nexport const GENERATED_EVENT_REGISTRY = ${body} as const satisfies Record<string, unknown>;\n`;
 }
 
 async function runSchemaGenerator(output: string): Promise<void> {
@@ -397,7 +402,6 @@ async function main(): Promise<void> {
     ['index.ts', generatedIndexSource(names)],
     ['event-registry.generated.ts', registrySource(schema)],
   ]);
-  for (const name of names) outputs.set(`${fileStem(name)}.ts`, generatedReexportSource(name));
 
   const mismatches: string[] = [];
   for (const [file, contents] of outputs) {
@@ -409,6 +413,17 @@ async function main(): Promise<void> {
     } else {
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, contents, 'utf8');
+    }
+  }
+  // Drop legacy outputs (per-definition re-export files) so stale checkouts
+  // converge on the five files above.
+  if (!checkMode) {
+    for (const entry of await readdir(generatedDirectory)) {
+      if (!outputs.has(entry)) await rm(join(generatedDirectory, entry), { force: true });
+    }
+  } else {
+    for (const entry of await readdir(generatedDirectory)) {
+      if (!outputs.has(entry)) mismatches.push(entry);
     }
   }
   if (checkMode) {

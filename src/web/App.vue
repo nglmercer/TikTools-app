@@ -119,6 +119,10 @@ const app = reactive(useAppController());
         :plugin-install-state="app.pluginInstallState"
         :on-confirm-replace="app.handleConfirmPluginReplace"
         :on-cancel-replace="app.handleCancelPluginReplace"
+        :processors="app.processors"
+        :processor-test="app.processorTest"
+        :on-get-processor-status="app.handleGetProcessorStatus"
+        :on-test-processor="app.handleTestProcessor"
       />
 
       <ConnectView

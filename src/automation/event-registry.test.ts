@@ -88,7 +88,7 @@ describe('event registry', () => {
     expect(byPath.get('event.intel.comment.spam.score')?.kind).toBe('number');
     expect(byPath.get('event.intel.comment.tts.text')?.kind).toBe('string');
     expect(byPath.get('event.intel.comment.language.top')?.kind).toBe('string');
-    expect(byPath.get('event.intel.user.nickname.tts.ipa')?.kind).toBe('string');
+    expect(byPath.get('event.intel.user.nickname.tts.pronunciation.ipa')?.kind).toBe('string');
     for (const field of byPath.values()) {
       if (field.path.startsWith('event.intel.')) expect(field.optional).toBe(true);
     }

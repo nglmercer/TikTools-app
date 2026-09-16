@@ -57,176 +57,18 @@ pub struct AutomationEvent {
     /// Provider-neutral pre-filter enrichment. Always optional: the base
     /// trigger contract works with no processor installed.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub intel: Option<AutomationIntel>,
+    pub intel: Option<EventIntel>,
 }
 
-/// Stable provider-neutral enrichment attached by event processors.
-/// Processors contribute these shapes; provider-native payloads stay under
-/// `providers.<pluginId>` as free-form JSON.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct AutomationIntel {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub comment: Option<IntelComment>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub user: Option<IntelUser>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub processing: Option<IntelProcessing>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub providers: Option<Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelComment {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub normalized: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub language: Option<IntelLanguage>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub composition: Option<IntelComposition>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unicode: Option<IntelUnicode>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub obfuscation: Option<IntelObfuscation>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub spam: Option<IntelSpam>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rebus: Option<IntelRebus>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tts: Option<IntelTts>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelLanguage {
-    pub top: String,
-    pub confidence: f64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub candidates: Option<Vec<IntelLanguageCandidate>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelLanguageCandidate {
-    pub language: String,
-    pub confidence: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelComposition {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub emoji_only: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub emoji_count: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub emoji_ratio: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub letters: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub digits: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub all_caps: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub elongated: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub repetition_score: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub urls: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mentions: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelUnicode {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mixed_scripts: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub suspicious: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<f64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelObfuscation {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub detected: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub leetspeak: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub repetition: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub punctuation_flood: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub mixed_scripts: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub confusables: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelSpam {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub score: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub detected: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelRebus {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub candidate: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub strong: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelTts {
-    pub text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub language: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub speak: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ipa: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelUser {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub nickname: Option<IntelNickname>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelNickname {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub normalized: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub language: Option<IntelLanguage>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tts: Option<IntelTts>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct IntelProcessing {
-    pub status: String,
-}
+/// Stable provider-neutral enrichment. The DTOs live in
+/// `tiktools-plugin-api::intel` so processors build the same types the host
+/// validates and the UI generates schema from; anything else a processor
+/// emits stays under `intel.providers.<pluginId>`.
+pub use tiktools_plugin_api::intel::{
+    EventIntel, IntelComment, IntelComposition, IntelHandle, IntelLanguage, IntelLanguageCandidate,
+    IntelNickname, IntelObfuscation, IntelProcessing, IntelPronunciation, IntelRebus, IntelSpam,
+    IntelTts, IntelUnicode, IntelUser,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -332,7 +174,7 @@ pub struct AutomationContracts {
     pub automation_creator: AutomationCreator,
     pub automation_points: AutomationPoints,
     pub automation_event: AutomationEvent,
-    pub automation_intel: AutomationIntel,
+    pub automation_intel: EventIntel,
     pub chat: ChatAutomationData,
     pub gift: GiftAutomationData,
     pub like: LikeAutomationData,

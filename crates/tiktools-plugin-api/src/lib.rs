@@ -5,6 +5,7 @@
 
 pub mod abi;
 pub mod capabilities;
+pub mod intel;
 pub mod manifest;
 pub mod media;
 pub mod protocol;
@@ -12,6 +13,12 @@ pub mod text;
 
 pub use abi::{PluginBuffer, PluginInit, PluginStatus, TikToolsPluginApi};
 pub use capabilities::{CapabilityId, CapabilitySet, PermissionSet};
+pub use intel::{
+    canonical_stable_comment, canonical_stable_user, EventIntel, IntelComment, IntelComposition,
+    IntelError, IntelHandle, IntelLanguage, IntelLanguageCandidate, IntelNickname,
+    IntelObfuscation, IntelProcessing, IntelPronunciation, IntelRebus, IntelSpam, IntelTts,
+    IntelUnicode, IntelUser,
+};
 pub use manifest::{
     PluginManifest, PluginProcessorDescriptor, PluginRuntimeKind, PluginSecurityModel, PluginTrust,
     ProcessorFailureMode, ProcessorInputDescriptor, ProcessorStage,
@@ -27,8 +34,8 @@ pub use protocol::{
     METHOD_CAPABILITY_RESPONSE,
 };
 pub use text::{
-    compose_text, resolve_comment_tts, resolve_nickname_tts, strip_emoji, ResolvedText,
-    TextComposition,
+    compose_text, resolve_comment_tts, resolve_nickname_tts, resolve_text, strip_emoji,
+    ResolvedText, TextComposition, TextResolutionSpec,
 };
 
 pub const TIKTOOLS_PLUGIN_ABI_VERSION: u32 = 1;

@@ -305,18 +305,36 @@ Raw event fields are never modified. The host merges annotations under
 `event.intel.providers.<pluginId>`, views under
 `event.intel.providers.<pluginId>.views`, and additionally promotes the
 host-defined stable keys `comment` and `user` to top-level `event.intel.*`
-so filters and templates stay provider-neutral. Identity fields such as
-`event.user.uniqueId` are immutable; spoken or normalized forms only appear
-under `intel`.
+so filters and templates stay provider-neutral. Stable keys resolve by
+first-writer-wins in selection order: the first processor whose contribution
+validates against the stable contract owns the whole key, and unknown keys
+never promote. Identity fields such as `event.user.uniqueId` are immutable;
+spoken or normalized forms only appear under `intel`.
+
+Views are canonical for spoken text: stable `tts` fields project only from
+text views, never from annotation payloads. Emit skip-policy views
+(`speak: false` with a `reason`) instead of dropping them, or TTS falls back
+to the raw message and the policy is silently lost. Pronunciation evidence
+travels separately from text selection (`TextPronunciation`), so it can never
+overwrite the rendered text's language or confidence.
 
 Failure always fails open: timeouts, crashes, invalid responses, missing
-capabilities, and open circuits pass the original event through and stamp
-`event.intel.processing.status = "degraded"`. Processors run in deterministic
-`(plugin id, processor id)` order with at most four concurrent calls, each
-under its own deadline, and feed a per-plugin health/circuit breaker with the
-same 1s/2s/5s/10s/30s backoff as polling. Use `test-processor` and
-`get-processor-status` over IPC to preview one processor or inspect health
-and latency metrics.
+capabilities, open circuits, and full queues pass the original event through
+and stamp `event.intel.processing.status = "degraded"`. Selection order is
+higher priority first, then deterministic `(plugin id, processor id)`. Each
+event runs at most four concurrent calls under their own deadlines, and all
+events share sixteen global slots: events arriving while every slot is busy
+shed load with an `Overloaded` outcome instead of queueing. Health and
+circuit breaking are per processor (not per plugin), with the same
+1s/2s/5s/10s/30s backoff as polling, so one failing processor never silences
+its siblings. Use `test-processor` and `get-processor-status` over IPC — or
+the Processors tab in the Plugins view — to preview one processor against a
+sample live event or inspect health and latency metrics.
+
+Eligibility is precomputed, not scanned per event: the host keeps a
+contribution index plus an in-memory activation snapshot, rebuilt only on
+install, uninstall, enable, and disable. The enrich hot path filters the
+cached index by event type and never touches manifests or SQLite.
 
 SDK sketch:
 
@@ -359,8 +377,10 @@ the 250ms deadline honest: cold first-seen chat measures ~3-25ms with
 ~10ms at the 500-character cap on the reference machine, so the default
 deadline holds roughly 10x headroom. Re-run the bench on your target
 hardware before raising `timeoutMs`, and never share the processor process
-with slow model preparation: plugin instance calls are serialized behind one
-mutex per instance.
+with slow model preparation: each plugin instance is served by a single
+worker thread with a bounded queue, so a slow call delays (but never
+starves) later calls to the same plugin, and requests that expire while
+queued are discarded instead of executed.
 
 ## Installation
 

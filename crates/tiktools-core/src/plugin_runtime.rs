@@ -21,6 +21,43 @@ impl PluginActionDescriptor {
     }
 }
 
+/// Persisted install/enable state for one plugin, mirrored in memory so
+/// readiness checks stay off SQLite.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PluginActivation {
+    pub(crate) installed: bool,
+    pub(crate) enabled: bool,
+}
+
+/// Builds the activation snapshot from a behavior snapshot's `plugins`
+/// array. Missing rows default to installed and enabled, matching the
+/// runtime catalog merge.
+#[cfg(any(test, feature = "persistence"))]
+pub(crate) fn activation_from_snapshot(snapshot: &Value) -> BTreeMap<String, PluginActivation> {
+    let mut activation = BTreeMap::new();
+    if let Some(plugins) = snapshot.get("plugins").and_then(Value::as_array) {
+        for state in plugins {
+            let Some(id) = state.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            activation.insert(
+                id.to_owned(),
+                PluginActivation {
+                    installed: state
+                        .get("installed")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(true),
+                    enabled: state
+                        .get("enabled")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(true),
+                },
+            );
+        }
+    }
+    activation
+}
+
 impl AppCore {
     pub(crate) async fn execute_plugin_action(
         self: &Arc<Self>,
@@ -67,34 +104,28 @@ impl AppCore {
             ));
         }
 
-        self.plugins
-            .start(&plugin.manifest.id)
-            .map_err(|error| error.to_string())?;
-        let plugin_id = plugin.manifest.id.clone();
         let action_timeout = descriptor.timeout();
         let request = serde_json::to_value(tiktools_plugin_sdk::PluginCall::action(
             action.clone(),
             event.clone(),
         ))
         .map_err(|error| format!("could not encode plugin action: {error}"))?;
-        let plugins = Arc::clone(&self.plugins);
-        let request_for_call = request.clone();
-        let response = tokio::time::timeout(
-            action_timeout,
-            tokio::task::spawn_blocking(move || {
-                plugins.call_with_timeout(&plugin_id, &request_for_call, action_timeout)
-            }),
-        )
-        .await
-        .map_err(|_| {
-            format!(
-                "plugin `{}` timed out after {} seconds",
-                plugin.manifest.id,
-                action_timeout.as_secs()
-            )
-        })?
-        .map_err(|error| format!("plugin task failed: {error}"))?
-        .map_err(|error| error.to_string())?;
+        let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&self.plugins));
+        let response = invoker
+            .call(&plugin.manifest.id, &request, action_timeout)
+            .await
+            .map_err(|error| match error {
+                crate::plugin_invoker::InvokeError::Timeout => format!(
+                    "plugin `{}` timed out after {} seconds",
+                    plugin.manifest.id,
+                    action_timeout.as_secs()
+                ),
+                crate::plugin_invoker::InvokeError::Join(reason) => {
+                    format!("plugin task failed: {reason}")
+                }
+                crate::plugin_invoker::InvokeError::Unavailable(reason)
+                | crate::plugin_invoker::InvokeError::Plugin(reason) => reason,
+            })?;
         self.events.publish(AppEvent::Plugin(json!({
             "pluginId": plugin.manifest.id,
             "type": "action-result",
@@ -144,20 +175,31 @@ impl AppCore {
         if !plugin.available {
             return false;
         }
-        #[cfg(feature = "persistence")]
-        if let Ok(snapshot) = self.db.load_behavior_snapshot() {
-            if let Some(state) = snapshot
-                .get("plugins")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .find(|state| state.get("id").and_then(Value::as_str) == Some(id))
-            {
-                return state.get("installed").and_then(Value::as_bool) == Some(true)
-                    && state.get("enabled").and_then(Value::as_bool) == Some(true);
-            }
-        }
-        true
+        // Activation is an in-memory snapshot refreshed on every state write,
+        // so readiness checks never hit SQLite on hot paths. Plugins without
+        // a persisted row default to installed and enabled.
+        self.plugin_activation
+            .read()
+            .expect("plugin activation lock poisoned")
+            .get(id)
+            .is_none_or(|state| state.installed && state.enabled)
+    }
+
+    /// Records an install/enable write in the activation snapshot. Callers
+    /// must persist first; this only moves the snapshot the hot path reads.
+    pub(crate) fn set_plugin_activation(&self, id: &str, installed: bool, enabled: bool) {
+        self.plugin_activation
+            .write()
+            .expect("plugin activation lock poisoned")
+            .insert(id.to_owned(), PluginActivation { installed, enabled });
+    }
+
+    #[cfg(feature = "plugin-install")]
+    pub(crate) fn clear_plugin_activation(&self, id: &str) {
+        self.plugin_activation
+            .write()
+            .expect("plugin activation lock poisoned")
+            .remove(id);
     }
 
     /// Sample event for a plugin-owned trigger, taken from the declaring
@@ -263,38 +305,34 @@ impl AppCore {
                 .unwrap_or_else(|| json!({})),
         );
         const MAX_CONCURRENT_POLLS: usize = 6;
+        let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&self.plugins));
         let mut tasks = tokio::task::JoinSet::new();
         let mut outcomes = Vec::with_capacity(candidates.len());
         for (plugin_id, declared) in candidates {
             if !self.plugin_retry_allowed(&plugin_id) {
                 continue;
             }
-            if let Err(error) = self.plugins.start(&plugin_id) {
-                self.record_plugin_failure(&plugin_id, error.to_string());
-                continue;
-            }
-            let plugins = Arc::clone(&self.plugins);
             let request = serde_json::to_value(tiktools_plugin_sdk::PluginCall::Poll)
                 .expect("poll call should always serialize");
             let plugin_id_for_call = plugin_id.clone();
             let declared_for_task = declared.clone();
+            let invoker_for_task = invoker.clone();
             tasks.spawn(async move {
-                let response = tokio::time::timeout(
-                    PLUGIN_POLL_DEADLINE,
-                    tokio::task::spawn_blocking(move || {
-                        plugins.call_with_timeout(
-                            &plugin_id_for_call,
-                            &request,
-                            PLUGIN_POLL_DEADLINE,
-                        )
-                    }),
-                )
-                .await;
-                let response = match response {
-                    Ok(Ok(Ok(response))) => Ok(response),
-                    Ok(Ok(Err(error))) => Err(error.to_string()),
-                    Ok(Err(error)) => Err(format!("plugin poll task failed: {error}")),
-                    Err(_) => Err("plugin poll timed out".to_owned()),
+                let response = match invoker_for_task
+                    .call(&plugin_id_for_call, &request, PLUGIN_POLL_DEADLINE)
+                    .await
+                {
+                    Ok(response) => Ok(response),
+                    Err(crate::plugin_invoker::InvokeError::Timeout) => {
+                        Err("plugin poll timed out".to_owned())
+                    }
+                    Err(crate::plugin_invoker::InvokeError::Join(reason)) => {
+                        Err(format!("plugin poll task failed: {reason}"))
+                    }
+                    Err(
+                        crate::plugin_invoker::InvokeError::Unavailable(reason)
+                        | crate::plugin_invoker::InvokeError::Plugin(reason),
+                    ) => Err(reason),
                 };
                 (plugin_id, declared_for_task, response)
             });
@@ -390,6 +428,35 @@ impl AppCore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn activation_snapshot_defaults_missing_rows_to_active() {
+        let snapshot = json!({
+            "plugins": [
+                {"id": "on", "installed": true, "enabled": true},
+                {"id": "off", "installed": true, "enabled": false},
+                {"id": "partial"},
+            ],
+        });
+        let activation = activation_from_snapshot(&snapshot);
+        assert_eq!(activation.len(), 3);
+        assert_eq!(
+            activation["on"],
+            PluginActivation {
+                installed: true,
+                enabled: true,
+            }
+        );
+        assert!(!activation["off"].enabled);
+        assert_eq!(
+            activation["partial"],
+            PluginActivation {
+                installed: true,
+                enabled: true,
+            }
+        );
+        assert!(activation_from_snapshot(&json!({})).is_empty());
+    }
 
     #[test]
     fn action_timeout_defaults_to_thirty_seconds() {

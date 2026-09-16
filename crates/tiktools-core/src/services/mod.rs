@@ -8,6 +8,7 @@ mod points;
 mod script;
 
 pub use app_state::AppStateService;
+pub(crate) use automation::read_event_path;
 pub use automation::AutomationService;
 pub use capabilities::{CapabilityBroker, CapabilityError};
 pub use catalog::{builtin_action_types, builtin_node_catalog, builtin_translations};

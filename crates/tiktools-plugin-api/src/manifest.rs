@@ -520,6 +520,12 @@ pub struct PluginProcessorDescriptor {
     pub failure_mode: ProcessorFailureMode,
     #[serde(default)]
     pub timeout_ms: Option<u64>,
+    /// Stable-field selection priority. Higher runs first; the first
+    /// contributor owns each stable `intel` key outright instead of merging
+    /// per-leaf with other providers. Ties break by `(plugin id,
+    /// processor id)`.
+    #[serde(default)]
+    pub priority: Option<i32>,
 }
 
 /// One event path a processor reads, with the semantic role the plugin
@@ -557,6 +563,11 @@ impl PluginProcessorDescriptor {
                 .unwrap_or(DEFAULT_PLUGIN_PROCESSOR_TIMEOUT_MS)
                 .clamp(1, MAX_PLUGIN_PROCESSOR_TIMEOUT_MS),
         )
+    }
+
+    /// Selection priority, defaulting to zero when undeclared.
+    pub fn priority_value(&self) -> i32 {
+        self.priority.unwrap_or(0)
     }
 }
 
@@ -649,8 +660,16 @@ pub fn validate_processor_type(entry: &Value) -> Result<(), ManifestError> {
         if inputs.len() > MAX_PROCESSOR_INPUTS {
             return Err(ManifestError::InvalidField("processorTypes"));
         }
+        let mut roles = std::collections::BTreeSet::new();
         for input in inputs {
             validate_processor_input(input)?;
+            let role = input
+                .get("role")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            if !roles.insert(role.to_owned()) {
+                return Err(ManifestError::InvalidField("processorTypes"));
+            }
         }
     }
     if let Some(stage) = object.get("stage") {
@@ -668,6 +687,14 @@ pub fn validate_processor_type(entry: &Value) -> Result<(), ManifestError> {
             .as_u64()
             .ok_or(ManifestError::InvalidField("processorTypes"))?;
         if timeout == 0 || timeout > MAX_PLUGIN_PROCESSOR_TIMEOUT_MS {
+            return Err(ManifestError::InvalidField("processorTypes"));
+        }
+    }
+    if let Some(priority) = object.get("priority") {
+        let priority = priority
+            .as_i64()
+            .ok_or(ManifestError::InvalidField("processorTypes"))?;
+        if priority < i64::from(i32::MIN) || priority > i64::from(i32::MAX) {
             return Err(ManifestError::InvalidField("processorTypes"));
         }
     }
@@ -928,6 +955,12 @@ mod tests {
             serde_json::json!({"id": "ok.id", "title": {"default": "Ok"}, "inputs": [{"path": "", "role": "message"}]}),
             serde_json::json!({"id": "ok.id", "title": {"default": "Ok"}, "inputs": [{"path": "event.data.comment", "role": "Bad Role"}]}),
             serde_json::json!({"id": "ok.id", "title": {"default": "Ok"}, "inputs": [{"path": "event.data.comment"}]}),
+            serde_json::json!({"id": "ok.id", "title": {"default": "Ok"}, "inputs": [
+                {"path": "event.data.comment", "role": "message"},
+                {"path": "event.data.other", "role": "message"},
+            ]}),
+            serde_json::json!({"id": "ok.id", "title": {"default": "Ok"}, "priority": "high"}),
+            serde_json::json!({"id": "ok.id", "title": {"default": "Ok"}, "priority": 9_000_000_000i64}),
         ] {
             assert!(
                 validate_processor_type(&entry).is_err(),

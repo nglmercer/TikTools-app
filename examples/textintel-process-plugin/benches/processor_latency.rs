@@ -1,10 +1,10 @@
 //! Processor latency harness (no external bench framework).
 //!
-//! Drives the same `annotate_event` code the host invokes per chat message
-//! and reports p50/p95/p99 per input class. Run with:
+//! Drives the same [`TextIntelProcessor`] code the host invokes per chat
+//! message and reports p50/p95/p99 per input class. Run with:
 //!
 //! ```sh
-//! cargo bench -p tiktools-textintel-plugin --bench processor_latency
+//! cargo bench --bench processor_latency
 //! ```
 //!
 //! Use the numbers to justify the manifest `timeoutMs`, never as a quality
@@ -13,9 +13,8 @@
 
 use std::time::{Duration, Instant};
 
-use tiktools_textintel_plugin::{
-    annotate_event, build_engine, BoundedCache, EngineMode, TextIntelSettings,
-};
+use serde_json::Value;
+use tiktools_textintel_plugin::{EngineMode, TextIntelProcessor};
 
 fn percentile(mut samples: Vec<Duration>, percentile: f64) -> Duration {
     samples.sort_unstable();
@@ -24,8 +23,8 @@ fn percentile(mut samples: Vec<Duration>, percentile: f64) -> Duration {
 }
 
 fn bench_case(
-    engine: &textintel::TextIntelligence,
-    settings: &TextIntelSettings,
+    processor: &mut TextIntelProcessor,
+    settings: &Value,
     name: &str,
     comment: &str,
     nickname: &str,
@@ -35,27 +34,14 @@ fn bench_case(
     // Fresh plugin caches per iteration so every sample measures analysis.
     // `unique_inputs` additionally defeats the engine's internal caches with
     // a per-iteration suffix, measuring cold first-seen text.
-    let mut comments = BoundedCache::new(64);
-    let mut names = BoundedCache::new(256);
     let mut logs = Vec::new();
     for _ in 0..10 {
-        comments.clear();
-        names.clear();
-        let _ = annotate_event(
-            engine,
-            settings,
-            comment,
-            nickname,
-            "bench_user",
-            &mut comments,
-            &mut names,
-            &mut logs,
-        );
+        processor.clear_caches();
+        let _ = processor.enrich_texts(settings, comment, nickname, "bench_user", &mut logs);
     }
     let mut samples = Vec::with_capacity(iterations);
     for iteration in 0..iterations {
-        comments.clear();
-        names.clear();
+        processor.clear_caches();
         let cold_comment;
         let cold_nickname;
         let (comment, nickname) = if unique_inputs {
@@ -66,16 +52,7 @@ fn bench_case(
             (comment, nickname)
         };
         let started = Instant::now();
-        let _ = annotate_event(
-            engine,
-            settings,
-            comment,
-            nickname,
-            "bench_user",
-            &mut comments,
-            &mut names,
-            &mut logs,
-        );
+        let _ = processor.enrich_texts(settings, comment, nickname, "bench_user", &mut logs);
         samples.push(started.elapsed());
     }
     let mean_micros: f64 = samples
@@ -94,15 +71,18 @@ fn bench_case(
 }
 
 fn main() {
-    let settings = TextIntelSettings::default();
     for mode in [EngineMode::Default, EngineMode::ProductionLocalLite] {
-        let engine = match build_engine(mode) {
-            Ok(engine) => engine,
-            Err(error) => {
-                println!("mode {} unavailable: {error}", mode.as_str());
-                continue;
-            }
-        };
+        // Settings travel as host JSON; defaults fill every unset field.
+        let settings = serde_json::json!({"engineMode": mode.as_str()});
+        let mut processor = TextIntelProcessor::new();
+        let mut logs = Vec::new();
+        if processor
+            .enrich_texts(&settings, "warmup", "Viewer", "viewer", &mut logs)
+            .is_err()
+        {
+            println!("mode {} unavailable, skipped", mode.as_str());
+            continue;
+        }
         println!("engine mode: {}", mode.as_str());
         let cases = [
             ("short-ascii", "hello".to_owned(), "Viewer".to_owned(), 200),
@@ -140,7 +120,7 @@ fn main() {
         ];
         for (name, comment, nickname, iterations) in &cases {
             bench_case(
-                &engine,
+                &mut processor,
                 &settings,
                 name,
                 comment,
@@ -152,7 +132,7 @@ fn main() {
         println!("-- cold (unique inputs, engine caches defeated) --");
         for (name, comment, nickname, iterations) in &cases {
             bench_case(
-                &engine,
+                &mut processor,
                 &settings,
                 &format!("{name}-cold"),
                 comment,

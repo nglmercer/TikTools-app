@@ -19,6 +19,7 @@ mod ipc_handlers;
 mod live_events;
 mod persistence;
 mod plugin_intents;
+mod plugin_invoker;
 mod plugin_processors;
 mod plugin_runtime;
 #[cfg(test)]
@@ -120,9 +121,17 @@ pub struct AppCore {
     #[cfg(feature = "native-tiktok")]
     live_pump_started: AtomicBool,
     plugin_health: Mutex<BTreeMap<String, PluginHealth>>,
-    processor_health: Mutex<BTreeMap<String, PluginHealth>>,
-    processor_metrics: Mutex<BTreeMap<String, crate::plugin_processors::ProcessorMetrics>>,
-    processor_settings: Mutex<BTreeMap<String, crate::plugin_processors::CachedProcessorSettings>>,
+    plugin_activation: RwLock<BTreeMap<String, crate::plugin_runtime::PluginActivation>>,
+    processor_health: Mutex<BTreeMap<crate::plugin_processors::ProcessorKey, PluginHealth>>,
+    processor_metrics: Mutex<
+        BTreeMap<
+            crate::plugin_processors::ProcessorKey,
+            crate::plugin_processors::ProcessorMetrics,
+        >,
+    >,
+    processor_settings: crate::plugin_processors::ProcessorSettingsStore,
+    processor_index: RwLock<crate::plugin_processors::ContributionIndex>,
+    processor_slots: Arc<tokio::sync::Semaphore>,
     plugin_poll_started: AtomicBool,
     plugin_poll_shutdown: Arc<Notify>,
     plugin_poll_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -175,9 +184,16 @@ impl AppCore {
 
         let automation = Arc::new(AutomationService::default());
         #[cfg(feature = "persistence")]
-        if let Ok(snapshot) = db.load_behavior_snapshot() {
-            automation.replace_snapshot(&snapshot);
-        }
+        let plugin_activation = match db.load_behavior_snapshot() {
+            Ok(snapshot) => {
+                automation.replace_snapshot(&snapshot);
+                crate::plugin_runtime::activation_from_snapshot(&snapshot)
+            }
+            Err(_) => BTreeMap::new(),
+        };
+        #[cfg(not(feature = "persistence"))]
+        let plugin_activation: BTreeMap<String, crate::plugin_runtime::PluginActivation> =
+            BTreeMap::new();
         #[cfg(feature = "http")]
         let (http_client, http_client_error) = match reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
@@ -223,9 +239,14 @@ impl AppCore {
             #[cfg(feature = "native-tiktok")]
             live_pump_started: AtomicBool::new(false),
             plugin_health: Mutex::new(BTreeMap::new()),
+            plugin_activation: RwLock::new(plugin_activation),
             processor_health: Mutex::new(BTreeMap::new()),
             processor_metrics: Mutex::new(BTreeMap::new()),
-            processor_settings: Mutex::new(BTreeMap::new()),
+            processor_settings: crate::plugin_processors::ProcessorSettingsStore::default(),
+            processor_index: RwLock::new(crate::plugin_processors::ContributionIndex::default()),
+            processor_slots: Arc::new(tokio::sync::Semaphore::new(
+                crate::plugin_processors::MAX_TOTAL_PROCESSOR_SLOTS,
+            )),
             plugin_poll_started: AtomicBool::new(false),
             plugin_poll_shutdown: Arc::new(Notify::new()),
             plugin_poll_task: Mutex::new(None),
@@ -236,6 +257,7 @@ impl AppCore {
         if let Some(message) = core.http_client_error.clone() {
             core.emit(HostMessage::AutomationError { message });
         }
+        core.rebuild_processor_index();
         core
     }
 
@@ -349,6 +371,7 @@ impl AppCore {
         if old_running {
             restart_plugin(&self.plugins, &manifest.id);
         }
+        self.rebuild_processor_index();
         Ok(installed)
     }
 
@@ -411,7 +434,9 @@ impl AppCore {
         if let Err(error) = self.db.remove_plugin_state(id) {
             tracing::warn!(plugin = %id, %error, "plugin package was removed but persisted state could not be cleared");
         }
+        self.clear_plugin_activation(id);
         self.plugins.scan().map(|_| ())?;
+        self.rebuild_processor_index();
         Ok(())
     }
 

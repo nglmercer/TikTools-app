@@ -15,7 +15,12 @@ use std::{
     collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, RwLock},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc, Arc, Mutex, RwLock,
+    },
+    thread,
+    time::{Duration, Instant},
 };
 
 use serde_json::Value;
@@ -69,6 +74,8 @@ pub enum PluginLoaderError {
     Runtime(String),
     #[error("plugin `{0}` was not discovered")]
     NotFound(String),
+    #[error("plugin call timed out: {0}")]
+    Timeout(String),
 }
 
 pub trait PluginInstance: Send {
@@ -93,7 +100,61 @@ pub trait PluginRuntime: Send + Sync {
     ) -> Result<Box<dyn PluginInstance>, PluginLoaderError>;
 }
 
-type PluginInstanceHandle = Arc<Mutex<Box<dyn PluginInstance>>>;
+/// One queued request with the absolute deadline the worker enforces.
+/// The deadline covers queueing plus execution; the worker discards expired
+/// requests before executing them so a timed-out caller never causes stale
+/// plugin work to accumulate.
+struct QueuedCall {
+    request: Vec<u8>,
+    timeout: Duration,
+    deadline: Instant,
+    respond: mpsc::Sender<Result<Vec<u8>, PluginLoaderError>>,
+}
+
+enum WorkerMsg {
+    Call(QueuedCall),
+    Shutdown,
+}
+
+/// A running plugin: the worker thread is the sole owner of the instance,
+/// so plugin `&mut self` code stays single-threaded without a mutex. The
+/// token identifies this start generation so failure cleanup never removes
+/// a newer instance.
+struct RunningInstance {
+    token: u64,
+    tx: mpsc::Sender<WorkerMsg>,
+    worker: Mutex<Option<thread::JoinHandle<Result<(), PluginLoaderError>>>>,
+}
+
+fn run_instance_worker(
+    id: String,
+    mut instance: Box<dyn PluginInstance>,
+    rx: mpsc::Receiver<WorkerMsg>,
+) -> Result<(), PluginLoaderError> {
+    while let Ok(msg) = rx.recv() {
+        let WorkerMsg::Call(call) = msg else {
+            break;
+        };
+        if Instant::now() >= call.deadline {
+            let _ = call.respond.send(Err(PluginLoaderError::Timeout(format!(
+                "plugin `{id}` call expired while queued"
+            ))));
+            continue;
+        }
+        let result = instance.handle_message_with_timeout(&call.request, call.timeout);
+        let _ = call.respond.send(result);
+    }
+    // Fail waiters queued behind the shutdown instead of leaving them on
+    // their deadlines.
+    for queued in rx.try_iter() {
+        if let WorkerMsg::Call(call) = queued {
+            let _ = call.respond.send(Err(PluginLoaderError::Runtime(format!(
+                "plugin `{id}` stopped"
+            ))));
+        }
+    }
+    instance.shutdown()
+}
 
 #[derive(Default)]
 pub struct RuntimeRegistry {
@@ -131,8 +192,9 @@ pub struct PluginManager {
     roots: Vec<PluginRoot>,
     registry: RwLock<PluginRegistry>,
     runtimes: RuntimeRegistry,
-    instances: RwLock<BTreeMap<String, PluginInstanceHandle>>,
+    instances: RwLock<BTreeMap<String, Arc<RunningInstance>>>,
     lifecycle: Mutex<()>,
+    next_token: AtomicU64,
 }
 
 impl PluginManager {
@@ -147,6 +209,7 @@ impl PluginManager {
             runtimes,
             instances: RwLock::new(BTreeMap::new()),
             lifecycle: Mutex::new(()),
+            next_token: AtomicU64::new(1),
         }
     }
 
@@ -273,10 +336,26 @@ impl PluginManager {
             PluginLoaderError::RuntimeUnavailable(plugin.manifest.runtime.to_string())
         })?;
         let instance = runtime.load(&plugin.manifest, &plugin.directory)?;
+        let token = self.next_token.fetch_add(1, Ordering::AcqRel);
+        let (tx, rx) = mpsc::channel();
+        let worker_id = id.to_owned();
+        let worker = thread::Builder::new()
+            .name("tiktools-plugin".to_owned())
+            .spawn(move || run_instance_worker(worker_id, instance, rx))
+            .map_err(|error| {
+                PluginLoaderError::Runtime(format!("could not start plugin worker: {error}"))
+            })?;
         self.instances
             .write()
             .expect("plugin instances poisoned")
-            .insert(id.to_owned(), Arc::new(Mutex::new(instance)));
+            .insert(
+                id.to_owned(),
+                Arc::new(RunningInstance {
+                    token,
+                    tx,
+                    worker: Mutex::new(Some(worker)),
+                }),
+            );
         self.set_running(id, true);
         Ok(())
     }
@@ -286,16 +365,25 @@ impl PluginManager {
             let _lifecycle = self.lifecycle.lock().expect("plugin lifecycle poisoned");
             self.remove_instance(id)
         };
-        if let Some(instance) = instance {
-            let result = instance
-                .lock()
-                .expect("plugin instance poisoned")
-                .shutdown();
+        let Some(instance) = instance else {
             self.set_running(id, false);
-            return result;
-        }
+            return Ok(());
+        };
+        let _ = instance.tx.send(WorkerMsg::Shutdown);
+        let worker = instance
+            .worker
+            .lock()
+            .expect("plugin worker poisoned")
+            .take();
+        let result = match worker {
+            Some(worker) => worker
+                .join()
+                .map_err(|_| PluginLoaderError::Runtime(format!("plugin `{id}` worker panicked")))
+                .and_then(|inner| inner),
+            None => Ok(()),
+        };
         self.set_running(id, false);
-        Ok(())
+        result
     }
 
     pub fn stop_all(&self) {
@@ -314,25 +402,36 @@ impl PluginManager {
     }
 
     pub fn call(&self, id: &str, request: &Value) -> Result<Value, PluginLoaderError> {
-        self.call_with_timeout(id, request, std::time::Duration::from_secs(30))
+        self.call_with_timeout(id, request, Duration::from_secs(30))
     }
 
-    /// Calls one plugin instance. Instance calls stay serialized behind the
-    /// per-instance mutex, so a slow call blocks later calls to the same
-    /// plugin (including fast pre-filter processors that share the process).
-    /// Keep processor plugins fast and never combine slow model preparation
-    /// with enrichment in one process.
+    /// Calls one plugin instance. Calls stay serialized per instance through
+    /// its worker queue, so a slow call delays (but never starves) later
+    /// calls to the same plugin. Keep processor plugins fast and never
+    /// combine slow model preparation with enrichment in one process.
     ///
-    /// TODO(protocol-v2): lift this without breaking plugins that assume
-    /// single-threaded `&mut self` state. Candidates: (a) multiplexed process
-    /// requests with request/response ids, (b) separate service instances per
-    /// QoS class (realtime processor vs background action vs poll), or (c)
-    /// manifest-declared per-class concurrency.
+    /// TODO(protocol-v2): per-QoS-class instances or multiplexed process
+    /// requests would let realtime processors skip ahead of background
+    /// actions sharing one process.
     pub fn call_with_timeout(
         &self,
         id: &str,
         request: &Value,
-        timeout: std::time::Duration,
+        timeout: Duration,
+    ) -> Result<Value, PluginLoaderError> {
+        self.call_with_deadline(id, request, Instant::now() + timeout)
+    }
+
+    /// Calls one plugin instance with an absolute deadline covering queueing
+    /// plus execution. The worker discards requests that expire while queued
+    /// instead of executing stale work; the waiter gives up at the same
+    /// deadline. A timeout never removes the instance, while transport and
+    /// protocol errors retire it so the next start loads fresh state.
+    pub fn call_with_deadline(
+        &self,
+        id: &str,
+        request: &Value,
+        deadline: Instant,
     ) -> Result<Value, PluginLoaderError> {
         let bytes = serde_json::to_vec(request)
             .map_err(|error| PluginLoaderError::Runtime(error.to_string()))?;
@@ -343,21 +442,51 @@ impl PluginManager {
             .get(id)
             .cloned()
             .ok_or_else(|| PluginLoaderError::NotFound(id.to_owned()))?;
-        let response = instance
-            .lock()
-            .expect("plugin instance poisoned")
-            .handle_message_with_timeout(&bytes, timeout);
+        let now = Instant::now();
+        if now >= deadline {
+            return Err(PluginLoaderError::Timeout(format!(
+                "plugin `{id}` call already expired"
+            )));
+        }
+        let remaining = deadline - now;
+        let (respond, answer) = mpsc::channel();
+        instance
+            .tx
+            .send(WorkerMsg::Call(QueuedCall {
+                request: bytes,
+                timeout: remaining,
+                deadline,
+                respond,
+            }))
+            .map_err(|_| {
+                self.remove_failed_worker(id, instance.token);
+                PluginLoaderError::Runtime(format!("plugin `{id}` worker is gone"))
+            })?;
+        let response = answer
+            .recv_timeout(remaining)
+            .map_err(|error| match error {
+                mpsc::RecvTimeoutError::Timeout => {
+                    PluginLoaderError::Timeout(format!("plugin `{id}` call timed out"))
+                }
+                mpsc::RecvTimeoutError::Disconnected => {
+                    self.remove_failed_worker(id, instance.token);
+                    PluginLoaderError::Runtime(format!("plugin `{id}` worker died"))
+                }
+            })?;
         let response = match response {
             Ok(response) => response,
+            // The worker discarded this request as expired; the instance
+            // itself is healthy, so it stays running.
+            Err(error @ PluginLoaderError::Timeout(_)) => return Err(error),
             Err(error) => {
-                self.remove_failed_instance(id, &instance);
+                self.remove_failed_worker(id, instance.token);
                 return Err(error);
             }
         };
         match serde_json::from_slice(&response) {
             Ok(response) => Ok(response),
             Err(error) => {
-                self.remove_failed_instance(id, &instance);
+                self.remove_failed_worker(id, instance.token);
                 Err(PluginLoaderError::Runtime(format!(
                     "plugin returned invalid JSON: {error}"
                 )))
@@ -388,20 +517,23 @@ impl PluginManager {
         }
     }
 
-    fn remove_instance(&self, id: &str) -> Option<PluginInstanceHandle> {
+    fn remove_instance(&self, id: &str) -> Option<Arc<RunningInstance>> {
         self.instances
             .write()
             .expect("plugin instances poisoned")
             .remove(id)
     }
 
-    fn remove_failed_instance(&self, id: &str, failed: &PluginInstanceHandle) {
+    /// Retires the instance generation identified by `token`; a newer start
+    /// is never disturbed. The worker is asked to stop but not joined, so a
+    /// stuck plugin cannot block the hot path that observed the failure.
+    fn remove_failed_worker(&self, id: &str, token: u64) {
         let removed = {
             let _lifecycle = self.lifecycle.lock().expect("plugin lifecycle poisoned");
             let mut instances = self.instances.write().expect("plugin instances poisoned");
             if instances
                 .get(id)
-                .is_some_and(|current| Arc::ptr_eq(current, failed))
+                .is_some_and(|current| current.token == token)
             {
                 instances.remove(id)
             } else {
@@ -409,13 +541,7 @@ impl PluginManager {
             }
         };
         if let Some(instance) = removed {
-            if let Err(error) = instance
-                .lock()
-                .expect("plugin instance poisoned")
-                .shutdown()
-            {
-                tracing::warn!(id = %id, %error, "failed plugin shutdown after an unhealthy call");
-            }
+            let _ = instance.tx.send(WorkerMsg::Shutdown);
             self.set_running(id, false);
         }
     }
@@ -627,6 +753,212 @@ mod tests {
         manager.scan().unwrap();
         assert!(!manager.get("demo").unwrap().running);
 
+        let _ = fs::remove_dir_all(root);
+    }
+
+    type Handler = Arc<dyn Fn(&[u8]) -> Result<Vec<u8>, PluginLoaderError> + Send + Sync>;
+
+    struct ScriptedRuntime {
+        handler: Handler,
+    }
+
+    struct ScriptedInstance {
+        id: String,
+        handler: Handler,
+    }
+
+    impl PluginRuntime for ScriptedRuntime {
+        fn kind(&self) -> PluginRuntimeKind {
+            PluginRuntimeKind::Process
+        }
+
+        fn load(
+            &self,
+            manifest: &PluginManifest,
+            _directory: &Path,
+        ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+            Ok(Box::new(ScriptedInstance {
+                id: manifest.id.clone(),
+                handler: Arc::clone(&self.handler),
+            }))
+        }
+    }
+
+    impl PluginInstance for ScriptedInstance {
+        fn id(&self) -> &str {
+            &self.id
+        }
+
+        fn handle_message(&mut self, request: &[u8]) -> Result<Vec<u8>, PluginLoaderError> {
+            (self.handler)(request)
+        }
+
+        fn shutdown(&mut self) -> Result<(), PluginLoaderError> {
+            Ok(())
+        }
+    }
+
+    fn write_plugin(root: &std::path::Path, id: &str) {
+        fs::create_dir_all(root.join(id)).unwrap();
+        fs::write(
+            root.join(format!("{id}/plugin.json")),
+            format!(
+                r#"{{"schemaVersion":2,"id":"{id}","name":"{id}","version":"1.0.0","runtime":"process","entry":"entry.bin"}}"#
+            ),
+        )
+        .unwrap();
+        fs::write(root.join(format!("{id}/entry.bin")), b"fake").unwrap();
+    }
+
+    fn scripted_manager(ids: &[&str], handler: Handler) -> (Arc<PluginManager>, PathBuf) {
+        let root = temp_root();
+        for id in ids {
+            write_plugin(&root, id);
+        }
+        let mut runtimes = RuntimeRegistry::default();
+        runtimes.register(Arc::new(ScriptedRuntime { handler }) as Arc<dyn PluginRuntime>);
+        let manager = Arc::new(PluginManager::with_runtimes(
+            vec![PluginRoot {
+                path: root.clone(),
+                source: PluginSource::Development,
+            }],
+            runtimes,
+        ));
+        manager.scan().unwrap();
+        (manager, root)
+    }
+
+    #[test]
+    fn worker_discards_calls_that_expire_while_queued() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        let executions = Arc::new(AtomicU64::new(0));
+        let executions_for_handler = Arc::clone(&executions);
+        let (manager, root) = scripted_manager(
+            &["slow"],
+            Arc::new(move |_| {
+                executions_for_handler.fetch_add(1, Ordering::AcqRel);
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                Ok(b"null".to_vec())
+            }),
+        );
+        manager.start("slow").unwrap();
+        let worker = Arc::clone(&manager);
+        let first = std::thread::spawn(move || {
+            worker.call_with_deadline(
+                "slow",
+                &serde_json::json!({"type": "poll"}),
+                Instant::now() + Duration::from_secs(5),
+            )
+        });
+        // Let the first call reach the worker before queueing an expired one.
+        std::thread::sleep(Duration::from_millis(50));
+        let expired = manager.call_with_deadline(
+            "slow",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_millis(25),
+        );
+        assert!(
+            matches!(expired, Err(PluginLoaderError::Timeout(_))),
+            "expired queued call should time out, got {expired:?}"
+        );
+        assert!(first.join().unwrap().is_ok());
+        assert_eq!(executions.load(Ordering::Acquire), 1);
+        manager.stop_all();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn timeout_keeps_a_healthy_instance_running() {
+        let (manager, root) = scripted_manager(
+            &["slow"],
+            Arc::new(|_| {
+                std::thread::sleep(Duration::from_millis(100));
+                Ok(b"null".to_vec())
+            }),
+        );
+        manager.start("slow").unwrap();
+        let expired = manager.call_with_deadline(
+            "slow",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_millis(10),
+        );
+        assert!(matches!(expired, Err(PluginLoaderError::Timeout(_))));
+        assert!(manager.is_running("slow"));
+        let recovered = manager.call_with_deadline(
+            "slow",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_secs(5),
+        );
+        assert!(recovered.is_ok());
+        manager.stop_all();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn transport_errors_retire_the_instance_and_restart_recovers() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        let calls = Arc::new(AtomicU64::new(0));
+        let calls_for_handler = Arc::clone(&calls);
+        let (manager, root) = scripted_manager(
+            &["flaky"],
+            Arc::new(move |_| {
+                if calls_for_handler.fetch_add(1, Ordering::AcqRel) == 0 {
+                    return Err(PluginLoaderError::Runtime("boom".to_owned()));
+                }
+                Ok(b"null".to_vec())
+            }),
+        );
+        manager.start("flaky").unwrap();
+        assert!(manager
+            .call_with_deadline(
+                "flaky",
+                &serde_json::json!({"type": "poll"}),
+                Instant::now() + Duration::from_secs(5),
+            )
+            .is_err());
+        assert!(!manager.is_running("flaky"));
+        manager.start("flaky").unwrap();
+        assert!(manager
+            .call_with_deadline(
+                "flaky",
+                &serde_json::json!({"type": "poll"}),
+                Instant::now() + Duration::from_secs(5),
+            )
+            .is_ok());
+        manager.stop_all();
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn worker_panic_isolates_the_plugin_without_hanging_siblings() {
+        let (manager, root) = scripted_manager(
+            &["doomed", "healthy"],
+            Arc::new(|request| {
+                if request.windows(6).any(|window| window == b"doomed") {
+                    panic!("native plugin bug");
+                }
+                Ok(b"null".to_vec())
+            }),
+        );
+        manager.start("doomed").unwrap();
+        manager.start("healthy").unwrap();
+        let failed = manager.call_with_deadline(
+            "doomed",
+            &serde_json::json!({"type": "doomed"}),
+            Instant::now() + Duration::from_secs(5),
+        );
+        assert!(
+            matches!(failed, Err(PluginLoaderError::Runtime(_))),
+            "panicking worker should surface a runtime error, got {failed:?}"
+        );
+        assert!(!manager.is_running("doomed"));
+        let sibling = manager.call_with_deadline(
+            "healthy",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_secs(5),
+        );
+        assert!(sibling.is_ok());
+        manager.stop_all();
         let _ = fs::remove_dir_all(root);
     }
 }

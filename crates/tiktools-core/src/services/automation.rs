@@ -383,7 +383,9 @@ fn matches_filter(filter: &Value, event: &Value) -> bool {
     }
 }
 
-fn read_event_path<'a>(event: &'a Value, path: &str) -> Option<&'a Value> {
+/// Reads one `event.*` path with the shared filter/template path language
+/// (a leading `event.` prefix addresses the envelope root).
+pub(crate) fn read_event_path<'a>(event: &'a Value, path: &str) -> Option<&'a Value> {
     let path = path
         .trim()
         .trim_start_matches("{{")

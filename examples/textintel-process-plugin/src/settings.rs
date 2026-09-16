@@ -1,9 +1,10 @@
 //! Validated settings for the TextIntel processor.
 //!
-//! Every field falls back to its default independently: one malformed value
-//! never discards the rest, and unknown settings are ignored without
-//! panicking.
+//! Parsing is lenient per field: every setting deserializes as optional, a
+//! mistyped value degrades to `None` (then the default), and unknown keys are
+//! ignored. One malformed value never discards the rest.
 
+use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -62,6 +63,51 @@ impl EmojiMode {
     }
 }
 
+/// Accepts any JSON type: a correctly typed value becomes `Some`, anything
+/// else (including explicit null) becomes `None` so the default applies.
+fn lenient<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Ok(T::deserialize(deserializer).ok())
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct RawSettings {
+    #[serde(deserialize_with = "lenient")]
+    analyze_comments: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    analyze_nicknames: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    analyze_usernames: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    unicode_normalization: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    language_detection: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    rebus: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    obfuscation: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    spam: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    phonetic: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    tts_candidate: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    engine_mode: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    minimum_tts_confidence: Option<f64>,
+    #[serde(deserialize_with = "lenient")]
+    minimum_rebus_confidence: Option<f64>,
+    #[serde(deserialize_with = "lenient")]
+    max_input_chars: Option<u64>,
+    #[serde(deserialize_with = "lenient")]
+    emoji_mode: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextIntelSettings {
     pub analyze_comments: bool,
@@ -107,46 +153,55 @@ impl Default for TextIntelSettings {
     }
 }
 
-impl TextIntelSettings {
-    pub fn from_value(value: &Value) -> Self {
+impl From<RawSettings> for TextIntelSettings {
+    fn from(raw: RawSettings) -> Self {
         let defaults = Self::default();
-        let object = value.as_object();
-        let get = |key: &str| object.and_then(|object| object.get(key));
         Self {
-            analyze_comments: get_bool(get("analyzeComments"), defaults.analyze_comments),
-            analyze_nicknames: get_bool(get("analyzeNicknames"), defaults.analyze_nicknames),
-            analyze_usernames: get_bool(get("analyzeUsernames"), defaults.analyze_usernames),
-            unicode_normalization: get_bool(
-                get("unicodeNormalization"),
-                defaults.unicode_normalization,
-            ),
-            language_detection: get_bool(get("languageDetection"), defaults.language_detection),
-            rebus: get_bool(get("rebus"), defaults.rebus),
-            obfuscation: get_bool(get("obfuscation"), defaults.obfuscation),
-            spam: get_bool(get("spam"), defaults.spam),
-            phonetic: get_bool(get("phonetic"), defaults.phonetic),
-            tts_candidate: get_bool(get("ttsCandidate"), defaults.tts_candidate),
-            engine_mode: get("engineMode")
-                .and_then(Value::as_str)
+            analyze_comments: raw.analyze_comments.unwrap_or(defaults.analyze_comments),
+            analyze_nicknames: raw.analyze_nicknames.unwrap_or(defaults.analyze_nicknames),
+            analyze_usernames: raw.analyze_usernames.unwrap_or(defaults.analyze_usernames),
+            unicode_normalization: raw
+                .unicode_normalization
+                .unwrap_or(defaults.unicode_normalization),
+            language_detection: raw
+                .language_detection
+                .unwrap_or(defaults.language_detection),
+            rebus: raw.rebus.unwrap_or(defaults.rebus),
+            obfuscation: raw.obfuscation.unwrap_or(defaults.obfuscation),
+            spam: raw.spam.unwrap_or(defaults.spam),
+            phonetic: raw.phonetic.unwrap_or(defaults.phonetic),
+            tts_candidate: raw.tts_candidate.unwrap_or(defaults.tts_candidate),
+            engine_mode: raw
+                .engine_mode
+                .as_deref()
                 .map(EngineMode::parse)
                 .unwrap_or(defaults.engine_mode),
-            minimum_tts_confidence: get_confidence(
-                get("minimumTtsConfidence"),
+            minimum_tts_confidence: clamp_confidence(
+                raw.minimum_tts_confidence,
                 defaults.minimum_tts_confidence,
             ),
-            minimum_rebus_confidence: get_confidence(
-                get("minimumRebusConfidence"),
+            minimum_rebus_confidence: clamp_confidence(
+                raw.minimum_rebus_confidence,
                 defaults.minimum_rebus_confidence,
             ),
-            max_input_chars: get("maxInputChars")
-                .and_then(Value::as_u64)
+            max_input_chars: raw
+                .max_input_chars
                 .map(|value| value.clamp(1, 4_000) as usize)
                 .unwrap_or(defaults.max_input_chars),
-            emoji_mode: get("emojiMode")
-                .and_then(Value::as_str)
+            emoji_mode: raw
+                .emoji_mode
+                .as_deref()
                 .map(EmojiMode::parse)
                 .unwrap_or(defaults.emoji_mode),
         }
+    }
+}
+
+impl TextIntelSettings {
+    pub fn from_value(value: &Value) -> Self {
+        RawSettings::deserialize(value)
+            .map(Self::from)
+            .unwrap_or_default()
     }
 
     /// Revision covering every setting that changes analysis output. The
@@ -181,13 +236,8 @@ fn ordered_float_bits(value: f64) -> u64 {
     }
 }
 
-fn get_bool(value: Option<&Value>, default: bool) -> bool {
-    value.and_then(Value::as_bool).unwrap_or(default)
-}
-
-fn get_confidence(value: Option<&Value>, default: f64) -> f64 {
+fn clamp_confidence(value: Option<f64>, default: f64) -> f64 {
     value
-        .and_then(Value::as_f64)
         .filter(|value| value.is_finite())
         .map(|value| value.clamp(0.0, 1.0))
         .unwrap_or(default)
@@ -230,6 +280,18 @@ mod tests {
         assert_eq!(settings.max_input_chars, 1);
         assert_eq!(settings.engine_mode, EngineMode::ProductionLocalLite);
         assert_eq!(settings.emoji_mode, EmojiMode::Keep);
+    }
+
+    #[test]
+    fn mistyped_and_negative_numbers_fall_back_per_field() {
+        let settings = TextIntelSettings::from_value(&json!({
+            "maxInputChars": -5,
+            "minimumTtsConfidence": true,
+            "analyzeNicknames": 1,
+        }));
+        assert_eq!(settings.max_input_chars, 500);
+        assert_eq!(settings.minimum_tts_confidence, 0.7);
+        assert!(settings.analyze_nicknames);
     }
 
     #[test]

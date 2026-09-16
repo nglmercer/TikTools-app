@@ -8,6 +8,8 @@ use serde_json::{json, Value};
 use textintel::{DecodedCandidate, LanguageCandidate, MessageFingerprint, SymbolInstance};
 use tiktools_plugin_api::{compose_text, strip_emoji};
 
+use tiktools_plugin_sdk::{TextPronunciation, TextView};
+
 use crate::settings::{EmojiMode, TextIntelSettings};
 
 /// Version of this stable mapping. Bumped deliberately when the emitted
@@ -200,6 +202,11 @@ fn obfuscation_value(fingerprint: &MessageFingerprint) -> Value {
 }
 
 fn spam_value(fingerprint: &MessageFingerprint) -> Value {
+    // The engine builder installs HeuristicSpamPredictor by default (a trained
+    // predictor needs an explicit artifact file), so this is the engine's own
+    // predictor, not a fork of it. Patterns stay empty: this offline build
+    // registers no patterns, and `match_patterns`/`detect_spam` would
+    // re-analyze the text just to return that empty set.
     let spam = textintel::predict_spam(fingerprint, &[]);
     let score = clamp01(spam.probability);
     json!({
@@ -331,26 +338,113 @@ fn nickname_tts_value(
                     .unwrap_or(Ordering::Equal)
             })
         {
-            tts["confidence"] = Value::Number(
-                serde_json::Number::from_f64(clamp01(phonetic.confidence))
-                    .unwrap_or(serde_json::Number::from(0)),
+            // Phonetic evidence nests under its own object: it must never
+            // overwrite the spoken selection's language/confidence, which
+            // describe the rendered text, not the pronunciation guess.
+            let mut nested = serde_json::Map::new();
+            nested.insert(
+                "confidence".to_owned(),
+                Value::Number(
+                    serde_json::Number::from_f64(clamp01(phonetic.confidence))
+                        .unwrap_or(serde_json::Number::from(0)),
+                ),
             );
             if !phonetic.language.is_empty() {
-                tts["language"] = Value::String(truncate_str(&phonetic.language, 32));
+                nested.insert(
+                    "language".to_owned(),
+                    Value::String(truncate_str(&phonetic.language, 32)),
+                );
             }
             if let Some(dialect) = phonetic
                 .dialect
                 .as_deref()
                 .filter(|value| !value.is_empty())
             {
-                tts["dialect"] = Value::String(truncate_str(dialect, 32));
+                nested.insert(
+                    "dialect".to_owned(),
+                    Value::String(truncate_str(dialect, 32)),
+                );
             }
             if let Some(ipa) = phonetic.ipa.as_deref().filter(|value| !value.is_empty()) {
-                tts["ipa"] = Value::String(truncate_str(ipa, 256));
+                nested.insert("ipa".to_owned(), Value::String(truncate_str(ipa, 256)));
             }
+            tts["phonetic"] = Value::Object(nested);
         }
     }
     tts
+}
+
+/// Builds the canonical `comment` text view from a comment annotation.
+/// Skip-policy annotations (empty text with `speak: false`) still produce a
+/// view: views are canonical for spoken text, so dropping the view would drop
+/// the policy and let TTS fall back to the raw message.
+pub fn comment_view(annotation: &Value) -> Option<TextView> {
+    let tts = annotation.get("tts")?;
+    let text = tts.get("text").and_then(Value::as_str)?;
+    let speak = tts.get("speak").and_then(Value::as_bool).unwrap_or(true);
+    if text.trim().is_empty() && speak {
+        return None;
+    }
+    let mut view = TextView::new(
+        text,
+        tts.get("source")
+            .and_then(Value::as_str)
+            .unwrap_or("comment"),
+    );
+    view.speak = speak;
+    if let Some(reason) = tts.get("reason").and_then(Value::as_str) {
+        view.reason = Some(reason.to_owned());
+    }
+    if let Some(language) = tts.get("language").and_then(Value::as_str) {
+        view.language = Some(language.to_owned());
+        view.confidence = tts.get("confidence").and_then(Value::as_f64);
+    }
+    Some(view)
+}
+
+/// Builds the canonical `nickname` text view, carrying pronunciation evidence
+/// separately from the spoken text selection.
+pub fn nickname_view(annotation: &Value) -> Option<TextView> {
+    let tts = annotation.get("tts")?;
+    let text = tts.get("text").and_then(Value::as_str)?;
+    if text.trim().is_empty() {
+        return None;
+    }
+    let mut view = TextView::new(
+        text,
+        tts.get("source")
+            .and_then(Value::as_str)
+            .unwrap_or("nickname"),
+    );
+    if let Some(language) = tts.get("language").and_then(Value::as_str) {
+        view.language = Some(language.to_owned());
+        view.confidence = tts.get("confidence").and_then(Value::as_f64);
+    }
+    if let Some(phonetic) = tts.get("phonetic") {
+        let pronunciation = TextPronunciation {
+            ipa: phonetic
+                .get("ipa")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            language: phonetic
+                .get("language")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            dialect: phonetic
+                .get("dialect")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            confidence: phonetic.get("confidence").and_then(Value::as_f64),
+        };
+        if pronunciation.ipa.is_some()
+            || pronunciation.language.is_some()
+            || pronunciation.dialect.is_some()
+            || pronunciation.confidence.is_some()
+        {
+            view.pronunciation = Some(pronunciation);
+        }
+    }
+    Some(view)
 }
 
 pub fn apply_emoji_mode(text: &str, mode: EmojiMode, symbols: &[SymbolInstance]) -> String {

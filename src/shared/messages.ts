@@ -174,7 +174,7 @@ export type PageMessage =
   | { type: 'get-plugin-settings'; id: string }
   | { type: 'save-plugin-settings'; id: string; values: PluginSettingValues }
   | { type: 'get-action-options'; source: string }
-  | { type: 'test-processor'; pluginId: string; processorId: string; event: LiveEvent }
+  | { type: 'test-processor'; pluginId: string; processorId: string; event: AutomationEvent }
   | { type: 'get-processor-status' };
 
 export type GiftCatalogEntry = {
@@ -288,6 +288,7 @@ export type ProcessorStatusMetrics = {
   failures: number;
   timeouts: number;
   skippedCircuitOpen: number;
+  skippedOverloaded: number;
   averageLatencyMs: number;
   maxLatencyMs: number;
   lastError?: string;
@@ -299,6 +300,7 @@ export type ProcessorStatusEntry = {
   processorId: string;
   eventTypes: string[];
   timeoutMs: number;
+  priority: number;
   status: 'ready' | 'disabled' | 'unavailable' | 'degraded' | 'circuit-open';
   metrics: ProcessorStatusMetrics;
 };

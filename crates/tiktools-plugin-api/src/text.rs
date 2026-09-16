@@ -8,15 +8,20 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use unicode_segmentation::UnicodeSegmentation;
 
 /// Deterministic composition evidence for one text. All fields are directly
 /// observable; nothing here claims intent.
+///
+/// Emoji is counted in user-perceived grapheme clusters: `❤️` and `👨‍👩‍👧`
+/// each count as one emoji, and `emoji_only` requires every cluster to be
+/// emoji or whitespace (so `😂!!!` is not emoji-only).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct TextComposition {
     pub emoji_only: bool,
     pub emoji_count: usize,
-    /// `emoji_count / max(1, non-whitespace characters)`.
+    /// `emoji_count / max(1, non-whitespace grapheme clusters)`.
     pub emoji_ratio: f64,
     pub letters: usize,
     pub digits: usize,
@@ -44,24 +49,38 @@ const SEQUENCE_REPEAT_THRESHOLD: usize = 4;
 
 pub fn compose_text(text: &str) -> TextComposition {
     let chars: Vec<char> = text.chars().collect();
-    let keycap_bases = keycap_base_indices(&chars);
-    let mut emoji_count = 0_usize;
+    let mut emoji_clusters = 0_usize;
+    let mut non_whitespace_clusters = 0_usize;
+    let mut non_emoji_content = false;
+    for cluster in text.graphemes(true) {
+        let cluster_chars: Vec<char> = cluster.chars().collect();
+        // A keycap cluster (`1` in `1️⃣`) is emoji presentation: the
+        // enclosing mark makes the whole cluster emoji-bearing.
+        let emoji_bearing = cluster_chars.contains(&'\u{20E3}')
+            || cluster_chars.iter().any(|character| is_emoji(*character));
+        let whitespace_only = cluster_chars
+            .iter()
+            .all(|character| character.is_whitespace());
+        if emoji_bearing {
+            emoji_clusters += 1;
+        }
+        if !whitespace_only {
+            non_whitespace_clusters += 1;
+        }
+        if !emoji_bearing && !whitespace_only {
+            non_emoji_content = true;
+        }
+    }
+
     let mut letters = 0_usize;
     let mut digits = 0_usize;
     let mut whitespace = 0_usize;
     let mut punctuation = 0_usize;
     let mut has_uppercase = false;
     let mut has_lowercase = false;
-    let mut non_whitespace = 0_usize;
-
-    for (index, character) in chars.iter().copied().enumerate() {
-        if is_emoji(character) || keycap_bases.contains(&index) {
-            emoji_count += 1;
-        }
+    for character in chars.iter().copied() {
         if character.is_whitespace() {
             whitespace += 1;
-        } else {
-            non_whitespace += 1;
         }
         if character.is_alphabetic() {
             letters += 1;
@@ -72,8 +91,7 @@ pub fn compose_text(text: &str) -> TextComposition {
                 has_lowercase = true;
             }
         }
-        // A keycap base (`1` in `1️⃣`) is emoji presentation, not digit text.
-        if character.is_numeric() && !keycap_bases.contains(&index) {
+        if character.is_numeric() {
             digits += 1;
         }
         if is_punctuation(character) {
@@ -81,17 +99,17 @@ pub fn compose_text(text: &str) -> TextComposition {
         }
     }
 
-    let emoji_only = emoji_count > 0 && letters == 0 && digits == 0;
-    let emoji_ratio = if non_whitespace == 0 {
+    let emoji_only = emoji_clusters > 0 && !non_emoji_content;
+    let emoji_ratio = if non_whitespace_clusters == 0 {
         0.0
     } else {
-        emoji_count as f64 / non_whitespace as f64
+        emoji_clusters as f64 / non_whitespace_clusters as f64
     };
     let (elongated, repetition_score) = repetition_evidence(&chars);
 
     TextComposition {
         emoji_only,
-        emoji_count,
+        emoji_count: emoji_clusters,
         emoji_ratio,
         letters,
         digits,
@@ -131,29 +149,6 @@ fn is_emoji(character: char) -> bool {
         | '\u{20E3}' // combining enclosing keycap
         | '\u{E0020}'..='\u{E007F}' // tag characters
     )
-}
-
-/// Indices of keycap base characters (`0-9`, `*`, `#`) that are followed
-/// by the combining enclosing keycap (U+20E3), with an optional variation
-/// selector between. Those bases render as one emoji keycap.
-fn keycap_base_indices(chars: &[char]) -> std::collections::BTreeSet<usize> {
-    let mut bases = std::collections::BTreeSet::new();
-    for (index, character) in chars.iter().copied().enumerate() {
-        if !matches!(character, '0'..='9' | '*' | '#') {
-            continue;
-        }
-        let mut next = index + 1;
-        if chars
-            .get(next)
-            .is_some_and(|next| matches!(next, '\u{FE00}'..='\u{FE0F}'))
-        {
-            next += 1;
-        }
-        if chars.get(next) == Some(&'\u{20E3}') {
-            bases.insert(index);
-        }
-    }
-    bases
 }
 
 fn is_punctuation(character: char) -> bool {
@@ -279,27 +274,58 @@ fn count_mentions(text: &str) -> usize {
     count
 }
 
-/// Provider-neutral TTS input resolved from one event.
+/// Provider-neutral TTS input resolved from one event. Consumers must honor
+/// `speak`: a resolved text with `speak == false` is an explicit instruction
+/// not to speak (for example an emoji-only message under a skip policy), and
+/// must never fall back to raw text.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedText {
     pub text: String,
     pub language: Option<String>,
     pub confidence: Option<f64>,
-    /// Where `text` came from: `intel`, `normalized`, or `raw`.
+    /// Where `text` came from: the view source, `intel`, or `raw`.
     pub source: String,
+    pub speak: bool,
+    pub reason: Option<String>,
     pub ipa: Option<String>,
 }
 
-/// Resolves the speakable comment: `event.intel.comment.tts.text` when a
-/// processor supplied one, otherwise the raw `event.data.comment`. Always
-/// succeeds while the raw comment exists, so TTS works with no processor.
-pub fn resolve_comment_tts(event: &Value) -> Option<ResolvedText> {
-    let tts = event.pointer("/intel/comment/tts");
+/// One TTS lookup: the projected intel view first, then raw fallbacks.
+#[derive(Debug, Clone, Copy)]
+pub struct TextResolutionSpec<'a> {
+    pub intel_path: &'a str,
+    pub fallbacks: &'a [&'a str],
+}
+
+/// Resolves speakable text from one event: the projected intel TTS view when
+/// a processor supplied one, otherwise the first non-empty raw fallback.
+/// Always succeeds while a fallback exists, so TTS works with no processor.
+pub fn resolve_text(event: &Value, spec: TextResolutionSpec<'_>) -> Option<ResolvedText> {
+    let tts = event.pointer(spec.intel_path);
+    if tts
+        .and_then(|tts| tts.get("speak"))
+        .and_then(Value::as_bool)
+        == Some(false)
+    {
+        return Some(ResolvedText {
+            text: String::new(),
+            language: None,
+            confidence: None,
+            source: "intel".to_owned(),
+            speak: false,
+            reason: tts
+                .and_then(|tts| tts.get("reason"))
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned),
+            ipa: None,
+        });
+    }
     if let Some(text) = tts
         .and_then(|tts| tts.get("text"))
         .and_then(Value::as_str)
         .filter(|text| !text.trim().is_empty())
     {
+        let pronunciation = tts.and_then(|tts| tts.get("pronunciation"));
         return Some(ResolvedText {
             text: text.to_owned(),
             language: tts
@@ -309,21 +335,46 @@ pub fn resolve_comment_tts(event: &Value) -> Option<ResolvedText> {
             confidence: tts
                 .and_then(|tts| tts.get("confidence"))
                 .and_then(Value::as_f64),
-            source: "intel".to_owned(),
-            ipa: None,
+            source: tts
+                .and_then(|tts| tts.get("source"))
+                .and_then(Value::as_str)
+                .unwrap_or("intel")
+                .to_owned(),
+            speak: true,
+            reason: None,
+            ipa: pronunciation
+                .and_then(|pronunciation| pronunciation.get("ipa"))
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned),
         });
     }
-    event
-        .pointer("/data/comment")
-        .and_then(Value::as_str)
-        .filter(|text| !text.is_empty())
-        .map(|text| ResolvedText {
-            text: text.to_owned(),
-            language: None,
-            confidence: None,
-            source: "raw".to_owned(),
-            ipa: None,
-        })
+    spec.fallbacks.iter().find_map(|path| {
+        event
+            .pointer(path)
+            .and_then(Value::as_str)
+            .filter(|text| !text.is_empty())
+            .map(|text| ResolvedText {
+                text: text.to_owned(),
+                language: None,
+                confidence: None,
+                source: "raw".to_owned(),
+                speak: true,
+                reason: None,
+                ipa: None,
+            })
+    })
+}
+
+/// Resolves the speakable comment: `event.intel.comment.tts` when a
+/// processor supplied one, otherwise the raw `event.data.comment`.
+pub fn resolve_comment_tts(event: &Value) -> Option<ResolvedText> {
+    resolve_text(
+        event,
+        TextResolutionSpec {
+            intel_path: "/intel/comment/tts",
+            fallbacks: &["/data/comment"],
+        },
+    )
 }
 
 /// Resolves the speakable viewer name: `event.intel.user.nickname.tts` when
@@ -331,47 +382,13 @@ pub fn resolve_comment_tts(event: &Value) -> Option<ResolvedText> {
 /// the stable `event.user.uniqueId` handle. Identity is never rewritten;
 /// only the spoken rendering is resolved.
 pub fn resolve_nickname_tts(event: &Value) -> Option<ResolvedText> {
-    let tts = event.pointer("/intel/user/nickname/tts");
-    if let Some(text) = tts
-        .and_then(|tts| tts.get("text"))
-        .and_then(Value::as_str)
-        .filter(|text| !text.trim().is_empty())
-    {
-        return Some(ResolvedText {
-            text: text.to_owned(),
-            language: tts
-                .and_then(|tts| tts.get("language"))
-                .and_then(Value::as_str)
-                .map(ToOwned::to_owned),
-            confidence: tts
-                .and_then(|tts| tts.get("confidence"))
-                .and_then(Value::as_f64),
-            source: "intel".to_owned(),
-            ipa: tts
-                .and_then(|tts| tts.get("ipa"))
-                .and_then(Value::as_str)
-                .map(ToOwned::to_owned),
-        });
-    }
-    event
-        .pointer("/user/nickname")
-        .and_then(Value::as_str)
-        .filter(|text| !text.is_empty())
-        .map(|text| (text, "raw"))
-        .or_else(|| {
-            event
-                .pointer("/user/uniqueId")
-                .and_then(Value::as_str)
-                .filter(|text| !text.is_empty())
-                .map(|text| (text, "raw"))
-        })
-        .map(|(text, source)| ResolvedText {
-            text: text.to_owned(),
-            language: None,
-            confidence: None,
-            source: source.to_owned(),
-            ipa: None,
-        })
+    resolve_text(
+        event,
+        TextResolutionSpec {
+            intel_path: "/intel/user/nickname/tts",
+            fallbacks: &["/user/nickname", "/user/uniqueId"],
+        },
+    )
 }
 
 #[cfg(test)]
@@ -385,13 +402,25 @@ mod tests {
         {
             assert!(compose_text(text).emoji_only, "{text}");
         }
-        for text in ["hello 😂", "123 😂", "", "   ", "hello"] {
+        // Any non-emoji cluster — letters, digits, even punctuation —
+        // disqualifies emoji-only.
+        for text in ["hello 😂", "123 😂", "", "   ", "hello", "😂!!!", "😂?"] {
             assert!(!compose_text(text).emoji_only, "{text}");
         }
         let composition = compose_text("hola 😂");
         assert_eq!(composition.emoji_count, 1);
         assert!((composition.emoji_ratio - 0.2).abs() < f64::EPSILON);
         assert_eq!(composition.letters, 4);
+    }
+
+    #[test]
+    fn counts_user_perceived_emoji_graphemes() {
+        assert_eq!(compose_text("❤️").emoji_count, 1);
+        assert_eq!(compose_text("👨\u{200d}👩\u{200d}👧").emoji_count, 1);
+        assert_eq!(compose_text("1️⃣").emoji_count, 1);
+        assert_eq!(compose_text("😂😂😂").emoji_count, 3);
+        assert_eq!(compose_text("😂 😂").emoji_count, 2);
+        assert_eq!(compose_text("plain").emoji_count, 0);
     }
 
     #[test]
@@ -446,14 +475,15 @@ mod tests {
             "user": {"uniqueId": "j0se_92", "nickname": "J0sé"},
             "data": {"comment": "HOOOLAAA 😂😂"},
             "intel": {
-                "comment": {"tts": {"text": "Hola", "language": "es", "confidence": 0.84}},
-                "user": {"nickname": {"tts": {"text": "José", "language": "es", "confidence": 0.86, "ipa": "xoˈse"}}},
+                "comment": {"tts": {"text": "Hola", "language": "es", "confidence": 0.84, "source": "spoken"}},
+                "user": {"nickname": {"tts": {"text": "José", "language": "es", "confidence": 0.86, "pronunciation": {"ipa": "xoˈse"}}}},
             },
         });
         let comment = resolve_comment_tts(&enriched).unwrap();
         assert_eq!(comment.text, "Hola");
         assert_eq!(comment.language.as_deref(), Some("es"));
-        assert_eq!(comment.source, "intel");
+        assert_eq!(comment.source, "spoken");
+        assert!(comment.speak);
         let nickname = resolve_nickname_tts(&enriched).unwrap();
         assert_eq!(nickname.text, "José");
         assert_eq!(nickname.ipa.as_deref(), Some("xoˈse"));
@@ -473,5 +503,15 @@ mod tests {
         let handle_only = json!({"user": {"uniqueId": "j0se_92"}, "data": {}});
         assert_eq!(resolve_nickname_tts(&handle_only).unwrap().text, "j0se_92");
         assert!(resolve_comment_tts(&handle_only).is_none());
+
+        // An explicit skip never falls back to raw text.
+        let skipped = json!({
+            "data": {"comment": "😂😂😂"},
+            "intel": {"comment": {"tts": {"text": "", "speak": false, "reason": "emoji-only"}}},
+        });
+        let resolved = resolve_comment_tts(&skipped).unwrap();
+        assert!(!resolved.speak);
+        assert_eq!(resolved.text, "");
+        assert_eq!(resolved.reason.as_deref(), Some("emoji-only"));
     }
 }

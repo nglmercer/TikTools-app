@@ -250,6 +250,9 @@ impl PluginCall {
 /// annotations the host merges under the reserved `intel` namespace.
 /// `settings` carries the plugin's host-rendered settings object so
 /// processors stay configurable on every runtime without file access.
+/// `inputs` carries the descriptor-declared event paths resolved by the host
+/// (`role -> value`); `None` means an older host that never resolved them,
+/// in which case the processor falls back to reading event pointers.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct EventEnrichmentRequest {
@@ -257,6 +260,8 @@ pub struct EventEnrichmentRequest {
     pub event: Value,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub settings: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inputs: Option<BTreeMap<String, Value>>,
 }
 
 impl EventEnrichmentRequest {
@@ -265,12 +270,27 @@ impl EventEnrichmentRequest {
             processor_id: processor_id.into(),
             event,
             settings: Value::Null,
+            inputs: None,
         }
     }
 
     pub fn settings(mut self, settings: Value) -> Self {
         self.settings = settings;
         self
+    }
+
+    pub fn inputs(mut self, inputs: BTreeMap<String, Value>) -> Self {
+        self.inputs = Some(inputs);
+        self
+    }
+
+    /// Resolves one input role: the host-resolved value when present,
+    /// otherwise the legacy event pointer.
+    pub fn input(&self, role: &str, legacy_pointer: &str) -> Option<&Value> {
+        if let Some(inputs) = &self.inputs {
+            return inputs.get(role);
+        }
+        self.event.pointer(legacy_pointer)
     }
 }
 
@@ -288,8 +308,11 @@ pub struct EventEnrichmentResult {
 }
 
 /// One normalized/spoken text view: the derived text plus the evidence a
-/// consumer needs to decide whether to trust it (language, confidence,
-/// source, optional pronunciation).
+/// consumer needs to decide whether to trust it. `language`/`confidence`
+/// describe text selection; pronunciation evidence lives separately under
+/// `pronunciation` so the two confidences never mix. Views are the canonical
+/// processor contribution for spoken text: the host projects the selected
+/// view into `event.intel.*.tts`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct TextView {
@@ -299,8 +322,34 @@ pub struct TextView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence: Option<f64>,
     pub source: String,
+    #[serde(default = "default_view_speak", skip_serializing_if = "is_view_speak")]
+    pub speak: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pronunciation: Option<TextPronunciation>,
+}
+
+/// Pronunciation evidence for one text view, independent of text selection.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TextPronunciation {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ipa: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dialect: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f64>,
+}
+
+fn default_view_speak() -> bool {
+    true
+}
+
+fn is_view_speak(speak: &bool) -> bool {
+    *speak
 }
 
 impl TextView {
@@ -310,7 +359,9 @@ impl TextView {
             language: None,
             confidence: None,
             source: source.into(),
-            ipa: None,
+            speak: true,
+            reason: None,
+            pronunciation: None,
         }
     }
 
@@ -320,8 +371,14 @@ impl TextView {
         self
     }
 
-    pub fn ipa(mut self, ipa: impl Into<String>) -> Self {
-        self.ipa = Some(ipa.into());
+    pub fn pronunciation(mut self, pronunciation: TextPronunciation) -> Self {
+        self.pronunciation = Some(pronunciation);
+        self
+    }
+
+    pub fn no_speak(mut self, reason: impl Into<String>) -> Self {
+        self.speak = false;
+        self.reason = Some(reason.into());
         self
     }
 }
@@ -936,15 +993,65 @@ fn decode_enrichment_views(
                 message: "view confidence must be within 0.0..=1.0".to_owned(),
             });
         }
-        if view.ipa.as_ref().is_some_and(|ipa| ipa.len() > 256) {
+        if view
+            .reason
+            .as_ref()
+            .is_some_and(|reason| reason.len() > 128)
+        {
             return Err(PluginProtocolError::InvalidValue {
                 field: "views",
-                message: "view ipa is longer than 256 characters".to_owned(),
+                message: "view reason is longer than 128 characters".to_owned(),
             });
+        }
+        if let Some(pronunciation) = &view.pronunciation {
+            decode_view_pronunciation(pronunciation)?;
         }
         views.insert(name.clone(), view);
     }
     Ok(views)
+}
+
+fn decode_view_pronunciation(pronunciation: &TextPronunciation) -> Result<(), PluginProtocolError> {
+    if pronunciation
+        .ipa
+        .as_ref()
+        .is_some_and(|ipa| ipa.len() > 256)
+    {
+        return Err(PluginProtocolError::InvalidValue {
+            field: "views",
+            message: "view ipa is longer than 256 characters".to_owned(),
+        });
+    }
+    if pronunciation
+        .language
+        .as_ref()
+        .is_some_and(|language| language.is_empty() || language.len() > 32)
+    {
+        return Err(PluginProtocolError::InvalidValue {
+            field: "views",
+            message: "view pronunciation language must be 1..=32 characters".to_owned(),
+        });
+    }
+    if pronunciation
+        .dialect
+        .as_ref()
+        .is_some_and(|dialect| dialect.is_empty() || dialect.len() > 32)
+    {
+        return Err(PluginProtocolError::InvalidValue {
+            field: "views",
+            message: "view pronunciation dialect must be 1..=32 characters".to_owned(),
+        });
+    }
+    if pronunciation
+        .confidence
+        .is_some_and(|confidence| !confidence.is_finite() || !(0.0..=1.0).contains(&confidence))
+    {
+        return Err(PluginProtocolError::InvalidValue {
+            field: "views",
+            message: "view pronunciation confidence must be within 0.0..=1.0".to_owned(),
+        });
+    }
+    Ok(())
 }
 
 fn decode_enrichment_logs(value: Option<&Value>) -> Result<Vec<String>, PluginProtocolError> {
@@ -1190,9 +1297,16 @@ pub mod prelude {
         tiktools_export_native_plugin, tiktools_process_plugin, ActionCall, ActionResult,
         AudioPlayIntent, EmitIntent, EventEnrichmentRequest, EventEnrichmentResult, HostIntent,
         Plugin, PluginCall, PluginCallResult, PluginContext, PluginError, PluginEvent,
-        PluginIdentity, PluginResult, PollResult, TextView,
+        PluginIdentity, PluginResult, PollResult, TextPronunciation, TextView,
     };
-    pub use tiktools_plugin_api::{AudioOverlap, MediaFileRef};
+    pub use tiktools_plugin_api::{
+        intel::{
+            EventIntel, IntelComment, IntelComposition, IntelHandle, IntelLanguage,
+            IntelLanguageCandidate, IntelNickname, IntelObfuscation, IntelPronunciation,
+            IntelRebus, IntelSpam, IntelTts, IntelUnicode, IntelUser,
+        },
+        AudioOverlap, MediaFileRef,
+    };
 }
 
 #[cfg(test)]
@@ -1469,5 +1583,104 @@ mod tests {
             "futureField": {"nested": true}
         }))
         .is_ok());
+    }
+
+    #[test]
+    fn views_carry_pronunciation_and_speak_policy_with_bounds() {
+        let decoded = decode_enrichment_result(serde_json::json!({
+            "views": {
+                "nickname": {
+                    "text": "José",
+                    "language": "es",
+                    "confidence": 0.9,
+                    "source": "spoken",
+                    "pronunciation": {
+                        "ipa": "xoˈse",
+                        "language": "es",
+                        "dialect": "es-ES",
+                        "confidence": 0.8,
+                    },
+                },
+                "skipped": {"text": "", "source": "policy", "speak": false, "reason": "emoji-only"},
+            },
+        }))
+        .unwrap();
+        let nickname = &decoded.views["nickname"];
+        assert!(nickname.speak);
+        assert_eq!(
+            nickname
+                .pronunciation
+                .as_ref()
+                .and_then(|pronunciation| pronunciation.ipa.as_deref()),
+            Some("xoˈse")
+        );
+        // Selection confidence and pronunciation confidence stay separate.
+        assert_eq!(nickname.confidence, Some(0.9));
+        assert_eq!(
+            nickname
+                .pronunciation
+                .as_ref()
+                .and_then(|pronunciation| pronunciation.confidence),
+            Some(0.8)
+        );
+        let skipped = &decoded.views["skipped"];
+        assert!(!skipped.speak);
+        assert_eq!(skipped.reason.as_deref(), Some("emoji-only"));
+
+        // Missing speak defaults to true for older producers.
+        let legacy = decode_enrichment_result(serde_json::json!({
+            "views": {"tts": {"text": "hi", "source": "raw"}},
+        }))
+        .unwrap();
+        assert!(legacy.views["tts"].speak);
+
+        // Pronunciation bounds are enforced.
+        assert!(decode_enrichment_result(serde_json::json!({
+            "views": {"tts": {"text": "hi", "source": "raw",
+                "pronunciation": {"confidence": 2.0}}},
+        }))
+        .is_err());
+        assert!(decode_enrichment_result(serde_json::json!({
+            "views": {"tts": {"text": "hi", "source": "raw",
+                "pronunciation": {"dialect": ""}}},
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn request_inputs_resolve_roles_with_legacy_pointer_fallback() {
+        let event = serde_json::json!({
+            "data": {"comment": "legacy"},
+            "user": {"nickname": "Legacy"},
+        });
+        let legacy = EventEnrichmentRequest::new("demo.analyze", event.clone());
+        assert_eq!(
+            legacy
+                .input("message", "/data/comment")
+                .and_then(Value::as_str),
+            Some("legacy")
+        );
+        let mut inputs = BTreeMap::new();
+        inputs.insert("message".to_owned(), serde_json::json!("resolved"));
+        let resolved = EventEnrichmentRequest::new("demo.analyze", event).inputs(inputs);
+        assert_eq!(
+            resolved
+                .input("message", "/data/comment")
+                .and_then(Value::as_str),
+            Some("resolved")
+        );
+        // A host that resolved inputs owns them: unresolvable roles stay
+        // absent instead of silently reading other pointers.
+        assert!(resolved.input("display-name", "/user/nickname").is_none());
+        // Inputs round-trip through the wire envelope.
+        let value = serde_json::to_value(PluginCall::enrich(resolved.clone())).unwrap();
+        assert_eq!(value["request"]["inputs"]["message"], "resolved");
+        assert_eq!(
+            serde_json::from_value::<PluginCall>(value)
+                .unwrap()
+                .into_enrich()
+                .unwrap(),
+            resolved
+        );
     }
 }
