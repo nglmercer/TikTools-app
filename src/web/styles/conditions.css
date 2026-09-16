@@ -1,0 +1,193 @@
+/* ==========================================================================
+   CONDITIONS — the compact table: field from a list, comparison with its
+   symbol, and a value editor that matches the field's type.
+   ========================================================================== */
+
+.plg-cond { display: flex; flex-direction: column; gap: 8px; }
+.plg-cond__head { display: none; }
+.plg-cond__empty { margin: 0; }
+
+.plg-cond__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--plg-line);
+  border-radius: 10px;
+  background: var(--plg-surface);
+}
+.plg-cond__row > .plg-cond__cell { grid-column: 1; }
+.plg-cond__row > .plg-iconbtn { grid-column: 2; grid-row: 1; }
+.plg-cond__row > .plg-cond__custom,
+.plg-cond__row > .plg-cond__err { grid-column: 1 / -1; }
+
+.plg-cond__cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.plg-cond__cell > .ui-icon-select { flex: 1; }
+.plg-cond__cell--value { min-width: 0; }
+.plg-cond__select { flex: 1; min-width: 0; }
+.plg-cond__cell--value > .plg-input,
+.plg-cond__cell--value > .plg-cond__pick,
+.plg-cond__cell--value > .plg-cond__list { flex: 1; min-width: 0; }
+
+/* The value editor for a gift or a viewer: opens its picker. */
+.plg-cond__pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--plg-line-strong);
+  border-radius: 8px;
+  background: var(--plg-field);
+  color: var(--plg-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.plg-cond__pick:hover { transform: none; border-color: var(--plg-accent); }
+.plg-cond__pick:active { transform: none; }
+.plg-cond__pick.is-missing,
+.plg-input.is-missing { border-color: rgba(239, 71, 111, 0.55); color: var(--plg-err); }
+.plg-cond__fixed { font-size: 12.5px; font-weight: 600; color: var(--plg-muted); }
+.plg-cond__list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.plg-cond__cell--value > .plg-cond__option-value { flex: 1; min-width: 0; }
+.plg-cond__option-value { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.plg-cond__option-value > .ui-icon-select { flex: 1; min-width: 0; }
+.plg-cond__record {
+  flex-shrink: 0; width: 38px; height: 38px; border-radius: 8px;
+  border: 1px solid var(--plg-line-strong); background: var(--plg-field);
+  color: var(--plg-muted); font-size: 15px; line-height: 1; cursor: pointer;
+}
+.plg-cond__record:hover { border-color: var(--plg-accent); color: var(--plg-text); transform: none; }
+.plg-cond__record:focus-visible { outline: 2px solid var(--plg-accent); outline-offset: 1px; }
+.plg-cond__record.is-armed { border-color: var(--plg-err); color: var(--plg-err); animation: plg-record-pulse 1s infinite; }
+@keyframes plg-record-pulse { 50% { box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.25); } }
+.plg-cond__list .plg-input { flex: 1 1 120px; min-width: 0; }
+.plg-cond__err { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--plg-err); }
+
+@media (min-width: 720px) {
+  .plg-cond { gap: 6px; }
+  .plg-cond__head {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 190px) minmax(0, 1fr) 32px;
+    gap: 8px;
+    padding: 0 2px 2px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--plg-dim);
+  }
+  .plg-cond__head > span { display: flex; align-items: center; gap: 4px; }
+  .plg-cond__row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 190px) minmax(0, 1fr) 32px;
+    padding: 8px;
+    border-color: transparent;
+    background: transparent;
+  }
+  .plg-cond__row > .plg-cond__cell { grid-column: auto; }
+  .plg-cond__row > .plg-iconbtn { grid-column: 4; }
+  .plg-cond__pick { height: 36px; }
+}
+
+/* ---- picker modal: searchable list with a picture per row ---- */
+.ui-picker { width: min(100%, 560px); }
+.ui-picker__tools { padding-bottom: 10px; }
+.ui-picker__tools .plg-input { width: 100%; }
+.ui-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px;
+}
+.ui-picker__item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.ui-picker__item:hover { transform: none; background: rgba(127, 127, 127, 0.09); }
+.ui-picker__item:active { transform: none; }
+.ui-picker__item.is-active { border-color: var(--tt-pink); }
+.ui-picker__item:focus-visible { outline: 2px solid var(--tt-pink); outline-offset: -2px; }
+.ui-picker__thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text-muted);
+  overflow: hidden;
+}
+.ui-picker__thumb img { width: 100%; height: 100%; object-fit: contain; padding: 2px; }
+.ui-picker__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ui-picker__label { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-picker__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.ui-picker__meta svg { color: var(--tt-cyan); }
+.ui-picker__hint { font-size: 11px; color: var(--text-muted); }
+.ui-picker__check { margin-left: auto; color: var(--tt-pink); font-weight: 700; }
+.ui-picker__empty { margin: 12px 6px; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+.ui-picker__manual { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; }
+.ui-picker__manual-row { display: flex; gap: 8px; }
+.ui-picker__manual-row .plg-input { flex: 1; min-width: 0; }
+.ui-picker__chosen { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 10px; }
+.ui-picker__chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.ui-picker__chip:hover { transform: none; border-color: var(--tt-danger); }
+
+/* The native spinner sat on top of the placeholder, so values type instead. */
+.plg-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.plg-input[type="number"]::-webkit-outer-spin-button,
+.plg-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---- sorting: clickable headers on the table, a control on the cards ---- */
+.plg-sorth {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.plg-sorth:hover { transform: none; color: var(--plg-text); }
+.plg-sorth:active { transform: none; }
+.plg-sorth svg { opacity: 0; }
+.plg-sorth:hover svg { opacity: 0.5; }
+.plg-sorth.is-active { color: var(--plg-text); }
+.plg-sorth.is-active svg { opacity: 1; color: var(--plg-accent); }
+
+.plg-sort { width: 172px; flex: none; }
+@media (min-width: 1180px) {
+  /* The headers sort from 1180px up, so the control would be a second copy. */
+  .plg-sort { display: none; }
+}
+
+/* IconSelect styles live in ui.css under .ui-icon-select (shared UI layer). */

@@ -1,0 +1,94 @@
+use crate::*;
+
+impl AppCore {
+    pub(crate) async fn publish_automation_event(self: &Arc<Self>, event: serde_json::Value) {
+        let enriched = self.enrich_automation_event(event).await;
+        self.remember_automation_event(&enriched);
+        Box::pin(self.run_automation_event(enriched)).await;
+    }
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) fn queue_automation_event(self: &Arc<Self>, event: serde_json::Value) {
+        let event_type = event
+            .get("type")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("unknown");
+        let Ok(permit) = Arc::clone(&self.automation_slots).try_acquire_owned() else {
+            tracing::warn!(
+                event_type,
+                "automation concurrency limit reached; dropping live automation event"
+            );
+            return;
+        };
+        let core = Arc::clone(self);
+        tokio::spawn(async move {
+            // Enrichment runs inside the automation slot so a slow processor
+            // delays only its own event; failures fail open to the raw event.
+            let enriched = core.enrich_automation_event(event).await;
+            core.remember_automation_event(&enriched);
+            Box::pin(core.run_automation_event(enriched)).await;
+            drop(permit);
+        });
+    }
+    pub(crate) fn remember_automation_event(&self, event: &serde_json::Value) {
+        *self
+            .last_automation_event
+            .write()
+            .expect("automation event lock poisoned") = Some(event.clone());
+        *self
+            .last_automation_event_at
+            .write()
+            .expect("automation timestamp lock poisoned") = Some(now_millis());
+        if event.get("type").and_then(Value::as_str) == Some("hotkey.status") {
+            self.emit(HostMessage::HotkeyStatus {
+                status: event.get("data").cloned().unwrap_or_else(|| json!({})),
+            });
+        }
+        self.events.publish(AppEvent::TikTok(event.clone()));
+        let now = now_millis();
+        let last = self
+            .last_automation_context_emit_at
+            .load(std::sync::atomic::Ordering::Acquire);
+        if (last == 0 || now.saturating_sub(last) >= 100)
+            && self
+                .last_automation_context_emit_at
+                .compare_exchange(
+                    last,
+                    now,
+                    std::sync::atomic::Ordering::AcqRel,
+                    std::sync::atomic::Ordering::Acquire,
+                )
+                .is_ok()
+        {
+            self.emit(HostMessage::AutomationContext {
+                event: Some(event.clone()),
+                captured_at: *self
+                    .last_automation_event_at
+                    .read()
+                    .expect("automation timestamp lock poisoned"),
+            });
+        }
+    }
+    pub(crate) async fn publish_disconnected_event(self: &Arc<Self>) {
+        let context = self
+            .connection_context
+            .write()
+            .expect("connection context lock poisoned")
+            .take();
+        let Some(context) = context else { return };
+        #[cfg(feature = "persistence")]
+        self.write_live_session(&context.unique_id, None, false);
+        self.publish_automation_event(
+            self.make_automation_event_with_context(
+                "tiktok.disconnected",
+                serde_json::to_value(crate::contracts::ConnectionAutomationData {
+                    unique_id: context.unique_id.clone(),
+                    room_id: context.room_id.clone(),
+                })
+                .expect("disconnection automation data must serialize"),
+                None,
+                &context,
+            ),
+        )
+        .await;
+    }
+}

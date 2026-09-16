@@ -1,0 +1,127 @@
+.node-editor-event-picker {
+  gap: 12px;
+}
+
+.node-editor-event-picker__selected {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(37, 244, 238, 0.3);
+  border-radius: 9px;
+  background: rgba(37, 244, 238, 0.07);
+}
+
+.node-editor-event-picker__selected-icon {
+  display: inline-flex;
+  color: var(--tt-cyan);
+}
+
+.node-editor-event-picker__selected small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.node-editor-event-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  max-height: 290px;
+  overflow: auto;
+}
+
+.node-editor-event-choice {
+  display: flex;
+  min-height: 45px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.node-editor-event-choice:hover,
+.node-editor-event-choice.is-selected {
+  border-color: var(--line-focus);
+  background: rgba(37, 244, 238, 0.1);
+  color: var(--text);
+}
+
+.node-editor-event-choice__icon,
+.node-editor-add-step__icon,
+.node-editor-node-card__chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.node-editor-picker-groups {
+  max-height: 510px;
+  gap: 14px;
+  overflow: auto;
+}
+
+.node-editor-picker-group {
+  gap: 7px;
+}
+
+.node-editor-picker-group__title {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.node-editor-picker-list {
+  gap: 6px;
+}
+
+.node-editor-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.node-editor-picker-item:hover {
+  border-color: var(--line-focus);
+  background: var(--panel-elevated);
+}
+
+.node-editor-picker-item__main strong {
+  font-size: 12px;
+}
+
+.node-editor-picker-item__main small {
+  overflow: hidden;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .node-editor-canvas {
+    padding: 16px 14px 28px;
+  }
+
+  .node-editor-event-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .node-editor-live-context__fields {
+    grid-template-columns: 1fr;
+  }
+}

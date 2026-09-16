@@ -299,7 +299,12 @@ export function useAppController() {
     }
 
     if (message.type === 'processor-status') processors.value = message.processors;
-    if (message.type === 'processor-test-result') processorTest.value = message;
+    if (message.type === 'processor-test-result') {
+      processorTest.value = message;
+      // Tests feed the same health/metrics counters, so refresh the panel
+      // instead of leaving the pre-test snapshot on screen.
+      send({ type: 'get-processor-status' });
+    }
 
     if (message.type === 'plugin-progress') {
       pluginProgress.value = message;

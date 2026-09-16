@@ -1,0 +1,190 @@
+.node-editor-code-completions {
+  display: flex;
+  max-height: 230px;
+  flex-direction: column;
+  gap: 3px;
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid var(--line-focus);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+}
+
+.node-editor-code-completions button {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) auto minmax(70px, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.node-editor-code-completions button:hover,
+.node-editor-code-completions button.is-selected {
+  border-color: rgba(37, 244, 238, 0.3);
+  background: rgba(37, 244, 238, 0.1);
+  color: var(--text);
+}
+
+.node-editor-code-completions strong {
+  color: var(--tt-cyan);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.node-editor-code-completions span,
+.node-editor-code-completions code {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-editor-code-completions code {
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.node-editor-code-completions > small {
+  padding: 4px 5px 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.node-editor-hover-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 9px;
+  border-left: 2px solid var(--tt-cyan);
+  border-radius: 6px;
+  background: rgba(37, 244, 238, 0.08);
+}
+
+.node-editor-hover-card strong,
+.node-editor-hover-card code {
+  overflow: hidden;
+  color: var(--tt-cyan);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-editor-hover-card span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.node-editor-hover-card pre {
+  max-height: 260px;
+  margin: 2px 0 0;
+  overflow: auto;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.node-editor-config-modal__body {
+  max-height: min(62vh, 560px);
+  overflow: auto;
+  padding: 2px 5px 2px 1px;
+}
+
+.node-editor-live-context {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 10px;
+  border: 1px solid rgba(37, 244, 238, 0.26);
+  border-radius: 10px;
+  background: rgba(37, 244, 238, 0.055);
+}
+
+.node-editor-live-context.is-empty {
+  border-color: var(--line);
+  background: var(--input-bg);
+}
+
+.node-editor-live-context strong {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.node-editor-live-context > span,
+.node-editor-live-context__header small,
+.node-editor-live-context__fields-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.node-editor-live-context__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.node-editor-live-context__header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.node-editor-live-context__fields-label {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.node-editor-live-context__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.node-editor-live-context__field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.node-editor-live-context__field code {
+  overflow: hidden;
+  color: var(--tt-cyan);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-editor-live-context__field span {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+

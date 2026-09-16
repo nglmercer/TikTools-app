@@ -289,6 +289,10 @@ Rules:
 - only `stage: "pre-filter"` and `failureMode: "pass-through"` exist;
 - `timeoutMs` is optional (default 250ms, at most 5000ms) and must stay far
   below the action timeout: processors run on the live-message hot path.
+- the host grants the first call of a process generation cold-start grace
+  (10s floor): building the engine lazily on first enrich is expected, and
+  `timeoutMs` only bounds steady-state calls afterwards. A timed-out process
+  instance is retired so the next call respawns instead of wedging.
 
 The host sends `{"type": "enrich", "request": {processorId, event, settings}}`
 only to plugins that declare `processorTypes` and the `events.enrich`
@@ -373,9 +377,11 @@ analyzes comments and viewer names with a pinned offline textintel engine
 (language, normalization, composition, Unicode, obfuscation, spam, rebus,
 spoken/TTS views, nickname phonetics). Its latency bench
 (`cargo bench --bench processor_latency` from the example directory) keeps
-the 250ms deadline honest: cold first-seen chat measures ~3-25ms with
-~10ms at the 500-character cap on the reference machine, so the default
-deadline holds roughly 10x headroom. Re-run the bench on your target
+the 250ms deadline honest: cache-cold chat with a warm engine measures
+~3-25ms with ~10ms at the 500-character cap on the reference machine, so
+the default deadline holds roughly 10x headroom. The one-time engine build
+itself (hundreds of milliseconds to seconds) is covered by cold-start
+grace, not by `timeoutMs`. Re-run the bench on your target
 hardware before raising `timeoutMs`, and never share the processor process
 with slow model preparation: each plugin instance is served by a single
 worker thread with a bounded queue, so a slow call delays (but never

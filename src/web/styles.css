@@ -14,7 +14,12 @@
 @import "./styles/modal.css";
 @import "./styles/automation.css";
 @import "./styles/node-editor.css";
+@import "./styles/node-editor-overlays.css";
+@import "./styles/node-editor-forms.css";
+@import "./styles/node-editor-pickers.css";
 @import "./styles/plugins.css";
+@import "./styles/behavior.css";
+@import "./styles/conditions.css";
 @import "./styles/action-editor.css";
 @import "./styles/http-editor.css";
 @import "./styles/workflow-templates.css";

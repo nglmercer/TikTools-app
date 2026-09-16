@@ -1,0 +1,153 @@
+.node-editor-template-field {
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  width: 100%;
+  gap: 5px;
+}
+
+/* MUI-style floating label for template inputs: label inside when empty. */
+.node-editor-template-field--float .node-editor-template-control-wrap { position: relative; }
+.node-editor-template-field--float .node-editor-template-control:not(textarea) { height: 48px; padding: 20px 12px 6px; }
+.node-editor-template-field--float .node-editor-template-control--textarea { padding: 22px 12px 8px; }
+.node-editor-float-label {
+  position: absolute; left: 10px; top: 24px; transform: translateY(-50%);
+  display: inline-flex; align-items: center; gap: 4px; max-width: calc(100% - 60px);
+  font-size: 13px; color: var(--text-muted); pointer-events: none;
+  transition: all .15s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.node-editor-template-field--float.is-multiline .node-editor-float-label { top: 24px; }
+.node-editor-template-field--float .node-editor-template-control-wrap:focus-within .node-editor-float-label,
+.node-editor-template-field--float.is-filled .node-editor-float-label {
+  top: 0; transform: translateY(-50%) scale(0.82); transform-origin: left top;
+  background: var(--panel-solid, var(--panel)); padding: 0 5px; border-radius: 4px;
+  color: var(--text-secondary); font-weight: 600; pointer-events: auto;
+}
+.node-editor-template-field--float .node-editor-template-control-wrap:focus-within .node-editor-float-label { color: var(--tt-cyan); }
+
+.node-editor-template-control-wrap {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--input-bg);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.node-editor-template-control-wrap:focus-within {
+  border-color: var(--line-focus);
+  box-shadow: 0 0 0 3px rgba(37, 244, 238, 0.13);
+}
+
+.node-editor-template-control {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.node-editor-template-control:not(textarea) {
+  height: 36px;
+  padding: 0 12px;
+}
+
+.node-editor-template-control--textarea {
+  min-height: 92px;
+  padding: 9px 10px;
+  resize: vertical;
+}
+
+.node-editor-form-textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: none;
+  background: var(--input-bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.node-editor-form-textarea:focus {
+  border-color: var(--line-focus);
+  box-shadow: 0 0 0 3px rgba(37, 244, 238, 0.13);
+}
+
+.node-editor-form-textarea--code {
+  min-height: 230px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  tab-size: 2;
+}
+
+.node-editor-form-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.node-editor-diagnostics {
+  gap: 4px;
+}
+
+.node-editor-diagnostic {
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: rgba(254, 44, 85, 0.1);
+  color: #ff9caf;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+}
+
+.node-editor-diagnostic span {
+  color: var(--text-muted);
+}
+
+.node-editor-wizard-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.node-editor-wizard-steps span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.node-editor-wizard-steps span.is-active,
+.node-editor-wizard-steps span.is-complete {
+  background: var(--tt-cyan);
+  color: #071318;
+}
+
+.node-editor-wizard-steps i {
+  width: 55px;
+  height: 1px;
+  background: var(--line);
+}
+
+.node-editor-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
