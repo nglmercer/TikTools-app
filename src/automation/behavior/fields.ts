@@ -86,11 +86,13 @@ function iconForPath(path: string, kind: FieldValueKind): FieldIcon {
 export function fieldsForTrigger(trigger: string): EventFieldDefinition[] {
   const data: EventFieldDefinition[] = [];
   const identity: EventFieldDefinition[] = [];
+  const intel: EventFieldDefinition[] = [];
   for (const field of registryFieldsFor(trigger)) {
     if (EXCLUDED_PATHS.has(field.path)) continue;
     // Array-element shapes are not filterable scalar fields.
     if (field.path.includes('.0.')) continue;
-    if (!field.path.startsWith('event.data.') && !field.path.startsWith('event.user.')) continue;
+    const isIntel = field.path.startsWith('event.intel.');
+    if (!field.path.startsWith('event.data.') && !field.path.startsWith('event.user.') && !isIntel) continue;
     const kind = kindForPath(field.path, field.kind);
     if (!kind) continue;
     const labelKey = field.i18key ?? `automation.event.field.${field.path}.label`;
@@ -105,9 +107,12 @@ export function fieldsForTrigger(trigger: string): EventFieldDefinition[] {
       hint: { default: hintEn, i18key: hintKey },
     };
     if (field.path.startsWith('event.data.')) data.push(definition);
-    else identity.push(definition);
+    else if (field.path.startsWith('event.user.')) identity.push(definition);
+    else intel.push(definition);
   }
-  return [...data, ...identity];
+  // Enrichment evidence last: optional fields that only exist while a
+  // processor is installed and the event flowed through it.
+  return [...data, ...identity, ...intel];
 }
 
 export function findField(trigger: string, path: string): EventFieldDefinition | undefined {

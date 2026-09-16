@@ -332,6 +332,16 @@ pub enum PageMessage {
     SavePluginSettings { id: String, values: JsonObject },
     #[serde(rename = "get-action-options")]
     GetActionOptions { source: String },
+    #[serde(rename = "test-processor")]
+    TestProcessor {
+        #[serde(rename = "pluginId")]
+        plugin_id: String,
+        #[serde(rename = "processorId")]
+        processor_id: String,
+        event: Value,
+    },
+    #[serde(rename = "get-processor-status")]
+    GetProcessorStatus,
 }
 
 impl PageMessage {
@@ -385,6 +395,8 @@ impl PageMessage {
             Self::GetPluginSettings { .. } => "get-plugin-settings",
             Self::SavePluginSettings { .. } => "save-plugin-settings",
             Self::GetActionOptions { .. } => "get-action-options",
+            Self::TestProcessor { .. } => "test-processor",
+            Self::GetProcessorStatus => "get-processor-status",
         }
     }
 
@@ -470,6 +482,21 @@ impl PageMessage {
                 }
             }
             Self::UninstallPluginPackage { id } => bounded_string(id, "id", 128)?,
+            Self::TestProcessor {
+                plugin_id,
+                processor_id,
+                event,
+            } => {
+                bounded_string(plugin_id, "pluginId", 128)?;
+                bounded_string(processor_id, "processorId", 128)?;
+                if !event.is_object()
+                    || serde_json::to_vec(event)
+                        .map(|bytes| bytes.len() > 256 * 1024)
+                        .unwrap_or(true)
+                {
+                    return Err(IpcMessageError::InvalidField("event"));
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -718,6 +745,21 @@ pub enum HostMessage {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         error: Option<String>,
     },
+    #[serde(rename = "processor-test-result")]
+    ProcessorTestResult {
+        #[serde(rename = "pluginId")]
+        plugin_id: String,
+        #[serde(rename = "processorId")]
+        processor_id: String,
+        ok: bool,
+        #[serde(rename = "durationMs")]
+        duration_ms: u64,
+        result: Value,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
+    #[serde(rename = "processor-status")]
+    ProcessorStatus { processors: Value },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

@@ -317,6 +317,17 @@ impl PluginManager {
         self.call_with_timeout(id, request, std::time::Duration::from_secs(30))
     }
 
+    /// Calls one plugin instance. Instance calls stay serialized behind the
+    /// per-instance mutex, so a slow call blocks later calls to the same
+    /// plugin (including fast pre-filter processors that share the process).
+    /// Keep processor plugins fast and never combine slow model preparation
+    /// with enrichment in one process.
+    ///
+    /// TODO(protocol-v2): lift this without breaking plugins that assume
+    /// single-threaded `&mut self` state. Candidates: (a) multiplexed process
+    /// requests with request/response ids, (b) separate service instances per
+    /// QoS class (realtime processor vs background action vs poll), or (c)
+    /// manifest-declared per-class concurrency.
     pub fn call_with_timeout(
         &self,
         id: &str,

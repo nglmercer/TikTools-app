@@ -644,13 +644,13 @@ impl AppCore {
     }
 
     pub(super) async fn publish_automation_event(self: &Arc<Self>, event: serde_json::Value) {
-        self.remember_automation_event(&event);
-        Box::pin(self.run_automation_event(event)).await;
+        let enriched = self.enrich_automation_event(event).await;
+        self.remember_automation_event(&enriched);
+        Box::pin(self.run_automation_event(enriched)).await;
     }
 
     #[cfg(feature = "native-tiktok")]
     pub(super) fn queue_automation_event(self: &Arc<Self>, event: serde_json::Value) {
-        self.remember_automation_event(&event);
         let event_type = event
             .get("type")
             .and_then(serde_json::Value::as_str)
@@ -664,7 +664,11 @@ impl AppCore {
         };
         let core = Arc::clone(self);
         tokio::spawn(async move {
-            Box::pin(core.run_automation_event(event)).await;
+            // Enrichment runs inside the automation slot so a slow processor
+            // delays only its own event; failures fail open to the raw event.
+            let enriched = core.enrich_automation_event(event).await;
+            core.remember_automation_event(&enriched);
+            Box::pin(core.run_automation_event(enriched)).await;
             drop(permit);
         });
     }

@@ -248,6 +248,120 @@ bounded by the host. TikTools forwards valid updates as a typed UI progress
 notification. Progress-only plugins are not started by the global poll until
 one of their actions explicitly starts them.
 
+## Event processors
+
+A plugin can enrich existing host events before automation filters run by
+declaring `processorTypes`. Processors are the third plugin contribution
+alongside actions (side effects) and event sources (new triggers):
+
+```text
+Action    side effects, may run long, automation-triggered
+Processor no side effects, strict latency deadline, fail open, pre-filter
+Poll      background, periodic, publishes spontaneous plugin events
+```
+
+```json
+{
+  "capabilities": ["events.enrich"],
+  "processorTypes": [
+    {
+      "id": "textintel.analyze",
+      "title": {"default": "Text Intelligence"},
+      "eventTypes": ["tiktok.chat"],
+      "stage": "pre-filter",
+      "timeoutMs": 250,
+      "failureMode": "pass-through",
+      "inputs": [
+        {"path": "event.data.comment", "role": "message"},
+        {"path": "event.user.nickname", "role": "display-name"}
+      ]
+    }
+  ]
+}
+```
+
+Rules:
+
+- processor ids are plugin-scoped dotted lowercase (`textintel.analyze`);
+- `eventTypes` subscribes to host events, so unlike published types it may
+  name `tiktok.*`, `points.*`, and `plugin.*`; an empty list matches every
+  event type;
+- only `stage: "pre-filter"` and `failureMode: "pass-through"` exist;
+- `timeoutMs` is optional (default 250ms, at most 5000ms) and must stay far
+  below the action timeout: processors run on the live-message hot path.
+
+The host sends `{"type": "enrich", "request": {processorId, event, settings}}`
+only to plugins that declare `processorTypes` and the `events.enrich`
+capability, so existing plugins never observe the new call and keep protocol
+v1 / ABI v1. `settings` carries the plugin's host-rendered settings object,
+reloaded after every UI save, so processors stay configurable on every
+runtime without file access. The plugin answers with constrained
+`{annotations, views, logs}` JSON and no side-effect intents: `emit`,
+`events`, `intents`, `playAudio`, `points`, `http`, and `storage` keys are
+rejected, and oversized results (16 annotations/views at most, 32 KB total)
+are rejected too.
+
+Raw event fields are never modified. The host merges annotations under
+`event.intel.providers.<pluginId>`, views under
+`event.intel.providers.<pluginId>.views`, and additionally promotes the
+host-defined stable keys `comment` and `user` to top-level `event.intel.*`
+so filters and templates stay provider-neutral. Identity fields such as
+`event.user.uniqueId` are immutable; spoken or normalized forms only appear
+under `intel`.
+
+Failure always fails open: timeouts, crashes, invalid responses, missing
+capabilities, and open circuits pass the original event through and stamp
+`event.intel.processing.status = "degraded"`. Processors run in deterministic
+`(plugin id, processor id)` order with at most four concurrent calls, each
+under its own deadline, and feed a per-plugin health/circuit breaker with the
+same 1s/2s/5s/10s/30s backoff as polling. Use `test-processor` and
+`get-processor-status` over IPC to preview one processor or inspect health
+and latency metrics.
+
+SDK sketch:
+
+```rust
+use tiktools_plugin_sdk::prelude::*;
+
+#[derive(Default)]
+struct TextProcessor;
+
+impl Plugin for TextProcessor {
+    fn enrich(
+        &mut self,
+        _context: &PluginContext,
+        request: EventEnrichmentRequest,
+    ) -> PluginResult<EventEnrichmentResult> {
+        let comment = request
+            .event
+            .pointer("/data/comment")
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+        let mut result = EventEnrichmentResult::default();
+        result.annotations.insert(
+            "comment".to_owned(),
+            serde_json::json!({"normalized": comment.trim()}),
+        );
+        Ok(result)
+    }
+}
+
+tiktools_process_plugin!(TextProcessor);
+```
+
+The reference implementation is
+`examples/textintel-process-plugin/`: a crash-isolated process plugin that
+analyzes comments and viewer names with a pinned offline textintel engine
+(language, normalization, composition, Unicode, obfuscation, spam, rebus,
+spoken/TTS views, nickname phonetics). Its latency bench
+(`cargo bench --bench processor_latency` from the example directory) keeps
+the 250ms deadline honest: cold first-seen chat measures ~3-25ms with
+~10ms at the 500-character cap on the reference machine, so the default
+deadline holds roughly 10x headroom. Re-run the bench on your target
+hardware before raising `timeoutMs`, and never share the processor process
+with slow model preparation: plugin instance calls are serialized behind one
+mutex per instance.
+
 ## Installation
 
 Create a `.plugin` archive containing `plugin.json` and the declared entry,

@@ -118,6 +118,10 @@ pub const POINTS_WRITE: &str = "points.write";
 pub const STORAGE: &str = "storage";
 /// Lets a plugin publish its own declared event types (hotkeys, timers).
 pub const EVENTS_PUBLISH: &str = "events.publish";
+/// Lets a plugin enrich existing host events before automation filters run.
+/// The host checks this before sending any `enrich` call; it grants no
+/// unrelated capability (audio, points, storage, HTTP).
+pub const EVENTS_ENRICH: &str = "events.enrich";
 pub const APP_STATE: &str = "app.state";
 
 /// Returns true when a manifest explicitly declares a capability or a
@@ -143,4 +147,19 @@ pub fn capability_matches(declared: &str, requested: &str) -> bool {
     declared == "*"
         || declared == requested
         || (declared.ends_with(".*") && requested.starts_with(declared.trim_end_matches('*')))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enrich_capability_matches_exact_and_wildcard_declarations() {
+        assert_eq!(EVENTS_ENRICH, "events.enrich");
+        assert!(capability_matches("events.enrich", EVENTS_ENRICH));
+        assert!(capability_matches("events.*", EVENTS_ENRICH));
+        assert!(capability_matches("*", EVENTS_ENRICH));
+        assert!(!capability_matches("events.publish", EVENTS_ENRICH));
+        assert!(!capability_matches("audio.play", EVENTS_ENRICH));
+    }
 }

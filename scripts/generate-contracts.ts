@@ -197,6 +197,126 @@ function sampleForField(name: string, schema: Schema, root: JsonRecord): unknown
   }
 }
 
+type RegistryFieldJson = {
+  path: string;
+  tsType: string;
+  kind: string;
+  optional: boolean;
+  label: { en: string; es: string };
+  hint: { en: string; es: string };
+  sample: unknown;
+  sourceField?: string;
+};
+
+function unwrapOptionalVariant(schema: Schema, root: JsonRecord): Schema | undefined {
+  const resolved = resolveSchema(schema, root);
+  if (typeof resolved === 'boolean') return undefined;
+  const variants = resolved.anyOf ?? resolved.oneOf;
+  if (Array.isArray(variants)) {
+    return variants.find((variant) => kindForSchema(variant, root) !== 'null');
+  }
+  if (Array.isArray(resolved.type)) {
+    const nonNull = resolved.type.find((type) => type !== 'null');
+    return nonNull === undefined ? undefined : { ...resolved, type: nonNull };
+  }
+  return undefined;
+}
+
+/**
+ * Flattens the stable `AutomationIntel` schema into dotted `event.intel.*`
+ * filter/template paths. Object nodes recurse; arrays and scalars become
+ * leaves. The free-form provider namespace is skipped: only stable
+ * host-defined fields belong in the picker.
+ */
+function flattenIntelPaths(
+  schema: Schema,
+  root: JsonRecord,
+  prefix: string,
+  hintPrefix: string,
+  out: RegistryFieldJson[],
+  depth = 0,
+): void {
+  if (depth > 8) return;
+  const optional = unwrapOptionalVariant(schema, root);
+  const resolved = resolveSchema(optional ?? schema, root);
+  if (typeof resolved === 'boolean') return;
+  if (resolved.$ref) return;
+  if (resolved.type === 'object' && resolved.properties) {
+    for (const [key, value] of Object.entries(resolved.properties)) {
+      if (prefix === 'event.intel' && key === 'providers') continue;
+      flattenIntelPaths(value, root, `${prefix}.${key}`, `${hintPrefix}.${key}`, out, depth + 1);
+    }
+    return;
+  }
+  const leaf = prefix.split('.').pop() ?? prefix;
+  out.push({
+    path: prefix,
+    tsType: typeNameFromSchema(schema, root),
+    kind: kindForSchema(schema, root),
+    optional: true,
+    label: { en: humanize(leaf), es: humanize(leaf) },
+    hint: { en: hintPrefix, es: hintPrefix },
+    sample: sampleForSchema(schema, root),
+  });
+}
+
+function intelFieldsFor(schema: JsonRecord, scope: 'chat' | 'user' | 'processing'): RegistryFieldJson[] {
+  const defs = isRecord(schema.$defs) ? schema.$defs : {};
+  const out: RegistryFieldJson[] = [];
+  if (scope === 'chat') {
+    flattenIntelPaths(schemaObject(defs.AutomationIntel), schema, 'event.intel', 'AutomationIntel', out);
+    return out;
+  }
+  if (scope === 'user') {
+    flattenIntelPaths(schemaObject(defs.IntelNickname), schema, 'event.intel.user.nickname', 'AutomationIntel.user.nickname', out);
+  }
+  flattenIntelPaths(schemaObject(defs.IntelProcessing), schema, 'event.intel.processing', 'AutomationIntel.processing', out);
+  return out;
+}
+
+const INTEL_SAMPLE_EVENT = {
+  comment: {
+    normalized: 'hello there',
+    language: { top: 'en', confidence: 0.9 },
+    composition: { emojiOnly: false, allCaps: false, elongated: false },
+    spam: { score: 0.04, detected: false },
+    tts: { text: 'hello there', language: 'en', confidence: 0.9 },
+  },
+  user: {
+    nickname: {
+      normalized: 'Viewer Demo',
+      tts: { text: 'Viewer Demo' },
+    },
+  },
+};
+
+function isMergeableRecord(value: unknown): value is JsonRecord {
+  return isRecord(value);
+}
+
+function deepMergeSample(base: unknown, overlay: unknown): unknown {
+  if (Array.isArray(base) || Array.isArray(overlay)) return overlay ?? base;
+  if (isMergeableRecord(base) && isMergeableRecord(overlay)) {
+    const merged: JsonRecord = { ...base };
+    for (const [key, value] of Object.entries(overlay)) {
+      merged[key] = key in merged ? deepMergeSample(merged[key], value) : value;
+    }
+    return merged;
+  }
+  return overlay ?? base;
+}
+
+/**
+ * Complete `intel` sample generated from the schema so every registry path
+ * resolves against its sample event (drift guard). Chat overlays curated
+ * representative values on top.
+ */
+function intelSampleFor(schema: JsonRecord, curated: boolean): unknown {
+  const defs = isRecord(schema.$defs) ? schema.$defs : {};
+  const generated = sampleForSchema(schemaObject(defs.AutomationIntel), schema);
+  return curated ? deepMergeSample(generated, INTEL_SAMPLE_EVENT) : generated;
+}
+
 function registrySource(schema: JsonRecord): string {
   const defs = isRecord(schema.$defs) ? schema.$defs : {};
   const user = schemaObject(defs.AutomationUser);
@@ -224,6 +344,8 @@ function registrySource(schema: JsonRecord): string {
       sourceField: key,
     }));
     const hasUser = eventType.startsWith('tiktok.') && !['tiktok.room_stats', 'tiktok.connected', 'tiktok.disconnected'].includes(eventType);
+    const intelScope = eventType === 'tiktok.chat' ? 'chat' : hasUser ? 'user' : 'processing';
+    const intelFields = intelFieldsFor(schema, intelScope);
     const sampleData: JsonRecord = {};
     for (const field of fields) sampleData[field.path.slice('event.data.'.length)] = field.sample;
     events[eventType] = {
@@ -235,13 +357,14 @@ function registrySource(schema: JsonRecord): string {
         timestamp: 0,
         ...(hasUser ? { user: { uniqueId: 'usuario_demo', nickname: 'Viewer Demo', secUid: '', userId: '1' } } : {}),
         data: sampleData,
+        intel: intelSampleFor(schema, eventType === 'tiktok.chat'),
       },
-      fields: [...(hasUser ? envelopePaths : []), ...fields],
+      fields: [...(hasUser ? envelopePaths : []), ...fields, ...intelFields],
       sourceFields: fields.map((field) => ({ name: field.sourceField, tsType: field.tsType, optional: field.optional })),
       note: `Generated from ${contractName ?? 'the automation envelope'} JSON Schema.`,
     };
   }
-  return `// THIS FILE IS GENERATED. Run bun run contracts:generate.\n\nexport const EVENT_REGISTRY_VERSION = 3 as const;\nexport const GENERATED_EVENT_REGISTRY = ${JSON.stringify({ version: 3, generatedBy: 'tiktools-core automation contracts', generatedFrom: ['crates/tiktools-core/src/contracts', 'src/automation/contracts/generated/automation-events.schema.json'], events }, null, 2)} as const satisfies Record<string, unknown>;\n`;
+  return `// THIS FILE IS GENERATED. Run bun run contracts:generate.\n\nexport const EVENT_REGISTRY_VERSION = 4 as const;\nexport const GENERATED_EVENT_REGISTRY = ${JSON.stringify({ version: 4, generatedBy: 'tiktools-core automation contracts', generatedFrom: ['crates/tiktools-core/src/contracts', 'src/automation/contracts/generated/automation-events.schema.json'], events }, null, 2)} as const satisfies Record<string, unknown>;\n`;
 }
 
 async function runSchemaGenerator(output: string): Promise<void> {

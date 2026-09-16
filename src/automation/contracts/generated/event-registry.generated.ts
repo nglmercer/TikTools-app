@@ -1,8 +1,8 @@
 // THIS FILE IS GENERATED. Run bun run contracts:generate.
 
-export const EVENT_REGISTRY_VERSION = 3 as const;
+export const EVENT_REGISTRY_VERSION = 4 as const;
 export const GENERATED_EVENT_REGISTRY = {
-  "version": 3,
+  "version": 4,
   "generatedBy": "tiktools-core automation contracts",
   "generatedFrom": [
     "crates/tiktools-core/src/contracts",
@@ -27,6 +27,81 @@ export const GENERATED_EVENT_REGISTRY = {
           "isHistory": false,
           "method": "WebcastSampleMessage",
           "msgId": "1"
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 0.9,
+              "top": "en"
+            },
+            "normalized": "hello there",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 0.04
+            },
+            "tts": {
+              "confidence": 0.9,
+              "ipa": "sample",
+              "language": "en",
+              "source": "sample",
+              "speak": false,
+              "text": "hello there"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "Viewer Demo",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "Viewer Demo"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -153,6 +228,696 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": "1",
           "sourceField": "msgId"
+        },
+        {
+          "path": "event.intel.comment.composition.allCaps",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "All Caps",
+            "es": "All Caps"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.composition.allCaps",
+            "es": "AutomationIntel.comment.composition.allCaps"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.composition.digits",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Digits",
+            "es": "Digits"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.composition.digits",
+            "es": "AutomationIntel.comment.composition.digits"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.composition.elongated",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Elongated",
+            "es": "Elongated"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.composition.elongated",
+            "es": "AutomationIntel.comment.composition.elongated"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.composition.emojiCount",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Emoji Count",
+            "es": "Emoji Count"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.composition.emojiCount",
+            "es": "AutomationIntel.comment.composition.emojiCount"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.composition.emojiOnly",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Emoji Only",
+            "es": "Emoji Only"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.composition.emojiOnly",
+            "es": "AutomationIntel.comment.composition.emojiOnly"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.composition.emojiRatio",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Emoji Ratio",
+            "es": "Emoji Ratio"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.composition.emojiRatio",
+            "es": "AutomationIntel.comment.composition.emojiRatio"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.composition.letters",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Letters",
+            "es": "Letters"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.composition.letters",
+            "es": "AutomationIntel.comment.composition.letters"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.composition.mentions",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Mentions",
+            "es": "Mentions"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.composition.mentions",
+            "es": "AutomationIntel.comment.composition.mentions"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.composition.repetitionScore",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Repetition Score",
+            "es": "Repetition Score"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.composition.repetitionScore",
+            "es": "AutomationIntel.comment.composition.repetitionScore"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.composition.urls",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Urls",
+            "es": "Urls"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.composition.urls",
+            "es": "AutomationIntel.comment.composition.urls"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.language.candidates",
+          "tsType": "JsonValue[] | null",
+          "kind": "array",
+          "optional": true,
+          "label": {
+            "en": "Candidates",
+            "es": "Candidates"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.language.candidates",
+            "es": "AutomationIntel.comment.language.candidates"
+          },
+          "sample": []
+        },
+        {
+          "path": "event.intel.comment.language.confidence",
+          "tsType": "number",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.language.confidence",
+            "es": "AutomationIntel.comment.language.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.language.top",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Top",
+            "es": "Top"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.language.top",
+            "es": "AutomationIntel.comment.language.top"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.comment.normalized",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Normalized",
+            "es": "Normalized"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.normalized",
+            "es": "AutomationIntel.comment.normalized"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.comment.obfuscation.confusables",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Confusables",
+            "es": "Confusables"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.obfuscation.confusables",
+            "es": "AutomationIntel.comment.obfuscation.confusables"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.obfuscation.detected",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Detected",
+            "es": "Detected"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.obfuscation.detected",
+            "es": "AutomationIntel.comment.obfuscation.detected"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.obfuscation.leetspeak",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Leetspeak",
+            "es": "Leetspeak"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.obfuscation.leetspeak",
+            "es": "AutomationIntel.comment.obfuscation.leetspeak"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.obfuscation.mixedScripts",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Mixed Scripts",
+            "es": "Mixed Scripts"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.obfuscation.mixedScripts",
+            "es": "AutomationIntel.comment.obfuscation.mixedScripts"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.obfuscation.punctuationFlood",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Punctuation Flood",
+            "es": "Punctuation Flood"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.obfuscation.punctuationFlood",
+            "es": "AutomationIntel.comment.obfuscation.punctuationFlood"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.obfuscation.repetition",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Repetition",
+            "es": "Repetition"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.obfuscation.repetition",
+            "es": "AutomationIntel.comment.obfuscation.repetition"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.obfuscation.score",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Score",
+            "es": "Score"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.obfuscation.score",
+            "es": "AutomationIntel.comment.obfuscation.score"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.rebus.candidate",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Candidate",
+            "es": "Candidate"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.rebus.candidate",
+            "es": "AutomationIntel.comment.rebus.candidate"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.comment.rebus.confidence",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.rebus.confidence",
+            "es": "AutomationIntel.comment.rebus.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.rebus.strong",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Strong",
+            "es": "Strong"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.rebus.strong",
+            "es": "AutomationIntel.comment.rebus.strong"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.spam.detected",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Detected",
+            "es": "Detected"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.spam.detected",
+            "es": "AutomationIntel.comment.spam.detected"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.spam.score",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Score",
+            "es": "Score"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.spam.score",
+            "es": "AutomationIntel.comment.spam.score"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.tts.confidence",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.tts.confidence",
+            "es": "AutomationIntel.comment.tts.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.tts.ipa",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Ipa",
+            "es": "Ipa"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.tts.ipa",
+            "es": "AutomationIntel.comment.tts.ipa"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.comment.tts.language",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Language",
+            "es": "Language"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.tts.language",
+            "es": "AutomationIntel.comment.tts.language"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.comment.tts.source",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Source",
+            "es": "Source"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.tts.source",
+            "es": "AutomationIntel.comment.tts.source"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.comment.tts.speak",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Speak",
+            "es": "Speak"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.tts.speak",
+            "es": "AutomationIntel.comment.tts.speak"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.tts.text",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Text",
+            "es": "Text"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.tts.text",
+            "es": "AutomationIntel.comment.tts.text"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.comment.unicode.mixedScripts",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Mixed Scripts",
+            "es": "Mixed Scripts"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.unicode.mixedScripts",
+            "es": "AutomationIntel.comment.unicode.mixedScripts"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.comment.unicode.score",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Score",
+            "es": "Score"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.unicode.score",
+            "es": "AutomationIntel.comment.unicode.score"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.comment.unicode.suspicious",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Suspicious",
+            "es": "Suspicious"
+          },
+          "hint": {
+            "en": "AutomationIntel.comment.unicode.suspicious",
+            "es": "AutomationIntel.comment.unicode.suspicious"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.language.candidates",
+          "tsType": "JsonValue[] | null",
+          "kind": "array",
+          "optional": true,
+          "label": {
+            "en": "Candidates",
+            "es": "Candidates"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.candidates",
+            "es": "AutomationIntel.user.nickname.language.candidates"
+          },
+          "sample": []
+        },
+        {
+          "path": "event.intel.user.nickname.language.confidence",
+          "tsType": "number",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.confidence",
+            "es": "AutomationIntel.user.nickname.language.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.language.top",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Top",
+            "es": "Top"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.top",
+            "es": "AutomationIntel.user.nickname.language.top"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.normalized",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Normalized",
+            "es": "Normalized"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.normalized",
+            "es": "AutomationIntel.user.nickname.normalized"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.confidence",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.confidence",
+            "es": "AutomationIntel.user.nickname.tts.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.tts.ipa",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Ipa",
+            "es": "Ipa"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.ipa",
+            "es": "AutomationIntel.user.nickname.tts.ipa"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.language",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Language",
+            "es": "Language"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.language",
+            "es": "AutomationIntel.user.nickname.tts.language"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.source",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Source",
+            "es": "Source"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.source",
+            "es": "AutomationIntel.user.nickname.tts.source"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.speak",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Speak",
+            "es": "Speak"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.speak",
+            "es": "AutomationIntel.user.nickname.tts.speak"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.user.nickname.tts.text",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Text",
+            "es": "Text"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.text",
+            "es": "AutomationIntel.user.nickname.tts.text"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -205,6 +970,81 @@ export const GENERATED_EVENT_REGISTRY = {
           "repeatCount": 1,
           "repeatEnd": false,
           "streakable": false
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -459,6 +1299,171 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": false,
           "sourceField": "streakable"
+        },
+        {
+          "path": "event.intel.user.nickname.language.candidates",
+          "tsType": "JsonValue[] | null",
+          "kind": "array",
+          "optional": true,
+          "label": {
+            "en": "Candidates",
+            "es": "Candidates"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.candidates",
+            "es": "AutomationIntel.user.nickname.language.candidates"
+          },
+          "sample": []
+        },
+        {
+          "path": "event.intel.user.nickname.language.confidence",
+          "tsType": "number",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.confidence",
+            "es": "AutomationIntel.user.nickname.language.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.language.top",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Top",
+            "es": "Top"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.top",
+            "es": "AutomationIntel.user.nickname.language.top"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.normalized",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Normalized",
+            "es": "Normalized"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.normalized",
+            "es": "AutomationIntel.user.nickname.normalized"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.confidence",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.confidence",
+            "es": "AutomationIntel.user.nickname.tts.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.tts.ipa",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Ipa",
+            "es": "Ipa"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.ipa",
+            "es": "AutomationIntel.user.nickname.tts.ipa"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.language",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Language",
+            "es": "Language"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.language",
+            "es": "AutomationIntel.user.nickname.tts.language"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.source",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Source",
+            "es": "Source"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.source",
+            "es": "AutomationIntel.user.nickname.tts.source"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.speak",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Speak",
+            "es": "Speak"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.speak",
+            "es": "AutomationIntel.user.nickname.tts.speak"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.user.nickname.tts.text",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Text",
+            "es": "Text"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.text",
+            "es": "AutomationIntel.user.nickname.tts.text"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -544,6 +1549,81 @@ export const GENERATED_EVENT_REGISTRY = {
           "method": "WebcastSampleMessage",
           "msgId": "1",
           "total": 1
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -686,6 +1766,171 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": 1,
           "sourceField": "total"
+        },
+        {
+          "path": "event.intel.user.nickname.language.candidates",
+          "tsType": "JsonValue[] | null",
+          "kind": "array",
+          "optional": true,
+          "label": {
+            "en": "Candidates",
+            "es": "Candidates"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.candidates",
+            "es": "AutomationIntel.user.nickname.language.candidates"
+          },
+          "sample": []
+        },
+        {
+          "path": "event.intel.user.nickname.language.confidence",
+          "tsType": "number",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.confidence",
+            "es": "AutomationIntel.user.nickname.language.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.language.top",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Top",
+            "es": "Top"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.top",
+            "es": "AutomationIntel.user.nickname.language.top"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.normalized",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Normalized",
+            "es": "Normalized"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.normalized",
+            "es": "AutomationIntel.user.nickname.normalized"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.confidence",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.confidence",
+            "es": "AutomationIntel.user.nickname.tts.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.tts.ipa",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Ipa",
+            "es": "Ipa"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.ipa",
+            "es": "AutomationIntel.user.nickname.tts.ipa"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.language",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Language",
+            "es": "Language"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.language",
+            "es": "AutomationIntel.user.nickname.tts.language"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.source",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Source",
+            "es": "Source"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.source",
+            "es": "AutomationIntel.user.nickname.tts.source"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.speak",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Speak",
+            "es": "Speak"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.speak",
+            "es": "AutomationIntel.user.nickname.tts.speak"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.user.nickname.tts.text",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Text",
+            "es": "Text"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.text",
+            "es": "AutomationIntel.user.nickname.tts.text"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -737,6 +1982,81 @@ export const GENERATED_EVENT_REGISTRY = {
           "method": "WebcastSampleMessage",
           "msgId": "1",
           "shareCount": 1
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -895,6 +2215,171 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": 1,
           "sourceField": "shareCount"
+        },
+        {
+          "path": "event.intel.user.nickname.language.candidates",
+          "tsType": "JsonValue[] | null",
+          "kind": "array",
+          "optional": true,
+          "label": {
+            "en": "Candidates",
+            "es": "Candidates"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.candidates",
+            "es": "AutomationIntel.user.nickname.language.candidates"
+          },
+          "sample": []
+        },
+        {
+          "path": "event.intel.user.nickname.language.confidence",
+          "tsType": "number",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.confidence",
+            "es": "AutomationIntel.user.nickname.language.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.language.top",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Top",
+            "es": "Top"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.top",
+            "es": "AutomationIntel.user.nickname.language.top"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.normalized",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Normalized",
+            "es": "Normalized"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.normalized",
+            "es": "AutomationIntel.user.nickname.normalized"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.confidence",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.confidence",
+            "es": "AutomationIntel.user.nickname.tts.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.tts.ipa",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Ipa",
+            "es": "Ipa"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.ipa",
+            "es": "AutomationIntel.user.nickname.tts.ipa"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.language",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Language",
+            "es": "Language"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.language",
+            "es": "AutomationIntel.user.nickname.tts.language"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.source",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Source",
+            "es": "Source"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.source",
+            "es": "AutomationIntel.user.nickname.tts.source"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.speak",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Speak",
+            "es": "Speak"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.speak",
+            "es": "AutomationIntel.user.nickname.tts.speak"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.user.nickname.tts.text",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Text",
+            "es": "Text"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.text",
+            "es": "AutomationIntel.user.nickname.tts.text"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -951,6 +2436,81 @@ export const GENERATED_EVENT_REGISTRY = {
           "method": "WebcastSampleMessage",
           "msgId": "1",
           "shareCount": 1
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -1109,6 +2669,171 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": 1,
           "sourceField": "shareCount"
+        },
+        {
+          "path": "event.intel.user.nickname.language.candidates",
+          "tsType": "JsonValue[] | null",
+          "kind": "array",
+          "optional": true,
+          "label": {
+            "en": "Candidates",
+            "es": "Candidates"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.candidates",
+            "es": "AutomationIntel.user.nickname.language.candidates"
+          },
+          "sample": []
+        },
+        {
+          "path": "event.intel.user.nickname.language.confidence",
+          "tsType": "number",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.confidence",
+            "es": "AutomationIntel.user.nickname.language.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.language.top",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Top",
+            "es": "Top"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.top",
+            "es": "AutomationIntel.user.nickname.language.top"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.normalized",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Normalized",
+            "es": "Normalized"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.normalized",
+            "es": "AutomationIntel.user.nickname.normalized"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.confidence",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.confidence",
+            "es": "AutomationIntel.user.nickname.tts.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.tts.ipa",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Ipa",
+            "es": "Ipa"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.ipa",
+            "es": "AutomationIntel.user.nickname.tts.ipa"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.language",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Language",
+            "es": "Language"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.language",
+            "es": "AutomationIntel.user.nickname.tts.language"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.source",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Source",
+            "es": "Source"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.source",
+            "es": "AutomationIntel.user.nickname.tts.source"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.speak",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Speak",
+            "es": "Speak"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.speak",
+            "es": "AutomationIntel.user.nickname.tts.speak"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.user.nickname.tts.text",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Text",
+            "es": "Text"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.text",
+            "es": "AutomationIntel.user.nickname.tts.text"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -1164,6 +2889,81 @@ export const GENERATED_EVENT_REGISTRY = {
           "memberCount": 1,
           "method": "WebcastSampleMessage",
           "msgId": "1"
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -1306,6 +3106,171 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": "1",
           "sourceField": "msgId"
+        },
+        {
+          "path": "event.intel.user.nickname.language.candidates",
+          "tsType": "JsonValue[] | null",
+          "kind": "array",
+          "optional": true,
+          "label": {
+            "en": "Candidates",
+            "es": "Candidates"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.candidates",
+            "es": "AutomationIntel.user.nickname.language.candidates"
+          },
+          "sample": []
+        },
+        {
+          "path": "event.intel.user.nickname.language.confidence",
+          "tsType": "number",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.confidence",
+            "es": "AutomationIntel.user.nickname.language.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.language.top",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Top",
+            "es": "Top"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.top",
+            "es": "AutomationIntel.user.nickname.language.top"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.normalized",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Normalized",
+            "es": "Normalized"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.normalized",
+            "es": "AutomationIntel.user.nickname.normalized"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.confidence",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.confidence",
+            "es": "AutomationIntel.user.nickname.tts.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.tts.ipa",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Ipa",
+            "es": "Ipa"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.ipa",
+            "es": "AutomationIntel.user.nickname.tts.ipa"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.language",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Language",
+            "es": "Language"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.language",
+            "es": "AutomationIntel.user.nickname.tts.language"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.source",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Source",
+            "es": "Source"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.source",
+            "es": "AutomationIntel.user.nickname.tts.source"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.speak",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Speak",
+            "es": "Speak"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.speak",
+            "es": "AutomationIntel.user.nickname.tts.speak"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.user.nickname.tts.text",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Text",
+            "es": "Text"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.text",
+            "es": "AutomationIntel.user.nickname.tts.text"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -1357,6 +3322,81 @@ export const GENERATED_EVENT_REGISTRY = {
           "method": "WebcastSampleMessage",
           "msgId": "1",
           "shareCount": 1
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -1515,6 +3555,171 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": 1,
           "sourceField": "shareCount"
+        },
+        {
+          "path": "event.intel.user.nickname.language.candidates",
+          "tsType": "JsonValue[] | null",
+          "kind": "array",
+          "optional": true,
+          "label": {
+            "en": "Candidates",
+            "es": "Candidates"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.candidates",
+            "es": "AutomationIntel.user.nickname.language.candidates"
+          },
+          "sample": []
+        },
+        {
+          "path": "event.intel.user.nickname.language.confidence",
+          "tsType": "number",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.confidence",
+            "es": "AutomationIntel.user.nickname.language.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.language.top",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Top",
+            "es": "Top"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.language.top",
+            "es": "AutomationIntel.user.nickname.language.top"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.normalized",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Normalized",
+            "es": "Normalized"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.normalized",
+            "es": "AutomationIntel.user.nickname.normalized"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.confidence",
+          "tsType": "number | null",
+          "kind": "number",
+          "optional": true,
+          "label": {
+            "en": "Confidence",
+            "es": "Confidence"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.confidence",
+            "es": "AutomationIntel.user.nickname.tts.confidence"
+          },
+          "sample": 1
+        },
+        {
+          "path": "event.intel.user.nickname.tts.ipa",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Ipa",
+            "es": "Ipa"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.ipa",
+            "es": "AutomationIntel.user.nickname.tts.ipa"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.language",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Language",
+            "es": "Language"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.language",
+            "es": "AutomationIntel.user.nickname.tts.language"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.source",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Source",
+            "es": "Source"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.source",
+            "es": "AutomationIntel.user.nickname.tts.source"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.user.nickname.tts.speak",
+          "tsType": "boolean | null",
+          "kind": "boolean",
+          "optional": true,
+          "label": {
+            "en": "Speak",
+            "es": "Speak"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.speak",
+            "es": "AutomationIntel.user.nickname.tts.speak"
+          },
+          "sample": false
+        },
+        {
+          "path": "event.intel.user.nickname.tts.text",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Text",
+            "es": "Text"
+          },
+          "hint": {
+            "en": "AutomationIntel.user.nickname.tts.text",
+            "es": "AutomationIntel.user.nickname.tts.text"
+          },
+          "sample": "sample"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -1566,6 +3771,81 @@ export const GENERATED_EVENT_REGISTRY = {
           "popularity": 1,
           "totalUsers": 1,
           "viewers": 1
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -1680,6 +3960,21 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": 1,
           "sourceField": "viewers"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -1731,6 +4026,81 @@ export const GENERATED_EVENT_REGISTRY = {
         "data": {
           "roomId": "sample",
           "uniqueId": "sample"
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -1765,6 +4135,21 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": "sample",
           "sourceField": "uniqueId"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -1791,6 +4176,81 @@ export const GENERATED_EVENT_REGISTRY = {
         "data": {
           "roomId": "sample",
           "uniqueId": "sample"
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -1825,6 +4285,21 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": "sample",
           "sourceField": "uniqueId"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -1855,6 +4330,81 @@ export const GENERATED_EVENT_REGISTRY = {
           "reason": "sample",
           "totalPoints": 1,
           "uniqueId": "sample"
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -1953,6 +4503,21 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": "sample",
           "sourceField": "uniqueId"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [
@@ -2000,6 +4565,81 @@ export const GENERATED_EVENT_REGISTRY = {
           "depth": 1,
           "emitType": "plugin.sample",
           "payload": {}
+        },
+        "intel": {
+          "comment": {
+            "composition": {
+              "allCaps": false,
+              "digits": 1,
+              "elongated": false,
+              "emojiCount": 1,
+              "emojiOnly": false,
+              "emojiRatio": 1,
+              "letters": 1,
+              "mentions": 1,
+              "repetitionScore": 1,
+              "urls": 1
+            },
+            "language": {
+              "candidates": [],
+              "confidence": 1,
+              "top": "sample"
+            },
+            "normalized": "sample",
+            "obfuscation": {
+              "confusables": false,
+              "detected": false,
+              "leetspeak": false,
+              "mixedScripts": false,
+              "punctuationFlood": false,
+              "repetition": false,
+              "score": 1
+            },
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "strong": false
+            },
+            "spam": {
+              "detected": false,
+              "score": 1
+            },
+            "tts": {
+              "confidence": 1,
+              "ipa": "sample",
+              "language": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "sample"
+            },
+            "unicode": {
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "sample",
+              "tts": {
+                "confidence": 1,
+                "ipa": "sample",
+                "language": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "sample"
+              }
+            }
+          }
         }
       },
       "fields": [
@@ -2050,6 +4690,21 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": {},
           "sourceField": "payload"
+        },
+        {
+          "path": "event.intel.processing.status",
+          "tsType": "string",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Status",
+            "es": "Status"
+          },
+          "hint": {
+            "en": "AutomationIntel.processing.status",
+            "es": "AutomationIntel.processing.status"
+          },
+          "sample": "sample"
         }
       ],
       "sourceFields": [

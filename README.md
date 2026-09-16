@@ -160,6 +160,13 @@ Example native manifest:
 Native plugins are trusted code. Manifest permissions limit the host API for
 process/WASM plugins and document the expected access of native plugins.
 
+Plugins contribute actions, event sources, and pre-filter event processors
+(`processorTypes` + the `events.enrich` capability); processors enrich host
+events under the optional `event.intel` namespace before automation filters
+run, fail open on any error, and are previewed over IPC with
+`test-processor`/`get-processor-status`. See `docs/PLUGINS.md` and the
+`examples/textintel-process-plugin/` reference implementation.
+
 ## Data and privacy
 
 Rust resolves writable paths from platform app-data directories, not the

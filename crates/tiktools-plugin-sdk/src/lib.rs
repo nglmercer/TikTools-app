@@ -5,7 +5,7 @@
 //! native ABI boundaries. It does not depend on Tokio, the desktop crate,
 //! Wry, Winit, or a particular WASM engine.
 
-use std::{env, io};
+use std::{collections::BTreeMap, env, io};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -204,7 +204,9 @@ impl ActionCall {
 }
 
 /// Typed calls at the SDK boundary. The serialized shape remains compatible
-/// with the existing `{"type":"action"|"poll"}` process protocol.
+/// with the existing `{"type":"action"|"poll"}` process protocol; `enrich`
+/// is additive and the host only sends it to plugins that declare
+/// `processorTypes`, so existing plugins never observe the new variant.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum PluginCall {
@@ -214,6 +216,9 @@ pub enum PluginCall {
         event: Value,
     },
     Poll,
+    Enrich {
+        request: EventEnrichmentRequest,
+    },
 }
 
 impl PluginCall {
@@ -221,11 +226,103 @@ impl PluginCall {
         Self::Action { action, event }
     }
 
+    pub fn enrich(request: EventEnrichmentRequest) -> Self {
+        Self::Enrich { request }
+    }
+
     pub fn into_action(self) -> Option<ActionCall> {
         match self {
             Self::Action { action, event } => Some(ActionCall { action, event }),
-            Self::Poll => None,
+            Self::Poll | Self::Enrich { .. } => None,
         }
+    }
+
+    pub fn into_enrich(self) -> Option<EventEnrichmentRequest> {
+        match self {
+            Self::Enrich { request } => Some(request),
+            Self::Action { .. } | Self::Poll => None,
+        }
+    }
+}
+
+/// A pre-filter enrichment call. The host sends the canonical automation
+/// event; the plugin must never mutate it in place, only return derived
+/// annotations the host merges under the reserved `intel` namespace.
+/// `settings` carries the plugin's host-rendered settings object so
+/// processors stay configurable on every runtime without file access.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct EventEnrichmentRequest {
+    pub processor_id: String,
+    pub event: Value,
+    #[serde(default, skip_serializing_if = "Value::is_null")]
+    pub settings: Value,
+}
+
+impl EventEnrichmentRequest {
+    pub fn new(processor_id: impl Into<String>, event: Value) -> Self {
+        Self {
+            processor_id: processor_id.into(),
+            event,
+            settings: Value::Null,
+        }
+    }
+
+    pub fn settings(mut self, settings: Value) -> Self {
+        self.settings = settings;
+        self
+    }
+}
+
+/// Constrained enrichment result. Unlike `PluginCallResult` this carries no
+/// side-effect intents: processors classify or re-represent data only.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct EventEnrichmentResult {
+    #[serde(default, skip_serializing_if = "Map::is_empty")]
+    pub annotations: Map<String, Value>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub views: BTreeMap<String, TextView>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub logs: Vec<String>,
+}
+
+/// One normalized/spoken text view: the derived text plus the evidence a
+/// consumer needs to decide whether to trust it (language, confidence,
+/// source, optional pronunciation).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TextView {
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f64>,
+    pub source: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ipa: Option<String>,
+}
+
+impl TextView {
+    pub fn new(text: impl Into<String>, source: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            language: None,
+            confidence: None,
+            source: source.into(),
+            ipa: None,
+        }
+    }
+
+    pub fn language(mut self, language: impl Into<String>, confidence: f64) -> Self {
+        self.language = Some(language.into());
+        self.confidence = Some(confidence);
+        self
+    }
+
+    pub fn ipa(mut self, ipa: impl Into<String>) -> Self {
+        self.ipa = Some(ipa.into());
+        self
     }
 }
 
@@ -453,21 +550,75 @@ pub trait Plugin: Send + 'static {
         Ok(PollResult::default())
     }
 
+    /// Enriches one host event with derived annotations. The default is a
+    /// no-op result so existing plugins compile unchanged; the host only
+    /// calls this for plugins that declare `processorTypes`.
+    ///
+    /// ```rust
+    /// use tiktools_plugin_sdk::prelude::*;
+    ///
+    /// #[derive(Default)]
+    /// struct TextProcessor;
+    ///
+    /// impl Plugin for TextProcessor {
+    ///     fn enrich(
+    ///         &mut self,
+    ///         _context: &PluginContext,
+    ///         request: EventEnrichmentRequest,
+    ///     ) -> PluginResult<EventEnrichmentResult> {
+    ///         let comment = request
+    ///             .event
+    ///             .pointer("/data/comment")
+    ///             .and_then(|value| value.as_str())
+    ///             .unwrap_or_default();
+    ///         let mut result = EventEnrichmentResult::default();
+    ///         result.annotations.insert(
+    ///             "comment".to_owned(),
+    ///             serde_json::json!({"normalized": comment.trim()}),
+    ///         );
+    ///         Ok(result)
+    ///     }
+    /// }
+    /// ```
+    fn enrich(
+        &mut self,
+        _context: &PluginContext,
+        _request: EventEnrichmentRequest,
+    ) -> PluginResult<EventEnrichmentResult> {
+        Ok(EventEnrichmentResult::default())
+    }
+
     fn shutdown(&mut self, _context: &PluginContext) -> PluginResult<()> {
         Ok(())
     }
 }
 
+fn serialize_call_result<T: Serialize>(result: T) -> PluginResult<Value> {
+    serde_json::to_value(result)
+        .map_err(|error| PluginError::other(format!("could not encode plugin result: {error}")))
+}
+
+/// Routes one typed call to plugin business logic and returns the serialized
+/// typed result. Action and poll calls serialize to the same
+/// `PluginCallResult` JSON as before; enrich calls serialize to
+/// `EventEnrichmentResult` JSON, which carries no side-effect intents.
 pub fn dispatch_plugin_call<P: Plugin>(
     plugin: &mut P,
     context: &PluginContext,
     call: PluginCall,
-) -> PluginResult<PluginCallResult> {
+) -> PluginResult<Value> {
     match call {
         PluginCall::Action { action, event } => plugin
             .action(context, ActionCall { action, event })
-            .map(PluginCallResult::from),
-        PluginCall::Poll => plugin.poll(context).map(PluginCallResult::from),
+            .map(PluginCallResult::from)
+            .and_then(serialize_call_result),
+        PluginCall::Poll => plugin
+            .poll(context)
+            .map(PluginCallResult::from)
+            .and_then(serialize_call_result),
+        PluginCall::Enrich { request } => plugin
+            .enrich(context, request)
+            .and_then(serialize_call_result),
     }
 }
 
@@ -638,14 +789,186 @@ fn as_values(value: &Value) -> Vec<&Value> {
     }
 }
 
-fn response_ok(id: String, result: PluginCallResult) -> PluginResponse {
+/// Bounds for one enrichment result. Processors run per live event, so every
+/// plugin-controlled collection and string accepted here is capped; the host
+/// treats an oversized result as an invalid response and passes the raw
+/// event through.
+pub const MAX_ENRICHMENT_ANNOTATIONS: usize = 16;
+pub const MAX_ENRICHMENT_ANNOTATION_BYTES: usize = 32 * 1024;
+pub const MAX_ENRICHMENT_VIEWS: usize = 16;
+pub const MAX_ENRICHMENT_VIEW_TEXT_CHARS: usize = 4_096;
+pub const MAX_ENRICHMENT_LOGS: usize = 16;
+pub const MAX_ENRICHMENT_LOG_CHARS: usize = 512;
+
+/// Top-level keys that would smuggle side effects through the enrichment
+/// channel. They are rejected, never executed or merged.
+const FORBIDDEN_ENRICHMENT_KEYS: [&str; 8] = [
+    "emit",
+    "events",
+    "intents",
+    "playAudio",
+    "audioPlay",
+    "points",
+    "http",
+    "storage",
+];
+
+/// Decodes one `enrich` response into the constrained enrichment contract.
+/// Unlike `decode_plugin_result` this accepts no legacy intent keys: any
+/// side-effect field is a typed error so the host can fail open with a
+/// precise diagnostic instead of executing it.
+pub fn decode_enrichment_result(
+    value: Value,
+) -> Result<EventEnrichmentResult, PluginProtocolError> {
+    let object = value.as_object().ok_or(PluginProtocolError::NotAnObject)?;
+    for key in FORBIDDEN_ENRICHMENT_KEYS {
+        if object.contains_key(key) {
+            return Err(PluginProtocolError::InvalidValue {
+                field: "enrich",
+                message: format!("enrichment results must not contain `{key}`"),
+            });
+        }
+    }
+    let annotations = decode_enrichment_annotations(object.get("annotations"))?;
+    let views = decode_enrichment_views(object.get("views"))?;
+    let logs = decode_enrichment_logs(object.get("logs"))?;
+    Ok(EventEnrichmentResult {
+        annotations,
+        views,
+        logs,
+    })
+}
+
+fn decode_enrichment_annotations(
+    value: Option<&Value>,
+) -> Result<Map<String, Value>, PluginProtocolError> {
+    let Some(value) = value else {
+        return Ok(Map::new());
+    };
+    let object = value
+        .as_object()
+        .ok_or(PluginProtocolError::InvalidField("annotations"))?;
+    if object.len() > MAX_ENRICHMENT_ANNOTATIONS {
+        return Err(PluginProtocolError::InvalidValue {
+            field: "annotations",
+            message: format!("at most {MAX_ENRICHMENT_ANNOTATIONS} annotations are allowed"),
+        });
+    }
+    for key in object.keys() {
+        if key.is_empty() || key.len() > 64 {
+            return Err(PluginProtocolError::InvalidValue {
+                field: "annotations",
+                message: "annotation names must be 1..=64 characters".to_owned(),
+            });
+        }
+    }
+    if serde_json::to_vec(&object)
+        .map(|bytes| bytes.len() > MAX_ENRICHMENT_ANNOTATION_BYTES)
+        .unwrap_or(true)
+    {
+        return Err(PluginProtocolError::InvalidValue {
+            field: "annotations",
+            message: format!("annotations are larger than {MAX_ENRICHMENT_ANNOTATION_BYTES} bytes"),
+        });
+    }
+    Ok(object.clone())
+}
+
+fn decode_enrichment_views(
+    value: Option<&Value>,
+) -> Result<BTreeMap<String, TextView>, PluginProtocolError> {
+    let Some(value) = value else {
+        return Ok(BTreeMap::new());
+    };
+    let object = value
+        .as_object()
+        .ok_or(PluginProtocolError::InvalidField("views"))?;
+    if object.len() > MAX_ENRICHMENT_VIEWS {
+        return Err(PluginProtocolError::InvalidValue {
+            field: "views",
+            message: format!("at most {MAX_ENRICHMENT_VIEWS} views are allowed"),
+        });
+    }
+    let mut views = BTreeMap::new();
+    for (name, view) in object {
+        if name.is_empty() || name.len() > 64 {
+            return Err(PluginProtocolError::InvalidValue {
+                field: "views",
+                message: "view names must be 1..=64 characters".to_owned(),
+            });
+        }
+        let view: TextView = serde_json::from_value(view.clone()).map_err(|error| {
+            PluginProtocolError::InvalidValue {
+                field: "views",
+                message: error.to_string(),
+            }
+        })?;
+        if view.text.chars().count() > MAX_ENRICHMENT_VIEW_TEXT_CHARS {
+            return Err(PluginProtocolError::InvalidValue {
+                field: "views",
+                message: format!(
+                    "view text is longer than {MAX_ENRICHMENT_VIEW_TEXT_CHARS} characters"
+                ),
+            });
+        }
+        if view.source.is_empty() || view.source.len() > 64 {
+            return Err(PluginProtocolError::InvalidValue {
+                field: "views",
+                message: "view source must be 1..=64 characters".to_owned(),
+            });
+        }
+        if view
+            .language
+            .as_ref()
+            .is_some_and(|language| language.is_empty() || language.len() > 32)
+        {
+            return Err(PluginProtocolError::InvalidValue {
+                field: "views",
+                message: "view language must be 1..=32 characters".to_owned(),
+            });
+        }
+        if view
+            .confidence
+            .is_some_and(|confidence| !confidence.is_finite() || !(0.0..=1.0).contains(&confidence))
+        {
+            return Err(PluginProtocolError::InvalidValue {
+                field: "views",
+                message: "view confidence must be within 0.0..=1.0".to_owned(),
+            });
+        }
+        if view.ipa.as_ref().is_some_and(|ipa| ipa.len() > 256) {
+            return Err(PluginProtocolError::InvalidValue {
+                field: "views",
+                message: "view ipa is longer than 256 characters".to_owned(),
+            });
+        }
+        views.insert(name.clone(), view);
+    }
+    Ok(views)
+}
+
+fn decode_enrichment_logs(value: Option<&Value>) -> Result<Vec<String>, PluginProtocolError> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    as_values(value)
+        .into_iter()
+        .take(MAX_ENRICHMENT_LOGS)
+        .map(|value| {
+            value
+                .as_str()
+                .map(|line| line.chars().take(MAX_ENRICHMENT_LOG_CHARS).collect())
+                .ok_or(PluginProtocolError::InvalidField("logs"))
+        })
+        .collect()
+}
+
+fn response_ok(id: String, result: Value) -> PluginResponse {
     PluginResponse {
         protocol_version: TIKTOOLS_PLUGIN_PROTOCOL_VERSION,
         id,
         ok: true,
-        result: Some(
-            serde_json::to_value(result).expect("SDK plugin call result should always serialize"),
-        ),
+        result: Some(result),
         error: None,
     }
 }
@@ -865,8 +1188,9 @@ pub mod native {
 pub mod prelude {
     pub use crate::{
         tiktools_export_native_plugin, tiktools_process_plugin, ActionCall, ActionResult,
-        AudioPlayIntent, EmitIntent, HostIntent, Plugin, PluginCall, PluginCallResult,
-        PluginContext, PluginError, PluginEvent, PluginIdentity, PluginResult, PollResult,
+        AudioPlayIntent, EmitIntent, EventEnrichmentRequest, EventEnrichmentResult, HostIntent,
+        Plugin, PluginCall, PluginCallResult, PluginContext, PluginError, PluginEvent,
+        PluginIdentity, PluginResult, PollResult, TextView,
     };
     pub use tiktools_plugin_api::{AudioOverlap, MediaFileRef};
 }
@@ -1008,5 +1332,142 @@ mod tests {
             }),
         );
         assert!(!handle_process_request(&mut TestPlugin, &context, bad_call).ok);
+    }
+
+    #[test]
+    fn enrich_call_serializes_additively_without_changing_action_and_poll() {
+        // Existing wire shapes are byte-identical to the pre-enrich protocol.
+        let action = PluginCall::action(serde_json::json!({}), serde_json::json!({}));
+        assert_eq!(
+            serde_json::to_value(&action).unwrap(),
+            serde_json::json!({"type": "action", "action": {}, "event": {}})
+        );
+        let poll = PluginCall::Poll;
+        assert_eq!(
+            serde_json::to_value(&poll).unwrap(),
+            serde_json::json!({"type": "poll"})
+        );
+        // The new variant round-trips through the same envelope.
+        let enrich = PluginCall::enrich(EventEnrichmentRequest::new(
+            "textintel.analyze",
+            serde_json::json!({"type": "tiktok.chat"}),
+        ));
+        let value = serde_json::to_value(&enrich).unwrap();
+        assert_eq!(value["type"], "enrich");
+        assert_eq!(value["request"]["processorId"], "textintel.analyze");
+        assert_eq!(serde_json::from_value::<PluginCall>(value).unwrap(), enrich);
+        assert!(enrich.into_action().is_none());
+        assert!(poll.into_enrich().is_none());
+    }
+
+    #[test]
+    fn default_enrich_is_a_noop_and_dispatch_routes_it() {
+        // Existing plugins that never implemented `enrich` keep working.
+        let context = test_context();
+        let request = EventEnrichmentRequest::new("demo.enrich", serde_json::json!({}));
+        let result = TestPlugin.enrich(&context, request.clone()).unwrap();
+        assert_eq!(result, EventEnrichmentResult::default());
+
+        let value =
+            dispatch_plugin_call(&mut TestPlugin, &context, PluginCall::enrich(request)).unwrap();
+        assert_eq!(
+            decode_enrichment_result(value).unwrap(),
+            EventEnrichmentResult::default()
+        );
+    }
+
+    #[derive(Default)]
+    struct EnrichPlugin;
+
+    impl Plugin for EnrichPlugin {
+        fn enrich(
+            &mut self,
+            _context: &PluginContext,
+            request: EventEnrichmentRequest,
+        ) -> PluginResult<EventEnrichmentResult> {
+            let comment = request
+                .event
+                .pointer("/data/comment")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let mut result = EventEnrichmentResult::default();
+            result.annotations.insert(
+                "comment".to_owned(),
+                serde_json::json!({"normalized": comment.trim()}),
+            );
+            result.views.insert(
+                "tts".to_owned(),
+                TextView::new(comment.trim(), "normalized").language("es", 0.9),
+            );
+            Ok(result)
+        }
+    }
+
+    #[test]
+    fn enrich_dispatch_flows_through_the_process_envelope() {
+        let call = PluginCall::enrich(EventEnrichmentRequest::new(
+            "demo.enrich",
+            serde_json::json!({"type": "tiktok.chat", "data": {"comment": "  Hola  "}}),
+        ));
+        let request =
+            PluginRequest::new("enrich-1", METHOD_CALL, serde_json::to_value(call).unwrap());
+        let response = handle_process_request(&mut EnrichPlugin, &test_context(), request);
+        assert!(response.ok);
+        let result = decode_enrichment_result(response.result.unwrap()).unwrap();
+        assert_eq!(
+            result.annotations["comment"]["normalized"],
+            serde_json::json!("Hola")
+        );
+        assert_eq!(result.views["tts"].text, "Hola");
+        assert_eq!(result.views["tts"].language.as_deref(), Some("es"));
+    }
+
+    #[test]
+    fn enrichment_decoder_rejects_side_effects_and_oversized_results() {
+        for key in [
+            "emit",
+            "events",
+            "intents",
+            "playAudio",
+            "points",
+            "http",
+            "storage",
+        ] {
+            let error = decode_enrichment_result(serde_json::json!({key: {}})).unwrap_err();
+            assert!(
+                error.to_string().contains("must not contain"),
+                "{key}: {error}"
+            );
+        }
+        assert!(decode_enrichment_result(serde_json::json!([])).is_err());
+        assert!(decode_enrichment_result(serde_json::json!({"annotations": []})).is_err());
+        assert!(decode_enrichment_result(serde_json::json!({"views": []})).is_err());
+        assert!(decode_enrichment_result(serde_json::json!({"logs": [42]})).is_err());
+        // Oversized annotation payloads are rejected, never truncated.
+        let big = "x".repeat(MAX_ENRICHMENT_ANNOTATION_BYTES + 1);
+        assert!(decode_enrichment_result(serde_json::json!({
+            "annotations": {"comment": {"normalized": big}}
+        }))
+        .is_err());
+        // View bounds are enforced.
+        assert!(decode_enrichment_result(serde_json::json!({
+            "views": {"tts": {"text": "hi"}}
+        }))
+        .is_err());
+        assert!(decode_enrichment_result(serde_json::json!({
+            "views": {"tts": {"text": "hi", "source": "raw", "confidence": 2.0}}
+        }))
+        .is_err());
+        let long_text = "x".repeat(MAX_ENRICHMENT_VIEW_TEXT_CHARS + 1);
+        assert!(decode_enrichment_result(serde_json::json!({
+            "views": {"tts": {"text": long_text, "source": "raw"}}
+        }))
+        .is_err());
+        // Unknown non-side-effect keys stay forward-compatible.
+        assert!(decode_enrichment_result(serde_json::json!({
+            "annotations": {},
+            "futureField": {"nested": true}
+        }))
+        .is_ok());
     }
 }

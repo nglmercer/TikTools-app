@@ -80,6 +80,46 @@ describe('event registry', () => {
     expect(Object.keys(sampleDataForType('tiktok.chat'))).toContain('comment');
     expect(allRegistryFields().some((field) => field.path === 'event.user.uniqueId')).toBe(true);
   });
+
+  test('chat exposes stable processor fields with filterable kinds', () => {
+    const fields = fieldsForEventType('tiktok.chat');
+    const byPath = new Map(fields.map((field) => [field.path, field]));
+    expect(byPath.get('event.intel.comment.composition.emojiOnly')?.kind).toBe('boolean');
+    expect(byPath.get('event.intel.comment.spam.score')?.kind).toBe('number');
+    expect(byPath.get('event.intel.comment.tts.text')?.kind).toBe('string');
+    expect(byPath.get('event.intel.comment.language.top')?.kind).toBe('string');
+    expect(byPath.get('event.intel.user.nickname.tts.ipa')?.kind).toBe('string');
+    for (const field of byPath.values()) {
+      if (field.path.startsWith('event.intel.')) expect(field.optional).toBe(true);
+    }
+    // The chat sample carries a representative optional intel object.
+    const sample = sampleEventForType('tiktok.chat');
+    expect(readPath(sample, 'event.intel.comment.composition.emojiOnly')).toBe(false);
+    expect(readPath(sample, 'event.intel.comment.tts.text')).toBe('hello there');
+  });
+
+  test('condition editor offers intel evidence with matching operators', () => {
+    const fields = fieldsForTrigger('tiktok.chat');
+    const emojiOnly = fields.find((field) => field.path === 'event.intel.comment.composition.emojiOnly');
+    const spamScore = fields.find((field) => field.path === 'event.intel.comment.spam.score');
+    const language = fields.find((field) => field.path === 'event.intel.comment.language.top');
+    expect(emojiOnly?.kind).toBe('boolean');
+    expect(spamScore?.kind).toBe('number');
+    expect(language?.kind).toBe('text');
+    // Events without comments only expose nickname evidence, never comment paths.
+    const gift = fieldsForTrigger('tiktok.gift').map((field) => field.path);
+    expect(gift.some((path) => path.startsWith('event.intel.comment.'))).toBe(false);
+    expect(gift).toContain('event.intel.user.nickname.tts.text');
+  });
+
+  test('intel filters match enriched events and miss raw ones', () => {
+    const enriched = sampleEventFor('tiktok.chat');
+    expect(matchesFilter({ path: 'event.intel.comment.composition.emojiOnly', operator: 'is-false', value: '' }, enriched)).toBe(true);
+    expect(matchesFilter({ path: 'event.intel.comment.spam.score', operator: 'lt', value: '0.70' }, enriched)).toBe(true);
+    expect(matchesFilter({ path: 'event.intel.comment.language.top', operator: 'eq', value: 'en' }, enriched)).toBe(true);
+    const raw = { ...enriched, intel: undefined };
+    expect(matchesFilter({ path: 'event.intel.comment.composition.emojiOnly', operator: 'is-true', value: '' }, raw)).toBe(false);
+  });
 });
 
 

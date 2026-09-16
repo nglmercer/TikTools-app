@@ -341,6 +341,19 @@ pub(crate) const PLUGIN_PROGRESS_CAPABILITY: &str = "ui.progress";
 /// Reserved poll event consumed by the host UI instead of the automation bus.
 pub(crate) const PLUGIN_PROGRESS_EVENT_TYPE: &str = "plugin.progress";
 
+/// Shared retry backoff for plugin call health (polling and processors):
+/// 1s, 2s, 5s, 10s, then 30s. Kept in one place so both call classes
+/// recover identically.
+pub(crate) fn plugin_backoff_seconds(consecutive_failures: u32) -> u64 {
+    match consecutive_failures {
+        1 => 1,
+        2 => 2,
+        3 => 5,
+        4 => 10,
+        _ => 30,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct PluginProgressUpdate {
     pub(crate) state: crate::ipc::messages::PluginProgressState,

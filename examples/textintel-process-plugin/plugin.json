@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 2,
+  "id": "textintel",
+  "name": "Text Intelligence",
+  "version": "0.1.0",
+  "description": "Reference pre-filter processor: analyzes chat comments and viewer names with a local textintel engine before automation filters run.",
+  "runtime": "process",
+  "trust": "trusted",
+  "entry": "tiktools-textintel",
+  "protocolVersion": 1,
+  "capabilities": ["events.enrich"],
+  "processorTypes": [
+    {
+      "id": "textintel.analyze",
+      "title": {"default": "Text Intelligence"},
+      "description": {"default": "Analyze comments and viewer names before automation filters."},
+      "eventTypes": ["tiktok.chat"],
+      "stage": "pre-filter",
+      "timeoutMs": 250,
+      "failureMode": "pass-through",
+      "inputs": [
+        {"path": "event.data.comment", "role": "message"},
+        {"path": "event.user.nickname", "role": "display-name"}
+      ]
+    }
+  ],
+  "settings": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "analyzeComments": {"type": "boolean", "default": true, "description": "Analyze chat comments."},
+        "analyzeNicknames": {"type": "boolean", "default": true, "description": "Analyze viewer display names for TTS pronunciation."},
+        "analyzeUsernames": {"type": "boolean", "default": false, "description": "Also analyze stable handles (language/composition only, never spoken)."},
+        "unicodeNormalization": {"type": "boolean", "default": true, "description": "Expose normalized/nfc/nfkc/casefolded views."},
+        "languageDetection": {"type": "boolean", "default": true, "description": "Detect language with confidence evidence."},
+        "rebus": {"type": "boolean", "default": true, "description": "Expose rebus decoding candidates."},
+        "obfuscation": {"type": "boolean", "default": true, "description": "Expose obfuscation evidence (leet, repetition, confusables)."},
+        "spam": {"type": "boolean", "default": true, "description": "Expose heuristic spam scores (filtering stays user-controlled)."},
+        "phonetic": {"type": "boolean", "default": true, "description": "Expose phonetic/IPA evidence for nicknames."},
+        "ttsCandidate": {"type": "boolean", "default": true, "description": "Resolve spoken TTS candidates with confidence."},
+        "engineMode": {"type": "string", "enum": ["default", "production-local-lite", "production-local"], "default": "production-local-lite", "description": "Textintel engine preset (offline only). Lite is default: default mode is much slower on long input."},
+        "minimumTtsConfidence": {"type": "number", "minimum": 0, "maximum": 1, "multipleOf": 0.05, "default": 0.7, "description": "Minimum spoken-candidate confidence before falling back to raw text."},
+        "minimumRebusConfidence": {"type": "number", "minimum": 0, "maximum": 1, "multipleOf": 0.05, "default": 0.5, "description": "Minimum rebus score before exposing a candidate."},
+        "maxInputChars": {"type": "integer", "minimum": 1, "maximum": 4000, "default": 500, "description": "Truncate analyzed text to this many characters."},
+        "emojiMode": {"type": "string", "enum": ["keep", "describe", "remove", "skip-message-if-emoji-only"], "default": "keep", "description": "Emoji policy for the spoken TTS text."}
+      }
+    },
+    "uiHints": {
+      "fields": {
+        "minimumTtsConfidence": {"kind": "range"},
+        "minimumRebusConfidence": {"kind": "range"}
+      }
+    }
+  }
+}

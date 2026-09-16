@@ -429,6 +429,51 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn enriched_intel_paths_match_generic_filters() {
+        let service = AutomationService::default();
+        let record = json!({
+            "id": "event",
+            "enabled": true,
+            "trigger": "tiktok.chat",
+            "filters": [
+                {"path": "event.intel.comment.composition.emojiOnly", "operator": "is-true"},
+                {"path": "event.intel.comment.spam.score", "operator": "lt", "value": "0.70"},
+                {"path": "event.intel.comment.language.top", "operator": "eq", "value": "es"},
+            ],
+        });
+        let matching = json!({
+            "type": "tiktok.chat",
+            "user": {"uniqueId": "alice"},
+            "data": {"comment": "😂😂😂"},
+            "intel": {"comment": {
+                "composition": {"emojiOnly": true},
+                "spam": {"score": 0.04},
+                "language": {"top": "es", "confidence": 0.9},
+            }},
+        });
+        assert!(service.event_record_matches(&record, &matching));
+        // Raw events without enrichment never match intel filters.
+        let raw = json!({
+            "type": "tiktok.chat",
+            "user": {"uniqueId": "alice"},
+            "data": {"comment": "😂😂😂"},
+        });
+        assert!(!service.event_record_matches(&record, &raw));
+        // Score above the threshold fails the numeric filter.
+        let spammy = json!({
+            "type": "tiktok.chat",
+            "user": {"uniqueId": "alice"},
+            "data": {"comment": "buy now"},
+            "intel": {"comment": {
+                "composition": {"emojiOnly": true},
+                "spam": {"score": 0.91},
+                "language": {"top": "es", "confidence": 0.9},
+            }},
+        });
+        assert!(!service.event_record_matches(&record, &spammy));
+    }
+
+    #[test]
     fn matches_filters_and_enforces_user_cooldowns() {
         let service = AutomationService::default();
         service.replace_snapshot(&json!({

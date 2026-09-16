@@ -238,12 +238,17 @@ impl AppCore {
             .capabilities
             .save_plugin_settings(&plugin.manifest, &values)
         {
-            Ok(values) => self.emit(HostMessage::PluginSettings {
-                id: id.to_owned(),
-                schema,
-                ui_hints: plugin.manifest.settings_ui_hints.clone(),
-                values,
-            }),
+            Ok(values) => {
+                // Processors receive settings inside each enrich request; the
+                // revision bump makes the next call reload this file.
+                self.bump_processor_settings_revision(id);
+                self.emit(HostMessage::PluginSettings {
+                    id: id.to_owned(),
+                    schema,
+                    ui_hints: plugin.manifest.settings_ui_hints.clone(),
+                    values,
+                });
+            }
             Err(error) => self.emit(HostMessage::BehaviorError {
                 message: error.to_string(),
             }),

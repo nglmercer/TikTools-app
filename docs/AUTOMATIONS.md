@@ -118,6 +118,29 @@ objects. Runtime process/WASM plugins must declare the capability and
 permission they request. Trusted native plugins are an OS-level trust boundary
 and cannot be sandboxed by a JSON manifest.
 
+## Enriched events and processor fields
+
+Event processors run before filters and attach derived evidence under the
+optional `event.intel` namespace; raw fields stay untouched and `intel`
+stays absent when no processor is installed. The generic field-path filters
+match enriched paths with no special engine:
+
+```text
+event.intel.comment.composition.emojiOnly is false
+event.intel.comment.language.top eq es
+event.intel.comment.obfuscation.repetition is true
+event.intel.comment.spam.score lt 0.70
+event.intel.user.nickname.language.top in [es, en]
+```
+
+Templates resolve the same paths (`{{ event.intel.comment.tts.text }}`),
+and the field picker plus template autocomplete discover them from the
+generated event registry. TTS consumers should resolve spoken input through
+the provider-neutral lookup (`event.intel.comment.tts.text` falling back to
+`event.data.comment`, nickname view falling back to nickname, then handle)
+so speech keeps working with no processor installed; see
+`tiktools-plugin-api::text` for the shared helpers.
+
 ## Event context and previews
 
 The core keeps only the most recent normalized event in memory and exposes it

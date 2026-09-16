@@ -360,13 +360,7 @@ impl AppCore {
             next_retry_at: None,
         });
         entry.consecutive_failures = entry.consecutive_failures.saturating_add(1);
-        let delay_seconds = match entry.consecutive_failures {
-            1 => 1,
-            2 => 2,
-            3 => 5,
-            4 => 10,
-            _ => 30,
-        };
+        let delay_seconds = plugin_backoff_seconds(entry.consecutive_failures);
         entry.next_retry_at =
             Some(std::time::Instant::now() + std::time::Duration::from_secs(delay_seconds));
         if entry.consecutive_failures <= 5 {

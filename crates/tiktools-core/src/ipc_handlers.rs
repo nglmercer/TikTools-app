@@ -399,6 +399,26 @@ impl AppCore {
                     runs: vec![self.test_event(&event).await],
                 });
             }
+            PageMessage::TestProcessor {
+                plugin_id,
+                processor_id,
+                event,
+            } => {
+                let outcome = self.test_processor(&plugin_id, &processor_id, event).await;
+                self.emit(HostMessage::ProcessorTestResult {
+                    plugin_id,
+                    processor_id,
+                    ok: outcome.ok,
+                    duration_ms: outcome.duration_ms,
+                    result: outcome.result,
+                    error: outcome.error,
+                });
+            }
+            PageMessage::GetProcessorStatus => {
+                self.emit(HostMessage::ProcessorStatus {
+                    processors: self.processor_status_snapshot(),
+                });
+            }
         }
     }
 

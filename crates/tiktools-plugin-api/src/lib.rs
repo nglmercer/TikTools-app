@@ -8,10 +8,14 @@ pub mod capabilities;
 pub mod manifest;
 pub mod media;
 pub mod protocol;
+pub mod text;
 
 pub use abi::{PluginBuffer, PluginInit, PluginStatus, TikToolsPluginApi};
 pub use capabilities::{CapabilityId, CapabilitySet, PermissionSet};
-pub use manifest::{PluginManifest, PluginRuntimeKind, PluginSecurityModel, PluginTrust};
+pub use manifest::{
+    PluginManifest, PluginProcessorDescriptor, PluginRuntimeKind, PluginSecurityModel, PluginTrust,
+    ProcessorFailureMode, ProcessorInputDescriptor, ProcessorStage,
+};
 pub use media::{
     AudioOverlap, AudioPlayOptions, AudioPlaybackResult, MediaDirectoryRef, MediaFileRef,
     MediaKind, MediaPickerMode, MediaPickerOptions, MediaSelection, AUDIO_PLAY_INTENT,
@@ -21,6 +25,10 @@ pub use protocol::{
     read_frame, write_frame, CapabilityRequest, CapabilityResponse, FrameError, PluginRequest,
     PluginResponse, MAX_FRAME_BYTES, METHOD_CALL, METHOD_CAPABILITY_REQUEST,
     METHOD_CAPABILITY_RESPONSE,
+};
+pub use text::{
+    compose_text, resolve_comment_tts, resolve_nickname_tts, strip_emoji, ResolvedText,
+    TextComposition,
 };
 
 pub const TIKTOOLS_PLUGIN_ABI_VERSION: u32 = 1;

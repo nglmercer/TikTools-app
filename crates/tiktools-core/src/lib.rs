@@ -19,6 +19,7 @@ mod ipc_handlers;
 mod live_events;
 mod persistence;
 mod plugin_intents;
+mod plugin_processors;
 mod plugin_runtime;
 #[cfg(test)]
 mod tests;
@@ -119,6 +120,9 @@ pub struct AppCore {
     #[cfg(feature = "native-tiktok")]
     live_pump_started: AtomicBool,
     plugin_health: Mutex<BTreeMap<String, PluginHealth>>,
+    processor_health: Mutex<BTreeMap<String, PluginHealth>>,
+    processor_metrics: Mutex<BTreeMap<String, crate::plugin_processors::ProcessorMetrics>>,
+    processor_settings: Mutex<BTreeMap<String, crate::plugin_processors::CachedProcessorSettings>>,
     plugin_poll_started: AtomicBool,
     plugin_poll_shutdown: Arc<Notify>,
     plugin_poll_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -219,6 +223,9 @@ impl AppCore {
             #[cfg(feature = "native-tiktok")]
             live_pump_started: AtomicBool::new(false),
             plugin_health: Mutex::new(BTreeMap::new()),
+            processor_health: Mutex::new(BTreeMap::new()),
+            processor_metrics: Mutex::new(BTreeMap::new()),
+            processor_settings: Mutex::new(BTreeMap::new()),
             plugin_poll_started: AtomicBool::new(false),
             plugin_poll_shutdown: Arc::new(Notify::new()),
             plugin_poll_task: Mutex::new(None),

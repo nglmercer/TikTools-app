@@ -14,6 +14,13 @@ test('http-url scope offers identity variables for query templating', () => {
   expect(suggestions.some((entry) => entry.value === 'event.data.comment')).toBe(true);
 });
 
+test('template autocomplete discovers processor TTS views', () => {
+  const suggestions = getTemplateSuggestions('tiktok.chat', 'en');
+  expect(suggestions.some((entry) => entry.value === 'event.intel.comment.tts.text')).toBe(true);
+  expect(suggestions.some((entry) => entry.value === 'event.intel.user.nickname.tts.text')).toBe(true);
+  expect(suggestions.some((entry) => entry.value === 'event.intel.comment.language.top')).toBe(true);
+});
+
 test('builtin URL presets exist', () => {
   const presets = getFetchUrlTemplates();
   expect(presets.some((entry) => entry.url === 'http://localhost:3000/')).toBe(true);

@@ -37,6 +37,17 @@
         "id": {
           "type": "string"
         },
+        "intel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationIntel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Provider-neutral pre-filter enrichment. Always optional: the base\ntrigger contract works with no processor installed."
+        },
         "points": {
           "anyOf": [
             {
@@ -78,6 +89,43 @@
         "timestamp",
         "data"
       ],
+      "type": "object"
+    },
+    "AutomationIntel": {
+      "description": "Stable provider-neutral enrichment attached by event processors.\nProcessors contribute these shapes; provider-native payloads stay under\n`providers.<pluginId>` as free-form JSON.",
+      "properties": {
+        "comment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelComment"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "processing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelProcessing"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "providers": true,
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelUser"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
       "type": "object"
     },
     "AutomationPoints": {
@@ -227,6 +275,418 @@
         "msgId",
         "isHistory"
       ],
+      "type": "object"
+    },
+    "IntelComment": {
+      "properties": {
+        "composition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelComposition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "language": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelLanguage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "normalized": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "obfuscation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelObfuscation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rebus": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelRebus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "spam": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelSpam"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelTts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unicode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelUnicode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "IntelComposition": {
+      "properties": {
+        "allCaps": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "digits": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "elongated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "emojiCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "emojiOnly": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "emojiRatio": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "letters": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "mentions": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "repetitionScore": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "urls": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "IntelLanguage": {
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/IntelLanguageCandidate"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "confidence": {
+          "format": "double",
+          "type": "number"
+        },
+        "top": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "top",
+        "confidence"
+      ],
+      "type": "object"
+    },
+    "IntelLanguageCandidate": {
+      "properties": {
+        "confidence": {
+          "format": "double",
+          "type": "number"
+        },
+        "language": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "language",
+        "confidence"
+      ],
+      "type": "object"
+    },
+    "IntelNickname": {
+      "properties": {
+        "language": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelLanguage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "normalized": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelTts"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "IntelObfuscation": {
+      "properties": {
+        "confusables": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "detected": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "leetspeak": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "mixedScripts": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "punctuationFlood": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "repetition": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "score": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "IntelProcessing": {
+      "properties": {
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "IntelRebus": {
+      "properties": {
+        "candidate": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "confidence": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "strong": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "IntelSpam": {
+      "properties": {
+        "detected": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "score": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "IntelTts": {
+      "properties": {
+        "confidence": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ipa": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "speak": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "type": "object"
+    },
+    "IntelUnicode": {
+      "properties": {
+        "mixedScripts": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "score": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "suspicious": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "IntelUser": {
+      "properties": {
+        "nickname": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelNickname"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
       "type": "object"
     },
     "LikeAutomationData": {
@@ -433,6 +893,9 @@
     "automationEvent": {
       "$ref": "#/$defs/AutomationEvent"
     },
+    "automationIntel": {
+      "$ref": "#/$defs/AutomationIntel"
+    },
     "automationPoints": {
       "$ref": "#/$defs/AutomationPoints"
     },
@@ -472,6 +935,7 @@
     "automationCreator",
     "automationPoints",
     "automationEvent",
+    "automationIntel",
     "chat",
     "gift",
     "like",

@@ -173,7 +173,9 @@ export type PageMessage =
   | { type: 'set-plugin-enabled'; id: string; enabled: boolean }
   | { type: 'get-plugin-settings'; id: string }
   | { type: 'save-plugin-settings'; id: string; values: PluginSettingValues }
-  | { type: 'get-action-options'; source: string };
+  | { type: 'get-action-options'; source: string }
+  | { type: 'test-processor'; pluginId: string; processorId: string; event: LiveEvent }
+  | { type: 'get-processor-status' };
 
 export type GiftCatalogEntry = {
   id: string;
@@ -268,4 +270,35 @@ export type HostMessage =
       error: string;
     }
   | { type: 'plugin-uninstall-result'; success: true; id: string }
-  | { type: 'plugin-uninstall-result'; success: false; id: string; error: string };
+  | { type: 'plugin-uninstall-result'; success: false; id: string; error: string }
+  | {
+      type: 'processor-test-result';
+      pluginId: string;
+      processorId: string;
+      ok: boolean;
+      durationMs: number;
+      result: JsonObject;
+      error?: string;
+    }
+  | { type: 'processor-status'; processors: ProcessorStatusEntry[] };
+
+export type ProcessorStatusMetrics = {
+  calls: number;
+  successes: number;
+  failures: number;
+  timeouts: number;
+  skippedCircuitOpen: number;
+  averageLatencyMs: number;
+  maxLatencyMs: number;
+  lastError?: string;
+  lastSuccessAt?: number;
+};
+
+export type ProcessorStatusEntry = {
+  pluginId: string;
+  processorId: string;
+  eventTypes: string[];
+  timeoutMs: number;
+  status: 'ready' | 'disabled' | 'unavailable' | 'degraded' | 'circuit-open';
+  metrics: ProcessorStatusMetrics;
+};

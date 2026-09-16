@@ -87,7 +87,10 @@ objects to the core. The core:
 2. creates the embedded signer backend and reconnecting WebSocket;
 3. normalizes decoded chat, gift, like, member, social, and room-stat events;
 4. updates points and SQLite;
-5. emits the existing UI event shape and a JSON automation event.
+5. runs the pre-filter processor pipeline, merging derived evidence under the
+   reserved `intel` namespace (fail open: any processor failure passes the
+   raw event through, stamped `degraded`);
+6. emits the existing UI event shape and the enriched JSON automation event.
 
 The event registry in `src/automation/contracts/generated/` is the editor-side
 shape contract for those native events. Rust contract structs in
@@ -138,6 +141,15 @@ Plugin directories are scanned at runtime in built-in, user, and development
 override order. No plugin id is compiled into TikTools. Native libraries expose
 only a small serialized-message C ABI and stay loaded until shutdown. Process
 plugins are standalone executables using length-prefixed JSON over stdio.
+
+Plugins contribute actions (side effects), event sources (new triggers via
+poll/emit), and processors (pre-filter enrichment of host events). Processors
+declare `processorTypes`, require the `events.enrich` capability, answer
+`enrich` calls with side-effect-free `{annotations, views, logs}` results,
+and receive their host-rendered settings inside each request; the host merges
+results under `event.intel` in deterministic order with strict deadlines and
+circuit breaking. The textintel reference processor lives in
+`examples/textintel-process-plugin/` with its own latency bench.
 
 ## Platform code
 
