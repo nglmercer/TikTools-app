@@ -10,6 +10,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub mod tiktok;
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AutomationUser {
@@ -188,8 +190,10 @@ pub struct AutomationContracts {
 
 /// Returns the complete schema as JSON for the repository generator.
 pub fn automation_contract_schema() -> Value {
-    serde_json::to_value(schemars::schema_for!(AutomationContracts))
-        .expect("automation contract schema must serialize")
+    let mut schema = serde_json::to_value(schemars::schema_for!(AutomationContracts))
+        .expect("automation contract schema must serialize");
+    tiktok::replace_tiktok_contract_schemas(&mut schema);
+    schema
 }
 
 #[cfg(test)]

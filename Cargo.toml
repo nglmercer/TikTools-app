@@ -42,6 +42,7 @@ napi-vm = { git = "https://github.com/nglmercer/napi-vm", rev = "8a2848d16c5b503
 ttl-sign-core = { git = "https://github.com/nglmercer/tiktok-signer", rev = "0888656f9ce7a32be48c15607a5fda3884a90888" }
 ttl-live-discovery = { git = "https://github.com/nglmercer/tiktok-signer", rev = "0888656f9ce7a32be48c15607a5fda3884a90888" }
 ttl-live-events = { git = "https://github.com/nglmercer/tiktok-signer", rev = "0888656f9ce7a32be48c15607a5fda3884a90888" }
+ttl-live-proto = { git = "https://github.com/nglmercer/tiktok-signer", rev = "0888656f9ce7a32be48c15607a5fda3884a90888" }
 ttl-live-ws = { git = "https://github.com/nglmercer/tiktok-signer", rev = "0888656f9ce7a32be48c15607a5fda3884a90888" }
 ttl-sign-headless = { git = "https://github.com/nglmercer/tiktok-signer", rev = "0888656f9ce7a32be48c15607a5fda3884a90888" }
 ttl-sign-embedded = { git = "https://github.com/nglmercer/tiktok-signer", rev = "0888656f9ce7a32be48c15607a5fda3884a90888" }

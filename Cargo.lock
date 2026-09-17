@@ -4372,6 +4372,8 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.30.0",
  "tracing",
+ "ttl-live-events",
+ "ttl-live-proto",
  "url",
 ]
 

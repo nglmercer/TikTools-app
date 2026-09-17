@@ -1,5 +1,5 @@
 <script lang="tsx">
-import { ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import type { VNodeChild } from 'vue';
 import { defineVueComponent } from '../../../vue/component.ts';
 import { Icon, type IconName } from '../../icons/index.ts';
@@ -85,6 +85,16 @@ export const SelectField = defineVueComponent<SelectFieldProps>(
 
     watch(() => props.value, (value) => {
       if (innerRef.value) syncNativeControlValue(innerRef.value, value);
+    });
+
+    // Dynamic option lists (plugin `optionsFrom`, voices, devices) resolve
+    // after first render. The native select keeps the stale empty selection
+    // once its options change, so re-apply the value after the new options
+    // are in the DOM; otherwise a stored value renders as a blank box.
+    watch(() => props.options, () => {
+      void nextTick().then(() => {
+        if (innerRef.value) syncNativeControlValue(innerRef.value, normalizeControlString(props.value));
+      });
     });
 
     return () => {

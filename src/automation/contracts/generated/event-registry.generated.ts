@@ -1,6 +1,6 @@
 // THIS FILE IS GENERATED. Run bun run contracts:generate.
 
-export const EVENT_REGISTRY_VERSION = 6 as const;
+export const EVENT_REGISTRY_VERSION = 7 as const;
 
 const INTEL_SAMPLE_CHAT = {
   "comment": {
@@ -241,7 +241,7 @@ const INTEL_SAMPLE_DEFAULT = {
 } as const;
 
 export const GENERATED_EVENT_REGISTRY = {
-  "version": 6,
+  "version": 7,
   "generatedBy": "tiktools-core automation contracts",
   "generatedFrom": [
     "crates/tiktools-core/src/contracts",
@@ -344,7 +344,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "ChatAutomationData.comment"
           },
           "sample": "Hello there",
-          "sourceField": "comment"
+          "sourceField": "comment",
+          "sourceMethod": "WebcastChatMessage",
+          "sourcePath": "content",
+          "sourceTransform": "native"
         },
         {
           "path": "event.data.isHistory",
@@ -1708,7 +1711,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "GiftAutomationData.comboCount"
           },
           "sample": 1,
-          "sourceField": "comboCount"
+          "sourceField": "comboCount",
+          "sourceMethod": "WebcastGiftMessage",
+          "sourcePath": "combo_count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.diamondCount",
@@ -1724,7 +1730,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "GiftAutomationData.diamondCount"
           },
           "sample": 1,
-          "sourceField": "diamondCount"
+          "sourceField": "diamondCount",
+          "sourceMethod": "WebcastGiftMessage",
+          "sourcePath": "gift.diamond_count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.giftIconUrl",
@@ -1756,7 +1765,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "GiftAutomationData.giftId"
           },
           "sample": "5655",
-          "sourceField": "giftId"
+          "sourceField": "giftId",
+          "sourceMethod": "WebcastGiftMessage",
+          "sourcePath": "gift_id",
+          "sourceTransform": "u64-to-string"
         },
         {
           "path": "event.data.giftName",
@@ -1772,7 +1784,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "GiftAutomationData.giftName"
           },
           "sample": "Rosa",
-          "sourceField": "giftName"
+          "sourceField": "giftName",
+          "sourceMethod": "WebcastGiftMessage",
+          "sourcePath": "gift.name",
+          "sourceTransform": "native"
         },
         {
           "path": "event.data.groupId",
@@ -1788,7 +1803,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "GiftAutomationData.groupId"
           },
           "sample": "sample",
-          "sourceField": "groupId"
+          "sourceField": "groupId",
+          "sourceMethod": "WebcastGiftMessage",
+          "sourcePath": "group_id",
+          "sourceTransform": "integer-to-string"
         },
         {
           "path": "event.data.isHistory",
@@ -1852,7 +1870,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "GiftAutomationData.repeatCount"
           },
           "sample": 1,
-          "sourceField": "repeatCount"
+          "sourceField": "repeatCount",
+          "sourceMethod": "WebcastGiftMessage",
+          "sourcePath": "repeat_count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.repeatEnd",
@@ -1868,7 +1889,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "GiftAutomationData.repeatEnd"
           },
           "sample": false,
-          "sourceField": "repeatEnd"
+          "sourceField": "repeatEnd",
+          "sourceMethod": "WebcastGiftMessage",
+          "sourcePath": "repeat_end",
+          "sourceTransform": "nonzero-to-boolean"
         },
         {
           "path": "event.data.streakable",
@@ -2273,7 +2297,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "LikeAutomationData.count"
           },
           "sample": 1,
-          "sourceField": "count"
+          "sourceField": "count",
+          "sourceMethod": "WebcastLikeMessage",
+          "sourcePath": "count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.isHistory",
@@ -2337,7 +2364,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "LikeAutomationData.total"
           },
           "sample": 1,
-          "sourceField": "total"
+          "sourceField": "total",
+          "sourceMethod": "WebcastLikeMessage",
+          "sourcePath": "total",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.intel.user.nickname.language.candidates",
@@ -2692,7 +2722,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "SocialAutomationData.action"
           },
           "sample": 1,
-          "sourceField": "action"
+          "sourceField": "action",
+          "sourceMethod": "WebcastSocialMessage",
+          "sourcePath": "action",
+          "sourceTransform": "native"
         },
         {
           "path": "event.data.followCount",
@@ -2708,7 +2741,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "SocialAutomationData.followCount"
           },
           "sample": 1,
-          "sourceField": "followCount"
+          "sourceField": "followCount",
+          "sourceMethod": "WebcastSocialMessage",
+          "sourcePath": "follow_count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.isHistory",
@@ -2772,7 +2808,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "SocialAutomationData.shareCount"
           },
           "sample": 1,
-          "sourceField": "shareCount"
+          "sourceField": "shareCount",
+          "sourceMethod": "WebcastSocialMessage",
+          "sourcePath": "share_count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.intel.user.nickname.language.candidates",
@@ -3132,7 +3171,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "SocialAutomationData.action"
           },
           "sample": 1,
-          "sourceField": "action"
+          "sourceField": "action",
+          "sourceMethod": "WebcastSocialMessage",
+          "sourcePath": "action",
+          "sourceTransform": "native"
         },
         {
           "path": "event.data.followCount",
@@ -3148,7 +3190,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "SocialAutomationData.followCount"
           },
           "sample": 1,
-          "sourceField": "followCount"
+          "sourceField": "followCount",
+          "sourceMethod": "WebcastSocialMessage",
+          "sourcePath": "follow_count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.isHistory",
@@ -3212,7 +3257,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "SocialAutomationData.shareCount"
           },
           "sample": 1,
-          "sourceField": "shareCount"
+          "sourceField": "shareCount",
+          "sourceMethod": "WebcastSocialMessage",
+          "sourcePath": "share_count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.intel.user.nickname.language.candidates",
@@ -3571,7 +3619,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "MemberAutomationData.action"
           },
           "sample": 1,
-          "sourceField": "action"
+          "sourceField": "action",
+          "sourceMethod": "WebcastMemberMessage",
+          "sourcePath": "action",
+          "sourceTransform": "native"
         },
         {
           "path": "event.data.isHistory",
@@ -3603,7 +3654,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "MemberAutomationData.memberCount"
           },
           "sample": 1,
-          "sourceField": "memberCount"
+          "sourceField": "memberCount",
+          "sourceMethod": "WebcastMemberMessage",
+          "sourcePath": "member_count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.method",
@@ -3990,7 +4044,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "SocialAutomationData.action"
           },
           "sample": 1,
-          "sourceField": "action"
+          "sourceField": "action",
+          "sourceMethod": "WebcastSocialMessage",
+          "sourcePath": "action",
+          "sourceTransform": "native"
         },
         {
           "path": "event.data.followCount",
@@ -4006,7 +4063,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "SocialAutomationData.followCount"
           },
           "sample": 1,
-          "sourceField": "followCount"
+          "sourceField": "followCount",
+          "sourceMethod": "WebcastSocialMessage",
+          "sourcePath": "follow_count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.isHistory",
@@ -4070,7 +4130,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "SocialAutomationData.shareCount"
           },
           "sample": 1,
-          "sourceField": "shareCount"
+          "sourceField": "shareCount",
+          "sourceMethod": "WebcastSocialMessage",
+          "sourcePath": "share_count",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.intel.user.nickname.language.candidates",
@@ -4365,7 +4428,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "RoomStatsAutomationData.anonymous"
           },
           "sample": 1,
-          "sourceField": "anonymous"
+          "sourceField": "anonymous",
+          "sourceMethod": "WebcastRoomUserSeqMessage",
+          "sourcePath": "anonymous",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.isHistory",
@@ -4429,7 +4495,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "RoomStatsAutomationData.popularity"
           },
           "sample": 1,
-          "sourceField": "popularity"
+          "sourceField": "popularity",
+          "sourceMethod": "WebcastRoomUserSeqMessage",
+          "sourcePath": "popularity",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.totalUsers",
@@ -4445,7 +4514,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "RoomStatsAutomationData.totalUsers"
           },
           "sample": 1,
-          "sourceField": "totalUsers"
+          "sourceField": "totalUsers",
+          "sourceMethod": "WebcastRoomUserSeqMessage",
+          "sourcePath": "total_user",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.data.viewers",
@@ -4461,7 +4533,10 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "RoomStatsAutomationData.viewers"
           },
           "sample": 1,
-          "sourceField": "viewers"
+          "sourceField": "viewers",
+          "sourceMethod": "WebcastRoomUserSeqMessage",
+          "sourcePath": "total",
+          "sourceTransform": "normalized-unsigned"
         },
         {
           "path": "event.intel.processing.status",

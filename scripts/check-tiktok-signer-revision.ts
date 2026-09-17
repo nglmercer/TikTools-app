@@ -7,6 +7,7 @@ const requiredCrates = [
   'ttl-sign-core',
   'ttl-live-discovery',
   'ttl-live-events',
+  'ttl-live-proto',
   'ttl-live-ws',
   'ttl-sign-headless',
   'ttl-sign-embedded',

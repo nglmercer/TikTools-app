@@ -20,6 +20,7 @@ import {
   findServerUrlKey,
   isHttpUrl,
   isLoopbackUrl,
+  secretSettingKeys,
   settingsEqual,
   stableSettingsJson,
   withSchemaDefaults,
@@ -118,6 +119,12 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
     return merged;
   });
   const urlKey = computed(() => findServerUrlKey(props.settingsState?.schema));
+  // Masked secret fields round-trip as the host placeholder: the echo can
+  // never carry the typed value back, so confirmation must exempt them.
+  const secretKeys = computed(() => secretSettingKeys(
+    props.settingsState?.schema,
+    props.settingsState?.uiHints,
+  ));
   const displayValues = computed(() => withSchemaDefaults(
     draft.value ?? props.settingsState?.values ?? {},
     props.settingsState?.schema,
@@ -232,10 +239,15 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
   watch(() => props.settingsState?.values, (values) => {
     if (!values) return;
     const sent = lastSent.value;
-    if ((saveState.value === 'saving' || saveState.value === 'error') && sent && echoConfirmsSave(values, sent)) {
+    if ((saveState.value === 'saving' || saveState.value === 'error') && sent && echoConfirmsSave(values, sent, secretKeys.value)) {
       saveState.value = 'saved';
       if (confirmTimer !== null) clearTimeout(confirmTimer);
       confirmTimer = null;
+      // Converge the draft onto the echoed values so a just-saved secret
+      // (typed value vs echoed placeholder) stops reading as dirty. Only
+      // when nothing newer was typed after the confirmed send.
+      const next = draft.value;
+      if (next && settingsEqual(toSettingValues(next), sent)) draft.value = null;
     }
     // A send raced with newer edits: converge instead of going stale.
     const state = props.settingsState;
@@ -409,6 +421,9 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
         const state = props.settingsState;
         const schema = section.schema ?? state?.schema;
         if (!schema) return null;
+        // Same display defaults as the connection card so enum selects with
+        // schema defaults never render as blank boxes before the first edit.
+        const formValues = withSchemaDefaults(draft.value ?? state?.values ?? {}, schema);
         return (
           <section class="plg-stack" key={index}>
             {title && <h3 class="plg-topbar__title">{title}</h3>}
@@ -417,7 +432,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
                 locale={locale}
                 schema={schema}
                 uiHints={section.uiHints ?? state?.uiHints}
-                value={draft.value ?? state?.values ?? {}}
+                value={formValues}
                 fieldOptions={fieldOptions.value}
                 onChange={(next) => { draft.value = next; }}
                 onOpenMediaPicker={props.onOpenMediaPicker}

@@ -142,7 +142,13 @@
     "ChatAutomationData": {
       "properties": {
         "comment": {
-          "type": "string"
+          "type": "string",
+          "x-native-source": {
+            "fieldNumber": 3,
+            "method": "WebcastChatMessage",
+            "path": "content",
+            "transform": "native"
+          }
         },
         "isHistory": {
           "type": "boolean"
@@ -160,7 +166,8 @@
         "msgId",
         "isHistory"
       ],
-      "type": "object"
+      "type": "object",
+      "x-native-method": "WebcastChatMessage"
     },
     "ConnectionAutomationData": {
       "properties": {
@@ -219,12 +226,24 @@
         "comboCount": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 6,
+            "method": "WebcastGiftMessage",
+            "path": "combo_count",
+            "transform": "normalized-unsigned"
+          }
         },
         "diamondCount": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 12,
+            "method": "WebcastGiftMessage",
+            "path": "gift.diamond_count",
+            "transform": "normalized-unsigned"
+          }
         },
         "giftIconUrl": {
           "type": [
@@ -233,13 +252,31 @@
           ]
         },
         "giftId": {
-          "type": "string"
+          "type": "string",
+          "x-native-source": {
+            "fieldNumber": 2,
+            "method": "WebcastGiftMessage",
+            "path": "gift_id",
+            "transform": "u64-to-string"
+          }
         },
         "giftName": {
-          "type": "string"
+          "type": "string",
+          "x-native-source": {
+            "fieldNumber": 16,
+            "method": "WebcastGiftMessage",
+            "path": "gift.name",
+            "transform": "native"
+          }
         },
         "groupId": {
-          "type": "string"
+          "type": "string",
+          "x-native-source": {
+            "fieldNumber": 11,
+            "method": "WebcastGiftMessage",
+            "path": "group_id",
+            "transform": "integer-to-string"
+          }
         },
         "isHistory": {
           "type": "boolean"
@@ -253,10 +290,22 @@
         "repeatCount": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 5,
+            "method": "WebcastGiftMessage",
+            "path": "repeat_count",
+            "transform": "normalized-unsigned"
+          }
         },
         "repeatEnd": {
-          "type": "boolean"
+          "type": "boolean",
+          "x-native-source": {
+            "fieldNumber": 9,
+            "method": "WebcastGiftMessage",
+            "path": "repeat_end",
+            "transform": "nonzero-to-boolean"
+          }
         },
         "streakable": {
           "type": "boolean"
@@ -275,7 +324,8 @@
         "msgId",
         "isHistory"
       ],
-      "type": "object"
+      "type": "object",
+      "x-native-method": "WebcastGiftMessage"
     },
     "IntelComment": {
       "properties": {
@@ -851,7 +901,13 @@
         "count": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 2,
+            "method": "WebcastLikeMessage",
+            "path": "count",
+            "transform": "normalized-unsigned"
+          }
         },
         "isHistory": {
           "type": "boolean"
@@ -865,7 +921,13 @@
         "total": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 3,
+            "method": "WebcastLikeMessage",
+            "path": "total",
+            "transform": "normalized-unsigned"
+          }
         }
       },
       "required": [
@@ -875,13 +937,20 @@
         "msgId",
         "isHistory"
       ],
-      "type": "object"
+      "type": "object",
+      "x-native-method": "WebcastLikeMessage"
     },
     "MemberAutomationData": {
       "properties": {
         "action": {
           "format": "int32",
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 10,
+            "method": "WebcastMemberMessage",
+            "path": "action",
+            "transform": "native"
+          }
         },
         "isHistory": {
           "type": "boolean"
@@ -889,7 +958,13 @@
         "memberCount": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 3,
+            "method": "WebcastMemberMessage",
+            "path": "member_count",
+            "transform": "normalized-unsigned"
+          }
         },
         "method": {
           "type": "string"
@@ -905,7 +980,8 @@
         "msgId",
         "isHistory"
       ],
-      "type": "object"
+      "type": "object",
+      "x-native-method": "WebcastMemberMessage"
     },
     "PluginEmitAutomationData": {
       "properties": {
@@ -966,7 +1042,13 @@
         "anonymous": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 8,
+            "method": "WebcastRoomUserSeqMessage",
+            "path": "anonymous",
+            "transform": "normalized-unsigned"
+          }
         },
         "isHistory": {
           "type": "boolean"
@@ -980,17 +1062,35 @@
         "popularity": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 6,
+            "method": "WebcastRoomUserSeqMessage",
+            "path": "popularity",
+            "transform": "normalized-unsigned"
+          }
         },
         "totalUsers": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 7,
+            "method": "WebcastRoomUserSeqMessage",
+            "path": "total_user",
+            "transform": "normalized-unsigned"
+          }
         },
         "viewers": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 3,
+            "method": "WebcastRoomUserSeqMessage",
+            "path": "total",
+            "transform": "normalized-unsigned"
+          }
         }
       },
       "required": [
@@ -1002,18 +1102,31 @@
         "msgId",
         "isHistory"
       ],
-      "type": "object"
+      "type": "object",
+      "x-native-method": "WebcastRoomUserSeqMessage"
     },
     "SocialAutomationData": {
       "properties": {
         "action": {
           "format": "int64",
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 4,
+            "method": "WebcastSocialMessage",
+            "path": "action",
+            "transform": "native"
+          }
         },
         "followCount": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 6,
+            "method": "WebcastSocialMessage",
+            "path": "follow_count",
+            "transform": "normalized-unsigned"
+          }
         },
         "isHistory": {
           "type": "boolean"
@@ -1027,7 +1140,13 @@
         "shareCount": {
           "format": "uint64",
           "minimum": 0,
-          "type": "integer"
+          "type": "integer",
+          "x-native-source": {
+            "fieldNumber": 8,
+            "method": "WebcastSocialMessage",
+            "path": "share_count",
+            "transform": "normalized-unsigned"
+          }
         }
       },
       "required": [
@@ -1038,7 +1157,8 @@
         "msgId",
         "isHistory"
       ],
-      "type": "object"
+      "type": "object",
+      "x-native-method": "WebcastSocialMessage"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -184,7 +184,36 @@ type RegistryFieldJson = {
   hint: { en: string; es: string };
   sample: unknown;
   sourceField?: string;
+  sourceMethod?: string;
+  sourcePath?: string;
+  sourceTransform?: string;
 };
+
+type NativeSource = { method: string; path: string; transform: string };
+
+/**
+ * Protobuf provenance stamped by `tiktools-core::contracts::tiktok` as
+ * `x-native-source`. Absent for TikTools-only fields (`method`, `msgId`,
+ * `isHistory`, `streakable`, `giftIconUrl`), which must never claim a source.
+ */
+function nativeSourceFor(
+  contract: string | undefined,
+  field: string,
+  schema: JsonRecord,
+): NativeSource | undefined {
+  if (!contract) return undefined;
+  const defs = isRecord(schema.$defs) ? schema.$defs : {};
+  const properties = schemaObject(defs[contract]).properties ?? {};
+  const property = properties[field];
+  if (!isRecord(property)) return undefined;
+  const source = property['x-native-source'];
+  if (!isRecord(source)) return undefined;
+  const { method, path, transform } = source;
+  if (typeof method !== 'string' || typeof path !== 'string' || typeof transform !== 'string') {
+    return undefined;
+  }
+  return { method, path, transform };
+}
 
 function unwrapOptionalVariant(schema: Schema, root: JsonRecord): Schema | undefined {
   const resolved = resolveSchema(schema, root);
@@ -295,7 +324,7 @@ function intelSampleFor(schema: JsonRecord, curated: boolean): unknown {
   return curated ? deepMergeSample(generated, INTEL_SAMPLE_EVENT) : generated;
 }
 
-const EVENT_REGISTRY_VERSION = 6;
+const EVENT_REGISTRY_VERSION = 7;
 
 // Sentinels replaced with shared sample references after stringifying, so
 // the identical `intel` sample is emitted once instead of per event. The
@@ -319,16 +348,22 @@ function registrySource(schema: JsonRecord): string {
   for (const [eventType, contractName] of Object.entries(BUILTIN_EVENT_CONTRACTS)) {
     const contract = contractName ? schemaObject(defs[contractName]) : {};
     const required = new Set(contract.required ?? []);
-    const fields = Object.entries(contract.properties ?? {}).map(([key, value]) => ({
-      path: `event.data.${key}`,
-      tsType: typeNameFromSchema(value, schema),
-      kind: kindForSchema(value, schema),
-      optional: !required.has(key),
-      label: { en: humanize(key), es: humanize(key) },
-      hint: { en: `${contractName ?? 'JsonObject'}.${key}`, es: `${contractName ?? 'JsonObject'}.${key}` },
-      sample: sampleForField(key, value, schema),
-      sourceField: key,
-    }));
+    const fields = Object.entries(contract.properties ?? {}).map(([key, value]) => {
+      const native = nativeSourceFor(contractName, key, schema);
+      return {
+        path: `event.data.${key}`,
+        tsType: typeNameFromSchema(value, schema),
+        kind: kindForSchema(value, schema),
+        optional: !required.has(key),
+        label: { en: humanize(key), es: humanize(key) },
+        hint: { en: `${contractName ?? 'JsonObject'}.${key}`, es: `${contractName ?? 'JsonObject'}.${key}` },
+        sample: sampleForField(key, value, schema),
+        sourceField: key,
+        ...(native
+          ? { sourceMethod: native.method, sourcePath: native.path, sourceTransform: native.transform }
+          : {}),
+      };
+    });
     const hasUser = eventType.startsWith('tiktok.') && !['tiktok.room_stats', 'tiktok.connected', 'tiktok.disconnected'].includes(eventType);
     const intelScope = eventType === 'tiktok.chat' ? 'chat' : hasUser ? 'user' : 'processing';
     const intelFields = intelFieldsFor(schema, intelScope);

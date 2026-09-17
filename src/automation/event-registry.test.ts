@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  EVENT_REGISTRY_VERSION,
   allRegistryFields,
   fieldsForEventType,
   pluginEventTypes,
@@ -110,6 +111,43 @@ describe('event registry', () => {
     const gift = fieldsForTrigger('tiktok.gift').map((field) => field.path);
     expect(gift.some((path) => path.startsWith('event.intel.comment.'))).toBe(false);
     expect(gift).toContain('event.intel.user.nickname.tts.text');
+  });
+
+  test('registry version tracks the protobuf-provenance shape', () => {
+    expect(EVENT_REGISTRY_VERSION).toBe(7);
+  });
+
+  test('chat comment traces back to the vendor content field', () => {
+    const comment = fieldsForEventType('tiktok.chat').find((field) => field.path === 'event.data.comment');
+    expect(comment?.sourceMethod).toBe('WebcastChatMessage');
+    expect(comment?.sourcePath).toBe('content');
+    expect(comment?.sourceTransform).toBe('native');
+  });
+
+  test('gift id traces back to gift_id with its string transform', () => {
+    const giftId = fieldsForEventType('tiktok.gift').find((field) => field.path === 'event.data.giftId');
+    expect(giftId?.sourceMethod).toBe('WebcastGiftMessage');
+    expect(giftId?.sourcePath).toBe('gift_id');
+    expect(giftId?.sourceTransform).toBe('u64-to-string');
+    const giftName = fieldsForEventType('tiktok.gift').find((field) => field.path === 'event.data.giftName');
+    expect(giftName?.sourceMethod).toBe('WebcastGiftMessage');
+    expect(giftName?.sourcePath).toBe('gift.name');
+  });
+
+  test('TikTools-only fields claim no protobuf provenance', () => {
+    const appOnly = ['event.data.method', 'event.data.msgId', 'event.data.isHistory'];
+    for (const type of ALL_TYPES) {
+      for (const field of fieldsForEventType(type)) {
+        if (
+          appOnly.includes(field.path)
+          || (type === 'tiktok.gift' && ['event.data.streakable', 'event.data.giftIconUrl'].includes(field.path))
+        ) {
+          expect(field.sourceMethod, `${type} ${field.path}`).toBeUndefined();
+          expect(field.sourcePath, `${type} ${field.path}`).toBeUndefined();
+          expect(field.sourceTransform, `${type} ${field.path}`).toBeUndefined();
+        }
+      }
+    }
   });
 
   test('intel filters match enriched events and miss raw ones', () => {

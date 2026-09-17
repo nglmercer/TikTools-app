@@ -9,6 +9,7 @@ import {
   findServerUrlKey,
   isHttpUrl,
   isLoopbackUrl,
+  secretSettingKeys,
   settingsEqual,
   stableSettingsJson,
   SUMMARY_ROW_LIMIT,
@@ -152,6 +153,47 @@ test('save confirmation tolerates host-added defaults', () => {
     { serverUrl: 'http://y/' },
     { serverUrl: 'http://x/' },
   )).toBe(false);
+});
+
+test('save confirmation accepts redacted secret echoes', () => {
+  const secretKeys = ['apiToken'];
+  // A freshly typed token echoes back as the host placeholder.
+  expect(echoConfirmsSave(
+    { serverUrl: 'http://x/', apiToken: '••••••••' },
+    { serverUrl: 'http://x/', apiToken: 'real-token' },
+    secretKeys,
+  )).toBe(true);
+  // An untouched placeholder round-trips and confirms.
+  expect(echoConfirmsSave(
+    { serverUrl: 'http://x/', apiToken: '••••••••' },
+    { serverUrl: 'http://x/', apiToken: '••••••••' },
+    secretKeys,
+  )).toBe(true);
+  // Non-secret mismatches still reject, even with secret keys present.
+  expect(echoConfirmsSave(
+    { serverUrl: 'http://y/', apiToken: '••••••••' },
+    { serverUrl: 'http://x/', apiToken: 'real-token' },
+    secretKeys,
+  )).toBe(false);
+  // Without the secret exemption the redacted echo cannot confirm.
+  expect(echoConfirmsSave(
+    { serverUrl: 'http://x/', apiToken: '••••••••' },
+    { serverUrl: 'http://x/', apiToken: 'real-token' },
+  )).toBe(false);
+});
+
+test('secret keys come from schema flags and ui hints', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      serverUrl: { type: 'string' },
+      apiToken: { type: 'string', secret: true },
+      nickname: { type: 'string' },
+    },
+  };
+  expect(secretSettingKeys(schema, undefined)).toEqual(['apiToken']);
+  expect(secretSettingKeys(schema, { fields: { nickname: { secret: true } } })).toEqual(['apiToken', 'nickname']);
+  expect(secretSettingKeys(undefined, undefined)).toEqual([]);
 });
 
 test('settings equality ignores key order', () => {

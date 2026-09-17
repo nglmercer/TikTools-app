@@ -32,6 +32,10 @@ export interface RegistryField {
   hint?: { en: string; es: string };
   sample?: unknown;
   sourceField?: string;
+  /** Protobuf provenance (`x-native-source`); absent on TikTools-only fields. */
+  sourceMethod?: string;
+  sourcePath?: string;
+  sourceTransform?: string;
 }
 
 export interface RegistrySourceField {

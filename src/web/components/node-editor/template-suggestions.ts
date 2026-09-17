@@ -99,8 +99,14 @@ function toSuggestion(
   };
 }
 
-/** Which native event field a registry entry derives from, for the hover card. */
+/** Where a registry entry derives from, for the hover card. Protobuf-backed
+ * fields show their vendor source concisely; anything else (including
+ * TikTools-only fields, which never claim a protobuf source) keeps the
+ * automation-contract reference. */
 function sourceDetail(eventType: string | undefined, field: RegistryField): string | undefined {
+  if (field.sourceMethod && field.sourcePath && field.sourceTransform) {
+    return `protobuf ${field.sourceMethod}.${field.sourcePath}: ${field.tsType} · ${field.sourceTransform}`;
+  }
   if (!eventType || !field.sourceField) return undefined;
   const entry = registryEntryFor(eventType);
   if (!entry || entry.sourceInterface === '-') return undefined;

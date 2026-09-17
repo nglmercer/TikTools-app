@@ -1,5 +1,5 @@
 import type { JsonObject, JsonValue } from '../../automation/types.ts';
-import { isSecretField } from '../../automation/plugins/declarative.ts';
+import { isSecretField, SECRET_PLACEHOLDER } from '../../automation/plugins/declarative.ts';
 import type { Locale } from '../i18n.ts';
 import { localized } from './ui/schema-form-helpers.ts';
 
@@ -134,12 +134,42 @@ export function settingsEqual(a: JsonObject, b: JsonObject): boolean {
 }
 
 /**
+ * Settings keys rendered as masked secret fields (schema `secret: true` or a
+ * secret UI hint). The host never reveals stored secrets: every WebView
+ * payload carries {@link SECRET_PLACEHOLDER} instead, and saving the
+ * placeholder back preserves the stored value.
+ */
+export function secretSettingKeys(
+  schema: JsonObject | undefined,
+  uiHints: JsonObject | undefined,
+): string[] {
+  const keys: string[] = [];
+  for (const [key, field] of schemaProperties(schema)) {
+    if (isSecretField(field, fieldHint(uiHints, key))) keys.push(key);
+  }
+  return keys;
+}
+
+/**
  * True when a host settings echo carries every sent key back unchanged.
  * Extra echo keys are fine: the host overlays schema defaults the payload
  * never carried.
+ *
+ * Secret keys are exempt from the strict comparison: the host redacts them
+ * to the placeholder on every echo, so a placeholder echo confirms any sent
+ * secret (a fresh value the host just stored, or the placeholder itself
+ * preserving the stored value). Without this, typing a token could never
+ * confirm and every secret save would end in an error.
  */
-export function echoConfirmsSave(echo: JsonObject, sent: JsonObject): boolean {
-  return Object.entries(sent).every(([key, value]) => echo[key] === value);
+export function echoConfirmsSave(
+  echo: JsonObject,
+  sent: JsonObject,
+  secretKeys: readonly string[] = [],
+): boolean {
+  return Object.entries(sent).every(([key, value]) => {
+    if (echo[key] === value) return true;
+    return secretKeys.includes(key) && echo[key] === SECRET_PLACEHOLDER;
+  });
 }
 
 export function stableSettingsJson(values: JsonObject): string {

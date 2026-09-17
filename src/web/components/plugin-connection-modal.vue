@@ -16,6 +16,7 @@ import type { PluginSettingsState } from '../types.ts';
 import { Button } from './ui/Button.vue';
 import { Modal, ModalActions } from './ui/Modal.vue';
 import { SchemaForm } from './ui/SchemaForm.vue';
+import { withSchemaDefaults } from './plugin-connection-logic.ts';
 import { t, type Locale } from '../i18n.ts';
 
 type PluginConnectionModalProps = {
@@ -82,7 +83,9 @@ export const PluginConnectionModal = defineVueComponent<PluginConnectionModalPro
   return () => {
   const locale = props.locale;
   const state = props.state;
-  const values = draft.value ?? state?.values ?? {};
+  // Display defaults (never secrets) so enum selects with schema defaults
+  // render their value instead of a blank box before the first edit.
+  const values = withSchemaDefaults(draft.value ?? state?.values ?? {}, state?.schema);
   const connection = props.connection;
   return (
     <Modal

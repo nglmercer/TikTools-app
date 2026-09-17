@@ -1,5 +1,5 @@
 <script lang="tsx">
-import { IconSettings, IconSun } from '../components/icons.vue';
+import { IconGlobe, IconMoon, IconSettings, IconSun } from '../components/icons.vue';
 import { Card } from '../components/ui/Card.vue';
 import { Select } from '../components/ui/Select.vue';
 import { Page } from '../components/ui/Page.vue';
@@ -51,6 +51,7 @@ function renderSettingsView({ locale, theme, onLocaleChange, onThemeChange }: Se
             value={theme}
             label={t(locale, 'theme')}
             onValueChange={(v) => onThemeChange(v as Theme)}
+            leadingIcon={theme === 'dark' ? <IconMoon size={14} /> : <IconSun size={14} />}
             options={[
               { value: 'dark', label: t(locale, 'dark') },
               { value: 'light', label: t(locale, 'light') },
@@ -71,6 +72,7 @@ function renderSettingsView({ locale, theme, onLocaleChange, onThemeChange }: Se
             value={locale}
             label={t(locale, 'language')}
             onValueChange={(v) => onLocaleChange(v as Locale)}
+            leadingIcon={<IconGlobe size={14} />}
             options={[
               { value: 'en', label: t(locale, 'english') },
               { value: 'es', label: t(locale, 'spanish') },

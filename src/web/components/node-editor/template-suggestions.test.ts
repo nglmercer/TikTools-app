@@ -1,5 +1,7 @@
 import { expect, test } from 'bun:test';
 
+import { sampleEventForType } from '../../../automation/event-registry.ts';
+import type { JsonObject } from '../../../automation/types.ts';
 import { applyPresetInsert } from '../autocomplete/autocomplete-controller.ts';
 import {
   applyFetchUrlTemplate,
@@ -76,6 +78,30 @@ test('applyFetchUrlTemplate matches the shared preset insert exactly', () => {
   for (const [current, preset] of cases) {
     expect(applyFetchUrlTemplate(current, preset)).toBe(applyPresetInsert(current, preset).value);
   }
+});
+
+test('hover cards show concise protobuf provenance', () => {
+  const suggestions = getTemplateSuggestions('tiktok.chat', 'en');
+  const comment = suggestions.find((entry) => entry.value === 'event.data.comment');
+  expect(comment?.documentation).toContain('protobuf WebcastChatMessage.content: string · native');
+  const gift = getTemplateSuggestions('tiktok.gift', 'en');
+  const giftId = gift.find((entry) => entry.value === 'event.data.giftId');
+  expect(giftId?.documentation).toContain('protobuf WebcastGiftMessage.gift_id: string · u64-to-string');
+});
+
+test('TikTools-only fields show no protobuf provenance', () => {
+  const suggestions = getTemplateSuggestions('tiktok.gift', 'en');
+  const method = suggestions.find((entry) => entry.value === 'event.data.method');
+  expect(method?.documentation ?? '').not.toContain('protobuf ');
+});
+
+test('observed-path fallback still surfaces live-only paths without duplicating registry ones', () => {
+  const lastEvent = sampleEventForType('tiktok.chat');
+  lastEvent.data = { ...(lastEvent.data as JsonObject), customLiveOnly: { deep: 'value' } };
+  const suggestions = getTemplateSuggestions('tiktok.chat', 'en', lastEvent);
+  const values = suggestions.map((entry) => entry.value);
+  expect(values).toContain('event.data.customLiveOnly.deep');
+  expect(values.filter((value) => value === 'event.data.comment')).toHaveLength(1);
 });
 
 test('text scope offers raw comment and Text Intelligence TTS text', () => {
