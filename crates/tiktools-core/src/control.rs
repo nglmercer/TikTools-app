@@ -62,6 +62,15 @@ impl OperationError {
         }
     }
 
+    /// Desktop-only capability (native dialogs, audio output) requested on a
+    /// headless host. Callers must not emulate the capability.
+    pub fn capability_unavailable(message: impl Into<String>) -> Self {
+        Self {
+            code: "capability_unavailable",
+            message: message.into(),
+        }
+    }
+
     pub fn internal(message: impl Into<String>) -> Self {
         Self {
             code: "internal",
@@ -1057,6 +1066,9 @@ impl AppCore {
             unique_id: Some(info.unique_id.clone()),
             room_id: Some(info.room_id.clone()),
         });
+        self.events.publish_domain(DomainEvent::CreatorChanged {
+            unique_id: Some(info.unique_id.clone()),
+        });
         Ok(self.live_status())
     }
 
@@ -1076,6 +1088,9 @@ impl AppCore {
         self.publish_disconnected_event().await;
         self.live.disconnect().await;
         self.events.publish_domain(DomainEvent::LiveDisconnected);
+        self.events.publish_domain(DomainEvent::CreatorChanged {
+            unique_id: None,
+        });
         self.live_status()
     }
 
@@ -1460,5 +1475,369 @@ impl AppCore {
         Err(OperationError::unavailable(
             "the native TikTok client is disabled in this build",
         ))
+    }
+}
+
+// ------------------------------------------------------------------
+// WebView parity: app state, creators, analytics, gifts, workflow
+// lookup, automation nodes/scripts, token provisioning, media picker.
+// ------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginProvisionResult {
+    pub plugin_id: String,
+    pub ok: bool,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GiftDebugResult {
+    pub gift_id: Option<String>,
+    pub icon_url: Option<String>,
+    pub has_icon: bool,
+    pub total_gifts: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptAnalysisResult {
+    pub node_id: String,
+    pub source: String,
+    pub diagnostics: Vec<Value>,
+    pub completions: Vec<Value>,
+    pub hover: Option<Value>,
+}
+
+impl AppCore {
+    pub fn app_state_get(
+        &self,
+        keys: Option<&[String]>,
+    ) -> Result<BTreeMap<String, String>, OperationError> {
+        if let Some(keys) = keys {
+            if keys.len() > 256 {
+                return Err(OperationError::invalid("at most 256 keys per request"));
+            }
+            if keys.iter().any(|key| key.is_empty() || key.len() > 256) {
+                return Err(OperationError::invalid(
+                    "app state keys must be 1..=256 characters",
+                ));
+            }
+        }
+        let state = self.app_state.read(keys);
+        #[cfg(feature = "persistence")]
+        let state = {
+            let mut state = state;
+            match self.db.load_app_state() {
+                Ok(persisted) => {
+                    state = persisted
+                        .into_iter()
+                        .filter_map(|(key, value)| {
+                            value.as_str().map(|value| (key, value.to_owned()))
+                        })
+                        .filter(|(key, _)| {
+                            keys.is_none_or(|keys| keys.is_empty() || keys.contains(key))
+                        })
+                        .collect();
+                }
+                Err(error) => tracing::warn!(%error, "could not load app state"),
+            }
+            state
+        };
+        Ok(state)
+    }
+
+    pub fn app_state_set(
+        &self,
+        key: &str,
+        value: &str,
+    ) -> Result<BTreeMap<String, String>, OperationError> {
+        if key.is_empty() || key.len() > 256 {
+            return Err(OperationError::invalid(
+                "app state key must be 1..=256 characters",
+            ));
+        }
+        if value.len() > 65_536 {
+            return Err(OperationError::invalid(
+                "app state value exceeds 65536 characters",
+            ));
+        }
+        self.app_state.set(key.to_owned(), value.to_owned());
+        #[cfg(feature = "persistence")]
+        if let Err(error) = self.db.save_app_state(key, value) {
+            tracing::warn!(%error, "could not persist app state");
+        }
+        Ok([(key.to_owned(), value.to_owned())].into_iter().collect())
+    }
+
+    pub fn creator_get(&self, unique_id: Option<&str>) -> Option<Value> {
+        #[cfg(feature = "persistence")]
+        {
+            match self.db.load_creator(unique_id) {
+                Ok(creator) => creator,
+                Err(error) => {
+                    tracing::warn!(%error, "could not load creator state");
+                    None
+                }
+            }
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = unique_id;
+            None
+        }
+    }
+
+    pub fn creator_recent(&self, limit: Option<i64>) -> Vec<Value> {
+        #[cfg(feature = "persistence")]
+        {
+            match self.db.load_recent_creators(limit.unwrap_or(10).clamp(0, 1000)) {
+                Ok(creators) => creators,
+                Err(error) => {
+                    tracing::warn!(%error, "could not load creator history");
+                    Vec::new()
+                }
+            }
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = limit;
+            Vec::new()
+        }
+    }
+
+    pub fn creator_history_clear(&self) {
+        #[cfg(feature = "persistence")]
+        if let Err(error) = self.db.clear_creator_history() {
+            tracing::warn!(%error, "could not clear creator history");
+        }
+        self.events.publish_domain(DomainEvent::CreatorChanged { unique_id: None });
+    }
+
+    pub fn analytics_summary(
+        &self,
+        creator_unique_id: Option<String>,
+        start_day: Option<i64>,
+        end_day: Option<i64>,
+        limit: Option<i64>,
+    ) -> Option<Value> {
+        #[cfg(feature = "persistence")]
+        {
+            let now_unix = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_secs() as i64)
+                .unwrap_or(0);
+            let today = crate::db::utc_day(now_unix);
+            let end = end_day.unwrap_or(today);
+            let start = start_day.unwrap_or(end - 6).min(end);
+            let creator = creator_unique_id
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| self.current_creator_unique_id())
+                .unwrap_or_default();
+            if creator.is_empty() {
+                return None;
+            }
+            match self
+                .db
+                .analytics_summary(&creator, start, end, limit.unwrap_or(10))
+            {
+                Ok(summary) => match serde_json::to_value(summary) {
+                    Ok(summary) => Some(summary),
+                    Err(error) => {
+                        tracing::warn!(%error, "could not serialize analytics summary");
+                        None
+                    }
+                },
+                Err(error) => {
+                    tracing::warn!(%error, "could not load analytics summary");
+                    None
+                }
+            }
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = (creator_unique_id, start_day, end_day, limit);
+            None
+        }
+    }
+
+    pub fn gift_catalog(&self) -> Vec<Value> {
+        #[cfg(feature = "persistence")]
+        {
+            match self.db.load_gift_catalog() {
+                Ok(gifts) => gifts,
+                Err(error) => {
+                    tracing::warn!(%error, "could not load gift catalog");
+                    Vec::new()
+                }
+            }
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            Vec::new()
+        }
+    }
+
+    pub fn gift_debug(&self, gift_id: Option<&str>) -> GiftDebugResult {
+        let catalog = self.gift_catalog();
+        let found = gift_id.and_then(|id| {
+            let id = id.trim();
+            catalog
+                .iter()
+                .find(|gift| gift.get("id").and_then(Value::as_str) == Some(id))
+        });
+        let icon_url = found
+            .and_then(|gift| gift.get("iconUrl").and_then(Value::as_str))
+            .map(str::to_owned);
+        GiftDebugResult {
+            gift_id: gift_id.map(str::to_owned),
+            icon_url: icon_url.clone(),
+            has_icon: icon_url.is_some(),
+            total_gifts: catalog.len() as u64,
+        }
+    }
+
+    pub fn workflow_get(&self, id: &str) -> Result<Value, OperationError> {
+        let id = clean_record_id(id, "workflow")?;
+        self.workflow_list()?
+            .into_iter()
+            .find(|workflow| workflow.get("id").and_then(Value::as_str) == Some(id.as_str()))
+            .ok_or_else(|| OperationError::not_found(format!("workflow `{id}` does not exist")))
+    }
+
+    pub fn automation_nodes(&self) -> Vec<Value> {
+        builtin_node_catalog()
+    }
+
+    pub fn automation_script_analyze(
+        &self,
+        node_id: &str,
+        source: &str,
+        offset: u64,
+        event_type: Option<&str>,
+    ) -> Result<ScriptAnalysisResult, OperationError> {
+        if node_id.is_empty() || node_id.len() > 256 {
+            return Err(OperationError::invalid(
+                "nodeId must be 1..=256 characters",
+            ));
+        }
+        if source.len() > 128 * 1024 || offset > 128 * 1024 {
+            return Err(OperationError::invalid(
+                "source/offset exceeds the 128 KiB limit",
+            ));
+        }
+        if event_type.is_some_and(|event| event.len() > 256) {
+            return Err(OperationError::invalid("eventType is too long (max 256)"));
+        }
+        let diagnostics = self
+            .automation
+            .validate_script(source)
+            .err()
+            .map(|message| {
+                vec![json!({
+                    "line": 1,
+                    "column": 1,
+                    "message": message,
+                    "severity": "error"
+                })]
+            })
+            .unwrap_or_default();
+        Ok(ScriptAnalysisResult {
+            node_id: node_id.to_owned(),
+            source: source.to_owned(),
+            diagnostics,
+            completions: Vec::new(),
+            hover: None,
+        })
+    }
+
+    /// One-click token provisioning. Operational failures (bad credentials,
+    /// unreachable server, unsupported flow) return `ok: false` with a
+    /// message, mirroring plugin action execution; only malformed input and
+    /// unknown plugins are hard errors. The password never appears in the
+    /// result, logs, or events.
+    pub async fn plugin_token_provision(
+        self: &Arc<Self>,
+        id: &str,
+        username: &str,
+        password: &str,
+    ) -> Result<PluginProvisionResult, OperationError> {
+        let id = clean_plugin_id(id)?;
+        if username.trim().is_empty() || username.len() > 128 {
+            return Err(OperationError::invalid(
+                "username must be 1..=128 characters",
+            ));
+        }
+        if password.is_empty() || password.len() > 4096 {
+            return Err(OperationError::invalid(
+                "password must be 1..=4096 characters",
+            ));
+        }
+        if self.plugins.get(&id).is_none() {
+            return Err(OperationError::not_found(format!(
+                "Plugin `{id}` is not installed."
+            )));
+        }
+        match self
+            .provision_plugin_token_inner(&id, username, password)
+            .await
+        {
+            Ok(()) => Ok(PluginProvisionResult {
+                plugin_id: id,
+                ok: true,
+                error: None,
+            }),
+            Err(message) => Ok(PluginProvisionResult {
+                plugin_id: id,
+                ok: false,
+                error: Some(message),
+            }),
+        }
+    }
+
+    /// Desktop-only native file dialog. Headless hosts return
+    /// `capability_unavailable`; callers must not emulate a dialog.
+    pub async fn media_pick(
+        &self,
+        options: MediaPickerOptions,
+    ) -> Result<Option<MediaSelection>, OperationError> {
+        if options.title.as_ref().is_some_and(|title| title.len() > 256) {
+            return Err(OperationError::invalid("title is too long (max 256)"));
+        }
+        if options
+            .initial_directory
+            .as_ref()
+            .is_some_and(|directory| directory.len() > 4096)
+        {
+            return Err(OperationError::invalid(
+                "initialDirectory is too long (max 4096)",
+            ));
+        }
+        if options.extensions.len() > 32
+            || options.extensions.iter().any(|extension| {
+                extension.is_empty()
+                    || extension.len() > 16
+                    || !extension.chars().all(|character| {
+                        character.is_ascii_alphanumeric() || matches!(character, '+' | '-' | '_')
+                    })
+            })
+        {
+            return Err(OperationError::invalid(
+                "extensions must be at most 32 alphanumeric tokens",
+            ));
+        }
+        match self.open_media_picker(options).await {
+            Ok(selection) => Ok(selection),
+            Err(MediaApiError::Validation(error)) => {
+                Err(OperationError::invalid(error.to_string()))
+            }
+            Err(MediaApiError::Host(MediaHostError::Unavailable(message))) => {
+                Err(OperationError::capability_unavailable(message))
+            }
+            Err(MediaApiError::Host(MediaHostError::Failed(message))) => {
+                Err(OperationError::unavailable(message))
+            }
+        }
     }
 }

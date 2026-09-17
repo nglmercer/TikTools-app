@@ -1,4 +1,8 @@
+pub mod analytics;
+pub mod app;
 pub mod automation;
+pub mod creators;
+pub mod gifts;
 pub mod live;
 pub mod media;
 pub mod plugins;
@@ -7,6 +11,7 @@ pub mod processors;
 pub mod rpc;
 pub mod settings;
 pub mod system;
+pub mod workflows;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

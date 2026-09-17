@@ -8,6 +8,12 @@ pub struct MethodMeta {
     pub name: String,
     pub description: String,
     pub side_effect: bool,
+    /// Deletes or resets persisted state (agents should confirm first).
+    #[serde(default)]
+    pub destructive: bool,
+    /// Needs a desktop host (native dialogs); headless hosts refuse it.
+    #[serde(default)]
+    pub requires_desktop: bool,
     pub params_schema: Value,
     pub result_schema: Value,
 }

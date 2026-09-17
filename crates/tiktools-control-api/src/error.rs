@@ -34,6 +34,17 @@ impl ApiError {
         Self::new("too_large", "request exceeds the size limit")
     }
 
+    pub fn capability_unavailable(message: impl Into<String>) -> Self {
+        Self::new("capability_unavailable", message)
+    }
+
+    pub fn host_unavailable() -> Self {
+        Self::new(
+            "host_unavailable",
+            "TikTools control host is not running.",
+        )
+    }
+
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new("internal", message)
     }

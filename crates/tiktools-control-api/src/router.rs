@@ -41,6 +41,25 @@ impl ControlRouter {
         F: Fn(Arc<AppCore>, P) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<R, ApiError>> + Send + 'static,
     {
+        self.register_typed_full(name, description, side_effect, false, false, handler);
+    }
+
+    /// Registers one typed method with agent-facing risk flags
+    /// (`destructive`, `requires_desktop` in `rpc.discover`).
+    pub fn register_typed_full<P, R, F, Fut>(
+        &mut self,
+        name: &str,
+        description: &str,
+        side_effect: bool,
+        destructive: bool,
+        requires_desktop: bool,
+        handler: F,
+    ) where
+        P: serde::de::DeserializeOwned + schemars::JsonSchema,
+        R: serde::Serialize + schemars::JsonSchema,
+        F: Fn(Arc<AppCore>, P) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<R, ApiError>> + Send + 'static,
+    {
         let handler = Arc::new(handler);
         let wrapped: HandlerFn = Arc::new(move |core, params| {
             let handler = Arc::clone(&handler);
@@ -60,12 +79,23 @@ impl ControlRouter {
                     name: name.to_owned(),
                     description: description.to_owned(),
                     side_effect,
+                    destructive,
+                    requires_desktop,
                     params_schema,
                     result_schema,
                 },
                 handler: wrapped,
             },
         );
+    }
+
+    /// Overrides the agent-facing risk flags of a registered method.
+    /// Unknown names are ignored so flag lists stay forward-compatible.
+    pub fn set_flags(&mut self, name: &str, destructive: bool, requires_desktop: bool) {
+        if let Some(entry) = self.methods.get_mut(name) {
+            entry.meta.destructive = destructive;
+            entry.meta.requires_desktop = requires_desktop;
+        }
     }
 
     pub fn get(&self, method: &str) -> Option<&MethodEntry> {

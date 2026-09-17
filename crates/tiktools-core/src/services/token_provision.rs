@@ -1,6 +1,6 @@
 //! One-click API token provisioning for declarative plugins.
 //!
-//! Some servers (SonicBoom) require a bearer API token that can only be
+//! Some servers (SonicBoom) require a Bearer [REDACTED] token that can only be
 //! minted through an admin login. Instead of making the operator copy that
 //! token by hand, a manifest may declare a `tokenProvisioning` strategy and
 //! the host executes it: admin login with operator-supplied credentials,
@@ -185,40 +185,30 @@ impl crate::AppCore {
     /// Mints an API token through the plugin's declared provisioning flow
     /// and stores it into the manifest's token setting.
     ///
-    /// The admin password is used for exactly one login POST and never
-    /// persisted or logged. Every failure surfaces as an actionable
-    /// `plugin-provision-result`; success additionally refreshes the
-    /// plugin-settings echo so the UI updates without a restart.
+    /// This is the value-returning core shared by the legacy WebView IPC
+    /// path and the `plugins.token.provision` control operation. The admin
+    /// password is used for exactly one login POST and never persisted,
+    /// logged, echoed, or included in the error string.
     #[cfg(feature = "http")]
-    pub(crate) async fn provision_plugin_token(
-        self: &Arc<Self>,
-        id: String,
-        username: String,
-        password: String,
-    ) {
-        let fail = |message: String| {
-            self.emit(crate::ipc::messages::HostMessage::PluginProvisionResult {
-                id: id.clone(),
-                ok: false,
-                error: Some(message),
-            });
-        };
-        let Some(plugin) = self.plugins.get(&id) else {
-            fail(format!("Plugin `{id}` is not installed."));
-            return;
+    pub(crate) async fn provision_plugin_token_inner(
+        &self,
+        id: &str,
+        username: &str,
+        password: &str,
+    ) -> Result<(), String> {
+        let Some(plugin) = self.plugins.get(id) else {
+            return Err(format!("Plugin `{id}` is not installed."));
         };
         if !self.plugin_ready(&plugin.manifest.id) {
-            fail(format!(
+            return Err(format!(
                 "Plugin `{id}` is not installed, enabled, or available."
             ));
-            return;
         }
         let manifest = &plugin.manifest;
         if !supports_token_provisioning(manifest) {
-            fail(format!(
+            return Err(format!(
                 "Plugin `{id}` does not declare a supported token provisioning flow."
             ));
-            return;
         }
         let token_setting = manifest
             .http
@@ -230,10 +220,7 @@ impl crate::AppCore {
             .to_owned();
         let settings = match self.capabilities.load_plugin_settings_raw(manifest) {
             Ok(settings) => settings,
-            Err(error) => {
-                fail(error.to_string());
-                return;
-            }
+            Err(error) => return Err(error.to_string()),
         };
         let base_template = manifest
             .http
@@ -245,32 +232,23 @@ impl crate::AppCore {
         let base = render_scoped_template(base_template, &scope);
         let base = base.trim().trim_end_matches('/');
         if base.is_empty() || base.len() > MAX_RENDERED_URL_LEN {
-            fail(format!("Plugin `{id}` has an invalid server URL."));
-            return;
+            return Err(format!("Plugin `{id}` has an invalid server URL."));
         }
         let parsed = match url::Url::parse(base) {
             Ok(parsed) => parsed,
-            Err(_) => {
-                fail(format!("Plugin `{id}` has an invalid server URL."));
-                return;
-            }
+            Err(_) => return Err(format!("Plugin `{id}` has an invalid server URL.")),
         };
         if !matches!(parsed.scheme(), "http" | "https") {
-            fail(format!("Plugin `{id}` must use an http(s) server URL."));
-            return;
+            return Err(format!("Plugin `{id}` must use an http(s) server URL."));
         }
         if !parsed.username().is_empty() || parsed.password().is_some() {
-            fail(format!(
+            return Err(format!(
                 "Plugin `{id}` must not embed credentials in its server URL."
             ));
-            return;
         }
         let host = match parsed.host_str() {
             Some(host) => host.to_ascii_lowercase(),
-            None => {
-                fail(format!("Plugin `{id}` has a server URL with no host."));
-                return;
-            }
+            None => return Err(format!("Plugin `{id}` has a server URL with no host.")),
         };
         // Credential-bearing requests keep the declarative trust policy:
         // loopback is trusted; anything else needs the network permission
@@ -280,8 +258,7 @@ impl crate::AppCore {
                 .capabilities
                 .require_permission(manifest, NETWORK_BIND_PERMISSION)
             {
-                fail(error.to_string());
-                return;
+                return Err(error.to_string());
             }
             let allow_private = manifest
                 .http
@@ -290,10 +267,9 @@ impl crate::AppCore {
                 .and_then(Value::as_bool)
                 .unwrap_or(false);
             if is_private_host(&host) && !allow_private {
-                fail(format!(
+                return Err(format!(
                     "Plugin `{id}` reaches a private host; its manifest must opt in with allowPrivateNetwork."
                 ));
-                return;
             }
         }
 
@@ -307,30 +283,27 @@ impl crate::AppCore {
                     "content-type".to_owned(),
                     "application/x-www-form-urlencoded".to_owned(),
                 )],
-                Some(form_body(&[("id", &username), ("pw", &password)])),
+                Some(form_body(&[("id", username), ("pw", password)])),
             )
             .await
         {
             Ok(login) => login,
-            Err(error) => {
-                fail(error);
-                return;
-            }
+            Err(error) => return Err(error),
         };
         if login.status == 401 {
-            fail("Admin login rejected: invalid ID or password.".to_owned());
-            return;
+            return Err("Admin login rejected: invalid ID or password.".to_owned());
         }
         if login.status == 429 {
-            fail("Too many login attempts; the server locked this address temporarily. Try again later.".to_owned());
-            return;
+            return Err(
+                "Too many login attempts; the server locked this address temporarily. Try again later."
+                    .to_owned(),
+            );
         }
         if !(300..400).contains(&login.status) || login.cookies.is_empty() {
-            fail(format!(
+            return Err(format!(
                 "Admin login failed with HTTP {}. Is this a SonicBoom server?",
                 login.status
             ));
-            return;
         }
         let cookie = login.cookies.join("; ");
 
@@ -346,26 +319,21 @@ impl crate::AppCore {
             .await
         {
             Ok(admin) => admin,
-            Err(error) => {
-                fail(error);
-                return;
-            }
+            Err(error) => return Err(error),
         };
         if admin.status != 200 {
-            fail(format!(
+            return Err(format!(
                 "Admin session was not established (HTTP {}).",
                 admin.status
             ));
-            return;
         }
         let Some(csrf) =
             extract_hidden_input(&admin.body, "csrf_token").filter(|value| is_hex64(value))
         else {
-            fail(
+            return Err(
                 "Could not read the admin form (unexpected page). Is this a SonicBoom server?"
                     .to_owned(),
             );
-            return;
         };
 
         // Step 3: mint the token (blank expiry = never expires).
@@ -385,21 +353,16 @@ impl crate::AppCore {
             .await
         {
             Ok(created) => created,
-            Err(error) => {
-                fail(error);
-                return;
-            }
+            Err(error) => return Err(error),
         };
         if created.status != 200 {
-            fail(format!(
+            return Err(format!(
                 "Token creation failed with HTTP {}.",
                 created.status
             ));
-            return;
         }
         let Some(raw_token) = extract_new_token(&created.body) else {
-            fail("Token creation succeeded but the new value could not be read (server version mismatch?).".to_owned());
-            return;
+            return Err("Token creation succeeded but the new value could not be read (server version mismatch?).".to_owned());
         };
 
         // Best-effort logout so the admin session does not linger.
@@ -428,26 +391,43 @@ impl crate::AppCore {
             .unwrap_or_default();
         let mut merged: std::collections::BTreeMap<String, Value> = stored.into_iter().collect();
         merged.insert(token_setting, Value::String(raw_token));
-        self.save_plugin_settings(&id, merged);
-        self.emit(crate::ipc::messages::HostMessage::PluginProvisionResult {
-            id,
-            ok: true,
-            error: None,
-        });
+        self.save_plugin_settings(id, merged);
+        Ok(())
     }
 
     #[cfg(not(feature = "http"))]
+    pub(crate) async fn provision_plugin_token_inner(
+        &self,
+        _id: &str,
+        _username: &str,
+        _password: &str,
+    ) -> Result<(), String> {
+        Err("Token provisioning requires the host HTTP capability.".to_owned())
+    }
+
+    /// Legacy WebView adapter: same authoritative provisioning core, with
+    /// UI-shaped `plugin-provision-result` reporting around it.
     pub(crate) async fn provision_plugin_token(
         self: &Arc<Self>,
         id: String,
-        _username: String,
-        _password: String,
+        username: String,
+        password: String,
     ) {
-        self.emit(crate::ipc::messages::HostMessage::PluginProvisionResult {
-            id,
-            ok: false,
-            error: Some("Token provisioning requires the host HTTP capability.".to_owned()),
-        });
+        match self
+            .provision_plugin_token_inner(&id, &username, &password)
+            .await
+        {
+            Ok(()) => self.emit(crate::ipc::messages::HostMessage::PluginProvisionResult {
+                id,
+                ok: true,
+                error: None,
+            }),
+            Err(message) => self.emit(crate::ipc::messages::HostMessage::PluginProvisionResult {
+                id,
+                ok: false,
+                error: Some(message),
+            }),
+        }
     }
 }
 

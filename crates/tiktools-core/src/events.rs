@@ -1,21 +1,12 @@
-//! Application event buses independent of the desktop event loop.
+//! Application event bus independent of the desktop event loop.
 //!
-//! [`AppEvent`] is the legacy UI-oriented bus consumed by the desktop host.
-//! [`DomainEvent`] is the headless-friendly domain bus: every client (WebView,
-//! CLI, stdio, local IPC, tests, agents) observes the same typed topics.
+//! [`DomainEvent`] is the single authoritative event bus: every client
+//! (WebView, CLI, stdio, local IPC, tests, agents) observes the same typed
+//! topics. There is no UI-oriented bus; legacy `HostMessage` pushes stay on
+//! the emitter path, never on this bus.
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
-
-use crate::ipc::messages::PageMessage;
-
-#[derive(Debug, Clone)]
-pub enum AppEvent {
-    Ui(PageMessage),
-    TikTok(serde_json::Value),
-    Plugin(serde_json::Value),
-    Shutdown,
-}
 
 /// Domain event observed identically by every control client.
 ///
@@ -66,6 +57,10 @@ pub enum DomainEvent {
         id: String,
         change: String,
     },
+    #[serde(rename = "creator.changed", rename_all = "camelCase")]
+    CreatorChanged { unique_id: Option<String> },
+    #[serde(rename = "analytics.updated", rename_all = "camelCase")]
+    AnalyticsUpdated { creator_unique_id: String },
     #[serde(rename = "shutdown")]
     Shutdown,
 }
@@ -84,6 +79,8 @@ impl DomainEvent {
             Self::LiveEvent { .. } => "live.event",
             Self::PointsChanged { .. } => "points.changed",
             Self::WorkflowChanged { .. } => "workflow.changed",
+            Self::CreatorChanged { .. } => "creator.changed",
+            Self::AnalyticsUpdated { .. } => "analytics.updated",
             Self::Shutdown => "shutdown",
         }
     }
@@ -91,23 +88,13 @@ impl DomainEvent {
 
 #[derive(Clone)]
 pub struct EventBus {
-    sender: broadcast::Sender<AppEvent>,
     domain: broadcast::Sender<DomainEvent>,
 }
 
 impl EventBus {
     pub fn new(capacity: usize) -> Self {
-        let (sender, _) = broadcast::channel(capacity);
         let (domain, _) = broadcast::channel(capacity);
-        Self { sender, domain }
-    }
-
-    pub fn publish(&self, event: AppEvent) {
-        let _ = self.sender.send(event);
-    }
-
-    pub fn subscribe(&self) -> broadcast::Receiver<AppEvent> {
-        self.sender.subscribe()
+        Self { domain }
     }
 
     pub fn publish_domain(&self, event: DomainEvent) {

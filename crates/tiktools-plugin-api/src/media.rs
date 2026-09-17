@@ -81,7 +81,7 @@ impl MediaDirectoryRef {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum MediaPickerMode {
     #[default]

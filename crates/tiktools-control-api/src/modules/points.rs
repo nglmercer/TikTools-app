@@ -9,7 +9,11 @@ use tiktools_core::{
     AppCore,
 };
 
-use crate::{error::ApiError, modules::Empty, router::ControlRouter};
+use crate::{
+    error::ApiError,
+    modules::{Empty, OkResult},
+    router::ControlRouter,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -41,6 +45,13 @@ pub struct PointsLeaderboardResult {
 #[serde(rename_all = "camelCase")]
 pub struct PointsViewerResult {
     pub viewer: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PointsResetParams {
+    #[serde(default)]
+    pub unique_id: Option<String>,
 }
 
 pub fn register(router: &mut ControlRouter) {
@@ -88,6 +99,15 @@ pub fn register(router: &mut ControlRouter) {
             Ok::<PointsLeaderboardResult, ApiError>(PointsLeaderboardResult {
                 viewers: core.points_leaderboard(params.limit),
             })
+        },
+    );
+    router.register_typed::<PointsResetParams, OkResult, _, _>(
+        "points.reset",
+        "Resets points for one viewer, or all viewers when uniqueId is omitted",
+        true,
+        |core: Arc<AppCore>, params: PointsResetParams| async move {
+            core.points_reset(params.unique_id.as_deref());
+            Ok::<OkResult, ApiError>(OkResult::ok())
         },
     );
 }

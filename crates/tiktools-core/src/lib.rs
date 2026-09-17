@@ -59,7 +59,7 @@ struct ConnectRequest {
 }
 
 use crate::{
-    events::{AppEvent, EventBus},
+    events::EventBus,
     ipc::messages::{HostMessage, PageMessage},
     paths::AppPaths,
     services::{
@@ -99,6 +99,7 @@ pub struct AppCore {
     last_automation_event: RwLock<Option<serde_json::Value>>,
     last_automation_event_at: RwLock<Option<u64>>,
     last_automation_context_emit_at: AtomicU64,
+    last_analytics_emit_at: AtomicU64,
     automation_sequence: AtomicU64,
     /// Monotonic revision of the persisted hotkey behavior projection. The
     /// plugin poll consumes this asynchronously so UI writes never wait for
@@ -225,6 +226,7 @@ impl AppCore {
             last_automation_event: RwLock::new(None),
             last_automation_event_at: RwLock::new(None),
             last_automation_context_emit_at: AtomicU64::new(0),
+            last_analytics_emit_at: AtomicU64::new(0),
             automation_sequence: AtomicU64::new(0),
             hotkey_sync_revision: AtomicU64::new(1),
             hotkey_synced_revision: AtomicU64::new(0),
@@ -455,7 +457,6 @@ impl AppCore {
         // when shutdown begins; `notify_waiters` alone would be lost before
         // the task reaches its select point.
         self.plugin_poll_shutdown.notify_one();
-        self.events.publish(AppEvent::Shutdown);
         self.events
             .publish_domain(crate::events::DomainEvent::Shutdown);
         self.publish_disconnected_event().await;

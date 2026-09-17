@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tiktools_core::{
-    control::{PluginActionOutcome, PluginConnectionResult, PluginInstallResult},
+    control::{PluginActionOutcome, PluginConnectionResult, PluginInstallResult, PluginProvisionResult},
     AppCore,
 };
 
@@ -52,6 +52,21 @@ pub struct PluginOptionsResult {
     pub source: String,
     pub options: Vec<Value>,
     pub selected: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginProvisionParams {
+    pub plugin_id: String,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallSetParams {
+    pub plugin_id: String,
+    pub installed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -179,6 +194,26 @@ pub fn register(router: &mut ControlRouter) {
             core.plugin_action_execute(&params.action_type, params.config, live)
                 .await
                 .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<PluginProvisionParams, PluginProvisionResult, _, _>(
+        "plugins.token.provision",
+        "Mints an API token via the plugin provisioning flow (password is used once, never stored)",
+        true,
+        |core: Arc<AppCore>, params: PluginProvisionParams| async move {
+            core.plugin_token_provision(&params.plugin_id, &params.username, &params.password)
+                .await
+                .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
+        },
+    );
+    router.register_typed::<PluginInstallSetParams, OkResult, _, _>(
+        "plugins.install.set",
+        "Logical installed-state toggle (never touches the filesystem)",
+        true,
+        |core: Arc<AppCore>, params: PluginInstallSetParams| async move {
+            core.plugin_set_installed(&params.plugin_id, params.installed)
+                .map(|()| OkResult::ok())
+                .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
         },
     );
 }

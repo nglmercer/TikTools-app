@@ -674,9 +674,19 @@ impl crate::AppCore {
     }
 
     /// Probes a plugin's declared health endpoint and emits the result.
-    pub(crate) async fn probe_plugin_connection(&self, id: &str) {
-        let check = self.check_plugin_connection(id).await;
-        self.emit_connection_latency(id, check.ok, check.latency_ms, check.error);
+    /// Legacy adapter over the `plugins.health` control operation.
+    pub(crate) async fn probe_plugin_connection(self: &Arc<Self>, id: &str) {
+        match self.plugin_connection_check(id).await {
+            Ok(check) => self.emit_connection_latency(
+                &check.plugin_id,
+                check.ok,
+                check.latency_ms,
+                check.error,
+            ),
+            Err(error) => {
+                self.emit_connection_latency(id, false, 0, Some(error.message().to_owned()));
+            }
+        }
     }
 
     fn emit_connection_latency(&self, id: &str, ok: bool, latency_ms: u64, error: Option<String>) {

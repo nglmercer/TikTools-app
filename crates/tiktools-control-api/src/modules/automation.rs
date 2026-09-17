@@ -3,7 +3,7 @@ use std::{str::FromStr, sync::Arc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tiktools_core::{control::AutomationKind, AppCore};
+use tiktools_core::{control::{AutomationKind, ScriptAnalysisResult}, AppCore};
 
 use crate::{error::ApiError, modules::Empty, router::ControlRouter};
 
@@ -59,6 +59,29 @@ pub struct AutomationDeleteResult {
 pub struct AutomationContextResult {
     pub event: Option<Value>,
     pub captured_at: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationScriptParams {
+    pub node_id: String,
+    pub source: String,
+    #[serde(default)]
+    pub offset: Option<u64>,
+    #[serde(default)]
+    pub event_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationNodesResult {
+    pub nodes: Vec<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRunsResult {
+    pub runs: Vec<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -213,6 +236,40 @@ pub fn register(router: &mut ControlRouter) {
                     core.test_automation_action(&record, params.trigger.as_deref())
                         .await
                 }
+            })
+        },
+    );
+    router.register_typed::<Empty, AutomationNodesResult, _, _>(
+        "automation.nodes.list",
+        "Built-in node catalog for the workflow graph editor",
+        false,
+        |core: Arc<AppCore>, _params: Empty| async move {
+            Ok::<AutomationNodesResult, ApiError>(AutomationNodesResult {
+                nodes: core.automation_nodes(),
+            })
+        },
+    );
+    router.register_typed::<AutomationScriptParams, ScriptAnalysisResult, _, _>(
+        "automation.script.analyze",
+        "Validates an automation script and returns diagnostics",
+        false,
+        |core: Arc<AppCore>, params: AutomationScriptParams| async move {
+            core.automation_script_analyze(
+                &params.node_id,
+                &params.source,
+                params.offset.unwrap_or(0),
+                params.event_type.as_deref(),
+            )
+            .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<Empty, AutomationRunsResult, _, _>(
+        "automation.runs",
+        "Recent behavior execution runs",
+        false,
+        |core: Arc<AppCore>, _params: Empty| async move {
+            Ok::<AutomationRunsResult, ApiError>(AutomationRunsResult {
+                runs: core.automation_runs(),
             })
         },
     );

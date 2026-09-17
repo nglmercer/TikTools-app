@@ -167,12 +167,13 @@ impl AppCore {
                 crate::plugin_invoker::InvokeError::Unavailable(reason)
                 | crate::plugin_invoker::InvokeError::Plugin(reason) => reason,
             })?;
-        self.events.publish(AppEvent::Plugin(json!({
-            "pluginId": plugin.manifest.id,
-            "type": "action-result",
-            "actionType": type_id,
-            "response": response
-        })));
+        self.events
+            .publish_domain(crate::events::DomainEvent::PluginProgress {
+                plugin_id: plugin.manifest.id.clone(),
+                state: "action-result".to_owned(),
+                progress: None,
+                message: format!("action `{type_id}` completed"),
+            });
 
         let typed = tiktools_plugin_sdk::decode_plugin_result(response)
             .map_err(|error| format!("invalid plugin result: {error}"))?;

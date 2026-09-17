@@ -18,17 +18,9 @@ impl AppCore {
     }
 
     pub(super) fn emit_persisted_gifts(&self) {
-        #[cfg(feature = "persistence")]
-        let gifts = match self.db.load_gift_catalog() {
-            Ok(gifts) => gifts,
-            Err(error) => {
-                tracing::warn!(%error, "could not load gift catalog");
-                Vec::new()
-            }
-        };
-        #[cfg(not(feature = "persistence"))]
-        let gifts = Vec::new();
-        self.emit(HostMessage::GiftCatalog { gifts });
+        self.emit(HostMessage::GiftCatalog {
+            gifts: self.gift_catalog(),
+        });
     }
 
     pub(super) fn emit_persisted_behavior(&self) {

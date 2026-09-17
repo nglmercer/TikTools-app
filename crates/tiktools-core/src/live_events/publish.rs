@@ -43,7 +43,16 @@ impl AppCore {
                 status: event.get("data").cloned().unwrap_or_else(|| json!({})),
             });
         }
-        self.events.publish(AppEvent::TikTok(event.clone()));
+        if let Some(event_type) = event.get("type").and_then(Value::as_str) {
+            if event_type.starts_with("tiktok.") {
+                self.events.publish_domain(
+                    crate::events::DomainEvent::LiveEvent {
+                        event_type: event_type.to_owned(),
+                        event: event.clone(),
+                    },
+                );
+            }
+        }
         let now = now_millis();
         let last = self
             .last_automation_context_emit_at

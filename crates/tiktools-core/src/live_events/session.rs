@@ -13,6 +13,7 @@ impl AppCore {
         let Some(creator) = self.current_creator_unique_id() else {
             return;
         };
+        self.publish_analytics_updated(&creator);
         let db = std::sync::Arc::clone(&self.db);
         let now_unix = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -35,6 +36,7 @@ impl AppCore {
         let Some(creator) = self.current_creator_unique_id() else {
             return;
         };
+        self.publish_analytics_updated(&creator);
         let db = std::sync::Arc::clone(&self.db);
         let viewers = i64::try_from(viewers).unwrap_or(i64::MAX);
         let now_unix = std::time::SystemTime::now()
@@ -52,6 +54,35 @@ impl AppCore {
                 tracing::warn!(%error, "analytics viewers write failed");
             }
         });
+    }
+    /// Publishes `analytics.updated` at a bounded rate. Live events are
+    /// high-rate; subscribers only need a periodic refresh signal.
+    #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
+    pub(crate) fn publish_analytics_updated(&self, creator: &str) {
+        const MIN_INTERVAL_MS: u64 = 5_000;
+        let now = crate::helpers::now_millis();
+        let last = self
+            .last_analytics_emit_at
+            .load(std::sync::atomic::Ordering::Acquire);
+        if last != 0 && now.saturating_sub(last) < MIN_INTERVAL_MS {
+            return;
+        }
+        if self
+            .last_analytics_emit_at
+            .compare_exchange(
+                last,
+                now,
+                std::sync::atomic::Ordering::AcqRel,
+                std::sync::atomic::Ordering::Acquire,
+            )
+            .is_ok()
+        {
+            self.events.publish_domain(
+                crate::events::DomainEvent::AnalyticsUpdated {
+                    creator_unique_id: creator.to_owned(),
+                },
+            );
+        }
     }
     #[cfg(feature = "persistence")]
     pub(crate) fn write_live_session(&self, creator: &str, room_id: Option<&str>, open: bool) {

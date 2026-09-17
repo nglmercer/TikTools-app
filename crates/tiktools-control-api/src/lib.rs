@@ -55,6 +55,24 @@ impl ControlApi {
         modules::automation::register(&mut router);
         modules::processors::register(&mut router);
         modules::media::register(&mut router);
+        modules::app::register(&mut router);
+        modules::creators::register(&mut router);
+        modules::analytics::register(&mut router);
+        modules::gifts::register(&mut router);
+        modules::workflows::register(&mut router);
+        // Agent-facing risk metadata: destructive ops delete or reset
+        // persisted state, so agents should confirm before calling them.
+        for name in [
+            "plugins.uninstall",
+            "plugins.settings.reset",
+            "automation.delete",
+            "workflows.delete",
+            "points.reset",
+            "creators.history.clear",
+            "system.shutdown",
+        ] {
+            router.set_flags(name, true, false);
+        }
         let registry = std::sync::Arc::new(std::sync::RwLock::new(MethodRegistry::default()));
         modules::rpc::register(&mut router, std::sync::Arc::clone(&registry));
         // Snapshot after every module (including rpc.*) registered so

@@ -4,7 +4,6 @@ use tiktools_plugin_api::MediaPickerOptions;
 
 impl AppCore {
     pub async fn handle_page_message(self: &Arc<Self>, message: PageMessage) {
-        self.events.publish(AppEvent::Ui(message.clone()));
         match message {
             PageMessage::Disconnect => {
                 self.live_disconnect().await;
@@ -106,90 +105,42 @@ impl AppCore {
                 });
             }
             PageMessage::GetCreator { unique_id } => {
-                #[cfg(feature = "persistence")]
-                let creator = match self.db.load_creator(unique_id.as_deref()) {
-                    Ok(creator) => creator,
-                    Err(error) => {
-                        tracing::warn!(%error, "could not load creator state");
-                        None
-                    }
-                };
-                #[cfg(not(feature = "persistence"))]
-                let creator = {
-                    let _ = unique_id;
-                    None
-                };
-                self.emit(HostMessage::CreatorState { creator });
-            }
-            PageMessage::GetRecentCreators { limit } => {
-                #[cfg(feature = "persistence")]
-                let creators = match self
-                    .db
-                    .load_recent_creators(limit.unwrap_or(10).clamp(0, 1000))
-                {
-                    Ok(creators) => creators,
-                    Err(error) => {
-                        tracing::warn!(%error, "could not load creator history");
-                        Vec::new()
-                    }
-                };
-                #[cfg(not(feature = "persistence"))]
-                let creators = {
-                    let _ = limit;
-                    Vec::new()
-                };
-                self.emit(HostMessage::RecentCreators { creators });
-            }
-            PageMessage::GetAppState { keys } => {
-                let state = self.app_state.read(keys.as_deref());
-                #[cfg(feature = "persistence")]
-                let state = {
-                    let mut state = state;
-                    match self.db.load_app_state() {
-                        Ok(persisted) => {
-                            state = persisted
-                                .into_iter()
-                                .filter_map(|(key, value)| {
-                                    value.as_str().map(|value| (key, value.to_owned()))
-                                })
-                                .filter(|(key, _)| {
-                                    keys.as_ref()
-                                        .is_none_or(|keys| keys.is_empty() || keys.contains(key))
-                                })
-                                .collect();
-                        }
-                        Err(error) => tracing::warn!(%error, "could not load app state"),
-                    }
-                    state
-                };
-                self.emit(HostMessage::AppState { state });
-            }
-            PageMessage::SetAppState { key, value } => {
-                self.app_state.set(key.clone(), value.clone());
-                #[cfg(feature = "persistence")]
-                if let Err(error) = self.db.save_app_state(&key, &value) {
-                    tracing::warn!(%error, "could not persist app state");
-                }
-                self.emit(HostMessage::AppState {
-                    state: [(key, value)].into_iter().collect(),
+                self.emit(HostMessage::CreatorState {
+                    creator: self.creator_get(unique_id.as_deref()),
                 });
             }
-            PageMessage::ClearCreatorHistory => {
-                #[cfg(feature = "persistence")]
-                if let Err(error) = self.db.clear_creator_history() {
-                    tracing::warn!(%error, "could not clear creator history");
+            PageMessage::GetRecentCreators { limit } => {
+                self.emit(HostMessage::RecentCreators {
+                    creators: self.creator_recent(limit),
+                });
+            }
+            PageMessage::GetAppState { keys } => {
+                self.emit(HostMessage::AppState {
+                    state: self.app_state_get(keys.as_deref()).unwrap_or_default(),
+                });
+            }
+            PageMessage::SetAppState { key, value } => {
+                match self.app_state_set(&key, &value) {
+                    Ok(state) => self.emit(HostMessage::AppState { state }),
+                    Err(error) => self.emit(HostMessage::BehaviorError {
+                        message: error.message().to_owned(),
+                    }),
                 }
+            }
+            PageMessage::ClearCreatorHistory => {
+                self.creator_history_clear();
                 self.emit(HostMessage::RecentCreators {
                     creators: Vec::new(),
                 });
                 self.emit(HostMessage::CreatorState { creator: None });
             }
             PageMessage::DebugGift { gift_id } => {
+                let debug = self.gift_debug(gift_id.as_deref());
                 self.emit(HostMessage::GiftDebug {
-                    gift_id,
-                    icon_url: None,
-                    has_icon: false,
-                    total_gifts: 0,
+                    gift_id: debug.gift_id,
+                    icon_url: debug.icon_url,
+                    has_icon: debug.has_icon,
+                    total_gifts: debug.total_gifts,
                 });
             }
             PageMessage::GetAutomationWorkflows => {
@@ -197,7 +148,7 @@ impl AppCore {
             }
             PageMessage::GetAutomationNodes => {
                 self.emit(HostMessage::AutomationNodeCatalog {
-                    nodes: builtin_node_catalog(),
+                    nodes: self.automation_nodes(),
                 });
             }
             PageMessage::GetAutomationContext => {
@@ -235,7 +186,7 @@ impl AppCore {
             PageMessage::GetBehavior => {
                 self.emit_persisted_behavior();
                 self.emit(HostMessage::BehaviorRuns {
-                    runs: self.automation.recent_runs(),
+                    runs: self.automation_runs(),
                 });
             }
             PageMessage::SaveAction { action } => {
@@ -282,13 +233,20 @@ impl AppCore {
                 self.handle_uninstall_plugin_package(id);
             }
             PageMessage::GetActionOptions { source } => {
-                let (options, selected, error) = self.resolve_action_options(&source).await;
-                self.emit(HostMessage::ActionOptions {
-                    source,
-                    options,
-                    selected,
-                    error,
-                });
+                match self.plugin_action_options(&source).await {
+                    Ok((options, selected)) => self.emit(HostMessage::ActionOptions {
+                        source,
+                        options,
+                        selected,
+                        error: None,
+                    }),
+                    Err(error) => self.emit(HostMessage::ActionOptions {
+                        source,
+                        options: Vec::new(),
+                        selected: None,
+                        error: Some(error.message().to_owned()),
+                    }),
+                }
             }
             PageMessage::ExecutePluginAction {
                 action_type,
@@ -315,31 +273,27 @@ impl AppCore {
             PageMessage::AnalyzeAutomationScript {
                 node_id,
                 source,
-                offset: _,
-                event_type: _,
+                offset,
+                event_type,
             } => {
-                let diagnostics = self
-                    .automation
-                    .validate_script(&source)
-                    .err()
-                    .map(|message| {
-                        vec![json!({
-                            "line": 1,
-                            "column": 1,
-                            "message": message,
-                            "severity": "error"
-                        })]
-                    })
-                    .unwrap_or_default();
-                self.emit(HostMessage::AutomationScriptAnalysis {
-                    analysis: json!({
-                        "nodeId": node_id,
-                        "source": source,
-                        "diagnostics": diagnostics,
-                        "completions": [],
-                        "hover": null
+                match self.automation_script_analyze(
+                    &node_id,
+                    &source,
+                    offset,
+                    event_type.as_deref(),
+                ) {
+                    Ok(analysis) => match serde_json::to_value(analysis) {
+                        Ok(analysis) => self.emit(HostMessage::AutomationScriptAnalysis {
+                            analysis,
+                        }),
+                        Err(error) => self.emit(HostMessage::AutomationError {
+                            message: error.to_string(),
+                        }),
+                    },
+                    Err(error) => self.emit(HostMessage::AutomationError {
+                        message: error.message().to_owned(),
                     }),
-                });
+                }
             }
             PageMessage::TestAction { action, trigger } => {
                 self.emit(HostMessage::BehaviorTestResult {
@@ -387,48 +341,12 @@ impl AppCore {
                 end_day,
                 limit,
             } => {
-                self.emit_analytics_summary(creator_unique_id, start_day, end_day, limit);
+                if let Some(summary) =
+                    self.analytics_summary(creator_unique_id, start_day, end_day, limit)
+                {
+                    self.emit(HostMessage::AnalyticsSummary { summary });
+                }
             }
-        }
-    }
-
-    fn emit_analytics_summary(
-        &self,
-        creator_unique_id: Option<String>,
-        start_day: Option<i64>,
-        end_day: Option<i64>,
-        limit: Option<i64>,
-    ) {
-        #[cfg(feature = "persistence")]
-        {
-            let now_unix = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|duration| duration.as_secs() as i64)
-                .unwrap_or(0);
-            let today = crate::db::utc_day(now_unix);
-            let end = end_day.unwrap_or(today);
-            let start = start_day.unwrap_or(end - 6).min(end);
-            let creator = creator_unique_id
-                .filter(|value| !value.trim().is_empty())
-                .or_else(|| self.current_creator_unique_id())
-                .unwrap_or_default();
-            if creator.is_empty() {
-                return;
-            }
-            match self
-                .db
-                .analytics_summary(&creator, start, end, limit.unwrap_or(10))
-            {
-                Ok(summary) => match serde_json::to_value(summary) {
-                    Ok(summary) => self.emit(HostMessage::AnalyticsSummary { summary }),
-                    Err(error) => tracing::warn!(%error, "could not serialize analytics summary"),
-                },
-                Err(error) => tracing::warn!(%error, "could not load analytics summary"),
-            }
-        }
-        #[cfg(not(feature = "persistence"))]
-        {
-            let _ = (creator_unique_id, start_day, end_day, limit);
         }
     }
 
