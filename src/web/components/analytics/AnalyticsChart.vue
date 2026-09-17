@@ -19,20 +19,36 @@ const CHART_PAD = 12;
 
 let chartSequence = 0;
 
-/** Small SVG line/area chart for one daily metric series. No chart library. */
+/**
+ * Small SVG line/area chart for one daily metric series. No chart library.
+ * Single-day spans render one centered bar (a one-point line would be an
+ * invisible dot), multi-day spans render the usual line + area.
+ */
 export const AnalyticsChart = defineVueFunctional<AnalyticsChartProps>((props) => {
   const { locale, days, startDay, endDay, metric, label } = props;
   const values = fillDaySeries(days, startDay, endDay, metric);
   const geometry = buildLineGeometry(values, CHART_WIDTH, CHART_HEIGHT, CHART_PAD);
   const gradientId = `analytics-area-${(chartSequence += 1)}`;
   const gridSteps = [0, 0.5, 1];
-  const showDots = values.length <= 62;
+  const showDots = values.length > 1 && values.length <= 62;
+  const isSingle = values.length <= 1;
 
-  const labelDays = values.length <= 1
+  const labelDays = isSingle
     ? [startDay]
     : [startDay, Math.round((startDay + endDay) / 2), endDay].filter(
         (day, index, all) => all.indexOf(day) === index,
       );
+
+  const singleValue = isSingle ? (values[0] ?? 0) : 0;
+  const singleBar = isSingle && singleValue > 0
+    ? (() => {
+        const base = CHART_HEIGHT - CHART_PAD;
+        const top = CHART_PAD;
+        const cx = CHART_WIDTH / 2;
+        const barWidth = Math.min(120, CHART_WIDTH / 4);
+        return { x: cx - barWidth / 2, y: top, width: barWidth, height: Math.max(0, base - top) };
+      })()
+    : null;
 
   return (
     <svg
@@ -58,13 +74,38 @@ export const AnalyticsChart = defineVueFunctional<AnalyticsChartProps>((props) =
           </g>
         );
       })}
-      {geometry.area ? <path d={geometry.area} fill={`url(#${gradientId})`} /> : null}
-      {geometry.line ? <path d={geometry.line} class="analytics-chart__line" fill="none" /> : null}
-      {showDots
-        ? geometry.points.map((point, index) => (
-            <circle key={index} cx={point.x} cy={point.y} r={values.length > 31 ? 1.6 : 2.6} class="analytics-chart__dot" />
-          ))
-        : null}
+      {isSingle ? (
+        <>
+          {singleBar ? (
+            <rect
+              x={singleBar.x}
+              y={singleBar.y}
+              width={singleBar.width}
+              height={singleBar.height}
+              rx={8}
+              class="analytics-chart__bar"
+            />
+          ) : null}
+          <text x={CHART_WIDTH / 2} y={singleBar ? singleBar.y - 8 : CHART_HEIGHT / 2} text-anchor="middle" class="analytics-chart__value">
+            {formatCount(singleValue, locale)}
+          </text>
+          {singleBar ? null : (
+            <text x={CHART_WIDTH / 2} y={CHART_HEIGHT / 2 + 18} text-anchor="middle" class="analytics-chart__tick">
+              {label}
+            </text>
+          )}
+        </>
+      ) : (
+        <>
+          {geometry.area ? <path d={geometry.area} fill={`url(#${gradientId})`} /> : null}
+          {geometry.line ? <path d={geometry.line} class="analytics-chart__line" fill="none" /> : null}
+          {showDots
+            ? geometry.points.map((point, index) => (
+                <circle key={index} cx={point.x} cy={point.y} r={values.length > 31 ? 1.6 : 2.6} class="analytics-chart__dot" />
+              ))
+            : null}
+        </>
+      )}
       {labelDays.map((day) => {
         const fraction = endDay === startDay ? 0.5 : (day - startDay) / (endDay - startDay);
         const x = CHART_PAD + (CHART_WIDTH - CHART_PAD * 2) * fraction;

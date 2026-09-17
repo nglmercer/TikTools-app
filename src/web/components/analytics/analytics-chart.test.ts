@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { buildLineGeometry, fillDaySeries, type AnalyticsMetric } from './analytics-chart.ts';
+import { buildLineGeometry, buildMetricBreakdown, fillDaySeries, isSingleDaySpan, type AnalyticsMetric } from './analytics-chart.ts';
 import type { AnalyticsDayRow } from '../../../shared/messages.ts';
 
 function row(day: number, chats: number): AnalyticsDayRow {
@@ -50,4 +50,22 @@ test('buildLineGeometry renders flat and empty series safely', () => {
   expect(empty.line).toBe('');
   expect(empty.area).toBe('');
   expect(empty.points).toEqual([]);
+});
+
+test('isSingleDaySpan detects Today and single-day custom spans', () => {
+  expect(isSingleDaySpan(100, 100)).toBe(true);
+  expect(isSingleDaySpan(95, 100)).toBe(false);
+  expect(isSingleDaySpan(100, 95)).toBe(true);
+});
+
+test('buildMetricBreakdown normalizes single-day values against the max', () => {
+  const entries = buildMetricBreakdown({ chats: 616, gifts: 18, likes: 1248, diamonds: 18, peakViewers: 22107 });
+  expect(entries).toHaveLength(5);
+  const byMetric = Object.fromEntries(entries.map((entry) => [entry.metric, entry]));
+  expect(byMetric.peakViewers.fraction).toBe(1);
+  expect(byMetric.chats.fraction).toBeCloseTo(616 / 22107, 5);
+  expect(byMetric.likes.fraction).toBeCloseTo(1248 / 22107, 5);
+
+  const flat = buildMetricBreakdown({ chats: 0, gifts: 0, likes: 0, diamonds: 0, peakViewers: 0 });
+  expect(flat.every((entry) => entry.fraction === 0)).toBe(true);
 });

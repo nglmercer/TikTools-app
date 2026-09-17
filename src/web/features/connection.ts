@@ -51,13 +51,12 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     }
   };
 
-  control.onPush('reconnecting', () => {
+  control.onTopic<{ attempt: number; delayMs: number }>('live.reconnecting', () => {
     status.value = 'retrying';
   });
-  control.onPush('error', (message) => {
-    if (message.type !== 'error') return;
+  control.onTopic<{ phase: string; message: string }>('live.error', (data) => {
     status.value = 'error';
-    error.value = message.message;
+    error.value = data.message;
   });
   control.onTopic<{ uniqueId?: string | null }>('live.connected', (data) => {
     status.value = 'connected';

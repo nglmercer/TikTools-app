@@ -178,6 +178,113 @@
   fill: var(--tt-cyan);
 }
 
+.analytics-chart__bar {
+  fill: var(--tt-cyan);
+  opacity: 0.85;
+}
+
+.analytics-chart__value {
+  fill: var(--text);
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- single-day (Today) breakdown: bars reuse Card + Chip primitives ---- */
+.analytics-single {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.analytics-single__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.analytics-single__day {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.analytics-single__hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.analytics-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.analytics-bar-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 72px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.analytics-bar-row:hover {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.analytics-bar-row.is-active {
+  border-color: var(--line-focus);
+  background: rgba(37, 244, 238, 0.08);
+}
+
+.analytics-bar-row__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.analytics-bar-row.is-active .analytics-bar-row__label {
+  color: var(--text);
+}
+
+.analytics-bar-row__track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.analytics-bar-row__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--tt-cyan);
+  opacity: 0.85;
+  transition: width 0.2s ease;
+}
+
+.analytics-bar-row.is-active .analytics-bar-row__fill {
+  opacity: 1;
+}
+
+.analytics-bar-row__value {
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .analytics-chart__tick {
   fill: var(--text-muted);
   font-size: 11px;

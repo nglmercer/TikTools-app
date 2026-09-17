@@ -69,14 +69,13 @@ export function useLive(control: ControlClient, callbacks: LiveCallbacks) {
   control.onTopic<{ gifts: GiftCatalogEntry[] }>('gifts.catalog', (data) => {
     giftCatalog.value = data.gifts;
   });
-  control.onPush('error', (message) => {
-    if (message.type !== 'error') return;
+  control.onTopic<{ phase: string; message: string }>('live.error', (data) => {
     events.value = [
       ...events.value,
       {
         kind: 'member' as const,
         author: callbacks.systemAuthor(),
-        text: message.message,
+        text: data.message,
         id: nextEventId.value++,
         receivedAt: Date.now(),
       },

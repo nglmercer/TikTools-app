@@ -8,6 +8,28 @@ export function metricValue(row: AnalyticsDayRow, metric: AnalyticsMetric): numb
   return row[metric] ?? 0;
 }
 
+/** A span with a single day cannot render a trend line — callers should show a breakdown instead. */
+export function isSingleDaySpan(startDay: number, endDay: number): boolean {
+  return endDay <= startDay;
+}
+
+export type MetricBreakdownEntry = {
+  metric: AnalyticsMetric;
+  value: number;
+  /** 0..1 fraction of the largest metric in the same day. */
+  fraction: number;
+};
+
+/** Normalized per-metric breakdown for a single day (Today / single-day custom). */
+export function buildMetricBreakdown(values: Record<AnalyticsMetric, number>): MetricBreakdownEntry[] {
+  const entries = ANALYTICS_METRICS.map((metric) => ({ metric, value: Math.max(0, values[metric] ?? 0) }));
+  const max = entries.reduce((top, entry) => Math.max(top, entry.value), 0);
+  return entries.map((entry) => ({
+    ...entry,
+    fraction: max > 0 ? entry.value / max : 0,
+  }));
+}
+
 /** Fill every day in the span with its metric value (zero when missing). */
 export function fillDaySeries(
   days: AnalyticsDayRow[],
