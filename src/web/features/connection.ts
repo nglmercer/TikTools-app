@@ -110,6 +110,10 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
         if (!result.connected) {
           status.value = 'disconnected';
           activeCreator.value = previousCreator;
+        } else if (result.uniqueId) {
+          // Surface the picked creator in the input so the connection can
+          // be verified; the pill follows via the live.connected topic.
+          uniqueId.value = normalizeUsername(result.uniqueId);
         }
       })
       .catch((failure: unknown) => {

@@ -75,6 +75,27 @@ describe('useConnection pick-live', () => {
     expect(connection.activeCreator.value).not.toBe('searchingRooms');
   });
 
+  test('a successful pick surfaces the creator in the input', async () => {
+    const control = stubControl({
+      call: <T,>(): Promise<T> =>
+        Promise.resolve({
+          connected: true,
+          uniqueId: '@picked_creator',
+          roomId: '123',
+          connectionId: 'connection-1',
+          native: true,
+        } as T),
+    });
+    const connection = useConnection(control, callbacks);
+    expect(connection.uniqueId.value).toBe('');
+
+    connection.handlePickLive();
+    await flushPromises();
+
+    expect(connection.status.value).toBe('connecting');
+    expect(connection.uniqueId.value).toBe('picked_creator');
+  });
+
   test('a provided cookie is passed through trimmed', async () => {
     const control = stubControl({
       call: <T,>(method: string, params?: RpcParams): Promise<T> => {

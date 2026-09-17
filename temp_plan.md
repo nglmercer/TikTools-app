@@ -1,9 +1,9 @@
-# TikTools — Fix IPC, Events, and Dev Startup
+# TikTools — Finish Remaining IPC/Event Reliability Fixes
 
 Repository:
 
 ```text
-https://github.com/nglmercer/TikTools-app
+nglmercer/TikTools-app
 ```
 
 Branch:
@@ -12,402 +12,639 @@ Branch:
 remake
 ```
 
+Current reviewed commit:
+
+```text
+386094e0f280a19a18075a2983c5f56b8f45cac8
+```
+
 ## Goal
 
-Make the control plane reliable:
+Finish the control-plane refactor and eliminate the remaining event-loss, WebView queue, IPC ownership, and blocking-I/O problems.
+
+Target:
 
 ```text
 ONE AppCore
    │
 ControlApi
-   ├── WebView RPC
-   ├── local IPC
+   ├── WebView
+   ├── IPC
    ├── CLI
    └── agents
+
+DomainEvent = authoritative push/event channel
 ```
 
-No duplicated runtime state. No dropped events. No stale frontend/desktop processes.
+---
 
-## 1. Fix `scripts/start-dev.ts`
+# 1. Fix WebView DomainEvent `Lagged`
 
 Current bug:
 
-```text
-script assumes port 3000
-Vite may start on 3005
-Rust still receives TIKTOOLS_DEV_URL=http://127.0.0.1:3000
+```rust
+match events.recv().await {
+    Ok(event) => event,
+    Err(_) => break,
+}
 ```
 
-Requirements:
+`tokio::broadcast::RecvError::Lagged(_)` is recoverable.
 
-* Never guess the Vite port.
-* Start Vite programmatically or allocate a free port first.
-* Use `strictPort: true`.
-* Pass the actual URL to Rust.
-* Do not consider another process on the requested port as the new Vite instance.
-* Stop owned Vite process when desktop exits.
+Required:
 
-Expected:
+```rust
+match events.recv().await {
+    Ok(event) => {
+        // forward
+    }
 
-```text
-Vite -> actual URL
-          │
-          └── TIKTOOLS_DEV_URL
-                    │
-                 desktop
+    Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
+        tracing::warn!(count, "WebView domain event receiver lagged");
+        continue;
+    }
+
+    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+}
 ```
 
-## 2. Prevent stale desktop instances in dev
+A temporary burst must never permanently disable WebView events.
 
-Current single-instance behavior can cause the newly compiled desktop to exit while an old desktop continues running.
+Add a regression test.
 
-Requirements:
+---
 
-* Dev launcher must detect an existing TikTools desktop/control host.
-* Fail clearly instead of silently using the old process.
-* Never mix:
+# 2. Never Drop RPC Responses from WebView Queue
 
-  * old desktop
-  * new Vite
-  * stale control IPC host
+Current bounded queue may eventually do:
 
-## 3. Fix Windows control IPC ownership
-
-Do not use `ControlClient::connect()` as a lock.
-
-Add an OS ownership primitive, e.g.:
-
-```text
-Local\TikTools.ControlHost
+```rust
+queue.pop_front();
 ```
 
-Rules:
+This can drop:
 
 ```text
-desktop
-  -> acquire control-host mutex
-  -> start named pipe
-
-standalone host
-  -> acquire same mutex
-  -> fail if already owned
+rpc-response
+errors
+lifecycle events
+important state transitions
 ```
 
-Only one control server may own the production endpoint.
+Implement message priority.
 
-## 4. Add Windows named-pipe connection retry
-
-Current client performs one immediate `open()`.
-
-Add bounded retry/backoff for transient errors such as:
+Suggested classes:
 
 ```text
-ERROR_FILE_NOT_FOUND
-ERROR_PIPE_BUSY
+CRITICAL — never drop
+  rpc-response
+  live.connected
+  live.disconnected
+  plugin lifecycle
+  errors
+  shutdown
+
+COALESCABLE
+  room.stats
+  leaderboard snapshot
+  analytics.updated
+  processor metrics
+  automation context
+
+DROPPABLE
+  high-rate UI/live feed events when queue is saturated
 ```
 
-Suggested:
+Do not use blind FIFO eviction.
+
+If the queue contains only critical messages, apply backpressure or grow only within a second hard safety limit rather than dropping RPC responses.
+
+Add tests proving RPC responses survive saturation.
+
+---
+
+# 3. Fix WebView Batch Tail Stall
+
+Current:
 
 ```text
-retry every 25-50ms
-max ~2-5 seconds
+MAX_BATCH_PER_TICK = 128
 ```
 
-Return `host_unavailable` only after the retry budget expires.
-
-## 5. Make `DomainEvent` authoritative
-
-UI/IPC event delivery must not depend on automation execution.
-
-Wrong:
+On Windows/macOS:
 
 ```text
-TikTok
- -> automation slot
- -> processors
- -> remember_automation_event
- -> DomainEvent
+flush 128
+remaining messages > 0
+ControlFlow::Wait
+no new event
+remaining messages can stall
 ```
 
 Required:
 
-```text
-TikTok
- -> normalize
- -> DomainEvent immediately
-      ├── WebView
-      ├── IPC/CLI/agents
-      └── automation pipeline
-            -> may independently drop/throttle
-```
-
-Never drop control/UI events because automation concurrency is saturated.
-
-## 6. Complete live-event migration
-
-Remove frontend dependence on legacy pushes where a domain event exists.
-
-Migrate:
-
-```text
-live-event
-room-stats
-connection state
-points changes
-plugin lifecycle/progress
-creator changes
-```
-
-toward:
-
-```text
-control.onTopic(...)
-```
-
-Keep legacy `HostMessage` only as temporary compatibility.
-
-Avoid sending the same event through both paths.
-
-## 7. Give Rust `ControlClient` event subscriptions
-
-Current Rust client skips:
-
-```json
-{"method":"event"}
-```
-
-Implement one reader task:
-
-```text
-IPC socket
-   │
-reader task
-   ├── response id -> pending RPC promise
-   └── event       -> broadcast/event channel
-```
-
-Provide API similar to:
+After a batch:
 
 ```rust
-let client = ControlClient::connect().await?;
-let mut events = client.subscribe();
-
-while let Some(event) = events.recv().await {
-    // ...
+if !self.pending_host_messages.is_empty() {
+    schedule_another_ui_wake();
 }
 ```
 
-Support multiple concurrent RPC requests.
+Preferred design:
 
-Do not discard events.
-
-## 8. Fix `processors.status` contract
-
-Backend returns a snapshot object.
-
-Frontend currently expects:
-
-```ts
-ProcessorStatusEntry[]
+```text
+queue not empty
+  -> send/retain FlushWebviewBatch event
+  -> next Winit turn
+  -> flush next batch
 ```
 
-Make both sides typed and identical.
+Do not busy-loop.
+
+Add a test with >128 queued messages proving all batches eventually drain.
+
+---
+
+# 4. Coalesce New Domain Events Too
+
+Current coalescer mainly understands legacy:
+
+```json
+{"type":"room-stats"}
+```
+
+It must also understand:
+
+```json
+{
+  "method": "event",
+  "params": {
+    "topic": "room.stats"
+  }
+}
+```
+
+Coalesce domain topics such as:
+
+```text
+room.stats
+analytics.updated
+processor metrics/status snapshot
+leaderboard snapshot if represented as a domain topic
+automation context snapshot
+```
+
+Never coalesce:
+
+```text
+live.ui-event
+rpc-response
+plugin lifecycle
+errors
+shutdown
+```
+
+Create one message-classification function shared by queue policy and tests.
+
+---
+
+# 5. Clear IPC Health When Retry Successfully Binds
+
+Current logic clears:
+
+```rust
+core.set_ipc_error(None)
+```
+
+only after `run_ipc_shared()` returns successfully.
+
+But a healthy server normally remains inside its accept loop until shutdown.
+
+Required architecture:
+
+```text
+bind/claim endpoint
+   ↓
+server ready callback/signal
+   ↓
+core.set_ipc_error(None)
+   ↓
+accept loop
+```
+
+Possible API:
+
+```rust
+run_ipc_shared_with_ready(
+    control,
+    || core.set_ipc_error(None),
+)
+```
+
+or separate:
+
+```rust
+let server = bind_ipc(...)?;
+core.set_ipc_error(None);
+server.run().await;
+```
+
+Health must transition:
+
+```text
+degraded -> ok
+```
+
+as soon as IPC is actually listening again.
+
+Add test.
+
+---
+
+# 6. Strengthen Unix Control-Host Ownership
+
+Current Unix ownership relies mostly on socket bind/stale socket cleanup.
+
+Add a real per-user lock held for server lifetime.
 
 Preferred:
 
-```ts
-interface ProcessorStatusResult {
-  processors: ProcessorStatusEntry[];
-}
+```text
+$TIKTOOLS_HOME/tiktools-control.lock
 ```
 
-Then:
+using:
 
-```ts
-const result =
-  await control.call<ProcessorStatusResult>(
-    'processors.status',
-    {},
-  );
-
-processors.value = result.processors;
+```text
+flock / fs2 / equivalent advisory file locking
 ```
 
-Avoid untyped `Value` RPC results when possible.
+Flow:
 
-## 9. Publish consistent domain events
+```text
+acquire ownership lock
+   ↓
+inspect/remove stale socket
+   ↓
+bind Unix socket
+   ↓
+hold lock until server exits
+```
 
-Every state mutation must publish the same event regardless of origin.
+Never unlink a possibly-live socket before acquiring exclusive ownership.
+
+Keep:
+
+```text
+socket permissions = 0600
+```
+
+Add tests:
+
+```text
+first owner succeeds
+second owner fails
+stale socket cleanup works
+lock released after shutdown
+```
+
+---
+
+# 7. Complete Blocking-I/O Audit
+
+Move synchronous persistence/filesystem work out of async Tokio handlers.
+
+Audit at minimum:
+
+```text
+app.state.*
+creators.*
+workflows.*
+plugins.settings.*
+points.*
+gifts.*
+analytics.*
+plugin install/uninstall
+filesystem scans
+archive/file operations
+```
 
 Example:
 
-```text
-manual points adjustment
-live TikTok award
-automation adjustment
-plugin action adjustment
+```rust
+let result = tokio::task::spawn_blocking(move || {
+    core.workflow_save(graph)
+})
+.await
+.map_err(...)?;
 ```
 
-should all produce:
+Do not unnecessarily wrap pure in-memory operations.
+
+Target rule:
 
 ```text
-points.changed
+SQLite / filesystem / archive / sync plugin I/O
+    -> spawn_blocking
+
+network async
+    -> normal async
+
+pure memory
+    -> direct
 ```
 
-Same rule for:
+---
+
+# 8. Complete DomainEvent Migration
+
+Add domain equivalents for remaining legacy connection pushes.
+
+Add:
 
 ```text
-plugin.*
-workflow.*
-creator.*
-live.*
-analytics.*
+live.reconnecting
+live.error
 ```
 
-## 10. Prevent WebView event flooding
-
-Do not call:
+Suggested variants:
 
 ```rust
-webview.evaluate_script(...)
+LiveReconnecting {
+    attempt: u32,
+    delay_ms: u64,
+}
+
+LiveError {
+    phase: String,
+    message: String,
+}
 ```
 
-once for every high-rate event.
+Frontend should consume:
 
-Add bounded batching/coalescing.
+```ts
+control.onTopic('live.reconnecting', ...)
+control.onTopic('live.error', ...)
+```
 
-Target:
+Remove corresponding frontend legacy push subscriptions after migration.
+
+---
+
+# 9. Stop Sending Duplicate Legacy Events
+
+Once frontend consumes the domain equivalent, stop emitting duplicate legacy messages for that state.
+
+Examples to remove when safe:
 
 ```text
-Rust events
- -> bounded queue
- -> batch per UI tick/frame
- -> one evaluate_script
+HostMessage::LiveEvent
+HostMessage::RoomStats
+HostMessage::PointsAwarded
+HostMessage::GiftCatalog
+HostMessage::PluginProgress
 ```
 
-Example JS boundary:
+Do this incrementally only after the frontend no longer depends on them.
 
-```js
-window.__tiktools_receive_batch__([
-  event1,
-  event2,
-  event3
-]);
-```
+Keep compatibility only where genuinely required.
 
-Coalesce disposable snapshots such as:
+Goal:
 
 ```text
-room stats
-leaderboard
-analytics updates
-processor metrics
+one event mutation
+   ↓
+one DomainEvent
+   ↓
+all clients
 ```
 
-Never use an unbounded queue.
+---
 
-## 11. Move blocking work off Tokio workers
+# 10. Fix New Viewer Handling in `points.changed`
 
-Audit synchronous operations inside async RPC handlers:
+Current frontend logic:
+
+```ts
+const index = leaderboard.value.findIndex(...);
+
+if (index < 0) return;
+```
+
+But `points.adjust` may create a new viewer.
+
+Fix with one of:
+
+### Preferred
+
+Make `points.changed` carry enough information to construct/update a full viewer record.
+
+or:
+
+### Acceptable
+
+If viewer is missing:
+
+```ts
+void refresh();
+```
+
+Do not silently ignore a newly created viewer.
+
+Add regression test:
 
 ```text
-SQLite
-filesystem
-plugin scanning
-plugin install/uninstall
-archive extraction
-remove_dir_all
-large metadata operations
+empty leaderboard
+points.adjust("new-user", 10)
+points.changed received
+new-user appears
 ```
 
-Use:
+---
+
+# 11. Add Raw WebView IPC Size Limit
+
+Before:
 
 ```rust
-tokio::task::spawn_blocking(...)
+serde_json::from_str(&raw)
 ```
 
-where appropriate.
+validate:
 
-Do not block:
+```rust
+if raw.len() > MAX_REQUEST_BYTES {
+    return/send request_too_large;
+}
+```
+
+Use the same limits as local IPC:
 
 ```text
-Winit thread
-Tokio event workers
-live event pump
-IPC reader
+MAX_REQUEST_BYTES
+MAX_PARAMS_BYTES
 ```
 
-## 12. Make IPC startup failure visible
+Do not let WebView bypass transport limits.
 
-If desktop control IPC cannot start:
+Add malformed/oversized request tests.
 
-Do not only log:
+---
+
+# 12. Improve Dev Stale-Host Detection
+
+Current dev launcher probes control IPC.
+
+Also make startup robust against stale desktop ownership.
+
+Requirements:
 
 ```text
-control IPC server exited
+existing control host -> fail
+existing desktop single-instance owner -> fail
+Vite process from current launcher only
+actual selected Vite port only
 ```
 
-Either:
+Prefer a small desktop/control probe with PID/version info if possible.
 
-* fail desktop startup, or
-* expose explicit degraded health and retry.
+Dev startup must never produce:
 
-CLI/agents must never silently become unavailable while GUI appears healthy.
+```text
+new Vite + old desktop
+old IPC host + new frontend
+```
 
-## 13. Improve tests
+---
+
+# 13. Make IPC Client Reader Fail Loudly on Bad Wire Data
+
+Current reader silently skips malformed JSON/event payloads.
+
+Improve diagnostics:
+
+```rust
+tracing::warn!(..., "invalid control IPC response");
+```
+
+For malformed responses matching a pending ID, fail the pending request instead of leaving it until timeout where possible.
+
+Do not crash the connection for one malformed event notification unless framing is corrupt.
+
+---
+
+# 14. Add Event-Loss / Queue Stress Tests
 
 Add tests for:
 
 ```text
-actual Vite port propagation
-stale desktop detection
-Windows pipe retry
-one control-host owner
-concurrent RPC calls
-event subscription
-live event delivery independent of automation slots
-processors.status exact response shape
-points.changed from live and manual mutations
-WebView batching
+broadcast Lagged does not terminate WebView event forwarder
+>128 WebView messages fully drain
+queue saturation does not drop rpc-response
+domain snapshots coalesce
+live events remain ordered enough for UI use
+event subscription continues after bursts
+IPC reconnect clears degraded health
+Unix ownership lock
+new viewer points.changed
+oversized WebView RPC rejected
 ```
 
-Parity tests must validate behavior/result shape, not only method existence.
+Use bounded timeouts on every async test.
 
-## Acceptance criteria
+No test may hang indefinitely.
 
-All must pass:
+---
+
+# 15. Verification
+
+Run:
 
 ```bash
+cargo fmt --all -- --check
+
+cargo check --workspace --all-features --locked
+
+cargo clippy \
+  --workspace \
+  --all-targets \
+  --all-features \
+  --locked \
+  -- -D warnings
+
+cargo test --workspace --locked
+
 bun run lint
 bun run typecheck
 bun test
 bun run build:web
 
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-cargo test --workspace --locked
-cargo check --workspace --locked
+git diff --check
 ```
 
-Manual dev test:
+Then manually test:
 
 ```bash
 bun run scripts/start-dev.ts
 ```
 
-Must show exactly one real Vite URL and desktop must use that exact URL.
-
-Then verify:
+Verify:
 
 ```text
-WebView RPC works
-CLI talks to same AppCore
-two IPC clients share state
-live.connect works
-live events reach WebView + IPC
-automation saturation does not drop control events
-desktop shutdown closes IPC cleanly
-no stale processes are reused
+one Vite process
+one desktop host
+actual Vite URL passed to desktop
+CLI connects to same AppCore
+two concurrent IPC clients work
+domain events continue after event bursts
+automation saturation does not drop live domain events
+WebView survives >512-event burst
+RPC responses never disappear
+new point viewers appear
+IPC health recovers after temporary failure
+desktop shutdown releases IPC ownership
 ```
 
-Do not add feature-specific hacks. Fix the transport, event, ownership, and contract boundaries generically.
+---
+
+# Definition of Done
+
+```text
+[ ] Lagged broadcast does not stop WebView events
+[ ] RPC responses cannot be evicted from WebView queue
+[ ] >128 queued messages always continue draining
+[ ] domain-event snapshots are coalesced correctly
+[ ] IPC health clears after successful rebind
+[ ] Unix has real exclusive ownership locking
+[ ] blocking SQLite/filesystem operations are off Tokio async workers
+[ ] reconnect/error use DomainEvent
+[ ] duplicate legacy pushes removed where migrated
+[ ] new points viewers update correctly
+[ ] WebView IPC has request-size limits
+[ ] stale dev desktop/host detection is reliable
+[ ] stress/regression tests cover event bursts
+[ ] Rust checks/tests pass
+[ ] Bun checks/tests/build pass
+```
+
+## Core Rule
+
+Do not fix these with feature-specific patches.
+
+Keep the architecture:
+
+```text
+state mutation
+   ↓
+AppCore
+   ↓
+DomainEvent
+   ↓
+ControlApi transport
+   ↓
+WebView / CLI / agents
+```
+
+RPC responses and authoritative state transitions must never be silently dropped.
