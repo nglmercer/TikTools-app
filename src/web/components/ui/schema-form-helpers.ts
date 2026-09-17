@@ -110,6 +110,27 @@ export function formatJson(value: JsonValue | undefined): string {
   try { return JSON.stringify(value, null, 2) ?? ''; } catch { return ''; }
 }
 
+/**
+ * Select display value for schema enum/dynamic option lists. Defaults are
+ * applied deliberately at the settings/form state boundary
+ * (`withSchemaDefaults`, plus the host overlay), so this only fills a
+ * genuinely absent value (`undefined`/`null`) with the schema default. An
+ * invalid stored value stays observable instead of silently masquerading as
+ * the default — display substitution must never hide stale state.
+ */
+export function resolveSelectDisplayValue(
+  value: JsonValue | undefined,
+  displayValue: string,
+  schemaDefault: string | undefined,
+  optionValues: ReadonlySet<string>,
+): string {
+  const hasExplicitValue = value !== undefined && value !== null;
+  if (!hasExplicitValue && schemaDefault !== undefined && optionValues.has(schemaDefault)) {
+    return schemaDefault;
+  }
+  return displayValue;
+}
+
 export function schemaFromFields(type: ActionTypeDefinition): JsonObject {
   const properties: JsonObject = {};
   for (const field of type.fields ?? []) properties[field.key] = { type: field.kind === 'number' || field.kind === 'range' ? 'number' : field.kind === 'boolean' ? 'boolean' : field.kind === 'keyvalue' ? 'object' : 'string', title: field.label, default: field.value, minimum: field.min, maximum: field.max, multipleOf: field.step };

@@ -17,7 +17,9 @@ import {
   AUTOSAVE_DEBOUNCE_MS,
   connectionSummaryRows,
   echoConfirmsSave,
+  echoNeedsResave,
   findServerUrlKey,
+  focusStayedInside,
   isHttpUrl,
   isLoopbackUrl,
   secretSettingKeys,
@@ -197,6 +199,23 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
     saveTimer = setTimeout(flushSave, AUTOSAVE_DEBOUNCE_MS);
   };
 
+  // Internal focus moves (password input → Show button, input → select)
+  // must not flush the debounced autosave. Only a real exit from the card —
+  // or the normal debounce — saves. `relatedTarget` covers normal focus
+  // transitions; the rAF fallback covers WebViews that report null.
+  const onConnectionCardFocusOut = (event: FocusEvent): void => {
+    const card = event.currentTarget as HTMLElement;
+    if (focusStayedInside(card, event.relatedTarget, document.activeElement)) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      if (focusStayedInside(card, null, document.activeElement)) {
+        return;
+      }
+      flushSave();
+    });
+  };
+
   const onConnectionFormChange = (next: JsonObject): void => {
     draft.value = next;
     editing.value = true;
@@ -266,11 +285,15 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
       }
     }
     // A send raced with newer edits: converge instead of going stale.
+    // Secret-aware: a typed secret vs its redacted echo converges (no
+    // resave); only genuine differences schedule another save.
     const state = props.settingsState;
     const next = draft.value;
-    if (state && next && !settingsEqual(
-      withSchemaDefaults(toSettingValues(next), state.schema),
-      withSchemaDefaults(toSettingValues(values), state.schema),
+    if (state && next && echoNeedsResave(
+      toSettingValues(next),
+      toSettingValues(values),
+      state.schema,
+      secretKeys.value,
     )) {
       scheduleSave();
     }
@@ -370,7 +393,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
           : t(locale, 'pluginConnectionFailed');
     return (
       <section class="plg-connect" key={index}>
-        <div class="plg-connect__card" onFocusout={flushSave}>
+        <div class="plg-connect__card" onFocusout={onConnectionCardFocusOut}>
           <div class="plg-connect__head">
             <span class="plg-connect__status">
               <span class={`plg-dot${statusDot}`} aria-hidden="true" />

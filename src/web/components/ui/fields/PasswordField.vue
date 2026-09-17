@@ -55,6 +55,11 @@ export const PasswordField = defineVueComponent<PasswordFieldProps>(
   (props, context) => {
     const fieldRef = ref<TextFieldHandle | null>(null);
     const visible = ref(false);
+    // Pure visibility state: toggling must never call onValueChange, setValue,
+    // clear, or trigger a save. The controlled `props.value` stays authoritative.
+    const toggleVisibility = (): void => {
+      visible.value = !visible.value;
+    };
     context.expose({
       getValue: () => fieldRef.value?.getValue() ?? normalizeControlString(props.value),
       setValue: (value: string) => fieldRef.value?.setValue(value),
@@ -96,7 +101,13 @@ export const PasswordField = defineVueComponent<PasswordFieldProps>(
         <button
           type="button"
           class="field-toggle"
-          onClick={() => { visible.value = !visible.value; }}
+          onMousedown={(event) => {
+            // Keep pointer clicks from moving focus away from the password
+            // input (which would blur-save the card). Keyboard focus still
+            // works: the button remains focusable via Tab + Space/Enter.
+            event.preventDefault();
+          }}
+          onClick={toggleVisibility}
           aria-label={visible.value ? hideLabel : showLabel}
           aria-pressed={visible.value}
           disabled={props.disabled || isStoredPlaceholder}

@@ -6,16 +6,20 @@ import {
   AUTOSAVE_DEBOUNCE_MS,
   connectionSummaryRows,
   echoConfirmsSave,
+  echoNeedsResave,
   findServerUrlKey,
+  focusStayedInside,
   isHttpUrl,
   isLoopbackUrl,
   secretSettingKeys,
+  selectOptionSignature,
   settingsEqual,
   settingsMatch,
   stableSettingsJson,
   SUMMARY_ROW_LIMIT,
   withSchemaDefaults,
 } from './plugin-connection-logic.ts';
+import { resolveSelectDisplayValue } from './ui/schema-form-helpers.ts';
 
 test('autosave waits out typing but confirms quickly', () => {
   expect(AUTOSAVE_DEBOUNCE_MS).toBeGreaterThanOrEqual(600);
@@ -235,4 +239,120 @@ test('secret-aware match keeps typed secrets clean but clears dirty', () => {
     { serverUrl: 'http://x/', apiToken: 'real-token' },
     { serverUrl: 'http://x/', apiToken: '••••••••' },
   )).toBe(false);
+});
+
+test('save converges after a redacted secret echo (no resave loop)', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      serverUrl: { type: 'string', default: 'http://localhost:3000' },
+      apiToken: { type: 'string', secret: true },
+    },
+  };
+  const secretKeys = ['apiToken'];
+  // user enters token -> debounced save -> host stores it -> host echoes
+  // placeholder: the echo confirms the save, so no second save is scheduled.
+  expect(echoNeedsResave(
+    { serverUrl: 'http://x/', apiToken: 'real-token' },
+    { serverUrl: 'http://x/', apiToken: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' },
+    schema,
+    secretKeys,
+  )).toBe(false);
+  // ordinary differences still resave.
+  expect(echoNeedsResave(
+    { serverUrl: 'http://y/', apiToken: 'real-token' },
+    { serverUrl: 'http://x/', apiToken: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' },
+    schema,
+    secretKeys,
+  )).toBe(true);
+  // explicit clearing stays dirty until the host confirms it.
+  expect(echoNeedsResave(
+    { serverUrl: 'http://x/', apiToken: '' },
+    { serverUrl: 'http://x/', apiToken: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' },
+    schema,
+    secretKeys,
+  )).toBe(true);
+  // identical maps converge without secret keys.
+  expect(echoNeedsResave(
+    { serverUrl: 'http://x/' },
+    { serverUrl: 'http://x/' },
+    schema,
+  )).toBe(false);
+});
+
+test('connection card focus boundary stays internal', () => {
+  const insideInput = { id: 'apiToken' };
+  const insideButton = { id: 'show-toggle' };
+  const insideSelect = { id: 'defaultLanguage' };
+  const outside = { id: 'other-page' };
+  const card = {
+    contains: (node: unknown): boolean =>
+      node === insideInput || node === insideButton || node === insideSelect,
+  };
+  // password input -> Show button inside the same card: internal.
+  expect(focusStayedInside(card, insideButton as unknown as EventTarget, insideButton)).toBe(true);
+  // input -> select inside the card: internal (relatedTarget path).
+  expect(focusStayedInside(card, insideSelect as unknown as EventTarget, null)).toBe(true);
+  // WebViews that report null relatedTarget fall back to the active element.
+  expect(focusStayedInside(card, null, insideButton)).toBe(true);
+  // input -> outside page element: external, flush the pending save.
+  expect(focusStayedInside(card, outside as unknown as EventTarget, outside)).toBe(false);
+  expect(focusStayedInside(card, null, outside)).toBe(false);
+  expect(focusStayedInside(card, null, null)).toBe(false);
+});
+
+test('select option signatures ignore array identity', () => {
+  const first = [
+    { value: 'en', label: 'English' },
+    { value: 'es', label: 'Spanish' },
+  ];
+  // Newly allocated equivalent array (SchemaField .map() per render).
+  const second = [
+    { value: 'en', label: 'English' },
+    { value: 'es', label: 'Spanish' },
+  ];
+  expect(first).not.toBe(second as unknown as typeof first);
+  expect(selectOptionSignature(first)).toBe(selectOptionSignature(second));
+  // Adding a value changes the signature.
+  expect(selectOptionSignature([...second, { value: 'fr', label: 'French' }])).not.toBe(
+    selectOptionSignature(second),
+  );
+  // Disabled-state changes matter for sync.
+  expect(selectOptionSignature([
+    { value: 'en', label: 'English' },
+    { value: 'es', label: 'Spanish', disabled: true },
+  ])).not.toBe(selectOptionSignature(second));
+  // Label-only differences do not affect synchronization.
+  expect(selectOptionSignature([
+    { value: 'en', label: 'Ingles' },
+    { value: 'es', label: 'Espanol' },
+  ])).toBe(selectOptionSignature(second));
+});
+
+test('static enum keeps an explicit es selection (no silent default)', () => {
+  const optionValues = new Set(['en', 'es']);
+  // User chose es: explicit value survives even though the default is en.
+  expect(resolveSelectDisplayValue('es', 'es', 'en', optionValues)).toBe('es');
+  // Genuinely absent values still receive the default deliberately.
+  expect(resolveSelectDisplayValue(undefined, '', 'en', optionValues)).toBe('en');
+  expect(resolveSelectDisplayValue(null, '', 'en', optionValues)).toBe('en');
+  // Invalid stored values stay observable instead of masquerading as en.
+  expect(resolveSelectDisplayValue('xx', 'xx', 'en', optionValues)).toBe('xx');
+  // A default outside the option list never applies.
+  expect(resolveSelectDisplayValue(undefined, '', 'de', optionValues)).toBe('');
+});
+
+test('static enum defaults survive the state boundary', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      defaultLanguage: { type: 'string', default: 'en', enum: ['en', 'es'] },
+    },
+  };
+  // Central default application fills genuinely absent values...
+  expect(withSchemaDefaults({}, schema)).toEqual({ defaultLanguage: 'en' });
+  // ...but never overwrites an explicit user selection.
+  expect(withSchemaDefaults({ defaultLanguage: 'es' }, schema)).toEqual({ defaultLanguage: 'es' });
+  // And an explicit es draft converges with an es echo (no revert, no loop).
+  expect(echoNeedsResave({ defaultLanguage: 'es' }, { defaultLanguage: 'es' }, schema)).toBe(false);
 });

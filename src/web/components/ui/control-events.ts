@@ -200,6 +200,45 @@ export function syncNativeControlValue(control: NativeControl, value: unknown): 
   }
 }
 
+export type SelectSignatureOption = {
+  value: string;
+  disabled?: boolean;
+};
+
+/**
+ * Stable semantic signature for select option lists. Only option values and
+ * disabled state matter for DOM synchronization: parents may rebuild
+ * equivalent arrays with `.map()` on every render, so array identity must
+ * never trigger a value reset.
+ */
+export function selectOptionSignature<T extends SelectSignatureOption>(options: readonly T[]): string {
+  return options
+    .map((option) => `${option.value}\u0001${option.disabled ? '1' : '0'}`)
+    .join('\u0000');
+}
+/**
+ * Focus-boundary helper: moving focus between controls inside a container
+ * (password input → Show button, input → select) must not count as leaving
+ * the form. Returns true when focus stayed inside `container` (via
+ * `relatedTarget`, or — when the WebView reports `null` — via the currently
+ * focused element).
+ */
+export function focusStayedInside(
+  container: { contains(node: unknown): boolean },
+  relatedTarget: EventTarget | null | undefined,
+  activeElement?: unknown,
+): boolean {
+  for (const candidate of [relatedTarget, activeElement]) {
+    if (candidate === null || candidate === undefined) continue;
+    try {
+      if (container.contains(candidate as Node)) return true;
+    } catch {
+      // Non-node candidates never count as staying inside.
+    }
+  }
+  return false;
+}
+
 function schemaDefinition(field: FormFieldSchema): { type: FormFieldType; defaultValue?: unknown } {
   return typeof field === 'string' ? { type: field } : field;
 }

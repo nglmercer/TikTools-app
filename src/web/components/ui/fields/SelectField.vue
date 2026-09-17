@@ -5,7 +5,7 @@ import { defineVueComponent } from '../../../vue/component.ts';
 import { Icon, type IconName } from '../../icons/index.ts';
 import type { Locale } from '../../../i18n.ts';
 import type { TooltipPosition } from '../tooltip-logic.ts';
-import { dispatchControlEvent, normalizeControlString, syncNativeControlValue } from '../control-events.ts';
+import { dispatchControlEvent, normalizeControlString, selectOptionSignature, syncNativeControlValue } from '../control-events.ts';
 import { FieldShell } from './FieldShell.vue';
 import { InputGroup } from './InputGroup.vue';
 import { describeField, fieldControlId, fieldMessageIds, type FieldSize } from './field-logic.ts';
@@ -91,9 +91,24 @@ export const SelectField = defineVueComponent<SelectFieldProps>(
     // after first render. The native select keeps the stale empty selection
     // once its options change, so re-apply the value after the new options
     // are in the DOM; otherwise a stored value renders as a blank box.
-    watch(() => props.options, () => {
+    //
+    // The watch key is a semantic signature (values + disabled state), NOT
+    // array identity: SchemaField rebuilds static enum arrays with `.map()`
+    // on every render, and an identity watch would rewrite the stale
+    // controlled value back into the native select on unrelated rerenders
+    // (e.g. reverting `es` to `en`). DOM repair only; never dispatch a fake
+    // user selection — the controlled parent already owns `wanted`.
+    watch(() => selectOptionSignature(props.options), () => {
       void nextTick().then(() => {
-        if (innerRef.value) syncNativeControlValue(innerRef.value, normalizeControlString(props.value));
+        const control = innerRef.value;
+        if (!control) return;
+        const wanted = normalizeControlString(props.value);
+        const exists = props.options.some(
+          (option) => option.value === wanted && !option.disabled,
+        );
+        if (exists && control.value !== wanted) {
+          syncNativeControlValue(control, wanted);
+        }
       });
     });
 

@@ -3,6 +3,12 @@ import { isSecretField, SECRET_PLACEHOLDER } from '../../automation/plugins/decl
 import type { Locale } from '../i18n.ts';
 import { localized } from './ui/schema-form-helpers.ts';
 
+export {
+  focusStayedInside,
+  selectOptionSignature,
+  type SelectSignatureOption,
+} from './ui/control-events.ts';
+
 /** Idle window between the last edit and an autosave round-trip. */
 export const AUTOSAVE_DEBOUNCE_MS = 800;
 /** Host echo wait before an autosave is reported as failed. */
@@ -206,4 +212,22 @@ export function echoConfirmsSave(
 export function stableSettingsJson(values: JsonObject): string {
   const keys = Object.keys(values).sort();
   return JSON.stringify(keys.map((key) => [key, values[key]]));
+}
+
+/**
+ * Secret-aware convergence check for the post-echo race: returns true when a
+ * host echo still requires another save. A redacted placeholder echo for a
+ * just-sent typed secret converges (no resave); ordinary differences resave.
+ */
+export function echoNeedsResave(
+  draft: JsonObject,
+  echoValues: JsonObject,
+  schema: JsonObject | undefined,
+  secretKeys: readonly string[] = [],
+): boolean {
+  return !settingsMatch(
+    withSchemaDefaults(draft, schema),
+    withSchemaDefaults(echoValues, schema),
+    secretKeys,
+  );
 }

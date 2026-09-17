@@ -24,7 +24,7 @@ import type { Locale } from '../../i18n.ts';
 import type { JsonObject, JsonValue } from '../../../automation/types.ts';
 import { isSecretField } from '../../../automation/plugins/declarative.ts';
 import type { OpenMediaPicker } from '../../../shared/messages.ts';
-import { localized, toDisplayValue, formatJson, type FieldOption } from './schema-form-helpers.ts';
+import { localized, toDisplayValue, resolveSelectDisplayValue, formatJson, type FieldOption } from './schema-form-helpers.ts';
 import { KeyValueEditor } from './KeyValueEditor.vue';
 
 export function SchemaField({ locale, name, schema, hint, value, onChange, templateSuggestions, fieldOptions, error, onOpenMediaPicker }: {
@@ -260,15 +260,14 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
   const dynamicOptions = Array.isArray(fieldOptions) ? fieldOptions.filter((entry) => entry && typeof entry.value === 'string') : [];
   const options = schemaOptions.length > 0 ? schemaOptions : dynamicOptions.length > 0 ? dynamicOptions : hintedEntries;
   if (options.length > 0) {
-    // A stored value that matches no option (stale data, cleared field)
-    // renders as a blank native box. Fall back to the schema default when it
-    // matches, so enum selects always show meaningful text; the fallback
-    // persists on the next edit exactly like a display default.
+    // Defaults are applied deliberately at the settings/form state boundary
+    // (`withSchemaDefaults`, plus the host overlay), not here. This render
+    // step only fills a genuinely absent value with the schema default; an
+    // invalid stored value (e.g. "xx" vs enum [en, es]) stays observable
+    // instead of silently masquerading as the default.
     const optionValues = new Set(options.map((entry) => entry.value));
     const schemaDefault = typeof schema.default === 'string' ? schema.default : undefined;
-    const effectiveValue = optionValues.has(displayValue) || !schemaDefault || !optionValues.has(schemaDefault)
-      ? displayValue
-      : schemaDefault;
+    const effectiveValue = resolveSelectDisplayValue(value, displayValue, schemaDefault, optionValues);
     // Dynamic (optionsFrom) lists and icon-carrying hinted lists render as an
     // IconSelect; static lists use the native Select. Native <option> cannot
     // draw SVGs, which is why icon lists need the custom control.
