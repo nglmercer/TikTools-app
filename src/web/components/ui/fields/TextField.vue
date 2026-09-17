@@ -10,6 +10,11 @@ import { FieldShell } from './FieldShell.vue';
 import { InputGroup } from './InputGroup.vue';
 import { describeField, fieldControlId, fieldMessageIds, type FieldSize } from './field-logic.ts';
 import { comboboxInputAttrs, type PresetItem } from '../../autocomplete/autocomplete-controller.ts';
+import {
+  AUTOCOMPLETE_PREFERRED_WIDTH,
+  AUTOCOMPLETE_PRESET_MAX_WIDTH,
+  AUTOCOMPLETE_PRESET_MIN_WIDTH,
+} from '../../autocomplete/autocomplete-position.ts';
 import { useAutocompleteInput } from '../../autocomplete/use-autocomplete.ts';
 import { AutocompleteList } from '../../autocomplete/AutocompleteList.vue';
 import { AutocompletePopover } from '../../autocomplete/AutocompletePopover.vue';
@@ -236,11 +241,22 @@ export const TextField = defineVueComponent<TextFieldProps>(
             </InputGroup>
           </FieldShell>
           {presetMode ? (
-            <AutocompletePopover anchor={innerRef.value} open={snapshot.open} updateKey={cursor.value}>
+            <AutocompletePopover
+              anchor={innerRef.value}
+              open={snapshot.open}
+              updateKey={cursor.value}
+              anchorMode="field"
+              preferredWidth={AUTOCOMPLETE_PREFERRED_WIDTH}
+              minWidth={AUTOCOMPLETE_PRESET_MIN_WIDTH}
+              maxWidth={AUTOCOMPLETE_PRESET_MAX_WIDTH}
+              onPopupPointerChange={(inside) => autocomplete.setPopupPointerInside(inside)}
+            >
               <AutocompleteList
                 sections={snapshot.sections}
                 selectedIndex={snapshot.activeIndex}
                 onHover={(index) => autocomplete.hover(index)}
+                onPointerDown={() => autocomplete.beginPointerSelection()}
+                onPointerUp={() => autocomplete.endPointerSelection()}
                 onPick={(row) => {
                   const caret = readCaret();
                   const applied = autocomplete.pickRow(value, caret, row.key ?? row.item.value);
@@ -249,6 +265,7 @@ export const TextField = defineVueComponent<TextFieldProps>(
                 ariaLabel={props.label ?? 'Suggestions'}
                 footer={t(locale, 'autocompleteNavigateInsert')}
                 listId={autocomplete.listId}
+                variant="compact"
               />
             </AutocompletePopover>
           ) : null}

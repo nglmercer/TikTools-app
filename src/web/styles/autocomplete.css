@@ -22,6 +22,12 @@
   pointer-events: auto;
 }
 
+/* First paint stays hidden until a real measurement places the panel. */
+.autocomplete-popover[data-measured="false"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* ---- Listbox: capped height with scroll (S17) ---- */
 .autocomplete-list {
   display: flex;
@@ -32,7 +38,7 @@
   overflow-y: auto;
   box-sizing: border-box;
   padding: var(--ac-padding);
-  border: 1px solid var(--line-focus);
+  border: 1px solid var(--line);
   border-radius: var(--ac-radius);
   background: var(--panel-solid);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
@@ -42,6 +48,35 @@
   padding: 5px 8px 2px;
   color: var(--text-muted);
   font-size: 10px;
+}
+
+/* ---- Compact hint: the same rows/selection, editor-hint density ---- */
+.autocomplete-list--compact {
+  gap: 1px;
+  padding: 3px;
+}
+
+.autocomplete-list--compact .autocomplete-section__label {
+  padding: 3px 8px 1px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.autocomplete-list--compact .autocomplete-item {
+  padding: 4px 8px;
+  gap: 6px;
+}
+
+.autocomplete-list--compact .autocomplete-item__desc {
+  font-size: 9px;
+}
+
+.autocomplete-list--compact .autocomplete-list__footer {
+  padding: 2px 8px 1px;
+  border-top: 1px solid var(--line);
+  font-size: 9px;
+  opacity: 0.85;
 }
 
 /* ---- Section group + header (S11) ---- */
@@ -83,6 +118,11 @@
 .autocomplete-item.is-selected {
   background: rgba(37, 244, 238, 0.1);
   color: var(--text);
+}
+
+/* Selection — not the panel — carries the accent. */
+.autocomplete-item.is-selected {
+  box-shadow: inset 2px 0 0 var(--line-focus);
 }
 
 .autocomplete-item:focus-visible {

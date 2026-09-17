@@ -16,6 +16,10 @@ export type AutocompleteItemProps = {
   /** Hover/focus sync: point the active index at this row. */
   onHover: () => void;
   onPick: () => void;
+  /** Row press started (pointerdown); lets the session win blur races. */
+  onPointerDown?: () => void;
+  /** Row press ended without committing (drag-off, cancel). */
+  onPointerUp?: () => void;
 };
 
 /**
@@ -24,7 +28,7 @@ export type AutocompleteItemProps = {
  * JSON/plugins is whitelist-checked via `readIconName`, never raw SVG.
  */
 export const AutocompleteItem = defineVueComponent<AutocompleteItemProps>(
-  ['item', 'id', 'selected', 'ranges', 'onHover', 'onPick'],
+  ['item', 'id', 'selected', 'ranges', 'onHover', 'onPick', 'onPointerDown', 'onPointerUp'],
   (props) => () => {
     const item = props.item;
     const iconName = (item.icon !== undefined ? readIconName(item.icon) : undefined) ?? iconForSuggestion(item);
@@ -40,12 +44,23 @@ export const AutocompleteItem = defineVueComponent<AutocompleteItemProps>(
         type="button"
         role="option"
         id={props.id}
+        tabindex={-1}
         aria-selected={props.selected}
         class={`autocomplete-item${props.selected ? ' is-selected' : ''}`}
         title={hoverTitle || item.value}
-        onMousedown={(event) => event.preventDefault()}
+        onPointerdown={(event) => {
+          // Touch/WebView: same rule as mouse — never steal input focus.
+          event.preventDefault();
+          props.onPointerDown?.();
+        }}
+        onMousedown={(event) => {
+          event.preventDefault();
+          props.onPointerDown?.();
+        }}
         onMouseenter={props.onHover}
         onFocus={props.onHover}
+        onPointerup={() => props.onPointerUp?.()}
+        onPointercancel={() => props.onPointerUp?.()}
         onClick={props.onPick}
       >
         <span class="autocomplete-item__icon" aria-hidden="true">

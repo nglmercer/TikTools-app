@@ -17,6 +17,8 @@ export type AutocompleteSectionProps = {
   listId: string;
   onHover: (globalIndex: number) => void;
   onPick: (row: SuggestionRow) => void;
+  onPointerDown?: () => void;
+  onPointerUp?: () => void;
 };
 
 /**
@@ -25,7 +27,7 @@ export type AutocompleteSectionProps = {
  * share one coordinate space with the controller.
  */
 export const AutocompleteSection = defineVueComponent<AutocompleteSectionProps>(
-  ['id', 'label', 'rows', 'selectedIndex', 'startIndex', 'listId', 'onHover', 'onPick'],
+  ['id', 'label', 'rows', 'selectedIndex', 'startIndex', 'listId', 'onHover', 'onPick', 'onPointerDown', 'onPointerUp'],
   (props) => () => {
     const labelId = `${props.listId}-${props.id}-label`;
     return (
@@ -42,6 +44,8 @@ export const AutocompleteSection = defineVueComponent<AutocompleteSectionProps>(
               selected={globalIndex === props.selectedIndex}
               onHover={() => props.onHover(globalIndex)}
               onPick={() => props.onPick(row)}
+              onPointerDown={props.onPointerDown}
+              onPointerUp={props.onPointerUp}
             />
           );
         })}

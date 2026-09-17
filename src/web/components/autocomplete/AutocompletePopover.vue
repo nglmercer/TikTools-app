@@ -1,14 +1,26 @@
 <script lang="tsx">
-import { onMounted, onUnmounted, ref, Teleport, watch } from 'vue';
+import { nextTick, onMounted, onUnmounted, ref, Teleport, watch } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import {
   AUTOCOMPLETE_GAP,
   AUTOCOMPLETE_MAX_HEIGHT,
   AUTOCOMPLETE_MAX_WIDTH,
+  AUTOCOMPLETE_PREFERRED_WIDTH,
   AUTOCOMPLETE_VIEWPORT_MARGIN,
-  computePopoverPosition,
-  type PopoverPlacement,
+  resolvePopoverVisibility,
+  resolvePopupWidth,
+  type AnchorRect,
+  type ViewportSize,
 } from './autocomplete-position.ts';
+import {
+  getCaretAnchorRect,
+  resolveAnchorRect,
+  type AutocompleteAnchorMode,
+} from './autocomplete-anchors.ts';
+import {
+  createMeasuredPopoverEngine,
+  type PopoverEngineOptions,
+} from './autocomplete-popover-engine.ts';
 
 export type AutocompletePopoverProps = {
   /** Anchor element (usually the field box). Null renders nothing. */
@@ -20,62 +32,257 @@ export type AutocompletePopoverProps = {
   maxHeight?: number;
   maxWidth?: number;
   margin?: number;
+  /** `field` anchors to the control box; `caret` to a virtual caret rect. */
+  anchorMode?: AutocompleteAnchorMode;
+  /** Text control for caret mode (mirror source). */
+  input?: HTMLInputElement | HTMLTextAreaElement | null;
+  /** Caret offset for caret mode (defaults to the live selection). */
+  caretOffset?: number;
+  /** Explicit anchor rectangle (value or provider); overrides measurement. */
+  anchorRect?: AnchorRect | (() => AnchorRect | null) | null;
+  /** Desired width before clamping (compact hints, caret anchors). */
+  preferredWidth?: number;
+  minWidth?: number;
+  /** Pointer presence over the panel (interaction lifetime). */
+  onPopupPointerChange?: (inside: boolean) => void;
 };
 
 /**
- * Document-level popup shell (S16): Teleports to `body`, `position: fixed`
+ * Document-level popup shell: Teleports to `body`, `position: fixed`
  * at `var(--z-autocomplete)`, so modal/canvas overflow never clips the
- * list. Flips above the anchor when short on room, clamps into the
- * viewport, and repositions on resize/scroll.
+ * list. Renders hidden until a real panel measurement produces a
+ * placement, flips on the measured height (never a budget guess), and
+ * repositions through one frame scheduler on resize, scroll,
+ * visualViewport, ResizeObserver (anchor/panel/document), cursor moves,
+ * and option changes. Autosave rerenders only reposition — they never
+ * close the popup (lifetime lives in `use-autocomplete.ts`).
  */
 export const AutocompletePopover = defineVueComponent<AutocompletePopoverProps>(
-  ['anchor', 'open', 'updateKey', 'gap', 'maxHeight', 'maxWidth', 'margin'],
+  ['anchor', 'open', 'updateKey', 'gap', 'maxHeight', 'maxWidth', 'margin', 'anchorMode', 'input', 'caretOffset', 'anchorRect', 'preferredWidth', 'minWidth', 'onPopupPointerChange'],
   (props, context) => {
-    const position = ref<PopoverPlacement>({ top: 0, left: 0, width: 320, maxHeight: AUTOCOMPLETE_MAX_HEIGHT, placement: 'below' });
+    const popoverRef = ref<HTMLElement | null>(null);
 
-    const update = (): void => {
-      if (!props.open || typeof window === 'undefined') return;
+    const readAnchorElement = (): AnchorRect | null => {
       const anchor = props.anchor;
-      if (!anchor || !anchor.isConnected) return;
+      if (!anchor || !anchor.isConnected) return null;
       const rect = anchor.getBoundingClientRect();
-      position.value = computePopoverPosition(
-        { top: rect.top, left: rect.left, bottom: rect.bottom, width: rect.width },
-        { width: window.innerWidth, height: window.innerHeight },
-        {
-          gap: props.gap ?? AUTOCOMPLETE_GAP,
-          maxHeight: props.maxHeight ?? AUTOCOMPLETE_MAX_HEIGHT,
-          maxWidth: props.maxWidth ?? AUTOCOMPLETE_MAX_WIDTH,
-          margin: props.margin ?? AUTOCOMPLETE_VIEWPORT_MARGIN,
-        },
-      );
+      return { top: rect.top, left: rect.left, bottom: rect.bottom, width: rect.width };
     };
 
-    onMounted(() => {
-      update();
-      if (typeof window !== 'undefined') {
-        window.addEventListener('resize', update);
-        window.addEventListener('scroll', update, true);
+    const readCaretOffset = (): number => {
+      if (typeof props.caretOffset === 'number') return props.caretOffset;
+      const control = props.input;
+      if (!control) return 0;
+      try {
+        return control.selectionStart ?? control.value.length;
+      } catch {
+        return control.value.length;
       }
+    };
+
+    const readAnchor = (): AnchorRect | null => {
+      const override = props.anchorRect;
+      if (typeof override === 'function') {
+        try {
+          const rect = override();
+          if (rect) return rect;
+        } catch {
+          // Fall through to measured anchors.
+        }
+      } else if (override) {
+        return override;
+      }
+      const field = readAnchorElement();
+      if ((props.anchorMode ?? 'field') === 'caret') {
+        const caret = getCaretAnchorRect(props.input ?? null, readCaretOffset());
+        return resolveAnchorRect({ mode: 'caret', field, caret });
+      }
+      return field;
+    };
+
+    const readViewport = (): ViewportSize | null => {
+      if (typeof window === 'undefined') return null;
+      return { width: window.innerWidth, height: window.innerHeight };
+    };
+
+    const engineOptions = (): PopoverEngineOptions => ({
+      gap: props.gap ?? AUTOCOMPLETE_GAP,
+      maxHeight: props.maxHeight ?? AUTOCOMPLETE_MAX_HEIGHT,
+      maxWidth: props.maxWidth ?? AUTOCOMPLETE_MAX_WIDTH,
+      margin: props.margin ?? AUTOCOMPLETE_VIEWPORT_MARGIN,
+      preferredWidth: props.preferredWidth,
+      minWidth: props.minWidth,
+    });
+
+    const engine = createMeasuredPopoverEngine(
+      {
+        readAnchor,
+        readViewport,
+        measurePopup: () => {
+          const panel = popoverRef.value;
+          if (!panel || !panel.isConnected) return null;
+          // `scrollHeight` is the full content height even while a previous
+          // `max-height` clamps the rendered box.
+          const height = panel.scrollHeight > 0 ? panel.scrollHeight : panel.offsetHeight;
+          if (!(height > 0)) return null;
+          return { width: 0, height };
+        },
+        requestFrame: (callback) => {
+          if (typeof requestAnimationFrame === 'function') return requestAnimationFrame(callback);
+          return setTimeout(callback, 0) as unknown as number;
+        },
+        cancelFrame: (handle) => {
+          if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(handle);
+          else clearTimeout(handle);
+        },
+      },
+      engineOptions(),
+    );
+
+    const engineState = ref(engine.snapshot());
+    const stopEngine = engine.subscribe(() => {
+      engineState.value = engine.snapshot();
+    });
+
+    const onLayoutSignal = (): void => {
+      engine.handleLayoutChange();
+    };
+
+    let resizeObserver: ResizeObserver | null = null;
+    let observedAnchor: HTMLElement | null = null;
+    let observedPanel: HTMLElement | null = null;
+    let observedBody = false;
+
+    const observe = (): void => {
+      if (typeof ResizeObserver === 'undefined' || typeof document === 'undefined') return;
+      if (!resizeObserver) resizeObserver = new ResizeObserver(onLayoutSignal);
+      const anchor = props.anchor && props.anchor.isConnected ? props.anchor : null;
+      if (observedAnchor && observedAnchor !== anchor) resizeObserver.unobserve(observedAnchor);
+      if (anchor && anchor !== observedAnchor) resizeObserver.observe(anchor);
+      observedAnchor = anchor;
+      const panel = props.open ? popoverRef.value : null;
+      if (observedPanel && observedPanel !== panel) resizeObserver.unobserve(observedPanel);
+      if (panel && panel !== observedPanel) resizeObserver.observe(panel);
+      observedPanel = panel;
+      // Translations (autosave banners, validation messages, card growth)
+      // move the anchor without resizing it; the body still changes size.
+      if (document.body && !observedBody) {
+        resizeObserver.observe(document.body);
+        observedBody = true;
+      }
+    };
+
+    const unobservePanel = (): void => {
+      if (resizeObserver && observedPanel) resizeObserver.unobserve(observedPanel);
+      observedPanel = null;
+    };
+
+    const visualViewport = (): VisualViewport | null =>
+      typeof window === 'undefined' ? null : window.visualViewport ?? null;
+
+    onMounted(() => {
+      engine.setOpen(props.open);
+      if (typeof window !== 'undefined') {
+        window.addEventListener('resize', onLayoutSignal);
+        window.addEventListener('scroll', onLayoutSignal, true);
+        visualViewport()?.addEventListener('resize', onLayoutSignal);
+        visualViewport()?.addEventListener('scroll', onLayoutSignal);
+      }
+      observe();
     });
     onUnmounted(() => {
       if (typeof window !== 'undefined') {
-        window.removeEventListener('resize', update);
-        window.removeEventListener('scroll', update, true);
+        window.removeEventListener('resize', onLayoutSignal);
+        window.removeEventListener('scroll', onLayoutSignal, true);
+        visualViewport()?.removeEventListener('resize', onLayoutSignal);
+        visualViewport()?.removeEventListener('scroll', onLayoutSignal);
       }
+      resizeObserver?.disconnect();
+      resizeObserver = null;
+      observedAnchor = null;
+      observedPanel = null;
+      observedBody = false;
+      stopEngine();
+      engine.dispose();
     });
-    watch(() => [props.open, props.anchor, props.updateKey], update, { flush: 'post' });
+
+    watch(() => props.open, (open) => {
+      if (!open) unobservePanel();
+      engine.setOpen(open);
+      void nextTick(() => {
+        observe();
+        engine.handleLayoutChange();
+      });
+    });
+    watch(
+      () => [
+        props.anchor,
+        props.input,
+        props.caretOffset,
+        props.updateKey,
+        props.anchorMode,
+        props.anchorRect,
+        props.preferredWidth,
+        props.minWidth,
+        props.gap,
+        props.maxHeight,
+        props.maxWidth,
+        props.margin,
+      ],
+      () => {
+        engine.setOptions(engineOptions());
+        engine.handleLayoutChange();
+        observe();
+      },
+      { flush: 'post' },
+    );
+    watch(popoverRef, () => {
+      observe();
+      engine.handleLayoutChange();
+    });
+
+    const hiddenWidth = (): number => {
+      const anchor = readAnchor();
+      const viewport = readViewport();
+      const desired = props.preferredWidth
+        ?? ((props.anchorMode ?? 'field') === 'caret' ? AUTOCOMPLETE_PREFERRED_WIDTH : anchor?.width ?? AUTOCOMPLETE_PREFERRED_WIDTH);
+      if (!anchor || !viewport) return desired;
+      return resolvePopupWidth(desired, viewport, engineOptions());
+    };
 
     return () => {
       if (!props.open || typeof document === 'undefined' || !document.body) return null;
-      if (!props.anchor || !props.anchor.isConnected) return null;
-      const style = {
-        top: `${position.value.top}px`,
-        left: `${position.value.left}px`,
-        width: `${position.value.width}px`,
-      };
+      const hasAnchorSource = Boolean(props.anchorRect)
+        || Boolean(props.anchor)
+        || ((props.anchorMode ?? 'field') === 'caret' && Boolean(props.input));
+      if (!hasAnchorSource) return null;
+      const state = engineState.value;
+      const visibility = resolvePopoverVisibility({ open: props.open, measured: state.measured, placement: state.placement });
+      const style: Record<string, string> = {};
+      if (state.placement && visibility === 'visible') {
+        style.top = `${state.placement.top}px`;
+        style.left = `${state.placement.left}px`;
+        style.width = `${state.placement.width}px`;
+        style.maxHeight = `${state.placement.maxHeight}px`;
+      } else {
+        // Hidden first paint: correct width (so the measured height wraps
+        // the same way), no position guess, no pointer capture.
+        style.width = `${hiddenWidth()}px`;
+        style.visibility = 'hidden';
+        style.pointerEvents = 'none';
+      }
       return (
         <Teleport to="body">
-          <div class="autocomplete-popover" data-placement={position.value.placement} style={style}>
+          <div
+            ref={popoverRef}
+            class="autocomplete-popover"
+            data-placement={state.placement?.placement ?? 'below'}
+            data-measured={state.measured ? 'true' : 'false'}
+            data-anchor-mode={props.anchorMode ?? 'field'}
+            style={style}
+            onPointerenter={() => props.onPopupPointerChange?.(true)}
+            onPointerleave={() => props.onPopupPointerChange?.(false)}
+          >
             {context.slots.default?.()}
           </div>
         </Teleport>

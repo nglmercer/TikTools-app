@@ -280,9 +280,11 @@ const ScriptConfigForm = defineVueComponent<NodeConfigFormProps>(
                     key={`${completion.kind}:${completion.label}`}
                     type="button"
                     role="option"
+                    tabindex={-1}
                     aria-selected={index === completionIndex.value}
                     class={index === completionIndex.value ? 'is-selected' : ''}
                     title={completion.documentation ?? completion.detail ?? completion.label}
+                    onPointerdown={(event) => event.preventDefault()}
                     onMousedown={(event) => event.preventDefault()}
                     onMouseenter={() => { completionIndex.value = index; }}
                     onClick={() => applyCompletion(completion)}

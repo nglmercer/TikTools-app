@@ -10,6 +10,12 @@ import {
   type InsertResult,
   type PresetItem,
 } from './autocomplete-controller.ts';
+import {
+  createAutocompleteInteraction,
+  type AutocompleteFrameScheduler,
+  type AutocompleteInteraction,
+  type AutocompleteInteractionSnapshot,
+} from './autocomplete-interaction.ts';
 import type { AutocompleteMode, SuggestionItem, SuggestionRow, SuggestionScope } from './types.ts';
 import type { Locale } from '../../i18n.ts';
 
@@ -130,6 +136,14 @@ export type AutocompleteInput = {
   invoke: () => void;
   /** Escape: close, keep focus on the input (never blurs). */
   dismiss: () => void;
+  /** Current focus/pointer/blur-deferral flags for the popup lifetime. */
+  interaction: Ref<AutocompleteInteractionSnapshot>;
+  /** A row pointer press started (call from row pointerdown). */
+  beginPointerSelection: () => void;
+  /** A row pointer press ended without committing (drag-off, cancel). */
+  endPointerSelection: () => void;
+  /** Track whether the pointer is over the popup panel. */
+  setPopupPointerInside: (inside: boolean) => void;
 };
 
 let autocompleteInputCounter = 0;
@@ -169,15 +183,23 @@ function hasDualPresets(options: AutocompleteInputOptions): boolean {
  * pools from the caller's props on every state push, so per-render array
  * identities never reset navigation or the after-commit latch; scalar
  * options (mode/scope/locale/…) recreate the controllers when they change.
+ * Every controller sits behind an interaction session, so blur defers one
+ * frame, pointer presses win over blur/autosave races, and plain rerenders
+ * never dismiss the popup.
  */
-export function useAutocompleteInput(resolve: () => AutocompleteInputOptions): AutocompleteInput {
+export function useAutocompleteInput(
+  resolve: () => AutocompleteInputOptions,
+  schedule?: AutocompleteFrameScheduler,
+): AutocompleteInput {
   const listId = `tt-ac-${(autocompleteInputCounter += 1)}`;
   // Mutable holder: the controllers read pools live on every `compute()`,
   // so assigning here keeps one controller instance across renders.
   const live = toControllerOptions(resolve());
   const livePreset = toPresetControllerOptions(resolve());
-  let controller = buildController(resolve(), live, livePreset);
-  const snapshot = ref<AutocompleteControllerSnapshot>(controller.snapshot());
+  const snapshot = ref<AutocompleteControllerSnapshot>({ mode: resolve().mode, open: false, sections: [], rowCount: 0, activeIndex: 0, query: '', templateQuery: null });
+  let session = buildSession(resolve(), live, livePreset);
+  snapshot.value = session.snapshot();
+  const interaction = ref<AutocompleteInteractionSnapshot>(session.interactionSnapshot());
 
   function buildController(
     current: AutocompleteInputOptions,
@@ -187,6 +209,22 @@ export function useAutocompleteInput(resolve: () => AutocompleteInputOptions): A
     const mainController = createAutocompleteController(main);
     if (!hasDualPresets(current)) return mainController;
     return createFallbackAutocompleteController(mainController, createAutocompleteController(preset));
+  }
+
+  function buildSession(
+    current: AutocompleteInputOptions,
+    main: AutocompleteControllerOptions,
+    preset: AutocompleteControllerOptions,
+  ): AutocompleteInteraction {
+    const created = createAutocompleteInteraction({
+      controller: buildController(current, main, preset),
+      schedule,
+      onSettled: (next) => {
+        snapshot.value = next;
+        interaction.value = created.interactionSnapshot();
+      },
+    });
+    return created;
   }
 
   function syncPools(current: AutocompleteInputOptions): void {
@@ -217,60 +255,73 @@ export function useAutocompleteInput(resolve: () => AutocompleteInputOptions): A
       syncPools(current);
       Object.assign(live, toControllerOptions(current));
       Object.assign(livePreset, toPresetControllerOptions(current));
-      controller = buildController(current, live, livePreset);
-      snapshot.value = controller.snapshot();
+      session = buildSession(current, live, livePreset);
+      refresh(session.snapshot());
     },
   );
 
   const refresh = (next: AutocompleteControllerSnapshot): AutocompleteControllerSnapshot => {
     snapshot.value = next;
+    interaction.value = session.interactionSnapshot();
     return next;
   };
 
   return {
     snapshot,
     listId,
+    interaction,
     update: (value, caret, focused) => {
       syncPools(resolve());
-      refresh(controller.update({ value, caret, focused }));
+      refresh(session.update({ value, caret, focused }));
     },
     keydown: (event) => {
       if (isExplicitInvokeKey(event)) {
         event.preventDefault();
         syncPools(resolve());
-        refresh(controller.invoke());
+        refresh(session.invoke());
         return null;
       }
       if (resolveAutocompleteKey(event.key) === null) return null;
       if (!snapshot.value.open) return null;
       event.preventDefault();
-      const result = controller.key(event.key);
-      refresh(controller.snapshot());
+      const result = session.key(event.key);
+      refresh(session.snapshot());
       return result;
     },
     hover: (globalIndex) => {
-      refresh(controller.hover(globalIndex));
+      refresh(session.hover(globalIndex));
     },
     pickRow: (value, caret, key) => {
       const rows = snapshot.value.sections.flatMap((section) => section.rows);
       const index = rows.findIndex((row) => row.key === key || row.item.value === key);
       if (index < 0) return null;
-      refresh(controller.hover(index));
-      const result = controller.commit(value, caret);
-      refresh(controller.snapshot());
+      refresh(session.hover(index));
+      const result = session.commit(value, caret);
+      refresh(session.snapshot());
       return result;
     },
     commit: (value, caret) => {
-      const result = controller.commit(value, caret);
-      refresh(controller.snapshot());
+      const result = session.commit(value, caret);
+      refresh(session.snapshot());
       return result;
     },
     invoke: () => {
       syncPools(resolve());
-      refresh(controller.invoke());
+      refresh(session.invoke());
     },
     dismiss: () => {
-      refresh(controller.dismiss());
+      refresh(session.dismiss());
+    },
+    beginPointerSelection: () => {
+      session.beginPointerSelection();
+      interaction.value = session.interactionSnapshot();
+    },
+    endPointerSelection: () => {
+      session.endPointerSelection();
+      refresh(session.snapshot());
+    },
+    setPopupPointerInside: (inside) => {
+      refresh(session.setPopupPointerInside(inside));
     },
   };
 }

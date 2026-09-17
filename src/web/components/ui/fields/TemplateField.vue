@@ -256,11 +256,21 @@ export const TemplateField = defineVueComponent<TemplateFieldProps>(
               {control}
             </InputGroup>
           </FieldShell>
-          <AutocompletePopover anchor={innerRef.value} open={snapshot.open} updateKey={cursor.value}>
+          <AutocompletePopover
+            anchor={innerRef.value}
+            open={snapshot.open}
+            updateKey={cursor.value}
+            anchorMode="caret"
+            input={innerRef.value}
+            caretOffset={cursor.value}
+            onPopupPointerChange={(inside) => autocomplete.setPopupPointerInside(inside)}
+          >
             <AutocompleteList
               sections={snapshot.sections}
               selectedIndex={snapshot.activeIndex}
               onHover={(index) => autocomplete.hover(index)}
+              onPointerDown={() => autocomplete.beginPointerSelection()}
+              onPointerUp={() => autocomplete.endPointerSelection()}
               onPick={(row) => {
                 const caret = readCaret();
                 const applied = autocomplete.pickRow(value, caret, row.key ?? row.item.value);

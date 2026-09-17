@@ -244,11 +244,21 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
         </div>
       </div>
       {showStatus ? <CodeEditorStatus locale={locale} validation={validation.value!} /> : null}
-      <AutocompletePopover anchor={boxRef.value} open={snapshot.open} updateKey={cursor.value}>
+      <AutocompletePopover
+        anchor={boxRef.value}
+        open={snapshot.open}
+        updateKey={cursor.value}
+        anchorMode="caret"
+        input={inputRef.value}
+        caretOffset={cursor.value}
+        onPopupPointerChange={(inside) => autocomplete.setPopupPointerInside(inside)}
+      >
         <AutocompleteList
           sections={snapshot.sections}
           selectedIndex={snapshot.activeIndex}
           onHover={(index) => autocomplete.hover(index)}
+          onPointerDown={() => autocomplete.beginPointerSelection()}
+          onPointerUp={() => autocomplete.endPointerSelection()}
           onPick={(row) => {
             const offset = inputRef.value?.selectionStart ?? cursor.value;
             const applied = autocomplete.pickRow(value.value, offset, row.key ?? row.item.value);
