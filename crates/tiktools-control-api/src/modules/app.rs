@@ -32,9 +32,12 @@ pub fn register(router: &mut ControlRouter) {
         "Reads app state (all keys, or a filtered subset)",
         false,
         |core: Arc<AppCore>, params: AppStateGetParams| async move {
-            core.app_state_get(params.keys.as_deref())
-                .map(|state| AppStateResult { state })
-                .map_err(ApiError::from)
+            crate::modules::blocking_task("app.state.get", move || {
+                core.app_state_get(params.keys.as_deref())
+            })
+            .await?
+            .map(|state| AppStateResult { state })
+            .map_err(ApiError::from)
         },
     );
     router.register_typed::<AppStateSetParams, AppStateResult, _, _>(
@@ -42,9 +45,12 @@ pub fn register(router: &mut ControlRouter) {
         "Writes one app state key",
         true,
         |core: Arc<AppCore>, params: AppStateSetParams| async move {
-            core.app_state_set(&params.key, &params.value)
-                .map(|state| AppStateResult { state })
-                .map_err(ApiError::from)
+            crate::modules::blocking_task("app.state.set", move || {
+                core.app_state_set(&params.key, &params.value)
+            })
+            .await?
+            .map(|state| AppStateResult { state })
+            .map_err(ApiError::from)
         },
     );
 }

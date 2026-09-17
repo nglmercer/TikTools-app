@@ -334,6 +334,67 @@ async fn event_subscription_receives_domain_events_without_blocking_rpc() {
 }
 
 #[tokio::test]
+async fn event_subscription_continues_after_burst() {
+    let _env = lock_env().await;
+    let home = isolated_home("burst");
+    let core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let server = tokio::spawn({
+        let api = Arc::new(ControlApi::new(core.clone()));
+        async move { tiktools_control_api::run_ipc_shared(api).await }
+    });
+
+    let client = within("connect", connect_retry()).await;
+    let mut events = client.subscribe();
+
+    // A 64-mutation burst exceeds the fan-out buffer; the subscriber must
+    // stay attached and still observe later events afterwards.
+    for index in 0..64 {
+        let _: Value = within(
+            "points.adjust",
+            client.call_value(
+                "points.adjust",
+                json!({"uniqueId": format!("burst-{index}"), "delta": 1.0}),
+            ),
+        )
+        .await
+        .expect("burst adjust works");
+    }
+    // Drain whatever survived the burst without blocking forever.
+    for _ in 0..64 {
+        match tokio::time::timeout(Duration::from_millis(50), events.recv()).await {
+            Ok(Ok(_)) => {}
+            _ => break,
+        }
+    }
+    let _: Value = within(
+        "points.adjust",
+        client.call_value(
+            "points.adjust",
+            json!({"uniqueId": "burst-after", "delta": 2.0}),
+        ),
+    )
+    .await
+    .expect("post-burst adjust works");
+    let event = within("post-burst event recv", events.recv())
+        .await
+        .expect("event channel open after burst");
+    assert_eq!(event.topic(), "points.changed");
+
+    let _shutdown: Value = within(
+        "system.shutdown",
+        client.call_value("system.shutdown", json!({})),
+    )
+    .await
+    .expect("system.shutdown works");
+    within("server exit", server)
+        .await
+        .expect("server task panicked")
+        .expect("server task failed");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[tokio::test]
 async fn processors_status_returns_typed_shape() {
     let _env = lock_env().await;
     let home = isolated_home("processors");
@@ -440,6 +501,68 @@ async fn ready_signal_fires_on_listen_and_not_on_conflict() {
     assert!(
         !rival_ready.load(Ordering::SeqCst),
         "ready must not fire on ownership conflict"
+    );
+
+    let _shutdown: Value = within(
+        "system.shutdown",
+        client.call_value("system.shutdown", json!({})),
+    )
+    .await
+    .expect("system.shutdown works");
+    within("server exit", server)
+        .await
+        .expect("server task panicked")
+        .expect("server task failed");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[tokio::test]
+async fn ownership_guard_blocks_second_acquire_until_released() {
+    let _env = lock_env().await;
+    let home = isolated_home("guard");
+    // First owner succeeds; a second acquire while it is held fails fast
+    // with `AddrInUse` on every platform (mutex on Windows, flock file
+    // on Unix). Dropping the guard releases ownership for the next host.
+    let first = tiktools_control_api::ownership::acquire_control_host_ownership()
+        .expect("first acquire succeeds");
+    let second = tiktools_control_api::ownership::acquire_control_host_ownership();
+    assert!(
+        matches!(second, Err(ref error) if error.kind() == std::io::ErrorKind::AddrInUse),
+        "second acquire must fail with AddrInUse: {second:?}"
+    );
+    drop(first);
+    tiktools_control_api::ownership::acquire_control_host_ownership()
+        .expect("re-acquire after release succeeds");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn stale_socket_file_is_replaced_on_startup() {
+    use std::os::unix::fs::FileTypeExt;
+
+    let _env = lock_env().await;
+    let home = isolated_home("stale");
+    // Simulate a crashed host's leftover: a regular file where the socket
+    // belongs. Startup must unlink it (while holding the lock) and bind.
+    let socket = home.join("tiktools-control.sock");
+    std::fs::write(&socket, b"stale garbage").expect("stage stale file");
+    assert!(socket.is_file());
+
+    let core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let server = tokio::spawn({
+        let api = Arc::new(ControlApi::new(core.clone()));
+        async move { tiktools_control_api::run_ipc_shared(api).await }
+    });
+    let client = within("connect", connect_retry()).await;
+    assert!(
+        std::fs::symlink_metadata(&socket)
+            .expect("socket exists")
+            .file_type()
+            .is_socket(),
+        "stale file must be replaced by a socket"
     );
 
     let _shutdown: Value = within(

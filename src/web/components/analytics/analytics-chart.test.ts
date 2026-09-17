@@ -62,9 +62,9 @@ test('buildMetricBreakdown normalizes single-day values against the max', () => 
   const entries = buildMetricBreakdown({ chats: 616, gifts: 18, likes: 1248, diamonds: 18, peakViewers: 22107 });
   expect(entries).toHaveLength(5);
   const byMetric = Object.fromEntries(entries.map((entry) => [entry.metric, entry]));
-  expect(byMetric.peakViewers.fraction).toBe(1);
-  expect(byMetric.chats.fraction).toBeCloseTo(616 / 22107, 5);
-  expect(byMetric.likes.fraction).toBeCloseTo(1248 / 22107, 5);
+  expect(byMetric.peakViewers!.fraction).toBe(1);
+  expect(byMetric.chats!.fraction).toBeCloseTo(616 / 22107, 5);
+  expect(byMetric.likes!.fraction).toBeCloseTo(1248 / 22107, 5);
 
   const flat = buildMetricBreakdown({ chats: 0, gifts: 0, likes: 0, diamonds: 0, peakViewers: 0 });
   expect(flat.every((entry) => entry.fraction === 0)).toBe(true);

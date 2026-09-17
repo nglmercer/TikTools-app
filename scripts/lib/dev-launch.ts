@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 export const DEV_HOST = '127.0.0.1';
 export const IPC_NAME = 'tiktools-control';
+export const DESKTOP_BINARY = 'tiktools-desktop';
 
 export function devUrl(port: number): string {
   return `http://${DEV_HOST}:${port}`;
@@ -102,6 +103,75 @@ export async function isControlHostRunning(timeoutMs = 500): Promise<boolean> {
       done(false);
     });
   });
+}
+
+/**
+ * Parse `tasklist /FO CSV /NH` output for desktop owners. A no-match run
+ * prints an INFO line instead of rows.
+ */
+export function parseTasklistOwners(output: string): number[] {
+  const owners: number[] = [];
+  for (const line of output.split('\n')) {
+    const match = line.match(/^"([^"]+)"\s*,\s*"(\d+)"/);
+    if (match && match[1]?.toLowerCase() === `${DESKTOP_BINARY}.exe`) {
+      owners.push(Number(match[2]));
+    }
+  }
+  return owners;
+}
+
+/**
+ * Parse `ps -A -o pid=,args=` output for desktop owners: the desktop
+ * binary itself, or a `cargo run` parent currently hosting one. Plain
+ * builds (`cargo build -p tiktools-desktop`) and editors with the path
+ * open must not match.
+ */
+export function parsePsOwners(output: string): number[] {
+  const owners: number[] = [];
+  for (const line of output.split('\n')) {
+    const match = line.trim().match(/^(\d+)\s+(.*)$/);
+    if (!match) continue;
+    const [, pid, args] = match as [string, string, string];
+    const first = args.split(/\s+/, 1)[0] ?? '';
+    const base = first.split(/[\\/]/).pop() ?? '';
+    const isBinary =
+      base === DESKTOP_BINARY ||
+      base === `${DESKTOP_BINARY}.exe` ||
+      base.startsWith(`${DESKTOP_BINARY}.`);
+    const isCargoRunHost =
+      /(^|[/\\])cargo(\.exe)?\s+run\b/.test(args) && args.includes(DESKTOP_BINARY);
+    if (isBinary || isCargoRunHost) owners.push(Number(pid));
+  }
+  return owners;
+}
+
+/**
+ * Find PIDs of any running desktop owner outside this launcher. Used
+ * alongside the IPC probe: a degraded desktop with a downed IPC server
+ * is still a stale owner that must block a new dev session. Probe
+ * failures fail open (empty) with the IPC check remaining authoritative.
+ */
+export function findDesktopOwners(platform: NodeJS.Platform = process.platform): number[] {
+  try {
+    if (platform === 'win32') {
+      const result = Bun.spawnSync({
+        cmd: ['tasklist', '/FO', 'CSV', '/NH', '/FI', `IMAGENAME eq ${DESKTOP_BINARY}.exe`],
+        stdout: 'pipe',
+        stderr: 'ignore',
+      });
+      if (!result.success) return [];
+      return parseTasklistOwners(result.stdout.toString());
+    }
+    const result = Bun.spawnSync({
+      cmd: ['ps', '-A', '-o', 'pid=,args='],
+      stdout: 'pipe',
+      stderr: 'ignore',
+    });
+    if (!result.success) return [];
+    return parsePsOwners(result.stdout.toString());
+  } catch {
+    return [];
+  }
 }
 
 export async function waitForHttp(

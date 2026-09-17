@@ -3,7 +3,15 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { allocateFreePort, devUrl, ipcEndpoint, waitForHttp } from './dev-launch.ts';
+import {
+  allocateFreePort,
+  devUrl,
+  findDesktopOwners,
+  ipcEndpoint,
+  parsePsOwners,
+  parseTasklistOwners,
+  waitForHttp,
+} from './dev-launch.ts';
 
 describe('dev-launch', () => {
   test('devUrl pins loopback host', () => {
@@ -52,5 +60,34 @@ describe('dev-launch', () => {
     await expect(waitForHttp('http://127.0.0.1:9', () => false, 2, 1)).rejects.toThrow(
       /exited before becoming ready/,
     );
+  });
+
+  test('parseTasklistOwners finds desktop rows and ignores INFO noise', () => {
+    const output = [
+      '"tiktools-desktop.exe","1234","Console","1","48,000 K"',
+      '"code.exe","5678","Console","1","120,000 K"',
+    ].join('\r\n');
+    expect(parseTasklistOwners(output)).toEqual([1234]);
+    expect(parseTasklistOwners('INFO: No tasks are running which match the specified criteria.')).toEqual(
+      [],
+    );
+    expect(parseTasklistOwners('')).toEqual([]);
+  });
+
+  test('parsePsOwners finds the binary and cargo-run hosts only', () => {
+    const output = [
+      '  101 /home/u/TikTools/target/debug/tiktools-desktop',
+      '  102 cargo run -p tiktools-desktop',
+      '  103 cargo build -p tiktools-desktop',
+      '  104 /usr/bin/code /home/u/TikTools/target/debug/tiktools-desktop',
+      '  105 /home/u/TikTools/target/debug/tiktools-desktop-helper',
+    ].join('\n');
+    // The helper binary shares the prefix but is a different argv[0] base.
+    expect(parsePsOwners(output)).toEqual([101, 102]);
+  });
+
+  test('findDesktopOwners never throws and fails open', () => {
+    expect(() => findDesktopOwners('linux')).not.toThrow();
+    expect(Array.isArray(findDesktopOwners('linux'))).toBe(true);
   });
 });

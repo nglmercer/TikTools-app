@@ -39,9 +39,9 @@ export function usePoints(control: ControlClient) {
   const pointsConfig = ref<PointsConfig>(defaultPointsConfig);
   const leaderboard = ref<ViewerRecord[]>([]);
 
-  const applyAward = (uniqueId: string, totalPoints: number, level: number): void => {
+  const applyAward = (uniqueId: string, totalPoints: number, level: number): boolean => {
     const index = leaderboard.value.findIndex((viewer) => viewer.uniqueId === uniqueId);
-    if (index < 0) return;
+    if (index < 0) return false;
     const updated = [...leaderboard.value];
     const current = updated[index];
     if (current) {
@@ -53,6 +53,7 @@ export function usePoints(control: ControlClient) {
       };
     }
     leaderboard.value = updated.sort((left, right) => right.points - left.points);
+    return true;
   };
 
   control.onPush('points-config', (message) => {
@@ -62,9 +63,6 @@ export function usePoints(control: ControlClient) {
   control.onPush('leaderboard', (message) => {
     if (message.type !== 'leaderboard') return;
     leaderboard.value = message.viewers;
-  });
-  control.onTopic<PointsChangedData>('points.changed', (data) => {
-    applyAward(data.uniqueId, data.totalPoints, data.level);
   });
 
   const refresh = async (): Promise<void> => {
@@ -79,6 +77,24 @@ export function usePoints(control: ControlClient) {
       console.warn(`points refresh failed: ${errorMessage(failure)}`);
     }
   };
+
+  // Awards for viewers missing from the loaded page re-read the board so
+  // new chatters appear. One in-flight refresh at a time: it re-reads the
+  // full leaderboard, so concurrent triggers would only duplicate it.
+  let missingViewerRefreshInFlight = false;
+  const refreshMissingViewer = (): void => {
+    if (missingViewerRefreshInFlight) return;
+    missingViewerRefreshInFlight = true;
+    void refresh().finally(() => {
+      missingViewerRefreshInFlight = false;
+    });
+  };
+
+  control.onTopic<PointsChangedData>('points.changed', (data) => {
+    if (!applyAward(data.uniqueId, data.totalPoints, data.level)) {
+      refreshMissingViewer();
+    }
+  });
 
   const handleUpdatePointsConfig = (config: Partial<PointsConfig>): void => {
     void control

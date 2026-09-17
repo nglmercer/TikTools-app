@@ -264,48 +264,17 @@ async fn reader_task(
     loop {
         let mut line = String::new();
         match reader.read_line(&mut line).await {
-            Ok(0) => break,
-            Ok(_) => {}
-            Err(_) => break,
-        }
-        let value: Value = match serde_json::from_str(line.trim()) {
-            Ok(value) => value,
-            Err(_) => continue,
-        };
-        if value.get("method").and_then(Value::as_str) == Some("event") {
-            if let Some(params) = value.get("params") {
-                if let Ok(event) =
-                    serde_json::from_value::<tiktools_core::events::DomainEvent>(params.clone())
-                {
-                    let _ = events.send(event);
-                }
+            Ok(0) => {
+                tracing::debug!("control IPC stream closed by host");
+                break;
             }
-            continue;
+            Ok(_) => {}
+            Err(error) => {
+                tracing::warn!(%error, "control IPC stream read failed");
+                break;
+            }
         }
-        let response_id = value.get("id").and_then(Value::as_i64).unwrap_or(-1);
-        let sender = {
-            let mut pending = pending.lock().expect("client pending lock poisoned");
-            pending.remove(&response_id)
-        };
-        let Some(sender) = sender else {
-            continue;
-        };
-        if let Some(error) = value.get("error") {
-            let code = error
-                .get("code")
-                .and_then(Value::as_str)
-                .unwrap_or("error")
-                .to_owned();
-            let message = error
-                .get("message")
-                .and_then(Value::as_str)
-                .unwrap_or("request failed")
-                .to_owned();
-            let _ = sender.send(Err(ClientError::new(code, message)));
-        } else {
-            let result = value.get("result").cloned().unwrap_or(Value::Null);
-            let _ = sender.send(Ok(result));
-        }
+        handle_client_line(&line, &pending, &events);
     }
     // The host went away: fail every still-pending call so concurrent
     // waiters never hang until their timeout.
@@ -315,6 +284,86 @@ async fn reader_task(
     };
     for (_, sender) in senders {
         let _ = sender.send(Err(ClientError::transport("host closed the connection")));
+    }
+}
+
+/// Demultiplexes one host line: `event` notifications fan out to
+/// subscribers while responses resolve their pending RPC by id.
+/// Malformed input is diagnosed (never with line contents, which may
+/// carry secrets) and a response matching a live call but carrying
+/// neither result nor error fails fast instead of hanging to timeout.
+fn handle_client_line(
+    line: &str,
+    pending: &PendingMap,
+    events: &tokio::sync::broadcast::Sender<tiktools_core::events::DomainEvent>,
+) {
+    let value: Value = match serde_json::from_str(line.trim()) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(
+                bytes = line.len(),
+                %error,
+                "dropping invalid JSON line from control host"
+            );
+            return;
+        }
+    };
+    if value.get("method").and_then(Value::as_str) == Some("event") {
+        match value.get("params") {
+            Some(params) => {
+                match serde_json::from_value::<tiktools_core::events::DomainEvent>(params.clone())
+                {
+                    Ok(event) => {
+                        let _ = events.send(event);
+                    }
+                    Err(error) => {
+                        let topic = params
+                            .get("topic")
+                            .and_then(Value::as_str)
+                            .unwrap_or("?");
+                        tracing::warn!(
+                            topic,
+                            %error,
+                            "dropping unparseable domain event from control host"
+                        );
+                    }
+                }
+            }
+            None => tracing::warn!("dropping event notification without params"),
+        }
+        return;
+    }
+    let response_id = value.get("id").and_then(Value::as_i64).unwrap_or(-1);
+    let sender = {
+        let mut pending = pending.lock().expect("client pending lock poisoned");
+        pending.remove(&response_id)
+    };
+    let Some(sender) = sender else {
+        tracing::debug!(response_id, "response matches no pending request");
+        return;
+    };
+    if let Some(error) = value.get("error") {
+        let code = error
+            .get("code")
+            .and_then(Value::as_str)
+            .unwrap_or("error")
+            .to_owned();
+        let message = error
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("request failed")
+            .to_owned();
+        let _ = sender.send(Err(ClientError::new(code, message)));
+    } else if let Some(result) = value.get("result").cloned() {
+        let _ = sender.send(Ok(result));
+    } else {
+        tracing::warn!(
+            response_id,
+            "control host sent a response without result or error"
+        );
+        let _ = sender.send(Err(ClientError::protocol(
+            "malformed response: missing result and error",
+        )));
     }
 }
 
@@ -372,5 +421,84 @@ async fn try_connect_stream() -> std::io::Result<ClientStream> {
             std::io::ErrorKind::Unsupported,
             "local IPC is only available on Unix and Windows",
         ))
+    }
+}
+
+#[cfg(test)]
+mod client_line_tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    fn harness() -> (
+        PendingMap,
+        tokio::sync::broadcast::Sender<tiktools_core::events::DomainEvent>,
+    ) {
+        let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
+        let (events, _) = tokio::sync::broadcast::channel(16);
+        (pending, events)
+    }
+
+    fn listen(
+        pending: &PendingMap,
+        id: i64,
+    ) -> tokio::sync::oneshot::Receiver<Result<Value, ClientError>> {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        pending
+            .lock()
+            .expect("pending lock poisoned")
+            .insert(id, sender);
+        receiver
+    }
+
+    #[tokio::test]
+    async fn malformed_response_fails_pending_call_without_timeout() {
+        let (pending, events) = harness();
+        let receiver = listen(&pending, 7);
+        handle_client_line(r#"{"jsonrpc":"2.0","id":7}"#, &pending, &events);
+        let outcome = tokio::time::timeout(Duration::from_secs(5), receiver)
+            .await
+            .expect("must resolve without waiting for timeout")
+            .expect("sender alive");
+        let error = outcome.expect_err("neither result nor error must fail");
+        assert_eq!(error.code, "protocol");
+    }
+
+    #[tokio::test]
+    async fn garbage_and_bad_events_never_break_the_stream() {
+        let (pending, events) = harness();
+        let mut subscriber = events.subscribe();
+        let receiver = listen(&pending, 9);
+        // Invalid JSON, an event without params, and an unparseable event
+        // payload are diagnosed and skipped; the pending call still
+        // resolves normally afterwards.
+        handle_client_line("{{{ not json", &pending, &events);
+        handle_client_line(r#"{"method":"event"}"#, &pending, &events);
+        handle_client_line(
+            r#"{"method":"event","params":{"topic":"points.changed","data":{}}}"#,
+            &pending,
+            &events,
+        );
+        handle_client_line(r#"{"jsonrpc":"2.0","id":9,"result":{"ok":true}}"#, &pending, &events);
+        let outcome = tokio::time::timeout(Duration::from_secs(5), receiver)
+            .await
+            .expect("resolves promptly")
+            .expect("sender alive")
+            .expect("valid response resolves");
+        assert_eq!(outcome, serde_json::json!({"ok": true}));
+        assert!(subscriber.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn valid_event_still_fans_out() {
+        let (pending, events) = harness();
+        let mut subscriber = events.subscribe();
+        handle_client_line(
+            r#"{"method":"event","params":{"topic":"live.disconnected"}}"#,
+            &pending,
+            &events,
+        );
+        let event = subscriber.try_recv().expect("event fans out");
+        assert_eq!(event.topic(), "live.disconnected");
     }
 }

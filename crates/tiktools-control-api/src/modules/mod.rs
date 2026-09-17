@@ -32,3 +32,16 @@ impl OkResult {
         Self { ok: true }
     }
 }
+
+/// Runs synchronous SQLite/filesystem work on the blocking pool so RPC
+/// handlers never stall Tokio workers. Pure in-memory reads must NOT use
+/// this; the pool hop would only add latency.
+pub(crate) async fn blocking_task<T, F>(what: &'static str, task: F) -> Result<T, super::error::ApiError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    tokio::task::spawn_blocking(task)
+        .await
+        .map_err(|error| super::error::ApiError::internal(format!("{what} worker failed: {error}")))
+}

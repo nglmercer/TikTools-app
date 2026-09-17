@@ -128,7 +128,7 @@ pub enum TikTokError {
 pub enum ClientEvent {
     Connected(ConnectionInfo),
     Event(events::TikToolsEvent),
-    Reconnecting { attempt: u32, delay_ms: u64 },
+    Reconnecting { attempt: u64, delay_ms: u64 },
     Disconnected { reason: String },
     Error { phase: ErrorPhase, message: String },
 }

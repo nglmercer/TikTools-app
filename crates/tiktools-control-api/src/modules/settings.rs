@@ -26,8 +26,11 @@ pub fn register(router: &mut ControlRouter) {
         "Plugin settings schema plus redacted values",
         false,
         |core: Arc<AppCore>, params: PluginSettingsGet| async move {
-            core.plugin_settings(&params.plugin_id)
-                .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
+            crate::modules::blocking_task("plugins.settings.get", move || {
+                core.plugin_settings(&params.plugin_id)
+            })
+            .await?
+            .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
         },
     );
     router.register_typed::<PluginSettingsSet, PluginSettingsResult, _, _>(
@@ -35,8 +38,11 @@ pub fn register(router: &mut ControlRouter) {
         "Updates plugin settings (placeholder preserves stored secrets)",
         true,
         |core: Arc<AppCore>, params: PluginSettingsSet| async move {
-            core.plugin_settings_save(&params.plugin_id, params.values)
-                .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
+            crate::modules::blocking_task("plugins.settings.set", move || {
+                core.plugin_settings_save(&params.plugin_id, params.values)
+            })
+            .await?
+            .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
         },
     );
     router.register_typed::<PluginSettingsGet, PluginSettingsResult, _, _>(
@@ -44,8 +50,11 @@ pub fn register(router: &mut ControlRouter) {
         "Deletes stored settings so schema defaults apply again",
         true,
         |core: Arc<AppCore>, params: PluginSettingsGet| async move {
-            core.plugin_settings_reset(&params.plugin_id)
-                .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
+            crate::modules::blocking_task("plugins.settings.reset", move || {
+                core.plugin_settings_reset(&params.plugin_id)
+            })
+            .await?
+            .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
         },
     );
 }

@@ -29,7 +29,7 @@ pub fn register(router: &mut ControlRouter) {
         false,
         |core: Arc<AppCore>, params: AnalyticsSummaryParams| async move {
             // Day-range SQLite aggregations stay off Tokio workers.
-            let summary = tokio::task::spawn_blocking(move || {
+            let summary = crate::modules::blocking_task("analytics.summary", move || {
                 core.analytics_summary(
                     params.creator_unique_id,
                     params.start_day,
@@ -37,8 +37,7 @@ pub fn register(router: &mut ControlRouter) {
                     params.limit,
                 )
             })
-            .await
-            .map_err(|error| ApiError::internal(format!("analytics worker failed: {error}")))?;
+            .await?;
             Ok::<AnalyticsSummaryResult, ApiError>(AnalyticsSummaryResult { summary })
         },
     );

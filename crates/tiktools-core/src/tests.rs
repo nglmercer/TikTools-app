@@ -259,9 +259,10 @@ async fn test_action_is_a_dry_run_for_audio() {
 
 #[cfg(feature = "native-tiktok")]
 #[tokio::test]
-async fn native_live_event_reaches_the_host_message_boundary() {
+async fn native_live_event_reaches_the_domain_boundary() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter.clone()));
+    let mut domain = core.events.subscribe_domain();
     core.handle_native_event(ClientEvent::Event(NativeLiveEvent {
         base: tiktools_tiktok::events::CanonicalLiveEvent::Chat(
             tiktools_tiktok::events::ChatEvent {
@@ -284,14 +285,19 @@ async fn native_live_event_reaches_the_host_message_boundary() {
     }))
     .await;
 
+    // The legacy `live-event` push was removed once the frontend migrated;
+    // the UI-ready chat event now travels as `live.ui-event` on the domain
+    // bus, while the leaderboard snapshot push (no domain twin) stays.
+    let mut saw_ui_event = false;
+    while let Ok(event) = domain.try_recv() {
+        if let crate::events::DomainEvent::LiveUiEvent { event } = event {
+            if event.get("kind").and_then(Value::as_str) == Some("chat") {
+                saw_ui_event = true;
+            }
+        }
+    }
+    assert!(saw_ui_event, "live.ui-event domain event missing");
     let messages = emitter.messages.lock().expect("test emitter poisoned");
-    assert!(messages.iter().any(|message| {
-        matches!(
-            message,
-            HostMessage::LiveEvent { event }
-                if event.get("kind").and_then(Value::as_str) == Some("chat")
-        )
-    }));
     assert!(messages
         .iter()
         .any(|message| matches!(message, HostMessage::Leaderboard { .. })));
@@ -597,6 +603,24 @@ fn ui_ready_domain_topics_match_frontend_contract() {
     .expect("catalog serializes");
     assert_eq!(catalog["topic"], "gifts.catalog");
     assert_eq!(catalog["data"]["gifts"][0]["id"], "1");
+
+    let reconnecting = serde_json::to_value(crate::events::DomainEvent::LiveReconnecting {
+        attempt: 2,
+        delay_ms: 500,
+    })
+    .expect("reconnecting serializes");
+    assert_eq!(reconnecting["topic"], "live.reconnecting");
+    assert_eq!(reconnecting["data"]["attempt"], 2);
+    assert_eq!(reconnecting["data"]["delayMs"], 500);
+
+    let error = serde_json::to_value(crate::events::DomainEvent::LiveError {
+        phase: "live".to_owned(),
+        message: "boom".to_owned(),
+    })
+    .expect("error serializes");
+    assert_eq!(error["topic"], "live.error");
+    assert_eq!(error["data"]["phase"], "live");
+    assert_eq!(error["data"]["message"], "boom");
 }
 
 #[test]

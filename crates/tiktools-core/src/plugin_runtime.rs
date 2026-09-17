@@ -423,12 +423,21 @@ impl AppCore {
             };
             self.record_plugin_success(&plugin_id);
             if let Some(progress) = parse_plugin_progress(&response) {
-                self.emit(HostMessage::PluginProgress {
-                    plugin_id: plugin_id.clone(),
-                    state: progress.state,
-                    progress: progress.progress,
-                    message: progress.message,
-                });
+                // Poll progress travels on the domain topic; the legacy
+                // push was removed with the migrated duplicates.
+                let state = match progress.state {
+                    crate::ipc::messages::PluginProgressState::Downloading => "downloading",
+                    crate::ipc::messages::PluginProgressState::Loading => "loading",
+                    crate::ipc::messages::PluginProgressState::Ready => "ready",
+                    crate::ipc::messages::PluginProgressState::Failed => "failed",
+                };
+                self.events
+                    .publish_domain(crate::events::DomainEvent::PluginProgress {
+                        plugin_id: plugin_id.clone(),
+                        state: state.to_owned(),
+                        progress: progress.progress,
+                        message: progress.message,
+                    });
             }
             for (event_type, data) in parse_polled_events(&declared, &response) {
                 self.publish_automation_event(self.make_plugin_event(&source, &event_type, data))

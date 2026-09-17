@@ -41,9 +41,9 @@ pub fn register(router: &mut ControlRouter) {
         false,
         |core: Arc<AppCore>, _params: Empty| async move {
             // Snapshot fans out over SQLite plus in-memory services.
-            let snapshot = tokio::task::spawn_blocking(move || core.system_snapshot())
-                .await
-                .map_err(|error| ApiError::internal(format!("snapshot worker failed: {error}")))?;
+            let snapshot =
+                crate::modules::blocking_task("system.snapshot", move || core.system_snapshot())
+                    .await?;
             Ok::<Value, ApiError>(snapshot)
         },
     );
@@ -53,9 +53,9 @@ pub fn register(router: &mut ControlRouter) {
         false,
         |core: Arc<AppCore>, _params: Empty| async move {
             // Filesystem probes plus database checks stay off Tokio workers.
-            let report = tokio::task::spawn_blocking(move || core.system_doctor())
-                .await
-                .map_err(|error| ApiError::internal(format!("doctor worker failed: {error}")))?;
+            let report =
+                crate::modules::blocking_task("system.doctor", move || core.system_doctor())
+                    .await?;
             Ok::<DoctorReport, ApiError>(report)
         },
     );

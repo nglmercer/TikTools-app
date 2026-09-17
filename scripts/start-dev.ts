@@ -1,8 +1,25 @@
 import { prepareDevelopmentPlugins, repositoryRoot } from './dev-plugins.ts';
-import { allocateFreePort, devUrl, isControlHostRunning, waitForHttp } from './lib/dev-launch.ts';
+import {
+  allocateFreePort,
+  devUrl,
+  findDesktopOwners,
+  isControlHostRunning,
+  waitForHttp,
+} from './lib/dev-launch.ts';
 
 function fail(message: string): never {
   throw new Error(`Development startup failed: ${message}`);
+}
+
+function refuseStaleOwners(context: string): void {
+  const owners = findDesktopOwners();
+  if (owners.length > 0) {
+    fail(
+      `a TikTools desktop is already running (PID ${owners.join(', ')}) ${context}. ` +
+        'Close the existing desktop before starting dev, so the new Vite server ' +
+        'is never mixed with an old desktop — even one whose IPC server is down.',
+    );
+  }
 }
 
 const existing = await isControlHostRunning();
@@ -13,6 +30,7 @@ if (existing) {
       'so the new Vite server is never mixed with an old desktop or stale control IPC host.',
   );
 }
+refuseStaleOwners('on this machine');
 
 // Never guess the Vite port: allocate a free loopback port first, then run
 // Vite with strictPort so it fails loudly instead of drifting to another
@@ -60,12 +78,20 @@ try {
 
 // Re-check immediately before launching the desktop: an old desktop
 // starting concurrently must never be mixed with this new Vite server.
+// The process probe catches desktops whose IPC server is already down
+// (or never came up) and which the IPC check alone would miss.
 if (await isControlHostRunning()) {
   killVite();
   fail(
     'a TikTools desktop/control host appeared while Vite was starting. ' +
       'Close the existing desktop before starting dev.',
   );
+}
+try {
+  refuseStaleOwners('that appeared while Vite was starting');
+} catch (error) {
+  killVite();
+  throw error;
 }
 
 console.log(`Vite is ready; launching the desktop host against ${actualDevUrl}...`);

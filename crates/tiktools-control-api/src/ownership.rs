@@ -23,6 +23,7 @@ pub fn ownership_name() -> String {
     platform::ownership_name()
 }
 
+#[derive(Debug)]
 pub struct ControlHostGuard {
     #[allow(dead_code)]
     platform: platform::PlatformGuard,
@@ -37,6 +38,7 @@ mod platform {
         System::Threading::CreateMutexW,
     };
 
+    #[derive(Debug)]
     pub struct PlatformGuard {
         mutex: usize,
     }
@@ -98,21 +100,66 @@ mod platform {
 #[cfg(unix)]
 mod platform {
     use super::*;
+    use std::os::unix::io::AsRawFd;
 
+    #[derive(Debug)]
     pub struct PlatformGuard {
-        _private: (),
+        // The open lock file; the kernel-held flock dies with this handle.
+        // The path is deliberately never deleted: deleting would let a
+        // second process lock a replacement inode while we still hold the
+        // unlinked one.
+        _lock_file: std::fs::File,
     }
 
     pub fn ownership_name() -> String {
         super::CONTROL_HOST_MUTEX.to_owned()
     }
 
+    pub fn lock_file_path() -> std::path::PathBuf {
+        tiktools_core::paths::AppPaths::from_environment()
+            .root
+            .join("tiktools-control.lock")
+    }
+
     pub fn acquire() -> io::Result<super::ControlHostGuard> {
-        // On Unix the socket bind itself is the ownership primitive:
-        // `run_ipc_unix` only unlinks a stale path after a failed connect,
-        // so a live owner makes the bind fail with `AddrInUse`.
+        let path = lock_file_path();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let lock_file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&path)?;
+        // Non-blocking exclusive lock: contention fails immediately with
+        // `AddrInUse` instead of stalling startup behind another host.
+        // The lock releases automatically if this process crashes, so a
+        // stale lock file can never brick future servers.
+        let held = unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+        if held != 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() == Some(libc::EWOULDBLOCK) {
+                return Err(io::Error::new(
+                    io::ErrorKind::AddrInUse,
+                    "a TikTools control host already owns the local IPC endpoint",
+                ));
+            }
+            return Err(error);
+        }
+        // Best-effort diagnostics: record the owning PID for operators.
+        // Failures here must not fail the acquire itself.
+        {
+            use std::io::Write;
+            let mut lock_file = &lock_file;
+            let _ = lock_file.set_len(0);
+            let _ = writeln!(lock_file, "{}", std::process::id());
+            let _ = lock_file.flush();
+        }
         Ok(super::ControlHostGuard {
-            platform: PlatformGuard { _private: () },
+            platform: PlatformGuard {
+                _lock_file: lock_file,
+            },
         })
     }
 }

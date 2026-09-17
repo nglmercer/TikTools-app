@@ -26,9 +26,9 @@ pub fn register(router: &mut ControlRouter) {
         "Persisted gift catalog ordered by diamond count",
         false,
         |core: Arc<AppCore>, _params: Empty| async move {
-            Ok::<GiftCatalogResult, ApiError>(GiftCatalogResult {
-                gifts: core.gift_catalog(),
-            })
+            let gifts =
+                crate::modules::blocking_task("gifts.list", move || core.gift_catalog()).await?;
+            Ok::<GiftCatalogResult, ApiError>(GiftCatalogResult { gifts })
         },
     );
     router.register_typed::<GiftDebugParams, GiftDebugResult, _, _>(
@@ -36,7 +36,11 @@ pub fn register(router: &mut ControlRouter) {
         "Gift icon lookup plus the catalog size",
         false,
         |core: Arc<AppCore>, params: GiftDebugParams| async move {
-            Ok::<GiftDebugResult, ApiError>(core.gift_debug(params.gift_id.as_deref()))
+            let debug = crate::modules::blocking_task("gifts.debug", move || {
+                core.gift_debug(params.gift_id.as_deref())
+            })
+            .await?;
+            Ok::<GiftDebugResult, ApiError>(debug)
         },
     );
 }

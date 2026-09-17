@@ -57,6 +57,10 @@ pub enum DomainEvent {
     },
     #[serde(rename = "gifts.catalog", rename_all = "camelCase")]
     GiftsCatalog { gifts: Vec<serde_json::Value> },
+    #[serde(rename = "live.reconnecting", rename_all = "camelCase")]
+    LiveReconnecting { attempt: u64, delay_ms: u64 },
+    #[serde(rename = "live.error", rename_all = "camelCase")]
+    LiveError { phase: String, message: String },
     #[serde(rename = "points.changed", rename_all = "camelCase")]
     PointsChanged {
         unique_id: String,
@@ -93,6 +97,8 @@ impl DomainEvent {
             Self::LiveUiEvent { .. } => "live.ui-event",
             Self::RoomStats { .. } => "room.stats",
             Self::GiftsCatalog { .. } => "gifts.catalog",
+            Self::LiveReconnecting { .. } => "live.reconnecting",
+            Self::LiveError { .. } => "live.error",
             Self::PointsChanged { .. } => "points.changed",
             Self::WorkflowChanged { .. } => "workflow.changed",
             Self::CreatorChanged { .. } => "creator.changed",

@@ -263,12 +263,6 @@ impl AppCore {
                         total_points: award.total_points,
                         level: award.level,
                     });
-                self.emit(HostMessage::PointsAwarded {
-                    unique_id: award.unique_id.clone(),
-                    delta: award.delta,
-                    total_points: award.total_points,
-                    level: award.level,
-                });
                 self.emit_leaderboard_if_due();
                 Ok(format!("{} {:+}", award.unique_id, award.delta))
             }

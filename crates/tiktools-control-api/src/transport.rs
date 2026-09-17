@@ -94,9 +94,10 @@ where
 
     let path = ipc_socket_path();
     if path.exists() {
-        // A stale socket from a crashed host is unusable; a live host would
-        // fail to bind below if the path were truly taken... best effort:
-        // try connecting first, and only unlink when nobody answers.
+        // The ownership lock is already held here (acquired before this
+        // function runs), so a live owner cannot exist: a connect probe
+        // distinguishes its stale socket (unlink) from a foreign bind,
+        // which still fails below with `AddrInUse`.
         if tokio::net::UnixStream::connect(&path).await.is_err() {
             let _ = std::fs::remove_file(&path);
         }

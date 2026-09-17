@@ -323,20 +323,6 @@ pub(crate) fn user_value(user: &tiktools_tiktok::events::EventUser) -> serde_jso
     .expect("automation user must serialize")
 }
 
-#[cfg(feature = "native-tiktok")]
-pub(crate) fn creator_value(info: &tiktools_tiktok::ConnectionInfo) -> serde_json::Value {
-    json!({
-        "uniqueId": info.unique_id,
-        "roomId": info.room_id,
-        "nickname": info.nickname,
-        "avatarUrl": info.avatar_url,
-        "title": info.title,
-        "lastConnected": now_millis(),
-        "connectCount": 1,
-        "displayId": info.unique_id,
-    })
-}
-
 pub(crate) fn now_millis() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

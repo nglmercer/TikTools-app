@@ -109,11 +109,10 @@ pub fn register(router: &mut ControlRouter) {
         true,
         |core: Arc<AppCore>, params: PluginInstallParams| async move {
             // Archive extraction + filesystem writes stay off Tokio workers.
-            tokio::task::spawn_blocking(move || {
+            crate::modules::blocking_task("plugins.install", move || {
                 core.plugin_install(&params.path, params.replace_existing)
             })
-            .await
-            .map_err(|error| ApiError::internal(format!("install worker failed: {error}")))?
+            .await?
             .map_err(ApiError::from)
         },
     );
@@ -123,11 +122,12 @@ pub fn register(router: &mut ControlRouter) {
         true,
         |core: Arc<AppCore>, params: PluginIdParams| async move {
             // Recursive removal stays off Tokio workers.
-            tokio::task::spawn_blocking(move || core.plugin_uninstall(&params.plugin_id))
-                .await
-                .map_err(|error| ApiError::internal(format!("uninstall worker failed: {error}")))?
-                .map(|()| OkResult::ok())
-                .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
+            crate::modules::blocking_task("plugins.uninstall", move || {
+                core.plugin_uninstall(&params.plugin_id)
+            })
+            .await?
+            .map(|()| OkResult::ok())
+            .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
         },
     );
     router.register_typed::<PluginIdParams, OkResult, _, _>(

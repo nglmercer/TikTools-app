@@ -43,9 +43,11 @@ pub fn register(router: &mut ControlRouter) {
         "Creator record by uniqueId (defaults to the last connected creator)",
         false,
         |core: Arc<AppCore>, params: CreatorGetParams| async move {
-            Ok::<CreatorGetResult, ApiError>(CreatorGetResult {
-                creator: core.creator_get(params.unique_id.as_deref()),
+            let creator = crate::modules::blocking_task("creators.get", move || {
+                core.creator_get(params.unique_id.as_deref())
             })
+            .await?;
+            Ok::<CreatorGetResult, ApiError>(CreatorGetResult { creator })
         },
     );
     router.register_typed::<CreatorsRecentParams, CreatorsRecentResult, _, _>(
@@ -53,9 +55,11 @@ pub fn register(router: &mut ControlRouter) {
         "Recently connected creators, most recent first",
         false,
         |core: Arc<AppCore>, params: CreatorsRecentParams| async move {
-            Ok::<CreatorsRecentResult, ApiError>(CreatorsRecentResult {
-                creators: core.creator_recent(params.limit),
+            let creators = crate::modules::blocking_task("creators.recent", move || {
+                core.creator_recent(params.limit)
             })
+            .await?;
+            Ok::<CreatorsRecentResult, ApiError>(CreatorsRecentResult { creators })
         },
     );
     router.register_typed::<Empty, OkResult, _, _>(
@@ -63,7 +67,10 @@ pub fn register(router: &mut ControlRouter) {
         "Clears creator history and the last-creator pointer",
         true,
         |core: Arc<AppCore>, _params: Empty| async move {
-            core.creator_history_clear();
+            crate::modules::blocking_task("creators.history.clear", move || {
+                core.creator_history_clear();
+            })
+            .await?;
             Ok::<OkResult, ApiError>(OkResult::ok())
         },
     );

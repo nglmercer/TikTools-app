@@ -9,7 +9,13 @@ impl AppCore {
             ClientEvent::Connected(info) => self.handle_connected(info).await,
             ClientEvent::Event(event) => self.handle_live_event(event).await,
             ClientEvent::Reconnecting { attempt, delay_ms } => {
-                self.emit(HostMessage::Reconnecting { attempt, delay_ms });
+                // Domain topic only: the legacy push was removed once the
+                // frontend migrated to `live.reconnecting`.
+                self.events
+                    .publish_domain(crate::events::DomainEvent::LiveReconnecting {
+                        attempt,
+                        delay_ms,
+                    });
             }
             ClientEvent::Disconnected { reason } => {
                 self.live.disconnect().await;
@@ -21,16 +27,17 @@ impl AppCore {
                 self.events
                     .publish_domain(crate::events::DomainEvent::CreatorChanged { unique_id: None });
                 tracing::info!(%reason, "TikTok live disconnected");
-                self.emit(HostMessage::connection_disconnected());
             }
             ClientEvent::Error { phase, message } => {
-                self.emit(HostMessage::Error {
-                    phase: match phase {
-                        tiktools_tiktok::ErrorPhase::Connect => ipc::messages::ErrorPhase::Connect,
-                        tiktools_tiktok::ErrorPhase::Live => ipc::messages::ErrorPhase::Live,
-                    },
-                    message,
-                });
+                let phase_name = match phase {
+                    tiktools_tiktok::ErrorPhase::Connect => "connect",
+                    tiktools_tiktok::ErrorPhase::Live => "live",
+                };
+                self.events
+                    .publish_domain(crate::events::DomainEvent::LiveError {
+                        phase: phase_name.to_owned(),
+                        message,
+                    });
             }
         }
     }
@@ -64,14 +71,17 @@ impl AppCore {
             .collect::<Vec<_>>();
 
         #[cfg(feature = "persistence")]
-        let (creator, recent_creators, app_state) = {
+        let app_state = {
             let database = Arc::clone(&self.db);
             let info_for_db = info.clone();
             let gifts_for_db = gifts.clone();
             match tokio::time::timeout(
                 Duration::from_secs(2),
                 tokio::task::spawn_blocking(move || {
-                    let creator = match database.save_creator(
+                    // Creator/creator-list reads fed only the removed legacy
+                    // pushes; the frontend now refreshes via RPC on
+                    // `creator.changed`. The writes below are still needed.
+                    if let Err(error) = database.save_creator(
                         &info_for_db.unique_id,
                         Some(&info_for_db.room_id),
                         Some(&info_for_db.nickname),
@@ -79,17 +89,8 @@ impl AppCore {
                         Some(&info_for_db.title),
                         Some(&info_for_db.unique_id),
                     ) {
-                        Ok(creator) => creator,
-                        Err(error) => {
-                            tracing::warn!(%error, "could not persist connected creator");
-                            creator_value(&info_for_db)
-                        }
-                    };
-                    let recent_creators =
-                        database.load_recent_creators(10).unwrap_or_else(|error| {
-                            tracing::warn!(%error, "could not load recent creators");
-                            Vec::new()
-                        });
+                        tracing::warn!(%error, "could not persist connected creator");
+                    }
                     let app_state = database
                         .load_app_state()
                         .ok()
@@ -105,7 +106,7 @@ impl AppCore {
                     if let Err(error) = database.save_gift_catalog(&gifts_for_db) {
                         tracing::warn!(%error, "could not persist TikTok gift catalog");
                     }
-                    (creator, recent_creators, app_state)
+                    app_state
                 }),
             )
             .await
@@ -113,45 +114,23 @@ impl AppCore {
                 Ok(Ok(values)) => values,
                 Ok(Err(error)) => {
                     tracing::error!(%error, "connection persistence worker failed");
-                    (
-                        creator_value(&info),
-                        Vec::new(),
-                        std::collections::BTreeMap::new(),
-                    )
+                    std::collections::BTreeMap::new()
                 }
                 Err(_) => {
                     tracing::warn!(
                         "connection persistence exceeded 2 seconds; continuing live event delivery"
                     );
-                    (
-                        creator_value(&info),
-                        Vec::new(),
-                        std::collections::BTreeMap::new(),
-                    )
+                    std::collections::BTreeMap::new()
                 }
             }
         };
 
         #[cfg(not(feature = "persistence"))]
-        let (creator, recent_creators, app_state) = (
-            creator_value(&info),
-            Vec::new(),
-            std::collections::BTreeMap::new(),
-        );
+        let app_state = std::collections::BTreeMap::new();
 
-        self.emit(HostMessage::Connection {
-            status: ipc::messages::ConnectionStatus::Connected,
-            unique_id: Some(info.unique_id.clone()),
-            title: Some(info.title.clone()).filter(|value| !value.is_empty()),
-            room_id: Some(info.room_id.clone()),
-            avatar_url: info.avatar_url.clone(),
-        });
-        self.emit(HostMessage::CreatorState {
-            creator: Some(creator),
-        });
-        self.emit(HostMessage::RecentCreators {
-            creators: recent_creators,
-        });
+        // Connection/creator state travels on `live.connected` plus
+        // `creator.changed` now; their legacy pushes were removed with the
+        // rest of the migrated duplicates.
         self.emit(HostMessage::AppState { state: app_state });
         self.emit(HostMessage::PointsConfig {
             config: self.points.config(),
@@ -159,10 +138,7 @@ impl AppCore {
         self.emit_leaderboard_if_due();
 
         self.events
-            .publish_domain(crate::events::DomainEvent::GiftsCatalog {
-                gifts: gifts.clone(),
-            });
-        self.emit(HostMessage::GiftCatalog { gifts });
+            .publish_domain(crate::events::DomainEvent::GiftsCatalog { gifts });
 
         self.queue_automation_event(
             self.make_automation_event(
@@ -190,11 +166,6 @@ impl AppCore {
                         total_users: room.total_user,
                         top_viewers: Vec::new(),
                     });
-                self.emit(HostMessage::RoomStats {
-                    viewers: room.total,
-                    total_users: room.total_user,
-                    top_viewers: Vec::new(),
-                });
                 #[cfg(feature = "persistence")]
                 self.record_analytics_viewers(room.total);
             }
@@ -243,6 +214,7 @@ impl AppCore {
             }
             // Live awards publish the same topic as manual/automation/plugin
             // adjustments so every origin converges on `points.changed`.
+            // The legacy push was removed with the migrated duplicates.
             self.events
                 .publish_domain(crate::events::DomainEvent::PointsChanged {
                     unique_id: award.unique_id.clone(),
@@ -250,12 +222,6 @@ impl AppCore {
                     total_points: award.total_points,
                     level: award.level,
                 });
-            self.emit(HostMessage::PointsAwarded {
-                unique_id: award.unique_id.clone(),
-                delta: award.delta,
-                total_points: award.total_points,
-                level: award.level,
-            });
         }
         if let Some(event) = automation_event {
             let mut event = event;
@@ -292,12 +258,10 @@ impl AppCore {
             }
         }
         // The UI-ready event goes out on the domain bus (authoritative for
-        // WebView/IPC/CLI) with the legacy push kept only for compatibility.
+        // WebView/IPC/CLI); the legacy push was removed with the migrated
+        // duplicates.
         self.events
-            .publish_domain(crate::events::DomainEvent::LiveUiEvent {
-                event: ui_event.clone(),
-            });
-        self.emit(HostMessage::LiveEvent { event: ui_event });
+            .publish_domain(crate::events::DomainEvent::LiveUiEvent { event: ui_event });
         self.emit_leaderboard_if_due();
     }
 }
