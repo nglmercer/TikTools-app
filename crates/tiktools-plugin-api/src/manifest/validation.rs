@@ -551,6 +551,23 @@ fn validate_page_section(section: &Value) -> Result<(), ManifestError> {
             }
             Ok(())
         }
+        "tts" => {
+            let action_type = object
+                .get("actionType")
+                .and_then(Value::as_str)
+                .ok_or(ManifestError::InvalidField("pages"))?;
+            if action_type.trim().is_empty() || action_type.len() > 128 {
+                return Err(ManifestError::InvalidField("pages"));
+            }
+            let voices_from = object
+                .get("voicesFrom")
+                .and_then(Value::as_str)
+                .ok_or(ManifestError::InvalidField("pages"))?;
+            if voices_from.trim().is_empty() || voices_from.len() > 256 {
+                return Err(ManifestError::InvalidField("pages"));
+            }
+            Ok(())
+        }
         _ => Err(ManifestError::InvalidField("pages")),
     }
 }

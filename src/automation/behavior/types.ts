@@ -253,7 +253,7 @@ export interface PluginTemplateDescriptor {
   source: ActionSource;
 }
 
-export type PluginPageSectionKind = 'text' | 'form' | 'connection' | 'list';
+export type PluginPageSectionKind = 'text' | 'form' | 'connection' | 'list' | 'tts';
 
 /** One host-rendered section of a plugin configuration page. */
 export interface PluginPageSection {
@@ -267,6 +267,10 @@ export interface PluginPageSection {
   uiHints?: JsonObject;
   /** `list` only. Option source id feeding the list rows. */
   optionsFrom?: string;
+  /** `tts` only. Plugin action type executed for speech (real execution). */
+  actionType?: string;
+  /** `tts` only. Option source id feeding the voice selectors. */
+  voicesFrom?: string;
 }
 
 /** One configuration page contributed by a plugin manifest (schema v3). */

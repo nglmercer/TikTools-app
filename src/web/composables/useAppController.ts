@@ -16,9 +16,23 @@ import type { AutomationEvent, AutomationEventType } from '../../automation/type
 import type { BehaviorRun, BehaviorSnapshot, LiveAction, LiveEvent, PluginPageDescriptor } from '../../automation/behavior/types.ts';
 import {
   mergePluginPages,
+  normalizeOptionsFrom,
   parsePluginNavId,
   type PluginConnectionState,
 } from '../../automation/plugins/declarative.ts';
+import {
+  decideTts,
+  defaultTtsSettings,
+  normalizeHandle,
+  parseTtsSettings,
+  sanitizeTtsSettings,
+  serializeTtsSettings,
+  ttsFingerprint,
+  TtsDeduper,
+  ttsSettingsKey,
+  type TtsLogEntry,
+  type TtsSettings,
+} from '../tts/tts-policy.ts';
 import {
   addRecentUsername,
   applyTheme,
@@ -134,6 +148,15 @@ export function useAppController() {
   const pluginConnections = ref<Record<string, PluginConnectionState>>({});
   const pluginInstallState = ref<PluginInstallState>({ ...initialPluginInstallState });
   const pluginProgress = ref<Extract<HostMessage, { type: 'plugin-progress' }> | null>(null);
+  // Host-owned TTS state, one entry per plugin id. Settings persist through
+  // app-state (`tts.settings:<pluginId>`); logs and speaking flags are local.
+  const ttsSettings = ref<Record<string, TtsSettings>>({});
+  const ttsSpeaking = ref<Record<string, boolean>>({});
+  const ttsLogs = ref<Record<string, TtsLogEntry[]>>({});
+  const ttsDirty = new Set<string>();
+  const ttsDeduper = new TtsDeduper({ windowMs: 1500 });
+  const ttsPending: Array<{ pluginId: string; actionType: string; source: 'tester' | 'auto'; text: string; voice: string }> = [];
+  let ttsLogSequence = 0;
   const mediaSelectionHandlers = new Map<string, MediaSelectionHandler>();
   let mediaRequestSequence = 0;
   let pluginProgressTimer: ReturnType<typeof setTimeout> | undefined;
@@ -193,6 +216,94 @@ export function useAppController() {
     if (!exists) activeTab.value = 'plugins';
   });
 
+  /** Every host-owned TTS section across plugin pages, with voice sources. */
+  const ttsSections: ComputedRef<Array<{ pluginId: string; actionType: string; voicesSource: string }>> = computed(() => {
+    const found: Array<{ pluginId: string; actionType: string; voicesSource: string }> = [];
+    const pages: PluginPageDescriptor[] = pluginPages.value;
+    for (const page of pages) {
+      for (const section of page.sections) {
+        if (section.kind !== 'tts' || !section.actionType || !section.voicesFrom) continue;
+        const voicesSource = normalizeOptionsFrom(section.voicesFrom);
+        if (!voicesSource) continue;
+        found.push({ pluginId: page.pluginId, actionType: section.actionType, voicesSource });
+      }
+    }
+    return found;
+  });
+
+  const ttsSettingsFor = (pluginId: string): TtsSettings =>
+    ttsSettings.value[pluginId] ?? defaultTtsSettings();
+
+  const appendTtsLog = (pluginId: string, entry: Omit<TtsLogEntry, 'id' | 'at'>): void => {
+    const next: TtsLogEntry = { ...entry, id: ++ttsLogSequence, at: Date.now() };
+    ttsLogs.value = {
+      ...ttsLogs.value,
+      [pluginId]: [...(ttsLogs.value[pluginId] ?? []), next].slice(-50),
+    };
+  };
+
+  const queueTtsSpeak = (
+    pluginId: string,
+    actionType: string,
+    source: 'tester' | 'auto',
+    text: string,
+    voice: string,
+    language: string,
+    playNow: boolean,
+  ): void => {
+    ttsPending.push({ pluginId, actionType, source, text, voice });
+    if (ttsPending.length > 100) ttsPending.splice(0, ttsPending.length - 100);
+    ttsSpeaking.value = { ...ttsSpeaking.value, [pluginId]: true };
+    send({
+      type: 'execute-plugin-action',
+      actionType,
+      config: { text, voice, language, playNow },
+    });
+  };
+
+  const leaderboardPointsFor = (handle: string): number | undefined => {
+    const clean = normalizeHandle(handle);
+    const viewer = leaderboard.value.find((entry) => normalizeHandle(entry.uniqueId) === clean);
+    return viewer?.points;
+  };
+
+  /** Automatic chat TTS: one full-pipeline decision per TTS section.
+   * Points are deducted at most once per claimed fingerprint, after the
+   * deduper accepts the line and before the speech request is queued. */
+  const runAutoTts = (author: string, text: string, points: number | undefined, isSubscriber: boolean | undefined): void => {
+    const sections = ttsSections.value;
+    if (sections.length === 0) return;
+    for (const section of sections) {
+      const settings = ttsSettingsFor(section.pluginId);
+      if (!settings.enabled) continue;
+      const availableVoices = (actionOptions.value[section.voicesSource] ?? []).map((option) => option.value);
+      const decision = decideTts({
+        comment: text,
+        author: {
+          handle: author,
+          points: points ?? leaderboardPointsFor(author),
+          roles: isSubscriber === undefined ? {} : { isSubscriber },
+        },
+        settings,
+        availableVoices,
+      });
+      if (!decision.speak) continue;
+      if (!ttsDeduper.claim(ttsFingerprint(author, decision.spokenText))) continue;
+      if (decision.pointsCost > 0) {
+        send({ type: 'adjust-points', uniqueId: author.trim().replace(/^@/, ''), delta: -decision.pointsCost });
+      }
+      queueTtsSpeak(
+        section.pluginId,
+        section.actionType,
+        'auto',
+        decision.spokenText,
+        decision.voice,
+        decision.language,
+        false,
+      );
+    }
+  };
+
   const receive = (raw: string): void => {
     let message: HostMessage;
     try {
@@ -250,6 +361,9 @@ export function useAppController() {
         { ...event, id: nextEventId.value++, receivedAt: Date.now() },
       ].slice(-300);
       if (!autoScroll.value) unreadCount.value += 1;
+      if (event.kind === 'chat' && event.text) {
+        runAutoTts(event.author, event.text, event.points, event.isSubscriber);
+      }
     }
 
     if (message.type === 'error') {
@@ -294,7 +408,32 @@ export function useAppController() {
       }
     }
 
-    if (message.type === 'app-state') console.log('[app-state]', message.state);
+    if (message.type === 'app-state') {
+      for (const [key, value] of Object.entries(message.state)) {
+        if (!key.startsWith('tts.settings:')) continue;
+        const pluginId = key.slice('tts.settings:'.length);
+        if (!pluginId || ttsDirty.has(pluginId)) continue;
+        ttsSettings.value = { ...ttsSettings.value, [pluginId]: parseTtsSettings(value) };
+      }
+    }
+
+    if (message.type === 'plugin-action-result') {
+      const pendingIndex = ttsPending.findIndex((entry) => entry.actionType === message.actionType);
+      const pending = pendingIndex >= 0 ? ttsPending.splice(pendingIndex, 1)[0] : undefined;
+      const pluginId = pending?.pluginId;
+      if (pluginId) {
+        const stillPending = ttsPending.some((entry) => entry.pluginId === pluginId);
+        ttsSpeaking.value = { ...ttsSpeaking.value, [pluginId]: stillPending };
+        const lines = message.logs.length > 0 ? ` ${message.logs.slice(0, 3).join(' · ')}` : '';
+        appendTtsLog(pluginId, {
+          ok: message.ok,
+          source: pending?.source ?? 'tester',
+          text: (pending?.text ?? '').slice(0, 160),
+          voice: pending?.voice ?? '',
+          summary: `${message.ok ? message.summary : message.error ?? message.summary}${lines}`.slice(0, 500),
+        });
+      }
+    }
 
     if (message.type === 'gift-catalog') {
       giftCatalog.value = message.gifts;
@@ -500,6 +639,19 @@ export function useAppController() {
   };
   const handleGetActionOptions = (source: string): void => send({ type: 'get-action-options', source });
   const handleTestPluginConnection = (id: string): void => send({ type: 'test-plugin-connection', id });
+  const handleTtsSettingsChange = (pluginId: string, next: TtsSettings): void => {
+    const clean = sanitizeTtsSettings(next);
+    ttsDirty.add(pluginId);
+    ttsSettings.value = { ...ttsSettings.value, [pluginId]: clean };
+    send({ type: 'set-app-state', key: ttsSettingsKey(pluginId), value: serializeTtsSettings(clean) });
+  };
+  const handleTtsSpeak = (pluginId: string, actionType: string, text: string, voice: string): void => {
+    const settings = ttsSettingsFor(pluginId);
+    const clean = text.trim().slice(0, 4_096);
+    if (!clean) return;
+    queueTtsSpeak(pluginId, actionType, 'tester', clean, voice.trim(), settings.language, true);
+  };
+  const ttsSettingsOrDefault = (pluginId: string): TtsSettings => ttsSettingsFor(pluginId);
 
   const openMediaPicker = (options: MediaPickerOptions, onSelected: MediaSelectionHandler): void => {
     const requestId = `media-${Date.now()}-${++mediaRequestSequence}`;
@@ -658,6 +810,12 @@ export function useAppController() {
     handleTestProcessor,
     handleGetActionOptions,
     handleTestPluginConnection,
+    ttsSettings,
+    ttsSpeaking,
+    ttsLogs,
+    ttsSettingsOrDefault,
+    handleTtsSettingsChange,
+    handleTtsSpeak,
     analyticsSummary,
     handleGetAnalyticsRange: (startDay: number, endDay: number): void => {
       send({

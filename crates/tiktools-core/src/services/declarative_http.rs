@@ -333,6 +333,93 @@ pub(crate) fn redact_endpoint_secrets(text: &str, secrets: &[String]) -> String 
     redacted
 }
 
+/// Reads the manifest-declared auth shape as `(auth_type, token_setting)`.
+/// Unknown shapes degrade to `("none", "")` so diagnostics stay total.
+fn declarative_auth_label(http: &Value) -> (String, String) {
+    let auth = http.get("auth").and_then(Value::as_object);
+    let auth_type = auth
+        .and_then(|auth| auth.get("type"))
+        .and_then(Value::as_str)
+        .unwrap_or("none")
+        .to_owned();
+    let token_setting = auth
+        .and_then(|auth| auth.get("tokenSetting"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_owned();
+    (auth_type, token_setting)
+}
+
+/// One debug line per declarative call: method, path, and whether a
+/// credential was attached. Callers must redact the result: query-string
+/// auth embeds the token in the URL. The secret value itself is never
+/// named here on purpose — only its presence.
+fn declarative_request_line(
+    endpoint: &DeclarativeEndpoint,
+    auth_type: &str,
+    token_setting: &str,
+) -> String {
+    let path = url::Url::parse(&endpoint.url)
+        .map(|url| match url.query() {
+            Some(query) => format!("{}?{query}", url.path()),
+            None => url.path().to_owned(),
+        })
+        .unwrap_or_else(|_| "(unparsable url)".to_owned());
+    let auth_note = if endpoint.secrets.is_empty() {
+        if token_setting.is_empty() {
+            "auth: none attached".to_owned()
+        } else {
+            format!("auth: none attached (`{token_setting}` is empty)")
+        }
+    } else {
+        format!("auth: {auth_type} attached")
+    };
+    format!("{} {path} ({auth_note})", endpoint.method)
+}
+
+/// Turns a bare transport failure into an actionable credential hint.
+///
+/// The shared HTTP engine reports only `HTTP {status} ...`; the declarative
+/// layer knows which plugin, endpoint, and token setting were involved, so
+/// 401/403 responses name them instead of leaving the operator guessing.
+/// Other statuses pass through untouched.
+fn with_auth_hint(
+    error: &str,
+    manifest_id: &str,
+    auth_type: &str,
+    token_setting: &str,
+    token_attached: bool,
+) -> String {
+    let status = if error.starts_with("HTTP 401") {
+        Some(401)
+    } else if error.starts_with("HTTP 403") {
+        Some(403)
+    } else {
+        None
+    };
+    let Some(status) = status else {
+        return error.to_owned();
+    };
+    let setting_note = if token_setting.is_empty() {
+        "The plugin declares no token setting, so no credential can be attached.".to_owned()
+    } else if token_attached {
+        format!(
+            "A {auth_type} credential from the `{token_setting}` setting was attached, so the stored value is wrong, expired, or revoked. Paste a fresh API token issued by this server into `{token_setting}` (Connection page)."
+        )
+    } else {
+        format!(
+            "No credential was attached because the `{token_setting}` setting is empty. This server requires authentication: set `{token_setting}` in the plugin connection settings."
+        )
+    };
+    if status == 401 {
+        format!(
+            "{error} The server rejected the credentials for plugin `{manifest_id}`. {setting_note}"
+        )
+    } else {
+        format!("{error} The server forbade the request for plugin `{manifest_id}`. {setting_note}")
+    }
+}
+
 impl crate::AppCore {
     /// Executes a v3 action descriptor's `http` block through the automation
     /// HTTP engine. Test runs describe the request without sending it.
@@ -425,10 +512,28 @@ impl crate::AppCore {
             .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
             .unwrap_or_default();
         let allowed = vec![host];
+        // One request line per call so plugin/TTS logs show exactly what was
+        // sent: method, path, and whether credentials were attached. The
+        // token value itself never appears here.
+        let (auth_type, token_setting) = declarative_auth_label(http);
+        if logs.len() < 40 {
+            logs.push(redact_endpoint_secrets(
+                &declarative_request_line(&endpoint, &auth_type, &token_setting),
+                &endpoint.secrets,
+            ));
+        }
         let summary = self
             .execute_http_action(&fetch, event, logs, Some(&allowed), false)
             .await
-            .map_err(|error| redact_endpoint_secrets(&error, &endpoint.secrets))?;
+            .map_err(|error| {
+                with_auth_hint(
+                    &redact_endpoint_secrets(&error, &endpoint.secrets),
+                    &manifest.id,
+                    &auth_type,
+                    &token_setting,
+                    !endpoint.secrets.is_empty(),
+                )
+            })?;
         for line in logs.iter_mut() {
             *line = redact_endpoint_secrets(line, &endpoint.secrets);
         }
@@ -593,6 +698,113 @@ mod tests {
 
     fn broker() -> CapabilityBroker {
         CapabilityBroker::new(std::env::temp_dir())
+    }
+
+    #[test]
+    fn auth_failures_name_the_plugin_setting_and_attachment() {
+        // A token was attached but rejected: point at the stored value.
+        let hinted = with_auth_hint(
+            "HTTP 401 request failed",
+            "sonicboom.server",
+            "bearer",
+            "apiToken",
+            true,
+        );
+        assert!(hinted.contains("sonicboom.server"), "{hinted}");
+        assert!(hinted.contains("`apiToken`"), "{hinted}");
+        assert!(hinted.contains("wrong, expired, or revoked"), "{hinted}");
+        // Nothing attached: point at the empty setting.
+        let hinted = with_auth_hint(
+            "HTTP 401 request failed",
+            "sonicboom.server",
+            "bearer",
+            "apiToken",
+            false,
+        );
+        assert!(hinted.contains("`apiToken` setting is empty"), "{hinted}");
+        // 403 gets the same treatment with forbidden wording.
+        let hinted = with_auth_hint(
+            "HTTP 403 request failed",
+            "demo.http",
+            "header",
+            "apiKey",
+            true,
+        );
+        assert!(hinted.contains("forbade"), "{hinted}");
+        assert!(hinted.contains("`apiKey`"), "{hinted}");
+        // Other statuses pass through untouched.
+        assert_eq!(
+            with_auth_hint(
+                "HTTP 500 server error",
+                "demo.http",
+                "bearer",
+                "apiToken",
+                true
+            ),
+            "HTTP 500 server error"
+        );
+        assert_eq!(
+            with_auth_hint(
+                "connection refused",
+                "demo.http",
+                "bearer",
+                "apiToken",
+                false
+            ),
+            "connection refused"
+        );
+    }
+
+    #[test]
+    fn request_line_reports_path_and_auth_presence_without_secrets() {
+        let endpoint = DeclarativeEndpoint {
+            method: "POST".to_owned(),
+            url: "http://localhost:17842/api/tts/play?voice=M1".to_owned(),
+            headers: Vec::new(),
+            body: None,
+            timeout_ms: 10_000,
+            secrets: vec!["super-secret-token".to_owned()],
+            allow_private_network: true,
+        };
+        let line = redact_endpoint_secrets(
+            &declarative_request_line(&endpoint, "bearer", "apiToken"),
+            &endpoint.secrets,
+        );
+        assert!(line.contains("POST /api/tts/play?voice=M1"), "{line}");
+        assert!(line.contains("auth: bearer attached"), "{line}");
+        assert!(!line.contains("super-secret-token"), "{line}");
+
+        let bare = DeclarativeEndpoint {
+            method: "POST".to_owned(),
+            url: "http://localhost:17842/api/tts/play?voice=M1".to_owned(),
+            headers: Vec::new(),
+            body: None,
+            timeout_ms: 10_000,
+            secrets: Vec::new(),
+            allow_private_network: true,
+        };
+        let line = declarative_request_line(&bare, "bearer", "apiToken");
+        assert!(
+            line.contains("auth: none attached (`apiToken` is empty)"),
+            "{line}"
+        );
+
+        // Query-string auth embeds the token in the URL: redaction blanks it.
+        let query = DeclarativeEndpoint {
+            method: "GET".to_owned(),
+            url: "http://localhost:17842/v1/voices?token=super-secret-token".to_owned(),
+            headers: Vec::new(),
+            body: None,
+            timeout_ms: 10_000,
+            secrets: vec!["super-secret-token".to_owned()],
+            allow_private_network: true,
+        };
+        let line = redact_endpoint_secrets(
+            &declarative_request_line(&query, "query", "apiToken"),
+            &query.secrets,
+        );
+        assert!(!line.contains("super-secret-token"), "{line}");
+        assert!(line.contains(SECRET_SETTING_PLACEHOLDER), "{line}");
     }
 
     #[test]

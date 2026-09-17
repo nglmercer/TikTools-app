@@ -363,6 +363,38 @@ fn rejects_malformed_declarative_blocks() {
 }
 
 #[test]
+fn tts_page_section_needs_an_action_and_a_voice_source() {
+    // Host-owned TTS panel binding: action executed for real speech plus the
+    // manifest-declared voice source feeding its selectors.
+    assert!(validate_plugin_page(&serde_json::json!({
+        "id": "tts",
+        "title": {"default": "TTS"},
+        "sections": [{
+            "kind": "tts",
+            "actionType": "sonicboom.server.speak",
+            "voicesFrom": "plugin-action-options:sonicboom.server.speak:voice"
+        }]
+    }))
+    .is_ok());
+    for section in [
+        serde_json::json!({"kind": "tts"}),
+        serde_json::json!({"kind": "tts", "actionType": "  ", "voicesFrom": "plugin-action-options:a:b"}),
+        serde_json::json!({"kind": "tts", "actionType": "sonicboom.server.speak"}),
+        serde_json::json!({"kind": "tts", "actionType": "sonicboom.server.speak", "voicesFrom": "   "}),
+    ] {
+        assert!(
+            validate_plugin_page(&serde_json::json!({
+                "id": "tts",
+                "title": {"default": "TTS"},
+                "sections": [section]
+            }))
+            .is_err(),
+            "tts section {section} should be rejected"
+        );
+    }
+}
+
+#[test]
 fn shipped_sonicboom_example_parses() {
     // Conformance gate for examples/sonicboom-server/plugin.json: the
     // declarative example the host ships must always parse and validate.

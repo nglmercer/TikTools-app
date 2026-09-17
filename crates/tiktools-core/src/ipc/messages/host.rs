@@ -142,6 +142,18 @@ pub enum HostMessage {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         error: Option<String>,
     },
+    #[serde(rename = "plugin-action-result")]
+    PluginActionResult {
+        #[serde(rename = "actionType")]
+        action_type: String,
+        ok: bool,
+        summary: String,
+        logs: Vec<String>,
+        #[serde(rename = "durationMs")]
+        duration_ms: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
     #[serde(rename = "plugin-connection-result")]
     PluginConnectionResult {
         id: String,

@@ -20,6 +20,7 @@ export const PLUGIN_PAGE_SECTION_KINDS: readonly PluginPageSectionKind[] = [
   'form',
   'connection',
   'list',
+  'tts',
 ];
 
 /** Builds the canonical option source id for an action type field. */
@@ -229,6 +230,17 @@ function toPluginPageSection(value: JsonValue): PluginPageSection | undefined {
         return undefined;
       }
       section.optionsFrom = value.optionsFrom;
+      return section;
+    }
+    case 'tts': {
+      if (typeof value.actionType !== 'string' || !value.actionType.trim() || value.actionType.length > 128) {
+        return undefined;
+      }
+      if (typeof value.voicesFrom !== 'string' || !normalizeOptionsFrom(value.voicesFrom)) {
+        return undefined;
+      }
+      section.actionType = value.actionType;
+      section.voicesFrom = value.voicesFrom;
       return section;
     }
   }

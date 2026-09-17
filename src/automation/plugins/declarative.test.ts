@@ -91,10 +91,11 @@ test('page descriptors enforce the fixed widget set', () => {
       { kind: 'form' },
       { kind: 'connection' },
       { kind: 'list', optionsFrom: 'plugin-action-options:a.b:c' },
+      { kind: 'tts', actionType: 'sonicboom.server.speak', voicesFrom: 'plugin-action-options:sonicboom.server.speak:voice' },
     ],
     source: { kind: 'plugin', pluginId: 'sonicboom.server' },
   };
-  expect(toPluginPageDescriptor(valid)?.sections).toHaveLength(4);
+  expect(toPluginPageDescriptor(valid)?.sections).toHaveLength(5);
   for (const kind of ['html', 'script', 'component', 'iframe', 'webview']) {
     expect(
       toPluginPageDescriptor({ ...valid, sections: [{ kind }] }),
@@ -105,6 +106,12 @@ test('page descriptors enforce the fixed widget set', () => {
   ).toBeUndefined();
   expect(
     toPluginPageDescriptor({ ...valid, sections: [{ kind: 'list' }] }),
+  ).toBeUndefined();
+  expect(
+    toPluginPageDescriptor({ ...valid, sections: [{ kind: 'tts', actionType: 'a.b' }] }),
+  ).toBeUndefined();
+  expect(
+    toPluginPageDescriptor({ ...valid, sections: [{ kind: 'tts', voicesFrom: 'plugin-action-options:a.b:c' }] }),
   ).toBeUndefined();
   expect(mergePluginPages([valid, { ...valid }, 'nope'])).toHaveLength(1);
 });

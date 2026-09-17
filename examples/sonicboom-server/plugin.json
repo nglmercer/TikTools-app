@@ -91,7 +91,7 @@
         "apiToken": {
           "type": "string",
           "title": "API token",
-          "description": "Bearer token. Optional on this machine, required for remote servers.",
+          "description": "API token from the SonicBoom admin panel (Tokens page), sent as a Bearer credential. This is not the admin password. Required when the server runs with SONICBOOM_AUTH_REQUIRED=true (the default), even on this machine.",
           "secret": true
         },
         "defaultVoice": {
@@ -203,18 +203,18 @@
       ]
     },
     {
-      "id": "voices",
-      "title": {"default": "Voices", "i18key": "sonicboom.server.page.voices.title"},
+      "id": "tts",
+      "title": {"default": "TTS", "i18key": "sonicboom.server.page.tts.title"},
       "icon": "voice",
       "sections": [
         {
           "kind": "text",
-          "text": {"default": "Voices currently offered by the configured server.", "i18key": "sonicboom.server.page.voices.intro"}
+          "text": {"default": "Decide who may trigger speech, what it costs, and which voice speaks. Voices load live from the configured server.", "i18key": "sonicboom.server.page.tts.intro"}
         },
         {
-          "kind": "list",
-          "title": {"default": "Available voices", "i18key": "sonicboom.server.page.voices.list"},
-          "optionsFrom": "plugin-action-options:sonicboom.server.speak:voice"
+          "kind": "tts",
+          "actionType": "sonicboom.server.speak",
+          "voicesFrom": "plugin-action-options:sonicboom.server.speak:voice"
         }
       ]
     }

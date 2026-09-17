@@ -36,7 +36,9 @@ import type {
 } from '../../shared/messages.ts';
 import type { PluginSettingsState } from '../types.ts';
 import { SchemaForm } from '../components/ui/SchemaForm.vue';
+import { TtsSettingsPanel } from '../components/tts/TtsSettingsPanel.vue';
 import { i18nText, t, type Locale } from '../i18n.ts';
+import type { TtsLogEntry, TtsSettings } from '../tts/tts-policy.ts';
 
 type PluginPageViewProps = {
   locale: Locale;
@@ -51,6 +53,11 @@ type PluginPageViewProps = {
   onGetActionOptions: (source: string) => void;
   onTestConnection: (id: string) => void;
   onOpenMediaPicker?: OpenMediaPicker;
+  ttsSettings?: TtsSettings;
+  ttsSpeaking?: boolean;
+  ttsLogs?: TtsLogEntry[];
+  onTtsSettingsChange?: (pluginId: string, next: TtsSettings) => void;
+  onTtsSpeak?: (pluginId: string, actionType: string, text: string, voice: string) => void;
 };
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -65,17 +72,20 @@ function toSettingValues(value: JsonObject): PluginSettingValues {
 
 /**
  * Host-owned renderer for plugin configuration pages. Section kinds form a
- * fixed widget set (text, form, connection, list): every branch below is
- * host code rendering manifest data as text and form controls. There is no
- * markup, script, or component indirection from the manifest.
+ * fixed widget set (text, form, connection, list, tts): every branch below
+ * is host code rendering manifest data as text and form controls. There is
+ * no markup, script, or component indirection from the manifest.
  *
  * A `connection` section renders the centered connection card: it embeds the
  * full settings form (advanced fields collapsed by SchemaForm), validates
  * the `format: "uri"` field inline, autosaves edits, and collapses to a
  * compact summary once the probe succeeds.
+ *
+ * A `tts` section renders the host-owned TTS settings panel bound to the
+ * manifest-declared speech action and voice source.
  */
 export const PluginPageView = defineVueComponent<PluginPageViewProps>(
-  ['locale', 'page', 'pluginName', 'settingsState', 'connection', 'actionOptions', 'actionOptionErrors', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onTestConnection', 'onOpenMediaPicker'],
+  ['locale', 'page', 'pluginName', 'settingsState', 'connection', 'actionOptions', 'actionOptionErrors', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onTestConnection', 'onOpenMediaPicker', 'ttsSettings', 'ttsSpeaking', 'ttsLogs', 'onTtsSettingsChange', 'onTtsSpeak'],
   (props) => {
   const draft = ref<JsonObject | null>(null);
   const editing = ref(false);
@@ -90,8 +100,13 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
   const listSources = computed(() => {
     const sources: string[] = [];
     for (const section of props.page.sections) {
-      if (section.kind !== 'list') continue;
-      const source = normalizeOptionsFrom(section.optionsFrom);
+      const marker = section.kind === 'list'
+        ? section.optionsFrom
+        : section.kind === 'tts'
+          ? section.voicesFrom
+          : undefined;
+      if (!marker) continue;
+      const source = normalizeOptionsFrom(marker);
       if (source && !sources.includes(source)) sources.push(source);
     }
     return sources;
@@ -502,6 +517,38 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
       }
       case 'connection':
         return renderConnectionCard(index);
+      case 'tts': {
+        const source = normalizeOptionsFrom(section.voicesFrom) ?? '';
+        const options = source ? (props.actionOptions[source] ?? []) : [];
+        const voicesError = source ? props.actionOptionErrors[source] : undefined;
+        const actionType = section.actionType ?? '';
+        if (!actionType || !props.ttsSettings || !props.onTtsSettingsChange || !props.onTtsSpeak) {
+          return (
+            <section class="plg-stack" key={index}>
+              <span class="plg-group-note">{t(locale, 'pluginListEmpty')}</span>
+            </section>
+          );
+        }
+        const onSettingsChange = props.onTtsSettingsChange;
+        const onSpeak = props.onTtsSpeak;
+        const pluginId = props.page.pluginId;
+        return (
+          <section key={index}>
+            {title && <h3 class="plg-topbar__title" style="padding: 0 16px;">{title}</h3>}
+            <TtsSettingsPanel
+              locale={locale}
+              settings={props.ttsSettings}
+              voices={options}
+              voicesError={voicesError}
+              speaking={props.ttsSpeaking ?? false}
+              logs={props.ttsLogs ?? []}
+              onSettingsChange={(next) => onSettingsChange(pluginId, next)}
+              onRefreshVoices={() => { if (source) props.onGetActionOptions(source); }}
+              onSpeak={(text, voice) => onSpeak(pluginId, actionType, text, voice)}
+            />
+          </section>
+        );
+      }
       case 'list': {
         const source = normalizeOptionsFrom(section.optionsFrom) ?? '';
         const options = source ? (props.actionOptions[source] ?? []) : [];

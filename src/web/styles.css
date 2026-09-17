@@ -20,6 +20,7 @@
 @import "./styles/node-editor-forms.css";
 @import "./styles/node-editor-pickers.css";
 @import "./styles/plugins.css";
+@import "./styles/tts.css";
 @import "./styles/behavior.css";
 @import "./styles/conditions.css";
 @import "./styles/action-editor.css";

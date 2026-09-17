@@ -194,6 +194,11 @@ const activePluginName: ComputedRef<string> = computed(() => {
         :on-get-action-options="app.handleGetActionOptions"
         :on-test-connection="app.handleTestPluginConnection"
         :on-open-media-picker="app.openMediaPicker"
+        :tts-settings="app.ttsSettingsOrDefault(activePluginPage.pluginId)"
+        :tts-speaking="app.ttsSpeaking[activePluginPage.pluginId] ?? false"
+        :tts-logs="app.ttsLogs[activePluginPage.pluginId] ?? []"
+        :on-tts-settings-change="app.handleTtsSettingsChange"
+        :on-tts-speak="app.handleTtsSpeak"
       />
     </div>
   </div>

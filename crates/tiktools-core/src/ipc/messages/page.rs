@@ -9,7 +9,7 @@ use super::{
     points::PartialPointsConfig,
     validation::{
         bounded_string, bounded_value, is_primitive_setting, optional_bounded, valid_option_source,
-        valid_setting_key, IpcMessageError,
+        valid_setting_key, valid_token, IpcMessageError,
     },
     JsonObject,
 };
@@ -163,6 +163,12 @@ pub enum PageMessage {
     SavePluginSettings { id: String, values: JsonObject },
     #[serde(rename = "get-action-options")]
     GetActionOptions { source: String },
+    #[serde(rename = "execute-plugin-action")]
+    ExecutePluginAction {
+        #[serde(rename = "actionType")]
+        action_type: String,
+        config: JsonObject,
+    },
     #[serde(rename = "test-plugin-connection")]
     TestPluginConnection { id: String },
     #[serde(rename = "test-processor")]
@@ -239,6 +245,7 @@ impl PageMessage {
             Self::GetPluginSettings { .. } => "get-plugin-settings",
             Self::SavePluginSettings { .. } => "save-plugin-settings",
             Self::GetActionOptions { .. } => "get-action-options",
+            Self::ExecutePluginAction { .. } => "execute-plugin-action",
             Self::TestPluginConnection { .. } => "test-plugin-connection",
             Self::TestProcessor { .. } => "test-processor",
             Self::GetProcessorStatus => "get-processor-status",
@@ -314,6 +321,29 @@ impl PageMessage {
                         .any(|(key, value)| !valid_setting_key(key) || !is_primitive_setting(value))
                 {
                     return Err(IpcMessageError::InvalidField("values"));
+                }
+            }
+            Self::ExecutePluginAction {
+                action_type,
+                config,
+            } => {
+                bounded_string(action_type, "actionType", 128)?;
+                if !valid_token(action_type) {
+                    return Err(IpcMessageError::InvalidField("actionType"));
+                }
+                if config.len() > 32
+                    || config
+                        .iter()
+                        .any(|(key, value)| !valid_setting_key(key) || !is_primitive_setting(value))
+                {
+                    return Err(IpcMessageError::InvalidField("config"));
+                }
+                // Spoken text stays bounded so a chat flood cannot build a
+                // multi-megabyte synthesis request.
+                if let Some(text) = config.get("text").and_then(|value| value.as_str()) {
+                    if text.len() > 4_096 {
+                        return Err(IpcMessageError::InvalidField("config"));
+                    }
                 }
             }
             Self::InstallPluginPackage { path, .. } => {

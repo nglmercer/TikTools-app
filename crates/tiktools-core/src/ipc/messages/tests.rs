@@ -236,6 +236,45 @@ fn plugin_progress_message_preserves_optional_progress() {
 }
 
 #[test]
+fn execute_plugin_action_validates_its_config() {
+    let message = PageMessage::parse(
+        r#"{"type":"execute-plugin-action","actionType":"sonicboom.server.speak","config":{"text":"hello","voice":"M1","language":"en"}}"#,
+    )
+    .unwrap();
+    assert_eq!(message.type_name(), "execute-plugin-action");
+    assert!(matches!(message, PageMessage::ExecutePluginAction { .. }));
+    // Unknown action ids, nested configs, and oversized text are rejected.
+    assert!(PageMessage::parse(
+        r#"{"type":"execute-plugin-action","actionType":"https://evil.example/speak","config":{"text":"hi"}}"#
+    )
+    .is_err());
+    assert!(PageMessage::parse(
+        r#"{"type":"execute-plugin-action","actionType":"sonicboom.server.speak","config":{"nested":{}}}"#
+    )
+    .is_err());
+    assert!(PageMessage::parse(&format!(
+        r#"{{"type":"execute-plugin-action","actionType":"sonicboom.server.speak","config":{{"text":"{}"}}}}"#,
+        "x".repeat(4_097)
+    ))
+    .is_err());
+
+    let json = HostMessage::PluginActionResult {
+        action_type: "sonicboom.server.speak".to_owned(),
+        ok: true,
+        summary: "played hello".to_owned(),
+        logs: vec!["POST 200".to_owned()],
+        duration_ms: 120,
+        error: None,
+    }
+    .to_json()
+    .unwrap();
+    assert!(json.starts_with(r#"{"type":"plugin-action-result""#));
+    assert!(json.contains("actionType"));
+    assert!(json.contains("durationMs"));
+    assert!(!json.contains("error"));
+}
+
+#[test]
 fn uninstall_plugin_package_has_a_dedicated_wire_contract() {
     let message = PageMessage::parse(r#"{"type":"uninstall-plugin-package","id":"demo"}"#).unwrap();
     assert_eq!(message.type_name(), "uninstall-plugin-package");

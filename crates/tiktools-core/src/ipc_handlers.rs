@@ -362,6 +362,12 @@ impl AppCore {
                     error,
                 });
             }
+            PageMessage::ExecutePluginAction {
+                action_type,
+                config,
+            } => {
+                self.execute_plugin_action_ipc(action_type, config).await;
+            }
             PageMessage::TestPluginConnection { id } => {
                 self.probe_plugin_connection(&id).await;
             }
@@ -539,6 +545,93 @@ impl AppCore {
                 id,
                 "plugin installation was disabled in this build".to_owned(),
             ));
+        }
+    }
+
+    /// Real (non-dry-run) plugin action execution for host-owned surfaces
+    /// such as the TTS voice tester and automatic chat TTS.
+    ///
+    /// Unlike `test-action`, this sends the declarative HTTP request. Input
+    /// was already shape-validated by `PageMessage::parse`; this re-checks
+    /// the spoken text and emits a bounded `plugin-action-result`.
+    async fn execute_plugin_action_ipc(
+        self: &Arc<Self>,
+        action_type: String,
+        config: crate::ipc::messages::JsonObject,
+    ) {
+        let started = crate::helpers::now_millis();
+        let text = config
+            .get("text")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+        if text.trim().is_empty() {
+            let duration_ms = crate::helpers::now_millis().saturating_sub(started);
+            let message = "Give the voice tester some text to speak.".to_owned();
+            self.emit(HostMessage::PluginActionResult {
+                action_type,
+                ok: false,
+                summary: message.clone(),
+                logs: Vec::new(),
+                duration_ms,
+                error: Some(message),
+            });
+            return;
+        }
+        if text.len() > 4_096 {
+            let duration_ms = crate::helpers::now_millis().saturating_sub(started);
+            let message = "Text is too long (4,096 character limit).".to_owned();
+            self.emit(HostMessage::PluginActionResult {
+                action_type,
+                ok: false,
+                summary: message.clone(),
+                logs: Vec::new(),
+                duration_ms,
+                error: Some(message),
+            });
+            return;
+        }
+        let config_object: serde_json::Map<String, serde_json::Value> =
+            config.into_iter().collect();
+        let action = serde_json::json!({
+            "typeId": action_type.clone(),
+            "config": serde_json::Value::Object(config_object),
+        });
+        // TTS text is already resolved frontend-side; the event only feeds
+        // templates that reference `event.*`, so a minimal envelope is enough.
+        let event = serde_json::json!({
+            "id": format!("tts-{}", started),
+            "type": "tts.speak",
+            "timestamp": started,
+            "data": {},
+        });
+        let mut logs = Vec::new();
+        match self
+            .execute_plugin_action(&action_type, &action, &event, &mut logs, false)
+            .await
+        {
+            Ok(summary) => {
+                let duration_ms = crate::helpers::now_millis().saturating_sub(started);
+                self.emit(HostMessage::PluginActionResult {
+                    action_type,
+                    ok: true,
+                    summary,
+                    logs: logs.into_iter().take(20).collect(),
+                    duration_ms,
+                    error: None,
+                });
+            }
+            Err(error) => {
+                let duration_ms = crate::helpers::now_millis().saturating_sub(started);
+                self.emit(HostMessage::PluginActionResult {
+                    action_type,
+                    ok: false,
+                    summary: error.clone(),
+                    logs: logs.into_iter().take(20).collect(),
+                    duration_ms,
+                    error: Some(error),
+                });
+            }
         }
     }
 }
