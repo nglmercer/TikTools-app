@@ -270,6 +270,7 @@ async fn native_live_event_reaches_the_host_message_boundary() {
                     unique_id: "alice".to_owned(),
                     nickname: "Alice".to_owned(),
                     sec_uid: String::new(),
+                    avatar_url: None,
                 },
                 comment: "hello".to_owned(),
             },

@@ -5,6 +5,7 @@ import {
   allRegistryFields,
   fieldsForEventType,
   pluginEventTypes,
+  registryEntryFor,
   registryEventTypes,
   registryHasPath,
   sampleDataForType,
@@ -114,13 +115,16 @@ describe('event registry', () => {
   });
 
   test('registry version tracks the protobuf-provenance shape', () => {
-    expect(EVENT_REGISTRY_VERSION).toBe(7);
+    expect(EVENT_REGISTRY_VERSION).toBe(8);
   });
 
   test('chat comment traces back to the vendor content field', () => {
     const comment = fieldsForEventType('tiktok.chat').find((field) => field.path === 'event.data.comment');
     expect(comment?.sourceMethod).toBe('WebcastChatMessage');
     expect(comment?.sourcePath).toBe('content');
+    expect(comment?.sourceJsonPath).toBe('content');
+    expect(comment?.sourceProtoType).toBe('string');
+    expect(comment?.sourceCardinality).toBe('optional');
     expect(comment?.sourceTransform).toBe('native');
   });
 
@@ -128,10 +132,37 @@ describe('event registry', () => {
     const giftId = fieldsForEventType('tiktok.gift').find((field) => field.path === 'event.data.giftId');
     expect(giftId?.sourceMethod).toBe('WebcastGiftMessage');
     expect(giftId?.sourcePath).toBe('gift_id');
+    expect(giftId?.sourceJsonPath).toBe('giftId');
+    expect(giftId?.sourceProtoType).toBe('int64');
+    expect(giftId?.sourceCardinality).toBe('optional');
     expect(giftId?.sourceTransform).toBe('u64-to-string');
     const giftName = fieldsForEventType('tiktok.gift').find((field) => field.path === 'event.data.giftName');
     expect(giftName?.sourceMethod).toBe('WebcastGiftMessage');
     expect(giftName?.sourcePath).toBe('gift.name');
+    expect(giftName?.sourceJsonPath).toBe('gift.name');
+    expect(giftName?.sourceProtoType).toBe('string');
+  });
+
+  test('nested gift fields trace back through the gift detail message', () => {
+    const diamonds = fieldsForEventType('tiktok.gift').find((field) => field.path === 'event.data.diamondCount');
+    expect(diamonds?.sourceMethod).toBe('WebcastGiftMessage');
+    expect(diamonds?.sourcePath).toBe('gift.diamond_count');
+    expect(diamonds?.sourceJsonPath).toBe('gift.diamondCount');
+    expect(diamonds?.sourceProtoType).toBe('int32');
+    expect(diamonds?.sourceTransform).toBe('normalized-unsigned');
+  });
+
+  test('protobuf-backed entries name the vendor message as their source', () => {
+    const gift = registryEntryFor('tiktok.gift');
+    expect(gift?.dataInterface).toBe('GiftAutomationData');
+    expect(gift?.sourceInterface).toBe('WebcastGiftMessage');
+    const chat = registryEntryFor('tiktok.chat');
+    expect(chat?.dataInterface).toBe('ChatAutomationData');
+    expect(chat?.sourceInterface).toBe('WebcastChatMessage');
+    // App-only contracts keep the DTO as their source.
+    const connected = registryEntryFor('tiktok.connected');
+    expect(connected?.dataInterface).toBe('ConnectionAutomationData');
+    expect(connected?.sourceInterface).toBe('ConnectionAutomationData');
   });
 
   test('TikTools-only fields claim no protobuf provenance', () => {
@@ -144,6 +175,9 @@ describe('event registry', () => {
         ) {
           expect(field.sourceMethod, `${type} ${field.path}`).toBeUndefined();
           expect(field.sourcePath, `${type} ${field.path}`).toBeUndefined();
+          expect(field.sourceJsonPath, `${type} ${field.path}`).toBeUndefined();
+          expect(field.sourceProtoType, `${type} ${field.path}`).toBeUndefined();
+          expect(field.sourceCardinality, `${type} ${field.path}`).toBeUndefined();
           expect(field.sourceTransform, `${type} ${field.path}`).toBeUndefined();
         }
       }

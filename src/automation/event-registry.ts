@@ -35,6 +35,9 @@ export interface RegistryField {
   /** Protobuf provenance (`x-native-source`); absent on TikTools-only fields. */
   sourceMethod?: string;
   sourcePath?: string;
+  sourceJsonPath?: string;
+  sourceProtoType?: string;
+  sourceCardinality?: 'optional' | 'required' | 'repeated';
   sourceTransform?: string;
 }
 

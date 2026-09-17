@@ -83,16 +83,30 @@ test('applyFetchUrlTemplate matches the shared preset insert exactly', () => {
 test('hover cards show concise protobuf provenance', () => {
   const suggestions = getTemplateSuggestions('tiktok.chat', 'en');
   const comment = suggestions.find((entry) => entry.value === 'event.data.comment');
-  expect(comment?.documentation).toContain('protobuf WebcastChatMessage.content: string · native');
+  expect(comment?.documentation).toContain(
+    'protobuf WebcastChatMessage.content: string → event.data.comment: string · native',
+  );
   const gift = getTemplateSuggestions('tiktok.gift', 'en');
   const giftId = gift.find((entry) => entry.value === 'event.data.giftId');
-  expect(giftId?.documentation).toContain('protobuf WebcastGiftMessage.gift_id: string · u64-to-string');
+  expect(giftId?.documentation).toContain(
+    'protobuf WebcastGiftMessage.gift_id: int64 → event.data.giftId: string · u64-to-string',
+  );
+});
+
+test('hover cards trace nested fields to their protobuf source', () => {
+  const gift = getTemplateSuggestions('tiktok.gift', 'en');
+  const diamonds = gift.find((entry) => entry.value === 'event.data.diamondCount');
+  expect(diamonds?.documentation).toContain(
+    'protobuf WebcastGiftMessage.gift.diamond_count: int32 → event.data.diamondCount: number · normalized-unsigned',
+  );
 });
 
 test('TikTools-only fields show no protobuf provenance', () => {
   const suggestions = getTemplateSuggestions('tiktok.gift', 'en');
   const method = suggestions.find((entry) => entry.value === 'event.data.method');
   expect(method?.documentation ?? '').not.toContain('protobuf ');
+  // The fallback names the normalized DTO, never the vendor message.
+  expect(method?.documentation ?? '').toContain('native GiftAutomationData.method');
 });
 
 test('observed-path fallback still surfaces live-only paths without duplicating registry ones', () => {

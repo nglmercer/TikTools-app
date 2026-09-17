@@ -498,6 +498,13 @@ fn validate_projection(
                     "normalized-unsigned renders an integer, not {output}"
                 ));
             }
+            // The clamp promises non-negativity; the schema must say so too
+            // (schemars renders unsigned DTO integers with `minimum: 0`).
+            if property.get("minimum").and_then(Value::as_u64) != Some(0) {
+                return Err(
+                    "normalized-unsigned renders a non-negative integer (minimum 0)".to_owned(),
+                );
+            }
             Ok(())
         }
     }
@@ -811,7 +818,7 @@ mod tests {
             (
                 FieldValueKind::Int64,
                 SourceTransform::NormalizedUnsigned,
-                json!({"type": "integer"}),
+                json!({"type": "integer", "minimum": 0}),
             ),
         ];
         for (kind, transform, property) in ok {
@@ -867,6 +874,13 @@ mod tests {
                 FieldValueKind::Int64,
                 SourceTransform::NormalizedUnsigned,
                 json!({"type": "array", "items": {"type": "integer"}}),
+            ),
+            // Normalized-unsigned without a declared minimum is not
+            // provably non-negative.
+            (
+                FieldValueKind::Int64,
+                SourceTransform::NormalizedUnsigned,
+                json!({"type": "integer"}),
             ),
         ];
         for (kind, transform, property) in bad {

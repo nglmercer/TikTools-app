@@ -1,6 +1,6 @@
 // THIS FILE IS GENERATED. Run bun run contracts:generate.
 
-export const EVENT_REGISTRY_VERSION = 7 as const;
+export const EVENT_REGISTRY_VERSION = 8 as const;
 
 const INTEL_SAMPLE_CHAT = {
   "comment": {
@@ -241,7 +241,7 @@ const INTEL_SAMPLE_DEFAULT = {
 } as const;
 
 export const GENERATED_EVENT_REGISTRY = {
-  "version": 7,
+  "version": 8,
   "generatedBy": "tiktools-core automation contracts",
   "generatedFrom": [
     "crates/tiktools-core/src/contracts",
@@ -250,7 +250,7 @@ export const GENERATED_EVENT_REGISTRY = {
   "events": {
     "tiktok.chat": {
       "dataInterface": "ChatAutomationData",
-      "sourceInterface": "ChatAutomationData",
+      "sourceInterface": "WebcastChatMessage",
       "sampleEvent": {
         "id": "sample-event",
         "type": "tiktok.chat",
@@ -347,7 +347,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "comment",
           "sourceMethod": "WebcastChatMessage",
           "sourcePath": "content",
-          "sourceTransform": "native"
+          "sourceTransform": "native",
+          "sourceJsonPath": "content",
+          "sourceProtoType": "string",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.isHistory",
@@ -1609,7 +1612,7 @@ export const GENERATED_EVENT_REGISTRY = {
     },
     "tiktok.gift": {
       "dataInterface": "GiftAutomationData",
-      "sourceInterface": "GiftAutomationData",
+      "sourceInterface": "WebcastGiftMessage",
       "sampleEvent": {
         "id": "sample-event",
         "type": "tiktok.gift",
@@ -1714,7 +1717,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "comboCount",
           "sourceMethod": "WebcastGiftMessage",
           "sourcePath": "combo_count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "comboCount",
+          "sourceProtoType": "int32",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.diamondCount",
@@ -1733,7 +1739,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "diamondCount",
           "sourceMethod": "WebcastGiftMessage",
           "sourcePath": "gift.diamond_count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "gift.diamondCount",
+          "sourceProtoType": "int32",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.giftIconUrl",
@@ -1768,7 +1777,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "giftId",
           "sourceMethod": "WebcastGiftMessage",
           "sourcePath": "gift_id",
-          "sourceTransform": "u64-to-string"
+          "sourceTransform": "u64-to-string",
+          "sourceJsonPath": "giftId",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.giftName",
@@ -1787,7 +1799,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "giftName",
           "sourceMethod": "WebcastGiftMessage",
           "sourcePath": "gift.name",
-          "sourceTransform": "native"
+          "sourceTransform": "native",
+          "sourceJsonPath": "gift.name",
+          "sourceProtoType": "string",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.groupId",
@@ -1806,7 +1821,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "groupId",
           "sourceMethod": "WebcastGiftMessage",
           "sourcePath": "group_id",
-          "sourceTransform": "integer-to-string"
+          "sourceTransform": "integer-to-string",
+          "sourceJsonPath": "groupId",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.isHistory",
@@ -1873,7 +1891,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "repeatCount",
           "sourceMethod": "WebcastGiftMessage",
           "sourcePath": "repeat_count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "repeatCount",
+          "sourceProtoType": "int32",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.repeatEnd",
@@ -1892,7 +1913,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "repeatEnd",
           "sourceMethod": "WebcastGiftMessage",
           "sourcePath": "repeat_end",
-          "sourceTransform": "nonzero-to-boolean"
+          "sourceTransform": "nonzero-to-boolean",
+          "sourceJsonPath": "repeatEnd",
+          "sourceProtoType": "int32",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.streakable",
@@ -2202,7 +2226,7 @@ export const GENERATED_EVENT_REGISTRY = {
     },
     "tiktok.like": {
       "dataInterface": "LikeAutomationData",
-      "sourceInterface": "LikeAutomationData",
+      "sourceInterface": "WebcastLikeMessage",
       "sampleEvent": {
         "id": "sample-event",
         "type": "tiktok.like",
@@ -2300,7 +2324,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "count",
           "sourceMethod": "WebcastLikeMessage",
           "sourcePath": "count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "count",
+          "sourceProtoType": "int32",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.isHistory",
@@ -2367,7 +2394,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "total",
           "sourceMethod": "WebcastLikeMessage",
           "sourcePath": "total",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "total",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.intel.user.nickname.language.candidates",
@@ -2626,7 +2656,7 @@ export const GENERATED_EVENT_REGISTRY = {
     },
     "tiktok.follow": {
       "dataInterface": "SocialAutomationData",
-      "sourceInterface": "SocialAutomationData",
+      "sourceInterface": "WebcastSocialMessage",
       "sampleEvent": {
         "id": "sample-event",
         "type": "tiktok.follow",
@@ -2725,7 +2755,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "action",
           "sourceMethod": "WebcastSocialMessage",
           "sourcePath": "action",
-          "sourceTransform": "native"
+          "sourceTransform": "native",
+          "sourceJsonPath": "action",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.followCount",
@@ -2744,7 +2777,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "followCount",
           "sourceMethod": "WebcastSocialMessage",
           "sourcePath": "follow_count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "followCount",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.isHistory",
@@ -2811,7 +2847,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "shareCount",
           "sourceMethod": "WebcastSocialMessage",
           "sourcePath": "share_count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "shareCount",
+          "sourceProtoType": "int32",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.intel.user.nickname.language.candidates",
@@ -3075,7 +3114,7 @@ export const GENERATED_EVENT_REGISTRY = {
     },
     "tiktok.share": {
       "dataInterface": "SocialAutomationData",
-      "sourceInterface": "SocialAutomationData",
+      "sourceInterface": "WebcastSocialMessage",
       "sampleEvent": {
         "id": "sample-event",
         "type": "tiktok.share",
@@ -3174,7 +3213,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "action",
           "sourceMethod": "WebcastSocialMessage",
           "sourcePath": "action",
-          "sourceTransform": "native"
+          "sourceTransform": "native",
+          "sourceJsonPath": "action",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.followCount",
@@ -3193,7 +3235,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "followCount",
           "sourceMethod": "WebcastSocialMessage",
           "sourcePath": "follow_count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "followCount",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.isHistory",
@@ -3260,7 +3305,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "shareCount",
           "sourceMethod": "WebcastSocialMessage",
           "sourcePath": "share_count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "shareCount",
+          "sourceProtoType": "int32",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.intel.user.nickname.language.candidates",
@@ -3524,7 +3572,7 @@ export const GENERATED_EVENT_REGISTRY = {
     },
     "tiktok.join": {
       "dataInterface": "MemberAutomationData",
-      "sourceInterface": "MemberAutomationData",
+      "sourceInterface": "WebcastMemberMessage",
       "sampleEvent": {
         "id": "sample-event",
         "type": "tiktok.join",
@@ -3622,7 +3670,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "action",
           "sourceMethod": "WebcastMemberMessage",
           "sourcePath": "action",
-          "sourceTransform": "native"
+          "sourceTransform": "native",
+          "sourceJsonPath": "action",
+          "sourceProtoType": "enum",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.isHistory",
@@ -3657,7 +3708,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "memberCount",
           "sourceMethod": "WebcastMemberMessage",
           "sourcePath": "member_count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "memberCount",
+          "sourceProtoType": "int32",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.method",
@@ -3948,7 +4002,7 @@ export const GENERATED_EVENT_REGISTRY = {
     },
     "tiktok.social": {
       "dataInterface": "SocialAutomationData",
-      "sourceInterface": "SocialAutomationData",
+      "sourceInterface": "WebcastSocialMessage",
       "sampleEvent": {
         "id": "sample-event",
         "type": "tiktok.social",
@@ -4047,7 +4101,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "action",
           "sourceMethod": "WebcastSocialMessage",
           "sourcePath": "action",
-          "sourceTransform": "native"
+          "sourceTransform": "native",
+          "sourceJsonPath": "action",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.followCount",
@@ -4066,7 +4123,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "followCount",
           "sourceMethod": "WebcastSocialMessage",
           "sourcePath": "follow_count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "followCount",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.isHistory",
@@ -4133,7 +4193,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "shareCount",
           "sourceMethod": "WebcastSocialMessage",
           "sourcePath": "share_count",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "shareCount",
+          "sourceProtoType": "int32",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.intel.user.nickname.language.candidates",
@@ -4397,7 +4460,7 @@ export const GENERATED_EVENT_REGISTRY = {
     },
     "tiktok.room_stats": {
       "dataInterface": "RoomStatsAutomationData",
-      "sourceInterface": "RoomStatsAutomationData",
+      "sourceInterface": "WebcastRoomUserSeqMessage",
       "sampleEvent": {
         "id": "sample-event",
         "type": "tiktok.room_stats",
@@ -4431,7 +4494,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "anonymous",
           "sourceMethod": "WebcastRoomUserSeqMessage",
           "sourcePath": "anonymous",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "anonymous",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.isHistory",
@@ -4498,7 +4564,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "popularity",
           "sourceMethod": "WebcastRoomUserSeqMessage",
           "sourcePath": "popularity",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "popularity",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.totalUsers",
@@ -4517,7 +4586,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "totalUsers",
           "sourceMethod": "WebcastRoomUserSeqMessage",
           "sourcePath": "total_user",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "totalUser",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.data.viewers",
@@ -4536,7 +4608,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceField": "viewers",
           "sourceMethod": "WebcastRoomUserSeqMessage",
           "sourcePath": "total",
-          "sourceTransform": "normalized-unsigned"
+          "sourceTransform": "normalized-unsigned",
+          "sourceJsonPath": "total",
+          "sourceProtoType": "int64",
+          "sourceCardinality": "optional"
         },
         {
           "path": "event.intel.processing.status",

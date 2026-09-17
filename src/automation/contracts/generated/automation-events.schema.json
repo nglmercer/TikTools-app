@@ -144,9 +144,12 @@
         "comment": {
           "type": "string",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 3,
+            "jsonPath": "content",
             "method": "WebcastChatMessage",
             "path": "content",
+            "protobufType": "string",
             "transform": "native"
           }
         },
@@ -228,9 +231,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 6,
+            "jsonPath": "comboCount",
             "method": "WebcastGiftMessage",
             "path": "combo_count",
+            "protobufType": "int32",
             "transform": "normalized-unsigned"
           }
         },
@@ -239,9 +245,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 12,
+            "jsonPath": "gift.diamondCount",
             "method": "WebcastGiftMessage",
             "path": "gift.diamond_count",
+            "protobufType": "int32",
             "transform": "normalized-unsigned"
           }
         },
@@ -254,27 +263,36 @@
         "giftId": {
           "type": "string",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 2,
+            "jsonPath": "giftId",
             "method": "WebcastGiftMessage",
             "path": "gift_id",
+            "protobufType": "int64",
             "transform": "u64-to-string"
           }
         },
         "giftName": {
           "type": "string",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 16,
+            "jsonPath": "gift.name",
             "method": "WebcastGiftMessage",
             "path": "gift.name",
+            "protobufType": "string",
             "transform": "native"
           }
         },
         "groupId": {
           "type": "string",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 11,
+            "jsonPath": "groupId",
             "method": "WebcastGiftMessage",
             "path": "group_id",
+            "protobufType": "int64",
             "transform": "integer-to-string"
           }
         },
@@ -292,18 +310,24 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 5,
+            "jsonPath": "repeatCount",
             "method": "WebcastGiftMessage",
             "path": "repeat_count",
+            "protobufType": "int32",
             "transform": "normalized-unsigned"
           }
         },
         "repeatEnd": {
           "type": "boolean",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 9,
+            "jsonPath": "repeatEnd",
             "method": "WebcastGiftMessage",
             "path": "repeat_end",
+            "protobufType": "int32",
             "transform": "nonzero-to-boolean"
           }
         },
@@ -903,9 +927,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 2,
+            "jsonPath": "count",
             "method": "WebcastLikeMessage",
             "path": "count",
+            "protobufType": "int32",
             "transform": "normalized-unsigned"
           }
         },
@@ -923,9 +950,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 3,
+            "jsonPath": "total",
             "method": "WebcastLikeMessage",
             "path": "total",
+            "protobufType": "int64",
             "transform": "normalized-unsigned"
           }
         }
@@ -946,9 +976,13 @@
           "format": "int32",
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
+            "enumType": "webcast.im.MemberMessageAction",
             "fieldNumber": 10,
+            "jsonPath": "action",
             "method": "WebcastMemberMessage",
             "path": "action",
+            "protobufType": "enum",
             "transform": "native"
           }
         },
@@ -960,9 +994,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 3,
+            "jsonPath": "memberCount",
             "method": "WebcastMemberMessage",
             "path": "member_count",
+            "protobufType": "int32",
             "transform": "normalized-unsigned"
           }
         },
@@ -1044,9 +1081,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 8,
+            "jsonPath": "anonymous",
             "method": "WebcastRoomUserSeqMessage",
             "path": "anonymous",
+            "protobufType": "int64",
             "transform": "normalized-unsigned"
           }
         },
@@ -1064,9 +1104,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 6,
+            "jsonPath": "popularity",
             "method": "WebcastRoomUserSeqMessage",
             "path": "popularity",
+            "protobufType": "int64",
             "transform": "normalized-unsigned"
           }
         },
@@ -1075,9 +1118,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 7,
+            "jsonPath": "totalUser",
             "method": "WebcastRoomUserSeqMessage",
             "path": "total_user",
+            "protobufType": "int64",
             "transform": "normalized-unsigned"
           }
         },
@@ -1086,9 +1132,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 3,
+            "jsonPath": "total",
             "method": "WebcastRoomUserSeqMessage",
             "path": "total",
+            "protobufType": "int64",
             "transform": "normalized-unsigned"
           }
         }
@@ -1111,9 +1160,12 @@
           "format": "int64",
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 4,
+            "jsonPath": "action",
             "method": "WebcastSocialMessage",
             "path": "action",
+            "protobufType": "int64",
             "transform": "native"
           }
         },
@@ -1122,9 +1174,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 6,
+            "jsonPath": "followCount",
             "method": "WebcastSocialMessage",
             "path": "follow_count",
+            "protobufType": "int64",
             "transform": "normalized-unsigned"
           }
         },
@@ -1142,9 +1197,12 @@
           "minimum": 0,
           "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
             "fieldNumber": 8,
+            "jsonPath": "shareCount",
             "method": "WebcastSocialMessage",
             "path": "share_count",
+            "protobufType": "int32",
             "transform": "normalized-unsigned"
           }
         }

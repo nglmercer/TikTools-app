@@ -105,14 +105,18 @@ function toSuggestion(
  * automation-contract reference. */
 function sourceDetail(eventType: string | undefined, field: RegistryField): string | undefined {
   if (field.sourceMethod && field.sourcePath && field.sourceTransform) {
-    return `protobuf ${field.sourceMethod}.${field.sourcePath}: ${field.tsType} · ${field.sourceTransform}`;
+    const sourceType = field.sourceProtoType ?? field.tsType;
+    return `protobuf ${field.sourceMethod}.${field.sourcePath}: ${sourceType} → ${field.path}: ${field.tsType} · ${field.sourceTransform}`;
   }
   if (!eventType || !field.sourceField) return undefined;
   const entry = registryEntryFor(eventType);
   if (!entry || entry.sourceInterface === '-') return undefined;
+  // The normalized DTO (`dataInterface`) is the source for fields without
+  // protobuf provenance; `sourceInterface` now names the vendor message on
+  // protobuf-backed entries, which app-only fields must never claim.
   const sourceField = entry.sourceFields.find((candidate) => candidate.name === field.sourceField);
   const tsType = sourceField ? sourceField.tsType : field.tsType;
-  return `native ${entry.sourceInterface}.${field.sourceField}: ${tsType}`;
+  return `native ${entry.dataInterface}.${field.sourceField}: ${tsType}`;
 }
 
 function inferSuggestionKind(value: JsonValue | undefined): AutocompleteItem['kind'] {
