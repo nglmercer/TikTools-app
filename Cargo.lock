@@ -801,7 +801,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -951,7 +951,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2190,7 +2190,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2962,7 +2962,7 @@ version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03da047801ff44bb6a4d407d4860c05fd70bb81714e6b2f3812603d5b145b042"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools",
  "log",
  "multimap",
@@ -3124,7 +3124,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3541,7 +3541,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3599,7 +3599,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4289,10 +4289,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4847,7 +4847,7 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 [[package]]
 name = "ttl-live-discovery"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=0888656f9ce7a32be48c15607a5fda3884a90888#0888656f9ce7a32be48c15607a5fda3884a90888"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=afa3ec9dac9287beb9f68ed6a009eb4c0a46d348#afa3ec9dac9287beb9f68ed6a009eb4c0a46d348"
 dependencies = [
  "reqwest 0.12.28",
  "serde_json",
@@ -4859,7 +4859,7 @@ dependencies = [
 [[package]]
 name = "ttl-live-events"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=0888656f9ce7a32be48c15607a5fda3884a90888#0888656f9ce7a32be48c15607a5fda3884a90888"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=afa3ec9dac9287beb9f68ed6a009eb4c0a46d348#afa3ec9dac9287beb9f68ed6a009eb4c0a46d348"
 dependencies = [
  "prost",
  "serde",
@@ -4871,7 +4871,7 @@ dependencies = [
 [[package]]
 name = "ttl-live-proto"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=0888656f9ce7a32be48c15607a5fda3884a90888#0888656f9ce7a32be48c15607a5fda3884a90888"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=afa3ec9dac9287beb9f68ed6a009eb4c0a46d348#afa3ec9dac9287beb9f68ed6a009eb4c0a46d348"
 dependencies = [
  "prost",
  "prost-build",
@@ -4882,7 +4882,7 @@ dependencies = [
 [[package]]
 name = "ttl-live-ws"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=0888656f9ce7a32be48c15607a5fda3884a90888#0888656f9ce7a32be48c15607a5fda3884a90888"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=afa3ec9dac9287beb9f68ed6a009eb4c0a46d348#afa3ec9dac9287beb9f68ed6a009eb4c0a46d348"
 dependencies = [
  "flate2",
  "futures-util",
@@ -4896,7 +4896,7 @@ dependencies = [
 [[package]]
 name = "ttl-sign-core"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=0888656f9ce7a32be48c15607a5fda3884a90888#0888656f9ce7a32be48c15607a5fda3884a90888"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=afa3ec9dac9287beb9f68ed6a009eb4c0a46d348#afa3ec9dac9287beb9f68ed6a009eb4c0a46d348"
 dependencies = [
  "rand 0.8.8",
  "serde",
@@ -4907,7 +4907,7 @@ dependencies = [
 [[package]]
 name = "ttl-sign-embedded"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=0888656f9ce7a32be48c15607a5fda3884a90888#0888656f9ce7a32be48c15607a5fda3884a90888"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=afa3ec9dac9287beb9f68ed6a009eb4c0a46d348#afa3ec9dac9287beb9f68ed6a009eb4c0a46d348"
 dependencies = [
  "rand 0.8.8",
  "rquickjs",
@@ -4919,7 +4919,7 @@ dependencies = [
 [[package]]
 name = "ttl-sign-headless"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=0888656f9ce7a32be48c15607a5fda3884a90888#0888656f9ce7a32be48c15607a5fda3884a90888"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=afa3ec9dac9287beb9f68ed6a009eb4c0a46d348#afa3ec9dac9287beb9f68ed6a009eb4c0a46d348"
 dependencies = [
  "reqwest 0.12.28",
  "tracing",
@@ -5425,7 +5425,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

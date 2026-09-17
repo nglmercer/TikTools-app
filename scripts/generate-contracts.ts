@@ -186,10 +186,20 @@ type RegistryFieldJson = {
   sourceField?: string;
   sourceMethod?: string;
   sourcePath?: string;
+  sourceJsonPath?: string;
+  sourceProtoType?: string;
+  sourceCardinality?: string;
   sourceTransform?: string;
 };
 
-type NativeSource = { method: string; path: string; transform: string };
+type NativeSource = {
+  method: string;
+  path: string;
+  transform: string;
+  jsonPath?: string;
+  protoType?: string;
+  cardinality?: string;
+};
 
 /**
  * Protobuf provenance stamped by `tiktools-core::contracts::tiktok` as
@@ -208,11 +218,18 @@ function nativeSourceFor(
   if (!isRecord(property)) return undefined;
   const source = property['x-native-source'];
   if (!isRecord(source)) return undefined;
-  const { method, path, transform } = source;
+  const { method, path, transform, jsonPath, protobufType, cardinality } = source;
   if (typeof method !== 'string' || typeof path !== 'string' || typeof transform !== 'string') {
     return undefined;
   }
-  return { method, path, transform };
+  return {
+    method,
+    path,
+    transform,
+    ...(typeof jsonPath === 'string' ? { jsonPath } : {}),
+    ...(typeof protobufType === 'string' ? { protoType: protobufType } : {}),
+    ...(typeof cardinality === 'string' ? { cardinality } : {}),
+  };
 }
 
 function unwrapOptionalVariant(schema: Schema, root: JsonRecord): Schema | undefined {
@@ -324,7 +341,7 @@ function intelSampleFor(schema: JsonRecord, curated: boolean): unknown {
   return curated ? deepMergeSample(generated, INTEL_SAMPLE_EVENT) : generated;
 }
 
-const EVENT_REGISTRY_VERSION = 7;
+const EVENT_REGISTRY_VERSION = 8;
 
 // Sentinels replaced with shared sample references after stringifying, so
 // the identical `intel` sample is emitted once instead of per event. The
@@ -347,6 +364,12 @@ function registrySource(schema: JsonRecord): string {
   const events: JsonRecord = {};
   for (const [eventType, contractName] of Object.entries(BUILTIN_EVENT_CONTRACTS)) {
     const contract = contractName ? schemaObject(defs[contractName]) : {};
+    // Protobuf-backed contracts name their vendor message (`x-native-method`);
+    // that is the native source, while `dataInterface` keeps the normalized
+    // TikTools DTO. App-only contracts keep the DTO as their source.
+    const definition = contractName ? defs[contractName] : undefined;
+    const rawNativeMethod = isRecord(definition) ? definition['x-native-method'] : undefined;
+    const nativeMethod = typeof rawNativeMethod === 'string' ? rawNativeMethod : undefined;
     const required = new Set(contract.required ?? []);
     const fields = Object.entries(contract.properties ?? {}).map(([key, value]) => {
       const native = nativeSourceFor(contractName, key, schema);
@@ -360,7 +383,14 @@ function registrySource(schema: JsonRecord): string {
         sample: sampleForField(key, value, schema),
         sourceField: key,
         ...(native
-          ? { sourceMethod: native.method, sourcePath: native.path, sourceTransform: native.transform }
+          ? {
+            sourceMethod: native.method,
+            sourcePath: native.path,
+            sourceTransform: native.transform,
+            ...(native.jsonPath !== undefined ? { sourceJsonPath: native.jsonPath } : {}),
+            ...(native.protoType !== undefined ? { sourceProtoType: native.protoType } : {}),
+            ...(native.cardinality !== undefined ? { sourceCardinality: native.cardinality } : {}),
+          }
           : {}),
       };
     });
@@ -371,7 +401,7 @@ function registrySource(schema: JsonRecord): string {
     for (const field of fields) sampleData[field.path.slice('event.data.'.length)] = field.sample;
     events[eventType] = {
       dataInterface: contractName ?? 'JsonObject',
-      sourceInterface: contractName ?? '-',
+      sourceInterface: nativeMethod ?? contractName ?? '-',
       sampleEvent: {
         id: 'sample-event',
         type: eventType,
