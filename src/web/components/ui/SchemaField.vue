@@ -259,6 +259,15 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
   const dynamicOptions = Array.isArray(fieldOptions) ? fieldOptions.filter((entry) => entry && typeof entry.value === 'string') : [];
   const options = schemaOptions.length > 0 ? schemaOptions : dynamicOptions.length > 0 ? dynamicOptions : hintedEntries;
   if (options.length > 0) {
+    // A stored value that matches no option (stale data, cleared field)
+    // renders as a blank native box. Fall back to the schema default when it
+    // matches, so enum selects always show meaningful text; the fallback
+    // persists on the next edit exactly like a display default.
+    const optionValues = new Set(options.map((entry) => entry.value));
+    const schemaDefault = typeof schema.default === 'string' ? schema.default : undefined;
+    const effectiveValue = optionValues.has(displayValue) || !schemaDefault || !optionValues.has(schemaDefault)
+      ? displayValue
+      : schemaDefault;
     // Dynamic (optionsFrom) lists and icon-carrying hinted lists render as an
     // IconSelect; static lists use the native Select. Native <option> cannot
     // draw SVGs, which is why icon lists need the custom control.
@@ -280,7 +289,7 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
         label={label}
         hintText={hintText}
         template={template}
-        value={displayValue}
+        value={effectiveValue}
         options={options as SelectOption[]}
         iconOptions={iconOptions}
         error={error}

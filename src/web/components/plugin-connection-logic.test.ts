@@ -11,6 +11,7 @@ import {
   isLoopbackUrl,
   secretSettingKeys,
   settingsEqual,
+  settingsMatch,
   stableSettingsJson,
   SUMMARY_ROW_LIMIT,
   withSchemaDefaults,
@@ -201,4 +202,37 @@ test('settings equality ignores key order', () => {
   expect(settingsEqual({ a: '1' }, { a: '1', b: 2 })).toBe(false);
   expect(settingsEqual({ a: '1' }, { a: '2' })).toBe(false);
   expect(stableSettingsJson({ b: 2, a: '1' })).toBe(stableSettingsJson({ a: '1', b: 2 }));
+});
+
+test('secret-aware match keeps typed secrets clean but clears dirty', () => {
+  const secretKeys = ['apiToken'];
+  // Typed secret vs redacted echo: clean (saved), stays in the draft masked.
+  expect(settingsMatch(
+    { serverUrl: 'http://x/', apiToken: 'real-token' },
+    { serverUrl: 'http://x/', apiToken: '••••••••' },
+    secretKeys,
+  )).toBe(true);
+  // Untouched placeholder vs echo: clean.
+  expect(settingsMatch(
+    { serverUrl: 'http://x/', apiToken: '••••••••' },
+    { serverUrl: 'http://x/', apiToken: '••••••••' },
+    secretKeys,
+  )).toBe(true);
+  // Clearing a secret is a real change until confirmed.
+  expect(settingsMatch(
+    { serverUrl: 'http://x/', apiToken: '' },
+    { serverUrl: 'http://x/', apiToken: '••••••••' },
+    secretKeys,
+  )).toBe(false);
+  // Non-secret mismatches still dirty.
+  expect(settingsMatch(
+    { serverUrl: 'http://y/', apiToken: 'real-token' },
+    { serverUrl: 'http://x/', apiToken: '••••••••' },
+    secretKeys,
+  )).toBe(false);
+  // Without the exemption the redacted echo reads dirty.
+  expect(settingsMatch(
+    { serverUrl: 'http://x/', apiToken: 'real-token' },
+    { serverUrl: 'http://x/', apiToken: '••••••••' },
+  )).toBe(false);
 });

@@ -22,6 +22,7 @@ import {
   isLoopbackUrl,
   secretSettingKeys,
   settingsEqual,
+  settingsMatch,
   stableSettingsJson,
   withSchemaDefaults,
 } from '../components/plugin-connection-logic.ts';
@@ -140,9 +141,13 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
     const state = props.settingsState;
     const next = draft.value;
     if (!state || !next) return false;
-    return !settingsEqual(
+    // Secret-aware: a typed secret matches its redacted echo, so saving a
+    // token goes clean while the typed value stays in the draft (masked) for
+    // Show/Hide. Clearing a secret stays dirty until the host confirms it.
+    return !settingsMatch(
       withSchemaDefaults(toSettingValues(next), state.schema),
       withSchemaDefaults(toSettingValues(state.values), state.schema),
+      secretKeys.value,
     );
   });
   const showSummary = computed(() => (
@@ -243,11 +248,22 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
       saveState.value = 'saved';
       if (confirmTimer !== null) clearTimeout(confirmTimer);
       confirmTimer = null;
-      // Converge the draft onto the echoed values so a just-saved secret
-      // (typed value vs echoed placeholder) stops reading as dirty. Only
-      // when nothing newer was typed after the confirmed send.
+      // Adopt confirmed clears: a secret the user emptied reads back as the
+      // placeholder, so drop it from the draft and fall back to the echo.
+      // Typed values stay in the draft (masked) so Show/Hide keeps revealing
+      // what was typed. Only when nothing newer was typed after the send.
       const next = draft.value;
-      if (next && settingsEqual(toSettingValues(next), sent)) draft.value = null;
+      if (next && settingsEqual(toSettingValues(next), sent)) {
+        const pruned = { ...next };
+        let changed = false;
+        for (const key of secretKeys.value) {
+          if (pruned[key] === '' && sent[key] === '') {
+            delete pruned[key];
+            changed = true;
+          }
+        }
+        if (changed) draft.value = pruned;
+      }
     }
     // A send raced with newer edits: converge instead of going stale.
     const state = props.settingsState;

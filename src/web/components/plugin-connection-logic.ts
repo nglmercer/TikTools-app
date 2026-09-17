@@ -134,6 +134,37 @@ export function settingsEqual(a: JsonObject, b: JsonObject): boolean {
 }
 
 /**
+ * Secret-aware equality for draft-vs-display comparisons. A redacted echo
+ * stands in for any stored secret, so a typed (or untouched placeholder)
+ * secret matches the echoed placeholder — this is what lets a just-saved
+ * token read as clean while the typed value stays in the draft (masked) for
+ * Show/Hide to reveal. An explicit clearing (`''` vs placeholder) is a real
+ * change until the host confirms it.
+ */
+export function settingsMatch(
+  a: JsonObject,
+  b: JsonObject,
+  secretKeys: readonly string[] = [],
+): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    const left = a[key];
+    const right = b[key];
+    if (left === right) continue;
+    if (
+      secretKeys.includes(key)
+      && (left === SECRET_PLACEHOLDER || right === SECRET_PLACEHOLDER)
+      && left !== ''
+      && right !== ''
+    ) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+/**
  * Settings keys rendered as masked secret fields (schema `secret: true` or a
  * secret UI hint). The host never reveals stored secrets: every WebView
  * payload carries {@link SECRET_PLACEHOLDER} instead, and saving the

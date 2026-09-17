@@ -16,8 +16,8 @@ type SettingsViewProps = {
 
 function ThemePreview({ theme, onThemeChange, darkLabel, lightLabel }: { theme: Theme; onThemeChange: (t: Theme) => void; darkLabel: string; lightLabel: string }) {
   const modes = [
-    { value: 'dark' as Theme, label: darkLabel },
-    { value: 'light' as Theme, label: lightLabel },
+    { value: 'dark' as Theme, label: darkLabel, icon: <IconMoon size={18} /> },
+    { value: 'light' as Theme, label: lightLabel, icon: <IconSun size={18} /> },
   ];
   return (
     <div class="theme-preview" role="group">
@@ -30,6 +30,7 @@ function ThemePreview({ theme, onThemeChange, darkLabel, lightLabel }: { theme: 
           aria-pressed={theme === mode.value}
           aria-label={mode.label}
         >
+          <span class="theme-preview__icon" aria-hidden="true">{mode.icon}</span>
           <span class="theme-preview__bar" aria-hidden="true" />
           <span class="theme-preview__line" aria-hidden="true" />
           <span class="theme-preview__line is-short" aria-hidden="true" />
