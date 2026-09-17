@@ -28,6 +28,8 @@ type PasswordInputProps = {
   clearable?: boolean;
   size?: FieldSize;
   locale?: Locale;
+  onFocus?: () => void;
+  onBlur?: () => void;
 };
 
 /**
@@ -35,7 +37,7 @@ type PasswordInputProps = {
  * shell with label-above-input and integrated Show/Hide toggle.
  */
 export const PasswordInput = defineVueComponent<PasswordInputProps>(
-  ['value', 'onValueChange', 'label', 'hint', 'placeholder', 'disabled', 'required', 'error', 'id', 'name', 'autoComplete', 'clearable', 'size', 'locale'],
+  ['value', 'onValueChange', 'label', 'hint', 'placeholder', 'disabled', 'required', 'error', 'id', 'name', 'autoComplete', 'clearable', 'size', 'locale', 'onFocus', 'onBlur'],
   (props, context) => {
     const fieldRef = ref<PasswordFieldHandle | null>(null);
     context.expose({
@@ -62,6 +64,8 @@ export const PasswordInput = defineVueComponent<PasswordInputProps>(
         clearable={props.clearable}
         size={props.size}
         locale={props.locale}
+        onFocus={props.onFocus}
+        onBlur={props.onBlur}
       />
     );
   },

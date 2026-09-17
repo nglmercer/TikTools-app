@@ -159,6 +159,7 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
           onValueChange={onChange}
           error={error}
           autoComplete="current-password"
+          locale={locale}
         />
       </div>
     );

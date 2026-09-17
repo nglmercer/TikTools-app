@@ -384,6 +384,7 @@ function ChatTtsOptionsForm({
           name="tts-token"
           autoComplete="off"
           clearable
+          locale={locale}
         />
       </FormField>
       <div class="template-row">

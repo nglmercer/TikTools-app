@@ -68,6 +68,7 @@ export const spanish: Record<TranslationKey, string> = {
   dialogRequired: 'Este campo es obligatorio.',
   showPassword: 'Mostrar',
   hidePassword: 'Ocultar',
+  storedSecretHidden: 'El valor guardado está oculto. Escribe un nuevo valor para reemplazarlo.',
   clearField: 'Borrar',
   increaseValue: 'Aumentar valor',
   decreaseValue: 'Disminuir valor',

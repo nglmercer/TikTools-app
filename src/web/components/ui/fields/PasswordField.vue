@@ -5,6 +5,7 @@ import { defineVueComponent } from '../../../vue/component.ts';
 import { t, type Locale } from '../../../i18n.ts';
 import type { TooltipPosition } from '../tooltip-logic.ts';
 import { normalizeControlString } from '../control-events.ts';
+import { SECRET_PLACEHOLDER } from '../../../../automation/plugins/declarative.ts';
 import { TextField, type TextFieldHandle } from './TextField.vue';
 import type { FieldSize } from './field-logic.ts';
 
@@ -40,6 +41,8 @@ export type PasswordFieldProps = {
   autoComplete?: string;
   maxLength?: number;
   onEnter?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
   className?: string;
 };
 
@@ -48,7 +51,7 @@ export type PasswordFieldProps = {
  * itself is never logged or rendered anywhere except the native input.
  */
 export const PasswordField = defineVueComponent<PasswordFieldProps>(
-  ['value', 'onValueChange', 'id', 'name', 'label', 'hint', 'hintPosition', 'description', 'error', 'placeholder', 'required', 'disabled', 'readonly', 'size', 'locale', 'clearable', 'clearLabel', 'showLabel', 'hideLabel', 'autoComplete', 'maxLength', 'onEnter', 'className'],
+  ['value', 'onValueChange', 'id', 'name', 'label', 'hint', 'hintPosition', 'description', 'error', 'placeholder', 'required', 'disabled', 'readonly', 'size', 'locale', 'clearable', 'clearLabel', 'showLabel', 'hideLabel', 'autoComplete', 'maxLength', 'onEnter', 'onFocus', 'onBlur', 'className'],
   (props, context) => {
     const fieldRef = ref<TextFieldHandle | null>(null);
     const visible = ref(false);
@@ -63,6 +66,32 @@ export const PasswordField = defineVueComponent<PasswordFieldProps>(
       const locale: Locale = props.locale ?? 'en';
       const showLabel = props.showLabel ?? t(locale, 'showPassword');
       const hideLabel = props.hideLabel ?? t(locale, 'hidePassword');
+      // The host never reveals stored secrets: the WebView only ever sees
+      // SECRET_PLACEHOLDER ('••••••••'), which looks identical in text and
+      // password modes. Toggling it would appear broken, so the toggle stays
+      // disabled until the user types a real value. Typing replaces the
+      // placeholder instead of appending to it.
+      const isStoredPlaceholder = normalizeControlString(props.value) === SECRET_PLACEHOLDER;
+      const storedHint = isStoredPlaceholder ? t(locale, 'storedSecretHidden') : undefined;
+      const handleValueChange = (next: string): void => {
+        const prev = normalizeControlString(props.value);
+        if (prev === SECRET_PLACEHOLDER && next !== SECRET_PLACEHOLDER && next.includes(SECRET_PLACEHOLDER)) {
+          props.onValueChange(next.replace(SECRET_PLACEHOLDER, ''));
+          return;
+        }
+        props.onValueChange(next);
+      };
+      const handleFocus = (): void => {
+        // Select the placeholder so the first keystroke replaces it cleanly.
+        // A plain focus without typing leaves the value untouched (preserved).
+        if (normalizeControlString(props.value) === SECRET_PLACEHOLDER) {
+          requestAnimationFrame(() => {
+            const active = document.activeElement;
+            if (active && active instanceof HTMLInputElement) active.select();
+          });
+        }
+        props.onFocus?.();
+      };
       const toggle: VNodeChild = (
         <button
           type="button"
@@ -70,7 +99,8 @@ export const PasswordField = defineVueComponent<PasswordFieldProps>(
           onClick={() => { visible.value = !visible.value; }}
           aria-label={visible.value ? hideLabel : showLabel}
           aria-pressed={visible.value}
-          disabled={props.disabled}
+          disabled={props.disabled || isStoredPlaceholder}
+          title={storedHint}
         >
           {visible.value ? hideLabel : showLabel}
         </button>
@@ -79,7 +109,7 @@ export const PasswordField = defineVueComponent<PasswordFieldProps>(
         <TextField
           ref={fieldRef}
           value={props.value}
-          onValueChange={props.onValueChange}
+          onValueChange={handleValueChange}
           id={props.id}
           name={props.name}
           label={props.label}
@@ -93,12 +123,14 @@ export const PasswordField = defineVueComponent<PasswordFieldProps>(
           readonly={props.readonly}
           size={props.size}
           locale={props.locale}
-          clearable={props.clearable}
+          clearable={props.clearable && !isStoredPlaceholder}
           clearLabel={props.clearLabel}
-          inputType={visible.value ? 'text' : 'password'}
+          inputType={visible.value && !isStoredPlaceholder ? 'text' : 'password'}
           autoComplete={props.autoComplete ?? 'current-password'}
-          maxLength={props.maxLength}
+          maxLength={isStoredPlaceholder ? undefined : props.maxLength}
           onEnter={props.onEnter}
+          onFocus={handleFocus}
+          onBlur={props.onBlur}
           className={props.className}
           trailing={toggle}
         />

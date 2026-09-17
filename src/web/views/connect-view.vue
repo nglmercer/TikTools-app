@@ -68,6 +68,7 @@ export const ConnectView = defineVueComponent<ConnectViewProps>(
                 hint={t(locale, 'guestCookieHint')}
                 disabled={isLive || isBusy}
                 autoComplete="off"
+                locale={locale}
               />
             ) : (
               <div style={{ marginBottom: 4 }}>

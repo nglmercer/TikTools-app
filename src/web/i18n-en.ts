@@ -66,6 +66,7 @@ export const english = {
   dialogRequired: 'This field is required.',
   showPassword: 'Show',
   hidePassword: 'Hide',
+  storedSecretHidden: 'Stored value is hidden. Type a new value to replace it.',
   clearField: 'Clear',
   increaseValue: 'Increase value',
   decreaseValue: 'Decrease value',
