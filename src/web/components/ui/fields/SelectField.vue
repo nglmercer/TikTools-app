@@ -5,7 +5,7 @@ import { defineVueComponent } from '../../../vue/component.ts';
 import { Icon, type IconName } from '../../icons/index.ts';
 import type { Locale } from '../../../i18n.ts';
 import type { TooltipPosition } from '../tooltip-logic.ts';
-import { dispatchControlEvent, normalizeControlString, selectOptionSignature, syncNativeControlValue } from '../control-events.ts';
+import { createNativeSelectEmitter, dispatchControlEvent, normalizeControlString, selectOptionSignature, syncNativeControlValue } from '../control-events.ts';
 import { FieldShell } from './FieldShell.vue';
 import { InputGroup } from './InputGroup.vue';
 import { describeField, fieldControlId, fieldMessageIds, type FieldSize } from './field-logic.ts';
@@ -55,9 +55,19 @@ export const SelectField = defineVueComponent<SelectFieldProps>(
   ['value', 'onValueChange', 'options', 'id', 'name', 'label', 'hint', 'hintPosition', 'description', 'error', 'placeholder', 'required', 'disabled', 'readonly', 'size', 'locale', 'ariaLabel', 'leadingIcon', 'leading', 'className'],
   (props, context) => {
     const innerRef = ref<HTMLSelectElement | null>(null);
-    const focused = ref(false);
     selectFieldFallback += 1;
     const fallbackId = `tt-select-${selectFieldFallback}`;
+    // Native select popups in embedded WebViews can blur (popup close)
+    // before `change` fires. Committing on `input` too captures the new
+    // value first; the emitter drops the duplicate when `change` follows.
+    // No reactive focus state here: the visible ring is painted by
+    // `.field__box:focus-within`, and a focus/blur rerender with a stale
+    // `props.value` could patch the old selection back before `change`
+    // reads the control.
+    const selectEmitter = createNativeSelectEmitter((next) => props.onValueChange(next));
+    const emitNativeSelection = (event: Event): void => {
+      selectEmitter.emit((event.currentTarget as HTMLSelectElement).value);
+    };
     const commitProgrammaticValue = (value: string): void => {
       const control = innerRef.value;
       if (control) {
@@ -84,7 +94,10 @@ export const SelectField = defineVueComponent<SelectFieldProps>(
     } satisfies SelectFieldHandle);
 
     watch(() => props.value, (value) => {
-      if (innerRef.value) syncNativeControlValue(innerRef.value, value);
+      const normalized = normalizeControlString(value);
+      // Parent has acknowledged this value.
+      selectEmitter.acknowledge(normalized);
+      if (innerRef.value) syncNativeControlValue(innerRef.value, normalized);
     });
 
     // Dynamic option lists (plugin `optionsFrom`, voices, devices) resolve
@@ -134,7 +147,6 @@ export const SelectField = defineVueComponent<SelectFieldProps>(
         >
           <InputGroup
             leading={leading}
-            focused={focused.value}
             invalid={invalid}
             disabled={isDisabled}
             trailing={<Icon name="arrow-down" size={12} />}
@@ -151,9 +163,8 @@ export const SelectField = defineVueComponent<SelectFieldProps>(
               aria-describedby={describeField([props.description ? descriptionId : undefined, props.error ? errorId : undefined])}
               aria-errormessage={props.error ? errorId : undefined}
               class="field-input field-input--select"
-              onChange={(e) => props.onValueChange((e.currentTarget as HTMLSelectElement).value)}
-              onFocus={() => { focused.value = true; }}
-              onBlur={() => { focused.value = false; }}
+              onInput={emitNativeSelection}
+              onChange={emitNativeSelection}
             >
               {props.placeholder ? <option value="" disabled>{props.placeholder}</option> : null}
               {props.options.map((o) => (

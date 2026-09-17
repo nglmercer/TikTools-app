@@ -20,6 +20,7 @@ import {
   echoNeedsResave,
   findServerUrlKey,
   focusStayedInside,
+  isSelectFocusSource,
   isHttpUrl,
   isLoopbackUrl,
   secretSettingKeys,
@@ -208,6 +209,15 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
     if (focusStayedInside(card, event.relatedTarget, document.activeElement)) {
       return;
     }
+
+    // Native select popups live outside the DOM focus tree: focusout around
+    // a selection commit is unreliable and may fire before input/change
+    // update the draft. Let the selection events commit first; the normal
+    // debounce persists the draft.
+    if (isSelectFocusSource(event.target)) {
+      return;
+    }
+
     requestAnimationFrame(() => {
       if (focusStayedInside(card, null, document.activeElement)) {
         return;

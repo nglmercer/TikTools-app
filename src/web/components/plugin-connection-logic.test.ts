@@ -5,12 +5,14 @@ import {
   AUTOSAVE_CONFIRM_TIMEOUT_MS,
   AUTOSAVE_DEBOUNCE_MS,
   connectionSummaryRows,
+  createNativeSelectEmitter,
   echoConfirmsSave,
   echoNeedsResave,
   findServerUrlKey,
   focusStayedInside,
   isHttpUrl,
   isLoopbackUrl,
+  isSelectFocusSource,
   secretSettingKeys,
   selectOptionSignature,
   settingsEqual,
@@ -355,4 +357,57 @@ test('static enum defaults survive the state boundary', () => {
   expect(withSchemaDefaults({ defaultLanguage: 'es' }, schema)).toEqual({ defaultLanguage: 'es' });
   // And an explicit es draft converges with an es echo (no revert, no loop).
   expect(echoNeedsResave({ defaultLanguage: 'es' }, { defaultLanguage: 'es' }, schema)).toBe(false);
+});
+
+test('native select commits on input before blur/change (en -> es ordering)', () => {
+  // Simulates the embedded-WebView order: input(es) -> blur/popup close ->
+  // change(es). The parent draft must end at es with one effective commit.
+  let parent = 'en';
+  const commits: string[] = [];
+  const emitter = createNativeSelectEmitter((next) => {
+    commits.push(next);
+    parent = next;
+  });
+  const acknowledge = (value: string): void => emitter.acknowledge(value);
+
+  // Native DOM value becomes es; `input` fires first and commits immediately.
+  expect(emitter.emit('es')).toBe(true);
+  expect(parent).toBe('es');
+
+  // The trailing `change` for the same selection fires before Vue's watcher
+  // acknowledges the new prop, so it is deduplicated: one effective commit.
+  expect(emitter.emit('es')).toBe(false);
+  expect(commits).toEqual(['es']);
+
+  // Popup close blurs without any reactive rerender patching a stale value;
+  // the controlled prop now carries the committed es and is acknowledged.
+  acknowledge(parent);
+  expect(parent).toBe('es');
+  expect(commits).toEqual(['es']);
+});
+
+test('native select emitter forwards genuine re-selections after ack', () => {
+  const commits: string[] = [];
+  const emitter = createNativeSelectEmitter((next) => commits.push(next));
+  expect(emitter.emit('es')).toBe(true);
+  // Parent renders es back: in-flight marker clears, so a later genuine
+  // re-selection of the same value still forwards.
+  emitter.acknowledge('es');
+  expect(emitter.emit('es')).toBe(true); // re-selection after ack forwards
+  expect(commits).toEqual(['es', 'es']);
+  // ...while a different value always forwards.
+  emitter.acknowledge('es');
+  expect(emitter.emit('en')).toBe(true);
+  expect(commits).toEqual(['es', 'es', 'en']);
+});
+
+test('select focusout sources skip the immediate autosave flush', () => {
+  const asTarget = (tagName: string): EventTarget =>
+    ({ tagName }) as unknown as EventTarget;
+  expect(isSelectFocusSource(asTarget('SELECT'))).toBe(true);
+  expect(isSelectFocusSource(asTarget('select'))).toBe(true);
+  expect(isSelectFocusSource(asTarget('INPUT'))).toBe(false);
+  expect(isSelectFocusSource(asTarget('BUTTON'))).toBe(false);
+  expect(isSelectFocusSource(null)).toBe(false);
+  expect(isSelectFocusSource(undefined)).toBe(false);
 });

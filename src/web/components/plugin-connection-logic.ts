@@ -4,8 +4,11 @@ import type { Locale } from '../i18n.ts';
 import { localized } from './ui/schema-form-helpers.ts';
 
 export {
+  createNativeSelectEmitter,
   focusStayedInside,
+  isSelectFocusSource,
   selectOptionSignature,
+  type NativeSelectEmitter,
   type SelectSignatureOption,
 } from './ui/control-events.ts';
 

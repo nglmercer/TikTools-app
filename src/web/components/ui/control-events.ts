@@ -239,6 +239,46 @@ export function focusStayedInside(
   return false;
 }
 
+/**
+ * Deduplicating emitter for native `<select>` controls. Native popups in
+ * embedded WebViews may fire both `input` and `change` for one selection, so
+ * both events commit through here and the second identical emission is
+ * dropped. `acknowledge` clears the in-flight marker once the controlled
+ * parent renders the value back, so a later genuine re-selection still
+ * forwards.
+ */
+export type NativeSelectEmitter = {
+  emit: (next: string) => boolean;
+  acknowledge: (value: string) => void;
+};
+
+export function createNativeSelectEmitter(onEmit: (next: string) => void): NativeSelectEmitter {
+  let lastEmitted: string | undefined;
+  return {
+    emit: (next: string): boolean => {
+      if (next === lastEmitted) return false;
+      lastEmitted = next;
+      onEmit(next);
+      return true;
+    },
+    acknowledge: (value: string): void => {
+      if (value === lastEmitted) lastEmitted = undefined;
+    },
+  };
+}
+
+/**
+ * True when a focusout originated from a native `<select>`. Native OS/WebView
+ * popups live outside the DOM focus tree, so card-level focus loss around a
+ * select commit is unreliable and must not flush autosave ahead of the
+ * `input`/`change` events — the normal debounce persists the draft instead.
+ * Tag-name based (not `instanceof`) so it stays testable without a DOM.
+ */
+export function isSelectFocusSource(source: EventTarget | null | undefined): boolean {
+  const tag = (source as Element | null | undefined)?.tagName;
+  return typeof tag === 'string' && tag.toLowerCase() === 'select';
+}
+
 function schemaDefinition(field: FormFieldSchema): { type: FormFieldType; defaultValue?: unknown } {
   return typeof field === 'string' ? { type: field } : field;
 }
