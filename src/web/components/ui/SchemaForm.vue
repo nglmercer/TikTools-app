@@ -34,6 +34,8 @@ export type SchemaFormProps = {
   lastEvent?: AutomationEvent;
   /** Dynamic per-field options fetched on demand (voices, devices, …). */
   fieldOptions?: Record<string, FieldOption[]>;
+  /** Inline validation messages keyed by field name. */
+  fieldErrors?: Record<string, string>;
   /** Opens a host-owned native media dialog and returns a path reference. */
   onOpenMediaPicker?: OpenMediaPicker;
 };
@@ -62,6 +64,7 @@ export const SchemaForm = defineVueComponent<SchemaFormProps>(
     'eventType',
     'lastEvent',
     'fieldOptions',
+    'fieldErrors',
     'onOpenMediaPicker',
   ],
   (props, context) => {
@@ -76,6 +79,7 @@ export const SchemaForm = defineVueComponent<SchemaFormProps>(
   const templateSuggestions = props.templateSuggestions ?? [];
   const suggestionScopes = props.suggestionScopes ?? {};
   const fieldOptions = props.fieldOptions ?? {};
+  const fieldErrors = props.fieldErrors ?? {};
   const hints = objectProperties(props.uiHints?.fields);
   const visible = Object.entries(properties.value).filter(([key]) => applies(hints[key]?.showIf, props.value));
   const basic = visible.filter(([key]) => hints[key]?.advanced !== true);
@@ -104,6 +108,7 @@ export const SchemaForm = defineVueComponent<SchemaFormProps>(
           onChange={(next) => update(key, next)}
           templateSuggestions={suggestionsFor(key, (hints[key]?.template as boolean) === true)}
           fieldOptions={fieldOptions[key]}
+          error={fieldErrors[key]}
           onOpenMediaPicker={props.onOpenMediaPicker}
         />
       ))}
@@ -124,6 +129,7 @@ export const SchemaForm = defineVueComponent<SchemaFormProps>(
               onChange={(next) => update(key, next)}
               templateSuggestions={suggestionsFor(key, (hints[key]?.template as boolean) === true)}
               fieldOptions={fieldOptions[key]}
+              error={fieldErrors[key]}
               onOpenMediaPicker={props.onOpenMediaPicker}
             />
           ))}

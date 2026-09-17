@@ -60,6 +60,41 @@ pub fn secret_setting_keys(manifest: &PluginManifest) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Overlays schema `default` entries for keys the stored settings omit.
+/// Pure: storage is untouched. Only scalar defaults apply (settings are a
+/// flat scalar map), and secret keys are never defaulted, so absent secrets
+/// stay absent and the UI can tell "not configured" apart from "configured".
+pub fn apply_settings_defaults(manifest: &PluginManifest, values: &Value) -> Value {
+    let properties = manifest
+        .settings_schema
+        .as_ref()
+        .and_then(|schema| schema.get("properties"))
+        .and_then(Value::as_object);
+    let Some(properties) = properties else {
+        return values.clone();
+    };
+    let mut merged = values.as_object().cloned().unwrap_or_default();
+    for (key, field) in properties {
+        if merged.contains_key(key) {
+            continue;
+        }
+        let secret = field
+            .get("secret")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        if secret {
+            continue;
+        }
+        let Some(default) = field.get("default") else {
+            continue;
+        };
+        if default.is_string() || default.is_number() || default.is_boolean() {
+            merged.insert(key.clone(), default.clone());
+        }
+    }
+    Value::Object(merged)
+}
+
 /// Replaces every present secret value with the placeholder. Pure: the
 /// stored settings are untouched, and absent secrets stay absent so the UI
 /// can tell "not configured" apart from "configured".
@@ -138,16 +173,18 @@ impl CapabilityBroker {
         manifest: &PluginManifest,
     ) -> Result<Value, CapabilityError> {
         let path = self.ensure_plugin_data_dir(manifest)?.join("settings.json");
-        match fs::read_to_string(path) {
+        let stored = match fs::read_to_string(path) {
             Ok(value) => {
-                Ok(serde_json::from_str(&value)
-                    .unwrap_or_else(|_| Value::Object(Default::default())))
+                serde_json::from_str(&value).unwrap_or_else(|_| Value::Object(Default::default()))
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                Ok(Value::Object(Default::default()))
+                Value::Object(Default::default())
             }
-            Err(error) => Err(CapabilityError::Io(error)),
-        }
+            Err(error) => return Err(CapabilityError::Io(error)),
+        };
+        // Schema defaults apply to every consumer (probes, actions, option
+        // sources, display) so first-run behavior matches a saved config.
+        Ok(apply_settings_defaults(manifest, &stored))
     }
 
     /// Raw stored values for host-internal use (execution, option fetch,
@@ -209,7 +246,10 @@ impl CapabilityBroker {
         })?;
         fs::write(&temporary, payload)?;
         fs::rename(&temporary, &path)?;
+        // The file keeps exactly what was sent; the echo overlays defaults
+        // so it matches what a later load returns.
         let stored = Value::Object(merged.into_iter().collect());
+        let stored = apply_settings_defaults(manifest, &stored);
         Ok(redact_secret_settings(manifest, &stored))
     }
 }
@@ -347,6 +387,80 @@ mod tests {
             .unwrap();
         let raw = broker.load_plugin_settings_raw(&manifest).unwrap();
         assert_eq!(raw.get("apiToken").and_then(Value::as_str), Some("tok-456"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    fn defaulted_manifest() -> PluginManifest {
+        PluginManifest::from_json_str(
+            r#"{
+                "schemaVersion": 3,
+                "id": "defaults.plugin",
+                "name": "Defaults",
+                "version": "1.0.0",
+                "runtime": "declarative",
+                "settings": {"schema": {"type": "object", "properties": {
+                    "serverUrl": {"type": "string", "default": "http://localhost:3000"},
+                    "defaultLanguage": {"type": "string", "default": "en"},
+                    "playNow": {"type": "boolean", "default": false},
+                    "nested": {"type": "object", "default": {"ignored": true}},
+                    "apiToken": {"type": "string", "secret": true, "default": "must-not-apply"}
+                }}}
+            }"#,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn schema_defaults_fill_missing_settings_but_never_secrets() {
+        let root = std::env::temp_dir().join(format!(
+            "tiktools-defaults-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let broker = CapabilityBroker::new(root.clone());
+        let manifest = defaulted_manifest();
+        // First run: nothing stored, defaults surface for display and execution.
+        let display = broker.load_plugin_settings_for_display(&manifest).unwrap();
+        assert_eq!(
+            display.get("serverUrl").and_then(Value::as_str),
+            Some("http://localhost:3000")
+        );
+        assert_eq!(
+            display.get("defaultLanguage").and_then(Value::as_str),
+            Some("en")
+        );
+        assert_eq!(display.get("playNow").and_then(Value::as_bool), Some(false));
+        assert!(display.get("nested").is_none());
+        assert!(display.get("apiToken").is_none());
+        // Stored values win; the save echo matches a later load.
+        let saved = broker
+            .save_plugin_settings(
+                &manifest,
+                &BTreeMap::from([(
+                    "serverUrl".to_owned(),
+                    Value::String("http://127.0.0.1:4000".to_owned()),
+                )]),
+            )
+            .unwrap();
+        assert_eq!(
+            saved.get("serverUrl").and_then(Value::as_str),
+            Some("http://127.0.0.1:4000")
+        );
+        assert_eq!(
+            saved.get("defaultLanguage").and_then(Value::as_str),
+            Some("en")
+        );
+        let raw = broker.load_plugin_settings_raw(&manifest).unwrap();
+        assert_eq!(
+            raw.get("serverUrl").and_then(Value::as_str),
+            Some("http://127.0.0.1:4000")
+        );
+        assert_eq!(
+            raw.get("defaultLanguage").and_then(Value::as_str),
+            Some("en")
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 }

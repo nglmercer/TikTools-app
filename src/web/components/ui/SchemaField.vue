@@ -26,7 +26,7 @@ import type { OpenMediaPicker } from '../../../shared/messages.ts';
 import { localized, toDisplayValue, formatJson, type FieldOption } from './schema-form-helpers.ts';
 import { KeyValueEditor } from './KeyValueEditor.vue';
 
-export function SchemaField({ locale, name, schema, hint, value, onChange, templateSuggestions, fieldOptions, onOpenMediaPicker }: {
+export function SchemaField({ locale, name, schema, hint, value, onChange, templateSuggestions, fieldOptions, error, onOpenMediaPicker }: {
   locale: Locale;
   name: string;
   schema: JsonObject;
@@ -35,6 +35,7 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
   onChange: (value: JsonValue) => void;
   templateSuggestions: AutocompleteItem[];
   fieldOptions?: FieldOption[];
+  error?: string;
   onOpenMediaPicker?: OpenMediaPicker;
 }) {
   const label = localized(schema.title, locale) || name;
@@ -155,6 +156,7 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
           hint={hintText || undefined}
           value={typeof value === 'string' ? value : ''}
           onValueChange={onChange}
+          error={error}
           autoComplete="current-password"
         />
       </div>
@@ -276,6 +278,7 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
         value={displayValue}
         options={options as SelectOption[]}
         iconOptions={iconOptions}
+        error={error}
         onChange={onChange}
       />
     );
@@ -351,6 +354,7 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
           label={label}
           hint={hintText || undefined}
           value={numeric !== null && Number.isFinite(numeric) ? numeric : null}
+          error={error}
           onValueChange={(next) => onChange(next === null ? '' : next)}
           min={typeof schema.minimum === 'number' ? schema.minimum : typeof schema.min === 'number' ? schema.min : undefined}
           max={typeof schema.maximum === 'number' ? schema.maximum : typeof schema.max === 'number' ? schema.max : undefined}
@@ -391,6 +395,7 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
         hint={hintText || undefined}
         value={displayValue}
         onValueChange={onChange}
+        error={error}
         leadingIcon={fieldIconName ? <Icon name={fieldIconName} size={14} /> : undefined}
       />
     </div>
@@ -404,6 +409,7 @@ function SelectField({
   value,
   options,
   iconOptions,
+  error,
   onChange,
 }: {
   name: string;
@@ -413,6 +419,7 @@ function SelectField({
   value: string;
   options: SelectOption[];
   iconOptions?: IconSelectOption[];
+  error?: string;
   onChange: (value: JsonValue) => void;
 }) {
   if (iconOptions) {
@@ -439,6 +446,7 @@ function SelectField({
         hint={hintText || undefined}
         value={value}
         options={options}
+        error={error}
         onValueChange={(next) => onChange(next)}
       />
     </div>

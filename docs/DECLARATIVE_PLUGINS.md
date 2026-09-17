@@ -163,12 +163,31 @@ and available.
 ```
 
 Section kinds form a fixed host-rendered widget set: `text` (plain text),
-`form` (settings schema, full schema when omitted), `connection` (probe +
-configure), `list` (rows from an option source). Unknown kinds are rejected
-at validation, and manifest strings are never parsed as markup: no `html`,
-`script`, `component`, or equivalent can reach the WebView. Pages become
-navigation tabs (`plugin:<pluginId>:<pageId>`) with allowlisted icons, and
-disappear with their plugin.
+`form` (settings schema, full schema when omitted), `connection` (centered
+connection card), `list` (rows from an option source). Unknown kinds are
+rejected at validation, and manifest strings are never parsed as markup: no
+`html`, `script`, `component`, or equivalent can reach the WebView. Pages
+become navigation tabs (`plugin:<pluginId>:<pageId>`) with allowlisted
+icons, and disappear with their plugin.
+
+A `connection` section embeds the full settings form in one centered card:
+primary fields, an explicit **Test connection** button, and a status line,
+with `advanced` hint fields collapsed under Advanced options. The first
+string field declaring `format: "uri"` is validated inline as the server
+URL; probe failures (unreachable server, missing token, runtime errors)
+render as the card banner. Edits autosave on blur and after a short
+debounce, confirmed by the host settings echo (`Saving…` / `Saved` /
+`Error saving`); a passing probe collapses the card to a compact summary
+with **Test again** and **Edit settings**.
+
+## Settings defaults
+
+Scalar `default` entries in `settings.schema.properties` apply to every
+missing key on load: probes, actions, option sources, and the display echo
+all see them, so first-run behavior matches a saved config. Stored values
+always win, and secret keys are never defaulted — absent secrets stay
+absent. The save echo overlays the same defaults; the settings file keeps
+exactly what was sent.
 
 ## Connection probing
 

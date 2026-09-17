@@ -83,6 +83,7 @@
       "properties": {
         "serverUrl": {
           "type": "string",
+          "format": "uri",
           "title": "Server URL",
           "description": "Base URL of the SonicBoom server.",
           "default": "http://localhost:3000"
@@ -115,7 +116,11 @@
           "secret": true
         },
         "defaultVoice": {
-          "optionsFrom": "plugin-action-options:sonicboom.server.speak:voice"
+          "optionsFrom": "plugin-action-options:sonicboom.server.speak:voice",
+          "advanced": true
+        },
+        "defaultLanguage": {
+          "advanced": true
         }
       }
     }
@@ -193,10 +198,6 @@
         },
         {
           "kind": "connection"
-        },
-        {
-          "kind": "form",
-          "title": {"default": "Server settings", "i18key": "sonicboom.server.page.connection.form"}
         }
       ]
     },
