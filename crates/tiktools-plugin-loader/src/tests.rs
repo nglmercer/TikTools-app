@@ -388,6 +388,71 @@ fn process_first_call_gets_cold_start_grace_once() {
 }
 
 #[test]
+fn cold_start_claim_extends_exactly_one_caller_per_generation() {
+    let (manager, root) = scripted_manager(&["cold"], Arc::new(|_| Ok(b"null".to_vec())));
+    manager.start("cold").unwrap();
+    let short = Duration::from_millis(100);
+    let claimed = manager.claim_cold_start_grace("cold", short);
+    assert!(
+        claimed >= Duration::from_secs(10),
+        "first claim should win the grace, got {claimed:?}"
+    );
+    // The winning claim consumes the worker's swap too: later claims and
+    // unknown ids keep their own budgets.
+    assert_eq!(manager.claim_cold_start_grace("cold", short), short);
+    assert_eq!(manager.claim_cold_start_grace("missing", short), short);
+    // Larger budgets are never shrunk by a claim on a fresh generation.
+    manager.stop("cold").unwrap();
+    manager.start("cold").unwrap();
+    let long = Duration::from_secs(30);
+    assert_eq!(manager.claim_cold_start_grace("cold", long), long);
+    manager.stop_all();
+    let _ = fs::remove_dir_all(root);
+
+    let (native, native_root) = scripted_manager_with_kind(
+        &["inproc"],
+        PluginRuntimeKind::Native,
+        Arc::new(|_| Ok(b"null".to_vec())),
+    );
+    native.start("inproc").unwrap();
+    assert_eq!(
+        native.claim_cold_start_grace("inproc", short),
+        short,
+        "in-process instances never need cold-start grace"
+    );
+    native.stop_all();
+    let _ = fs::remove_dir_all(native_root);
+}
+
+#[test]
+fn claimed_grace_is_not_re_extended_by_the_worker() {
+    let (manager, root) = scripted_manager(
+        &["slow"],
+        Arc::new(|_| {
+            std::thread::sleep(Duration::from_millis(300));
+            Ok(b"null".to_vec())
+        }),
+    );
+    manager.start("slow").unwrap();
+    // An invoker-style claim consumes the generation's grace...
+    let effective = manager.claim_cold_start_grace("slow", Duration::from_millis(100));
+    assert!(effective >= Duration::from_secs(10));
+    // ...so a direct caller that was not told about the claim still times
+    // out on its own short deadline instead of being extended twice.
+    let timed_out = manager.call_with_deadline(
+        "slow",
+        &serde_json::json!({"type": "poll"}),
+        Instant::now() + Duration::from_millis(100),
+    );
+    assert!(
+        matches!(timed_out, Err(PluginLoaderError::Timeout(_))),
+        "consumed grace must not re-extend, got {timed_out:?}"
+    );
+    manager.stop_all();
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn transport_errors_retire_the_instance_and_restart_recovers() {
     use std::sync::atomic::{AtomicU64, Ordering};
     let calls = Arc::new(AtomicU64::new(0));

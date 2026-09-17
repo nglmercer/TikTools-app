@@ -24,7 +24,7 @@ tiktools-plugin-sdk = { path = "../../crates/tiktools-plugin-sdk" }
 tiktools-plugin-api = { path = "../../crates/tiktools-plugin-api" }
 # Pinned upstream revision; bump deliberately after reviewing textintel diffs.
 # production-local-lite keeps the engine offline (no network providers).
-textintel = { git = "https://github.com/nglmercer/textintel", rev = "89b4322ead8e32b299a768c2f708a1455adb35de", default-features = false, features = ["production-local-lite"] }
+textintel = { git = "https://github.com/nglmercer/textintel", rev = "ec9ea7476537fe5fc43a63481284e984ddbf0710", default-features = false, features = ["production-local-lite"] }
 
 [profile.release]
 lto = true

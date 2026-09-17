@@ -197,6 +197,7 @@ pub(crate) async fn run_single_processor(
     processor_id: &str,
     event: Value,
 ) -> ProcessorTestOutcome {
+    let started = Instant::now();
     let plugin = invoker.plugins().get(plugin_id);
     let outcome = match plugin {
         None => Err(ProcessorError::Unavailable(format!(
@@ -253,7 +254,14 @@ pub(crate) async fn run_single_processor(
             serde_json::to_value(&enrichment.result).unwrap_or(Value::Null),
             None,
         ),
-        Err(error) => (false, 0, Value::Null, Some(error.to_string())),
+        // Report the time actually spent: a cold-start timeout waited the
+        // full grace budget, and "took 0 ms" hides that from the operator.
+        Err(error) => (
+            false,
+            started.elapsed().as_millis().min(u64::MAX as u128) as u64,
+            Value::Null,
+            Some(error.to_string()),
+        ),
     };
     let key = ProcessorKey::new(plugin_id, processor_id);
     record_processor_metrics(metrics, &key, &outcome, duration_ms);

@@ -277,6 +277,31 @@ impl PluginManager {
         self.call_with_timeout(id, request, Duration::from_secs(30))
     }
 
+    /// Claims the cold-start grace for one process instance, if still
+    /// unclaimed, and returns the deadline the caller must enforce.
+    ///
+    /// Tokio-side callers race a deadline against the worker-side waiter, so
+    /// both must cover the same budget: without this, a fresh child still
+    /// building its engine (seconds) is failed by the steady-state descriptor
+    /// deadline (milliseconds) before the worker's own grace can warm it up.
+    /// Exactly one first call per generation wins the swap; the worker's swap
+    /// in [`Self::call_with_deadline`] then finds the grace already consumed,
+    /// so concurrent first calls never double-extend it.
+    pub fn claim_cold_start_grace(&self, id: &str, timeout: Duration) -> Duration {
+        let cold_process = self
+            .instances
+            .read()
+            .expect("plugin instances poisoned")
+            .get(id)
+            .filter(|instance| instance.kind == PluginRuntimeKind::Process)
+            .is_some_and(|instance| instance.cold.swap(false, Ordering::AcqRel));
+        if cold_process {
+            timeout.max(PROCESS_FIRST_CALL_GRACE)
+        } else {
+            timeout
+        }
+    }
+
     /// Calls one plugin instance. Calls stay serialized per instance through
     /// its worker queue, so a slow call delays (but never starves) later
     /// calls to the same plugin. Keep processor plugins fast and never

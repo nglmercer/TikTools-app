@@ -50,8 +50,10 @@ impl PluginInvoker {
 
     /// Starts `plugin_id` when needed, then invokes it with `request`. The
     /// Tokio deadline and the loader's worker deadline cover the same
-    /// `timeout`; whichever fires first wins, and a timeout never retires a
-    /// healthy instance (see `PluginManager::call_with_deadline`).
+    /// effective budget: the first call of a process generation claims the
+    /// loader's cold-start grace so a child still building its engine is not
+    /// failed by the steady-state `timeout`. Whichever deadline fires first
+    /// wins (see `PluginManager::call_with_deadline` for retire semantics).
     pub(crate) async fn call(
         &self,
         plugin_id: &str,
@@ -61,13 +63,14 @@ impl PluginInvoker {
         if let Err(error) = self.plugins.start(plugin_id) {
             return Err(InvokeError::Unavailable(error.to_string()));
         }
+        let effective = self.plugins.claim_cold_start_grace(plugin_id, timeout);
         let plugins = Arc::clone(&self.plugins);
         let plugin_id_owned = plugin_id.to_owned();
         let request_owned = request.clone();
         tokio::time::timeout(
-            timeout,
+            effective,
             tokio::task::spawn_blocking(move || {
-                plugins.call_with_timeout(&plugin_id_owned, &request_owned, timeout)
+                plugins.call_with_timeout(&plugin_id_owned, &request_owned, effective)
             }),
         )
         .await

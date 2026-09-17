@@ -335,6 +335,12 @@ async fn processor_timeout_passes_raw_event_through() {
             Ok(enrich_response(json!({}), json!({})))
         }),
     );
+    // The first call of a process generation claims cold-start grace, so it
+    // outlives its 5ms descriptor deadline and warms the worker instead of
+    // failing open.
+    let warmed = enrich(&harness, chat_event()).await;
+    assert!(warmed["intel"].get("processing").is_none());
+    // Steady-state calls enforce the descriptor deadline again.
     let event = chat_event();
     let enriched = enrich(&harness, event.clone()).await;
     assert_eq!(raw_fields(&enriched), raw_fields(&event));
@@ -342,6 +348,8 @@ async fn processor_timeout_passes_raw_event_through() {
     assert!(enriched["intel"].get("providers").is_none());
     let metrics = harness.metrics.lock().unwrap();
     let metric = &metrics[&ProcessorKey::new("slow", "slow.analyze")];
+    assert_eq!(metric.calls, 2);
+    assert_eq!(metric.successes, 1);
     assert_eq!(metric.timeouts, 1);
     assert_eq!(metric.failures, 1);
     drop(metrics);
