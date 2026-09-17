@@ -7,7 +7,10 @@ import type {
 } from '../shared/messages.ts';
 import type { JsonObject } from '../automation/types.ts';
 
-export type AppTab = 'feed' | 'points' | 'analytics' | 'connect' | 'behavior' | 'plugins' | 'settings';
+export type BuiltinAppTab = 'feed' | 'points' | 'analytics' | 'connect' | 'behavior' | 'plugins' | 'settings';
+
+/** Builtin tabs plus plugin page tabs (`plugin:<pluginId>:<pageId>`). */
+export type AppTab = BuiltinAppTab | `plugin:${string}:${string}`;
 
 export type ConnectionStatus =
   | 'idle'

@@ -118,6 +118,6 @@ export function schemaFromFields(type: ActionTypeDefinition): JsonObject {
 
 export function hintsFromFields(type: ActionTypeDefinition): JsonObject {
   const fields: JsonObject = {};
-  for (const field of type.fields ?? []) fields[field.key] = { kind: field.kind, placeholder: field.placeholder, template: field.template, advanced: field.advanced, hint: field.hint, showIf: field.showIf, options: field.options } as unknown as JsonValue;
+  for (const field of type.fields ?? []) fields[field.key] = { kind: field.kind, placeholder: field.placeholder, template: field.template, advanced: field.advanced, hint: field.hint, showIf: field.showIf, options: field.options, optionsFrom: field.optionsFrom } as unknown as JsonValue;
   return { fields };
 }

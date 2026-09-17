@@ -250,3 +250,140 @@ fn validates_optional_action_timeout_bounds() {
         );
     }
 }
+
+#[test]
+fn schema_v2_ignores_declarative_keys() {
+    // A v2 manifest carrying v3 keys keeps historical behavior: the keys are
+    // dropped, never validated, so old packages parse exactly as before.
+    let manifest = PluginManifest::from_json_str(
+        r#"{
+            "schemaVersion": 2,
+            "id": "legacy.http",
+            "name": "Legacy",
+            "version": "1.0.0",
+            "runtime": "process",
+            "entry": "legacy",
+            "http": {"baseUrl": "not a url", "auth": {"type": "bogus"}},
+            "templates": [{"id": "!!!"}],
+            "pages": [{"kind": "script"}],
+            "actionTypes": [{"id": "legacy.action", "http": {"path": "nope"}}]
+        }"#,
+    )
+    .unwrap();
+    assert!(manifest.http.is_none());
+    assert!(manifest.templates.is_empty());
+    assert!(manifest.pages.is_empty());
+    assert_eq!(manifest.action_types.len(), 1);
+}
+
+#[test]
+fn reads_declarative_manifest_without_entry() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{
+            "schemaVersion": 3,
+            "id": "sonicboom.server",
+            "name": "SonicBoom Server",
+            "version": "1.0.0",
+            "runtime": "declarative",
+            "capabilities": ["http.request"],
+            "http": {
+                "baseUrl": "{{ settings.serverUrl }}",
+                "auth": {"type": "bearer", "tokenSetting": "apiToken"},
+                "health": {"path": "/ready"}
+            },
+            "actionTypes": [{
+                "id": "sonicboom.server.speak",
+                "http": {"method": "POST", "path": "/api/tts/play"},
+                "optionSources": {"voice": {"path": "/v1/voices"}}
+            }],
+            "templates": [{
+                "id": "chat-tts",
+                "title": {"default": "Chat to TTS"},
+                "eventType": "tiktok.chat",
+                "requiredNodeTypes": ["trigger.event", "action.http"],
+                "workflow": {"nodes": [{"type": "trigger.event"}, {"type": "action.http"}]}
+            }],
+            "pages": [{
+                "id": "connection",
+                "title": {"default": "Connection"},
+                "sections": [{"kind": "connection"}]
+            }]
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(manifest.runtime, PluginRuntimeKind::Declarative);
+    assert!(manifest.entry.is_empty());
+    assert_eq!(manifest.trust, PluginTrust::Untrusted);
+    assert!(manifest.http.is_some());
+    assert_eq!(manifest.templates.len(), 1);
+    assert_eq!(manifest.pages.len(), 1);
+    assert!(manifest.validate_compatibility().is_ok());
+    assert!(validate_plugin_template(&manifest.templates[0]).is_ok());
+    assert!(validate_plugin_page(&manifest.pages[0]).is_ok());
+}
+
+#[test]
+fn rejects_malformed_declarative_blocks() {
+    // Bad base URL scheme.
+    assert!(PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"bad","name":"Bad","version":"1.0.0","runtime":"declarative","http":{"baseUrl":"ftp://x"}}"#,
+    )
+    .is_err());
+    // Unknown auth type.
+    assert!(PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"bad","name":"Bad","version":"1.0.0","runtime":"declarative","http":{"baseUrl":"http://localhost:3000","auth":{"type":"oauth"}}}"#,
+    )
+    .is_err());
+    // Absolute action path.
+    assert!(PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"bad","name":"Bad","version":"1.0.0","runtime":"declarative","actionTypes":[{"id":"bad.action","http":{"path":"https://evil.example/x"}}]}"#,
+    )
+    .is_err());
+    // Template without workflow nodes.
+    assert!(validate_plugin_template(&serde_json::json!({
+        "id": "empty",
+        "title": {"default": "Empty"},
+        "eventType": "tiktok.chat",
+        "requiredNodeTypes": ["trigger.event"],
+        "workflow": {"nodes": []}
+    }))
+    .is_err());
+    // Unknown page section kinds never reach the WebView.
+    for kind in ["html", "script", "component", "iframe"] {
+        assert!(
+            validate_plugin_page(&serde_json::json!({
+                "id": "page",
+                "title": {"default": "Page"},
+                "sections": [{"kind": kind}]
+            }))
+            .is_err(),
+            "section kind {kind} should be rejected"
+        );
+    }
+}
+
+#[test]
+fn shipped_sonicboom_example_parses() {
+    // Conformance gate for examples/sonicboom-server/plugin.json: the
+    // declarative example the host ships must always parse and validate.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/sonicboom-server/plugin.json");
+    if !path.exists() {
+        // The crate is consumed outside the workspace; nothing to gate.
+        return;
+    }
+    let input = std::fs::read_to_string(&path).unwrap();
+    let manifest = PluginManifest::from_json_str(&input).unwrap();
+    assert_eq!(manifest.id, "sonicboom.server");
+    assert_eq!(manifest.runtime, PluginRuntimeKind::Declarative);
+    assert!(manifest.validate_compatibility().is_ok());
+    assert!(validate_http_config(manifest.http.as_ref().unwrap()).is_ok());
+    assert_eq!(manifest.action_types.len(), 1);
+    assert!(validate_declarative_action(&manifest.action_types[0]).is_ok());
+    assert_eq!(manifest.templates.len(), 1);
+    assert!(validate_plugin_template(&manifest.templates[0]).is_ok());
+    assert_eq!(manifest.pages.len(), 2);
+    for page in &manifest.pages {
+        assert!(validate_plugin_page(page).is_ok());
+    }
+}

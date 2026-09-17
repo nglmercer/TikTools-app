@@ -108,6 +108,40 @@ fn scan_preserves_the_authoritative_running_instance_state() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[test]
+fn declarative_plugins_start_without_an_entry_and_reject_calls() {
+    let root = temp_root();
+    fs::create_dir_all(root.join("decl")).unwrap();
+    fs::write(
+        root.join("decl/plugin.json"),
+        r#"{"schemaVersion":3,"id":"decl","name":"Decl","version":"1.0.0","runtime":"declarative"}"#,
+    )
+    .unwrap();
+
+    let manager = PluginManager::with_runtimes(
+        plugin_roots(temp_root(), temp_root(), Some(root.clone())),
+        RuntimeRegistry::new(),
+    );
+    let plugins = manager.scan().unwrap();
+    assert_eq!(plugins.len(), 1);
+    assert!(plugins[0].available);
+
+    manager.start("decl").unwrap();
+    assert!(manager.get("decl").unwrap().running);
+    let error = manager
+        .call("decl", &serde_json::json!({"jsonrpc": "2.0"}))
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("interpreted by the host"),
+        "unexpected error: {error}"
+    );
+    manager.stop("decl").unwrap();
+    assert!(!manager.get("decl").unwrap().running);
+
+    let _ = fs::remove_dir_all(root);
+}
+
 type Handler = Arc<dyn Fn(&[u8]) -> Result<Vec<u8>, PluginLoaderError> + Send + Sync>;
 
 struct ScriptedRuntime {
@@ -177,6 +211,7 @@ fn scripted_manager_with_kind(
         PluginRuntimeKind::Native => "native",
         PluginRuntimeKind::Wasm => "wasm",
         PluginRuntimeKind::Process => "process",
+        PluginRuntimeKind::Declarative => "declarative",
     };
     for id in ids {
         write_plugin_with_runtime(&root, id, runtime_name);

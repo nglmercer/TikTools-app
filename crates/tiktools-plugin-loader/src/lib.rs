@@ -5,6 +5,7 @@
 //! runtime. Native plugins are trusted in-process code; process plugins are
 //! isolated executables with a crash boundary, not an OS sandbox.
 
+mod declarative;
 mod discovery;
 #[cfg(feature = "plugin-install")]
 mod installer;
@@ -17,6 +18,7 @@ mod types;
 mod wasm;
 mod worker;
 
+pub use declarative::DeclarativePluginRuntime;
 pub use discovery::plugin_roots;
 #[cfg(feature = "plugin-install")]
 pub use installer::{InstalledPluginPackage, PluginInstaller};

@@ -63,9 +63,9 @@ use crate::{
     paths::AppPaths,
     services::{
         builtin_action_types, builtin_node_catalog, builtin_translations,
-        media_selection_from_path_with_kind, validate_audio_file_ref,
-        validate_media_picker_options, AppStateService, AutomationService, AwardOptions,
-        CapabilityBroker, LiveService, PointAction, PointsService,
+        media_selection_from_path_with_kind, option_sources::OptionSourceService,
+        validate_audio_file_ref, validate_media_picker_options, AppStateService, AutomationService,
+        AwardOptions, CapabilityBroker, LiveService, PointAction, PointsService,
     },
 };
 
@@ -120,6 +120,7 @@ pub struct AppCore {
     connection_context: RwLock<Option<LiveContext>>,
     #[cfg(feature = "native-tiktok")]
     live_pump_started: AtomicBool,
+    option_sources: OptionSourceService,
     plugin_health: Mutex<BTreeMap<String, PluginHealth>>,
     plugin_activation: RwLock<BTreeMap<String, crate::plugin_runtime::PluginActivation>>,
     processor_health: Mutex<BTreeMap<crate::plugin_processors::ProcessorKey, PluginHealth>>,
@@ -238,6 +239,7 @@ impl AppCore {
             connection_context: RwLock::new(None),
             #[cfg(feature = "native-tiktok")]
             live_pump_started: AtomicBool::new(false),
+            option_sources: OptionSourceService::new(),
             plugin_health: Mutex::new(BTreeMap::new()),
             plugin_activation: RwLock::new(plugin_activation),
             processor_health: Mutex::new(BTreeMap::new()),

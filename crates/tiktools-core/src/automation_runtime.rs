@@ -528,72 +528,25 @@ impl AppCore {
             }
             return Ok(summary);
         }
-        let http_client = self.http_client.as_ref().ok_or_else(|| {
-            self.http_client_error.clone().unwrap_or_else(|| {
-                "HTTP automation is disabled because its hardened client is unavailable.".to_owned()
-            })
-        })?;
-        let mut request = http_client.request(method.clone(), url.clone());
-        for (key, value) in rendered_headers {
-            request = request.header(key, value);
-        }
-        if let Some(body) = body.as_deref() {
-            request = request.body(body.to_owned());
-        }
         let timeout_ms = number_value(config.get("timeoutMs"))
             .unwrap_or(5_000.0)
             .clamp(100.0, 120_000.0) as u64;
-        let started = now_millis();
-        let response = request
-            .timeout(std::time::Duration::from_millis(timeout_ms))
-            .send()
-            .await
-            .map_err(|error| {
-                if error.is_timeout() {
-                    format!("HTTP request timed out after {timeout_ms} ms.")
-                } else {
-                    format!("HTTP request failed: {error}")
-                }
-            })?;
-        if response.url() != &url && response.url().host_str() != Some(configured_host.as_str()) {
-            return Err("HTTP redirect changed the destination host.".to_owned());
-        }
-        if response.status().is_redirection() && response.headers().get("location").is_some() {
-            return Err("HTTP redirects are blocked by policy.".to_owned());
-        }
-        let status = response.status().as_u16();
-        let response_url = response.url().to_string();
-        let content_type = response
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default()
-            .to_owned();
-        if response
-            .content_length()
-            .is_some_and(|length| length > MAX_HTTP_RESPONSE_BYTES as u64)
-        {
-            return Err("HTTP response exceeds the 2 MiB limit.".to_owned());
-        }
-        let mut response = response;
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response
-            .chunk()
-            .await
-            .map_err(|error| format!("could not read HTTP response: {error}"))?
-        {
-            if bytes.len().saturating_add(chunk.len()) > MAX_HTTP_RESPONSE_BYTES {
-                return Err("HTTP response exceeds the 2 MiB limit.".to_owned());
-            }
-            bytes.extend_from_slice(&chunk);
-        }
-        let body = if content_type.to_ascii_lowercase().contains("json") {
-            serde_json::from_slice::<Value>(&bytes)
-                .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()))
-        } else {
-            Value::String(String::from_utf8_lossy(&bytes).into_owned())
-        };
-        let elapsed = now_millis().saturating_sub(started);
+        let sent = self
+            .send_hardened_http_request(
+                &HardenedHttpRequest {
+                    method: method_name.clone(),
+                    url: url.to_string(),
+                    headers: rendered_headers,
+                    body,
+                    timeout_ms,
+                },
+                &configured_host,
+            )
+            .await?;
+        let status = sent.status;
+        let response_url = sent.response_url;
+        let body = sent.body;
+        let elapsed = sent.elapsed_ms;
         let log = format!("{method_name} {configured_host} → {status} ({elapsed} ms)");
         tracing::info!(target: "tiktools::automation", message = %log, "HTTP action completed");
         logs.push(log);
@@ -635,6 +588,121 @@ impl AppCore {
         _allowed_hosts: Option<&[String]>,
         _test: bool,
     ) -> Result<String, String> {
+        Err("HTTP action execution requires the host HTTP capability.".to_owned())
+    }
+}
+
+/// A fully rendered request for the shared hardened sender. Callers validate
+/// the URL with the HTTP policy helpers before sending; the sender re-checks
+/// the destination host after redirects.
+#[cfg_attr(not(feature = "http"), allow(dead_code))]
+pub(super) struct HardenedHttpRequest {
+    pub method: String,
+    pub url: String,
+    pub headers: Vec<(String, String)>,
+    pub body: Option<String>,
+    pub timeout_ms: u64,
+}
+
+#[cfg_attr(not(feature = "http"), allow(dead_code))]
+pub(super) struct HardenedHttpResponse {
+    pub status: u16,
+    pub response_url: String,
+    pub body: Value,
+    pub elapsed_ms: u64,
+}
+
+impl AppCore {
+    /// Sends one request through the hardened client (no redirects, 2 MiB
+    /// response cap, host re-check). Shared by automation HTTP actions and
+    /// declarative plugin fetches so both enforce identical transport policy.
+    #[cfg(feature = "http")]
+    pub(super) async fn send_hardened_http_request(
+        &self,
+        request: &HardenedHttpRequest,
+        configured_host: &str,
+    ) -> Result<HardenedHttpResponse, String> {
+        let http_client = self.http_client.as_ref().ok_or_else(|| {
+            self.http_client_error.clone().unwrap_or_else(|| {
+                "HTTP automation is disabled because its hardened client is unavailable.".to_owned()
+            })
+        })?;
+        let method = reqwest::Method::from_bytes(request.method.as_bytes())
+            .map_err(|_| format!("HTTP method is invalid: {}", request.method))?;
+        let url = reqwest::Url::parse(&request.url)
+            .map_err(|_| "HTTP URL is invalid after template rendering.".to_owned())?;
+        let mut outgoing = http_client.request(method, url.clone());
+        for (key, value) in &request.headers {
+            outgoing = outgoing.header(key, value);
+        }
+        if let Some(body) = request.body.as_deref() {
+            outgoing = outgoing.body(body.to_owned());
+        }
+        let timeout_ms = request.timeout_ms;
+        let started = now_millis();
+        let response = outgoing
+            .timeout(std::time::Duration::from_millis(timeout_ms))
+            .send()
+            .await
+            .map_err(|error| {
+                if error.is_timeout() {
+                    format!("HTTP request timed out after {timeout_ms} ms.")
+                } else {
+                    format!("HTTP request failed: {error}")
+                }
+            })?;
+        if response.url() != &url && response.url().host_str() != Some(configured_host) {
+            return Err("HTTP redirect changed the destination host.".to_owned());
+        }
+        if response.status().is_redirection() && response.headers().get("location").is_some() {
+            return Err("HTTP redirects are blocked by policy.".to_owned());
+        }
+        let status = response.status().as_u16();
+        let response_url = response.url().to_string();
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_owned();
+        if response
+            .content_length()
+            .is_some_and(|length| length > MAX_HTTP_RESPONSE_BYTES as u64)
+        {
+            return Err("HTTP response exceeds the 2 MiB limit.".to_owned());
+        }
+        let mut response = response;
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|error| format!("could not read HTTP response: {error}"))?
+        {
+            if bytes.len().saturating_add(chunk.len()) > MAX_HTTP_RESPONSE_BYTES {
+                return Err("HTTP response exceeds the 2 MiB limit.".to_owned());
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        let body = if content_type.to_ascii_lowercase().contains("json") {
+            serde_json::from_slice::<Value>(&bytes)
+                .unwrap_or_else(|_| Value::String(String::from_utf8_lossy(&bytes).into_owned()))
+        } else {
+            Value::String(String::from_utf8_lossy(&bytes).into_owned())
+        };
+        Ok(HardenedHttpResponse {
+            status,
+            response_url,
+            body,
+            elapsed_ms: now_millis().saturating_sub(started),
+        })
+    }
+
+    #[cfg(not(feature = "http"))]
+    pub(super) async fn send_hardened_http_request(
+        &self,
+        _request: &HardenedHttpRequest,
+        _configured_host: &str,
+    ) -> Result<HardenedHttpResponse, String> {
         Err("HTTP action execution requires the host HTTP capability.".to_owned())
     }
 }

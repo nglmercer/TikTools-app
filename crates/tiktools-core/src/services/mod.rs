@@ -2,15 +2,20 @@ mod app_state;
 mod automation;
 mod capabilities;
 mod catalog;
+pub(crate) mod declarative_http;
 mod live;
 mod media;
+pub(crate) mod option_sources;
 mod points;
 mod script;
 
 pub use app_state::AppStateService;
 pub(crate) use automation::read_event_path;
 pub use automation::AutomationService;
-pub use capabilities::{CapabilityBroker, CapabilityError};
+pub use capabilities::{
+    redact_secret_settings, secret_setting_keys, CapabilityBroker, CapabilityError,
+    SECRET_SETTING_PLACEHOLDER,
+};
 pub use catalog::{builtin_action_types, builtin_node_catalog, builtin_translations};
 pub use live::LiveService;
 pub use media::{

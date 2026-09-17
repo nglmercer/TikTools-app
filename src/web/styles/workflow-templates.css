@@ -67,6 +67,10 @@
   color: var(--tt-danger);
 }
 
+.template-card__plugin {
+  color: var(--tt-muted, #8a8f9e);
+}
+
 .template-config {
   display: flex;
   flex-direction: column;

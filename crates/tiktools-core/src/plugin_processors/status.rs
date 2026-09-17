@@ -20,6 +20,9 @@ pub(crate) fn processor_status_entries(
     let mut entries = Vec::new();
     for plugin in plugins.list() {
         let plugin_id = plugin.manifest.id.clone();
+        if plugin.manifest.runtime == tiktools_plugin_api::PluginRuntimeKind::Declarative {
+            continue;
+        }
         let declares_enrich = capabilities
             .require_capability(
                 &plugin.manifest,

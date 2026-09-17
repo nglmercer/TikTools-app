@@ -174,6 +174,7 @@ export type PageMessage =
   | { type: 'get-plugin-settings'; id: string }
   | { type: 'save-plugin-settings'; id: string; values: PluginSettingValues }
   | { type: 'get-action-options'; source: string }
+  | { type: 'test-plugin-connection'; id: string }
   | { type: 'test-processor'; pluginId: string; processorId: string; event: AutomationEvent }
   | { type: 'get-processor-status' }
   | {
@@ -268,7 +269,8 @@ export type HostMessage =
       progress?: number;
       message: string;
     }
-  | { type: 'action-options'; source: string; options: ActionOptionItem[] }
+  | { type: 'action-options'; source: string; options: ActionOptionItem[]; error?: string }
+  | { type: 'plugin-connection-result'; id: string; ok: boolean; latencyMs: number; error?: string }
   | { type: 'plugin-install-result'; success: true; id: string; version: string; replaced: boolean }
   | {
       type: 'plugin-install-result';

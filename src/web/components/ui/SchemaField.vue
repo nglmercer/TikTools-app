@@ -21,6 +21,7 @@ import { getFetchUrlTemplates } from '../node-editor/template-suggestions.ts';
 import type { AutocompleteItem } from '../autocomplete/index.ts';
 import type { Locale } from '../../i18n.ts';
 import type { JsonObject, JsonValue } from '../../../automation/types.ts';
+import { isSecretField } from '../../../automation/plugins/declarative.ts';
 import type { OpenMediaPicker } from '../../../shared/messages.ts';
 import { localized, toDisplayValue, formatJson, type FieldOption } from './schema-form-helpers.ts';
 import { KeyValueEditor } from './KeyValueEditor.vue';
@@ -145,7 +146,7 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
     );
   }
 
-  if (schema.format === 'password' || hint?.kind === 'password') {
+  if (schema.format === 'password' || hint?.kind === 'password' || isSecretField(schema, hint)) {
     return (
       <div class="plg-field">
         <PasswordInput

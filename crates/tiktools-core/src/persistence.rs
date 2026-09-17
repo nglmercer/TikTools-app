@@ -75,6 +75,8 @@ impl AppCore {
         let mut action_types = builtin_action_types();
         let mut event_types: std::collections::BTreeMap<String, Value> =
             std::collections::BTreeMap::new();
+        let mut plugin_templates = Vec::new();
+        let mut plugin_pages = Vec::new();
         let mut plugins = Vec::new();
         let persisted_plugins = object
             .get("plugins")
@@ -138,7 +140,8 @@ impl AppCore {
                     "permissions": plugin.manifest.permissions,
                     "actionTypeIds": action_ids,
                     "eventTypeIds": event_type_ids,
-                    "hasSettings": plugin.manifest.settings_schema.is_some()
+                    "hasSettings": plugin.manifest.settings_schema.is_some(),
+                    "hasConnectionProbe": plugin.manifest.http.as_ref().and_then(|http| http.get("health")).is_some()
                 },
                 "installed": installed,
                 "enabled": enabled,
@@ -146,6 +149,56 @@ impl AppCore {
                 "available": plugin.available,
                 "unavailableReason": plugin.reason
             }));
+
+            // Templates and pages surface only while their plugin is
+            // installed, enabled, and available, so disabling or uninstalling
+            // a plugin removes its modal entries and nav tabs on the next
+            // snapshot.
+            if installed && enabled && plugin.available {
+                for template in &plugin.manifest.templates {
+                    if tiktools_plugin_api::manifest::validate_plugin_template(template).is_err() {
+                        tracing::warn!(plugin = %plugin.manifest.id, "plugin template is invalid; skipped");
+                        continue;
+                    }
+                    let Some(mut stamped) = template.as_object().cloned() else {
+                        continue;
+                    };
+                    let namespaced = stamped
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .map(|id| format!("{}/{}", plugin.manifest.id, id));
+                    if let Some(namespaced) = namespaced {
+                        stamped.insert("id".to_owned(), Value::String(namespaced));
+                    }
+                    stamped.insert(
+                        "pluginId".to_owned(),
+                        Value::String(plugin.manifest.id.clone()),
+                    );
+                    stamped.insert(
+                        "source".to_owned(),
+                        json!({"kind": "plugin", "pluginId": plugin.manifest.id}),
+                    );
+                    plugin_templates.push(Value::Object(stamped));
+                }
+                for page in &plugin.manifest.pages {
+                    if tiktools_plugin_api::manifest::validate_plugin_page(page).is_err() {
+                        tracing::warn!(plugin = %plugin.manifest.id, "plugin page is invalid; skipped");
+                        continue;
+                    }
+                    let Some(mut stamped) = page.as_object().cloned() else {
+                        continue;
+                    };
+                    stamped.insert(
+                        "pluginId".to_owned(),
+                        Value::String(plugin.manifest.id.clone()),
+                    );
+                    stamped.insert(
+                        "source".to_owned(),
+                        json!({"kind": "plugin", "pluginId": plugin.manifest.id}),
+                    );
+                    plugin_pages.push(Value::Object(stamped));
+                }
+            }
 
             for descriptor in &plugin.manifest.action_types {
                 let Some(mut descriptor) = descriptor.as_object().cloned() else {
@@ -188,6 +241,8 @@ impl AppCore {
         );
         object.insert("eventTypes".to_owned(), Value::Array(event_types));
         object.insert("plugins".to_owned(), Value::Array(plugins));
+        object.insert("pluginTemplates".to_owned(), Value::Array(plugin_templates));
+        object.insert("pluginPages".to_owned(), Value::Array(plugin_pages));
         object.insert("translations".to_owned(), builtin_translations());
     }
 
@@ -204,7 +259,10 @@ impl AppCore {
             });
             return;
         };
-        match self.capabilities.load_plugin_settings(&plugin.manifest) {
+        match self
+            .capabilities
+            .load_plugin_settings_for_display(&plugin.manifest)
+        {
             Ok(values) => self.emit(HostMessage::PluginSettings {
                 id: id.to_owned(),
                 schema,
@@ -242,6 +300,9 @@ impl AppCore {
                 // Processors receive settings inside each enrich request; the
                 // revision bump makes the next call reload this file.
                 self.bump_processor_settings_revision(id);
+                // A server URL or token may have changed what option
+                // endpoints return, so cached option lists are dropped.
+                self.option_sources.clear();
                 self.emit(HostMessage::PluginSettings {
                     id: id.to_owned(),
                     schema,

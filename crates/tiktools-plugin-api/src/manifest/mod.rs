@@ -22,5 +22,6 @@ pub use types::{
 };
 pub use validation::{
     current_platform, current_target, is_safe_relative_path, is_valid_event_type,
-    is_valid_plugin_id, validate_action_type, validate_event_type, ManifestError,
+    is_valid_plugin_id, validate_action_type, validate_declarative_action, validate_event_type,
+    validate_http_config, validate_plugin_page, validate_plugin_template, ManifestError,
 };

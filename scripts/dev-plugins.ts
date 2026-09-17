@@ -44,20 +44,42 @@ async function exists(path: string): Promise<boolean> {
 async function stageExample(exampleDirectory: string): Promise<boolean> {
   const manifestPath = join(exampleDirectory, 'plugin.json');
   const cargoManifestPath = join(exampleDirectory, 'Cargo.toml');
-  if (!(await exists(manifestPath)) || !(await exists(cargoManifestPath))) {
+  if (!(await exists(manifestPath))) {
     return false;
   }
 
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ExampleManifest;
   const id = requiredString(manifest.id, 'id', manifestPath);
-  const sourceEntry = requiredString(manifest.entry, 'entry', manifestPath).replaceAll('\\', '/');
   const runtime = requiredString(manifest.runtime, 'runtime', manifestPath);
+  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(id)) {
+    throw new Error(`${manifestPath} has an unsafe plugin id: ${id}`);
+  }
+  // Declarative packages ship no executable entry: the manifest alone is
+  // staged, with no cargo build.
+  if (runtime === 'declarative') {
+    if (await exists(cargoManifestPath)) {
+      throw new Error(`${manifestPath} is declarative and must not ship a Cargo.toml`);
+    }
+    console.log(`Staging declarative development plugin ${id}...`);
+    const packageDirectory = join(developmentPluginRoot, id);
+    await rm(packageDirectory, { recursive: true, force: true });
+    await mkdir(packageDirectory, { recursive: true });
+    await writeFile(join(packageDirectory, 'plugin.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+    for (const directory of ['assets', 'dist', 'locales']) {
+      const sourceDirectory = join(exampleDirectory, directory);
+      if (await exists(sourceDirectory)) {
+        await cp(sourceDirectory, join(packageDirectory, directory), { recursive: true });
+      }
+    }
+    return true;
+  }
+  if (!(await exists(cargoManifestPath))) {
+    return false;
+  }
+  const sourceEntry = requiredString(manifest.entry, 'entry', manifestPath).replaceAll('\\', '/');
   if (runtime !== 'process') {
     console.log(`Skipping ${id}: development bootstrap only builds process examples.`);
     return false;
-  }
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(id)) {
-    throw new Error(`${manifestPath} has an unsafe plugin id: ${id}`);
   }
 
   console.log(`Building development plugin ${id}...`);

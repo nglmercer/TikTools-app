@@ -10,6 +10,10 @@ pub(crate) struct PluginActionDescriptor {
     pub(crate) required_capabilities: Vec<String>,
     #[serde(default, rename = "timeoutMs")]
     pub(crate) timeout_ms: Option<u64>,
+    /// Declarative HTTP block (schema v3 only). Present means the host
+    /// executes this action itself instead of calling into the plugin.
+    #[serde(default)]
+    pub(crate) http: Option<Value>,
 }
 
 impl PluginActionDescriptor {
@@ -96,6 +100,22 @@ impl AppCore {
                     tiktools_plugin_api::capabilities::AUDIO_OUTPUT_PERMISSION,
                 )
                 .map_err(|error| error.to_string())?;
+        }
+        // Declarative actions (schema v3 `http` block) run in the host
+        // through the automation HTTP engine: no process call, no foreign
+        // code. The executor describes test runs without sending.
+        if plugin.manifest.schema_version >= 3 {
+            if let Some(action_http) = descriptor.http.as_ref() {
+                self.capabilities
+                    .require_capability(
+                        &plugin.manifest,
+                        crate::services::declarative_http::HTTP_REQUEST_CAPABILITY,
+                    )
+                    .map_err(|error| error.to_string())?;
+                return self
+                    .execute_declarative_action(&plugin, action_http, action, event, logs, test)
+                    .await;
+            }
         }
         if test {
             return Ok(format!(
@@ -267,6 +287,11 @@ impl AppCore {
             .list()
             .into_iter()
             .filter(|plugin| self.plugin_ready(&plugin.manifest.id))
+            // Declarative packages publish no spontaneous events; the host
+            // interprets their actions on demand instead of polling them.
+            .filter(|plugin| {
+                plugin.manifest.runtime != tiktools_plugin_api::PluginRuntimeKind::Declarative
+            })
             .filter_map(|plugin| {
                 let declared = declared_event_types(&plugin.manifest);
                 let reports_progress = self

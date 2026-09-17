@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue';
-import { t, type Locale } from '../i18n.ts';
+import { i18nText, t, type Locale } from '../i18n.ts';
 import type { AppTab } from '../types.ts';
+import type { PluginPageDescriptor } from '../../automation/behavior/types.ts';
+import { pluginNavId } from '../../automation/plugins/declarative.ts';
 import { Tooltip } from './ui/Tooltip.vue';
+import { Icon, readIconName } from './icons/index.ts';
 import {
   IconBarChart,
   IconChat,
@@ -16,6 +19,7 @@ import {
 type NavigationRailProps = {
   locale: Locale;
   activeTab: AppTab;
+  pluginPages: PluginPageDescriptor[];
   onTabChange: (tab: AppTab) => void;
 };
 
@@ -24,10 +28,10 @@ const props = defineProps<NavigationRailProps>();
 type NavigationTab = {
   id: AppTab;
   tooltip: string;
-  icon: Component;
+  icon: Component | string;
 };
 
-const navTabs = computed<NavigationTab[]>(() => [
+const builtinTabs = computed<NavigationTab[]>(() => [
   { id: 'feed', tooltip: t(props.locale, 'tabFeed'), icon: IconChat },
   { id: 'points', tooltip: t(props.locale, 'tabPoints'), icon: IconCoins },
   { id: 'analytics', tooltip: t(props.locale, 'tabAnalytics'), icon: IconBarChart },
@@ -36,6 +40,19 @@ const navTabs = computed<NavigationTab[]>(() => [
   { id: 'plugins', tooltip: t(props.locale, 'tabPlugins'), icon: IconPlugins },
   { id: 'settings', tooltip: t(props.locale, 'tabSettings'), icon: IconSettings },
 ]);
+
+/**
+ * Plugin page tabs appended after the builtins. Icons pass through the
+ * registry allowlist (unknown manifest names fall back to the plugin glyph),
+ * and labels are manifest data rendered as tooltip text only.
+ */
+const pluginTabs = computed<NavigationTab[]>(() => props.pluginPages.map((page) => ({
+  id: pluginNavId(page.pluginId, page.id),
+  tooltip: i18nText(props.locale, page.title),
+  icon: readIconName(page.icon) ?? 'plugin',
+})));
+
+const navTabs = computed<NavigationTab[]>(() => [...builtinTabs.value, ...pluginTabs.value]);
 </script>
 
 <template>
@@ -53,7 +70,8 @@ const navTabs = computed<NavigationTab[]>(() => [
         :aria-current="props.activeTab === tab.id ? 'page' : undefined"
         @click="props.onTabChange(tab.id)"
       >
-        <component :is="tab.icon" />
+        <Icon v-if="typeof tab.icon === 'string'" :name="tab.icon" />
+        <component v-else :is="tab.icon" />
       </button>
     </Tooltip>
   </nav>

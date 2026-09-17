@@ -36,6 +36,8 @@ type AutomationsViewProps = {
   locale: Locale;
   workflows: AutomationWorkflowRecord[];
   nodes: NodeDefinition[];
+  /** Host-stamped plugin templates forwarded to the template modal. */
+  pluginTemplates?: unknown[];
   error?: string;
   scriptAnalysis?: AutomationScriptAnalysis;
   lastEvent?: AutomationEvent;
@@ -58,7 +60,7 @@ type WorkflowConfirmState =
   | { kind: 'delete'; id: string; name: string };
 
 export const AutomationsView = defineVueComponent<AutomationsViewProps>(
-  ['locale', 'workflows', 'nodes', 'error', 'scriptAnalysis', 'lastEvent', 'lastEventCapturedAt', 'onRefresh', 'onSave', 'onDelete', 'onSetEnabled', 'onAnalyzeScript', 'onOpenMediaPicker'],
+  ['locale', 'workflows', 'nodes', 'pluginTemplates', 'error', 'scriptAnalysis', 'lastEvent', 'lastEventCapturedAt', 'onRefresh', 'onSave', 'onDelete', 'onSetEnabled', 'onAnalyzeScript', 'onOpenMediaPicker'],
   (props) => {
   const initialRecord = props.workflows[0];
   const initialGraph = initialRecord ? prepareGraph(initialRecord.graph, props.nodes) : null;
@@ -377,7 +379,7 @@ export const AutomationsView = defineVueComponent<AutomationsViewProps>(
       </div>
 
       {wizard ? <WorkflowWizardModal locale={locale} onClose={() => { wizardOpen.value = false; }} onCreate={handleCreateWorkflow} /> : null}
-      {template ? <WorkflowTemplateModal locale={locale} definitions={nodes} onClose={() => { templateOpen.value = false; }} onCreate={handleCreateFromTemplate} onOpenMediaPicker={props.onOpenMediaPicker} /> : null}
+      {template ? <WorkflowTemplateModal locale={locale} definitions={nodes} pluginTemplates={props.pluginTemplates} onClose={() => { templateOpen.value = false; }} onCreate={handleCreateFromTemplate} onOpenMediaPicker={props.onOpenMediaPicker} /> : null}
       {picker ? <NodePickerModal locale={locale} definitions={nodes} onClose={() => { pickerOpen.value = false; }} onSelect={handleAddNode} /> : null}
       {configuringNode ? (
         <NodeConfigModal

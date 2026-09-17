@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { computed, reactive, type ComputedRef } from 'vue';
+import { parsePluginNavId } from '../automation/plugins/declarative.ts';
+import type { PluginPageDescriptor, PluginStatus } from '../automation/behavior/types.ts';
+import { i18nText } from './i18n.ts';
 import { AnalyticsView } from './views/analytics-view.vue';
 import { BehaviorView } from './views/behavior-view.vue';
 import { ConnectView } from './views/connect-view.vue';
 import { FeedView } from './views/feed-view.vue';
+import { PluginPageView } from './views/plugin-page-view.vue';
 import { PluginsView } from './views/plugins-view.vue';
 import { PointsView } from './views/points-view.vue';
 import { SettingsView } from './views/settings-view.vue';
@@ -13,7 +17,27 @@ import PluginProgressNotification from './components/plugin-progress-notificatio
 import DialogHost from './components/ui/dialog-host.vue';
 import { useAppController } from './composables/useAppController.ts';
 
-const app = reactive(useAppController());
+const controller = useAppController();
+const app = reactive(controller);
+
+// Read through the raw controller refs (not the reactive proxy) so these
+// stay shallow for the type checker.
+const activePluginPage: ComputedRef<PluginPageDescriptor | undefined> = computed(() => {
+  const parsed = parsePluginNavId(controller.activeTab.value);
+  if (!parsed) return undefined;
+  // Annotated locals keep the generic-inference chain shallow for vue-tsc.
+  const pages: PluginPageDescriptor[] = controller.pluginPages.value;
+  return pages.find(
+    (page) => page.pluginId === parsed.pluginId && page.id === parsed.pageId,
+  );
+});
+const activePluginName: ComputedRef<string> = computed(() => {
+  const page = activePluginPage.value;
+  if (!page) return '';
+  const plugins: PluginStatus[] = controller.behavior.value.plugins;
+  const plugin = plugins.find((entry) => entry.descriptor.id === page.pluginId);
+  return plugin ? i18nText(controller.locale.value, plugin.descriptor.name) : page.pluginId;
+});
 </script>
 <template>
   <div class="app-shell">
@@ -38,6 +62,7 @@ const app = reactive(useAppController());
       <NavigationRail
         :locale="app.locale"
         :active-tab="app.activeTab"
+        :plugin-pages="app.pluginPages"
         :on-tab-change="app.setActiveTab"
       />
 
@@ -99,6 +124,7 @@ const app = reactive(useAppController());
         :on-open-plugins="app.openPlugins"
         :on-open-media-picker="app.openMediaPicker"
         :action-options="app.actionOptions"
+        :action-option-errors="app.actionOptionErrors"
         :on-get-action-options="app.handleGetActionOptions"
       />
 
@@ -115,6 +141,10 @@ const app = reactive(useAppController());
         :settings="app.pluginSettings"
         :on-get-settings="app.handleGetPluginSettings"
         :on-save-settings="app.handleSavePluginSettings"
+        :action-options="app.actionOptions"
+        :on-get-action-options="app.handleGetActionOptions"
+        :connections="app.pluginConnections"
+        :on-test-connection="app.handleTestPluginConnection"
         :on-open-media-picker="app.openMediaPicker"
         :on-install-plugin="app.handleInstallPlugin"
         :plugin-install-state="app.pluginInstallState"
@@ -147,6 +177,23 @@ const app = reactive(useAppController());
         :theme="app.theme"
         :on-locale-change="app.setLocale"
         :on-theme-change="app.setTheme"
+      />
+
+      <PluginPageView
+        v-else-if="activePluginPage"
+        :key="activePluginPage.pluginId + ':' + activePluginPage.id"
+        :locale="app.locale"
+        :page="activePluginPage"
+        :plugin-name="activePluginName"
+        :settings-state="app.pluginSettings[activePluginPage.pluginId]"
+        :connection="app.pluginConnections[activePluginPage.pluginId]"
+        :action-options="app.actionOptions"
+        :action-option-errors="app.actionOptionErrors"
+        :on-get-settings="app.handleGetPluginSettings"
+        :on-save-settings="app.handleSavePluginSettings"
+        :on-get-action-options="app.handleGetActionOptions"
+        :on-test-connection="app.handleTestPluginConnection"
+        :on-open-media-picker="app.openMediaPicker"
       />
     </div>
   </div>

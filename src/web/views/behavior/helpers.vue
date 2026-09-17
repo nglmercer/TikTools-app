@@ -20,23 +20,14 @@ import type {
   PluginStatus,
 } from '../../../automation/behavior/types.ts';
 import type { AutomationEventType, JsonObject, JsonValue } from '../../../automation/types.ts';
+import { optionFields } from '../../../automation/plugins/declarative.ts';
 import { i18nText, t, type Locale } from '../../i18n.ts';
 
 export type SortMode = 'name' | 'name-desc' | 'enabled' | 'disabled';
 
 /** Fields whose select options come from the host on demand (`optionsFrom` in uiHints). */
 export function fieldsWithOptions(uiHints?: JsonObject): Array<{ key: string; source: string }> {
-  if (!uiHints || typeof uiHints !== 'object' || Array.isArray(uiHints)) return [];
-  const fields = uiHints.fields;
-  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return [];
-  const result: Array<{ key: string; source: string }> = [];
-  for (const [key, hint] of Object.entries(fields as JsonObject)) {
-    if (hint && typeof hint === 'object' && !Array.isArray(hint)) {
-      const source = (hint as JsonObject).optionsFrom;
-      if (typeof source === 'string' && /^[a-z][a-z0-9._-]{0,63}$/.test(source)) result.push({ key, source });
-    }
-  }
-  return result;
+  return optionFields(uiHints);
 }
 
 export const TRIGGER_LABELS: Record<AutomationEventType, I18nText> = {

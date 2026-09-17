@@ -64,6 +64,12 @@ export interface ActionField {
   step?: number;
   placeholder?: string;
   options?: Array<{ value: string; label: Localized }>;
+  /**
+   * Host-provided option source for `select` fields
+   * (`plugin-action-options:<actionType>:<field>`). Requested on demand via
+   * `get-action-options`; static `options` stay as the fallback.
+   */
+  optionsFrom?: string;
   /** True when `{{ event.* }}` placeholders are rendered before use. */
   template?: boolean;
   /** Kept behind the "advanced options" disclosure so the form stays short. */
@@ -180,6 +186,8 @@ export interface PluginDescriptor {
   eventTypeIds: string[];
   /** True when the plugin declares a JSON settings schema for the Plugins UI. */
   hasSettings?: boolean;
+  /** True when the plugin declares a health endpoint the host can probe. */
+  hasConnectionProbe?: boolean;
 }
 
 export interface PluginStatus {
@@ -216,6 +224,57 @@ export interface BehaviorSnapshot {
   actionTypes: ActionTypeDefinition[];
   /** Plugin-declared event types merged by the host; absent on old hosts. */
   eventTypes?: PluginEventType[];
+  /** Plugin-contributed automation templates, stamped by the host; absent on old hosts. */
+  pluginTemplates?: PluginTemplateDescriptor[];
+  /** Plugin-contributed configuration pages, stamped by the host; absent on old hosts. */
+  pluginPages?: PluginPageDescriptor[];
   /** Host and loaded plugin translations, keyed by locale and i18key. */
   translations: TranslationCatalog;
+}
+
+/** One automation template contributed by a plugin manifest (schema v3). */
+export interface PluginTemplateDescriptor {
+  /** Namespaced by the host as `<pluginId>/<templateId>`. */
+  id: string;
+  pluginId: string;
+  title: Localized;
+  description?: Localized;
+  icon?: string;
+  eventType: string;
+  requiredNodeTypes: string[];
+  category?: string;
+  /** JSON Schema subset for the creation-time parameters form. */
+  params?: JsonObject;
+  uiHints?: JsonObject;
+  /** Node chain instantiated by the template modal. */
+  workflow: {
+    nodes: Array<{ type: string; config?: JsonObject }>;
+  };
+  source: ActionSource;
+}
+
+export type PluginPageSectionKind = 'text' | 'form' | 'connection' | 'list';
+
+/** One host-rendered section of a plugin configuration page. */
+export interface PluginPageSection {
+  kind: PluginPageSectionKind;
+  title?: Localized;
+  /** `text` only. Rendered as plain text, never markup. */
+  text?: Localized;
+  /** `form` only. Defaults to the plugin's full settings schema. */
+  schema?: JsonObject;
+  /** `form` only. Defaults to the plugin's settings UI hints. */
+  uiHints?: JsonObject;
+  /** `list` only. Option source id feeding the list rows. */
+  optionsFrom?: string;
+}
+
+/** One configuration page contributed by a plugin manifest (schema v3). */
+export interface PluginPageDescriptor {
+  id: string;
+  pluginId: string;
+  title: Localized;
+  icon?: string;
+  sections: PluginPageSection[];
+  source: ActionSource;
 }

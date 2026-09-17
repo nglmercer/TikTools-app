@@ -56,6 +56,51 @@ fn analytics_summary_has_a_dedicated_wire_contract() {
 }
 
 #[test]
+fn declarative_messages_use_stable_wire_names() {
+    let probe =
+        PageMessage::parse(r#"{"type":"test-plugin-connection","id":"sonicboom.server"}"#).unwrap();
+    assert_eq!(probe.type_name(), "test-plugin-connection");
+    assert!(matches!(probe, PageMessage::TestPluginConnection { .. }));
+    assert!(PageMessage::parse(r#"{"type":"test-plugin-connection","id":""}"#).is_err());
+
+    // Canonical plugin option sources pass validation; URLs and extra
+    // segments do not.
+    assert!(PageMessage::parse(
+        r#"{"type":"get-action-options","source":"plugin-action-options:sonicboom.server.speak:voice"}"#
+    )
+    .is_ok());
+    assert!(PageMessage::parse(
+        r#"{"type":"get-action-options","source":"https://evil.example/voices"}"#
+    )
+    .is_err());
+    assert!(PageMessage::parse(
+        r#"{"type":"get-action-options","source":"plugin-action-options:a:b:c"}"#
+    )
+    .is_err());
+
+    let json = HostMessage::PluginConnectionResult {
+        id: "sonicboom.server".to_owned(),
+        ok: true,
+        latency_ms: 12,
+        error: None,
+    }
+    .to_json()
+    .unwrap();
+    assert!(json.starts_with(r#"{"type":"plugin-connection-result""#));
+    assert!(json.contains("latencyMs"));
+    assert!(!json.contains("error"));
+
+    let json = HostMessage::ActionOptions {
+        source: "plugin-action-options:a.b:c".to_owned(),
+        options: Vec::new(),
+        error: Some("unreachable".to_owned()),
+    }
+    .to_json()
+    .unwrap();
+    assert!(json.contains(r#""error":"unreachable""#));
+}
+
+#[test]
 fn host_message_has_wire_type() {
     let json = HostMessage::PointsConfig {
         config: PointsConfig::default(),

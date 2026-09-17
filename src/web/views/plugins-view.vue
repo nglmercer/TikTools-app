@@ -1,11 +1,13 @@
 <script lang="tsx">
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { defineVueComponent } from '../vue/component.ts';
 
 import type { ActionTypeDefinition, LiveAction, PluginStatus } from '../../automation/behavior/types.ts';
 import type { AutomationEvent, JsonObject } from '../../automation/types.ts';
-import type { HostMessage, OpenMediaPicker, PluginSettingValues, ProcessorStatusEntry } from '../../shared/messages.ts';
+import type { ActionOptionItem, HostMessage, OpenMediaPicker, PluginSettingValues, ProcessorStatusEntry } from '../../shared/messages.ts';
 import type { PluginSettingsState } from '../types.ts';
+import { optionFields, type PluginConnectionState } from '../../automation/plugins/declarative.ts';
+import { PluginConnectionModal } from '../components/plugin-connection-modal.vue';
 import { SchemaForm } from '../components/ui/SchemaForm.vue';
 import { Switch } from '../components/ui/Checkbox.vue';
 import { processorMetricRows, processorPreviewEvent, processorStatusTone } from '../components/processors.ts';
@@ -34,6 +36,10 @@ type PluginsViewProps = {
   settings: Record<string, PluginSettingsState>;
   onGetSettings: (id: string) => void;
   onSaveSettings: (id: string, values: PluginSettingValues) => void;
+  actionOptions: Record<string, ActionOptionItem[]>;
+  onGetActionOptions: (source: string) => void;
+  connections: Record<string, PluginConnectionState>;
+  onTestConnection: (id: string) => void;
   onOpenMediaPicker?: OpenMediaPicker;
   onInstallPlugin?: () => void;
   pluginInstallState?: PluginInstallViewState;
@@ -110,14 +116,18 @@ function pluginCopy(locale: Locale) {
 }
 
 export const PluginsView = defineVueComponent<PluginsViewProps>(
-  ['locale', 'plugins', 'actions', 'actionTypes', 'error', 'onSetInstalled', 'onUninstall', 'onSetEnabled', 'settings', 'onGetSettings', 'onSaveSettings', 'onOpenMediaPicker', 'onInstallPlugin', 'pluginInstallState', 'onConfirmReplace', 'onCancelReplace', 'processors', 'processorTest', 'onGetProcessorStatus', 'onTestProcessor'],
+  ['locale', 'plugins', 'actions', 'actionTypes', 'error', 'onSetInstalled', 'onUninstall', 'onSetEnabled', 'settings', 'onGetSettings', 'onSaveSettings', 'actionOptions', 'onGetActionOptions', 'connections', 'onTestConnection', 'onOpenMediaPicker', 'onInstallPlugin', 'pluginInstallState', 'onConfirmReplace', 'onCancelReplace', 'processors', 'processorTest', 'onGetProcessorStatus', 'onTestProcessor'],
   (props) => {
   const tab = ref<'installed' | 'store' | 'processors'>('installed');
+  const connectTarget = ref<string | null>(null);
 
   return () => {
   const copy = pluginCopy(props.locale);
   const installed = props.plugins.filter((plugin) => plugin.installed);
   const visible = tab.value === 'installed' ? installed : props.plugins;
+  // Annotated local keeps the generic-inference chain shallow for vue-tsc.
+  const installedPlugins: PluginStatus[] = props.plugins;
+  const connectPlugin = connectTarget.value ? installedPlugins.find((plugin) => plugin.descriptor.id === connectTarget.value) : undefined;
 
   const installState = props.pluginInstallState;
   const installing = installState?.installing ?? false;
@@ -235,6 +245,9 @@ export const PluginsView = defineVueComponent<PluginsViewProps>(
                     onUninstall={props.onUninstall}
                     onGetSettings={props.onGetSettings}
                     onSaveSettings={props.onSaveSettings}
+                    actionOptions={props.actionOptions}
+                    onGetActionOptions={props.onGetActionOptions}
+                    onConnect={(id) => { connectTarget.value = id; }}
                     onOpenMediaPicker={props.onOpenMediaPicker}
                   />
                 );
@@ -254,6 +267,22 @@ export const PluginsView = defineVueComponent<PluginsViewProps>(
           )}
         </div>
       </div>
+      {connectPlugin && (
+        <PluginConnectionModal
+          locale={props.locale}
+          pluginId={connectPlugin.descriptor.id}
+          pluginName={i18nText(props.locale, connectPlugin.descriptor.name)}
+          state={props.settings[connectPlugin.descriptor.id]}
+          connection={props.connections[connectPlugin.descriptor.id]}
+          actionOptions={props.actionOptions}
+          onGetSettings={props.onGetSettings}
+          onSaveSettings={props.onSaveSettings}
+          onGetActionOptions={props.onGetActionOptions}
+          onTestConnection={props.onTestConnection}
+          onOpenMediaPicker={props.onOpenMediaPicker}
+          onClose={() => { connectTarget.value = null; }}
+        />
+      )}
     </div>
   );
   };
@@ -272,11 +301,14 @@ type PluginCardProps = {
   onUninstall: (id: string) => void;
   onGetSettings: (id: string) => void;
   onSaveSettings: (id: string, values: PluginSettingValues) => void;
+  actionOptions: Record<string, ActionOptionItem[]>;
+  onGetActionOptions: (source: string) => void;
+  onConnect: (id: string) => void;
   onOpenMediaPicker?: OpenMediaPicker;
 };
 
 const PluginCard = defineVueComponent<PluginCardProps>(
-  ['locale', 'plugin', 'usedBy', 'actionTypes', 'settingsState', 'onSetEnabled', 'onSetInstalled', 'onUninstall', 'onGetSettings', 'onSaveSettings', 'onOpenMediaPicker'],
+  ['locale', 'plugin', 'usedBy', 'actionTypes', 'settingsState', 'onSetEnabled', 'onSetInstalled', 'onUninstall', 'onGetSettings', 'onSaveSettings', 'actionOptions', 'onGetActionOptions', 'onConnect', 'onOpenMediaPicker'],
   (props) => {
   const open = ref(false);
   const dialogs = useDialogs();
@@ -319,6 +351,15 @@ const PluginCard = defineVueComponent<PluginCardProps>(
           >
             {copy.details}
           </button>
+          {plugin.installed && plugin.enabled && plugin.descriptor.hasConnectionProbe && (
+            <button
+              type="button"
+              class="plg-btn plg-btn--sm"
+              onClick={() => props.onConnect(plugin.descriptor.id)}
+            >
+              {t(props.locale, 'pluginConnect')}
+            </button>
+          )}
           <button
             type="button"
             class={`plg-btn plg-btn--sm${plugin.installed ? ' plg-btn--danger' : ' plg-btn--primary'}`}
@@ -376,6 +417,8 @@ const PluginCard = defineVueComponent<PluginCardProps>(
               state={props.settingsState}
               onGetSettings={props.onGetSettings}
               onSaveSettings={props.onSaveSettings}
+              actionOptions={props.actionOptions}
+              onGetActionOptions={props.onGetActionOptions}
               onOpenMediaPicker={props.onOpenMediaPicker}
             />
           )}
@@ -496,14 +539,28 @@ type PluginSettingsFormProps = {
   state?: PluginSettingsState;
   onGetSettings: (id: string) => void;
   onSaveSettings: (id: string, values: PluginSettingValues) => void;
+  actionOptions: Record<string, ActionOptionItem[]>;
+  onGetActionOptions: (source: string) => void;
   onOpenMediaPicker?: OpenMediaPicker;
 };
 
 const PluginSettingsForm = defineVueComponent<PluginSettingsFormProps>(
-  ['locale', 'pluginId', 'plugin', 'state', 'onGetSettings', 'onSaveSettings', 'onOpenMediaPicker'],
+  ['locale', 'pluginId', 'plugin', 'state', 'onGetSettings', 'onSaveSettings', 'actionOptions', 'onGetActionOptions', 'onOpenMediaPicker'],
   (props) => {
   const open = ref(false);
   const draft = ref<JsonObject | null>(null);
+  const dynamicFields = computed(() => optionFields(props.state?.uiHints));
+  watch(() => props.state?.uiHints, () => {
+    if (open.value) for (const field of dynamicFields.value) props.onGetActionOptions(field.source);
+  });
+  const fieldOptions = computed(() => {
+    const merged: Record<string, Array<{ value: string; label: string }>> = {};
+    for (const field of dynamicFields.value) {
+      const options = props.actionOptions[field.source];
+      if (options && options.length > 0) merged[field.key] = options;
+    }
+    return merged;
+  });
 
   return () => {
   if (!props.plugin.descriptor.hasSettings) return null;
@@ -515,7 +572,10 @@ const PluginSettingsForm = defineVueComponent<PluginSettingsFormProps>(
         class="plg-btn plg-btn--sm"
         onClick={() => {
           if (!open.value && !state) props.onGetSettings(props.pluginId);
-          if (!open.value) draft.value = null;
+          if (!open.value) {
+            draft.value = null;
+            for (const field of dynamicFields.value) props.onGetActionOptions(field.source);
+          }
           open.value = !open.value;
         }}
       >
@@ -529,6 +589,7 @@ const PluginSettingsForm = defineVueComponent<PluginSettingsFormProps>(
             schema={state.schema}
             uiHints={state.uiHints}
             value={draft.value ?? state.values}
+            fieldOptions={fieldOptions.value}
             onChange={(value) => { draft.value = value; }}
             onOpenMediaPicker={props.onOpenMediaPicker}
           />

@@ -10,3 +10,4 @@ export * from './WorkflowCanvas.vue';
 export * from './WorkflowWizardModal.vue';
 export * from './WorkflowTemplateModal.vue';
 export * from './workflow-templates.ts';
+export * from './plugin-templates.ts';

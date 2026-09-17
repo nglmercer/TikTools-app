@@ -53,6 +53,34 @@ pub(crate) fn valid_token(value: &str) -> bool {
         })
 }
 
+/// Accepts legacy option sources plus the canonical plugin shape
+/// `plugin-action-options:<actionType>:<field>`. Segments keep the token
+/// charset so a page can never smuggle a URL or path into the resolver.
+pub(crate) fn valid_option_source(value: &str) -> bool {
+    if value.len() > 256 {
+        return false;
+    }
+    if valid_token(value) {
+        return true;
+    }
+    let Some(rest) = value.strip_prefix("plugin-action-options:") else {
+        return false;
+    };
+    let Some((action_type, field)) = rest.split_once(':') else {
+        return false;
+    };
+    !field.contains(':') && valid_token(action_type) && valid_option_field(field)
+}
+
+fn valid_option_field(value: &str) -> bool {
+    let mut chars = value.chars();
+    matches!(chars.next(), Some('a'..='z' | 'A'..='Z'))
+        && value.len() <= 128
+        && chars.all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
+        })
+}
+
 pub(crate) fn valid_setting_key(value: &str) -> bool {
     let mut chars = value.chars();
     matches!(chars.next(), Some('a'..='z' | 'A'..='Z'))

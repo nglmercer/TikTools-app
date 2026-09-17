@@ -3,9 +3,10 @@ use serde_json::{Map, Value};
 use super::{
     types::{PluginManifest, PluginRuntimeKind, PluginSecurityModel, PluginTrust},
     validation::{
-        current_platform, current_target, is_safe_relative_path, is_valid_plugin_id,
-        validate_action_type, ManifestError, MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES,
-        MAX_MANIFEST_BYTES, PLUGIN_SCHEMA_VERSION,
+        current_platform, current_target, is_safe_relative_path, is_supported_schema,
+        is_valid_plugin_id, validate_action_type, validate_declarative_action,
+        validate_http_config, ManifestError, MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES,
+        MAX_MANIFEST_BYTES,
     },
 };
 use crate::{TIKTOOLS_PLUGIN_ABI_VERSION, TIKTOOLS_PLUGIN_PROTOCOL_VERSION};
@@ -27,9 +28,10 @@ impl PluginManifest {
         let object = value.as_object().ok_or(ManifestError::NotAnObject)?;
         let schema_version =
             number(object, "schemaVersion").ok_or(ManifestError::MissingField("schemaVersion"))?;
-        if schema_version != PLUGIN_SCHEMA_VERSION {
+        if !is_supported_schema(schema_version) {
             return Err(ManifestError::UnsupportedSchema(schema_version));
         }
+        let is_v3 = schema_version > 2;
 
         let id = required_string(object, "id")?;
         if !is_valid_plugin_id(&id) {
@@ -54,13 +56,22 @@ impl PluginManifest {
             return Err(ManifestError::InvalidField("description"));
         }
 
-        let entry = required_string(object, "entry")?;
-        if !is_safe_relative_path(&entry) {
-            return Err(ManifestError::UnsafeEntry);
-        }
         let runtime = optional_string(object, "runtime")
             .and_then(|value| PluginRuntimeKind::parse(&value))
             .ok_or(ManifestError::MissingField("runtime"))?;
+        // Declarative packages are interpreted data with nothing to execute,
+        // so the entry is optional and defaults to empty. Every other runtime
+        // keeps the historical required-entry rule.
+        let entry = match optional_string(object, "entry") {
+            Some(entry) => entry,
+            None if runtime == PluginRuntimeKind::Declarative => String::new(),
+            None => return Err(ManifestError::MissingField("entry")),
+        };
+        if (!entry.is_empty() || runtime != PluginRuntimeKind::Declarative)
+            && !is_safe_relative_path(&entry)
+        {
+            return Err(ManifestError::UnsafeEntry);
+        }
 
         let default_trust = PluginTrust::default_for_runtime(runtime);
         let trust = match optional_string(object, "trust") {
@@ -89,10 +100,42 @@ impl PluginManifest {
         let action_types = json_list(object, "actionTypes")?;
         for action_type in &action_types {
             validate_action_type(action_type)?;
+            // Declarative action blocks are only meaningful on schema v3; on
+            // v2 the same keys keep their historical pass-through meaning for
+            // process plugins, so they are neither validated nor interpreted.
+            if is_v3
+                && action_type.as_object().is_some_and(|descriptor| {
+                    descriptor.contains_key("http") || descriptor.contains_key("optionSources")
+                })
+            {
+                validate_declarative_action(action_type)?;
+            }
         }
         let event_types = json_list(object, "eventTypes")?;
         let processor_types = json_list(object, "processorTypes")?;
         let (settings_schema, settings_ui_hints) = settings(object)?;
+        // Declarative integration blocks exist only on schema v3. A v2
+        // manifest carrying the same keys keeps today's behavior: the keys
+        // are ignored instead of validated.
+        let http = if is_v3 {
+            let http = object.get("http").cloned();
+            if let Some(http) = http.as_ref() {
+                validate_http_config(http)?;
+            }
+            http
+        } else {
+            None
+        };
+        let templates = if is_v3 {
+            json_list(object, "templates")?
+        } else {
+            Vec::new()
+        };
+        let pages = if is_v3 {
+            json_list(object, "pages")?
+        } else {
+            Vec::new()
+        };
 
         Ok(Self {
             schema_version,
@@ -113,11 +156,14 @@ impl PluginManifest {
             processor_types,
             settings_schema,
             settings_ui_hints,
+            http,
+            templates,
+            pages,
         })
     }
 
     pub fn validate_compatibility(&self) -> Result<(), ManifestError> {
-        if self.schema_version != PLUGIN_SCHEMA_VERSION {
+        if !is_supported_schema(self.schema_version) {
             return Err(ManifestError::UnsupportedSchema(self.schema_version));
         }
         if self.protocol_version != TIKTOOLS_PLUGIN_PROTOCOL_VERSION {

@@ -277,6 +277,9 @@ fn enforce_target_rules(manifest: &PluginManifest, _target: &str) -> Result<(), 
         PluginRuntimeKind::Wasm => Err(invalid(
             "--target must not be used for wasm plugins; keep targets empty for portable WASM",
         )),
+        PluginRuntimeKind::Declarative => Err(invalid(
+            "--target must not be used for declarative plugins; they ship no executable entry",
+        )),
     }
 }
 

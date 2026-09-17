@@ -412,6 +412,19 @@ export const english = {
   webhookUrl: 'Webhook URL',
   invalidUrl: 'Enter a valid http(s) URL.',
   templateReviewHint: 'Review the generated steps before saving.',
+  templateFromPlugin: 'From {plugin}',
+  templateOptions: 'Options',
+  pluginConnect: 'Connect',
+  pluginConnectTitle: 'Connect {name}',
+  pluginTestConnection: 'Test connection',
+  pluginTestingConnection: 'Testing…',
+  pluginConnectedIn: 'Connected in {ms} ms.',
+  pluginConnectionFailed: 'Connection failed.',
+  pluginConnectionHint: 'Local servers work without a token; remote servers need one.',
+  pluginConfigure: 'Configure',
+  pluginListEmpty: 'Nothing reported yet.',
+  pluginListRefresh: 'Refresh',
+  pluginPageSettingsSaved: 'Settings saved.',
 } as const;
 
 export type TranslationKey = keyof typeof english;

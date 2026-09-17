@@ -140,7 +140,23 @@ pub(crate) fn validate_http_url_shape(
     Ok(())
 }
 
-#[cfg(feature = "http")]
+/// Loopback-only trust boundary for declarative integrations: local servers
+/// (a SonicBoom instance on this machine) work without a token or a network
+/// permission, while anything beyond loopback requires both. LAN addresses
+/// are private but not loopback.
+pub(crate) fn is_loopback_host(host: &str) -> bool {
+    let normalized = host.trim_matches(['[', ']']).to_ascii_lowercase();
+    if normalized == "localhost" || normalized.ends_with(".localhost") {
+        return true;
+    }
+    normalized
+        .parse::<std::net::IpAddr>()
+        .is_ok_and(|address| match address {
+            std::net::IpAddr::V4(address) => address.octets()[0] == 127,
+            std::net::IpAddr::V6(address) => address.is_loopback(),
+        })
+}
+
 pub(crate) fn is_private_host(host: &str) -> bool {
     let normalized = host.trim_matches(['[', ']']).to_ascii_lowercase();
     normalized == "localhost"
@@ -153,7 +169,6 @@ pub(crate) fn is_private_host(host: &str) -> bool {
             .is_ok_and(is_private_ip)
 }
 
-#[cfg(feature = "http")]
 pub(crate) fn is_private_ip(address: std::net::IpAddr) -> bool {
     match address {
         std::net::IpAddr::V4(address) => {

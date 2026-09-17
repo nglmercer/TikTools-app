@@ -32,3 +32,4 @@ napi-vm.workspace = true
 rusqlite = { workspace = true, optional = true, features = ["bundled"] }
 reqwest = { workspace = true, optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
+url = "2.5"

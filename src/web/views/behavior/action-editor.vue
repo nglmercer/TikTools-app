@@ -32,6 +32,7 @@ type ActionEditorProps = {
   error?: string;
   testRuns: BehaviorRun[];
   actionOptions: Record<string, ActionOptionItem[]>;
+  actionOptionErrors: Record<string, string>;
   onGetActionOptions: (source: string) => void;
   onOpenMediaPicker: OpenMediaPicker;
   onCancel: () => void;
@@ -41,7 +42,7 @@ type ActionEditorProps = {
 };
 
 export const ActionEditor = defineVueComponent<ActionEditorProps>(
-  ['locale', 'action', 'actionTypes', 'isNew', 'error', 'testRuns', 'actionOptions', 'onGetActionOptions', 'onOpenMediaPicker', 'onCancel', 'onSave', 'onDelete', 'onTest'],
+  ['locale', 'action', 'actionTypes', 'isNew', 'error', 'testRuns', 'actionOptions', 'actionOptionErrors', 'onGetActionOptions', 'onOpenMediaPicker', 'onCancel', 'onSave', 'onDelete', 'onTest'],
   (props) => {
   const draft = ref<LiveAction>(props.action);
   const dialogs = useDialogs();
@@ -61,6 +62,14 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
       if (options && options.length > 0) merged[field.key] = options;
     }
     return merged;
+  });
+  const optionErrors = computed(() => {
+    const errors: Array<{ key: string; message: string }> = [];
+    for (const field of dynamicFields.value) {
+      const message = props.actionOptionErrors[field.source];
+      if (message) errors.push({ key: field.key, message });
+    }
+    return errors;
   });
 
   // Generic autocomplete context: the registry sample event, so `{{ }}`
@@ -173,6 +182,9 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
                     </button>
                   </div>
                 )}
+                {optionErrors.value.map((entry) => (
+                  <div key={entry.key} class="plg-alert" role="status">{entry.message}</div>
+                ))}
                 {isFetch ? (
                   <BehaviorFetchFields
                     locale={props.locale}

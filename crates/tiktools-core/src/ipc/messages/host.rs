@@ -136,7 +136,21 @@ pub enum HostMessage {
         message: String,
     },
     #[serde(rename = "action-options")]
-    ActionOptions { source: String, options: Vec<Value> },
+    ActionOptions {
+        source: String,
+        options: Vec<Value>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
+    #[serde(rename = "plugin-connection-result")]
+    PluginConnectionResult {
+        id: String,
+        ok: bool,
+        #[serde(rename = "latencyMs")]
+        latency_ms: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
     #[serde(rename = "plugin-install-result")]
     PluginInstallResult {
         success: bool,

@@ -355,10 +355,15 @@ impl AppCore {
                 self.handle_uninstall_plugin_package(id);
             }
             PageMessage::GetActionOptions { source } => {
+                let (options, error) = self.resolve_action_options(&source).await;
                 self.emit(HostMessage::ActionOptions {
                     source,
-                    options: Vec::new(),
+                    options,
+                    error,
                 });
+            }
+            PageMessage::TestPluginConnection { id } => {
+                self.probe_plugin_connection(&id).await;
             }
             PageMessage::GetPluginSettings { id } => {
                 self.emit_plugin_settings(&id);

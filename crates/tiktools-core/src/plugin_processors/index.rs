@@ -45,6 +45,11 @@ pub(crate) fn collect_indexed_processors(
     let mut eligible = Vec::new();
     for plugin in plugins.list() {
         let plugin_id = plugin.manifest.id.clone();
+        // Declarative packages run no code, so their processorTypes entries
+        // (if any) can never enrich an event.
+        if plugin.manifest.runtime == tiktools_plugin_api::PluginRuntimeKind::Declarative {
+            continue;
+        }
         if !ready(&plugin_id) {
             continue;
         }

@@ -8,8 +8,8 @@ use super::{
     install::MAX_PLUGIN_PACKAGE_PATH_LEN,
     points::PartialPointsConfig,
     validation::{
-        bounded_string, bounded_value, is_primitive_setting, optional_bounded, valid_setting_key,
-        valid_token, IpcMessageError,
+        bounded_string, bounded_value, is_primitive_setting, optional_bounded, valid_option_source,
+        valid_setting_key, IpcMessageError,
     },
     JsonObject,
 };
@@ -163,6 +163,8 @@ pub enum PageMessage {
     SavePluginSettings { id: String, values: JsonObject },
     #[serde(rename = "get-action-options")]
     GetActionOptions { source: String },
+    #[serde(rename = "test-plugin-connection")]
+    TestPluginConnection { id: String },
     #[serde(rename = "test-processor")]
     TestProcessor {
         #[serde(rename = "pluginId")]
@@ -237,6 +239,7 @@ impl PageMessage {
             Self::GetPluginSettings { .. } => "get-plugin-settings",
             Self::SavePluginSettings { .. } => "save-plugin-settings",
             Self::GetActionOptions { .. } => "get-action-options",
+            Self::TestPluginConnection { .. } => "test-plugin-connection",
             Self::TestProcessor { .. } => "test-processor",
             Self::GetProcessorStatus => "get-processor-status",
             Self::GetAnalyticsSummary { .. } => "get-analytics-summary",
@@ -299,7 +302,7 @@ impl PageMessage {
                 }
             }
             Self::GetActionOptions { source } => {
-                if !valid_token(source) || source.len() > 64 {
+                if !valid_option_source(source) {
                     return Err(IpcMessageError::InvalidField("source"));
                 }
             }
@@ -325,6 +328,7 @@ impl PageMessage {
                 }
             }
             Self::UninstallPluginPackage { id } => bounded_string(id, "id", 128)?,
+            Self::TestPluginConnection { id } => bounded_string(id, "id", 128)?,
             Self::TestProcessor {
                 plugin_id,
                 processor_id,

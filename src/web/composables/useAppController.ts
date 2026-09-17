@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch, type ComputedRef } from 'vue';
 
 import type {
   ActionOptionItem,
@@ -13,7 +13,12 @@ import type {
   ProcessorStatusEntry,
 } from '../../shared/messages.ts';
 import type { AutomationEvent, AutomationEventType } from '../../automation/types.ts';
-import type { BehaviorRun, BehaviorSnapshot, LiveAction, LiveEvent } from '../../automation/behavior/types.ts';
+import type { BehaviorRun, BehaviorSnapshot, LiveAction, LiveEvent, PluginPageDescriptor } from '../../automation/behavior/types.ts';
+import {
+  mergePluginPages,
+  parsePluginNavId,
+  type PluginConnectionState,
+} from '../../automation/plugins/declarative.ts';
 import {
   addRecentUsername,
   applyTheme,
@@ -125,6 +130,8 @@ export function useAppController() {
   const processors = ref<ProcessorStatusEntry[]>([]);
   const processorTest = ref<Extract<HostMessage, { type: 'processor-test-result' }> | null>(null);
   const actionOptions = ref<Record<string, ActionOptionItem[]>>({});
+  const actionOptionErrors = ref<Record<string, string>>({});
+  const pluginConnections = ref<Record<string, PluginConnectionState>>({});
   const pluginInstallState = ref<PluginInstallState>({ ...initialPluginInstallState });
   const pluginProgress = ref<Extract<HostMessage, { type: 'plugin-progress' }> | null>(null);
   const mediaSelectionHandlers = new Map<string, MediaSelectionHandler>();
@@ -165,6 +172,25 @@ export function useAppController() {
       const container = streamContainerRef.value;
       if (container) container.scrollTop = container.scrollHeight;
     });
+  });
+
+  /** Plugin configuration pages from the behavior snapshot, validated. */
+  const pluginPages: ComputedRef<PluginPageDescriptor[]> = computed(() =>
+    mergePluginPages(behavior.value.pluginPages),
+  );
+
+  // A plugin page tab is only valid while its plugin stays installed,
+  // enabled, and available; the host drops its pages from the snapshot
+  // otherwise, and the UI falls back to the plugins list.
+  watch([behavior, activeTab], () => {
+    const parsed = parsePluginNavId(activeTab.value);
+    if (!parsed) return;
+    // Annotated locals keep the generic-inference chain shallow for vue-tsc.
+    const pages: PluginPageDescriptor[] = pluginPages.value;
+    const exists = pages.some(
+      (page) => page.pluginId === parsed.pluginId && page.id === parsed.pageId,
+    );
+    if (!exists) activeTab.value = 'plugins';
   });
 
   const receive = (raw: string): void => {
@@ -319,6 +345,20 @@ export function useAppController() {
 
     if (message.type === 'action-options') {
       actionOptions.value = { ...actionOptions.value, [message.source]: message.options };
+      if (message.error) {
+        actionOptionErrors.value = { ...actionOptionErrors.value, [message.source]: message.error };
+      } else {
+        const rest = { ...actionOptionErrors.value };
+        delete rest[message.source];
+        actionOptionErrors.value = rest;
+      }
+    }
+
+    if (message.type === 'plugin-connection-result') {
+      pluginConnections.value = {
+        ...pluginConnections.value,
+        [message.id]: { ok: message.ok, latencyMs: message.latencyMs, error: message.error, at: Date.now() },
+      };
     }
 
     if (message.type === 'plugin-install-result') {
@@ -459,6 +499,7 @@ export function useAppController() {
     send({ type: 'test-processor', pluginId, processorId, event });
   };
   const handleGetActionOptions = (source: string): void => send({ type: 'get-action-options', source });
+  const handleTestPluginConnection = (id: string): void => send({ type: 'test-plugin-connection', id });
 
   const openMediaPicker = (options: MediaPickerOptions, onSelected: MediaSelectionHandler): void => {
     const requestId = `media-${Date.now()}-${++mediaRequestSequence}`;
@@ -572,6 +613,9 @@ export function useAppController() {
     processors,
     processorTest,
     actionOptions,
+    actionOptionErrors,
+    pluginConnections,
+    pluginPages,
     pluginProgress,
     dismissPluginProgress,
     autoScroll,
@@ -613,6 +657,7 @@ export function useAppController() {
     handleGetProcessorStatus,
     handleTestProcessor,
     handleGetActionOptions,
+    handleTestPluginConnection,
     analyticsSummary,
     handleGetAnalyticsRange: (startDay: number, endDay: number): void => {
       send({

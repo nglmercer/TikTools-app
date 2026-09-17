@@ -35,6 +35,9 @@ pub(crate) fn read_discovered_plugin(
     } else if !manifest.target_matches_current_platform() {
         available = false;
         reason = Some("plugin has no build for this platform".to_owned());
+    } else if manifest.runtime == PluginRuntimeKind::Declarative && manifest.entry.is_empty() {
+        // Declarative packages have no executable entry; the manifest alone
+        // is the integration, so there is no file to inspect.
     } else {
         let entry = manifest.entry.as_str();
         if !is_safe_relative_path(entry) {

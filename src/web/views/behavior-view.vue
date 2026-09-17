@@ -54,6 +54,8 @@ type BehaviorViewProps = {
   onOpenMediaPicker: OpenMediaPicker;
   /** On-demand option lists keyed by options source. */
   actionOptions: Record<string, ActionOptionItem[]>;
+  /** Per-source fetch errors for the option lists above. */
+  actionOptionErrors: Record<string, string>;
   onGetActionOptions: (source: string) => void;
 };
 
@@ -84,6 +86,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     'onOpenPlugins',
     'onOpenMediaPicker',
     'actionOptions',
+    'actionOptionErrors',
     'onGetActionOptions',
   ],
   (props) => {
@@ -138,6 +141,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
         error={error}
         testRuns={testRuns}
         actionOptions={props.actionOptions}
+        actionOptionErrors={props.actionOptionErrors}
         onGetActionOptions={props.onGetActionOptions}
         onOpenMediaPicker={props.onOpenMediaPicker}
         onCancel={() => { screen.value = { kind: 'list' }; }}

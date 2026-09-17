@@ -1,5 +1,5 @@
 <script lang="tsx">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 
 import type {
@@ -7,6 +7,8 @@ import type {
   NodeDefinition,
   WorkflowGraph,
 } from '../../../automation/types.ts';
+import type { PluginTemplateDescriptor } from '../../../automation/behavior/types.ts';
+import { mergePluginTemplates } from '../../../automation/plugins/declarative.ts';
 import type { OpenMediaPicker } from '../../../shared/messages.ts';
 import { Icon } from '../icons/Icon.vue';
 import { IconArrowDown, IconChevronLeft } from '../icons/index.ts';
@@ -16,6 +18,7 @@ import { Checkbox } from '../ui/Checkbox.vue';
 import { FormField } from '../ui/FormField.vue';
 import { MediaField } from '../ui/MediaField.vue';
 import { Modal, ModalActions } from '../ui/Modal.vue';
+import { SchemaForm } from '../ui/SchemaForm.vue';
 import { NumberInput } from '../ui/NumberInput.vue';
 import { PasswordInput } from '../ui/PasswordInput.vue';
 import { SearchInput, TextInput } from '../ui/TextInput.vue';
@@ -32,21 +35,26 @@ import {
   toChatTtsOptions,
   WORKFLOW_TEMPLATES,
   workflowTemplateAvailable,
-  workflowTemplateById,
   type ChatTtsTemplateOptions,
   type WorkflowTemplate,
 } from './workflow-templates.ts';
+import {
+  pluginTemplateToWorkflowTemplate,
+  resolveTemplateParams,
+} from './plugin-templates.ts';
 
 type WorkflowTemplateModalProps = {
   locale: Locale;
   definitions: NodeDefinition[];
+  /** Host-stamped plugin templates merged after the builtins. */
+  pluginTemplates?: unknown[];
   onClose: () => void;
   onCreate: (graph: WorkflowGraph) => void;
   onOpenMediaPicker?: OpenMediaPicker;
 };
 
 export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalProps>(
-  ['locale', 'definitions', 'onClose', 'onCreate', 'onOpenMediaPicker'],
+  ['locale', 'definitions', 'pluginTemplates', 'onClose', 'onCreate', 'onOpenMediaPicker'],
   (props) => {
   const query = ref('');
   const selectedId = ref<string | null>(null);
@@ -57,6 +65,33 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
   const webhookUrl = ref('https://');
   const filePath = ref('');
   const delta = ref<number | null>(1);
+  const pluginParams = ref<JsonObject>({});
+  const pluginConverted = computed(() => {
+    const descriptors = mergePluginTemplates(
+      WORKFLOW_TEMPLATES.map((entry) => entry.id),
+      props.pluginTemplates,
+    );
+    const converted: Array<{ descriptor: PluginTemplateDescriptor; template: WorkflowTemplate }> = [];
+    for (const descriptor of descriptors) {
+      const template = pluginTemplateToWorkflowTemplate(descriptor);
+      if (template) converted.push({ descriptor, template });
+    }
+    return converted;
+  });
+  const allTemplates = computed<WorkflowTemplate[]>(() => [
+    ...WORKFLOW_TEMPLATES,
+    ...pluginConverted.value.map((entry) => entry.template),
+  ]);
+  const pluginDescriptorById = computed(() => {
+    const map = new Map<string, PluginTemplateDescriptor>();
+    for (const entry of pluginConverted.value) map.set(entry.template.id, entry.descriptor);
+    return map;
+  });
+  const templateById = (id: string): WorkflowTemplate | undefined => {
+    // Annotated local keeps the generic-inference chain shallow for vue-tsc.
+    const templates: WorkflowTemplate[] = allTemplates.value;
+    return templates.find((entry) => entry.id === id);
+  };
 
   const selectTemplate = (template: WorkflowTemplate): void => {
     selectedId.value = template.id;
@@ -67,6 +102,8 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
     webhookUrl.value = 'https://';
     filePath.value = '';
     delta.value = 1;
+    const descriptor = pluginDescriptorById.value.get(template.id);
+    pluginParams.value = descriptor ? resolveTemplateParams(descriptor, {}) : {};
   };
 
   const backToList = (): void => {
@@ -75,6 +112,7 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
   };
 
   const templateOptions = (template: WorkflowTemplate): JsonObject => {
+    if (pluginDescriptorById.value.has(template.id)) return { ...pluginParams.value };
     switch (template.id) {
       case 'chat-tts':
         return { ...toChatTtsOptions({ ...tts.value }) };
@@ -112,7 +150,7 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
   };
 
   const create = (): void => {
-    const template = selectedId.value ? workflowTemplateById(selectedId.value) : undefined;
+    const template = selectedId.value ? templateById(selectedId.value) : undefined;
     if (!template) return;
     const validation = validateTemplate(template);
     if (validation) {
@@ -133,8 +171,9 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
 
   return () => {
     const { locale, definitions, onClose, onOpenMediaPicker } = props;
-    const template = selectedId.value ? workflowTemplateById(selectedId.value) : undefined;
-    const visible = filterWorkflowTemplates(WORKFLOW_TEMPLATES, query.value);
+    const template = selectedId.value ? templateById(selectedId.value) : undefined;
+    const pluginDescriptor = selectedId.value ? pluginDescriptorById.value.get(selectedId.value) : undefined;
+    const visible = filterWorkflowTemplates(allTemplates.value, query.value);
 
     if (!template) {
       return (
@@ -168,6 +207,11 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
                     <span class="template-card__text">
                       <strong>{i18nText(locale, entry.title)}</strong>
                       <small>{i18nText(locale, entry.description)}</small>
+                      {pluginDescriptorById.value.has(entry.id) && (
+                        <small class="template-card__plugin">
+                          {t(locale, 'templateFromPlugin', { plugin: pluginDescriptorById.value.get(entry.id)?.pluginId ?? '' })}
+                        </small>
+                      )}
                       {!available && (
                         <small class="template-card__missing">
                           {t(locale, 'templateRequires', { name: missing.map(friendlyNodeType).join(', ') })}
@@ -274,6 +318,18 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
               step={1}
               name="template-delta"
             />
+          )}
+
+          {pluginDescriptor?.params && (
+            <FormField label={t(locale, 'templateOptions')}>
+              <SchemaForm
+                locale={locale}
+                schema={pluginDescriptor.params}
+                uiHints={pluginDescriptor.uiHints}
+                value={pluginParams.value}
+                onChange={(next) => { pluginParams.value = next; }}
+              />
+            </FormField>
           )}
 
           {error.value ? <p class="template-error" role="alert">{error.value}</p> : null}

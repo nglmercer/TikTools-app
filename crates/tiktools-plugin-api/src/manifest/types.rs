@@ -20,6 +20,9 @@ pub enum PluginRuntimeKind {
     Native,
     Wasm,
     Process,
+    /// Host-interpreted declarative package (schema v3): HTTP actions,
+    /// option sources, templates, and pages with no executable entry.
+    Declarative,
 }
 
 /// Runtime boundary semantics used for host policy and documentation. This
@@ -39,13 +42,17 @@ impl PluginRuntimeKind {
             "native" => Some(Self::Native),
             "wasm" => Some(Self::Wasm),
             "process" => Some(Self::Process),
+            "declarative" => Some(Self::Declarative),
             _ => None,
         }
     }
 
     pub const fn security_model(self) -> PluginSecurityModel {
         match self {
-            Self::Native => PluginSecurityModel::Trusted,
+            // Declarative packages ship data, not code: the host interprets
+            // every HTTP call, template, and page through its own policy, so
+            // no execution boundary applies.
+            Self::Native | Self::Declarative => PluginSecurityModel::Trusted,
             Self::Process => PluginSecurityModel::Isolated,
             Self::Wasm => PluginSecurityModel::Sandboxed,
         }
@@ -76,6 +83,7 @@ impl PluginTrust {
         match runtime {
             PluginRuntimeKind::Native => Self::Trusted,
             PluginRuntimeKind::Wasm | PluginRuntimeKind::Process => Self::Sandboxed,
+            PluginRuntimeKind::Declarative => Self::Untrusted,
         }
     }
 }
@@ -109,6 +117,16 @@ pub struct PluginManifest {
     /// Host-rendered settings schema, kept as data and never executed.
     pub settings_schema: Option<Value>,
     pub settings_ui_hints: Option<Value>,
+    /// Declarative HTTP integration (schema v3 only): base URL, auth, and
+    /// health probe shared by the plugin's HTTP actions and option sources.
+    pub http: Option<Value>,
+    /// Declarative automation templates (schema v3 only). Entries are kept
+    /// raw like `event_types`; the host validates each one when it merges
+    /// the catalog so discovery never fails on a single bad entry.
+    pub templates: Vec<Value>,
+    /// Declarative configuration pages (schema v3 only), validated at merge
+    /// like `templates`.
+    pub pages: Vec<Value>,
 }
 impl fmt::Display for PluginRuntimeKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -116,6 +134,7 @@ impl fmt::Display for PluginRuntimeKind {
             Self::Native => "native",
             Self::Wasm => "wasm",
             Self::Process => "process",
+            Self::Declarative => "declarative",
         })
     }
 }
