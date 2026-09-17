@@ -119,14 +119,12 @@ impl AppCore {
                     state: self.app_state_get(keys.as_deref()).unwrap_or_default(),
                 });
             }
-            PageMessage::SetAppState { key, value } => {
-                match self.app_state_set(&key, &value) {
-                    Ok(state) => self.emit(HostMessage::AppState { state }),
-                    Err(error) => self.emit(HostMessage::BehaviorError {
-                        message: error.message().to_owned(),
-                    }),
-                }
-            }
+            PageMessage::SetAppState { key, value } => match self.app_state_set(&key, &value) {
+                Ok(state) => self.emit(HostMessage::AppState { state }),
+                Err(error) => self.emit(HostMessage::BehaviorError {
+                    message: error.message().to_owned(),
+                }),
+            },
             PageMessage::ClearCreatorHistory => {
                 self.creator_history_clear();
                 self.emit(HostMessage::RecentCreators {
@@ -283,9 +281,9 @@ impl AppCore {
                     event_type.as_deref(),
                 ) {
                     Ok(analysis) => match serde_json::to_value(analysis) {
-                        Ok(analysis) => self.emit(HostMessage::AutomationScriptAnalysis {
-                            analysis,
-                        }),
+                        Ok(analysis) => {
+                            self.emit(HostMessage::AutomationScriptAnalysis { analysis })
+                        }
                         Err(error) => self.emit(HostMessage::AutomationError {
                             message: error.to_string(),
                         }),

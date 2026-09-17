@@ -39,10 +39,7 @@ impl ApiError {
     }
 
     pub fn host_unavailable() -> Self {
-        Self::new(
-            "host_unavailable",
-            "TikTools control host is not running.",
-        )
+        Self::new("host_unavailable", "TikTools control host is not running.")
     }
 
     pub fn internal(message: impl Into<String>) -> Self {

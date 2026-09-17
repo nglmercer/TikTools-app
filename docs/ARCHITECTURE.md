@@ -5,12 +5,27 @@ WebView, and `tray-icon` owns the tray. The application core is independent of
 all three.
 
 ```text
-Vue WebView
-    │ window.ipc.postMessage(JSON)
+                ONE AppCore
+                    │
+               ControlApi
+                    │
+          local JSON-RPC IPC
+        ┌───────────┼───────────┐
+        │           │           │
+      CLI         WebView      agents
+```
+
+The desktop builds one `AppCore`, wraps it in one `ControlApi`, and serves
+every client from that instance: the WebView bridge, a persistent local IPC
+endpoint (Unix socket / Windows named pipe), and through it the `tiktools`
+CLI and agents. Standalone hosts (`host --stdio`, `host --ipc`,
+`--standalone`) are explicit opt-ins for headless use.
+
+```text
+Vue WebView (control-client.ts + features/)
+    │ window.ipc.postMessage(JSON-RPC)
     ▼
-Wry IPC handler
-    ▼
-IpcRouter ── Tokio ── AppCore
+Wry IPC handler ── Tokio ── ControlApi ── AppCore
                          │
           ┌──────────────┼──────────────┐
           ▼              ▼              ▼
@@ -25,17 +40,20 @@ IpcRouter ── Tokio ── AppCore
 ```text
 tiktools-desktop
   ├── winit + wry + tray-icon
+  ├── tiktools-control-api ── tiktools-core
   └── tiktools-core
         ├── tiktools-plugin-api
         ├── tiktools-plugin-sdk
         ├── tiktools-plugin-macros
         ├── tiktools-plugin-loader
         └── tiktools-tiktok
+tiktools-cli ── tiktools-control-api ── tiktools-core
 ```
 
 `tiktools-core` has no GUI dependency. Its services communicate outward with
-`HostEmitter`, a small trait that carries serialized `HostMessage` values. The
-desktop implementation sends those messages to the UI thread through
+`HostEmitter`, a small trait that carries serialized `HostMessage` values, and
+with the `DomainEvent` bus every control client observes identically. The
+desktop implementation sends host messages to the UI thread through
 `EventLoopProxy`; only that thread calls `WebView::evaluate_script`.
 
 Plugin calls converge at the SDK's typed request/result boundary. Core keeps
@@ -64,17 +82,23 @@ The asset handler canonicalizes paths and rejects traversal and symlink escapes.
 
 ## IPC contract
 
-`src/shared/messages.ts` remains the frontend compatibility specification.
-Rust mirrors it in `crates/tiktools-core/src/ipc/messages.rs`. The router accepts
-bounded JSON, validates the message discriminator and fields, then forwards a
-typed `PageMessage` to `AppCore`. Business services never receive a WebView
-handle.
-
-The bridge is deliberately plain JSON:
+The contract is JSON-RPC through `ControlApi`: every client sends
+`{"method": ...}` requests and receives result/error responses plus
+`DomainEvent` notifications. The Vue bridge (`src/web/platform/control-client.ts`)
+owns `window.ipc`; domain state lives in `src/web/features/`. Business
+services never receive a WebView handle.
 
 ```text
-PageMessage → IpcRouter → AppCore → HostMessage → EventLoopProxy → WebView
+Vue → JSON-RPC → ControlApi → AppCore operation/service
+AppCore → DomainEvent → WebView / CLI / IPC / agents
 ```
+
+`src/shared/messages.ts` remains the specification for host-push shapes.
+Rust mirrors the legacy request side in
+`crates/tiktools-core/src/ipc/messages.rs`, but the `IpcRouter`
+`PageMessage` path is only an explicitly marked compatibility layer: each
+legacy message adapts onto the same authoritative control operations, and
+no new legacy variants are accepted.
 
 ## Event and live flow
 

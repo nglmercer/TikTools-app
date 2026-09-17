@@ -104,9 +104,14 @@ first, then tag. To ship `vX.Y.Z`:
 ## Source ownership
 
 - `crates/tiktools-desktop`: UI-thread lifecycle, Wry IPC callback, custom
-  asset protocol, tray, and platform event-loop setup.
-- `crates/tiktools-core`: typed IPC, service graph, event bus, points,
-  persistence orchestration, automation, and capability policy.
+  asset protocol, tray, platform event-loop setup, and the persistent local
+  control-IPC server sharing the desktop's one `AppCore`.
+- `crates/tiktools-control-api`: typed JSON-RPC router, NDJSON stdio/IPC
+  transports, `ControlClient`, discovery, and integration/parity tests.
+- `crates/tiktools-cli`: IPC-first CLI (`--standalone` opts out) over the
+  same methods.
+- `crates/tiktools-core`: control operations, service graph, domain event
+  bus, points, persistence orchestration, automation, and capability policy.
 - `crates/tiktools-tiktok`: native discovery, signing, WebSocket reconnects,
   decode, and stable event values.
 - `crates/tiktools-plugin-api`: manifest, protocol, capability names, and C ABI.
@@ -116,7 +121,9 @@ first, then tag. To ship `vX.Y.Z`:
   bridges; unsafe FFI details stay in the SDK implementation.
 - `crates/tiktools-plugin-loader`: runtime scanning, validation, installation,
   dynamic native libraries, process plugins, and the optional WASM boundary.
-- `src/web`: Vue presentation only.
+- `src/web`: Vue presentation only. `platform/control-client.ts` is the
+  only module that touches `window.ipc`; `features/` holds one composable
+  per domain and `composables/useAppController.ts` only wires them.
 - `src/automation`: generated editor contracts, the native event registry, and
   the single built-in event-type list consumed by the Vue UI.
 
@@ -130,17 +137,22 @@ Automation contracts are generated from
 Rust contract change and `bun run contracts:check` in CI. Do not add manual
 TikTok event interfaces or a second event registry in the frontend.
 
-## Adding an IPC message
+## Adding a control method
 
-1. Add the discriminated union member to `src/shared/messages.ts`.
-2. Mirror it in `crates/tiktools-core/src/ipc/messages.rs`.
-3. Validate bounded input in both the frontend boundary and Rust parser.
-4. Route it in `AppCore::handle_page_message`.
-5. Add the matching `HostMessage` and update the Vue state handler.
-6. Test serialization and invalid-input rejection.
+1. Implement the operation on `AppCore` in `crates/tiktools-core/src/control.rs`,
+   returning values (never emitting UI messages) with bounded validation.
+2. Register a typed method (`Params` + `Result` with `Serialize`,
+   `Deserialize`, `JsonSchema`) in `crates/tiktools-control-api/src/modules/`.
+3. Publish a `DomainEvent` when clients must observe the change.
+4. Call it from Vue through `src/web/platform/control-client.ts` inside the
+   owning `src/web/features/` composable; never touch `window.ipc` directly.
+5. Add CLI verbs only when a typed subcommand earns its weight; raw access
+   always works through `tiktools rpc <method> '<params>'`.
+6. Test the operation, the RPC boundary, and invalid-input rejection.
 
-The Rust parser is authoritative at runtime. The TypeScript contract stays in
-the repository so the existing Vue build remains compatible.
+The legacy `PageMessage`/`IpcRouter` path is frozen as a compatibility layer:
+do not add new variants there. `src/shared/messages.ts` still specifies
+host-push shapes consumed by the feature composables.
 
 ## Adding an automation action
 
@@ -160,7 +172,7 @@ plugin id is added to Rust source.
 ## Adding workflow nodes
 
 Workflow node definitions are JSON-safe data returned by
-`get-automation-nodes`. Saved graphs must remain schema version 1 until a
+`automation.nodes.list`. Saved graphs must remain schema version 1 until a
 deliberate migration is introduced. New nodes need stable type/version values,
 validated ports, bounded configuration, and a migration-compatible execution
 implementation in core.

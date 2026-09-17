@@ -1,192 +1,107 @@
-import { computed, onMounted, onUnmounted, ref, watch, type ComputedRef } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 
-import type {
-  ActionOptionItem,
-  AnalyticsSummaryData,
-  GiftCatalogEntry,
-  HostMessage,
-  HotkeyStatusData,
-  MediaPickerOptions,
-  MediaSelectionHandler,
-  PageMessage,
-  PluginSettingValues,
-  ProcessorStatusEntry,
-} from '../../shared/messages.ts';
-import type { AutomationEvent, AutomationEventType } from '../../automation/types.ts';
-import type { BehaviorRun, BehaviorSnapshot, LiveAction, LiveEvent, PluginPageDescriptor } from '../../automation/behavior/types.ts';
+import type { PluginPageDescriptor } from '../../automation/behavior/types.ts';
+import { parsePluginNavId } from '../../automation/plugins/declarative.ts';
+import { useAnalytics } from '../features/analytics.ts';
+import { useAutomation } from '../features/automation.ts';
+import { useConnection } from '../features/connection.ts';
+import { useCreators } from '../features/creators.ts';
+import { useLive } from '../features/live.ts';
+import { useMedia } from '../features/media.ts';
+import { usePlugins } from '../features/plugins.ts';
+import { usePoints } from '../features/points.ts';
+import { useProcessors } from '../features/processors.ts';
+import { useTts } from '../features/tts.ts';
+import { createControlClient } from '../platform/control-client.ts';
 import {
-  mergePluginPages,
-  normalizeOptionsFrom,
-  parsePluginNavId,
-  type PluginConnectionState,
-} from '../../automation/plugins/declarative.ts';
-import {
-  decideTts,
-  defaultTtsSettings,
-  firstAvailableVoice,
-  normalizeHandle,
-  parseTtsSettings,
-  sanitizeTtsSettings,
-  serializeTtsSettings,
-  ttsFingerprint,
-  TtsDeduper,
-  ttsSettingsKey,
-  type TtsLogEntry,
-  type TtsSettings,
-} from '../tts/tts-policy.ts';
-import {
-  addRecentUsername,
   applyTheme,
   getInitialLocale,
   getInitialTheme,
-  getRecentUsernames,
-  getSavedUsername,
   saveLocale,
   saveTheme,
-  saveUsername,
   type Theme,
 } from '../preferences.ts';
-import { setPluginTranslations, t, type Locale } from '../i18n.ts';
-import { setPluginEventTypes } from '../../automation/event-registry.ts';
-import type {
-  AppTab,
-  ConnectionStatus,
-  CreatorRecord,
-  DisplayEvent,
-  EventFilter,
-  PluginSettingsState,
-  PointsConfig,
-  TopViewerPayload,
-  ViewerRecord,
-} from '../types.ts';
+import { t, type Locale } from '../i18n.ts';
+import type { AppTab } from '../types.ts';
+import { createInitialPluginInstallState, pluginPickerOptions } from './plugin-install.ts';
 
-declare global {
-  interface Window {
-    ipc?: { postMessage: (message: string) => void };
-    __webview_on_message__?: (message: string) => void;
-    __tiktools_host_message_queue__?: string[];
-  }
-}
-
-const initialLocale = getInitialLocale();
-const initialTheme = getInitialTheme();
-const initialUsername = getSavedUsername();
-
-export const defaultPointsConfig: PointsConfig = {
-  currencyName: 'Points',
-  pointsPerCoin: 1.0,
-  pointsPerCoinEnabled: true,
-  pointsPerShare: 3.0,
-  pointsPerShareEnabled: true,
-  pointsPerChat: 1.0,
-  pointsPerChatEnabled: true,
-  pointsPerLike: 0.1,
-  pointsPerLikeEnabled: true,
-  pointsPerFollow: 5.0,
-  pointsPerFollowEnabled: true,
-  pointsPerJoin: 0.5,
-  pointsPerJoinEnabled: false,
-  subBonusMultiplier: 0.0,
-  pointsPerLevel: 100,
-};
-
-function send(message: PageMessage): void {
-  window.ipc?.postMessage(JSON.stringify(message));
-}
-
-function normalizeUsername(value: string): string {
-  return value.trim().replace(/^@/, '');
-}
-
-import {
-  applyPluginInstallResult,
-  createInitialPluginInstallState,
-  installPackageMessage,
-  pluginPickerOptions,
-  type PluginInstallState,
-} from './plugin-install.ts';
-
-export type { PluginInstallState };
+export type { PluginInstallState } from './plugin-install.ts';
+export { defaultPointsConfig } from '../features/points.ts';
 
 export const initialPluginInstallState = createInitialPluginInstallState();
 
-export function useAppController() {
-  const activeTab = ref<AppTab>('feed');
-  const uniqueId = ref(initialUsername);
-  const cookie = ref('');
-  const activeCreator = ref(initialUsername);
-  const recents = ref<string[]>(getRecentUsernames());
+const initialLocale = getInitialLocale();
+const initialTheme = getInitialTheme();
 
+/**
+ * Composition root: one shared JSON-RPC control client plus one
+ * composable per domain. Domain state and host calls live in
+ * `src/web/features/`; this module only wires cross-feature callbacks,
+ * owns the tab/locale/theme chrome, and preserves the controller API
+ * App.vue consumes.
+ */
+export function useAppController() {
+  const control = createControlClient();
+  const activeTab = ref<AppTab>('feed');
   const locale = ref<Locale>(initialLocale);
   const theme = ref<Theme>(initialTheme);
-  const status = ref<ConnectionStatus>('idle');
-  const error = ref('');
 
-  const events = ref<DisplayEvent[]>([]);
-  const filter = ref<EventFilter>('all');
-  const searchQuery = ref('');
-
-  const pointsConfig = ref<PointsConfig>(defaultPointsConfig);
-  const leaderboard = ref<ViewerRecord[]>([]);
-  const topViewers = ref<TopViewerPayload[]>([]);
-  const liveViewers = ref(0);
-  const activeCreatorRecord = ref<CreatorRecord | null>(null);
-  const recentCreators = ref<CreatorRecord[]>([]);
-
-  const analyticsSummary = ref<AnalyticsSummaryData | null>(null);
-
-  const behavior = ref<BehaviorSnapshot>({ actions: [], events: [], plugins: [], actionTypes: [], translations: {} });
-  const giftCatalog = ref<GiftCatalogEntry[]>([]);
-  const behaviorRuns = ref<BehaviorRun[]>([]);
-  const behaviorTestRuns = ref<BehaviorRun[]>([]);
-  const behaviorError = ref('');
-  const hotkeyStatus = ref<HotkeyStatusData | null>(null);
-  const pluginSettings = ref<Record<string, PluginSettingsState>>({});
-  const processors = ref<ProcessorStatusEntry[]>([]);
-  const processorTest = ref<Extract<HostMessage, { type: 'processor-test-result' }> | null>(null);
-  const actionOptions = ref<Record<string, ActionOptionItem[]>>({});
-  const actionOptionErrors = ref<Record<string, string>>({});
-  /** Server-reported selection per option source (option documents only). */
-  const actionOptionSelected = ref<Record<string, string>>({});
-  /** Audio output switch in flight per plugin id (TTS output selector). */
-  const ttsOutputPending = ref<Record<string, string>>({});
-  /** Last audio output switch failure per plugin id. */
-  const ttsOutputErrors = ref<Record<string, string>>({});
-  const outputPending: Array<{ pluginId: string; actionType: string; source: string; device: string }> = [];
-  const pluginConnections = ref<Record<string, PluginConnectionState>>({});
-  const pluginProvision = ref<Record<string, { working: boolean; ok: boolean; message: string }>>({});
-  const pluginInstallState = ref<PluginInstallState>({ ...initialPluginInstallState });
-  const pluginProgress = ref<Extract<HostMessage, { type: 'plugin-progress' }> | null>(null);
-  // Host-owned TTS state, one entry per plugin id. Settings persist through
-  // app-state (`tts.settings:<pluginId>`); logs and speaking flags are local.
-  const ttsSettings = ref<Record<string, TtsSettings>>({});
-  const ttsSpeaking = ref<Record<string, boolean>>({});
-  const ttsLogs = ref<Record<string, TtsLogEntry[]>>({});
-  const ttsDirty = new Set<string>();
-  const ttsDeduper = new TtsDeduper({ windowMs: 1500 });
-  const ttsPending: Array<{ pluginId: string; actionType: string; source: 'tester' | 'auto'; text: string; voice: string }> = [];
-  let ttsLogSequence = 0;
-  const mediaSelectionHandlers = new Map<string, MediaSelectionHandler>();
-  let mediaRequestSequence = 0;
-  let pluginProgressTimer: ReturnType<typeof setTimeout> | undefined;
-
-  const autoScroll = ref(true);
-  const unreadCount = ref(0);
-
-  const nextEventId = ref(0);
-  const activeCreatorRef = ref(initialUsername);
-  const streamContainerRef = ref<HTMLDivElement | null>(null);
+  const translate = (key: string): string => t(locale.value, key);
 
   applyTheme(initialTheme);
   document.documentElement.lang = initialLocale;
 
-  const resetEvents = (): void => {
-    nextEventId.value = 0;
-    events.value = [];
-    unreadCount.value = 0;
-    topViewers.value = [];
-    liveViewers.value = 0;
-  };
+  const connection = useConnection(control, {
+    goFeed: () => {
+      activeTab.value = 'feed';
+    },
+    resetFeed: () => live.resetEvents(),
+    translate,
+  });
+  const points = usePoints(control);
+  const creators = useCreators(control, {
+    noteCreatorSeen: (clean, persist) => connection.noteCreatorSeen(clean, persist),
+    mergeRecentNames: (names) => connection.mergeRecentNames(names),
+  });
+  const analytics = useAnalytics(control, () => connection.activeCreator.value);
+  const automation = useAutomation(control);
+  const plugins = usePlugins(control, {
+    translate,
+    refreshBehavior: () => automation.refresh(),
+    reportError: (message) => {
+      automation.behaviorError.value = message;
+    },
+    pickPluginPackage: (onSelected) => {
+      media.openMediaPicker(
+        pluginPickerOptions(translate('pluginInstallPickerTitle')),
+        (selection, pickerError) => {
+          if (pickerError) {
+            onSelected(null, pickerError);
+            return;
+          }
+          if (!selection || selection.type !== 'file') {
+            onSelected(null);
+            return;
+          }
+          onSelected(selection.file.path);
+        },
+      );
+    },
+  });
+  const processors = useProcessors(control);
+  const media = useMedia(control);
+  const tts = useTts(control, plugins.actionOptions, automation.pluginPages, {
+    executeAction: (actionType, config, live) =>
+      plugins.executeAction(actionType, config, live),
+    refreshOptions: (source) => plugins.handleGetActionOptions(source),
+    adjustPoints: (uniqueId, delta) => points.handleAdjustPoints(uniqueId, delta),
+    leaderboardPointsFor: (handle) => points.leaderboardPointsFor(handle),
+  });
+  const live = useLive(control, {
+    onChat: (author, text, pointsValue, isSubscriber) =>
+      tts.runAutoTts(author, text, pointsValue, isSubscriber),
+    systemAuthor: () => translate('system'),
+  });
 
   watch(locale, (value) => {
     document.documentElement.lang = value;
@@ -198,730 +113,156 @@ export function useAppController() {
     saveTheme(value);
   });
 
-  watch([events, autoScroll, activeTab], () => {
-    if (activeTab.value !== 'feed' || !autoScroll.value || !streamContainerRef.value) return;
-    requestAnimationFrame(() => {
-      const container = streamContainerRef.value;
-      if (container) container.scrollTop = container.scrollHeight;
-    });
+  watch([live.events, live.autoScroll, activeTab], () => {
+    if (activeTab.value !== 'feed' || !live.autoScroll.value) return;
+    requestAnimationFrame(() => live.scrollToBottom());
   });
-
-  /** Plugin configuration pages from the behavior snapshot, validated. */
-  const pluginPages: ComputedRef<PluginPageDescriptor[]> = computed(() =>
-    mergePluginPages(behavior.value.pluginPages),
-  );
 
   // A plugin page tab is only valid while its plugin stays installed,
   // enabled, and available; the host drops its pages from the snapshot
   // otherwise, and the UI falls back to the plugins list.
-  watch([behavior, activeTab], () => {
+  watch([automation.behavior, activeTab], () => {
     const parsed = parsePluginNavId(activeTab.value);
     if (!parsed) return;
     // Annotated locals keep the generic-inference chain shallow for vue-tsc.
-    const pages: PluginPageDescriptor[] = pluginPages.value;
+    const pages: PluginPageDescriptor[] = automation.pluginPages.value;
     const exists = pages.some(
       (page) => page.pluginId === parsed.pluginId && page.id === parsed.pageId,
     );
     if (!exists) activeTab.value = 'plugins';
   });
 
-  /** Every host-owned TTS section across plugin pages, with voice sources. */
-  const ttsSections: ComputedRef<Array<{ pluginId: string; actionType: string; voicesSource: string }>> = computed(() => {
-    const found: Array<{ pluginId: string; actionType: string; voicesSource: string }> = [];
-    const pages: PluginPageDescriptor[] = pluginPages.value;
-    for (const page of pages) {
-      for (const section of page.sections) {
-        if (section.kind !== 'tts' || !section.actionType || !section.voicesFrom) continue;
-        const voicesSource = normalizeOptionsFrom(section.voicesFrom);
-        if (!voicesSource) continue;
-        found.push({ pluginId: page.pluginId, actionType: section.actionType, voicesSource });
-      }
-    }
-    return found;
-  });
-
-  const ttsSettingsFor = (pluginId: string): TtsSettings =>
-    ttsSettings.value[pluginId] ?? defaultTtsSettings();
-
-  const appendTtsLog = (pluginId: string, entry: Omit<TtsLogEntry, 'id' | 'at'>): void => {
-    const next: TtsLogEntry = { ...entry, id: ++ttsLogSequence, at: Date.now() };
-    ttsLogs.value = {
-      ...ttsLogs.value,
-      [pluginId]: [...(ttsLogs.value[pluginId] ?? []), next].slice(-50),
-    };
-  };
-
-  const queueTtsSpeak = (
-    pluginId: string,
-    actionType: string,
-    source: 'tester' | 'auto',
-    text: string,
-    voice: string,
-    language: string,
-    playNow: boolean,
-  ): void => {
-    ttsPending.push({ pluginId, actionType, source, text, voice });
-    if (ttsPending.length > 100) ttsPending.splice(0, ttsPending.length - 100);
-    ttsSpeaking.value = { ...ttsSpeaking.value, [pluginId]: true };
-    send({
-      type: 'execute-plugin-action',
-      actionType,
-      config: { text, voice, language, playNow },
-    });
-  };
-
-  const leaderboardPointsFor = (handle: string): number | undefined => {
-    const clean = normalizeHandle(handle);
-    const viewer = leaderboard.value.find((entry) => normalizeHandle(entry.uniqueId) === clean);
-    return viewer?.points;
-  };
-
-  /** Automatic chat TTS: one full-pipeline decision per TTS section.
-   * Points are deducted at most once per claimed fingerprint, after the
-   * deduper accepts the line and before the speech request is queued. */
-  const runAutoTts = (author: string, text: string, points: number | undefined, isSubscriber: boolean | undefined): void => {
-    const sections = ttsSections.value;
-    if (sections.length === 0) return;
-    for (const section of sections) {
-      const settings = ttsSettingsFor(section.pluginId);
-      if (!settings.enabled) continue;
-      const availableVoices = (actionOptions.value[section.voicesSource] ?? []).map((option) => option.value);
-      const decision = decideTts({
-        comment: text,
-        author: {
-          handle: author,
-          points: points ?? leaderboardPointsFor(author),
-          roles: isSubscriber === undefined ? {} : { isSubscriber },
-        },
-        settings,
-        availableVoices,
-      });
-      if (!decision.speak) continue;
-      if (!ttsDeduper.claim(ttsFingerprint(author, decision.spokenText))) continue;
-      if (decision.pointsCost > 0) {
-        send({ type: 'adjust-points', uniqueId: author.trim().replace(/^@/, ''), delta: -decision.pointsCost });
-      }
-      queueTtsSpeak(
-        section.pluginId,
-        section.actionType,
-        'auto',
-        decision.spokenText,
-        decision.voice,
-        decision.language,
-        false,
-      );
-    }
-  };
-
-  const receive = (raw: string): void => {
-    let message: HostMessage;
-    try {
-      message = JSON.parse(raw) as HostMessage;
-    } catch {
-      return;
-    }
-
-    if (message.type === 'connection') {
-      if (message.status === 'connecting') status.value = 'connecting';
-      if (message.status === 'connected') {
-        status.value = 'connected';
-        if (message.uniqueId) {
-          const clean = normalizeUsername(message.uniqueId);
-          activeCreator.value = clean;
-          activeCreatorRef.value = clean;
-          recents.value = addRecentUsername(clean);
-        }
-      }
-      if (message.status === 'disconnected') status.value = 'disconnected';
-    }
-
-    if (message.type === 'reconnecting') status.value = 'retrying';
-
-    if (message.type === 'room-stats') {
-      topViewers.value = message.topViewers;
-      liveViewers.value = message.viewers;
-    }
-
-    if (message.type === 'points-config') pointsConfig.value = message.config;
-    if (message.type === 'leaderboard') leaderboard.value = message.viewers;
-    if (message.type === 'analytics-summary') analyticsSummary.value = message.summary;
-
-    if (message.type === 'points-awarded') {
-      const index = leaderboard.value.findIndex((viewer) => viewer.uniqueId === message.uniqueId);
-      if (index >= 0) {
-        const updated = [...leaderboard.value];
-        const current = updated[index];
-        if (current) {
-          updated[index] = {
-            ...current,
-            points: message.totalPoints,
-            level: message.level,
-            lastSeen: Date.now(),
-          };
-        }
-        leaderboard.value = updated.sort((left, right) => right.points - left.points);
-      }
-    }
-
-    if (message.type === 'live-event') {
-      const event = message.event;
-      events.value = [
-        ...events.value,
-        { ...event, id: nextEventId.value++, receivedAt: Date.now() },
-      ].slice(-300);
-      if (!autoScroll.value) unreadCount.value += 1;
-      if (event.kind === 'chat' && event.text) {
-        runAutoTts(event.author, event.text, event.points, event.isSubscriber);
-      }
-    }
-
-    if (message.type === 'error') {
-      status.value = 'error';
-      error.value = message.message;
-      events.value = [
-        ...events.value,
-        {
-          kind: 'member' as const,
-          author: t(locale.value, 'system'),
-          text: message.message,
-          id: nextEventId.value++,
-          receivedAt: Date.now(),
-        },
-      ].slice(-300);
-    }
-
-    if (message.type === 'media-selected') {
-      const handler = mediaSelectionHandlers.get(message.requestId);
-      if (handler) {
-        mediaSelectionHandlers.delete(message.requestId);
-        handler(message.selection ?? null, message.error);
-      }
-    }
-
-    if (message.type === 'creator-state') {
-      activeCreatorRecord.value = message.creator;
-      if (message.creator?.uniqueId) {
-        const clean = normalizeUsername(message.creator.uniqueId);
-        activeCreator.value = clean;
-        activeCreatorRef.value = clean;
-        recents.value = addRecentUsername(clean);
-        saveUsername(clean);
-      }
-    }
-
-    if (message.type === 'recent-creators') {
-      recentCreators.value = message.creators;
-      const names = message.creators.map((creator) => creator.uniqueId);
-      if (names.length > 0) {
-        recents.value = [...new Set([...names, ...recents.value])].slice(0, 10);
-      }
-    }
-
-    if (message.type === 'app-state') {
-      for (const [key, value] of Object.entries(message.state)) {
-        if (!key.startsWith('tts.settings:')) continue;
-        const pluginId = key.slice('tts.settings:'.length);
-        if (!pluginId || ttsDirty.has(pluginId)) continue;
-        ttsSettings.value = { ...ttsSettings.value, [pluginId]: parseTtsSettings(value) };
-      }
-    }
-
-    if (message.type === 'plugin-action-result') {
-      // Audio output switches resolve separately from speech: success
-      // re-reads the server selection, failure surfaces without persisting.
-      const outputIndex = outputPending.findIndex((entry) => entry.actionType === message.actionType);
-      const output = outputIndex >= 0 ? outputPending.splice(outputIndex, 1)[0] : undefined;
-      if (output) {
-        const rest = { ...ttsOutputPending.value };
-        delete rest[output.pluginId];
-        ttsOutputPending.value = rest;
-        if (message.ok) {
-          const errors = { ...ttsOutputErrors.value };
-          delete errors[output.pluginId];
-          ttsOutputErrors.value = errors;
-          send({ type: 'get-action-options', source: output.source });
-        } else {
-          ttsOutputErrors.value = {
-            ...ttsOutputErrors.value,
-            [output.pluginId]: message.error || message.summary,
-          };
-        }
-      }
-      const pendingIndex = ttsPending.findIndex((entry) => entry.actionType === message.actionType);
-      const pending = pendingIndex >= 0 ? ttsPending.splice(pendingIndex, 1)[0] : undefined;
-      const pluginId = pending?.pluginId;
-      if (pluginId) {
-        const stillPending = ttsPending.some((entry) => entry.pluginId === pluginId);
-        ttsSpeaking.value = { ...ttsSpeaking.value, [pluginId]: stillPending };
-        const lines = message.logs.length > 0 ? ` ${message.logs.slice(0, 3).join(' · ')}` : '';
-        appendTtsLog(pluginId, {
-          ok: message.ok,
-          source: pending?.source ?? 'tester',
-          text: (pending?.text ?? '').slice(0, 160),
-          voice: pending?.voice ?? '',
-          summary: `${message.ok ? message.summary : message.error ?? message.summary}${lines}`.slice(0, 500),
-        });
-      }
-    }
-
-    if (message.type === 'gift-catalog') {
-      giftCatalog.value = message.gifts;
-      return;
-    }
-
-    if (message.type === 'behavior') {
-      setPluginTranslations(message.snapshot.translations);
-      setPluginEventTypes(message.snapshot.eventTypes ?? []);
-      behavior.value = message.snapshot;
-      if (!message.snapshot.plugins.some((plugin) => plugin.descriptor.id === 'hotkeys' && plugin.installed && plugin.enabled)) {
-        hotkeyStatus.value = null;
-      }
-      behaviorError.value = '';
-    }
-    if (message.type === 'hotkey-status') hotkeyStatus.value = message.status;
-    if (message.type === 'behavior-runs') behaviorRuns.value = message.runs;
-    if (message.type === 'behavior-test-result') behaviorTestRuns.value = message.runs;
-    if (message.type === 'behavior-error') behaviorError.value = message.message;
-    if (message.type === 'automation-error') behaviorError.value = message.message;
-
-    if (message.type === 'plugin-settings') {
-      pluginSettings.value = {
-        ...pluginSettings.value,
-        [message.id]: { schema: message.schema, uiHints: message.uiHints, values: message.values },
-      };
-      behaviorError.value = '';
-    }
-
-    if (message.type === 'processor-status') processors.value = message.processors;
-    if (message.type === 'processor-test-result') {
-      processorTest.value = message;
-      // Tests feed the same health/metrics counters, so refresh the panel
-      // instead of leaving the pre-test snapshot on screen.
-      send({ type: 'get-processor-status' });
-    }
-
-    if (message.type === 'plugin-progress') {
-      pluginProgress.value = message;
-      if (pluginProgressTimer) clearTimeout(pluginProgressTimer);
-      if (message.state === 'ready' || message.state === 'failed') {
-        pluginProgressTimer = setTimeout(() => {
-          pluginProgress.value = null;
-          pluginProgressTimer = undefined;
-        }, message.state === 'failed' ? 10_000 : 4_000);
-      }
-    }
-
-    if (message.type === 'action-options') {
-      actionOptions.value = { ...actionOptions.value, [message.source]: message.options };
-      if (message.error) {
-        actionOptionErrors.value = { ...actionOptionErrors.value, [message.source]: message.error };
-      } else {
-        const rest = { ...actionOptionErrors.value };
-        delete rest[message.source];
-        actionOptionErrors.value = rest;
-      }
-      // A fresh fetch without a selection clears the previous one so the
-      // outputs selector never shows a value the server no longer reports.
-      if (typeof message.selected === 'string') {
-        actionOptionSelected.value = { ...actionOptionSelected.value, [message.source]: message.selected };
-      } else {
-        const rest = { ...actionOptionSelected.value };
-        delete rest[message.source];
-        actionOptionSelected.value = rest;
-      }
-    }
-
-    if (message.type === 'plugin-connection-result') {
-      pluginConnections.value = {
-        ...pluginConnections.value,
-        [message.id]: { ok: message.ok, latencyMs: message.latencyMs, error: message.error, at: Date.now() },
-      };
-    }
-
-    if (message.type === 'plugin-provision-result') {
-      pluginProvision.value = {
-        ...pluginProvision.value,
-        [message.id]: {
-          working: false,
-          ok: message.ok,
-          message: message.ok ? 'API token saved.' : (message.error ?? 'Provisioning failed.'),
-        },
-      };
-      if (message.ok) {
-        // The save path already refreshes the settings echo; re-probe so the
-        // connection summary reflects the newly stored token.
-        send({ type: 'get-plugin-settings', id: message.id });
-        send({ type: 'test-plugin-connection', id: message.id });
-      }
-    }
-
-    if (message.type === 'plugin-install-result') {
-      // The behavior snapshot emitted by the backend refreshes the list.
-      pluginInstallState.value = applyPluginInstallResult(
-        pluginInstallState.value,
-        message,
-        (key) => t(locale.value, key),
-      );
-    }
-
-    if (message.type === 'plugin-uninstall-result' && !message.success) {
-      behaviorError.value = message.error;
-    }
-
-    if (message.type === 'gift-debug') {
-      console.warn(
-        `[gift-debug] giftId=${message.giftId} hasIcon=${message.hasIcon} totalGifts=${message.totalGifts} icon=${message.iconUrl?.slice(0, 80) || 'MISSING'}`,
-      );
-      if (!message.hasIcon) {
-        console.warn('[gift-debug] gift has no icon; giftList may not contain this giftId for this room', message.totalGifts);
-      }
-    }
-  };
-
   onMounted(() => {
-    window.__webview_on_message__ = receive;
-    const pending = window.__tiktools_host_message_queue__ ?? [];
-    window.__tiktools_host_message_queue__ = [];
-    pending.forEach(receive);
-
-    send({ type: 'get-points-config' });
-    send({ type: 'get-leaderboard', limit: 100 });
-    send({ type: 'get-creator' });
-    send({ type: 'get-recent-creators', limit: 10 });
-    send({ type: 'get-app-state' });
-    send({ type: 'get-behavior' });
-    send({ type: 'get-gift-catalog' });
-    send({ type: 'get-processor-status' });
+    control.attach();
+    // Same initial state the legacy mount sequence fetched, now as
+    // JSON-RPC reads. Each refresh reports its own failures.
+    void points.refresh();
+    void creators.refresh();
+    void automation.refresh();
+    void live.refresh();
+    void processors.refresh();
+    void tts.refresh();
 
     // Keep the saved username in the connect form, but wait for an explicit
     // user action before starting network work on a cold launch.
   });
 
   onUnmounted(() => {
-    if (window.__webview_on_message__ === receive) window.__webview_on_message__ = undefined;
-    mediaSelectionHandlers.clear();
-    if (pluginProgressTimer) clearTimeout(pluginProgressTimer);
+    control.detach();
   });
 
-  const handleConnect = (userToConnect?: string): void => {
-    const target = normalizeUsername(userToConnect || uniqueId.value);
-    if (!target) {
-      error.value = t(locale.value, 'handleRequired');
-      return;
-    }
-    error.value = '';
-    resetEvents();
-    status.value = 'connecting';
-    activeCreator.value = target;
-    activeCreatorRef.value = target;
-    saveUsername(target);
-    recents.value = addRecentUsername(target);
-    activeTab.value = 'feed';
-    send({ type: 'connect', uniqueId: target, sessionCookie: cookie.value.trim() });
+  const setActiveTab = (value: AppTab): void => {
+    activeTab.value = value;
   };
-
-  const handlePickLive = (): void => {
-    error.value = '';
-    resetEvents();
-    status.value = 'connecting';
-    activeCreator.value = t(locale.value, 'searchingRooms');
-    activeTab.value = 'feed';
-    send({ type: 'pick-live', sessionCookie: cookie.value.trim() });
+  const setLocale = (value: Locale): void => {
+    locale.value = value;
   };
-
-  const handleDisconnect = (): void => {
-    send({ type: 'disconnect' });
-    status.value = 'disconnected';
+  const setTheme = (value: Theme): void => {
+    theme.value = value;
   };
-
-  const handleReconnect = (): void => {
-    if (activeCreatorRef.value) handleConnect(activeCreatorRef.value);
-  };
-
-  const handleSelectRecent = (username: string): void => {
-    uniqueId.value = username;
-    handleConnect(username);
-  };
-
-  const handleToggleAutoScroll = (): void => {
-    const nextState = !autoScroll.value;
-    autoScroll.value = nextState;
-    if (nextState) {
-      unreadCount.value = 0;
-      const container = streamContainerRef.value;
-      if (container) container.scrollTop = container.scrollHeight;
-    }
-  };
-
   const handleThemeToggle = (): void => {
     theme.value = theme.value === 'dark' ? 'light' : 'dark';
   };
-
   const handleLocaleToggle = (): void => {
     locale.value = locale.value === 'en' ? 'es' : 'en';
   };
-
-  const clearBehaviorError = (): void => { behaviorError.value = ''; };
-  const handleUpdatePointsConfig = (config: Partial<PointsConfig>): void => send({ type: 'update-points-config', config });
-  const handleResetPoints = (uniqueId?: string): void => send({ type: 'reset-points', uniqueId });
-  const handleAdjustPoints = (uniqueId: string, delta: number): void => send({ type: 'adjust-points', uniqueId, delta });
-
-  const handleSaveAction = (action: LiveAction): void => { clearBehaviorError(); send({ type: 'save-action', action }); };
-  const handleDeleteAction = (id: string): void => { clearBehaviorError(); send({ type: 'delete-action', id }); };
-  const handleSetActionEnabled = (id: string, enabled: boolean): void => { clearBehaviorError(); send({ type: 'set-action-enabled', id, enabled }); };
-  const handleTestAction = (action: LiveAction, trigger?: string): void => {
-    clearBehaviorError();
-    behaviorTestRuns.value = [];
-    send({ type: 'test-action', action, trigger });
-  };
-  const handleSaveEvent = (event: LiveEvent): void => { clearBehaviorError(); send({ type: 'save-event', event }); };
-  const handleDeleteEvent = (id: string): void => { clearBehaviorError(); send({ type: 'delete-event', id }); };
-  const handleSetEventEnabled = (id: string, enabled: boolean): void => { clearBehaviorError(); send({ type: 'set-event-enabled', id, enabled }); };
-  const handleTestEvent = (event: LiveEvent): void => {
-    clearBehaviorError();
-    behaviorTestRuns.value = [];
-    send({ type: 'test-event', event });
-  };
-  const handleSetPluginInstalled = (id: string, installed: boolean): void => { clearBehaviorError(); send({ type: 'set-plugin-install', id, installed }); };
-  const handleUninstallPlugin = (id: string): void => { clearBehaviorError(); send({ type: 'uninstall-plugin-package', id }); };
-  const handleSetPluginEnabled = (id: string, enabled: boolean): void => { clearBehaviorError(); send({ type: 'set-plugin-enabled', id, enabled }); };
-  const handleGetPluginSettings = (id: string): void => send({ type: 'get-plugin-settings', id });
-  const handleSavePluginSettings = (id: string, values: PluginSettingValues): void => { clearBehaviorError(); send({ type: 'save-plugin-settings', id, values }); };
-  const handleGetProcessorStatus = (): void => send({ type: 'get-processor-status' });
-  const handleTestProcessor = (pluginId: string, processorId: string, event: AutomationEvent): void => {
-    processorTest.value = null;
-    send({ type: 'test-processor', pluginId, processorId, event });
-  };
-  const handleGetActionOptions = (source: string): void => send({ type: 'get-action-options', source });
-  const handleTestPluginConnection = (id: string): void => send({ type: 'test-plugin-connection', id });
-  const handleProvisionPluginToken = (id: string, username: string, password: string): void => {
-    pluginProvision.value = { ...pluginProvision.value, [id]: { working: true, ok: false, message: '' } };
-    send({ type: 'provision-plugin-token', id, username, password });
-  };
-  const handleTtsSettingsChange = (pluginId: string, next: TtsSettings): void => {
-    const clean = sanitizeTtsSettings(next);
-    ttsDirty.add(pluginId);
-    ttsSettings.value = { ...ttsSettings.value, [pluginId]: clean };
-    send({ type: 'set-app-state', key: ttsSettingsKey(pluginId), value: serializeTtsSettings(clean) });
-  };
-  const handleTtsSpeak = (pluginId: string, actionType: string, text: string, voice: string): void => {
-    const settings = ttsSettingsFor(pluginId);
-    const clean = text.trim().slice(0, 4_096);
-    if (!clean) return;
-    // Same trailing fallback as automatic TTS: never send an empty voice
-    // while a voice list is known (servers 400 on present-but-empty params).
-    const section = ttsSections.value.find((entry) => entry.pluginId === pluginId);
-    const availableVoices = section
-      ? (actionOptions.value[section.voicesSource] ?? []).map((option) => option.value)
-      : [];
-    const resolvedVoice = voice.trim() || settings.defaultVoice.trim() || firstAvailableVoice(availableVoices);
-    queueTtsSpeak(pluginId, actionType, 'tester', clean, resolvedVoice, settings.language, true);
-  };
-
-  /**
-   * Runs the outputs switch action immediately (TTS audio output selector).
-   * The device is sent verbatim; the result handler re-reads the server
-   * selection on success and surfaces the error without persisting on
-   * failure, so the selector always reflects server state.
-   */
-  const handleTtsOutputSelect = (pluginId: string, actionType: string, field: string, device: string, source: string): void => {
-    if (!device.trim() || ttsOutputPending.value[pluginId] !== undefined) return;
-    outputPending.push({ pluginId, actionType, source, device });
-    if (outputPending.length > 20) outputPending.splice(0, outputPending.length - 20);
-    ttsOutputPending.value = { ...ttsOutputPending.value, [pluginId]: device };
-    const errors = { ...ttsOutputErrors.value };
-    delete errors[pluginId];
-    ttsOutputErrors.value = errors;
-    send({ type: 'execute-plugin-action', actionType, config: { [field]: device } });
-  };
-  const ttsSettingsOrDefault = (pluginId: string): TtsSettings => ttsSettingsFor(pluginId);
-
-  const openMediaPicker = (options: MediaPickerOptions, onSelected: MediaSelectionHandler): void => {
-    const requestId = `media-${Date.now()}-${++mediaRequestSequence}`;
-    mediaSelectionHandlers.set(requestId, onSelected);
-    if (!window.ipc) {
-      mediaSelectionHandlers.delete(requestId);
-      onSelected(null, 'Native media picker is unavailable in this preview.');
-      return;
-    }
-    const message: PageMessage = {
-      type: 'open-media-picker',
-      requestId,
-      mode: options.mode ?? 'file',
-      kind: options.kind ?? 'audio',
-      ...(options.title ? { title: options.title } : {}),
-      ...(options.initialDirectory ? { initialDirectory: options.initialDirectory } : {}),
-      ...(options.extensions?.length ? { extensions: options.extensions.slice(0, 32) } : {}),
-    };
-    send(message);
-  };
-
-  const sendInstallPackage = (path: string, replaceExisting: boolean): void => {
-    pluginInstallState.value = {
-      installing: true,
-      error: '',
-      success: '',
-      pendingPath: path,
-      needsReplace: false,
-    };
-    send(installPackageMessage(path, replaceExisting));
-  };
-
-  const handleInstallPlugin = (): void => {
-    if (pluginInstallState.value.installing) return;
-    pluginInstallState.value = createInitialPluginInstallState();
-    openMediaPicker(
-      pluginPickerOptions(t(locale.value, 'pluginInstallPickerTitle')),
-      (selection, pickerError) => {
-        if (pickerError) {
-          pluginInstallState.value = {
-            installing: false,
-            error: pickerError,
-            success: '',
-            pendingPath: '',
-            needsReplace: false,
-          };
-          return;
-        }
-        // Picker cancellation sends nothing.
-        if (!selection || selection.type !== 'file') return;
-        sendInstallPackage(selection.file.path, false);
-      },
-    );
-  };
-
-  const handleConfirmPluginReplace = (): void => {
-    const pending = pluginInstallState.value.pendingPath;
-    if (!pending || pluginInstallState.value.installing) return;
-    sendInstallPackage(pending, true);
-  };
-
-  const handleCancelPluginReplace = (): void => {
-    pluginInstallState.value = createInitialPluginInstallState();
-  };
-
-  const setActiveTab = (value: AppTab): void => { activeTab.value = value; };
-  const setUniqueId = (value: string): void => { uniqueId.value = value; };
-  const setCookie = (value: string): void => { cookie.value = value; };
-  const setLocale = (value: Locale): void => { locale.value = value; };
-  const setTheme = (value: Theme): void => { theme.value = value; };
-  const setFilter = (value: EventFilter): void => { filter.value = value; };
-  const setSearchQuery = (value: string): void => { searchQuery.value = value; };
-  const setStreamContainerRef = (element: Element | null): void => {
-    streamContainerRef.value = element instanceof HTMLDivElement ? element : null;
-  };
-  const openPlugins = (): void => { activeTab.value = 'plugins'; };
-  const dismissPluginProgress = (): void => {
-    pluginProgress.value = null;
-    if (pluginProgressTimer) {
-      clearTimeout(pluginProgressTimer);
-      pluginProgressTimer = undefined;
-    }
+  const openPlugins = (): void => {
+    activeTab.value = 'plugins';
   };
 
   return {
     activeTab,
-    uniqueId,
-    cookie,
-    activeCreator,
-    recents,
+    uniqueId: connection.uniqueId,
+    cookie: connection.cookie,
+    activeCreator: connection.activeCreator,
+    recents: connection.recents,
     locale,
     theme,
-    status,
-    error,
-    events,
-    filter,
-    searchQuery,
-    pointsConfig,
-    leaderboard,
-    topViewers,
-    liveViewers,
-    activeCreatorRecord,
-    recentCreators,
-    behavior,
-    giftCatalog,
-    behaviorRuns,
-    behaviorTestRuns,
-    behaviorError,
-    hotkeyStatus,
-    pluginSettings,
-    processors,
-    processorTest,
-    actionOptions,
-    actionOptionErrors,
-    pluginConnections,
-    pluginPages,
-    pluginProgress,
-    dismissPluginProgress,
-    autoScroll,
-    unreadCount,
-    resetEvents,
+    status: connection.status,
+    error: connection.error,
+    events: live.events,
+    filter: live.filter,
+    searchQuery: live.searchQuery,
+    pointsConfig: points.pointsConfig,
+    leaderboard: points.leaderboard,
+    topViewers: live.topViewers,
+    liveViewers: live.liveViewers,
+    activeCreatorRecord: creators.activeCreatorRecord,
+    recentCreators: creators.recentCreators,
+    behavior: automation.behavior,
+    giftCatalog: live.giftCatalog,
+    behaviorRuns: automation.behaviorRuns,
+    behaviorTestRuns: automation.behaviorTestRuns,
+    behaviorError: automation.behaviorError,
+    hotkeyStatus: automation.hotkeyStatus,
+    pluginSettings: plugins.pluginSettings,
+    processors: processors.processors,
+    processorTest: processors.processorTest,
+    actionOptions: plugins.actionOptions,
+    actionOptionErrors: plugins.actionOptionErrors,
+    pluginConnections: plugins.pluginConnections,
+    pluginPages: automation.pluginPages,
+    pluginProgress: plugins.pluginProgress,
+    dismissPluginProgress: plugins.dismissPluginProgress,
+    autoScroll: live.autoScroll,
+    unreadCount: live.unreadCount,
+    resetEvents: live.resetEvents,
     setActiveTab,
-    setUniqueId,
-    setCookie,
+    setUniqueId: connection.setUniqueId,
+    setCookie: connection.setCookie,
     setLocale,
     setTheme,
-    setFilter,
-    setSearchQuery,
-    setStreamContainerRef,
+    setFilter: live.setFilter,
+    setSearchQuery: live.setSearchQuery,
+    setStreamContainerRef: live.setStreamContainerRef,
     openPlugins,
-    handleConnect,
-    handlePickLive,
-    handleDisconnect,
-    handleReconnect,
-    handleSelectRecent,
-    handleToggleAutoScroll,
+    handleConnect: connection.handleConnect,
+    handlePickLive: connection.handlePickLive,
+    handleDisconnect: connection.handleDisconnect,
+    handleReconnect: connection.handleReconnect,
+    handleSelectRecent: connection.handleSelectRecent,
+    handleToggleAutoScroll: live.handleToggleAutoScroll,
     handleThemeToggle,
     handleLocaleToggle,
-    handleUpdatePointsConfig,
-    handleResetPoints,
-    handleAdjustPoints,
-    handleSaveAction,
-    handleDeleteAction,
-    handleSetActionEnabled,
-    handleTestAction,
-    handleSaveEvent,
-    handleDeleteEvent,
-    handleSetEventEnabled,
-    handleTestEvent,
-    handleSetPluginInstalled,
-    handleUninstallPlugin,
-    handleSetPluginEnabled,
-    handleGetPluginSettings,
-    handleSavePluginSettings,
-    handleGetProcessorStatus,
-    handleTestProcessor,
-    handleGetActionOptions,
-    handleTestPluginConnection,
-    pluginProvision,
-    handleProvisionPluginToken,
-    ttsSettings,
-    ttsSpeaking,
-    ttsLogs,
-    ttsSettingsOrDefault,
-    handleTtsSettingsChange,
-    handleTtsSpeak,
-    actionOptionSelected,
-    ttsOutputPending,
-    ttsOutputErrors,
-    handleTtsOutputSelect,
-    analyticsSummary,
-    handleGetAnalyticsRange: (startDay: number, endDay: number): void => {
-      send({
-        type: 'get-analytics-summary',
-        creatorUniqueId: normalizeUsername(activeCreator.value),
-        startDay,
-        endDay,
-        limit: 10,
-      });
-    },
-    pluginInstallState,
-    handleInstallPlugin,
-    handleConfirmPluginReplace,
-    handleCancelPluginReplace,
-    openMediaPicker,
-    handleAnalyzeScript: (nodeId: string, source: string, offset: number, eventType?: AutomationEventType): void => {
-      send({ type: 'analyze-automation-script', nodeId, source, offset, eventType });
-    },
+    handleUpdatePointsConfig: points.handleUpdatePointsConfig,
+    handleResetPoints: points.handleResetPoints,
+    handleAdjustPoints: points.handleAdjustPoints,
+    handleSaveAction: automation.handleSaveAction,
+    handleDeleteAction: automation.handleDeleteAction,
+    handleSetActionEnabled: automation.handleSetActionEnabled,
+    handleTestAction: automation.handleTestAction,
+    handleSaveEvent: automation.handleSaveEvent,
+    handleDeleteEvent: automation.handleDeleteEvent,
+    handleSetEventEnabled: automation.handleSetEventEnabled,
+    handleTestEvent: automation.handleTestEvent,
+    handleSetPluginInstalled: plugins.handleSetPluginInstalled,
+    handleUninstallPlugin: plugins.handleUninstallPlugin,
+    handleSetPluginEnabled: plugins.handleSetPluginEnabled,
+    handleGetPluginSettings: plugins.handleGetPluginSettings,
+    handleSavePluginSettings: plugins.handleSavePluginSettings,
+    handleGetProcessorStatus: processors.handleGetProcessorStatus,
+    handleTestProcessor: processors.handleTestProcessor,
+    handleGetActionOptions: plugins.handleGetActionOptions,
+    handleTestPluginConnection: plugins.handleTestPluginConnection,
+    pluginProvision: plugins.pluginProvision,
+    handleProvisionPluginToken: plugins.handleProvisionPluginToken,
+    ttsSettings: tts.ttsSettings,
+    ttsSpeaking: tts.ttsSpeaking,
+    ttsLogs: tts.ttsLogs,
+    ttsSettingsOrDefault: tts.ttsSettingsOrDefault,
+    handleTtsSettingsChange: tts.handleTtsSettingsChange,
+    handleTtsSpeak: tts.handleTtsSpeak,
+    actionOptionSelected: plugins.actionOptionSelected,
+    ttsOutputPending: tts.ttsOutputPending,
+    ttsOutputErrors: tts.ttsOutputErrors,
+    handleTtsOutputSelect: tts.handleTtsOutputSelect,
+    analyticsSummary: analytics.analyticsSummary,
+    handleGetAnalyticsRange: analytics.handleGetAnalyticsRange,
+    pluginInstallState: plugins.pluginInstallState,
+    handleInstallPlugin: plugins.handleInstallPlugin,
+    handleConfirmPluginReplace: plugins.handleConfirmPluginReplace,
+    handleCancelPluginReplace: plugins.handleCancelPluginReplace,
+    openMediaPicker: media.openMediaPicker,
+    handleAnalyzeScript: automation.handleAnalyzeScript,
   };
 }

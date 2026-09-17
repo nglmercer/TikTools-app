@@ -4,7 +4,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tiktools_core::{
-    control::{PluginActionOutcome, PluginConnectionResult, PluginInstallResult, PluginProvisionResult},
+    control::{
+        PluginActionOutcome, PluginConnectionResult, PluginInstallResult, PluginProvisionResult,
+    },
     AppCore,
 };
 

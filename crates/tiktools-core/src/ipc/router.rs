@@ -13,6 +13,13 @@ pub enum IpcError {
     Message(#[from] IpcMessageError),
 }
 
+/// Compatibility layer for the legacy `{"type": ...}` WebView messages.
+///
+/// Every client (Vue, CLI, agents) speaks JSON-RPC through `ControlApi` now;
+/// this router only exists so older frontends keep working during the
+/// migration. Each legacy message is an adapter over the same authoritative
+/// `AppCore` control operations (`handle_page_message` implements no
+/// business logic of its own). Do not add new `PageMessage` variants.
 #[derive(Clone)]
 pub struct IpcRouter {
     core: Arc<AppCore>,

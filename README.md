@@ -8,7 +8,9 @@ points, and runs local automations. Tauri is not used.
 
 - Direct Winit/Wry window and WebView lifecycle, plus a `tray-icon` tray.
 - Native Rust TikTok discovery, signing, WebSocket transport, and event decode.
-- Existing Vue UI and `PageMessage`/`HostMessage` JSON IPC contract.
+- One `AppCore` behind a typed JSON-RPC control API shared by the Vue UI,
+  the `tiktools` CLI, local IPC, and agents, with `DomainEvent` streaming
+  to every client.
 - Rust-owned SQLite persistence for points, creators, gifts, workflows, and
   behavior records.
 - Bounded JavaScript automation through the pure-Rust `napi-vm` runtime.
@@ -108,15 +110,19 @@ cargo run -p tiktools-desktop --locked -- --install-plugin ./example.plugin --re
 ## Project layout
 
 ```text
-crates/tiktools-desktop/       Winit, Wry, tray, UI-thread bridge
-crates/tiktools-core/          IPC router, services, SQLite, points, events
+crates/tiktools-desktop/       Winit, Wry, tray, UI-thread bridge, control IPC
+crates/tiktools-control-api/   JSON-RPC router, transports, client, discovery
+crates/tiktools-cli/           IPC-first CLI over the control API
+crates/tiktools-core/          Control operations, services, SQLite, points, events
 crates/tiktools-plugin-api/    Versioned manifest, protocol, capabilities, ABI
 crates/tiktools-plugin-sdk/    Typed plugin trait, adapters, result compatibility
 crates/tiktools-plugin-macros/ Small process/native entry-point macros
 crates/tiktools-plugin-loader/ Runtime discovery and plugin runtimes
 crates/tiktools-tiktok/        Native signer, discovery, WebSocket, event model
 src/web/                       Vue application and styles
-src/shared/messages.ts         Frontend compatibility contract
+src/web/platform/              JSON-RPC control-client bridge (owns window.ipc)
+src/web/features/              One domain composable per feature
+src/shared/messages.ts         Host-push shape contract
 src/automation/                Generated contracts, registry, and event types
 docs/                          Architecture and development documentation
 ```
@@ -164,7 +170,7 @@ Plugins contribute actions, event sources, and pre-filter event processors
 (`processorTypes` + the `events.enrich` capability); processors enrich host
 events under the optional `event.intel` namespace before automation filters
 run, fail open on any error, and are previewed over IPC with
-`test-processor`/`get-processor-status`. See `docs/PLUGINS.md` and the
+`processors.test`/`processors.status`. See `docs/PLUGINS.md` and the
 `examples/textintel-process-plugin/` reference implementation.
 
 ## Data and privacy
@@ -184,6 +190,7 @@ Session cookies stay in memory and must never be committed or logged.
 
 - [Getting Started](docs/GETTING_STARTED.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Control API](docs/CONTROL_API.md)
 - [Development Guide](docs/DEVELOPMENT.md)
 - [Contributing](CONTRIBUTING.md)
 - [Automations](docs/AUTOMATIONS.md)

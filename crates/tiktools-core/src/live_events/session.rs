@@ -77,11 +77,10 @@ impl AppCore {
             )
             .is_ok()
         {
-            self.events.publish_domain(
-                crate::events::DomainEvent::AnalyticsUpdated {
+            self.events
+                .publish_domain(crate::events::DomainEvent::AnalyticsUpdated {
                     creator_unique_id: creator.to_owned(),
-                },
-            );
+                });
         }
     }
     #[cfg(feature = "persistence")]

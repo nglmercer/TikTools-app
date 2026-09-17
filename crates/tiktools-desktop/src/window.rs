@@ -70,6 +70,42 @@ impl DesktopApp {
         log_path: PathBuf,
     ) -> Self {
         let control = Arc::new(ControlApi::new(core.clone()));
+        // Persistent local IPC shares the desktop's one AppCore: the CLI
+        // and agents observe the same runtime the WebView drives. The
+        // server runs on Tokio without blocking Winit and exits on core
+        // shutdown; a second desktop instance never gets here because the
+        // single-instance guard exits it first.
+        {
+            let control = control.clone();
+            runtime.spawn(async move {
+                if let Err(error) = tiktools_control_api::run_ipc_shared(control).await {
+                    tracing::warn!(%error, "control IPC server exited");
+                }
+            });
+        }
+        // Forward domain events to the WebView as JSON-RPC `event`
+        // notifications so the frontend control client observes the same
+        // bus as CLI/IPC streaming clients.
+        {
+            let mut events = control.subscribe();
+            let proxy = proxy.clone();
+            runtime.spawn(async move {
+                loop {
+                    let event = match events.recv().await {
+                        Ok(event) => event,
+                        Err(_) => break,
+                    };
+                    let shutdown = matches!(event, tiktools_core::events::DomainEvent::Shutdown);
+                    let notification = tiktools_control_api::event_notification(&event);
+                    let _ = proxy.send_event(DesktopEvent::Command(DesktopCommand::EmitToWebview(
+                        notification.to_string(),
+                    )));
+                    if shutdown {
+                        break;
+                    }
+                }
+            });
+        }
         Self {
             window: None,
             webview: None,

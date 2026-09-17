@@ -3,7 +3,10 @@ use std::{str::FromStr, sync::Arc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tiktools_core::{control::{AutomationKind, ScriptAnalysisResult}, AppCore};
+use tiktools_core::{
+    control::{AutomationKind, ScriptAnalysisResult},
+    AppCore,
+};
 
 use crate::{error::ApiError, modules::Empty, router::ControlRouter};
 
@@ -271,6 +274,14 @@ pub fn register(router: &mut ControlRouter) {
             Ok::<AutomationRunsResult, ApiError>(AutomationRunsResult {
                 runs: core.automation_runs(),
             })
+        },
+    );
+    router.register_typed::<Empty, Value, _, _>(
+        "automation.snapshot",
+        "Merged behavior snapshot: records plus the live runtime catalog",
+        false,
+        |core: Arc<AppCore>, _params: Empty| async move {
+            Ok::<Value, ApiError>(core.behavior_snapshot())
         },
     );
 }

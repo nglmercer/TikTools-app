@@ -36,7 +36,13 @@ pub async fn run_stdio(api: ControlApi, stream_events: bool) -> std::io::Result<
 /// Serves JSON-RPC over persistent local IPC with event streaming:
 /// a Unix domain socket on Unix, a named pipe on Windows.
 pub async fn run_ipc(api: ControlApi) -> std::io::Result<()> {
-    let api = Arc::new(api);
+    run_ipc_shared(Arc::new(api)).await
+}
+
+/// Serves local IPC from a shared [`ControlApi`]. The desktop host uses this
+/// so its WebView, control router, and IPC server all share one `AppCore`.
+/// The loop exits once the core starts shutting down.
+pub async fn run_ipc_shared(api: Arc<ControlApi>) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         run_ipc_unix(api).await
@@ -56,7 +62,7 @@ pub async fn run_ipc(api: ControlApi) -> std::io::Result<()> {
 }
 
 #[cfg(unix)]
-fn ipc_socket_path() -> std::path::PathBuf {
+pub(crate) fn ipc_socket_path() -> std::path::PathBuf {
     tiktools_core::paths::AppPaths::from_environment()
         .root
         .join(format!("{IPC_NAME}.sock"))
@@ -76,9 +82,15 @@ async fn run_ipc_unix(api: Arc<ControlApi>) -> std::io::Result<()> {
         }
     }
     let listener = UnixListener::bind(&path)?;
+    // Per-user endpoint: only the owner may connect to the control socket.
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
     tracing::info!(path = %path.display(), "control IPC listening");
     loop {
         if api.core().is_shutdown() {
+            let _ = std::fs::remove_file(&path);
             return Ok(());
         }
         tokio::select! {
@@ -102,7 +114,20 @@ async fn run_ipc_unix(api: Arc<ControlApi>) -> std::io::Result<()> {
 }
 
 #[cfg(windows)]
-fn ipc_pipe_name() -> String {
+pub(crate) fn ipc_pipe_name() -> String {
+    // Test override so integration tests isolate their endpoint instead
+    // of touching the well-known production pipe. Unix isolates through
+    // TIKTOOLS_HOME already, so no override is needed there.
+    if let Ok(name) = std::env::var("TIKTOOLS_IPC_NAME") {
+        if !name.is_empty()
+            && name.len() <= 64
+            && name.chars().all(|character| {
+                character.is_ascii_alphanumeric() || character == '-' || character == '_'
+            })
+        {
+            return format!(r"\\.\pipe\{name}");
+        }
+    }
     format!(r"\\.\pipe\{IPC_NAME}")
 }
 
@@ -345,7 +370,13 @@ mod tests {
             .await
             .unwrap();
         let mut lines = tokio::io::BufReader::new(client_read).lines();
-        let response = lines.next_line().await.unwrap().expect("response line");
+        // Every wait below is bounded: a stuck server must fail the test,
+        // never hang the suite.
+        let response = tokio::time::timeout(std::time::Duration::from_secs(10), lines.next_line())
+            .await
+            .expect("response line timed out")
+            .unwrap()
+            .expect("response line");
         assert!(
             response.contains("\"id\":1"),
             "unexpected response: {response}"
@@ -358,7 +389,11 @@ mod tests {
         // domain event published here interleaves as a JSON-RPC notification.
         core.events
             .publish_domain(tiktools_core::events::DomainEvent::LiveDisconnected);
-        let event = lines.next_line().await.unwrap().expect("event line");
+        let event = tokio::time::timeout(std::time::Duration::from_secs(10), lines.next_line())
+            .await
+            .expect("event line timed out")
+            .unwrap()
+            .expect("event line");
         assert!(
             event.contains("\"method\":\"event\""),
             "unexpected event: {event}"
@@ -370,8 +405,16 @@ mod tests {
         // Split halves share the duplex endpoint, so a bare drop would not
         // deliver EOF; an explicit shutdown closes the write side.
         client_write.shutdown().await.unwrap();
-        assert!(lines.next_line().await.unwrap().is_none());
-        server_task.await.unwrap().unwrap();
+        let eof = tokio::time::timeout(std::time::Duration::from_secs(10), lines.next_line())
+            .await
+            .expect("EOF timed out")
+            .unwrap();
+        assert!(eof.is_none());
+        tokio::time::timeout(std::time::Duration::from_secs(10), server_task)
+            .await
+            .expect("server task hung after EOF")
+            .expect("server task panicked")
+            .unwrap();
         let _ = std::fs::remove_dir_all(&home);
     }
 

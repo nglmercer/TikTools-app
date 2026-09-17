@@ -5,11 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tiktools_core::{control::GiftDebugResult, AppCore};
 
-use crate::{
-    error::ApiError,
-    modules::Empty,
-    router::ControlRouter,
-};
+use crate::{error::ApiError, modules::Empty, router::ControlRouter};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

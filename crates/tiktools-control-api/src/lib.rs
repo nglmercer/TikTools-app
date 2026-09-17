@@ -10,6 +10,7 @@
 //! Clients: CLI, JSON stdio (`host --stdio`), local IPC (Unix socket /
 //! Windows named pipe), WebView bridge, tests, AI agents.
 
+pub mod client;
 pub mod error;
 pub mod modules;
 pub mod registry;
@@ -18,12 +19,15 @@ pub mod response;
 pub mod router;
 pub mod transport;
 
+pub use client::{ClientError, ControlClient};
 pub use error::ApiError;
 pub use registry::MethodMeta;
 pub use request::{RpcId, RpcRequest};
 pub use response::RpcResponse;
 pub use router::ControlRouter;
-pub use transport::{run_ipc, run_stdio, IPC_NAME, MAX_PARAMS_BYTES, MAX_REQUEST_BYTES};
+pub use transport::{
+    run_ipc, run_ipc_shared, run_stdio, IPC_NAME, MAX_PARAMS_BYTES, MAX_REQUEST_BYTES,
+};
 
 use std::sync::Arc;
 use std::time::Duration;

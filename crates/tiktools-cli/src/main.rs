@@ -1,7 +1,9 @@
-//! `tiktools`: thin headless CLI over [`ControlApi`](tiktools_control_api::ControlApi).
+//! `tiktools`: thin CLI over the shared control plane.
 //!
 //! Every command builds the same JSON-RPC request a stdio/IPC/WebView client
-//! would send and executes it against an in-process headless [`AppCore`].
+//! would send and executes it against the running host over local IPC, so
+//! the CLI always observes the desktop's one [`AppCore`]. `--standalone`
+//! opts into an isolated in-process [`AppCore`] instead.
 //! JSON mode rules: stdout carries JSON only, diagnostics go to stderr,
 //! no ANSI, no progress bars, stable exit codes (0 ok, 1 operation error,
 //! 2 usage, 3 transport failure).
@@ -9,7 +11,7 @@
 use std::sync::Arc;
 
 use serde_json::{json, Value};
-use tiktools_control_api::{ControlApi, RpcId, RpcRequest};
+use tiktools_control_api::{ControlApi, ControlClient, RpcId, RpcRequest};
 use tiktools_core::{ipc::messages::HostMessage, AppCore, HostEmitter};
 
 struct NullEmitter;
@@ -23,7 +25,7 @@ fn headless_api() -> ControlApi {
 }
 
 const USAGE: &str = "\
-usage: tiktools [--json] <command> [args]
+usage: tiktools [--json] [--standalone] <command> [args]
 
 commands:
   plugin list | get <id> | install <path> [--replace] | uninstall <id>
@@ -34,22 +36,28 @@ commands:
   live connect --unique-id <id> --session-cookie <cookie> [--room-id <id>]
        | pick --session-cookie <cookie> | disconnect | status
   points config get | config set k=v... | viewer get <id> | adjust <id> <delta>
-       | leaderboard [--limit N]
+       | leaderboard [--limit N] | reset [id]
   automation list [--kind event|action|all] | get <id> [--kind k]
            | create --record json [--kind k] | update <id> --record json [--kind k]
            | delete <id> [--kind k] | enable <id> [--kind k] | disable <id> [--kind k]
            | test (--id <id> | --record json) [--kind k] [--trigger t]
            | context
+  workflow list | get <id> | save --record json | delete <id>
+           | enable <id> | disable <id>
   media validate <path> [--kind audio|video|image|other]
       | play <path> [--kind k] [--volume 0..1]
   system info | health | snapshot | doctor
   rpc <method> [params-json]
   rpc --stdio [--events]        NDJSON request/response loop on stdio
   host --stdio [--events]       headless host on stdio (streams events with --events)
-  host --ipc                    headless host on local IPC (socket / named pipe)
+  host --ipc                    headless host on local IPC (refuses when a host is running)
 
-json values may use @path to read from a file. --json prints the raw result
-object to stdout; without it, lists print one line per item.
+commands run against the running host over local IPC by default; when no
+host is running they fail with host_unavailable instead of starting a
+second runtime. --standalone runs the command against an isolated
+in-process runtime instead. json values may use @path to read from a file.
+--json prints the raw result object to stdout; without it, lists print one
+line per item.
 ";
 
 fn main() {
@@ -60,7 +68,11 @@ fn main() {
 fn run() -> i32 {
     let raw: Vec<String> = std::env::args().skip(1).collect();
     let json_mode = raw.iter().any(|arg| arg == "--json");
-    let args: Vec<String> = raw.into_iter().filter(|arg| arg != "--json").collect();
+    let standalone = raw.iter().any(|arg| arg == "--standalone");
+    let args: Vec<String> = raw
+        .into_iter()
+        .filter(|arg| arg != "--json" && arg != "--standalone")
+        .collect();
     if args.is_empty() || args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
         print!("{USAGE}");
         return 0;
@@ -79,25 +91,35 @@ fn run() -> i32 {
             return 3;
         }
     };
-    runtime.block_on(dispatch(args, json_mode))
+    runtime.block_on(dispatch(args, json_mode, standalone))
 }
 
-async fn dispatch(args: Vec<String>, json_mode: bool) -> i32 {
-    let api = headless_api();
+async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
     let request = match build_request(&args) {
         Ok(Request::Rpc(request)) => request,
         Ok(Request::Stdio { events }) => {
-            return serve_stdio(api, events).await;
+            return serve_stdio(headless_api(), events).await;
         }
         Ok(Request::Ipc) => {
-            return serve_ipc(api).await;
+            return serve_ipc_guarded().await;
         }
         Err(message) => {
             eprintln!("tiktools: {message}\n\n{USAGE}");
             return 2;
         }
     };
-    let id = request.id.clone();
+    if standalone {
+        return execute_local(headless_api(), request, json_mode, &args[0]).await;
+    }
+    execute_remote(request, json_mode, &args[0]).await
+}
+
+async fn execute_local(
+    api: ControlApi,
+    request: RpcRequest,
+    json_mode: bool,
+    command: &str,
+) -> i32 {
     let response = api.execute(request).await;
     if !response.is_ok() {
         let error = response
@@ -115,16 +137,74 @@ async fn dispatch(args: Vec<String>, json_mode: bool) -> i32 {
         } else {
             eprintln!("tiktools: [{error}] {message}");
         }
-        let _ = id;
         return 1;
     }
     let result = response.result.unwrap_or(Value::Null);
     if json_mode {
         println!("{}", serde_json::to_string(&result).unwrap_or_default());
     } else {
-        print_human(&args[0], result);
+        print_human(command, result);
     }
     0
+}
+
+/// Default path: executes against the running host over local IPC. A
+/// missing host is a transport failure (`host_unavailable`, exit 3), never
+/// a silent second runtime.
+async fn execute_remote(request: RpcRequest, json_mode: bool, command: &str) -> i32 {
+    let mut client = match ControlClient::connect().await {
+        Ok(client) => client,
+        Err(error) => {
+            print_error(json_mode, &error.code, &error.message);
+            return 3;
+        }
+    };
+    match client.call_value(&request.method, request.params).await {
+        Ok(result) => {
+            if json_mode {
+                println!("{}", serde_json::to_string(&result).unwrap_or_default());
+            } else {
+                print_human(command, result);
+            }
+            0
+        }
+        Err(error) => {
+            // Host operation errors keep the host's code; a dropped
+            // connection mid-call is a transport failure.
+            let exit = if error.code == "transport" || error.code == "protocol" {
+                3
+            } else {
+                1
+            };
+            print_error(json_mode, &error.code, &error.message);
+            exit
+        }
+    }
+}
+
+fn print_error(json_mode: bool, code: &str, message: &str) {
+    if json_mode {
+        println!(
+            "{}",
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "error": {"code": code, "message": message},
+            })
+        );
+    } else {
+        eprintln!("tiktools: [{code}] {message}");
+    }
+}
+
+/// `host --ipc` only starts a standalone host when no host is running;
+/// otherwise it would steal the endpoint from the desktop host.
+async fn serve_ipc_guarded() -> i32 {
+    if ControlClient::connect().await.is_ok() {
+        eprintln!("tiktools: a control host is already running on the local IPC endpoint");
+        return 1;
+    }
+    serve_ipc(headless_api()).await
 }
 
 async fn serve_stdio(api: ControlApi, events: bool) -> i32 {
@@ -162,6 +242,7 @@ fn build_request(args: &[String]) -> Result<Request, String> {
         "live" => live_request(rest),
         "points" => points_request(rest),
         "automation" => automation_request(rest),
+        "workflow" => workflow_request(rest),
         "media" => media_request(rest),
         "system" => system_request(rest),
         "rpc" => rpc_request(rest),
@@ -402,6 +483,17 @@ fn points_request(args: &[String]) -> Result<Request, String> {
                 .unwrap_or(Value::Null);
             Ok(rpc("points.leaderboard", json!({ "limit": limit })))
         }
+        "reset" => {
+            if rest.len() > 1 {
+                return Err("points reset [id]".to_owned());
+            }
+            let unique_id = rest
+                .first()
+                .cloned()
+                .map(Value::String)
+                .unwrap_or(Value::Null);
+            Ok(rpc("points.reset", json!({ "uniqueId": unique_id })))
+        }
         other => Err(format!("unknown points verb `{other}`")),
     }
 }
@@ -479,6 +571,38 @@ fn automation_request(args: &[String]) -> Result<Request, String> {
             ))
         }
         other => Err(format!("unknown automation verb `{other}`")),
+    }
+}
+
+// ------------------------------------------------------------------
+// graph workflows
+// ------------------------------------------------------------------
+
+fn workflow_request(args: &[String]) -> Result<Request, String> {
+    let (verb, rest) = split_first(args, "workflow <verb> ...")?;
+    match verb {
+        "list" => Ok(rpc("workflows.list", json!({}))),
+        "get" => {
+            let id = one_arg(rest, "workflow get <id>")?;
+            Ok(rpc("workflows.get", json!({ "id": id })))
+        }
+        "save" => {
+            let graph = required_record(rest, "workflow save --record json")?;
+            Ok(rpc("workflows.save", json!({ "graph": graph })))
+        }
+        "delete" => {
+            let id = one_arg(rest, "workflow delete <id>")?;
+            Ok(rpc("workflows.delete", json!({ "id": id })))
+        }
+        "enable" => {
+            let id = one_arg(rest, "workflow enable <id>")?;
+            Ok(rpc("workflows.enable", json!({ "id": id })))
+        }
+        "disable" => {
+            let id = one_arg(rest, "workflow disable <id>")?;
+            Ok(rpc("workflows.disable", json!({ "id": id })))
+        }
+        other => Err(format!("unknown workflow verb `{other}`")),
     }
 }
 
@@ -686,6 +810,27 @@ fn print_human(command: &str, result: Value) {
                     } else {
                         println!("  [{status}] {id}: {message}");
                     }
+                }
+                return;
+            }
+            print_json(&result);
+        }
+        "workflow" => {
+            if let Some(workflows) = result.get("workflows").and_then(Value::as_array) {
+                if workflows.is_empty() {
+                    println!("no workflows");
+                    return;
+                }
+                for workflow in workflows {
+                    let id = workflow.get("id").and_then(Value::as_str).unwrap_or("?");
+                    let name = workflow.get("name").and_then(Value::as_str).unwrap_or("?");
+                    let enabled = workflow.get("enabled").and_then(Value::as_bool) == Some(true);
+                    println!(
+                        "{} {} [{}]",
+                        id,
+                        name,
+                        if enabled { "enabled" } else { "disabled" }
+                    );
                 }
                 return;
             }

@@ -99,6 +99,7 @@ pub struct AppCore {
     last_automation_event: RwLock<Option<serde_json::Value>>,
     last_automation_event_at: RwLock<Option<u64>>,
     last_automation_context_emit_at: AtomicU64,
+    #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
     last_analytics_emit_at: AtomicU64,
     automation_sequence: AtomicU64,
     /// Monotonic revision of the persisted hotkey behavior projection. The
@@ -226,6 +227,7 @@ impl AppCore {
             last_automation_event: RwLock::new(None),
             last_automation_event_at: RwLock::new(None),
             last_automation_context_emit_at: AtomicU64::new(0),
+            #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
             last_analytics_emit_at: AtomicU64::new(0),
             automation_sequence: AtomicU64::new(0),
             hotkey_sync_revision: AtomicU64::new(1),

@@ -1088,9 +1088,8 @@ impl AppCore {
         self.publish_disconnected_event().await;
         self.live.disconnect().await;
         self.events.publish_domain(DomainEvent::LiveDisconnected);
-        self.events.publish_domain(DomainEvent::CreatorChanged {
-            unique_id: None,
-        });
+        self.events
+            .publish_domain(DomainEvent::CreatorChanged { unique_id: None });
         self.live_status()
     }
 
@@ -1592,7 +1591,10 @@ impl AppCore {
     pub fn creator_recent(&self, limit: Option<i64>) -> Vec<Value> {
         #[cfg(feature = "persistence")]
         {
-            match self.db.load_recent_creators(limit.unwrap_or(10).clamp(0, 1000)) {
+            match self
+                .db
+                .load_recent_creators(limit.unwrap_or(10).clamp(0, 1000))
+            {
                 Ok(creators) => creators,
                 Err(error) => {
                     tracing::warn!(%error, "could not load creator history");
@@ -1612,7 +1614,8 @@ impl AppCore {
         if let Err(error) = self.db.clear_creator_history() {
             tracing::warn!(%error, "could not clear creator history");
         }
-        self.events.publish_domain(DomainEvent::CreatorChanged { unique_id: None });
+        self.events
+            .publish_domain(DomainEvent::CreatorChanged { unique_id: None });
     }
 
     pub fn analytics_summary(
@@ -1718,9 +1721,7 @@ impl AppCore {
         event_type: Option<&str>,
     ) -> Result<ScriptAnalysisResult, OperationError> {
         if node_id.is_empty() || node_id.len() > 256 {
-            return Err(OperationError::invalid(
-                "nodeId must be 1..=256 characters",
-            ));
+            return Err(OperationError::invalid("nodeId must be 1..=256 characters"));
         }
         if source.len() > 128 * 1024 || offset > 128 * 1024 {
             return Err(OperationError::invalid(
@@ -1802,7 +1803,11 @@ impl AppCore {
         &self,
         options: MediaPickerOptions,
     ) -> Result<Option<MediaSelection>, OperationError> {
-        if options.title.as_ref().is_some_and(|title| title.len() > 256) {
+        if options
+            .title
+            .as_ref()
+            .is_some_and(|title| title.len() > 256)
+        {
             return Err(OperationError::invalid("title is too long (max 256)"));
         }
         if options
