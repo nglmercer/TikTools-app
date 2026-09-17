@@ -401,6 +401,62 @@ async fn second_owner_fails_while_first_holds_endpoint() {
 }
 
 #[tokio::test]
+async fn ready_signal_fires_on_listen_and_not_on_conflict() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let _env = lock_env().await;
+    let home = isolated_home("ready");
+    let core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let ready = Arc::new(AtomicBool::new(false));
+    let server = tokio::spawn({
+        let api = Arc::new(ControlApi::new(core.clone()));
+        let ready = Arc::clone(&ready);
+        async move {
+            tiktools_control_api::run_ipc_shared_with_ready(api, move || {
+                ready.store(true, Ordering::SeqCst);
+            })
+            .await
+        }
+    });
+    let client = within("connect", connect_retry()).await;
+    assert!(
+        ready.load(Ordering::SeqCst),
+        "ready must fire once the endpoint listens"
+    );
+
+    // A conflicting second server fails before it could ever listen, so
+    // its ready signal must never fire (no false recovery).
+    let rival_ready = Arc::new(AtomicBool::new(false));
+    let rival_core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let rival = tiktools_control_api::run_ipc_shared_with_ready(
+        Arc::new(ControlApi::new(rival_core)),
+        {
+            let rival_ready = Arc::clone(&rival_ready);
+            move || rival_ready.store(true, Ordering::SeqCst)
+        },
+    )
+    .await;
+    assert!(rival.is_err(), "second owner must fail");
+    assert!(
+        !rival_ready.load(Ordering::SeqCst),
+        "ready must not fire on ownership conflict"
+    );
+
+    let _shutdown: Value = within(
+        "system.shutdown",
+        client.call_value("system.shutdown", json!({})),
+    )
+    .await
+    .expect("system.shutdown works");
+    within("server exit", server)
+        .await
+        .expect("server task panicked")
+        .expect("server task failed");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[tokio::test]
 async fn connect_to_idle_endpoint_returns_host_unavailable() {
     let _env = lock_env().await;
     let home = isolated_home("idle");

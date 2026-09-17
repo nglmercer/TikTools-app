@@ -14,6 +14,7 @@ pub enum DesktopCommand {
     Quit,
     ShutdownComplete,
     IpcFailed(String),
+    FlushWebviewBatch,
 }
 
 #[derive(Debug)]

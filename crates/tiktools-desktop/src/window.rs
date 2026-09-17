@@ -37,7 +37,7 @@ pub struct DesktopApp {
     runtime: Handle,
     proxy: EventLoopProxy<DesktopEvent>,
     tray: Option<TrayController>,
-    pending_host_messages: VecDeque<String>,
+    pending_host_messages: VecDeque<QueuedWebviewMessage>,
     shutting_down: bool,
     startup_state: StartupState,
     startup_deadline: Option<Instant>,
@@ -87,7 +87,16 @@ impl DesktopApp {
                     if core.is_shutdown() {
                         break;
                     }
-                    match tiktools_control_api::run_ipc_shared(control.clone()).await {
+                    // The ready callback clears degraded health only once the
+                    // endpoint is actually listening again, so a recovered
+                    // retry genuinely restores CLI/agent connectivity.
+                    let ready_core = core.clone();
+                    match tiktools_control_api::run_ipc_shared_with_ready(
+                        control.clone(),
+                        move || ready_core.set_ipc_error(None),
+                    )
+                    .await
+                    {
                         Ok(()) => {
                             core.set_ipc_error(None);
                             break;
@@ -124,24 +133,13 @@ impl DesktopApp {
         // notifications so the frontend control client observes the same
         // bus as CLI/IPC streaming clients.
         {
-            let mut events = control.subscribe();
+            let events = control.subscribe();
             let proxy = proxy.clone();
-            runtime.spawn(async move {
-                loop {
-                    let event = match events.recv().await {
-                        Ok(event) => event,
-                        Err(_) => break,
-                    };
-                    let shutdown = matches!(event, tiktools_core::events::DomainEvent::Shutdown);
-                    let notification = tiktools_control_api::event_notification(&event);
-                    let _ = proxy.send_event(DesktopEvent::Command(DesktopCommand::EmitToWebview(
-                        notification.to_string(),
-                    )));
-                    if shutdown {
-                        break;
-                    }
-                }
-            });
+            runtime.spawn(forward_domain_events(events, move |notification| {
+                let _ = proxy.send_event(DesktopEvent::Command(DesktopCommand::EmitToWebview(
+                    notification,
+                )));
+            }));
         }
         Self {
             window: None,
@@ -209,6 +207,31 @@ impl DesktopApp {
             })
             .with_ipc_handler(move |request| {
                 let raw = request.body().clone();
+                // Same transport limits as local IPC: reject oversized
+                // payloads before any JSON parsing so the WebView cannot
+                // bypass them. (`MAX_PARAMS_BYTES` is enforced inside
+                // `ControlApi::execute`, which all WebView RPCs traverse.)
+                if webview_request_too_large(&raw) {
+                    if is_probably_control_rpc(&raw) {
+                        let response = tiktools_control_api::RpcResponse::error(
+                            tiktools_control_api::RpcId::Null,
+                            tiktools_control_api::ApiError::too_large(),
+                        );
+                        let payload = serde_json::json!({
+                            "type": "rpc-response",
+                            "response": response,
+                        });
+                        let _ = proxy_for_ipc.send_event(DesktopEvent::Command(
+                            DesktopCommand::EmitToWebview(payload.to_string()),
+                        ));
+                    } else {
+                        tracing::warn!(
+                            bytes = raw.len(),
+                            "oversized WebView IPC message dropped"
+                        );
+                    }
+                    return;
+                }
                 if is_frontend_ready(&raw) {
                     let _ = proxy_for_ipc.send_event(DesktopEvent::Command(
                         DesktopCommand::FrontendReady,
@@ -313,10 +336,7 @@ impl DesktopApp {
         if self.pending_host_messages.is_empty() {
             return;
         }
-        let batch: Vec<String> = self
-            .pending_host_messages
-            .drain(..self.pending_host_messages.len().min(MAX_BATCH_PER_TICK))
-            .collect();
+        let batch = take_next_batch(&mut self.pending_host_messages);
         let argument = match serde_json::to_string(&batch) {
             Ok(argument) => argument,
             Err(error) => {
@@ -518,6 +538,9 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
             DesktopEvent::Command(DesktopCommand::EmitToWebview(message)) => {
                 self.emit_to_webview(message);
             }
+            // Wake-only chaining for multi-batch bursts; the flush runs in
+            // `about_to_wait`, so this arm intentionally does nothing.
+            DesktopEvent::Command(DesktopCommand::FlushWebviewBatch) => {}
             DesktopEvent::Command(DesktopCommand::IpcFailed(message)) => {
                 // A second owner at startup means a stale host is still
                 // running: fail fast instead of mixing runtimes. After
@@ -560,6 +583,16 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
         // One batch per UI tick: all host messages queued since the last
         // tick share a single `evaluate_script`.
         self.flush_webview_batch();
+        // A batch is capped, so a burst longer than one batch must chain
+        // exactly one wake per remaining batch instead of stalling under
+        // ControlFlow::Wait with no further events. The wake event itself
+        // is a no-op; the next turn's flush does the work. No busy loop:
+        // one wake is scheduled per turn that still has backlog.
+        if !self.pending_host_messages.is_empty() {
+            let _ = self
+                .proxy
+                .send_event(DesktopEvent::Command(DesktopCommand::FlushWebviewBatch));
+        }
         if self.startup_state == StartupState::WebViewLoading {
             if let Some(deadline) = self.startup_deadline {
                 if Instant::now() >= deadline {
@@ -584,71 +617,190 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
     }
 }
 
-/// Hard bound for queued WebView messages. The queue never grows past
-/// this; overflow drops the oldest coalescable snapshot first.
+/// Soft bound for queued WebView messages. Past this point the queue sheds
+/// droppable feed events, then stale snapshots — never critical messages.
+/// All-critical bursts may grow past the soft bound toward the hard cap.
 const MAX_PENDING_WEBVIEW_MESSAGES: usize = 512;
+/// Absolute memory safety cap. Only a pathological all-critical flood can
+/// reach it; shedding there prefers anything that is not an RPC response.
+const MAX_PENDING_WEBVIEW_MESSAGES_HARD: usize = 1024;
 /// Maximum messages delivered in one UI tick through one `evaluate_script`.
 const MAX_BATCH_PER_TICK: usize = 128;
 
-/// Disposable snapshot types where only the latest value matters. Live
-/// chat/gift events, RPC responses, and lifecycle events are never
-/// coalesced.
-fn is_coalescable_webview_message(message: &str) -> bool {
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(message) else {
-        return false;
-    };
-    if let Some(kind) = value.get("type").and_then(serde_json::Value::as_str) {
-        return matches!(
-            kind,
-            "room-stats"
-                | "leaderboard"
-                | "analytics-summary"
-                | "processor-status"
-                | "automation-context"
-        );
-    }
-    false
+/// Delivery class for one queued WebView message. This is the single
+/// classification shared by the queue policy and the tests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WebviewMessageClass {
+    /// Never evicted under saturation: RPC responses, lifecycle and
+    /// connection transitions, errors, shutdown, and anything unrecognized
+    /// (the core rule forbids silently dropping a possible state change).
+    Critical,
+    /// Snapshots where only the latest per coalesce key is kept.
+    Coalescable,
+    /// High-rate feed where shedding the oldest under saturation is safe.
+    Droppable,
 }
 
-fn push_webview_message(queue: &mut std::collections::VecDeque<String>, message: String) {
-    if is_coalescable_webview_message(&message) {
-        // Keep only the latest snapshot of this kind.
-        let kind = serde_json::from_str::<serde_json::Value>(&message)
-            .ok()
-            .and_then(|value| {
-                value
-                    .get("type")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_owned)
-            });
-        if let Some(kind) = kind {
-            queue.retain(|queued| {
-                serde_json::from_str::<serde_json::Value>(queued)
-                    .ok()
-                    .and_then(|value| {
-                        value
-                            .get("type")
-                            .and_then(serde_json::Value::as_str)
-                            .map(str::to_owned)
-                    })
-                    .as_deref()
-                    != Some(kind.as_str())
-            });
+/// Coalesce identity for snapshots, e.g. `legacy:room-stats`,
+/// `domain:room.stats`, `domain:plugin.progress:<plugin-id>`.
+fn webview_coalesce_key(value: &serde_json::Value) -> Option<String> {
+    if classify_value(value) != WebviewMessageClass::Coalescable {
+        return None;
+    }
+    if let Some(kind) = value.get("type").and_then(serde_json::Value::as_str) {
+        return Some(format!("legacy:{kind}"));
+    }
+    let topic = value
+        .get("params")
+        .and_then(|params| params.get("topic"))
+        .and_then(serde_json::Value::as_str)?;
+    if topic == "plugin.progress" {
+        let plugin = value
+            .get("params")
+            .and_then(|params| params.get("data"))
+            .and_then(|data| data.get("pluginId"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("?");
+        return Some(format!("domain:{topic}:{plugin}"));
+    }
+    Some(format!("domain:{topic}"))
+}
+
+fn classify_value(value: &serde_json::Value) -> WebviewMessageClass {
+    if let Some(kind) = value.get("type").and_then(serde_json::Value::as_str) {
+        return match kind {
+            // Compat duplicates of authoritative domain twins: safe to shed.
+            "live-event" | "points-awarded" | "plugin-progress" => {
+                WebviewMessageClass::Droppable
+            }
+            "room-stats" | "leaderboard" | "analytics-summary" | "processor-status"
+            | "automation-context" | "gift-catalog" => WebviewMessageClass::Coalescable,
+            // rpc-response, connection/error/reconnecting transitions, and
+            // every other rare state/result message: never evicted.
+            _ => WebviewMessageClass::Critical,
+        };
+    }
+    if value.get("method").and_then(serde_json::Value::as_str) == Some("event") {
+        let topic = value
+            .get("params")
+            .and_then(|params| params.get("topic"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        return match topic {
+            "room.stats" | "analytics.updated" | "plugin.progress" | "gifts.catalog" => {
+                WebviewMessageClass::Coalescable
+            }
+            "live.event" | "live.ui-event" => WebviewMessageClass::Droppable,
+            // Connection/lifecycle/state transitions, errors, shutdown,
+            // and unknown topics: never evicted.
+            _ => WebviewMessageClass::Critical,
+        };
+    }
+    // Unrecognized shapes default to Critical per the core rule.
+    WebviewMessageClass::Critical
+}
+
+fn classify_webview_message(message: &str) -> WebviewMessageClass {
+    match serde_json::from_str::<serde_json::Value>(message) {
+        Ok(value) => classify_value(&value),
+        Err(_) => WebviewMessageClass::Critical,
+    }
+}
+
+fn is_rpc_response_value(value: &serde_json::Value) -> bool {
+    value.get("type").and_then(serde_json::Value::as_str) == Some("rpc-response")
+}
+
+/// One queued message with its delivery class computed once at enqueue
+/// time, so saturation scans never re-parse JSON on the UI thread.
+#[derive(Debug)]
+struct QueuedWebviewMessage {
+    body: String,
+    class: WebviewMessageClass,
+    coalesce_key: Option<String>,
+    is_rpc_response: bool,
+}
+
+fn push_webview_message(queue: &mut std::collections::VecDeque<QueuedWebviewMessage>, body: String) {
+    let class = classify_webview_message(&body);
+    let (coalesce_key, is_rpc_response) = match serde_json::from_str::<serde_json::Value>(&body)
+    {
+        Ok(value) => (webview_coalesce_key(&value), is_rpc_response_value(&value)),
+        Err(_) => (None, false),
+    };
+    if class == WebviewMessageClass::Coalescable {
+        // Keep only the latest snapshot per coalesce key.
+        if let Some(key) = coalesce_key.as_deref() {
+            queue.retain(|queued| queued.coalesce_key.as_deref() != Some(key));
         }
     }
-    queue.push_back(message);
+    queue.push_back(QueuedWebviewMessage {
+        body,
+        class,
+        coalesce_key,
+        is_rpc_response,
+    });
+    // Soft cap: shed droppable feed first, then stale snapshots. Critical
+    // messages are never evicted here; an all-critical burst grows past
+    // the soft cap instead of dropping RPC responses or transitions.
     while queue.len() > MAX_PENDING_WEBVIEW_MESSAGES {
-        // Prefer dropping a stale coalescable snapshot over live data.
-        let coalescable = queue
+        if let Some(index) = queue
             .iter()
-            .position(|queued| is_coalescable_webview_message(queued));
-        match coalescable {
-            Some(index) => {
-                queue.remove(index);
+            .position(|queued| queued.class == WebviewMessageClass::Droppable)
+        {
+            queue.remove(index);
+        } else if let Some(index) = queue
+            .iter()
+            .position(|queued| queued.class == WebviewMessageClass::Coalescable)
+        {
+            queue.remove(index);
+        } else {
+            break;
+        }
+    }
+    // Hard safety cap: absolute memory bound. Shed anything that is not
+    // an RPC response first; only a queue of nothing but RPC responses
+    // sacrifices the oldest one, loudly.
+    while queue.len() > MAX_PENDING_WEBVIEW_MESSAGES_HARD {
+        if let Some(index) = queue.iter().position(|queued| !queued.is_rpc_response) {
+            queue.remove(index);
+        } else {
+            tracing::error!(
+                "WebView queue exceeded hard cap with RPC responses only; dropping oldest response"
+            );
+            queue.pop_front();
+        }
+    }
+}
+
+/// Takes at most one UI tick's worth of messages, preserving order.
+fn take_next_batch(queue: &mut std::collections::VecDeque<QueuedWebviewMessage>) -> Vec<String> {
+    let take = queue.len().min(MAX_BATCH_PER_TICK);
+    queue.drain(..take).map(|queued| queued.body).collect()
+}
+
+/// Forwards domain events to a UI sink as JSON-RPC `event` notifications.
+/// A lagged receiver skips the missed burst and continues: only a closed
+/// channel or the shutdown event terminates the forwarder, so a temporary
+/// burst never permanently disables WebView events.
+async fn forward_domain_events(
+    mut events: tokio::sync::broadcast::Receiver<tiktools_core::events::DomainEvent>,
+    mut send: impl FnMut(String),
+) {
+    loop {
+        let event = match events.recv().await {
+            Ok(event) => event,
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                tracing::warn!(skipped, "WebView domain event receiver lagged; skipping burst");
+                continue;
             }
-            None => {
-                queue.pop_front();
-            }
+            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+        };
+        let shutdown = matches!(event, tiktools_core::events::DomainEvent::Shutdown);
+        let notification = tiktools_control_api::event_notification(&event);
+        send(notification.to_string());
+        if shutdown {
+            break;
         }
     }
 }
@@ -666,6 +818,17 @@ fn is_frontend_ready(raw: &str) -> bool {
         == Some("frontend-ready")
 }
 
+/// Raw inbound bound shared with local IPC. Checked before any parsing.
+fn webview_request_too_large(raw: &str) -> bool {
+    raw.len() > tiktools_control_api::MAX_REQUEST_BYTES
+}
+
+/// Allocation-free control-shape probe used only to route oversized-payload
+/// errors (full parsing happens later, on size-capped input).
+fn is_probably_control_rpc(raw: &str) -> bool {
+    raw.contains("\"method\"")
+}
+
 /// Control-plane messages carry `method` (JSON-RPC style); legacy WebView
 /// messages carry `type` (PageMessage). The two shapes never overlap.
 fn is_control_rpc(raw: &str) -> bool {
@@ -681,8 +844,93 @@ fn is_control_rpc(raw: &str) -> bool {
 }
 
 #[cfg(test)]
-mod batch_tests {
+mod webview_queue_tests {
     use super::*;
+
+    fn domain_event(topic: &str, data: &str) -> String {
+        format!(r#"{{"jsonrpc":"2.0","method":"event","params":{{"topic":"{topic}","data":{data}}}}}"#)
+    }
+
+    #[test]
+    fn classifier_assigns_plan_classes() {
+        use WebviewMessageClass::{Coalescable, Critical, Droppable};
+        // Critical: RPC responses, transitions, errors, shutdown, unknowns.
+        assert_eq!(
+            classify_webview_message(r#"{"type":"rpc-response","response":{}}"#),
+            Critical
+        );
+        assert_eq!(
+            classify_webview_message(r#"{"type":"error","message":"x"}"#),
+            Critical
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("live.connected", "{}")),
+            Critical
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("live.disconnected", "{}")),
+            Critical
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("plugin.started", "{}")),
+            Critical
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("points.changed", "{}")),
+            Critical
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("shutdown", "{}")),
+            Critical
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("future.unknown", "{}")),
+            Critical
+        );
+        assert_eq!(classify_webview_message("not json {{{"), Critical);
+        // Coalescable: legacy and domain snapshots.
+        assert_eq!(
+            classify_webview_message(r#"{"type":"room-stats"}"#),
+            Coalescable
+        );
+        assert_eq!(
+            classify_webview_message(r#"{"type":"leaderboard"}"#),
+            Coalescable
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("room.stats", "{}")),
+            Coalescable
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("analytics.updated", "{}")),
+            Coalescable
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("gifts.catalog", "{}")),
+            Coalescable
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("plugin.progress", "{}")),
+            Coalescable
+        );
+        // Droppable: high-rate feed plus compat duplicates of domain twins.
+        assert_eq!(
+            classify_webview_message(&domain_event("live.ui-event", "{}")),
+            Droppable
+        );
+        assert_eq!(
+            classify_webview_message(&domain_event("live.event", "{}")),
+            Droppable
+        );
+        assert_eq!(
+            classify_webview_message(r#"{"type":"live-event"}"#),
+            Droppable
+        );
+        assert_eq!(
+            classify_webview_message(r#"{"type":"points-awarded"}"#),
+            Droppable
+        );
+    }
 
     #[test]
     fn coalesces_disposable_snapshots() {
@@ -700,7 +948,51 @@ mod batch_tests {
             r#"{"type":"live-event","event":{"kind":"chat"}}"#.to_owned(),
         );
         assert_eq!(queue.len(), 2);
-        assert!(queue[0].contains("\"viewers\":2"));
+        assert!(queue[0].body.contains("\"viewers\":2"));
+    }
+
+    #[test]
+    fn domain_snapshots_coalesce_but_feed_and_lifecycle_do_not() {
+        let mut queue = std::collections::VecDeque::new();
+        push_webview_message(&mut queue, domain_event("room.stats", r#"{"viewers":1}"#));
+        push_webview_message(&mut queue, domain_event("room.stats", r#"{"viewers":2}"#));
+        push_webview_message(
+            &mut queue,
+            domain_event("analytics.updated", r#"{"creatorUniqueId":"a"}"#),
+        );
+        push_webview_message(
+            &mut queue,
+            domain_event("analytics.updated", r#"{"creatorUniqueId":"b"}"#),
+        );
+        // Same plugin collapses; a different plugin is a separate stream.
+        push_webview_message(
+            &mut queue,
+            domain_event("plugin.progress", r#"{"pluginId":"p1","state":"loading"}"#),
+        );
+        push_webview_message(
+            &mut queue,
+            domain_event("plugin.progress", r#"{"pluginId":"p1","state":"ready"}"#),
+        );
+        push_webview_message(
+            &mut queue,
+            domain_event("plugin.progress", r#"{"pluginId":"p2","state":"ready"}"#),
+        );
+        // Feed and lifecycle are never coalesced.
+        push_webview_message(
+            &mut queue,
+            domain_event("live.ui-event", r#"{"event":{"n":1}}"#),
+        );
+        push_webview_message(
+            &mut queue,
+            domain_event("live.ui-event", r#"{"event":{"n":2}}"#),
+        );
+        push_webview_message(&mut queue, domain_event("plugin.started", r#"{"pluginId":"p1"}"#));
+        push_webview_message(&mut queue, domain_event("plugin.started", r#"{"pluginId":"p1"}"#));
+        assert_eq!(queue.len(), 8, "unexpected queue len");
+        assert!(queue[0].body.contains(r#""viewers":2"#));
+        assert!(queue[1].body.contains(r#""creatorUniqueId":"b""#));
+        assert!(queue[2].body.contains(r#""state":"ready""#));
+        assert!(queue[3].body.contains(r#""pluginId":"p2""#));
     }
 
     #[test]
@@ -713,5 +1005,156 @@ mod batch_tests {
             );
         }
         assert_eq!(queue.len(), MAX_PENDING_WEBVIEW_MESSAGES);
+    }
+
+    #[test]
+    fn rpc_response_survives_saturation() {
+        let mut queue = std::collections::VecDeque::new();
+        for index in 0..MAX_PENDING_WEBVIEW_MESSAGES {
+            push_webview_message(
+                &mut queue,
+                domain_event("live.ui-event", &format!(r#"{{"event":{{"n":{index}}}}}"#)),
+            );
+        }
+        assert_eq!(queue.len(), MAX_PENDING_WEBVIEW_MESSAGES);
+        push_webview_message(
+            &mut queue,
+            r#"{"type":"rpc-response","response":{"id":7,"result":{}}}"#.to_owned(),
+        );
+        // Still capped, the response kept, and exactly the oldest feed
+        // event shed to make room for it.
+        assert_eq!(queue.len(), MAX_PENDING_WEBVIEW_MESSAGES);
+        assert!(
+            queue.iter().any(|queued| queued.body.contains(r#""id":7"#)),
+            "rpc-response was evicted under saturation"
+        );
+        assert!(
+            !queue.iter().any(|queued| queued.body.contains(r#"{"n":0}"#)),
+            "saturation must shed oldest droppable first"
+        );
+    }
+
+    #[test]
+    fn all_critical_burst_grows_without_drops_below_hard_cap() {
+        let mut queue = std::collections::VecDeque::new();
+        for index in 0..600 {
+            push_webview_message(
+                &mut queue,
+                format!(r#"{{"type":"rpc-response","response":{{"id":{index}}}}}"#),
+            );
+        }
+        // Past the soft cap but nothing critical is evicted there.
+        assert_eq!(queue.len(), 600);
+        assert!(queue[0].body.contains(r#""id":0"#));
+        for index in 600..(MAX_PENDING_WEBVIEW_MESSAGES_HARD + 100) {
+            push_webview_message(
+                &mut queue,
+                format!(r#"{{"type":"rpc-response","response":{{"id":{index}}}}}"#),
+            );
+        }
+        // The hard safety cap still bounds memory absolutely.
+        assert_eq!(queue.len(), MAX_PENDING_WEBVIEW_MESSAGES_HARD);
+    }
+
+    #[test]
+    fn live_feed_keeps_fifo_order() {
+        let mut queue = std::collections::VecDeque::new();
+        for index in 0..50 {
+            push_webview_message(
+                &mut queue,
+                domain_event("live.ui-event", &format!(r#"{{"event":{{"n":{index}}}}}"#)),
+            );
+        }
+        for (position, queued) in queue.iter().enumerate() {
+            assert!(
+                queued.body.contains(&format!(r#"{{"n":{position}}}"#)),
+                "feed reordered at {position}: {}",
+                queued.body
+            );
+        }
+    }
+
+    #[test]
+    fn oversized_bursts_drain_in_capped_batches() {
+        let mut queue = std::collections::VecDeque::new();
+        for index in 0..300 {
+            push_webview_message(
+                &mut queue,
+                domain_event("live.ui-event", &format!(r#"{{"event":{{"n":{index}}}}}"#)),
+            );
+        }
+        // Below the soft cap nothing is shed; 300 messages need three
+        // capped batches, each preserving order, until the queue is empty.
+        let first = take_next_batch(&mut queue);
+        let second = take_next_batch(&mut queue);
+        let third = take_next_batch(&mut queue);
+        assert_eq!((first.len(), second.len(), third.len()), (128, 128, 44));
+        assert!(first[0].contains(r#"{"n":0}"#));
+        assert!(second[0].contains(r#"{"n":128}"#));
+        assert!(third[0].contains(r#"{"n":256}"#));
+        assert!(queue.is_empty());
+        assert!(take_next_batch(&mut queue).is_empty());
+    }
+
+    #[test]
+    fn oversized_webview_requests_are_rejected_at_the_boundary() {
+        let limit = tiktools_control_api::MAX_REQUEST_BYTES;
+        assert!(!webview_request_too_large(&"x".repeat(limit)));
+        assert!(webview_request_too_large(&"x".repeat(limit + 1)));
+        assert!(is_probably_control_rpc(r#"{"method":"system.ping"}"#));
+        assert!(!is_probably_control_rpc(r#"{"type":"disconnect"}"#));
+    }
+
+    #[tokio::test]
+    async fn lagged_burst_does_not_stop_event_forwarder() {
+        let (sender, receiver) = tokio::sync::broadcast::channel(1);
+        // Lag the receiver deterministically: blast a burst through the
+        // capacity-1 channel before the forwarder ever reads.
+        for _ in 0..50 {
+            sender
+                .send(tiktools_core::events::DomainEvent::LiveDisconnected)
+                .expect("send fits");
+        }
+        let forwarded = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let task = {
+            let forwarded = std::sync::Arc::clone(&forwarded);
+            tokio::spawn(forward_domain_events(receiver, move |notification| {
+                forwarded
+                    .lock()
+                    .expect("forwarded lock poisoned")
+                    .push(notification);
+            }))
+        };
+        // Only terminate once the post-burst message is through, so the
+        // Shutdown cannot collapse into the lagged burst itself.
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let delivered = forwarded.lock().expect("forwarded lock poisoned").len();
+                if delivered >= 1 {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("forwarder must deliver after Lagged");
+        sender
+            .send(tiktools_core::events::DomainEvent::Shutdown)
+            .expect("send fits");
+        tokio::time::timeout(std::time::Duration::from_secs(5), task)
+            .await
+            .expect("forwarder must terminate after Shutdown")
+            .expect("forwarder panicked");
+        let forwarded = forwarded.lock().expect("forwarded lock poisoned");
+        // The burst-skipping forwarder survives Lagged: it drops the missed
+        // burst but still delivers what follows, ending with Shutdown. The
+        // old break-on-any-error code would have forwarded nothing here.
+        assert_eq!(
+            forwarded.len(),
+            2,
+            "unexpected forwarded batch: {forwarded:?}"
+        );
+        assert!(forwarded[0].contains("live.disconnected"), "{forwarded:?}");
+        assert!(forwarded[1].contains("shutdown"), "{forwarded:?}");
     }
 }

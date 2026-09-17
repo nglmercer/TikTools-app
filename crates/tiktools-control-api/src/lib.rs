@@ -27,7 +27,8 @@ pub use request::{RpcId, RpcRequest};
 pub use response::RpcResponse;
 pub use router::ControlRouter;
 pub use transport::{
-    run_ipc, run_ipc_shared, run_stdio, IPC_NAME, MAX_PARAMS_BYTES, MAX_REQUEST_BYTES,
+    run_ipc, run_ipc_shared, run_ipc_shared_with_ready, run_stdio, IPC_NAME, MAX_PARAMS_BYTES,
+    MAX_REQUEST_BYTES,
 };
 
 use std::sync::Arc;

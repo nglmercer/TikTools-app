@@ -47,18 +47,30 @@ pub async fn run_ipc(api: ControlApi) -> std::io::Result<()> {
 /// lifetime and fails with `AddrInUse` when another host already owns the
 /// production endpoint.
 pub async fn run_ipc_shared(api: Arc<ControlApi>) -> std::io::Result<()> {
+    run_ipc_shared_with_ready(api, || {}).await
+}
+
+/// Serves local IPC like [`run_ipc_shared`], invoking `on_ready` exactly
+/// once after the endpoint is actually listening (Unix bind / first pipe
+/// instance). Ownership or bind failures return before it ever fires, so
+/// retry loops can clear degraded health only on genuine recovery.
+pub async fn run_ipc_shared_with_ready<F>(api: Arc<ControlApi>, on_ready: F) -> std::io::Result<()>
+where
+    F: FnOnce() + Send,
+{
     let _ownership = crate::ownership::acquire_control_host_ownership()?;
     #[cfg(unix)]
     {
-        run_ipc_unix(api).await
+        run_ipc_unix_with_ready(api, on_ready).await
     }
     #[cfg(windows)]
     {
-        run_ipc_windows(api).await
+        run_ipc_windows_with_ready(api, on_ready).await
     }
     #[cfg(not(any(unix, windows)))]
     {
         let _ = api;
+        let _ = on_ready;
         Err(std::io::Error::new(
             std::io::ErrorKind::Unsupported,
             "local IPC is only available on Unix and Windows",
@@ -74,7 +86,10 @@ pub(crate) fn ipc_socket_path() -> std::path::PathBuf {
 }
 
 #[cfg(unix)]
-async fn run_ipc_unix(api: Arc<ControlApi>) -> std::io::Result<()> {
+async fn run_ipc_unix_with_ready<F>(api: Arc<ControlApi>, on_ready: F) -> std::io::Result<()>
+where
+    F: FnOnce() + Send,
+{
     use tokio::net::UnixListener;
 
     let path = ipc_socket_path();
@@ -93,6 +108,7 @@ async fn run_ipc_unix(api: Arc<ControlApi>) -> std::io::Result<()> {
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
     }
     tracing::info!(path = %path.display(), "control IPC listening");
+    on_ready();
     loop {
         if api.core().is_shutdown() {
             let _ = std::fs::remove_file(&path);
@@ -137,16 +153,25 @@ pub(crate) fn ipc_pipe_name() -> String {
 }
 
 #[cfg(windows)]
-async fn run_ipc_windows(api: Arc<ControlApi>) -> std::io::Result<()> {
+async fn run_ipc_windows_with_ready<F>(api: Arc<ControlApi>, on_ready: F) -> std::io::Result<()>
+where
+    F: FnOnce() + Send,
+{
     use tokio::net::windows::named_pipe::ServerOptions;
 
     let name = ipc_pipe_name();
     tracing::info!(pipe = %name, "control IPC listening");
+    let mut on_ready = Some(on_ready);
     loop {
         if api.core().is_shutdown() {
             return Ok(());
         }
         let server = ServerOptions::new().create(&name)?;
+        // Ready exactly once, after the first pipe instance exists: each
+        // loop turn creates a fresh instance, so only the first counts.
+        if let Some(ready) = on_ready.take() {
+            ready();
+        }
         tokio::select! {
             result = server.connect() => {
                 result?;
