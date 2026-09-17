@@ -42,7 +42,7 @@ function descriptor(overrides: Partial<PluginTemplateDescriptor> = {}): PluginTe
     params: {
       type: 'object',
       properties: {
-        serverUrl: { type: 'string', default: 'http://localhost:3000' },
+        serverUrl: { type: 'string', default: 'http://localhost:17842' },
         voice: { type: 'string', default: 'M1' },
       },
     },
@@ -74,9 +74,9 @@ test('substitutes params but keeps event spans for runtime', () => {
 
 test('resolves user options over schema defaults', () => {
   const entry = descriptor();
-  expect(templateParamDefaults(entry.params)).toEqual({ serverUrl: 'http://localhost:3000', voice: 'M1' });
+  expect(templateParamDefaults(entry.params)).toEqual({ serverUrl: 'http://localhost:17842', voice: 'M1' });
   expect(resolveTemplateParams(entry, { name: 'Chat', voice: 'F2' })).toEqual({
-    serverUrl: 'http://localhost:3000',
+    serverUrl: 'http://localhost:17842',
     voice: 'F2',
   });
   expect(templateParamDefaults(undefined)).toEqual({});

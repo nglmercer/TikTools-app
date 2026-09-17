@@ -110,7 +110,7 @@ export type ChatTtsTemplateOptions = {
   textSource: ChatTtsTextSource;
 };
 
-export const CHAT_TTS_LOCAL_PRESET = 'http://localhost:3000';
+export const CHAT_TTS_LOCAL_PRESET = 'http://localhost:17842';
 
 export const CHAT_TTS_DEFAULTS: ChatTtsTemplateOptions = {
   serverUrl: CHAT_TTS_LOCAL_PRESET,

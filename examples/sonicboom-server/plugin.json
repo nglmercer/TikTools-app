@@ -86,7 +86,7 @@
           "format": "uri",
           "title": "Server URL",
           "description": "Base URL of the SonicBoom server.",
-          "default": "http://localhost:3000"
+          "default": "http://localhost:17842"
         },
         "apiToken": {
           "type": "string",
@@ -111,7 +111,7 @@
     "uiHints": {
       "fields": {
         "serverUrl": {
-          "placeholder": "http://localhost:3000"
+          "placeholder": "http://localhost:17842"
         },
         "apiToken": {
           "secret": true
@@ -141,7 +141,7 @@
           "serverUrl": {
             "type": "string",
             "title": "Server URL",
-            "default": "http://localhost:3000"
+            "default": "http://localhost:17842"
           },
           "voice": {
             "type": "string",

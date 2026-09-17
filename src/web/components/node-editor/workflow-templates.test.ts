@@ -110,7 +110,7 @@ test('chat TTS creates a chat trigger wired to an HTTP action', () => {
 test('chat TTS posts plain text to the SonicBoom endpoint', () => {
   const config = buildChatTtsConfig({ ...CHAT_TTS_DEFAULTS, voice: 'M1', language: 'en', playNow: false });
   expect(config.method).toBe('POST');
-  expect(config.url).toBe('http://localhost:3000/api/tts/play?voice=M1&lang=en');
+  expect(config.url).toBe('http://localhost:17842/api/tts/play?voice=M1&lang=en');
   expect(config.body).toBe('{{ event.data.comment }}');
   expect(config.bodyMode).toBe('text');
   expect((config.headers as JsonObject)['Content-Type']).toBe('text/plain');
@@ -121,7 +121,7 @@ test('chat TTS posts plain text to the SonicBoom endpoint', () => {
 test('chat TTS textintel mode uses the intel TTS path', () => {
   const config = buildChatTtsConfig({ ...CHAT_TTS_DEFAULTS, textSource: 'textintel', playNow: true });
   expect(config.body).toBe('{{ event.intel.comment.tts.text }}');
-  expect(config.url).toBe('http://localhost:3000/api/tts/play?voice=M1&lang=en&play_now=true');
+  expect(config.url).toBe('http://localhost:17842/api/tts/play?voice=M1&lang=en&play_now=true');
 });
 
 test('chat TTS omits authorization without a token and includes it with one', () => {
@@ -134,10 +134,10 @@ test('chat TTS omits authorization without a token and includes it with one', ()
 });
 
 test('chat TTS enables private network only for the explicit local preset', () => {
-  expect(isChatTtsLocalPreset('http://localhost:3000')).toBe(true);
-  expect(isChatTtsLocalPreset('http://localhost:3000/')).toBe(true);
-  expect(isChatTtsLocalPreset('http://127.0.0.1:3000')).toBe(false);
-  expect(isChatTtsLocalPreset('http://192.168.1.10:3000')).toBe(false);
+  expect(isChatTtsLocalPreset('http://localhost:17842')).toBe(true);
+  expect(isChatTtsLocalPreset('http://localhost:17842/')).toBe(true);
+  expect(isChatTtsLocalPreset('http://127.0.0.1:17842')).toBe(false);
+  expect(isChatTtsLocalPreset('http://192.168.1.10:17842')).toBe(false);
   expect(isChatTtsLocalPreset('https://tts.example.com')).toBe(false);
   const remote = buildChatTtsConfig({ ...CHAT_TTS_DEFAULTS, serverUrl: 'https://tts.example.com' });
   expect(remote.url).toBe('https://tts.example.com/api/tts/play?voice=M1&lang=en');
@@ -146,7 +146,7 @@ test('chat TTS enables private network only for the explicit local preset', () =
 
 test('chat TTS url builder rejects non-http servers', () => {
   expect(() => buildChatTtsUrl('notaurl', 'M1', 'en', false)).toThrow();
-  expect(isHttpUrl('http://localhost:3000')).toBe(true);
+  expect(isHttpUrl('http://localhost:17842')).toBe(true);
   expect(isHttpUrl('https://example.com/x')).toBe(true);
   expect(isHttpUrl('ftp://example.com')).toBe(false);
   expect(isHttpUrl('')).toBe(false);

@@ -86,7 +86,7 @@ test('summary rows skip the URL, secrets, and empties', () => {
   const uiHints = { fields: { apiToken: { secret: true } } };
   expect(connectionSummaryRows(
     {
-      serverUrl: 'http://localhost:3000',
+      serverUrl: 'http://localhost:17842',
       apiToken: 'tok-123',
       defaultVoice: 'M1',
       defaultLanguage: 'es-MX',
@@ -127,7 +127,7 @@ test('schema defaults fill display gaps but never secrets', () => {
   const schema = {
     type: 'object',
     properties: {
-      serverUrl: { type: 'string', default: 'http://localhost:3000' },
+      serverUrl: { type: 'string', default: 'http://localhost:17842' },
       retries: { type: 'number', default: 3 },
       playNow: { type: 'boolean', default: false },
       nested: { type: 'object', default: { ignored: true } },
@@ -135,7 +135,7 @@ test('schema defaults fill display gaps but never secrets', () => {
     },
   };
   expect(withSchemaDefaults({}, schema)).toEqual({
-    serverUrl: 'http://localhost:3000',
+    serverUrl: 'http://localhost:17842',
     retries: 3,
     playNow: false,
   });
@@ -247,7 +247,7 @@ test('save converges after a redacted secret echo (no resave loop)', () => {
   const schema = {
     type: 'object',
     properties: {
-      serverUrl: { type: 'string', default: 'http://localhost:3000' },
+      serverUrl: { type: 'string', default: 'http://localhost:17842' },
       apiToken: { type: 'string', secret: true },
     },
   };

@@ -417,7 +417,7 @@ export const english = {
   textSource: 'Text source',
   rawChat: 'Raw chat',
   textIntelligence: 'Text Intelligence',
-  ttsPresetLocal: 'SonicBoom localhost:3000',
+  ttsPresetLocal: 'SonicBoom localhost:17842',
   ttsPresetCustom: 'Custom server',
   webhookUrl: 'Webhook URL',
   invalidUrl: 'Enter a valid http(s) URL.',

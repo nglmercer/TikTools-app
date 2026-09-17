@@ -306,11 +306,11 @@ mod tests {
         assert_eq!(secret_setting_keys(&manifest), vec!["apiToken".to_owned()]);
         let redacted = redact_secret_settings(
             &manifest,
-            &serde_json::json!({"serverUrl": "http://localhost:3000", "apiToken": "tok-123"}),
+            &serde_json::json!({"serverUrl": "http://localhost:17842", "apiToken": "tok-123"}),
         );
         assert_eq!(
             redacted.get("serverUrl").and_then(Value::as_str),
-            Some("http://localhost:3000")
+            Some("http://localhost:17842")
         );
         assert_eq!(
             redacted.get("apiToken").and_then(Value::as_str),
@@ -319,7 +319,7 @@ mod tests {
         // Absent secrets stay absent so the UI can show "not configured".
         let redacted = redact_secret_settings(
             &manifest,
-            &serde_json::json!({"serverUrl": "http://localhost:3000"}),
+            &serde_json::json!({"serverUrl": "http://localhost:17842"}),
         );
         assert!(redacted.get("apiToken").is_none());
     }
@@ -341,7 +341,7 @@ mod tests {
                 &BTreeMap::from([
                     (
                         "serverUrl".to_owned(),
-                        Value::String("http://localhost:3000".to_owned()),
+                        Value::String("http://localhost:17842".to_owned()),
                     ),
                     ("apiToken".to_owned(), Value::String("tok-123".to_owned())),
                 ]),
@@ -359,7 +359,7 @@ mod tests {
                 &BTreeMap::from([
                     (
                         "serverUrl".to_owned(),
-                        Value::String("http://127.0.0.1:3000".to_owned()),
+                        Value::String("http://127.0.0.1:17842".to_owned()),
                     ),
                     (
                         "apiToken".to_owned(),
@@ -376,7 +376,7 @@ mod tests {
         assert_eq!(raw.get("apiToken").and_then(Value::as_str), Some("tok-123"));
         assert_eq!(
             raw.get("serverUrl").and_then(Value::as_str),
-            Some("http://127.0.0.1:3000")
+            Some("http://127.0.0.1:17842")
         );
         // A changed value overwrites the secret.
         broker
@@ -399,7 +399,7 @@ mod tests {
                 "version": "1.0.0",
                 "runtime": "declarative",
                 "settings": {"schema": {"type": "object", "properties": {
-                    "serverUrl": {"type": "string", "default": "http://localhost:3000"},
+                    "serverUrl": {"type": "string", "default": "http://localhost:17842"},
                     "defaultLanguage": {"type": "string", "default": "en"},
                     "playNow": {"type": "boolean", "default": false},
                     "nested": {"type": "object", "default": {"ignored": true}},
@@ -425,7 +425,7 @@ mod tests {
         let display = broker.load_plugin_settings_for_display(&manifest).unwrap();
         assert_eq!(
             display.get("serverUrl").and_then(Value::as_str),
-            Some("http://localhost:3000")
+            Some("http://localhost:17842")
         );
         assert_eq!(
             display.get("defaultLanguage").and_then(Value::as_str),

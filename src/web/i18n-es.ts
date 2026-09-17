@@ -420,7 +420,7 @@ export const spanish: Record<TranslationKey, string> = {
   textSource: 'Origen del texto',
   rawChat: 'Chat sin procesar',
   textIntelligence: 'Inteligencia de texto',
-  ttsPresetLocal: 'SonicBoom localhost:3000',
+  ttsPresetLocal: 'SonicBoom localhost:17842',
   ttsPresetCustom: 'Servidor personalizado',
   webhookUrl: 'URL del webhook',
   invalidUrl: 'Introduce una URL http(s) válida.',

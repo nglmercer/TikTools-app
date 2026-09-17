@@ -599,7 +599,7 @@ mod tests {
     fn renders_event_settings_and_config_scopes() {
         let scope = json!({
             "event": {"data": {"comment": "hello"}},
-            "settings": {"serverUrl": "http://localhost:3000"},
+            "settings": {"serverUrl": "http://localhost:17842"},
             "config": {"voice": "M1"}
         });
         assert_eq!(
@@ -607,7 +607,7 @@ mod tests {
                 "{{ settings.serverUrl }}/play?voice={{ config.voice }}&text={{ event.data.comment }}",
                 &scope
             ),
-            "http://localhost:3000/play?voice=M1&text=hello"
+            "http://localhost:17842/play?voice=M1&text=hello"
         );
         assert_eq!(render_scoped_template("a{{ missing }}b", &scope), "ab");
         assert_eq!(
@@ -623,7 +623,7 @@ mod tests {
             "auth": {"type": "bearer", "tokenSetting": "apiToken"}
         }));
         let broker = broker();
-        let scope = json!({"settings": {"serverUrl": "http://localhost:3000"}});
+        let scope = json!({"settings": {"serverUrl": "http://localhost:17842"}});
         let endpoint = build_declarative_request(&DeclarativeBuild {
             manifest: &manifest,
             http: manifest.http.as_ref().unwrap(),
@@ -636,7 +636,7 @@ mod tests {
             broker: &broker,
         })
         .unwrap();
-        assert_eq!(endpoint.url, "http://localhost:3000/api/tts/play?voice=");
+        assert_eq!(endpoint.url, "http://localhost:17842/api/tts/play?voice=");
         assert!(endpoint.allow_private_network);
         assert!(endpoint.secrets.is_empty());
         assert!(endpoint.headers.is_empty());
@@ -751,7 +751,7 @@ mod tests {
 
     #[test]
     fn rendered_paths_cannot_change_the_host() {
-        let manifest = manifest(json!({"baseUrl": "http://localhost:3000"}));
+        let manifest = manifest(json!({"baseUrl": "http://localhost:17842"}));
         let broker = broker();
         let scope = json!({"config": {"next": "https://evil.example/"}});
         assert!(build_declarative_request(&DeclarativeBuild {

@@ -371,7 +371,7 @@ function ChatTtsOptionsForm({
         <TextInput
           value={options.serverUrl}
           onValueChange={(next) => patch({ serverUrl: next })}
-          placeholder="http://localhost:3000"
+          placeholder="http://localhost:17842"
           name="tts-server"
           spellCheck={false}
           required
