@@ -1,626 +1,786 @@
-# TikTools-app — SonicBoom Output Device Integration
+# TikTools Control Plane Completion
 
-Repository:
+## Goal
 
-```text
-https://github.com/nglmercer/TikTools-app
-```
+Finish the headless/control-plane refactor so TikTools has exactly one authoritative runtime state and every client uses the same API.
 
-Target branch:
+Target architecture:
 
 ```text
-remake
+                ONE AppCore
+                    │
+               ControlApi
+                    │
+          local JSON-RPC IPC
+        ┌───────────┼───────────┐
+        │           │           │
+      CLI         WebView      agents
 ```
 
-## Objective
+Do not duplicate business logic.
 
-Update the existing declarative SonicBoom integration so TikTools users can select the audio output device exposed by SonicBoom.
+## Current State
 
-Do not implement OS audio-device discovery directly in TikTools.
-
-SonicBoom is responsible for:
+Already implemented:
 
 ```text
-enumerating devices
-opening devices
-switching playback output
-tracking selected output
+crates/tiktools-control-api
+crates/tiktools-cli
+
+ControlApi
+typed ControlRouter
+rpc.discover
+rpc.schema
+
+NDJSON stdio
+Unix socket
+Windows named pipe
+
+plugins.*
+plugins.settings.*
+processors.*
+live.*
+points.*
+automation.*
+media.*
+system.info
+system.health
+system.snapshot
+system.doctor
+system.shutdown
+
+DomainEvent
+WebView JSON-RPC compatibility
 ```
 
-TikTools should only consume SonicBoom's HTTP APIs.
-
-The SonicBoom integration is declarative and should remain declarative.
-
----
-
-# 1. Expected SonicBoom API
-
-Assume SonicBoom exposes:
+Still incomplete:
 
 ```text
-GET  /api/audio/devices
-GET  /api/audio/output
-POST /api/audio/output
-```
-
-All requests use the existing SonicBoom bearer authentication.
-
-## Device list example
-
-```json
-{
-  "devices": [
-    {
-      "id": "default",
-      "name": "System Default",
-      "is_default": true,
-      "is_selected": false
-    },
-    {
-      "id": "CABLE Input (VB-Audio Virtual Cable)",
-      "name": "CABLE Input (VB-Audio Virtual Cable)",
-      "is_default": false,
-      "is_selected": true
-    }
-  ],
-  "selected": "CABLE Input (VB-Audio Virtual Cable)"
-}
-```
-
-## Device selection request
-
-```http
-POST /api/audio/output
-Content-Type: application/json
-```
-
-```json
-{
-  "device": "CABLE Input (VB-Audio Virtual Cable)"
-}
+CLI creates its own AppCore
+desktop does not expose persistent control IPC
+Vue still uses legacy PageMessage/HostMessage
+AppEvent::Ui(PageMessage) remains
+RPC does not have full WebView feature parity
+legacy IPC remains authoritative in many places
+transport test may hang
+new crates need formatting/verification
 ```
 
 ---
 
-# 2. Keep plugin declarative
+# 1. Desktop Must Own Control IPC
 
-The existing SonicBoom integration lives around:
+Modify desktop startup so its existing:
+
+```rust
+Arc<AppCore>
+```
+
+is shared by:
 
 ```text
-examples/sonicboom-server/plugin.json
+WebView
+ControlApi
+local IPC server
 ```
 
-It already uses a dynamic option source for voices:
+Do NOT create another AppCore for control IPC.
 
-```json
-"optionSources": {
-  "voice": {
-    "path": "/v1/voices"
-  }
-}
+Expected:
+
+```rust
+let core = Arc::new(AppCore::with_media_host(...));
+
+let control =
+    Arc::new(ControlApi::new(core.clone()));
+
+start_control_ipc(control.clone());
 ```
 
-Use the same generic declarative option-source mechanism for audio devices.
+The IPC listener must run on Tokio without blocking Winit.
 
-Do not add a SonicBoom-specific native Rust or TypeScript audio backend.
+Shutdown must stop:
+
+```text
+live connection
+plugin polling
+plugins
+control IPC
+desktop
+```
+
+Files likely involved:
+
+```text
+crates/tiktools-desktop/src/app.rs
+crates/tiktools-desktop/src/window.rs
+crates/tiktools-control-api/src/transport.rs
+```
 
 ---
 
-# 3. Add output-device option source
+# 2. CLI Must Connect to Existing Runtime
 
-Add an option source for SonicBoom audio outputs.
+Normal CLI commands must NOT create:
 
-Conceptually:
-
-```json
-"optionSources": {
-  "voice": {
-    "path": "/v1/voices"
-  },
-  "outputDevice": {
-    "path": "/api/audio/devices",
-    "itemsPath": "devices",
-    "valuePath": "id",
-    "labelPath": "name"
-  }
-}
-```
-
-Use the exact schema already supported by TikTools.
-
-Do not extend the declarative schema if the existing `itemsPath`, `valuePath`, and `labelPath` functionality is sufficient.
-
----
-
-# 4. Add SonicBoom setting
-
-Add an output-device setting.
-
-Example:
-
-```json
-"outputDevice": {
-  "type": "string",
-  "title": "Audio output",
-  "description": "Audio device used by the SonicBoom server for playback.",
-  "default": "default"
-}
-```
-
-In `uiHints`:
-
-```json
-"outputDevice": {
-  "optionsFrom": "plugin-action-options:sonicboom.server.speak:outputDevice"
-}
-```
-
-However, simply saving a local TikTools setting is not sufficient.
-
-Changing this value must call SonicBoom's:
-
-```text
-POST /api/audio/output
-```
-
-The UI must reflect the actual server state.
-
----
-
-# 5. Determine the best declarative architecture
-
-Review the current declarative plugin feature set before adding custom functionality.
-
-Preferred order:
-
-1. Reuse existing settings/action/option-source mechanisms.
-2. Extend the generic declarative plugin system only if needed.
-3. Avoid SonicBoom-specific hardcoded frontend/backend logic.
-
-If settings cannot currently trigger an HTTP mutation when changed, introduce a generic declarative mechanism rather than a SonicBoom-only exception.
-
-For example, a generic settings action concept could allow:
-
-```json
-"outputDevice": {
-  "type": "string",
-  "title": "Audio output"
-}
-```
-
-with a corresponding generic remote mutation:
-
-```json
-"onChange": {
-  "http": {
-    "method": "POST",
-    "path": "/api/audio/output",
-    "body": {
-      "device": "{{ value }}"
-    }
-  }
-}
-```
-
-This is only an architectural example.
-
-Use naming and structures consistent with the existing schema.
-
-If adding generic schema functionality, document and test it thoroughly.
-
----
-
-# 6. Preferred alternative: explicit plugin action
-
-If generic settings mutation would require excessive framework changes, add a declarative action such as:
-
-```text
-sonicboom.server.set-output-device
-```
-
-Example conceptual manifest:
-
-```json
-{
-  "id": "sonicboom.server.set-output-device",
-  "version": 1,
-  "title": {
-    "default": "Set SonicBoom audio output"
-  },
-  "requiredCapabilities": [
-    "http.request"
-  ],
-  "fields": [
-    {
-      "key": "device",
-      "label": {
-        "default": "Audio output"
-      },
-      "kind": "select",
-      "value": "default",
-      "optionsFrom": "plugin-action-options:sonicboom.server.set-output-device:device"
-    }
-  ],
-  "http": {
-    "method": "POST",
-    "path": "/api/audio/output",
-    "headers": {
-      "Content-Type": "application/json"
-    },
-    "body": "{\"device\":\"{{ config.device }}\"}"
-  },
-  "optionSources": {
-    "device": {
-      "path": "/api/audio/devices",
-      "itemsPath": "devices",
-      "valuePath": "id",
-      "labelPath": "name"
-    }
-  }
-}
-```
-
-If there is already a cleaner declarative settings mechanism in the repository, use it instead.
-
----
-
-# 7. GUI requirements
-
-The SonicBoom settings UI should let the user clearly see and choose:
-
-```text
-Audio output
-[ System Default                          ▼ ]
-```
-
-Possible options:
-
-```text
-System Default
-Speakers (Realtek(R) Audio)
-Headphones
-CABLE Input (VB-Audio Virtual Cable)
-VoiceMeeter Input
-BlackHole 2ch
-...
-```
-
-Do not hardcode platform-specific device names.
-
-Load them from SonicBoom.
-
----
-
-# 8. Loading states
-
-The GUI must gracefully handle:
-
-```text
-SonicBoom offline
-authentication missing
-device API unsupported by older SonicBoom
-no output device available
-network timeout
-selected device disappeared
-```
-
-Do not break the entire SonicBoom plugin settings page when device enumeration fails.
-
-Show a useful state such as:
-
-```text
-Audio devices unavailable
-```
-
-and preserve the existing configuration.
-
----
-
-# 9. Compatibility with older SonicBoom servers
-
-Older SonicBoom versions do not expose:
-
-```text
-/api/audio/devices
-/api/audio/output
-```
-
-The TikTools integration should remain usable with those versions.
-
-If the endpoint returns:
-
-```text
-404
-```
-
-the UI should hide or disable output selection rather than marking the entire SonicBoom integration invalid.
-
-Voice loading and TTS should continue working.
-
-Do not require the new endpoint for the base `/ready` connection test.
-
----
-
-# 10. Server source of truth
-
-Do not assume the TikTools saved setting is the true current output.
-
-Whenever practical, query:
-
-```text
-GET /api/audio/output
-```
-
-and use it as the authoritative state.
-
-This matters because output might have been changed:
-
-```text
-through SonicBoom directly
-by another client
-by another TikTools instance
-after device reconnect
-```
-
-Avoid showing stale state.
-
----
-
-# 11. Synchronization
-
-When the user selects a device:
-
-```text
-GUI select
-   ↓
-POST /api/audio/output
-   ↓
-successful SonicBoom response
-   ↓
-update local displayed/saved state
-```
-
-If the POST fails:
-
-```text
-do not pretend the device changed
-restore previous selection
-show error
-```
-
-Do not optimistically persist a state that SonicBoom rejected.
-
----
-
-# 12. Authentication
-
-The new requests must reuse the existing declarative plugin bearer auth configuration.
-
-Do not implement another token field.
-
-Existing:
-
-```text
-apiToken
-```
-
-must automatically authenticate:
-
-```text
-GET /api/audio/devices
-GET /api/audio/output
-POST /api/audio/output
-```
-
-through the generic declarative HTTP engine.
-
----
-
-# 13. Rate-limit implications
-
-SonicBoom will raise its default TTS rate limit to approximately:
-
-```text
-300 requests / 60 seconds
-```
-
-TikTools should still behave responsibly.
-
-Do not implement aggressive automatic retry loops for `429`.
-
-If an HTTP action receives:
-
-```http
-429 Too Many Requests
-Retry-After: N
-```
-
-the generic HTTP/action runtime should preserve or expose the server error appropriately.
-
-If TikTools already has retry handling, make sure it respects `Retry-After` rather than repeatedly hammering SonicBoom.
-
-Do not introduce a SonicBoom-only retry implementation if the generic HTTP engine can handle this.
-
----
-
-# 14. Preserve TTS queue semantics
-
-Current TTS calls use:
-
-```text
-POST /api/tts/play
-```
-
-with:
-
-```text
-play_now=false
+```rust
+AppCore::new(...)
 ```
 
 by default.
 
-Keep this behavior.
-
-`play_now=false` is important because SonicBoom already owns the playback queue.
-
-TikTools should not implement a second competing playback queue for SonicBoom requests.
-
-Expected architecture:
+Current wrong model:
 
 ```text
-TikTok events
-    ↓
-TikTools automation engine
-    ↓
-POST /api/tts/play?play_now=false
-    ↓
-SonicBoom inference admission control
-    ↓
-SonicBoom playback queue
-    ↓
-selected audio output
+tiktools plugin list
+  -> new AppCore
+```
+
+Required:
+
+```text
+tiktools plugin list
+  -> connect local IPC
+  -> running AppCore
+```
+
+Implement client transport:
+
+```text
+crates/tiktools-control-api/src/client.rs
+```
+
+Suggested API:
+
+```rust
+pub struct ControlClient;
+
+impl ControlClient {
+    pub async fn connect() -> Result<Self, ClientError>;
+
+    pub async fn call<P, R>(
+        &mut self,
+        method: &str,
+        params: P,
+    ) -> Result<R, ClientError>;
+}
+```
+
+Unix:
+
+```text
+$TIKTOOLS_HOME/tiktools-control.sock
+```
+
+Windows:
+
+```text
+\\.\pipe\tiktools-control
+```
+
+CLI behavior:
+
+```text
+tiktools plugin list
+    -> connect IPC
+
+tiktools rpc ...
+    -> connect IPC
+
+tiktools --headless ...
+    -> optional standalone AppCore
+
+tiktools host --stdio
+    -> standalone host
+
+tiktools host --ipc
+    -> standalone host only when desktop is not running
+```
+
+Do not silently start another AppCore when an IPC connection fails.
+
+Return a clear error:
+
+```json
+{
+  "code": "host_unavailable",
+  "message": "TikTools control host is not running."
+}
 ```
 
 ---
 
-# 15. Interrupt behavior
+# 3. Full RPC Feature Parity
 
-Keep the existing advanced setting:
+Every operation currently available through `PageMessage` must have a Control API equivalent.
 
-```text
-Interrupt and play now
-```
+Add missing domains.
 
-mapping to:
+## App state
 
 ```text
-play_now=true
+app.state.get
+app.state.set
 ```
 
-It should remain opt-in.
-
-Normal chat/event TTS should use:
+## Creator state
 
 ```text
-play_now=false
+creators.get
+creators.recent
+creators.history.clear
 ```
 
-so messages play sequentially.
+## Analytics
+
+```text
+analytics.summary
+```
+
+## Gifts
+
+```text
+gifts.list
+gifts.debug
+```
+
+## Workflow graph/editor
+
+Existing behavior automation API is not enough.
+
+Add:
+
+```text
+workflows.list
+workflows.get
+workflows.save
+workflows.delete
+workflows.enable
+workflows.disable
+
+automation.nodes.list
+automation.script.analyze
+automation.context
+```
+
+## Plugin token provisioning
+
+```text
+plugins.token.provision
+```
+
+Credentials:
+
+* never persist password
+* never echo password
+* never include password in logs/events/errors
+
+## Media picker
+
+Keep headless-safe:
+
+```text
+media.validate
+media.play
+```
+
+Desktop-only capability:
+
+```text
+media.pick
+```
+
+If unavailable:
+
+```text
+capability_unavailable
+```
+
+Do not force headless environments to emulate a file dialog.
 
 ---
 
-# 16. Plugin page improvements
+# 4. Move Legacy WebView Handlers onto AppCore Control Operations
 
-Update the SonicBoom TTS page text to clarify responsibilities.
+`handle_page_message()` must stop implementing business logic independently.
 
-Suggested copy:
+Legacy compatibility is acceptable temporarily, but each legacy message should become an adapter.
 
-```text
-Choose the voice and server-side audio output used for SonicBoom playback.
-Audio outputs are discovered from the connected SonicBoom server.
+Bad:
+
+```rust
+PageMessage::AdjustPoints => {
+    // business logic here
+}
 ```
 
-If no playback capability exists on the server:
+Required:
 
-```text
-This SonicBoom server does not expose local audio playback controls.
-TTS generation remains available.
+```rust
+PageMessage::AdjustPoints { ... } => {
+    match self.points_adjust(...) {
+        ...
+    }
+}
 ```
 
-Use existing localization patterns.
+Do this for every legacy operation.
 
-Add translations to the relevant locale files.
-
-At minimum:
+The authoritative operation implementation must live in:
 
 ```text
-src/web/i18n-en.ts
-src/web/i18n-es.ts
+AppCore control operations
 ```
 
-Follow the project's current i18n architecture.
+not:
+
+```text
+PageMessage handler
+CLI
+WebView
+```
 
 ---
 
-# 17. Generic declarative framework changes
+# 5. Vue Must Use JSON-RPC
 
-If extending the declarative plugin framework, update:
-
-```text
-docs/DECLARATIVE_PLUGINS.md
-schema validation
-manifest types/interfaces
-Rust parser/model if applicable
-frontend rendering
-tests
-```
-
-Do not add undocumented schema keys.
-
-All new generic functionality must:
+Create frontend bridge:
 
 ```text
-validate manifest input
-respect host/network restrictions
-reuse existing auth
-reuse existing timeout restrictions
-reuse existing URL/host pinning protections
-preserve secret redaction
+src/web/platform/control-client.ts
 ```
 
-Never let an arbitrary WebView URL bypass the declarative HTTP allowlist.
+Responsibilities:
+
+```text
+window.ipc
+JSON serialization
+request ids
+pending promises
+timeouts
+rpc-response
+event notifications
+transport errors
+```
+
+API:
+
+```ts
+const control = createControlClient();
+
+await control.call(
+  "plugins.settings.get",
+  { pluginId }
+);
+
+control.on("plugin.progress", handler);
+```
+
+No Vue component/composable should directly call:
+
+```ts
+window.ipc.postMessage(...)
+```
+
+outside this bridge.
 
 ---
 
-# 18. Tests
+# 6. Split useAppController
 
-Add tests for:
+Reduce `useAppController.ts`.
 
-## Option source
-
-```text
-/api/audio/devices response maps to device select options
-id -> value
-name -> label
-```
-
-## Compatibility
+Move domains into:
 
 ```text
-404 from /api/audio/devices does not break SonicBoom plugin
-voice options continue working
-TTS actions continue working
+src/web/features/
+  connection/
+  points/
+  plugins/
+  processors/
+  automation/
+  media/
+  analytics/
+  creators/
+  tts/
 ```
 
-## Selection
+Each feature should expose its own API/store.
+
+Example:
+
+```ts
+usePlugins()
+usePoints()
+useLive()
+useAutomation()
+```
+
+Do not create another giant global message switch.
+
+---
+
+# 7. Migrate Host Events
+
+Keep:
+
+```rust
+DomainEvent
+```
+
+Expand it as needed:
 
 ```text
-selecting device sends POST /api/audio/output
-request body contains correct device id
-bearer auth is included
-success updates visible state
-failure preserves previous selection
+plugin.installed
+plugin.uninstalled
+plugin.started
+plugin.stopped
+plugin.progress
+plugin.settings-changed
+
+live.connected
+live.disconnected
+live.event
+
+points.changed
+
+workflow.changed
+
+creator.changed
+analytics.updated
+
+shutdown
 ```
 
-## Source of truth
+WebView, CLI streaming, local IPC, tests and agents should consume the same events.
+
+---
+
+# 8. Remove UI Concept from Core Event Bus
+
+Remove:
+
+```rust
+AppEvent::Ui(PageMessage)
+```
+
+Core event buses must contain domain events only.
+
+If legacy WebView message observation is still required during migration, keep it outside the domain event bus.
+
+Target:
+
+```rust
+pub enum DomainEvent {
+    ...
+}
+```
+
+Then remove the old `AppEvent` when no longer needed.
+
+---
+
+# 9. Remove Legacy IPC After Parity
+
+Once Vue uses ControlApi and all operations have parity:
+
+remove or deprecate:
 
 ```text
-GET /api/audio/output populates active selection
-external change can be reflected after refresh/reload
+PageMessage
+HostMessage request-response patterns
+IpcRouter legacy routing
+AppEvent::Ui
+large useAppController receive switch
 ```
 
-## Generic declarative framework
+Keep only genuinely useful push/event messages if needed.
 
-If schema functionality is extended, add parser and validation tests for:
+Target WebView path:
 
 ```text
-valid remote-setting action
-invalid path
-invalid method
-invalid template
-secret handling
-network restrictions
+Vue
+ -> JSON-RPC
+ -> ControlApi
+ -> AppCore
+
+AppCore
+ -> DomainEvent
+ -> WebView
 ```
+
+---
+
+# 10. Typed Contracts Everywhere
+
+Do not add raw unvalidated RPC methods.
+
+Every method needs typed:
+
+```rust
+Params
+Result
+```
+
+and:
+
+```rust
+Serialize
+Deserialize
+JsonSchema
+```
+
+Example:
+
+```rust
+#[derive(
+    Serialize,
+    Deserialize,
+    JsonSchema,
+)]
+pub struct AnalyticsSummaryParams {
+    pub creator_unique_id: Option<String>,
+    pub start_day: Option<i64>,
+    pub end_day: Option<i64>,
+    pub limit: Option<i64>,
+}
+```
+
+Register with:
+
+```rust
+router.register_typed::<Params, Result, _, _>(
+    "...",
+    "...",
+    false,
+    handler,
+);
+```
+
+---
+
+# 11. Agent-Friendly Discovery
+
+`rpc.discover` must list all methods.
+
+Metadata must contain:
+
+```json
+{
+  "name": "plugins.settings.set",
+  "description": "...",
+  "sideEffect": true,
+  "paramsSchema": {},
+  "resultSchema": {}
+}
+```
+
+Add optional metadata if useful:
+
+```json
+{
+  "destructive": false,
+  "requiresDesktop": false
+}
+```
+
+Agents must be able to understand the API without reading source code.
+
+---
+
+# 12. Stable Errors
+
+Use machine-readable codes.
+
+Examples:
+
+```text
+invalid_params
+method_not_found
+plugin_not_found
+automation_not_found
+host_unavailable
+capability_unavailable
+conflict
+timeout
+unavailable
+internal
+request_too_large
+```
+
+Do not make agents parse human strings.
+
+---
+
+# 13. Security
+
+Never expose:
+
+```text
+database handles
+plugin runtime objects
+WebView handles
+native file handles
+native TikTok objects
+raw secret values
+passwords
+tokens
+```
+
+Maintain:
+
+```text
+secret redaction
+settings placeholder preservation
+bounded requests
+bounded params
+timeouts
+closed DB table allowlists
+plugin capability checks
+```
+
+IPC endpoint must be per-user only.
+
+On Unix ensure socket permissions are restricted.
+
+On Windows use a user-scoped named pipe security policy where possible.
+
+---
+
+# 14. Fix Transport Tests
+
+Current transport tests must terminate reliably.
+
+Test:
+
+```text
+request
+response
+domain event
+EOF
+shutdown
+server task exit
+```
+
+Avoid hanging on:
+
+```text
+duplex split halves
+event receiver waiting
+shutdown race
+writer remaining open
+```
+
+Use explicit timeout assertions:
+
+```rust
+tokio::time::timeout(...)
+```
+
+No test may wait forever.
+
+---
+
+# 15. Add IPC Client Integration Test
+
+Test real host/client behavior.
+
+Flow:
+
+```text
+start IPC server
+connect ControlClient
+rpc.discover
+plugins.list
+points.adjust
+system.snapshot
+system.shutdown
+server exits
+```
+
+Use isolated:
+
+```text
+TIKTOOLS_HOME
+```
+
+---
+
+# 16. Add WebView Parity Tests
+
+Build a parity test list from all legacy `PageMessage` variants.
+
+Every important operation must map to a Control API method.
+
+Fail the test when a legacy operation has no Control API equivalent.
+
+This prevents future drift.
+
+---
+
+# 17. One Runtime Ownership Test
+
+Add a test proving CLI client and WebView/control API see the same state.
+
+Example:
+
+```text
+running host:
+  points.adjust alice +10
+
+client 1:
+  points.viewer.get alice
+  => 10
+
+client 2:
+  points.viewer.get alice
+  => 10
+```
+
+There must not be two AppCore instances.
+
+---
+
+# 18. CLI Modes
+
+Normal:
+
+```bash
+tiktools plugin list
+```
+
+uses running IPC host.
+
+Machine:
+
+```bash
+tiktools --json plugin list
+```
+
+stdout JSON only.
+
+Raw:
+
+```bash
+tiktools rpc plugins.list '{}'
+```
+
+uses running IPC host.
+
+Headless standalone:
+
+```bash
+tiktools host --stdio
+tiktools host --ipc
+```
+
+Optional isolated execution can be explicit:
+
+```bash
+tiktools --standalone ...
+```
+
+Never make standalone the default for normal commands.
 
 ---
 
@@ -629,102 +789,109 @@ network restrictions
 Update:
 
 ```text
-examples/sonicboom-server/plugin.json
-docs/DECLARATIVE_PLUGINS.md
-relevant user-facing docs
+docs/CONTROL_API.md
+docs/ARCHITECTURE.md
+docs/DEVELOPMENT.md
+README.md
 ```
 
-Explain:
+Clearly document:
 
 ```text
-SonicBoom audio devices are server-side
-TikTools discovers devices through SonicBoom
-System Default is always a valid logical option
-older SonicBoom versions remain supported
+one AppCore
+ControlApi
+IPC host
+CLI client
+WebView client
+DomainEvent
+legacy migration status
 ```
+
+Remove documentation that incorrectly implies migration is complete before it actually is.
 
 ---
 
-# 20. Validation
+# 20. Verification
 
-Run the repository's normal checks.
-
-Inspect `package.json`, Cargo workspace configuration, and CI before choosing exact commands.
-
-At minimum run the relevant equivalents of:
+Run and fix everything:
 
 ```bash
-cargo fmt --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo fmt --all -- --check
+
+cargo check --workspace --all-features --locked
+
+cargo clippy \
+  --workspace \
+  --all-targets \
+  --all-features \
+  --locked \
+  -- -D warnings
+
+cargo test --workspace --locked
+
+bun run lint
+bun run typecheck
+bun run test
+bun run build:web
+
+git diff --check
 ```
 
-and frontend checks such as:
+No hanging tests.
 
-```bash
-npm/pnpm/yarn lint
-npm/pnpm/yarn test
-npm/pnpm/yarn typecheck
-```
+No formatting errors.
 
-Use the package manager already used by the repository.
-
-Do not introduce another package manager.
+No warnings.
 
 ---
 
-# 21. End-to-end acceptance test
+# Definition of Done
 
-The completed system should support this workflow:
+The refactor is complete only when:
 
 ```text
-1. Start SonicBoom.
-2. Start TikTools.
-3. Connect the SonicBoom declarative plugin.
-4. TikTools loads voices from /v1/voices.
-5. TikTools loads outputs from /api/audio/devices.
-6. User chooses "CABLE Input (VB-Audio Virtual Cable)".
-7. TikTools sends POST /api/audio/output.
-8. SonicBoom switches its playback output.
-9. TikTok chat event arrives.
-10. TikTools sends POST /api/tts/play?play_now=false.
-11. SonicBoom generates the audio.
-12. SonicBoom queues it.
-13. SonicBoom plays it through the selected virtual cable.
-14. Additional chat messages remain queued in order.
-15. Normal traffic does not hit the old 20 requests/minute limitation.
+[ ] Desktop owns one AppCore
+[ ] Desktop starts ControlApi local IPC
+[ ] CLI connects to running host by default
+[ ] CLI does not create separate AppCore by default
+[ ] stdio headless host works
+[ ] local IPC works on Unix
+[ ] local IPC works on Windows
+[ ] full PageMessage feature parity exists in ControlApi
+[ ] Vue uses JSON-RPC ControlApi
+[ ] frontend direct window.ipc calls are centralized
+[ ] DomainEvent is authoritative
+[ ] AppEvent::Ui(PageMessage) removed
+[ ] legacy IpcRouter removed or limited to explicit compatibility layer
+[ ] PageMessage no longer contains authoritative business logic
+[ ] snapshot is secret-safe
+[ ] doctor is structured
+[ ] rpc.discover exposes complete method schemas
+[ ] transport tests terminate
+[ ] IPC integration tests pass
+[ ] WebView parity tests pass
+[ ] workspace fmt/check/clippy/tests pass
+[ ] Bun lint/typecheck/tests/build pass
 ```
 
----
+## Core Rule
 
-# 22. Non-goals
-
-Do not:
+There must be exactly one operation path:
 
 ```text
-enumerate system audio devices directly from TikTools
-replace SonicBoom's playback queue
-create a second TTS playback queue in TikTools
-hardcode Windows-only device names
-require the new API for SonicBoom connection health
-break older SonicBoom servers
-write directly to SonicBoom's .env file
+client
+  ↓
+ControlApi
+  ↓
+AppCore operation/service
 ```
 
----
-
-# 23. Deliverable
-
-Implement the changes rather than only writing a design.
-
-At completion provide:
+Never maintain separate implementations for:
 
 ```text
-summary
-files changed
-manifest/schema changes
-UI behavior
-backward compatibility behavior
-tests executed
-remaining limitations
+CLI
+WebView
+agent
+stdio
+IPC
 ```

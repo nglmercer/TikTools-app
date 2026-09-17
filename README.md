@@ -184,7 +184,6 @@ Session cookies stay in memory and must never be committed or logged.
 
 - [Getting Started](docs/GETTING_STARTED.md)
 - [Architecture](docs/ARCHITECTURE.md)
-- [Rust migration](docs/RUST_MIGRATION.md)
 - [Development Guide](docs/DEVELOPMENT.md)
 - [Contributing](CONTRIBUTING.md)
 - [Automations](docs/AUTOMATIONS.md)
