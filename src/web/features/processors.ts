@@ -14,6 +14,10 @@ export interface ProcessorTestResult {
   error?: string | null;
 }
 
+export interface ProcessorStatusResult {
+  processors: ProcessorStatusEntry[];
+}
+
 /** Event processors: status panel and dry-run tests. */
 export function useProcessors(control: ControlClient) {
   const processors = ref<ProcessorStatusEntry[]>([]);
@@ -21,7 +25,8 @@ export function useProcessors(control: ControlClient) {
 
   const refresh = async (): Promise<void> => {
     try {
-      processors.value = await control.call<ProcessorStatusEntry[]>('processors.status', {});
+      const result = await control.call<ProcessorStatusResult>('processors.status', {});
+      processors.value = result.processors;
     } catch (failure) {
       console.warn(`processors.status failed: ${errorMessage(failure)}`);
     }

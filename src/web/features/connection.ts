@@ -51,15 +51,6 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     }
   };
 
-  control.onPush('connection', (message) => {
-    if (message.type !== 'connection') return;
-    if (message.status === 'connecting') status.value = 'connecting';
-    if (message.status === 'connected') {
-      status.value = 'connected';
-      if (message.uniqueId) noteCreatorSeen(normalizeUsername(message.uniqueId), false);
-    }
-    if (message.status === 'disconnected') status.value = 'disconnected';
-  });
   control.onPush('reconnecting', () => {
     status.value = 'retrying';
   });

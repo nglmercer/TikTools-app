@@ -13,6 +13,7 @@
 pub mod client;
 pub mod error;
 pub mod modules;
+pub mod ownership;
 pub mod registry;
 pub mod request;
 pub mod response;

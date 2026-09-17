@@ -40,7 +40,11 @@ pub fn register(router: &mut ControlRouter) {
         "Safe observable state (never includes secrets)",
         false,
         |core: Arc<AppCore>, _params: Empty| async move {
-            Ok::<Value, ApiError>(core.system_snapshot())
+            // Snapshot fans out over SQLite plus in-memory services.
+            let snapshot = tokio::task::spawn_blocking(move || core.system_snapshot())
+                .await
+                .map_err(|error| ApiError::internal(format!("snapshot worker failed: {error}")))?;
+            Ok::<Value, ApiError>(snapshot)
         },
     );
     router.register_typed::<Empty, DoctorReport, _, _>(
@@ -48,7 +52,11 @@ pub fn register(router: &mut ControlRouter) {
         "Structured diagnostics: storage, database, plugins, live, processors",
         false,
         |core: Arc<AppCore>, _params: Empty| async move {
-            Ok::<DoctorReport, ApiError>(core.system_doctor())
+            // Filesystem probes plus database checks stay off Tokio workers.
+            let report = tokio::task::spawn_blocking(move || core.system_doctor())
+                .await
+                .map_err(|error| ApiError::internal(format!("doctor worker failed: {error}")))?;
+            Ok::<DoctorReport, ApiError>(report)
         },
     );
     router.register_typed::<Empty, ShutdownResult, _, _>(

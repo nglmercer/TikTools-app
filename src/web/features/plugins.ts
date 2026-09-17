@@ -136,8 +136,7 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
       values: message.values,
     });
   });
-  control.onPush('plugin-progress', (message) => {
-    if (message.type !== 'plugin-progress') return;
+  const applyProgress = (message: Extract<HostMessage, { type: 'plugin-progress' }>): void => {
     pluginProgress.value = message;
     if (pluginProgressTimer) clearTimeout(pluginProgressTimer);
     if (message.state === 'ready' || message.state === 'failed') {
@@ -149,7 +148,36 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
         message.state === 'failed' ? 10_000 : 4_000,
       );
     }
+  };
+  control.onTopic<{
+    pluginId: string;
+    state: string;
+    progress?: number | null;
+    message: string;
+  }>('plugin.progress', (data) => {
+    const state = data.state as 'downloading' | 'loading' | 'ready' | 'failed';
+    if (state !== 'downloading' && state !== 'loading' && state !== 'ready' && state !== 'failed') {
+      return;
+    }
+    applyProgress({
+      type: 'plugin-progress',
+      pluginId: data.pluginId,
+      state,
+      progress: data.progress ?? undefined,
+      message: data.message,
+    });
   });
+  for (const topic of [
+    'plugin.installed',
+    'plugin.uninstalled',
+    'plugin.started',
+    'plugin.stopped',
+    'plugin.settings-changed',
+  ]) {
+    control.onTopic(topic, () => {
+      void callbacks.refreshBehavior();
+    });
+  }
 
   const dismissPluginProgress = (): void => {
     pluginProgress.value = null;

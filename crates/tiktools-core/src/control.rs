@@ -259,6 +259,20 @@ impl AppCore {
         self.shutdown_started.load(Ordering::Acquire)
     }
 
+    /// Records a control IPC failure so `system.health` reports degraded
+    /// instead of silently losing CLI/agent connectivity while the GUI
+    /// looks healthy. `None` clears the degraded state after a retry.
+    pub fn set_ipc_error(&self, message: Option<String>) {
+        *self.ipc_error.write().expect("ipc error lock poisoned") = message;
+    }
+
+    pub fn ipc_error(&self) -> Option<String> {
+        self.ipc_error
+            .read()
+            .expect("ipc error lock poisoned")
+            .clone()
+    }
+
     /// Loads the merged behavior snapshot (persisted records plus the live
     /// runtime catalog) and refreshes the in-memory automation projection.
     /// This is the value-returning twin of the `get-behavior` emit path.
@@ -1192,11 +1206,14 @@ impl AppCore {
     }
 
     pub fn processor_list(&self) -> Vec<Value> {
-        self.processor_status_snapshot()
-            .get("processors")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default()
+        match self.processor_status_snapshot() {
+            Value::Array(entries) => entries,
+            snapshot => snapshot
+                .get("processors")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+        }
     }
 
     // ------------------------------------------------------------------
@@ -1275,6 +1292,9 @@ impl AppCore {
         #[cfg(feature = "http")]
         if let Some(message) = self.http_client_error.as_ref() {
             degraded.push(message.clone());
+        }
+        if let Some(message) = self.ipc_error() {
+            degraded.push(message);
         }
         json!({
             "status": if degraded.is_empty() { "ok" } else { "degraded" },

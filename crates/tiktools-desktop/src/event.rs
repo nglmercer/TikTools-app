@@ -13,6 +13,7 @@ pub enum DesktopCommand {
     OpenDevtools,
     Quit,
     ShutdownComplete,
+    IpcFailed(String),
 }
 
 #[derive(Debug)]

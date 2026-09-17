@@ -74,12 +74,49 @@ impl DesktopApp {
         // and agents observe the same runtime the WebView drives. The
         // server runs on Tokio without blocking Winit and exits on core
         // shutdown; a second desktop instance never gets here because the
-        // single-instance guard exits it first.
+        // single-instance guard exits it first. Failures are never silent:
+        // the core health degrades, the UI thread is notified (startup
+        // fails fast when IPC is already owned), and the server retries.
         {
             let control = control.clone();
+            let core = core.clone();
+            let proxy = proxy.clone();
             runtime.spawn(async move {
-                if let Err(error) = tiktools_control_api::run_ipc_shared(control).await {
-                    tracing::warn!(%error, "control IPC server exited");
+                let mut first = true;
+                loop {
+                    if core.is_shutdown() {
+                        break;
+                    }
+                    match tiktools_control_api::run_ipc_shared(control.clone()).await {
+                        Ok(()) => {
+                            core.set_ipc_error(None);
+                            break;
+                        }
+                        Err(error) => {
+                            let owned_elsewhere =
+                                error.kind() == std::io::ErrorKind::AddrInUse;
+                            let message = if owned_elsewhere {
+                                "control IPC is owned by another host; CLI/agents cannot reach this desktop"
+                                    .to_owned()
+                            } else {
+                                format!("control IPC unavailable ({error}); CLI/agents cannot reach this desktop")
+                            };
+                            tracing::error!(%error, "control IPC server failed");
+                            core.set_ipc_error(Some(message.clone()));
+                            let _ = proxy.send_event(DesktopEvent::Command(
+                                DesktopCommand::IpcFailed(message),
+                            ));
+                            if core.is_shutdown() {
+                                break;
+                            }
+                            // Ownership conflicts retry slowly (the owner may
+                            // be a stale host that is shutting down); other
+                            // errors retry on the same cadence.
+                            let _ = first;
+                            first = false;
+                            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        }
+                    }
                 }
             });
         }
@@ -255,30 +292,49 @@ impl DesktopApp {
     }
 
     fn flush_host_messages(&mut self) {
-        while let Some(message) = self.pending_host_messages.pop_front() {
-            self.emit_to_webview(message);
-        }
+        self.flush_webview_batch();
     }
 
+    /// Bounded enqueue with coalescing. Disposable snapshots (room stats,
+    /// leaderboard, analytics, processor metrics, automation context) keep
+    /// only their latest value so high-rate producers cannot flood the
+    /// queue; the queue itself never exceeds its bound.
     fn emit_to_webview(&mut self, message: String) {
+        push_webview_message(&mut self.pending_host_messages, message);
+    }
+
+    /// Drains up to one batch per UI tick through a single
+    /// `evaluate_script` call. The frontend fans the batch out to its
+    /// normal per-message dispatch.
+    fn flush_webview_batch(&mut self) {
         let Some(webview) = self.webview.as_ref() else {
-            self.pending_host_messages.push_back(message);
             return;
         };
-        let argument = match serde_json::to_string(&message) {
+        if self.pending_host_messages.is_empty() {
+            return;
+        }
+        let batch: Vec<String> = self
+            .pending_host_messages
+            .drain(..self.pending_host_messages.len().min(MAX_BATCH_PER_TICK))
+            .collect();
+        let argument = match serde_json::to_string(&batch) {
             Ok(argument) => argument,
             Err(error) => {
-                tracing::error!(%error, "could not encode host message for JavaScript");
+                tracing::error!(%error, "could not encode host message batch for JavaScript");
                 return;
             }
         };
-        tracing::debug!(bytes = message.len(), "delivering host message to WebView");
+        tracing::debug!(
+            count = batch.len(),
+            bytes = argument.len(),
+            "delivering host message batch to WebView"
+        );
         let script = format!(
-            "if (typeof window.__webview_on_message__ === 'function') {{ window.__webview_on_message__({argument}); }} else {{ const queue = window.__tiktools_host_message_queue__ || (window.__tiktools_host_message_queue__ = []); if (queue.length < 512) queue.push({argument}); }}"
+            "if (typeof window.__tiktools_receive_batch__ === 'function') {{ window.__tiktools_receive_batch__({argument}); }} else {{ const batch = {argument}; for (const item of batch) {{ if (typeof window.__webview_on_message__ === 'function') {{ window.__webview_on_message__(item); }} else {{ const queue = window.__tiktools_host_message_queue__ || (window.__tiktools_host_message_queue__ = []); if (queue.length < 512) queue.push(item); }} }} }}"
         );
         if let Err(error) = webview.evaluate_script(&script) {
             if !self.shutting_down {
-                tracing::debug!(%error, "could not deliver host message to WebView");
+                tracing::debug!(%error, "could not deliver host message batch to WebView");
             }
         }
     }
@@ -460,7 +516,23 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: DesktopEvent) {
         match event {
             DesktopEvent::Command(DesktopCommand::EmitToWebview(message)) => {
-                self.emit_to_webview(message)
+                self.emit_to_webview(message);
+            }
+            DesktopEvent::Command(DesktopCommand::IpcFailed(message)) => {
+                // A second owner at startup means a stale host is still
+                // running: fail fast instead of mixing runtimes. After
+                // startup the degraded `system.health` plus retry loop
+                // keeps CLI/agent loss visible without killing the GUI.
+                if self.startup_state != StartupState::Ready && !self.shutting_down {
+                    self.fail_startup(
+                        event_loop,
+                        format!(
+                            "The control IPC endpoint is already owned ({message}). Close the other TikTools host and restart."
+                        ),
+                    );
+                } else {
+                    tracing::error!(message, "control IPC unavailable; CLI/agents degraded");
+                }
             }
             DesktopEvent::Command(DesktopCommand::FrontendReady) => self.frontend_ready(),
             DesktopEvent::Command(DesktopCommand::ShowWindow) => {
@@ -485,6 +557,9 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         platform::pump();
+        // One batch per UI tick: all host messages queued since the last
+        // tick share a single `evaluate_script`.
+        self.flush_webview_batch();
         if self.startup_state == StartupState::WebViewLoading {
             if let Some(deadline) = self.startup_deadline {
                 if Instant::now() >= deadline {
@@ -506,6 +581,75 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
             }
         }
         platform::prepare_for_wait(event_loop);
+    }
+}
+
+/// Hard bound for queued WebView messages. The queue never grows past
+/// this; overflow drops the oldest coalescable snapshot first.
+const MAX_PENDING_WEBVIEW_MESSAGES: usize = 512;
+/// Maximum messages delivered in one UI tick through one `evaluate_script`.
+const MAX_BATCH_PER_TICK: usize = 128;
+
+/// Disposable snapshot types where only the latest value matters. Live
+/// chat/gift events, RPC responses, and lifecycle events are never
+/// coalesced.
+fn is_coalescable_webview_message(message: &str) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(message) else {
+        return false;
+    };
+    if let Some(kind) = value.get("type").and_then(serde_json::Value::as_str) {
+        return matches!(
+            kind,
+            "room-stats"
+                | "leaderboard"
+                | "analytics-summary"
+                | "processor-status"
+                | "automation-context"
+        );
+    }
+    false
+}
+
+fn push_webview_message(queue: &mut std::collections::VecDeque<String>, message: String) {
+    if is_coalescable_webview_message(&message) {
+        // Keep only the latest snapshot of this kind.
+        let kind = serde_json::from_str::<serde_json::Value>(&message)
+            .ok()
+            .and_then(|value| {
+                value
+                    .get("type")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+            });
+        if let Some(kind) = kind {
+            queue.retain(|queued| {
+                serde_json::from_str::<serde_json::Value>(queued)
+                    .ok()
+                    .and_then(|value| {
+                        value
+                            .get("type")
+                            .and_then(serde_json::Value::as_str)
+                            .map(str::to_owned)
+                    })
+                    .as_deref()
+                    != Some(kind.as_str())
+            });
+        }
+    }
+    queue.push_back(message);
+    while queue.len() > MAX_PENDING_WEBVIEW_MESSAGES {
+        // Prefer dropping a stale coalescable snapshot over live data.
+        let coalescable = queue
+            .iter()
+            .position(|queued| is_coalescable_webview_message(queued));
+        match coalescable {
+            Some(index) => {
+                queue.remove(index);
+            }
+            None => {
+                queue.pop_front();
+            }
+        }
     }
 }
 
@@ -534,4 +678,40 @@ fn is_control_rpc(raw: &str) -> bool {
                 .map(str::to_owned)
         })
         .is_some()
+}
+
+#[cfg(test)]
+mod batch_tests {
+    use super::*;
+
+    #[test]
+    fn coalesces_disposable_snapshots() {
+        let mut queue = std::collections::VecDeque::new();
+        push_webview_message(
+            &mut queue,
+            r#"{"type":"room-stats","viewers":1,"totalUsers":1,"topViewers":[]}"#.to_owned(),
+        );
+        push_webview_message(
+            &mut queue,
+            r#"{"type":"room-stats","viewers":2,"totalUsers":2,"topViewers":[]}"#.to_owned(),
+        );
+        push_webview_message(
+            &mut queue,
+            r#"{"type":"live-event","event":{"kind":"chat"}}"#.to_owned(),
+        );
+        assert_eq!(queue.len(), 2);
+        assert!(queue[0].contains("\"viewers\":2"));
+    }
+
+    #[test]
+    fn queue_never_exceeds_bound() {
+        let mut queue = std::collections::VecDeque::new();
+        for index in 0..(MAX_PENDING_WEBVIEW_MESSAGES + 50) {
+            push_webview_message(
+                &mut queue,
+                format!(r#"{{"type":"live-event","n":{index}}}"#),
+            );
+        }
+        assert_eq!(queue.len(), MAX_PENDING_WEBVIEW_MESSAGES);
+    }
 }

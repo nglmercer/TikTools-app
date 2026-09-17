@@ -4,6 +4,7 @@ declare global {
   interface Window {
     ipc?: { postMessage: (message: string) => void };
     __webview_on_message__?: (message: string) => void;
+    __tiktools_receive_batch__?: (messages: string[]) => void;
     __tiktools_host_message_queue__?: string[];
   }
 }
@@ -142,10 +143,15 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
     }
   };
 
+  const receiveBatch = (messages: string[]): void => {
+    for (const item of messages) receive(item);
+  };
+
   return {
     attach(): void {
       attachedReceive = receive;
       window.__webview_on_message__ = receive;
+      window.__tiktools_receive_batch__ = receiveBatch;
       const queued = window.__tiktools_host_message_queue__ ?? [];
       window.__tiktools_host_message_queue__ = [];
       queued.forEach(receive);
@@ -154,6 +160,9 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
     detach(): void {
       if (window.__webview_on_message__ === attachedReceive) {
         window.__webview_on_message__ = undefined;
+      }
+      if (window.__tiktools_receive_batch__ === receiveBatch) {
+        window.__tiktools_receive_batch__ = undefined;
       }
       attachedReceive = undefined;
       topics.clear();

@@ -74,7 +74,7 @@ async fn ipc_roundtrip_serves_discover_and_domain_methods() {
         async move { tiktools_control_api::run_ipc_shared(api).await }
     });
 
-    let mut client = within("connect", connect_retry()).await;
+    let client = within("connect", connect_retry()).await;
 
     let discovered: Value = within("rpc.discover", client.call_value("rpc.discover", json!({})))
         .await
@@ -218,6 +218,199 @@ async fn two_clients_share_one_runtime_state() {
         .await
         .expect("server task panicked")
         .expect("server task failed");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[tokio::test]
+async fn concurrent_calls_share_one_connection() {
+    let _env = lock_env().await;
+    let home = isolated_home("concurrent");
+    let core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let server = tokio::spawn({
+        let api = Arc::new(ControlApi::new(core.clone()));
+        async move { tiktools_control_api::run_ipc_shared(api).await }
+    });
+
+    let client = within("connect", connect_retry()).await;
+    // Ten overlapping RPCs on one connection: every id must resolve to
+    // its own response, never to a sibling's.
+    let mut tasks = Vec::new();
+    for index in 0..10 {
+        let client = client.clone();
+        tasks.push(tokio::spawn(async move {
+            within(
+                "points.adjust",
+                client.call_value(
+                    "points.adjust",
+                    json!({"uniqueId": format!("viewer-{index}"), "delta": 1.0}),
+                ),
+            )
+            .await
+            .expect("concurrent call works")
+        }));
+    }
+    let mut seen = Vec::new();
+    for task in tasks {
+        let award = within("join", task).await.expect("task panicked");
+        seen.push(
+            award
+                .get("uniqueId")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+        );
+    }
+    seen.sort();
+    assert_eq!(seen.len(), 10, "every concurrent call resolves: {seen:?}");
+
+    let _shutdown: Value = within(
+        "system.shutdown",
+        client.call_value("system.shutdown", json!({})),
+    )
+    .await
+    .expect("system.shutdown works");
+    within("server exit", server)
+        .await
+        .expect("server task panicked")
+        .expect("server task failed");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[tokio::test]
+async fn event_subscription_receives_domain_events_without_blocking_rpc() {
+    let _env = lock_env().await;
+    let home = isolated_home("events");
+    let core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let server = tokio::spawn({
+        let api = Arc::new(ControlApi::new(core.clone()));
+        async move { tiktools_control_api::run_ipc_shared(api).await }
+    });
+
+    let client = within("connect", connect_retry()).await;
+    let mut events = client.subscribe();
+
+    // A state mutation publishes `points.changed`; the subscriber must see
+    // it while RPC responses keep flowing on the same connection.
+    let award: Value = within(
+        "points.adjust",
+        client.call_value("points.adjust", json!({"uniqueId": "bob", "delta": 5.0})),
+    )
+    .await
+    .expect("points.adjust works");
+    assert_eq!(
+        award.get("totalPoints").and_then(Value::as_f64),
+        Some(5.0),
+        "unexpected award shape: {award}"
+    );
+    let event = within("event recv", events.recv())
+        .await
+        .expect("event channel open");
+    assert_eq!(
+        event.topic(),
+        "points.changed",
+        "unexpected event: {event:?}"
+    );
+
+    // RPC still works after events interleaved on the stream.
+    let ping: Value = within("system.ping", client.call_value("system.ping", json!({})))
+        .await
+        .expect("ping after events works");
+    assert_eq!(ping.get("ok"), Some(&Value::Bool(true)));
+
+    let _shutdown: Value = within(
+        "system.shutdown",
+        client.call_value("system.shutdown", json!({})),
+    )
+    .await
+    .expect("system.shutdown works");
+    within("server exit", server)
+        .await
+        .expect("server task panicked")
+        .expect("server task failed");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[tokio::test]
+async fn processors_status_returns_typed_shape() {
+    let _env = lock_env().await;
+    let home = isolated_home("processors");
+    let core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let server = tokio::spawn({
+        let api = Arc::new(ControlApi::new(core.clone()));
+        async move { tiktools_control_api::run_ipc_shared(api).await }
+    });
+
+    let client = within("connect", connect_retry()).await;
+    // Exact contract: `{ processors: [...] }`, never a bare array.
+    let status: Value = within(
+        "processors.status",
+        client.call_value("processors.status", json!({})),
+    )
+    .await
+    .expect("processors.status works");
+    let processors = status.get("processors").and_then(Value::as_array);
+    assert!(
+        processors.is_some(),
+        "processors.status must be {{ processors: [...] }}: {status}"
+    );
+
+    let _shutdown: Value = within(
+        "system.shutdown",
+        client.call_value("system.shutdown", json!({})),
+    )
+    .await
+    .expect("system.shutdown works");
+    within("server exit", server)
+        .await
+        .expect("server task panicked")
+        .expect("server task failed");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[tokio::test]
+async fn second_owner_fails_while_first_holds_endpoint() {
+    let _env = lock_env().await;
+    let home = isolated_home("owner");
+    let core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let first = tokio::spawn({
+        let api = Arc::new(ControlApi::new(core.clone()));
+        async move { tiktools_control_api::run_ipc_shared(api).await }
+    });
+    let _client = within("connect", connect_retry()).await;
+
+    // A second server on the same endpoint must fail instead of stealing
+    // or sharing it. Unix enforces this at bind; Windows at the mutex.
+    let second_core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let second = tiktools_control_api::run_ipc_shared(Arc::new(ControlApi::new(second_core))).await;
+    assert!(
+        second.is_err(),
+        "second control host must not own the endpoint"
+    );
+
+    core.shutdown().await;
+    within("server exit", first)
+        .await
+        .expect("server task panicked")
+        .expect("server task failed");
+
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+#[tokio::test]
+async fn connect_to_idle_endpoint_returns_host_unavailable() {
+    let _env = lock_env().await;
+    let home = isolated_home("idle");
+    // No server is started: after the bounded retry budget the client must
+    // report `host_unavailable`, never hang or invent a runtime.
+    let error = match ControlClient::connect().await {
+        Ok(_) => panic!("idle endpoint must refuse"),
+        Err(error) => error,
+    };
+    assert_eq!(error.code, "host_unavailable", "unexpected code: {error:?}");
 
     let _ = std::fs::remove_dir_all(&home);
 }

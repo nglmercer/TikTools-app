@@ -281,7 +281,11 @@ pub fn register(router: &mut ControlRouter) {
         "Merged behavior snapshot: records plus the live runtime catalog",
         false,
         |core: Arc<AppCore>, _params: Empty| async move {
-            Ok::<Value, ApiError>(core.behavior_snapshot())
+            // Snapshot load plus catalog merge stays off Tokio workers.
+            let snapshot = tokio::task::spawn_blocking(move || core.behavior_snapshot())
+                .await
+                .map_err(|error| ApiError::internal(format!("snapshot worker failed: {error}")))?;
+            Ok::<Value, ApiError>(snapshot)
         },
     );
 }

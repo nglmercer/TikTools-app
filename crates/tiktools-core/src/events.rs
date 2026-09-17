@@ -44,6 +44,19 @@ pub enum DomainEvent {
         event_type: String,
         event: serde_json::Value,
     },
+    /// UI-ready live event (render shape), published alongside the
+    /// automation-shaped `live.event` so the frontend can migrate off the
+    /// legacy `live-event` push without depending on automation capacity.
+    #[serde(rename = "live.ui-event", rename_all = "camelCase")]
+    LiveUiEvent { event: serde_json::Value },
+    #[serde(rename = "room.stats", rename_all = "camelCase")]
+    RoomStats {
+        viewers: u64,
+        total_users: u64,
+        top_viewers: Vec<serde_json::Value>,
+    },
+    #[serde(rename = "gifts.catalog", rename_all = "camelCase")]
+    GiftsCatalog { gifts: Vec<serde_json::Value> },
     #[serde(rename = "points.changed", rename_all = "camelCase")]
     PointsChanged {
         unique_id: String,
@@ -77,6 +90,9 @@ impl DomainEvent {
             Self::LiveConnected { .. } => "live.connected",
             Self::LiveDisconnected => "live.disconnected",
             Self::LiveEvent { .. } => "live.event",
+            Self::LiveUiEvent { .. } => "live.ui-event",
+            Self::RoomStats { .. } => "room.stats",
+            Self::GiftsCatalog { .. } => "gifts.catalog",
             Self::PointsChanged { .. } => "points.changed",
             Self::WorkflowChanged { .. } => "workflow.changed",
             Self::CreatorChanged { .. } => "creator.changed",

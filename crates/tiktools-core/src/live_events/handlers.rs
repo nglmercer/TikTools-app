@@ -14,6 +14,12 @@ impl AppCore {
             ClientEvent::Disconnected { reason } => {
                 self.live.disconnect().await;
                 self.publish_disconnected_event().await;
+                // Native drops publish the same domain events as an explicit
+                // RPC disconnect so every origin converges on one topic.
+                self.events
+                    .publish_domain(crate::events::DomainEvent::LiveDisconnected);
+                self.events
+                    .publish_domain(crate::events::DomainEvent::CreatorChanged { unique_id: None });
                 tracing::info!(%reason, "TikTok live disconnected");
                 self.emit(HostMessage::connection_disconnected());
             }
@@ -152,6 +158,10 @@ impl AppCore {
         });
         self.emit_leaderboard_if_due();
 
+        self.events
+            .publish_domain(crate::events::DomainEvent::GiftsCatalog {
+                gifts: gifts.clone(),
+            });
         self.emit(HostMessage::GiftCatalog { gifts });
 
         self.queue_automation_event(
@@ -174,6 +184,12 @@ impl AppCore {
                 self.queue_automation_event(event);
             }
             if let tiktools_tiktok::events::CanonicalLiveEvent::RoomUser(room) = &event.base {
+                self.events
+                    .publish_domain(crate::events::DomainEvent::RoomStats {
+                        viewers: room.total,
+                        total_users: room.total_user,
+                        top_viewers: Vec::new(),
+                    });
                 self.emit(HostMessage::RoomStats {
                     viewers: room.total,
                     total_users: room.total_user,
@@ -225,6 +241,15 @@ impl AppCore {
                 object.insert("level".to_owned(), json!(award.level));
                 object.insert("pointsDelta".to_owned(), json!(award.delta));
             }
+            // Live awards publish the same topic as manual/automation/plugin
+            // adjustments so every origin converges on `points.changed`.
+            self.events
+                .publish_domain(crate::events::DomainEvent::PointsChanged {
+                    unique_id: award.unique_id.clone(),
+                    delta: award.delta,
+                    total_points: award.total_points,
+                    level: award.level,
+                });
             self.emit(HostMessage::PointsAwarded {
                 unique_id: award.unique_id.clone(),
                 delta: award.delta,
@@ -266,6 +291,12 @@ impl AppCore {
                 );
             }
         }
+        // The UI-ready event goes out on the domain bus (authoritative for
+        // WebView/IPC/CLI) with the legacy push kept only for compatibility.
+        self.events
+            .publish_domain(crate::events::DomainEvent::LiveUiEvent {
+                event: ui_event.clone(),
+            });
         self.emit(HostMessage::LiveEvent { event: ui_event });
         self.emit_leaderboard_if_due();
     }

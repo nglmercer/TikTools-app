@@ -256,6 +256,13 @@ impl AppCore {
                     .points
                     .adjust(&unique_id, delta)
                     .ok_or_else(|| format!("Viewer `{unique_id}` is not in the leaderboard."))?;
+                self.events
+                    .publish_domain(crate::events::DomainEvent::PointsChanged {
+                        unique_id: award.unique_id.clone(),
+                        delta: award.delta,
+                        total_points: award.total_points,
+                        level: award.level,
+                    });
                 self.emit(HostMessage::PointsAwarded {
                     unique_id: award.unique_id.clone(),
                     delta: award.delta,

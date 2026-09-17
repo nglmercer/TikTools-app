@@ -42,7 +42,12 @@ pub async fn run_ipc(api: ControlApi) -> std::io::Result<()> {
 /// Serves local IPC from a shared [`ControlApi`]. The desktop host uses this
 /// so its WebView, control router, and IPC server all share one `AppCore`.
 /// The loop exits once the core starts shutting down.
+///
+/// The server holds the OS control-host ownership primitive for its whole
+/// lifetime and fails with `AddrInUse` when another host already owns the
+/// production endpoint.
 pub async fn run_ipc_shared(api: Arc<ControlApi>) -> std::io::Result<()> {
+    let _ownership = crate::ownership::acquire_control_host_ownership()?;
     #[cfg(unix)]
     {
         run_ipc_unix(api).await

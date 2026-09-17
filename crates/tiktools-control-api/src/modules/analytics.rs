@@ -28,14 +28,18 @@ pub fn register(router: &mut ControlRouter) {
         "Per-day analytics summary for a creator (defaults to the current one)",
         false,
         |core: Arc<AppCore>, params: AnalyticsSummaryParams| async move {
-            Ok::<AnalyticsSummaryResult, ApiError>(AnalyticsSummaryResult {
-                summary: core.analytics_summary(
+            // Day-range SQLite aggregations stay off Tokio workers.
+            let summary = tokio::task::spawn_blocking(move || {
+                core.analytics_summary(
                     params.creator_unique_id,
                     params.start_day,
                     params.end_day,
                     params.limit,
-                ),
+                )
             })
+            .await
+            .map_err(|error| ApiError::internal(format!("analytics worker failed: {error}")))?;
+            Ok::<AnalyticsSummaryResult, ApiError>(AnalyticsSummaryResult { summary })
         },
     );
 }

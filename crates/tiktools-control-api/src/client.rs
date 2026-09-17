@@ -3,13 +3,17 @@
 //! Normal CLI commands use this to reach the desktop host (or a standalone
 //! `host --ipc` host) instead of constructing a second [`AppCore`]. The
 //! framing matches [`crate::transport`]: one JSON request per line, one JSON
-//! response per line, with `event` notifications skipped by [`call`].
+//! response per line, with `event` notifications fanned out to subscribers.
 //!
 //! [`AppCore`]: tiktools_core::AppCore
-//! [`call`]: ControlClient::call
 
 use std::{
+    collections::HashMap,
     pin::Pin,
+    sync::{
+        atomic::{AtomicI64, Ordering},
+        Arc, Mutex,
+    },
     task::{Context, Poll},
 };
 
@@ -18,6 +22,14 @@ use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf};
 
 use crate::{transport, MAX_REQUEST_BYTES, REQUEST_TIMEOUT};
+
+/// Connected-control event broadcast capacity. Slow subscribers lag and skip,
+/// never block RPC responses.
+const EVENT_CHANNEL_CAPACITY: usize = 256;
+/// Connection retry budget for a starting host.
+const CONNECT_RETRY_BUDGET: std::time::Duration = std::time::Duration::from_secs(3);
+/// Delay between connection attempts.
+const CONNECT_RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(40);
 
 /// Machine-readable client failure. Operation errors from the host surface
 /// with the host's own `code` so CLI exit paths stay stable.
@@ -117,34 +129,67 @@ impl AsyncWrite for ClientStream {
     }
 }
 
-/// Connected control client. Calls are sequential: one in-flight request at
-/// a time per connection.
+type PendingMap =
+    Arc<Mutex<HashMap<i64, tokio::sync::oneshot::Sender<Result<Value, ClientError>>>>>;
+
+/// Connected control client.
+///
+/// One background reader task demultiplexes the IPC stream: responses
+/// resolve their pending RPC by id while `event` notifications fan out to
+/// every subscriber. Any number of RPCs may be in flight concurrently and
+/// events are never discarded to unblock a call.
+#[derive(Clone)]
 pub struct ControlClient {
-    reader: BufReader<tokio::io::ReadHalf<ClientStream>>,
-    writer: tokio::io::WriteHalf<ClientStream>,
-    next_id: i64,
+    writer: Arc<tokio::sync::Mutex<tokio::io::WriteHalf<ClientStream>>>,
+    pending: PendingMap,
+    events: tokio::sync::broadcast::Sender<tiktools_core::events::DomainEvent>,
+    next_id: Arc<AtomicI64>,
 }
 
 impl ControlClient {
-    /// Connects to the running host's local IPC endpoint. Fails with
-    /// `host_unavailable` when nothing is listening; callers must surface
-    /// that instead of silently starting a second host.
+    /// Connects to the running host's local IPC endpoint. Transient
+    /// startup races (missing pipe/socket, pipe busy) retry within a
+    /// bounded budget; only after it expires does this fail with
+    /// `host_unavailable`. Callers must surface that instead of silently
+    /// starting a second host.
     pub async fn connect() -> Result<Self, ClientError> {
         let stream = connect_stream()
             .await
             .map_err(|_| ClientError::host_unavailable())?;
+        Ok(Self::from_stream(stream))
+    }
+
+    fn from_stream(stream: ClientStream) -> Self {
         let (read, write) = tokio::io::split(stream);
-        Ok(Self {
-            reader: BufReader::new(read),
-            writer: write,
-            next_id: 1,
-        })
+        let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
+        let (events, _) = tokio::sync::broadcast::channel(EVENT_CHANNEL_CAPACITY);
+        let client = Self {
+            writer: Arc::new(tokio::sync::Mutex::new(write)),
+            pending: Arc::clone(&pending),
+            events,
+            next_id: Arc::new(AtomicI64::new(1)),
+        };
+        tokio::spawn(reader_task(
+            BufReader::new(read),
+            pending,
+            client.events.clone(),
+        ));
+        client
+    }
+
+    /// Subscribes to the host's domain-event broadcast. The reader task
+    /// forwards every `event` notification here; slow receivers lag and
+    /// skip, matching the host bus semantics.
+    pub fn subscribe(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<tiktools_core::events::DomainEvent> {
+        self.events.subscribe()
     }
 
     /// Calls one method and deserializes the typed result. Host operation
-    /// errors return with the host's error code; interleaved `event`
-    /// notifications are skipped.
-    pub async fn call<P, R>(&mut self, method: &str, params: P) -> Result<R, ClientError>
+    /// errors return with the host's error code. Concurrent calls share
+    /// the connection safely.
+    pub async fn call<P, R>(&self, method: &str, params: P) -> Result<R, ClientError>
     where
         P: Serialize,
         R: DeserializeOwned,
@@ -155,12 +200,11 @@ impl ControlClient {
     }
 
     /// Untyped call used by generic `rpc` passthroughs.
-    pub async fn call_value<P>(&mut self, method: &str, params: P) -> Result<Value, ClientError>
+    pub async fn call_value<P>(&self, method: &str, params: P) -> Result<Value, ClientError>
     where
         P: Serialize,
     {
-        let id = self.next_id;
-        self.next_id += 1;
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let params = serde_json::to_value(params)
             .map_err(|error| ClientError::protocol(error.to_string()))?;
         let request = serde_json::json!({
@@ -178,57 +222,138 @@ impl ControlClient {
                 "request exceeds the size limit",
             ));
         }
-        self.writer
-            .write_all(&bytes)
-            .await
-            .map_err(|error| ClientError::transport(error.to_string()))?;
-        self.writer
-            .flush()
-            .await
-            .map_err(|error| ClientError::transport(error.to_string()))?;
-        loop {
-            let mut line = String::new();
-            let read =
-                tokio::time::timeout(REQUEST_TIMEOUT, self.reader.read_line(&mut line)).await;
-            let bytes_read = match read {
-                Ok(Ok(bytes_read)) => bytes_read,
-                Ok(Err(error)) => return Err(ClientError::transport(error.to_string())),
-                Err(_) => return Err(ClientError::new("timeout", "request timed out")),
-            };
-            if bytes_read == 0 {
-                return Err(ClientError::transport("host closed the connection"));
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        {
+            let mut pending = self.pending.lock().expect("client pending lock poisoned");
+            pending.insert(id, sender);
+        }
+        let write_outcome = async {
+            let mut writer = self.writer.lock().await;
+            writer
+                .write_all(&bytes)
+                .await
+                .map_err(|error| ClientError::transport(error.to_string()))?;
+            writer
+                .flush()
+                .await
+                .map_err(|error| ClientError::transport(error.to_string()))
+        }
+        .await;
+        if let Err(error) = write_outcome {
+            let mut pending = self.pending.lock().expect("client pending lock poisoned");
+            pending.remove(&id);
+            return Err(error);
+        }
+        match tokio::time::timeout(REQUEST_TIMEOUT, receiver).await {
+            Ok(Ok(outcome)) => outcome,
+            Ok(Err(_)) => Err(ClientError::transport("host closed the connection")),
+            Err(_) => {
+                let mut pending = self.pending.lock().expect("client pending lock poisoned");
+                pending.remove(&id);
+                Err(ClientError::new("timeout", "request timed out"))
             }
-            let value: Value = serde_json::from_str(line.trim()).map_err(|error| {
-                ClientError::protocol(format!("invalid response JSON: {error}"))
-            })?;
-            // Event notifications interleave on IPC streams; they carry no
-            // id and must not resolve a pending call.
-            if value.get("method").and_then(Value::as_str) == Some("event") {
-                continue;
-            }
-            let response_id = value.get("id").and_then(Value::as_i64).unwrap_or(-1);
-            if response_id != id {
-                continue;
-            }
-            if let Some(error) = value.get("error") {
-                let code = error
-                    .get("code")
-                    .and_then(Value::as_str)
-                    .unwrap_or("error")
-                    .to_owned();
-                let message = error
-                    .get("message")
-                    .and_then(Value::as_str)
-                    .unwrap_or("request failed")
-                    .to_owned();
-                return Err(ClientError::new(code, message));
-            }
-            return Ok(value.get("result").cloned().unwrap_or(Value::Null));
         }
     }
 }
 
+async fn reader_task(
+    mut reader: BufReader<tokio::io::ReadHalf<ClientStream>>,
+    pending: PendingMap,
+    events: tokio::sync::broadcast::Sender<tiktools_core::events::DomainEvent>,
+) {
+    loop {
+        let mut line = String::new();
+        match reader.read_line(&mut line).await {
+            Ok(0) => break,
+            Ok(_) => {}
+            Err(_) => break,
+        }
+        let value: Value = match serde_json::from_str(line.trim()) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        if value.get("method").and_then(Value::as_str) == Some("event") {
+            if let Some(params) = value.get("params") {
+                if let Ok(event) =
+                    serde_json::from_value::<tiktools_core::events::DomainEvent>(params.clone())
+                {
+                    let _ = events.send(event);
+                }
+            }
+            continue;
+        }
+        let response_id = value.get("id").and_then(Value::as_i64).unwrap_or(-1);
+        let sender = {
+            let mut pending = pending.lock().expect("client pending lock poisoned");
+            pending.remove(&response_id)
+        };
+        let Some(sender) = sender else {
+            continue;
+        };
+        if let Some(error) = value.get("error") {
+            let code = error
+                .get("code")
+                .and_then(Value::as_str)
+                .unwrap_or("error")
+                .to_owned();
+            let message = error
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or("request failed")
+                .to_owned();
+            let _ = sender.send(Err(ClientError::new(code, message)));
+        } else {
+            let result = value.get("result").cloned().unwrap_or(Value::Null);
+            let _ = sender.send(Ok(result));
+        }
+    }
+    // The host went away: fail every still-pending call so concurrent
+    // waiters never hang until their timeout.
+    let senders = {
+        let mut pending = pending.lock().expect("client pending lock poisoned");
+        std::mem::take(&mut *pending)
+    };
+    for (_, sender) in senders {
+        let _ = sender.send(Err(ClientError::transport("host closed the connection")));
+    }
+}
+
 async fn connect_stream() -> std::io::Result<ClientStream> {
+    let deadline = tokio::time::Instant::now() + CONNECT_RETRY_BUDGET;
+    loop {
+        match try_connect_stream().await {
+            Ok(stream) => return Ok(stream),
+            Err(error) if is_transient_connect_error(&error) => {
+                if tokio::time::Instant::now() >= deadline {
+                    return Err(error);
+                }
+                tokio::time::sleep(CONNECT_RETRY_DELAY).await;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+fn is_transient_connect_error(error: &std::io::Error) -> bool {
+    // Windows named-pipe startup races: ERROR_FILE_NOT_FOUND (2) while the
+    // server instance is being created, ERROR_PIPE_BUSY (231) while all
+    // instances are connected.
+    #[cfg(windows)]
+    if let Some(code) = error.raw_os_error() {
+        if code == 2 || code == 231 {
+            return true;
+        }
+    }
+    matches!(
+        error.kind(),
+        std::io::ErrorKind::NotFound
+            | std::io::ErrorKind::ConnectionRefused
+            | std::io::ErrorKind::WouldBlock
+            | std::io::ErrorKind::Interrupted
+    )
+}
+
+async fn try_connect_stream() -> std::io::Result<ClientStream> {
     #[cfg(unix)]
     {
         tokio::net::UnixStream::connect(transport::ipc_socket_path())

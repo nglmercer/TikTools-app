@@ -1,13 +1,30 @@
 use crate::*;
 
 impl AppCore {
+    /// Domain events are authoritative: the normalized event fans out to
+    /// WebView/IPC/CLI immediately, before (and independent of) the
+    /// automation pipeline, which may throttle or drop on saturation.
+    pub(crate) fn publish_live_domain_event(&self, event: &serde_json::Value) {
+        if let Some(event_type) = event.get("type").and_then(Value::as_str) {
+            if event_type.starts_with("tiktok.") {
+                self.events
+                    .publish_domain(crate::events::DomainEvent::LiveEvent {
+                        event_type: event_type.to_owned(),
+                        event: event.clone(),
+                    });
+            }
+        }
+    }
     pub(crate) async fn publish_automation_event(self: &Arc<Self>, event: serde_json::Value) {
+        self.publish_live_domain_event(&event);
         let enriched = self.enrich_automation_event(event).await;
         self.remember_automation_event(&enriched);
         Box::pin(self.run_automation_event(enriched)).await;
     }
     #[cfg(feature = "native-tiktok")]
     pub(crate) fn queue_automation_event(self: &Arc<Self>, event: serde_json::Value) {
+        // Control/UI delivery must never depend on automation capacity.
+        self.publish_live_domain_event(&event);
         let event_type = event
             .get("type")
             .and_then(serde_json::Value::as_str)
@@ -15,7 +32,7 @@ impl AppCore {
         let Ok(permit) = Arc::clone(&self.automation_slots).try_acquire_owned() else {
             tracing::warn!(
                 event_type,
-                "automation concurrency limit reached; dropping live automation event"
+                "automation concurrency limit reached; dropping automation work only (domain event already delivered)"
             );
             return;
         };
@@ -43,15 +60,9 @@ impl AppCore {
                 status: event.get("data").cloned().unwrap_or_else(|| json!({})),
             });
         }
-        if let Some(event_type) = event.get("type").and_then(Value::as_str) {
-            if event_type.starts_with("tiktok.") {
-                self.events
-                    .publish_domain(crate::events::DomainEvent::LiveEvent {
-                        event_type: event_type.to_owned(),
-                        event: event.clone(),
-                    });
-            }
-        }
+        // DomainEvent delivery happens up front in `publish_live_domain_event`
+        // (before automation slots), never here, so saturation cannot drop
+        // control/UI events.
         let now = now_millis();
         let last = self
             .last_automation_context_emit_at

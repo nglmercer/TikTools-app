@@ -1,41 +1,47 @@
-import { prepareDevelopmentPlugins, repositoryRoot } from './dev-plugins';
-
-const webPort = Number(process.env.TIKTOOLS_WEB_PORT ?? 3000);
-const devUrl = `http://127.0.0.1:${webPort}`;
+import { prepareDevelopmentPlugins, repositoryRoot } from './dev-plugins.ts';
+import { allocateFreePort, devUrl, isControlHostRunning, waitForHttp } from './lib/dev-launch.ts';
 
 function fail(message: string): never {
   throw new Error(`Development startup failed: ${message}`);
 }
 
-async function waitForHttp(url: string, attempts = 100, delayMs = 100): Promise<void> {
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const response = await fetch(url);
-      // Any HTTP response (even 404) proves Vite is accepting connections.
-      if (response) {
-        await response.body?.cancel().catch(() => {});
-        return;
-      }
-    } catch {
-      // Vite is not up yet; keep waiting within the bounded retry budget.
-    }
-    await Bun.sleep(delayMs);
-  }
-  fail(`Vite dev server did not become ready at ${url}`);
+const existing = await isControlHostRunning();
+if (existing) {
+  fail(
+    'a TikTools desktop/control host is already running on the production IPC endpoint. ' +
+      'Close the existing desktop (or stop the standalone host) before starting dev, ' +
+      'so the new Vite server is never mixed with an old desktop or stale control IPC host.',
+  );
 }
+
+// Never guess the Vite port: allocate a free loopback port first, then run
+// Vite with strictPort so it fails loudly instead of drifting to another
+// port while the desktop still points at the guessed URL.
+const webPort = await allocateFreePort();
+const actualDevUrl = devUrl(webPort);
 
 let developmentPluginRoot = process.env.TIKTOOLS_DEV_PLUGINS_DIR;
 if (!developmentPluginRoot && process.env.TIKTOOLS_SKIP_DEV_PLUGINS !== '1') {
   developmentPluginRoot = await prepareDevelopmentPlugins();
 }
 
-console.log(`Starting Vite dev server (${devUrl})...`);
+console.log(`Starting owned Vite dev server (${actualDevUrl})...`);
 const vite = Bun.spawn({
   cmd: [process.execPath, 'run', 'serve:web'],
   cwd: repositoryRoot,
+  env: { ...process.env, TIKTOOLS_WEB_PORT: String(webPort) },
   stdout: 'inherit',
   stderr: 'inherit',
 });
+
+const viteAlive = (): boolean => vite.exitCode === null;
+const killVite = (): void => {
+  try {
+    vite.kill();
+  } catch {
+    // Already exited; nothing to stop.
+  }
+};
 
 const shutdownSignals: Array<NodeJS.Signals> = ['SIGINT', 'SIGTERM'];
 const forwardSignal = (signal: NodeJS.Signals): void => {
@@ -46,16 +52,27 @@ for (const signal of shutdownSignals) {
 }
 
 try {
-  await waitForHttp(devUrl);
+  await waitForHttp(actualDevUrl, viteAlive);
 } catch (error) {
-  vite.kill();
+  killVite();
   throw error;
 }
 
-console.log(`Vite is ready; launching the desktop host against ${devUrl}...`);
+// Re-check immediately before launching the desktop: an old desktop
+// starting concurrently must never be mixed with this new Vite server.
+if (await isControlHostRunning()) {
+  killVite();
+  fail(
+    'a TikTools desktop/control host appeared while Vite was starting. ' +
+      'Close the existing desktop before starting dev.',
+  );
+}
+
+console.log(`Vite is ready; launching the desktop host against ${actualDevUrl}...`);
 const environment = {
   ...process.env,
-  TIKTOOLS_DEV_URL: devUrl,
+  TIKTOOLS_DEV_URL: actualDevUrl,
+  TIKTOOLS_WEB_PORT: String(webPort),
 };
 if (developmentPluginRoot) {
   environment.TIKTOOLS_DEV_PLUGINS_DIR = developmentPluginRoot;
@@ -70,5 +87,10 @@ const host = Bun.spawn({
   stderr: 'inherit',
 });
 
-process.exitCode = await host.exited;
-vite.kill();
+try {
+  process.exitCode = await host.exited;
+} finally {
+  // The Vite process is owned by this launcher: never leave it behind
+  // when the desktop exits, or a stale Vite will serve the next run.
+  killVite();
+}

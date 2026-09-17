@@ -33,8 +33,8 @@ export interface PointsChangedData {
   level: number;
 }
 
-/** Points config and leaderboard. Award patches assign absolute totals, so
- * the legacy push and the domain event are idempotent with each other. */
+/** Points config and leaderboard. Awards arrive only via the authoritative
+ * `points.changed` domain event; the legacy push is no longer subscribed. */
 export function usePoints(control: ControlClient) {
   const pointsConfig = ref<PointsConfig>(defaultPointsConfig);
   const leaderboard = ref<ViewerRecord[]>([]);
@@ -62,10 +62,6 @@ export function usePoints(control: ControlClient) {
   control.onPush('leaderboard', (message) => {
     if (message.type !== 'leaderboard') return;
     leaderboard.value = message.viewers;
-  });
-  control.onPush('points-awarded', (message) => {
-    if (message.type !== 'points-awarded') return;
-    applyAward(message.uniqueId, message.totalPoints, message.level);
   });
   control.onTopic<PointsChangedData>('points.changed', (data) => {
     applyAward(data.uniqueId, data.totalPoints, data.level);

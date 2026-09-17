@@ -483,3 +483,134 @@ async fn test_event_names_sample_data_on_mismatch() {
     assert!(summary.contains("sample data:"), "{summary}");
     assert!(summary.contains("hello"), "{summary}");
 }
+
+#[test]
+fn manual_points_adjustment_publishes_points_changed() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = AppCore::new(emitter);
+    // Unique viewer per run: the points store persists across runs, so a
+    // fixed name would accumulate totals and flake the exact-value assert.
+    let unique_id = format!(
+        "alice-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    );
+    let mut events = core.events.subscribe_domain();
+    let award = core
+        .points_adjust(&unique_id, 10.0)
+        .expect("manual adjustment works");
+    assert_eq!(award.total_points, 10.0);
+    let event = events.try_recv().expect("points.changed is published");
+    assert_eq!(
+        event,
+        crate::events::DomainEvent::PointsChanged {
+            unique_id,
+            delta: award.delta,
+            total_points: award.total_points,
+            level: award.level,
+        }
+    );
+}
+
+#[test]
+fn normalized_live_event_publishes_domain_event_before_automation() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = AppCore::new(emitter);
+    let mut events = core.events.subscribe_domain();
+    // The authoritative fan-out happens on the normalized event alone, with
+    // no automation slot, enrichment, or pipeline involved.
+    core.publish_live_domain_event(&serde_json::json!({
+        "type": "tiktok.chat",
+        "data": {"comment": "hello"},
+    }));
+    let event = events.try_recv().expect("live.event is published");
+    match event {
+        crate::events::DomainEvent::LiveEvent { event_type, .. } => {
+            assert_eq!(event_type, "tiktok.chat");
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+    // Non-TikTok automation types (points, hotkeys) have their own topics
+    // and must not synthesize a live.event.
+    core.publish_live_domain_event(&serde_json::json!({
+        "type": "points.awarded",
+        "data": {},
+    }));
+    assert!(events.try_recv().is_err());
+}
+
+#[cfg(feature = "native-tiktok")]
+#[tokio::test]
+async fn saturated_automation_slots_do_not_drop_domain_events() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    // Occupy every automation slot so the pipeline must shed load.
+    let mut permits = Vec::new();
+    for _ in 0..32 {
+        permits.push(
+            core.automation_slots
+                .clone()
+                .try_acquire_owned()
+                .expect("slot available"),
+        );
+    }
+    let mut events = core.events.subscribe_domain();
+    core.queue_automation_event(serde_json::json!({
+        "type": "tiktok.chat",
+        "data": {"comment": "shed me"},
+    }));
+    let event = tokio::time::timeout(std::time::Duration::from_secs(5), events.recv())
+        .await
+        .expect("domain event arrives despite saturation")
+        .expect("channel open");
+    assert_eq!(event.topic(), "live.event");
+    drop(permits);
+}
+
+#[test]
+fn ui_ready_domain_topics_match_frontend_contract() {
+    // Wire contract for the migrated live feed: topic names plus camelCase
+    // data keys must match `src/web/features/live.ts` exactly.
+    let ui = serde_json::to_value(crate::events::DomainEvent::LiveUiEvent {
+        event: serde_json::json!({"kind": "chat"}),
+    })
+    .expect("ui event serializes");
+    assert_eq!(ui["topic"], "live.ui-event");
+    assert_eq!(ui["data"]["event"]["kind"], "chat");
+
+    let stats = serde_json::to_value(crate::events::DomainEvent::RoomStats {
+        viewers: 7,
+        total_users: 9,
+        top_viewers: Vec::new(),
+    })
+    .expect("room stats serialize");
+    assert_eq!(stats["topic"], "room.stats");
+    assert_eq!(stats["data"]["viewers"], 7);
+    assert_eq!(stats["data"]["totalUsers"], 9);
+    assert_eq!(stats["data"]["topViewers"], serde_json::json!([]));
+
+    let catalog = serde_json::to_value(crate::events::DomainEvent::GiftsCatalog {
+        gifts: vec![serde_json::json!({"id": "1"})],
+    })
+    .expect("catalog serializes");
+    assert_eq!(catalog["topic"], "gifts.catalog");
+    assert_eq!(catalog["data"]["gifts"][0]["id"], "1");
+}
+
+#[test]
+fn ipc_error_degrades_system_health() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = AppCore::new(emitter);
+    assert_eq!(core.system_health()["status"], "ok");
+    core.set_ipc_error(Some("control IPC unavailable".to_owned()));
+    let health = core.system_health();
+    assert_eq!(health["status"], "degraded");
+    assert!(
+        health.to_string().contains("control IPC unavailable"),
+        "health must name the IPC failure: {health}"
+    );
+    core.set_ipc_error(None);
+    assert_eq!(core.system_health()["status"], "ok");
+}

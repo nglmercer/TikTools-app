@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 
-import type { GiftCatalogEntry } from '../../shared/messages.ts';
+import type { GiftCatalogEntry, UiEvent } from '../../shared/messages.ts';
 import type { ControlClient } from '../platform/control-client.ts';
 import { errorMessage } from '../platform/control-client.ts';
 import type { DisplayEvent, EventFilter, TopViewerPayload } from '../types.ts';
@@ -45,9 +45,11 @@ export function useLive(control: ControlClient, callbacks: LiveCallbacks) {
     if (container) container.scrollTop = container.scrollHeight;
   };
 
-  control.onPush('live-event', (message) => {
-    if (message.type !== 'live-event') return;
-    const event = message.event;
+  // Live feed state arrives only via authoritative domain topics; the
+  // legacy `live-event` / `room-stats` / `gift-catalog` pushes are no
+  // longer subscribed (backend keeps them solely for compatibility).
+  control.onTopic<{ event: UiEvent }>('live.ui-event', (data) => {
+    const event = data.event;
     events.value = [
       ...events.value,
       { ...event, id: nextEventId.value++, receivedAt: Date.now() },
@@ -57,14 +59,15 @@ export function useLive(control: ControlClient, callbacks: LiveCallbacks) {
       callbacks.onChat(event.author, event.text, event.points, event.isSubscriber);
     }
   });
-  control.onPush('room-stats', (message) => {
-    if (message.type !== 'room-stats') return;
-    topViewers.value = message.topViewers;
-    liveViewers.value = message.viewers;
-  });
-  control.onPush('gift-catalog', (message) => {
-    if (message.type !== 'gift-catalog') return;
-    giftCatalog.value = message.gifts;
+  control.onTopic<{ viewers: number; totalUsers: number; topViewers: TopViewerPayload[] }>(
+    'room.stats',
+    (data) => {
+      topViewers.value = data.topViewers;
+      liveViewers.value = data.viewers;
+    },
+  );
+  control.onTopic<{ gifts: GiftCatalogEntry[] }>('gifts.catalog', (data) => {
+    giftCatalog.value = data.gifts;
   });
   control.onPush('error', (message) => {
     if (message.type !== 'error') return;

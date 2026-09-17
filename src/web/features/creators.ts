@@ -26,18 +26,6 @@ export function useCreators(control: ControlClient, callbacks: CreatorsCallbacks
   const activeCreatorRecord = ref<CreatorRecord | null>(null);
   const recentCreators = ref<CreatorRecord[]>([]);
 
-  control.onPush('creator-state', (message) => {
-    if (message.type !== 'creator-state') return;
-    activeCreatorRecord.value = message.creator;
-    if (message.creator?.uniqueId) {
-      callbacks.noteCreatorSeen(normalizeUsername(message.creator.uniqueId), true);
-    }
-  });
-  control.onPush('recent-creators', (message) => {
-    if (message.type !== 'recent-creators') return;
-    recentCreators.value = message.creators;
-    callbacks.mergeRecentNames(message.creators.map((creator) => creator.uniqueId));
-  });
   control.onTopic('creator.changed', () => {
     void refresh().catch((failure: unknown) => {
       console.warn(`creators refresh failed: ${errorMessage(failure)}`);

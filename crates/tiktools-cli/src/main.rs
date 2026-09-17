@@ -152,7 +152,7 @@ async fn execute_local(
 /// missing host is a transport failure (`host_unavailable`, exit 3), never
 /// a silent second runtime.
 async fn execute_remote(request: RpcRequest, json_mode: bool, command: &str) -> i32 {
-    let mut client = match ControlClient::connect().await {
+    let client = match ControlClient::connect().await {
         Ok(client) => client,
         Err(error) => {
             print_error(json_mode, &error.code, &error.message);
@@ -197,13 +197,10 @@ fn print_error(json_mode: bool, code: &str, message: &str) {
     }
 }
 
-/// `host --ipc` only starts a standalone host when no host is running;
-/// otherwise it would steal the endpoint from the desktop host.
+/// `host --ipc` acquires the OS control-host ownership primitive. A connect
+/// probe is not a lock (it races startup); ownership failure is the single
+/// authority for "another host is running".
 async fn serve_ipc_guarded() -> i32 {
-    if ControlClient::connect().await.is_ok() {
-        eprintln!("tiktools: a control host is already running on the local IPC endpoint");
-        return 1;
-    }
     serve_ipc(headless_api()).await
 }
 
@@ -217,6 +214,10 @@ async fn serve_stdio(api: ControlApi, events: bool) -> i32 {
 
 async fn serve_ipc(api: ControlApi) -> i32 {
     if let Err(error) = tiktools_control_api::run_ipc(api).await {
+        if error.kind() == std::io::ErrorKind::AddrInUse {
+            eprintln!("tiktools: a control host is already running on the local IPC endpoint");
+            return 1;
+        }
         eprintln!("tiktools: IPC host failed: {error}");
         return 3;
     }

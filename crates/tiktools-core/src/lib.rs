@@ -141,6 +141,7 @@ pub struct AppCore {
     plugin_poll_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     plugin_install_lock: Mutex<()>,
     shutdown_started: AtomicBool,
+    ipc_error: RwLock<Option<String>>,
 }
 
 impl AppCore {
@@ -259,6 +260,7 @@ impl AppCore {
             plugin_poll_task: Mutex::new(None),
             plugin_install_lock: Mutex::new(()),
             shutdown_started: AtomicBool::new(false),
+            ipc_error: RwLock::new(None),
         };
         #[cfg(feature = "http")]
         if let Some(message) = core.http_client_error.clone() {

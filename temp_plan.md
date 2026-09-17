@@ -1,897 +1,413 @@
-# TikTools Control Plane Completion
+# TikTools — Fix IPC, Events, and Dev Startup
+
+Repository:
+
+```text
+https://github.com/nglmercer/TikTools-app
+```
+
+Branch:
+
+```text
+remake
+```
 
 ## Goal
 
-Finish the headless/control-plane refactor so TikTools has exactly one authoritative runtime state and every client uses the same API.
-
-Target architecture:
+Make the control plane reliable:
 
 ```text
-                ONE AppCore
-                    │
-               ControlApi
-                    │
-          local JSON-RPC IPC
-        ┌───────────┼───────────┐
-        │           │           │
-      CLI         WebView      agents
-```
-
-Do not duplicate business logic.
-
-## Current State
-
-Already implemented:
-
-```text
-crates/tiktools-control-api
-crates/tiktools-cli
-
+ONE AppCore
+   │
 ControlApi
-typed ControlRouter
-rpc.discover
-rpc.schema
-
-NDJSON stdio
-Unix socket
-Windows named pipe
-
-plugins.*
-plugins.settings.*
-processors.*
-live.*
-points.*
-automation.*
-media.*
-system.info
-system.health
-system.snapshot
-system.doctor
-system.shutdown
-
-DomainEvent
-WebView JSON-RPC compatibility
+   ├── WebView RPC
+   ├── local IPC
+   ├── CLI
+   └── agents
 ```
 
-Still incomplete:
+No duplicated runtime state. No dropped events. No stale frontend/desktop processes.
+
+## 1. Fix `scripts/start-dev.ts`
+
+Current bug:
 
 ```text
-CLI creates its own AppCore
-desktop does not expose persistent control IPC
-Vue still uses legacy PageMessage/HostMessage
-AppEvent::Ui(PageMessage) remains
-RPC does not have full WebView feature parity
-legacy IPC remains authoritative in many places
-transport test may hang
-new crates need formatting/verification
+script assumes port 3000
+Vite may start on 3005
+Rust still receives TIKTOOLS_DEV_URL=http://127.0.0.1:3000
 ```
 
----
+Requirements:
 
-# 1. Desktop Must Own Control IPC
-
-Modify desktop startup so its existing:
-
-```rust
-Arc<AppCore>
-```
-
-is shared by:
-
-```text
-WebView
-ControlApi
-local IPC server
-```
-
-Do NOT create another AppCore for control IPC.
+* Never guess the Vite port.
+* Start Vite programmatically or allocate a free port first.
+* Use `strictPort: true`.
+* Pass the actual URL to Rust.
+* Do not consider another process on the requested port as the new Vite instance.
+* Stop owned Vite process when desktop exits.
 
 Expected:
 
-```rust
-let core = Arc::new(AppCore::with_media_host(...));
-
-let control =
-    Arc::new(ControlApi::new(core.clone()));
-
-start_control_ipc(control.clone());
+```text
+Vite -> actual URL
+          │
+          └── TIKTOOLS_DEV_URL
+                    │
+                 desktop
 ```
 
-The IPC listener must run on Tokio without blocking Winit.
+## 2. Prevent stale desktop instances in dev
 
-Shutdown must stop:
+Current single-instance behavior can cause the newly compiled desktop to exit while an old desktop continues running.
+
+Requirements:
+
+* Dev launcher must detect an existing TikTools desktop/control host.
+* Fail clearly instead of silently using the old process.
+* Never mix:
+
+  * old desktop
+  * new Vite
+  * stale control IPC host
+
+## 3. Fix Windows control IPC ownership
+
+Do not use `ControlClient::connect()` as a lock.
+
+Add an OS ownership primitive, e.g.:
 
 ```text
-live connection
-plugin polling
-plugins
-control IPC
+Local\TikTools.ControlHost
+```
+
+Rules:
+
+```text
 desktop
+  -> acquire control-host mutex
+  -> start named pipe
+
+standalone host
+  -> acquire same mutex
+  -> fail if already owned
 ```
 
-Files likely involved:
+Only one control server may own the production endpoint.
+
+## 4. Add Windows named-pipe connection retry
+
+Current client performs one immediate `open()`.
+
+Add bounded retry/backoff for transient errors such as:
 
 ```text
-crates/tiktools-desktop/src/app.rs
-crates/tiktools-desktop/src/window.rs
-crates/tiktools-control-api/src/transport.rs
+ERROR_FILE_NOT_FOUND
+ERROR_PIPE_BUSY
 ```
 
----
-
-# 2. CLI Must Connect to Existing Runtime
-
-Normal CLI commands must NOT create:
-
-```rust
-AppCore::new(...)
-```
-
-by default.
-
-Current wrong model:
+Suggested:
 
 ```text
-tiktools plugin list
-  -> new AppCore
+retry every 25-50ms
+max ~2-5 seconds
+```
+
+Return `host_unavailable` only after the retry budget expires.
+
+## 5. Make `DomainEvent` authoritative
+
+UI/IPC event delivery must not depend on automation execution.
+
+Wrong:
+
+```text
+TikTok
+ -> automation slot
+ -> processors
+ -> remember_automation_event
+ -> DomainEvent
 ```
 
 Required:
 
 ```text
-tiktools plugin list
-  -> connect local IPC
-  -> running AppCore
+TikTok
+ -> normalize
+ -> DomainEvent immediately
+      ├── WebView
+      ├── IPC/CLI/agents
+      └── automation pipeline
+            -> may independently drop/throttle
 ```
 
-Implement client transport:
+Never drop control/UI events because automation concurrency is saturated.
+
+## 6. Complete live-event migration
+
+Remove frontend dependence on legacy pushes where a domain event exists.
+
+Migrate:
 
 ```text
-crates/tiktools-control-api/src/client.rs
+live-event
+room-stats
+connection state
+points changes
+plugin lifecycle/progress
+creator changes
 ```
 
-Suggested API:
-
-```rust
-pub struct ControlClient;
-
-impl ControlClient {
-    pub async fn connect() -> Result<Self, ClientError>;
-
-    pub async fn call<P, R>(
-        &mut self,
-        method: &str,
-        params: P,
-    ) -> Result<R, ClientError>;
-}
-```
-
-Unix:
+toward:
 
 ```text
-$TIKTOOLS_HOME/tiktools-control.sock
+control.onTopic(...)
 ```
 
-Windows:
+Keep legacy `HostMessage` only as temporary compatibility.
 
-```text
-\\.\pipe\tiktools-control
-```
+Avoid sending the same event through both paths.
 
-CLI behavior:
+## 7. Give Rust `ControlClient` event subscriptions
 
-```text
-tiktools plugin list
-    -> connect IPC
-
-tiktools rpc ...
-    -> connect IPC
-
-tiktools --headless ...
-    -> optional standalone AppCore
-
-tiktools host --stdio
-    -> standalone host
-
-tiktools host --ipc
-    -> standalone host only when desktop is not running
-```
-
-Do not silently start another AppCore when an IPC connection fails.
-
-Return a clear error:
+Current Rust client skips:
 
 ```json
-{
-  "code": "host_unavailable",
-  "message": "TikTools control host is not running."
-}
+{"method":"event"}
 ```
 
----
-
-# 3. Full RPC Feature Parity
-
-Every operation currently available through `PageMessage` must have a Control API equivalent.
-
-Add missing domains.
-
-## App state
+Implement one reader task:
 
 ```text
-app.state.get
-app.state.set
+IPC socket
+   │
+reader task
+   ├── response id -> pending RPC promise
+   └── event       -> broadcast/event channel
 ```
 
-## Creator state
-
-```text
-creators.get
-creators.recent
-creators.history.clear
-```
-
-## Analytics
-
-```text
-analytics.summary
-```
-
-## Gifts
-
-```text
-gifts.list
-gifts.debug
-```
-
-## Workflow graph/editor
-
-Existing behavior automation API is not enough.
-
-Add:
-
-```text
-workflows.list
-workflows.get
-workflows.save
-workflows.delete
-workflows.enable
-workflows.disable
-
-automation.nodes.list
-automation.script.analyze
-automation.context
-```
-
-## Plugin token provisioning
-
-```text
-plugins.token.provision
-```
-
-Credentials:
-
-* never persist password
-* never echo password
-* never include password in logs/events/errors
-
-## Media picker
-
-Keep headless-safe:
-
-```text
-media.validate
-media.play
-```
-
-Desktop-only capability:
-
-```text
-media.pick
-```
-
-If unavailable:
-
-```text
-capability_unavailable
-```
-
-Do not force headless environments to emulate a file dialog.
-
----
-
-# 4. Move Legacy WebView Handlers onto AppCore Control Operations
-
-`handle_page_message()` must stop implementing business logic independently.
-
-Legacy compatibility is acceptable temporarily, but each legacy message should become an adapter.
-
-Bad:
+Provide API similar to:
 
 ```rust
-PageMessage::AdjustPoints => {
-    // business logic here
+let client = ControlClient::connect().await?;
+let mut events = client.subscribe();
+
+while let Some(event) = events.recv().await {
+    // ...
 }
 ```
 
-Required:
+Support multiple concurrent RPC requests.
 
-```rust
-PageMessage::AdjustPoints { ... } => {
-    match self.points_adjust(...) {
-        ...
-    }
+Do not discard events.
+
+## 8. Fix `processors.status` contract
+
+Backend returns a snapshot object.
+
+Frontend currently expects:
+
+```ts
+ProcessorStatusEntry[]
+```
+
+Make both sides typed and identical.
+
+Preferred:
+
+```ts
+interface ProcessorStatusResult {
+  processors: ProcessorStatusEntry[];
 }
 ```
 
-Do this for every legacy operation.
-
-The authoritative operation implementation must live in:
-
-```text
-AppCore control operations
-```
-
-not:
-
-```text
-PageMessage handler
-CLI
-WebView
-```
-
----
-
-# 5. Vue Must Use JSON-RPC
-
-Create frontend bridge:
-
-```text
-src/web/platform/control-client.ts
-```
-
-Responsibilities:
-
-```text
-window.ipc
-JSON serialization
-request ids
-pending promises
-timeouts
-rpc-response
-event notifications
-transport errors
-```
-
-API:
+Then:
 
 ```ts
-const control = createControlClient();
+const result =
+  await control.call<ProcessorStatusResult>(
+    'processors.status',
+    {},
+  );
 
-await control.call(
-  "plugins.settings.get",
-  { pluginId }
-);
-
-control.on("plugin.progress", handler);
+processors.value = result.processors;
 ```
 
-No Vue component/composable should directly call:
+Avoid untyped `Value` RPC results when possible.
 
-```ts
-window.ipc.postMessage(...)
-```
+## 9. Publish consistent domain events
 
-outside this bridge.
-
----
-
-# 6. Split useAppController
-
-Reduce `useAppController.ts`.
-
-Move domains into:
-
-```text
-src/web/features/
-  connection/
-  points/
-  plugins/
-  processors/
-  automation/
-  media/
-  analytics/
-  creators/
-  tts/
-```
-
-Each feature should expose its own API/store.
+Every state mutation must publish the same event regardless of origin.
 
 Example:
 
-```ts
-usePlugins()
-usePoints()
-useLive()
-useAutomation()
+```text
+manual points adjustment
+live TikTok award
+automation adjustment
+plugin action adjustment
 ```
 
-Do not create another giant global message switch.
-
----
-
-# 7. Migrate Host Events
-
-Keep:
-
-```rust
-DomainEvent
-```
-
-Expand it as needed:
+should all produce:
 
 ```text
-plugin.installed
-plugin.uninstalled
-plugin.started
-plugin.stopped
-plugin.progress
-plugin.settings-changed
-
-live.connected
-live.disconnected
-live.event
-
 points.changed
-
-workflow.changed
-
-creator.changed
-analytics.updated
-
-shutdown
 ```
 
-WebView, CLI streaming, local IPC, tests and agents should consume the same events.
+Same rule for:
 
----
+```text
+plugin.*
+workflow.*
+creator.*
+live.*
+analytics.*
+```
 
-# 8. Remove UI Concept from Core Event Bus
+## 10. Prevent WebView event flooding
 
-Remove:
+Do not call:
 
 ```rust
-AppEvent::Ui(PageMessage)
+webview.evaluate_script(...)
 ```
 
-Core event buses must contain domain events only.
+once for every high-rate event.
 
-If legacy WebView message observation is still required during migration, keep it outside the domain event bus.
+Add bounded batching/coalescing.
 
 Target:
 
-```rust
-pub enum DomainEvent {
-    ...
-}
+```text
+Rust events
+ -> bounded queue
+ -> batch per UI tick/frame
+ -> one evaluate_script
 ```
 
-Then remove the old `AppEvent` when no longer needed.
+Example JS boundary:
 
----
+```js
+window.__tiktools_receive_batch__([
+  event1,
+  event2,
+  event3
+]);
+```
 
-# 9. Remove Legacy IPC After Parity
-
-Once Vue uses ControlApi and all operations have parity:
-
-remove or deprecate:
+Coalesce disposable snapshots such as:
 
 ```text
-PageMessage
-HostMessage request-response patterns
-IpcRouter legacy routing
-AppEvent::Ui
-large useAppController receive switch
+room stats
+leaderboard
+analytics updates
+processor metrics
 ```
 
-Keep only genuinely useful push/event messages if needed.
+Never use an unbounded queue.
 
-Target WebView path:
+## 11. Move blocking work off Tokio workers
+
+Audit synchronous operations inside async RPC handlers:
 
 ```text
-Vue
- -> JSON-RPC
- -> ControlApi
- -> AppCore
-
-AppCore
- -> DomainEvent
- -> WebView
+SQLite
+filesystem
+plugin scanning
+plugin install/uninstall
+archive extraction
+remove_dir_all
+large metadata operations
 ```
 
----
-
-# 10. Typed Contracts Everywhere
-
-Do not add raw unvalidated RPC methods.
-
-Every method needs typed:
+Use:
 
 ```rust
-Params
-Result
+tokio::task::spawn_blocking(...)
 ```
 
-and:
+where appropriate.
 
-```rust
-Serialize
-Deserialize
-JsonSchema
-```
-
-Example:
-
-```rust
-#[derive(
-    Serialize,
-    Deserialize,
-    JsonSchema,
-)]
-pub struct AnalyticsSummaryParams {
-    pub creator_unique_id: Option<String>,
-    pub start_day: Option<i64>,
-    pub end_day: Option<i64>,
-    pub limit: Option<i64>,
-}
-```
-
-Register with:
-
-```rust
-router.register_typed::<Params, Result, _, _>(
-    "...",
-    "...",
-    false,
-    handler,
-);
-```
-
----
-
-# 11. Agent-Friendly Discovery
-
-`rpc.discover` must list all methods.
-
-Metadata must contain:
-
-```json
-{
-  "name": "plugins.settings.set",
-  "description": "...",
-  "sideEffect": true,
-  "paramsSchema": {},
-  "resultSchema": {}
-}
-```
-
-Add optional metadata if useful:
-
-```json
-{
-  "destructive": false,
-  "requiresDesktop": false
-}
-```
-
-Agents must be able to understand the API without reading source code.
-
----
-
-# 12. Stable Errors
-
-Use machine-readable codes.
-
-Examples:
+Do not block:
 
 ```text
-invalid_params
-method_not_found
-plugin_not_found
-automation_not_found
-host_unavailable
-capability_unavailable
-conflict
-timeout
-unavailable
-internal
-request_too_large
+Winit thread
+Tokio event workers
+live event pump
+IPC reader
 ```
 
-Do not make agents parse human strings.
+## 12. Make IPC startup failure visible
 
----
+If desktop control IPC cannot start:
 
-# 13. Security
-
-Never expose:
+Do not only log:
 
 ```text
-database handles
-plugin runtime objects
-WebView handles
-native file handles
-native TikTok objects
-raw secret values
-passwords
-tokens
+control IPC server exited
 ```
 
-Maintain:
+Either:
+
+* fail desktop startup, or
+* expose explicit degraded health and retry.
+
+CLI/agents must never silently become unavailable while GUI appears healthy.
+
+## 13. Improve tests
+
+Add tests for:
 
 ```text
-secret redaction
-settings placeholder preservation
-bounded requests
-bounded params
-timeouts
-closed DB table allowlists
-plugin capability checks
+actual Vite port propagation
+stale desktop detection
+Windows pipe retry
+one control-host owner
+concurrent RPC calls
+event subscription
+live event delivery independent of automation slots
+processors.status exact response shape
+points.changed from live and manual mutations
+WebView batching
 ```
 
-IPC endpoint must be per-user only.
+Parity tests must validate behavior/result shape, not only method existence.
 
-On Unix ensure socket permissions are restricted.
+## Acceptance criteria
 
-On Windows use a user-scoped named pipe security policy where possible.
-
----
-
-# 14. Fix Transport Tests
-
-Current transport tests must terminate reliably.
-
-Test:
-
-```text
-request
-response
-domain event
-EOF
-shutdown
-server task exit
-```
-
-Avoid hanging on:
-
-```text
-duplex split halves
-event receiver waiting
-shutdown race
-writer remaining open
-```
-
-Use explicit timeout assertions:
-
-```rust
-tokio::time::timeout(...)
-```
-
-No test may wait forever.
-
----
-
-# 15. Add IPC Client Integration Test
-
-Test real host/client behavior.
-
-Flow:
-
-```text
-start IPC server
-connect ControlClient
-rpc.discover
-plugins.list
-points.adjust
-system.snapshot
-system.shutdown
-server exits
-```
-
-Use isolated:
-
-```text
-TIKTOOLS_HOME
-```
-
----
-
-# 16. Add WebView Parity Tests
-
-Build a parity test list from all legacy `PageMessage` variants.
-
-Every important operation must map to a Control API method.
-
-Fail the test when a legacy operation has no Control API equivalent.
-
-This prevents future drift.
-
----
-
-# 17. One Runtime Ownership Test
-
-Add a test proving CLI client and WebView/control API see the same state.
-
-Example:
-
-```text
-running host:
-  points.adjust alice +10
-
-client 1:
-  points.viewer.get alice
-  => 10
-
-client 2:
-  points.viewer.get alice
-  => 10
-```
-
-There must not be two AppCore instances.
-
----
-
-# 18. CLI Modes
-
-Normal:
+All must pass:
 
 ```bash
-tiktools plugin list
-```
-
-uses running IPC host.
-
-Machine:
-
-```bash
-tiktools --json plugin list
-```
-
-stdout JSON only.
-
-Raw:
-
-```bash
-tiktools rpc plugins.list '{}'
-```
-
-uses running IPC host.
-
-Headless standalone:
-
-```bash
-tiktools host --stdio
-tiktools host --ipc
-```
-
-Optional isolated execution can be explicit:
-
-```bash
-tiktools --standalone ...
-```
-
-Never make standalone the default for normal commands.
-
----
-
-# 19. Documentation
-
-Update:
-
-```text
-docs/CONTROL_API.md
-docs/ARCHITECTURE.md
-docs/DEVELOPMENT.md
-README.md
-```
-
-Clearly document:
-
-```text
-one AppCore
-ControlApi
-IPC host
-CLI client
-WebView client
-DomainEvent
-legacy migration status
-```
-
-Remove documentation that incorrectly implies migration is complete before it actually is.
-
----
-
-# 20. Verification
-
-Run and fix everything:
-
-```bash
-cargo fmt --all -- --check
-
-cargo check --workspace --all-features --locked
-
-cargo clippy \
-  --workspace \
-  --all-targets \
-  --all-features \
-  --locked \
-  -- -D warnings
-
-cargo test --workspace --locked
-
 bun run lint
 bun run typecheck
-bun run test
+bun test
 bun run build:web
 
-git diff --check
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --locked
+cargo check --workspace --locked
 ```
 
-No hanging tests.
+Manual dev test:
 
-No formatting errors.
+```bash
+bun run scripts/start-dev.ts
+```
 
-No warnings.
+Must show exactly one real Vite URL and desktop must use that exact URL.
 
----
-
-# Definition of Done
-
-The refactor is complete only when:
+Then verify:
 
 ```text
-[ ] Desktop owns one AppCore
-[ ] Desktop starts ControlApi local IPC
-[ ] CLI connects to running host by default
-[ ] CLI does not create separate AppCore by default
-[ ] stdio headless host works
-[ ] local IPC works on Unix
-[ ] local IPC works on Windows
-[ ] full PageMessage feature parity exists in ControlApi
-[ ] Vue uses JSON-RPC ControlApi
-[ ] frontend direct window.ipc calls are centralized
-[ ] DomainEvent is authoritative
-[ ] AppEvent::Ui(PageMessage) removed
-[ ] legacy IpcRouter removed or limited to explicit compatibility layer
-[ ] PageMessage no longer contains authoritative business logic
-[ ] snapshot is secret-safe
-[ ] doctor is structured
-[ ] rpc.discover exposes complete method schemas
-[ ] transport tests terminate
-[ ] IPC integration tests pass
-[ ] WebView parity tests pass
-[ ] workspace fmt/check/clippy/tests pass
-[ ] Bun lint/typecheck/tests/build pass
+WebView RPC works
+CLI talks to same AppCore
+two IPC clients share state
+live.connect works
+live events reach WebView + IPC
+automation saturation does not drop control events
+desktop shutdown closes IPC cleanly
+no stale processes are reused
 ```
 
-## Core Rule
-
-There must be exactly one operation path:
-
-```text
-client
-  ↓
-ControlApi
-  ↓
-AppCore operation/service
-```
-
-Never maintain separate implementations for:
-
-```text
-CLI
-WebView
-agent
-stdio
-IPC
-```
+Do not add feature-specific hacks. Fix the transport, event, ownership, and contract boundaries generically.
