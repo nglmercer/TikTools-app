@@ -600,6 +600,20 @@ fn ui_ready_domain_topics_match_frontend_contract() {
 }
 
 #[test]
+fn empty_session_cookie_is_allowed_for_guest_mode() {
+    // The cookie field is optional in the UI and the native client
+    // bootstraps a guest session when it is empty, so validation must
+    // only reject overlong values.
+    assert!(crate::control::check_session_cookie_len("").is_ok());
+    assert!(crate::control::check_session_cookie_len("   ").is_ok());
+    assert!(crate::control::check_session_cookie_len("sessionid=abc").is_ok());
+    let overlong = "x".repeat(16_385);
+    let error = crate::control::check_session_cookie_len(&overlong)
+        .expect_err("overlong cookie must be rejected");
+    assert_eq!(error.code(), "invalid_params");
+}
+
+#[test]
 fn ipc_error_degrades_system_health() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = AppCore::new(emitter);

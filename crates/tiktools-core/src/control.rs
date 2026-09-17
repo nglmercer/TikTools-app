@@ -253,6 +253,18 @@ fn fresh_record_id(prefix: &str) -> String {
     format!("{prefix}-{}-{:08x}", now_millis(), fastrand::u32(..))
 }
 
+/// Session-cookie bound for live entry points. Empty is allowed: the native
+/// client bootstraps an anonymous guest session, matching the UI's
+/// "(optional)" cookie field. Only an overlong value is rejected.
+pub(crate) fn check_session_cookie_len(session_cookie: &str) -> Result<(), OperationError> {
+    if session_cookie.len() > 16_384 {
+        return Err(OperationError::invalid(
+            "sessionCookie must be at most 16384 characters",
+        ));
+    }
+    Ok(())
+}
+
 impl AppCore {
     /// Returns whether [`AppCore::shutdown`] has started.
     pub fn is_shutdown(&self) -> bool {
@@ -1056,11 +1068,7 @@ impl AppCore {
     ) -> Result<LiveStatus, OperationError> {
         let unique_id = clean_unique_id(&unique_id)
             .ok_or_else(|| OperationError::invalid("uniqueId must not be empty"))?;
-        if session_cookie.trim().is_empty() || session_cookie.len() > 16_384 {
-            return Err(OperationError::invalid(
-                "sessionCookie must be 1..=16384 characters",
-            ));
-        }
+        check_session_cookie_len(&session_cookie)?;
         if room_id.as_ref().is_some_and(|room| room.len() > 64) {
             return Err(OperationError::invalid("roomId is too long (max 64)"));
         }
@@ -1465,11 +1473,7 @@ impl AppCore {
         self: &Arc<Self>,
         session_cookie: String,
     ) -> Result<LiveStatus, OperationError> {
-        if session_cookie.trim().is_empty() || session_cookie.len() > 16_384 {
-            return Err(OperationError::invalid(
-                "sessionCookie must be 1..=16384 characters",
-            ));
-        }
+        check_session_cookie_len(&session_cookie)?;
         self.start_live_event_pump();
         let mut rooms = self
             .live

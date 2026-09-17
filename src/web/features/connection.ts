@@ -101,16 +101,21 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     error.value = '';
     callbacks.resetFeed();
     status.value = 'connecting';
+    const previousCreator = activeCreatorRef.value;
     activeCreator.value = callbacks.translate('searchingRooms');
     callbacks.goFeed();
     void control
       .call<LiveStatusResult>('live.pick', { sessionCookie: cookie.value.trim() })
       .then((result) => {
-        if (!result.connected) status.value = 'disconnected';
+        if (!result.connected) {
+          status.value = 'disconnected';
+          activeCreator.value = previousCreator;
+        }
       })
       .catch((failure: unknown) => {
         status.value = 'error';
         error.value = errorMessage(failure);
+        activeCreator.value = previousCreator;
       });
   };
 
