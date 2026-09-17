@@ -93,11 +93,24 @@ fn declarative_messages_use_stable_wire_names() {
     let json = HostMessage::ActionOptions {
         source: "plugin-action-options:a.b:c".to_owned(),
         options: Vec::new(),
+        selected: None,
         error: Some("unreachable".to_owned()),
     }
     .to_json()
     .unwrap();
     assert!(json.contains(r#""error":"unreachable""#));
+    assert!(!json.contains("selected"));
+
+    let json = HostMessage::ActionOptions {
+        source: "plugin-action-options:a.b:c".to_owned(),
+        options: Vec::new(),
+        selected: Some("CABLE Input".to_owned()),
+        error: None,
+    }
+    .to_json()
+    .unwrap();
+    assert!(json.contains(r#""selected":"CABLE Input""#));
+    assert!(!json.contains("error"));
 }
 
 #[test]

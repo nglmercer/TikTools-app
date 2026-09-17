@@ -271,7 +271,7 @@ export type HostMessage =
       progress?: number;
       message: string;
     }
-  | { type: 'action-options'; source: string; options: ActionOptionItem[]; error?: string }
+  | { type: 'action-options'; source: string; options: ActionOptionItem[]; selected?: string; error?: string }
   | {
       type: 'plugin-action-result';
       actionType: string;

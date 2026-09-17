@@ -31,6 +31,7 @@ const DEFAULT_ITEMS_KEYS: [&str; 3] = ["items", "voices", "data"];
 struct CachedOptions {
     fetched_at: Instant,
     options: Vec<Value>,
+    selected: Option<String>,
 }
 
 /// TTL cache for fetched option lists. Entries are keyed by full source id;
@@ -53,17 +54,17 @@ impl OptionSourceService {
         }
     }
 
-    pub fn cached(&self, source: &str) -> Option<Vec<Value>> {
+    pub fn cached(&self, source: &str) -> Option<(Vec<Value>, Option<String>)> {
         let mut cache = self.cache.lock().expect("option cache lock poisoned");
         let entry = cache.get(source)?;
         if entry.fetched_at.elapsed() > OPTION_SOURCE_TTL {
             cache.remove(source);
             return None;
         }
-        Some(entry.options.clone())
+        Some((entry.options.clone(), entry.selected.clone()))
     }
 
-    pub fn store(&self, source: &str, options: Vec<Value>) {
+    pub fn store(&self, source: &str, options: Vec<Value>, selected: Option<String>) {
         self.cache
             .lock()
             .expect("option cache lock poisoned")
@@ -72,6 +73,7 @@ impl OptionSourceService {
                 CachedOptions {
                     fetched_at: Instant::now(),
                     options,
+                    selected,
                 },
             );
     }
@@ -167,11 +169,7 @@ fn map_option_item(
     if !item.is_object() {
         return None;
     }
-    let value_paths: Vec<&str> = value_path.into_iter().chain(["id", "value"]).collect();
-    let value = value_paths
-        .iter()
-        .filter_map(|path| read_dotted_path(item, path))
-        .find_map(scalar_text)?;
+    let value = option_item_value(item, value_path)?;
     let label_paths: Vec<&str> = label_path.into_iter().chain(["name", "label"]).collect();
     let label = label_paths
         .iter()
@@ -179,6 +177,62 @@ fn map_option_item(
         .find_map(scalar_text)
         .unwrap_or_else(|| value.clone());
     Some((value, label))
+}
+
+/// Value half of [`map_option_item`], shared with [`selected_option_value`]
+/// so the reported selection always matches a mapped option value.
+fn option_item_value(item: &Value, value_path: Option<&str>) -> Option<String> {
+    let value_paths: Vec<&str> = value_path.into_iter().chain(["id", "value"]).collect();
+    value_paths
+        .iter()
+        .filter_map(|path| read_dotted_path(item, path))
+        .find_map(scalar_text)
+}
+
+/// Reports the server-selected option value from one fetched document, if
+/// the server advertises one. A top-level scalar `selected` wins; otherwise
+/// the first item carrying a literal `is_selected: true` contributes its
+/// mapped value. Documents without either (voice lists, plain arrays) yield
+/// `None`, and the caller falls back to its own state. Values obey the same
+/// bounds as mapped options so a hostile document cannot smuggle an
+/// oversized selection past the UI.
+pub fn selected_option_value(
+    body: &Value,
+    items_path: Option<&str>,
+    value_path: Option<&str>,
+) -> Option<String> {
+    if let Some(selected) = body.get("selected").and_then(scalar_text) {
+        return bounded_selected(selected);
+    }
+    let items = find_option_items(body, items_path).ok()?;
+    for item in items {
+        if item.get("is_selected").and_then(Value::as_bool) != Some(true) {
+            continue;
+        }
+        let value = match item.as_str() {
+            Some(text) => text.to_owned(),
+            None if item.is_object() => {
+                let Some(value) = option_item_value(item, value_path) else {
+                    continue;
+                };
+                value
+            }
+            None => continue,
+        };
+        // A flagged item without a usable value must not shadow a later
+        // flagged item that has one.
+        if let Some(selected) = bounded_selected(value) {
+            return Some(selected);
+        }
+    }
+    None
+}
+
+fn bounded_selected(value: String) -> Option<String> {
+    if value.is_empty() || value.len() > MAX_OPTION_VALUE_LEN {
+        return None;
+    }
+    Some(value)
 }
 
 fn read_dotted_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
@@ -202,16 +256,17 @@ fn scalar_text(value: &Value) -> Option<String> {
 }
 
 impl crate::AppCore {
-    /// Resolves one `get-action-options` source to its items plus an optional
-    /// display-safe error. Cache hits skip the fetch; failures yield empty
-    /// options with an explanatory error instead of failing the form.
+    /// Resolves one `get-action-options` source to its items, the
+    /// server-reported selection (if the document advertises one), and an
+    /// optional display-safe error. Cache hits skip the fetch; failures yield
+    /// empty options with an explanatory error instead of failing the form.
     pub(crate) async fn resolve_action_options(
         self: &std::sync::Arc<Self>,
         source: &str,
-    ) -> (Vec<Value>, Option<String>) {
-        let fail = |message: String| (Vec::new(), Some(message));
-        if let Some(options) = self.option_sources.cached(source) {
-            return (options, None);
+    ) -> (Vec<Value>, Option<String>, Option<String>) {
+        let fail = |message: String| (Vec::new(), None, Some(message));
+        if let Some((options, selected)) = self.option_sources.cached(source) {
+            return (options, selected, None);
         }
         let Some((action_type, field)) = parse_option_source(source) else {
             return fail(format!("Unknown option source `{source}`."));
@@ -268,17 +323,21 @@ impl crate::AppCore {
             Ok(body) => body,
             Err(error) => return fail(error),
         };
+        let items_path = option.get("itemsPath").and_then(Value::as_str);
+        let value_path = option.get("valuePath").and_then(Value::as_str);
         let options = match map_option_items(
             &body,
-            option.get("itemsPath").and_then(Value::as_str),
-            option.get("valuePath").and_then(Value::as_str),
+            items_path,
+            value_path,
             option.get("labelPath").and_then(Value::as_str),
         ) {
             Ok(options) => options,
             Err(error) => return fail(error),
         };
-        self.option_sources.store(source, options.clone());
-        (options, None)
+        let selected = selected_option_value(&body, items_path, value_path);
+        self.option_sources
+            .store(source, options.clone(), selected.clone());
+        (options, selected, None)
     }
 }
 
@@ -360,10 +419,78 @@ mod tests {
     fn cache_serves_until_cleared() {
         let service = OptionSourceService::new();
         assert!(service.cached("s").is_none());
-        service.store("s", vec![json!({"value": "v", "label": "V"})]);
-        assert_eq!(service.cached("s").unwrap().len(), 1);
+        service.store(
+            "s",
+            vec![json!({"value": "v", "label": "V"})],
+            Some("v".to_owned()),
+        );
+        let (options, selected) = service.cached("s").unwrap();
+        assert_eq!(options.len(), 1);
+        assert_eq!(selected.as_deref(), Some("v"));
         service.clear();
         assert!(service.cached("s").is_none());
+    }
+
+    #[test]
+    fn reports_server_selected_option() {
+        // SonicBoom-style devices document: top-level `selected` wins over
+        // per-item flags, and values follow the declared value path.
+        let body = json!({
+            "devices": [
+                {"id": "default", "name": "System Default", "is_default": true, "is_selected": false},
+                {"id": "CABLE Input", "name": "CABLE Input", "is_default": false, "is_selected": true}
+            ],
+            "selected": "CABLE Input"
+        });
+        assert_eq!(
+            selected_option_value(&body, Some("devices"), Some("id")).as_deref(),
+            Some("CABLE Input")
+        );
+        // Without the top-level key the flagged item contributes its value.
+        let body = json!({
+            "devices": [
+                {"id": "default", "name": "System Default"},
+                {"id": "CABLE Input", "name": "CABLE Input", "is_selected": true}
+            ]
+        });
+        assert_eq!(
+            selected_option_value(&body, Some("devices"), Some("id")).as_deref(),
+            Some("CABLE Input")
+        );
+        // A flagged item without a usable value does not shadow a later one.
+        let body = json!({
+            "devices": [
+                {"name": "ghost", "is_selected": true},
+                {"id": "real", "name": "Real", "is_selected": true}
+            ]
+        });
+        assert_eq!(
+            selected_option_value(&body, Some("devices"), Some("id")).as_deref(),
+            Some("real")
+        );
+        // Voice lists and plain shapes advertise no selection.
+        assert_eq!(
+            selected_option_value(
+                &json!({"voices": [{"id": "M1", "name": "Marcus"}]}),
+                None,
+                None
+            ),
+            None
+        );
+        assert_eq!(selected_option_value(&json!(["a", "b"]), None, None), None);
+        // Only a literal `true` flag counts; oversized values are dropped.
+        assert_eq!(
+            selected_option_value(
+                &json!({"items": [{"id": "x", "is_selected": "yes"}]}),
+                None,
+                None
+            ),
+            None
+        );
+        assert_eq!(
+            selected_option_value(&json!({"selected": "x".repeat(300)}), None, None),
+            None
+        );
     }
 
     struct Emitter;
@@ -374,13 +501,15 @@ mod tests {
     #[tokio::test]
     async fn resolution_errors_stay_display_safe() {
         let core = std::sync::Arc::new(crate::AppCore::new(std::sync::Arc::new(Emitter)));
-        let (options, error) = core.resolve_action_options("not-a-source").await;
+        let (options, selected, error) = core.resolve_action_options("not-a-source").await;
         assert!(options.is_empty());
+        assert!(selected.is_none());
         assert!(error.unwrap().contains("Unknown option source"));
-        let (options, error) = core
+        let (options, selected, error) = core
             .resolve_action_options("plugin-action-options:missing.action:field")
             .await;
         assert!(options.is_empty());
+        assert!(selected.is_none());
         assert!(error.unwrap().contains("not available"));
     }
 }

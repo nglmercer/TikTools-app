@@ -1,0 +1,27 @@
+[package]
+name = "tiktools-control-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Headless JSON-RPC control plane for TikTools (CLI, stdio, IPC, WebView)"
+
+[features]
+default = ["persistence", "plugin-install"]
+persistence = ["tiktools-core/persistence"]
+plugin-install = ["tiktools-core/plugin-install"]
+native-tiktok = ["tiktools-core/native-tiktok"]
+http = ["tiktools-core/http"]
+
+[dependencies]
+tiktools-core = { path = "../tiktools-core" }
+tiktools-plugin-api = { path = "../tiktools-plugin-api" }
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

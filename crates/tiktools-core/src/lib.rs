@@ -6,6 +6,7 @@
 //! UI work to this crate from its Tokio runtime.
 
 pub mod contracts;
+pub mod control;
 pub mod db;
 pub mod events;
 pub mod ipc;
@@ -455,6 +456,8 @@ impl AppCore {
         // the task reaches its select point.
         self.plugin_poll_shutdown.notify_one();
         self.events.publish(AppEvent::Shutdown);
+        self.events
+            .publish_domain(crate::events::DomainEvent::Shutdown);
         self.publish_disconnected_event().await;
         self.live.disconnect().await;
         let task = self

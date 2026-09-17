@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 
+import type { JsonValue } from '../types.ts';
 import {
   mergePluginPages,
   mergePluginTemplates,
@@ -114,4 +115,33 @@ test('page descriptors enforce the fixed widget set', () => {
     toPluginPageDescriptor({ ...valid, sections: [{ kind: 'tts', voicesFrom: 'plugin-action-options:a.b:c' }] }),
   ).toBeUndefined();
   expect(mergePluginPages([valid, { ...valid }, 'nope'])).toHaveLength(1);
+});
+
+test('tts outputs source stays optional and never drops the panel', () => {
+  const section = {
+    kind: 'tts',
+    actionType: 'sonicboom.server.speak',
+    voicesFrom: 'plugin-action-options:sonicboom.server.speak:voice',
+  };
+  const page = (entry: JsonValue) => ({
+    id: 'tts',
+    pluginId: 'sonicboom.server',
+    title: { default: 'TTS' },
+    sections: [entry],
+    source: { kind: 'plugin', pluginId: 'sonicboom.server' },
+  });
+  // Declared outputs enable the selector.
+  expect(
+    toPluginPageDescriptor(
+      page({ ...section, outputsFrom: 'plugin-action-options:sonicboom.server.set-output-device:device' }),
+    )?.sections[0]?.outputsFrom,
+  ).toBe('plugin-action-options:sonicboom.server.set-output-device:device');
+  // Omitted outputs keep the panel without a selector.
+  expect(toPluginPageDescriptor(page(section))?.sections[0]?.outputsFrom).toBeUndefined();
+  // Malformed markers hide the selector instead of dropping the panel.
+  for (const outputsFrom of ['https://evil.example/x', '   ', 42]) {
+    const parsed = toPluginPageDescriptor(page({ ...section, outputsFrom }));
+    expect(parsed?.sections).toHaveLength(1);
+    expect(parsed?.sections[0]?.outputsFrom).toBeUndefined();
+  }
 });

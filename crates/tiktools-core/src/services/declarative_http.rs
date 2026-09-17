@@ -605,26 +605,36 @@ impl crate::AppCore {
         }
         Ok(sent.body)
     }
+}
 
-    /// Probes a plugin's declared health endpoint and emits the result. Only
-    /// installed, enabled, available schema v3 plugins with an `http.health`
-    /// block can be probed; anything else yields an explanatory error, never
-    /// a fetch.
-    pub(crate) async fn probe_plugin_connection(self: &Arc<Self>, id: &str) {
+/// Value-returning health-probe outcome shared by the WebView emit path and
+/// the headless control API.
+#[derive(Debug, Clone)]
+pub(crate) struct PluginConnectionCheck {
+    pub(crate) ok: bool,
+    pub(crate) latency_ms: u64,
+    pub(crate) error: Option<String>,
+}
+
+impl crate::AppCore {
+    /// Checks a plugin's declared health endpoint. Only installed, enabled,
+    /// available schema v3 plugins with an `http.health` block can be
+    /// probed; anything else yields an explanatory error, never a fetch.
+    pub(crate) async fn check_plugin_connection(&self, id: &str) -> PluginConnectionCheck {
         let started = crate::helpers::now_millis();
-        let mut error = None;
+        let failed = |error: String| PluginConnectionCheck {
+            ok: false,
+            latency_ms: crate::helpers::now_millis().saturating_sub(started),
+            error: Some(error),
+        };
         let plugin = self.plugins.get(id);
         let Some(plugin) = plugin else {
-            error = Some(format!("Plugin `{id}` is not installed."));
-            self.emit_connection_result(id, false, started, error);
-            return;
+            return failed(format!("Plugin `{id}` is not installed."));
         };
         if !self.plugin_ready(&plugin.manifest.id) {
-            error = Some(format!(
+            return failed(format!(
                 "Plugin `{id}` is not installed, enabled, or available."
             ));
-            self.emit_connection_result(id, false, started, error);
-            return;
         }
         let health = plugin
             .manifest
@@ -633,9 +643,7 @@ impl crate::AppCore {
             .and_then(|http| http.get("health"))
             .and_then(Value::as_object);
         let Some(health) = health else {
-            error = Some(format!("Plugin `{id}` declares no health endpoint."));
-            self.emit_connection_result(id, false, started, error);
-            return;
+            return failed(format!("Plugin `{id}` declares no health endpoint."));
         };
         let path = health
             .get("path")
@@ -643,11 +651,7 @@ impl crate::AppCore {
             .unwrap_or_default();
         let settings = match self.capabilities.load_plugin_settings_raw(&plugin.manifest) {
             Ok(settings) => settings,
-            Err(fetch) => {
-                error = Some(fetch.to_string());
-                self.emit_connection_result(id, false, started, error);
-                return;
-            }
+            Err(fetch) => return failed(fetch.to_string()),
         };
         let scope = json!({"settings": settings});
         if let Err(fetch) = self
@@ -660,17 +664,26 @@ impl crate::AppCore {
             )
             .await
         {
-            error = Some(fetch);
+            return failed(fetch);
         }
-        let ok = error.is_none();
-        self.emit_connection_result(id, ok, started, error);
+        PluginConnectionCheck {
+            ok: true,
+            latency_ms: crate::helpers::now_millis().saturating_sub(started),
+            error: None,
+        }
     }
 
-    fn emit_connection_result(&self, id: &str, ok: bool, started: u64, error: Option<String>) {
+    /// Probes a plugin's declared health endpoint and emits the result.
+    pub(crate) async fn probe_plugin_connection(&self, id: &str) {
+        let check = self.check_plugin_connection(id).await;
+        self.emit_connection_latency(id, check.ok, check.latency_ms, check.error);
+    }
+
+    fn emit_connection_latency(&self, id: &str, ok: bool, latency_ms: u64, error: Option<String>) {
         self.emit(crate::ipc::messages::HostMessage::PluginConnectionResult {
             id: id.to_owned(),
             ok,
-            latency_ms: crate::helpers::now_millis().saturating_sub(started),
+            latency_ms,
             error,
         });
     }
@@ -1074,6 +1087,128 @@ mod tests {
                 json!({"value": "F2", "label": "Freya"}),
             ]
         );
+        server.abort();
+    }
+
+    #[test]
+    fn builds_output_switch_post_with_bearer_auth() {
+        let manifest = manifest(json!({
+            "baseUrl": "{{ settings.serverUrl }}",
+            "auth": {"type": "bearer", "tokenSetting": "apiToken"}
+        }));
+        let broker = broker();
+        let scope = json!({
+            "settings": {"serverUrl": "http://localhost:17842", "apiToken": "tok-123"},
+            "config": {"device": "CABLE Input (VB-Audio Virtual Cable)"}
+        });
+        let mut headers = Map::new();
+        headers.insert(
+            "Content-Type".to_owned(),
+            Value::String("application/json".to_owned()),
+        );
+        let endpoint = build_declarative_request(&DeclarativeBuild {
+            manifest: &manifest,
+            http: manifest.http.as_ref().unwrap(),
+            method: "POST",
+            path_template: "/api/audio/output",
+            extra_headers: Some(&headers),
+            body_template: Some("{\"device\":\"{{ config.device }}\"}"),
+            timeout_override_ms: Some(10_000),
+            scope: &scope,
+            broker: &broker,
+        })
+        .unwrap();
+        assert_eq!(endpoint.method, "POST");
+        assert_eq!(endpoint.url, "http://localhost:17842/api/audio/output");
+        assert_eq!(
+            endpoint.body.as_deref(),
+            Some("{\"device\":\"CABLE Input (VB-Audio Virtual Cable)\"}")
+        );
+        assert_eq!(
+            endpoint.headers,
+            vec![
+                ("Content-Type".to_owned(), "application/json".to_owned()),
+                ("authorization".to_owned(), "Bearer tok-123".to_owned()),
+            ]
+        );
+        assert_eq!(endpoint.secrets, vec!["tok-123".to_owned()]);
+        assert_eq!(endpoint.timeout_ms, 10_000);
+    }
+
+    #[cfg(feature = "http")]
+    #[tokio::test]
+    async fn maps_device_list_and_reports_selection() {
+        struct Emitter;
+        impl crate::HostEmitter for Emitter {
+            fn emit(&self, _message: crate::ipc::messages::HostMessage) {}
+        }
+        let (address, server) = stub_server(
+            [(
+                "/api/audio/devices".to_owned(),
+                (
+                    200,
+                    r#"{"devices":[{"id":"default","name":"System Default","is_default":true,"is_selected":false},{"id":"CABLE Input (VB-Audio Virtual Cable)","name":"CABLE Input (VB-Audio Virtual Cable)","is_default":false,"is_selected":true}],"selected":"CABLE Input (VB-Audio Virtual Cable)"}"#
+                        .to_owned(),
+                ),
+            )]
+            .into_iter()
+            .collect(),
+        )
+        .await;
+        let core = Arc::new(crate::AppCore::new(Arc::new(Emitter)));
+        let manifest = manifest(json!({
+            "baseUrl": format!("http://{address}"),
+            "auth": {"type": "bearer", "tokenSetting": "apiToken"}
+        }));
+        let scope = json!({"settings": {"apiToken": "tok-123"}});
+        let body = core
+            .fetch_declarative_json(&manifest, "GET", "/api/audio/devices", None, &scope)
+            .await
+            .unwrap();
+        let options = super::super::option_sources::map_option_items(
+            &body,
+            Some("devices"),
+            Some("id"),
+            Some("name"),
+        )
+        .unwrap();
+        assert_eq!(
+            options,
+            vec![
+                json!({"value": "default", "label": "System Default"}),
+                json!({"value": "CABLE Input (VB-Audio Virtual Cable)", "label": "CABLE Input (VB-Audio Virtual Cable)"}),
+            ]
+        );
+        assert_eq!(
+            super::super::option_sources::selected_option_value(&body, Some("devices"), Some("id"))
+                .as_deref(),
+            Some("CABLE Input (VB-Audio Virtual Cable)")
+        );
+        server.abort();
+    }
+
+    #[cfg(feature = "http")]
+    #[tokio::test]
+    async fn missing_option_endpoint_reports_its_status() {
+        struct Emitter;
+        impl crate::HostEmitter for Emitter {
+            fn emit(&self, _message: crate::ipc::messages::HostMessage) {}
+        }
+        // No routes: every path answers 404 like an older server without the
+        // audio API. The UI matches this prefix to tell "unsupported" apart
+        // from "unreachable", so the format is pinned here.
+        let (address, server) = stub_server(std::collections::HashMap::new()).await;
+        let core = Arc::new(crate::AppCore::new(Arc::new(Emitter)));
+        let manifest = manifest(json!({
+            "baseUrl": format!("http://{address}"),
+            "auth": {"type": "bearer", "tokenSetting": "apiToken"}
+        }));
+        let scope = json!({"settings": {"apiToken": "tok-123"}});
+        let error = core
+            .fetch_declarative_json(&manifest, "GET", "/api/audio/devices", None, &scope)
+            .await
+            .unwrap_err();
+        assert!(error.starts_with("HTTP 404"), "unexpected error: {error}");
         server.abort();
     }
 

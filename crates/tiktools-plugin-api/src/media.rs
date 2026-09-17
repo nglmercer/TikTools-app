@@ -6,11 +6,12 @@
 //! runtimes must pass the reference back to the host capability broker instead
 //! of opening the path themselves.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub const MEDIA_REFERENCE_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum MediaKind {
     #[default]
@@ -20,7 +21,7 @@ pub enum MediaKind {
     Other,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaFileRef {
     #[serde(default = "default_media_reference_version")]
@@ -60,7 +61,7 @@ impl MediaFileRef {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaDirectoryRef {
     #[serde(default = "default_media_reference_version")]
@@ -115,7 +116,7 @@ impl Default for MediaPickerOptions {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum MediaSelection {
     File { file: MediaFileRef },
@@ -149,7 +150,7 @@ impl Default for AudioPlayOptions {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioPlaybackResult {
     pub played: bool,

@@ -18,4 +18,24 @@ describe('key/value i18n metadata', () => {
     setPluginTranslations({ en: { 'test.count': '{count} item' } });
     expect(t('en', 'test.count', { count: 2 })).toBe('2 item');
   });
+
+  test('tts audio output strings exist in english and spanish', () => {
+    setPluginTranslations({});
+    const keys = [
+      'ttsAudioOutput',
+      'ttsAudioOutputChoose',
+      'ttsAudioOutputsLoading',
+      'ttsAudioOutputsUnavailable',
+      'ttsAudioOutputsNoPlayback',
+      'ttsAudioOutputsEmpty',
+      'ttsAudioOutputSwitching',
+      'ttsAudioOutputHint',
+      'ttsRefreshOutputs',
+    ];
+    for (const key of keys) {
+      expect(t('en', key)).not.toBe(key);
+      expect(t('es', key)).not.toBe(key);
+    }
+    expect(t('es', 'ttsAudioOutput')).not.toBe(t('en', 'ttsAudioOutput'));
+  });
 });

@@ -113,6 +113,20 @@ cache). Mapping defaults: items from `itemsPath`, a root array, or the
 first of `items`/`voices`/`data`; value from `valuePath`/`id`/`value`;
 label from `labelPath`/`name`/`label`/value.
 
+Option documents may also advertise the server-side selection: a
+top-level scalar `selected` wins, otherwise the first item carrying a
+literal `is_selected: true` contributes its mapped value. The selection
+travels with the options (`action-options` `selected`) so selectors can
+show server truth instead of a locally remembered value. Documents
+without either (voice lists, plain arrays) report no selection.
+
+Option fetches never fail the surrounding surface: an unreachable
+server, a 404 from an older server without the endpoint, or an
+unmappable body yields empty options plus a display-safe error, and
+every other source on the page keeps working. Each fetch sends exactly
+one request; nothing retries, so a 429 surfaces as an error for the
+operator instead of a retry storm.
+
 A page-supplied `optionsUrl` is always ignored: only manifest-declared
 endpoints are fetched, so the WebView cannot steer the host at new URLs.
 
@@ -122,6 +136,47 @@ An action descriptor with an `http` block runs in the host; the
 `requiredCapabilities` gate still applies (`http.request`). Test runs
 describe the request without sending. `emitResponseAs` passes through to
 the HTTP engine.
+
+Host surfaces may also run actions immediately
+(`execute-plugin-action`): the TTS voice tester runs the speech action,
+and the TTS audio output selector runs the switch action below. Only
+actions declaring a `text` field require spoken text; textless actions
+run with the given config:
+
+```json
+{
+  "id": "sonicboom.server.set-output-device",
+  "requiredCapabilities": ["http.request"],
+  "fields": [
+    {
+      "key": "device",
+      "kind": "select",
+      "value": "default",
+      "optionsFrom": "plugin-action-options:sonicboom.server.set-output-device:device"
+    }
+  ],
+  "http": {
+    "method": "POST",
+    "path": "/api/audio/output",
+    "headers": { "Content-Type": "application/json" },
+    "body": "{\"device\":\"{{ config.device }}\"}",
+    "timeoutMs": 10000
+  },
+  "optionSources": {
+    "device": {
+      "path": "/api/audio/devices",
+      "itemsPath": "devices",
+      "valuePath": "id",
+      "labelPath": "name",
+      "timeoutMs": 8000
+    }
+  }
+}
+```
+
+The same descriptor also surfaces in automations, where the `device`
+field renders as a select fed by the live endpoint — workflows can
+switch outputs mid-stream without touching settings.
 
 ## Templates
 
@@ -164,11 +219,36 @@ and available.
 
 Section kinds form a fixed host-rendered widget set: `text` (plain text),
 `form` (settings schema, full schema when omitted), `connection` (centered
-connection card), `list` (rows from an option source). Unknown kinds are
-rejected at validation, and manifest strings are never parsed as markup: no
-`html`, `script`, `component`, or equivalent can reach the WebView. Pages
-become navigation tabs (`plugin:<pluginId>:<pageId>`) with allowlisted
-icons, and disappear with their plugin.
+connection card), `list` (rows from an option source), `tts` (voice policy
+and test panel). Unknown kinds are rejected at validation, and manifest
+strings are never parsed as markup: no `html`, `script`, `component`, or
+equivalent can reach the WebView. Pages become navigation tabs
+(`plugin:<pluginId>:<pageId>`) with allowlisted icons, and disappear with
+their plugin.
+
+A `tts` section needs `actionType` (speech action) and `voicesFrom`
+(voice option source). It may also declare `outputsFrom`, an option
+source whose action switches the server-side audio output:
+
+```json
+{
+  "kind": "tts",
+  "actionType": "sonicboom.server.speak",
+  "voicesFrom": "plugin-action-options:sonicboom.server.speak:voice",
+  "outputsFrom": "plugin-action-options:sonicboom.server.set-output-device:device"
+}
+```
+
+The marker feeds the Audio output selector and addresses the switch
+action at once: the host loads options plus the server-reported
+selection from the source, and choosing a device runs the named action
+immediately (`execute-plugin-action`) with `{device: "<id>"}`. Success
+re-reads the selection from the server; failure shows the error and the
+selector falls back to the last confirmed server value — nothing about
+the output is ever persisted locally. When the fetch fails (older
+server without the endpoint, offline server), the selector hides behind
+an "unavailable" note with a refresh button while voices, speech, and
+the rest of the panel keep working.
 
 A `connection` section embeds the full settings form in one centered card:
 primary fields, an explicit **Test connection** button, and a status line,

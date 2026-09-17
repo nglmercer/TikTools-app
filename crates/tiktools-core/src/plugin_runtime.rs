@@ -25,6 +25,27 @@ impl PluginActionDescriptor {
     }
 }
 
+/// True when the named action descriptor in this manifest declares a config
+/// field with this key. Pure over the manifest so the immediate-execution
+/// text rule stays unit-testable without a plugin registry.
+pub(crate) fn manifest_action_declares_field(
+    manifest: &tiktools_plugin_api::PluginManifest,
+    type_id: &str,
+    key: &str,
+) -> bool {
+    manifest.action_types.iter().any(|descriptor| {
+        descriptor.get("id").and_then(Value::as_str) == Some(type_id)
+            && descriptor
+                .get("fields")
+                .and_then(Value::as_array)
+                .is_some_and(|fields| {
+                    fields
+                        .iter()
+                        .any(|field| field.get("key").and_then(Value::as_str) == Some(key))
+                })
+    })
+}
+
 /// Persisted install/enable state for one plugin, mirrored in memory so
 /// readiness checks stay off SQLite.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -186,6 +207,17 @@ impl AppCore {
                 (descriptor.id == type_id).then_some((plugin.clone(), descriptor))
             })
         })
+    }
+
+    /// True when the named action's manifest descriptor declares a config
+    /// field with this key. The immediate-execution IPC uses it to keep the
+    /// TTS tester text requirement without imposing it on textless actions
+    /// (output switching, toggles) that legitimately send no text.
+    pub(crate) fn action_declares_field(&self, type_id: &str, key: &str) -> bool {
+        let Some((plugin, _)) = self.plugin_for_action(type_id) else {
+            return false;
+        };
+        manifest_action_declares_field(&plugin.manifest, type_id, key)
     }
 
     pub(crate) fn plugin_ready(&self, id: &str) -> bool {
@@ -500,5 +532,52 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(descriptor.timeout(), std::time::Duration::from_secs(120));
+    }
+
+    #[test]
+    fn text_rule_follows_declared_action_fields() {
+        let manifest = tiktools_plugin_api::PluginManifest::from_json_str(
+            &serde_json::json!({
+                "schemaVersion": 3,
+                "id": "demo.tts",
+                "name": "Demo",
+                "version": "1.0.0",
+                "runtime": "declarative",
+                "actionTypes": [
+                    {"id": "demo.tts.speak", "fields": [{"key": "text"}, {"key": "voice"}]},
+                    {"id": "demo.tts.set-output-device", "fields": [{"key": "device"}]},
+                    {"id": "demo.tts.bare"}
+                ]
+            })
+            .to_string(),
+        )
+        .unwrap();
+        // The TTS tester keeps its text requirement...
+        assert!(manifest_action_declares_field(
+            &manifest,
+            "demo.tts.speak",
+            "text"
+        ));
+        // ...while textless actions and unknown ids run without it.
+        assert!(!manifest_action_declares_field(
+            &manifest,
+            "demo.tts.set-output-device",
+            "text"
+        ));
+        assert!(manifest_action_declares_field(
+            &manifest,
+            "demo.tts.set-output-device",
+            "device"
+        ));
+        assert!(!manifest_action_declares_field(
+            &manifest,
+            "demo.tts.bare",
+            "text"
+        ));
+        assert!(!manifest_action_declares_field(
+            &manifest,
+            "demo.tts.missing",
+            "text"
+        ));
     }
 }

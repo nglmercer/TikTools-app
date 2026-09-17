@@ -447,4 +447,13 @@ export const spanish: Record<TranslationKey, string> = {
   pluginListEmpty: 'Sin datos todavía.',
   pluginListRefresh: 'Actualizar',
   pluginPageSettingsSaved: 'Ajustes guardados.',
+  ttsAudioOutput: 'Salida de audio',
+  ttsAudioOutputChoose: 'Elegir salida…',
+  ttsAudioOutputsLoading: 'Cargando salidas de audio…',
+  ttsAudioOutputsUnavailable: 'Dispositivos de audio no disponibles',
+  ttsAudioOutputsNoPlayback: 'Este servidor SonicBoom no expone controles locales de reproducción de audio. La generación de TTS sigue disponible.',
+  ttsAudioOutputsEmpty: 'El servidor no reporta salidas de audio.',
+  ttsAudioOutputSwitching: 'Cambiando la salida de audio…',
+  ttsAudioOutputHint: 'La reproducción sigue la salida seleccionada en el servidor.',
+  ttsRefreshOutputs: 'Actualizar salidas',
 };

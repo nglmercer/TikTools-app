@@ -12,6 +12,7 @@ import {
   optionFields,
   type PluginConnectionState,
 } from '../../automation/plugins/declarative.ts';
+import { outputsTarget } from '../components/tts/tts-outputs.ts';
 import {
   AUTOSAVE_CONFIRM_TIMEOUT_MS,
   AUTOSAVE_DEBOUNCE_MS,
@@ -49,6 +50,10 @@ type PluginPageViewProps = {
   connection?: PluginConnectionState;
   actionOptions: Record<string, ActionOptionItem[]>;
   actionOptionErrors: Record<string, string>;
+  actionOptionSelected: Record<string, string>;
+  ttsOutputPending?: string;
+  ttsOutputError?: string;
+  onTtsOutputSelect?: (pluginId: string, actionType: string, field: string, device: string, source: string) => void;
   onGetSettings: (id: string) => void;
   onSaveSettings: (id: string, values: PluginSettingValues) => void;
   onGetActionOptions: (source: string) => void;
@@ -89,7 +94,7 @@ function toSettingValues(value: JsonObject): PluginSettingValues {
  * manifest-declared speech action and voice source.
  */
 export const PluginPageView = defineVueComponent<PluginPageViewProps>(
-  ['locale', 'page', 'pluginName', 'settingsState', 'connection', 'actionOptions', 'actionOptionErrors', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onTestConnection', 'onOpenMediaPicker', 'ttsSettings', 'ttsSpeaking', 'ttsLogs', 'onTtsSettingsChange', 'onTtsSpeak', 'supportsProvisioning', 'provisionState', 'onProvisionToken'],
+  ['locale', 'page', 'pluginName', 'settingsState', 'connection', 'actionOptions', 'actionOptionErrors', 'actionOptionSelected', 'ttsOutputPending', 'ttsOutputError', 'onTtsOutputSelect', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onTestConnection', 'onOpenMediaPicker', 'ttsSettings', 'ttsSpeaking', 'ttsLogs', 'onTtsSettingsChange', 'onTtsSpeak', 'supportsProvisioning', 'provisionState', 'onProvisionToken'],
   (props) => {
   const draft = ref<JsonObject | null>(null);
   const editing = ref(false);
@@ -105,14 +110,16 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
   const listSources = computed(() => {
     const sources: string[] = [];
     for (const section of props.page.sections) {
-      const marker = section.kind === 'list'
-        ? section.optionsFrom
+      const markers = section.kind === 'list'
+        ? [section.optionsFrom]
         : section.kind === 'tts'
-          ? section.voicesFrom
-          : undefined;
-      if (!marker) continue;
-      const source = normalizeOptionsFrom(marker);
-      if (source && !sources.includes(source)) sources.push(source);
+          ? [section.voicesFrom, section.outputsFrom]
+          : [];
+      for (const marker of markers) {
+        if (!marker) continue;
+        const source = normalizeOptionsFrom(marker);
+        if (source && !sources.includes(source)) sources.push(source);
+      }
     }
     return sources;
   });
@@ -578,7 +585,10 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
         }
         const onSettingsChange = props.onTtsSettingsChange;
         const onSpeak = props.onTtsSpeak;
+        const onOutputSelect = props.onTtsOutputSelect;
         const pluginId = props.page.pluginId;
+        const outputsSource = section.outputsFrom ? normalizeOptionsFrom(section.outputsFrom) : undefined;
+        const outputTarget = outputsSource ? outputsTarget(outputsSource) : undefined;
         return (
           <section key={index}>
             {title && <h3 class="plg-topbar__title" style="padding: 0 16px;">{title}</h3>}
@@ -592,6 +602,16 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
               onSettingsChange={(next) => onSettingsChange(pluginId, next)}
               onRefreshVoices={() => { if (source) props.onGetActionOptions(source); }}
               onSpeak={(text, voice) => onSpeak(pluginId, actionType, text, voice)}
+              outputsSupported={!!outputsSource}
+              outputs={outputsSource ? props.actionOptions[outputsSource] : undefined}
+              outputsSelected={outputsSource ? props.actionOptionSelected[outputsSource] : undefined}
+              outputsError={outputsSource ? props.actionOptionErrors[outputsSource] : undefined}
+              outputsPending={props.ttsOutputPending}
+              outputError={props.ttsOutputError}
+              onSelectOutput={outputTarget && onOutputSelect && outputsSource
+                ? (device) => onOutputSelect(pluginId, outputTarget.actionType, outputTarget.field, device, outputsSource)
+                : undefined}
+              onRefreshOutputs={outputsSource ? () => props.onGetActionOptions(outputsSource) : undefined}
             />
           </section>
         );

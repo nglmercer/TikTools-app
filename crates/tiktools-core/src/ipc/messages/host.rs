@@ -140,6 +140,8 @@ pub enum HostMessage {
         source: String,
         options: Vec<Value>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
+        selected: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         error: Option<String>,
     },
     #[serde(rename = "plugin-action-result")]

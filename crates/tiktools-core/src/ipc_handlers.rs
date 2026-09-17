@@ -7,8 +7,7 @@ impl AppCore {
         self.events.publish(AppEvent::Ui(message.clone()));
         match message {
             PageMessage::Disconnect => {
-                self.publish_disconnected_event().await;
-                self.live.disconnect().await;
+                self.live_disconnect().await;
                 self.emit(HostMessage::connection_disconnected());
             }
             PageMessage::Connect {
@@ -16,17 +15,36 @@ impl AppCore {
                 session_cookie,
                 room_id,
             } => {
-                self.start_live_event_pump();
-                self.connect_native(ConnectRequest {
-                    unique_id,
-                    session_cookie,
-                    room_id,
-                })
-                .await;
+                #[cfg(feature = "native-tiktok")]
+                let display_id = clean_unique_id(&unique_id);
+                #[cfg(not(feature = "native-tiktok"))]
+                let display_id = {
+                    let trimmed = unique_id.trim().trim_start_matches('@');
+                    (!trimmed.is_empty()).then(|| trimmed.to_owned())
+                };
+                self.emit(HostMessage::Connection {
+                    status: crate::ipc::messages::ConnectionStatus::Connecting,
+                    unique_id: display_id,
+                    title: None,
+                    room_id: room_id.clone(),
+                    avatar_url: None,
+                });
+                if let Err(error) = self.live_connect(unique_id, session_cookie, room_id).await {
+                    self.emit(HostMessage::Error {
+                        phase: crate::ipc::messages::ErrorPhase::Connect,
+                        message: error.message().to_owned(),
+                    });
+                    self.emit(HostMessage::connection_disconnected());
+                }
             }
             PageMessage::PickLive { session_cookie } => {
-                self.start_live_event_pump();
-                self.pick_live(&session_cookie).await;
+                if let Err(error) = self.live_pick(session_cookie).await {
+                    self.emit(HostMessage::Error {
+                        phase: crate::ipc::messages::ErrorPhase::Connect,
+                        message: error.message().to_owned(),
+                    });
+                    self.emit(HostMessage::connection_disconnected());
+                }
             }
             PageMessage::OpenMediaPicker {
                 request_id,
@@ -55,34 +73,27 @@ impl AppCore {
             }
             PageMessage::GetPointsConfig => {
                 self.emit(HostMessage::PointsConfig {
-                    config: self.points.config(),
+                    config: self.points_config(),
                 });
             }
             PageMessage::UpdatePointsConfig { config } => {
                 self.emit(HostMessage::PointsConfig {
-                    config: self.points.update_config(config),
+                    config: self.points_update_config(config),
                 });
             }
             PageMessage::GetLeaderboard { limit } => {
                 self.emit(HostMessage::Leaderboard {
-                    viewers: self.points.leaderboard(limit),
+                    viewers: self.points_leaderboard(limit),
                 });
             }
             PageMessage::ResetPoints { unique_id } => {
-                self.points.reset(unique_id.as_deref());
+                self.points_reset(unique_id.as_deref());
                 self.emit(HostMessage::Leaderboard {
-                    viewers: self.points.leaderboard(Some(100)),
+                    viewers: self.points_leaderboard(Some(100)),
                 });
             }
             PageMessage::AdjustPoints { unique_id, delta } => {
-                if let Some(award) = self.points.award_points(
-                    &unique_id,
-                    PointAction::Manual,
-                    AwardOptions {
-                        custom_amount: Some(delta),
-                        ..AwardOptions::default()
-                    },
-                ) {
+                if let Ok(award) = self.points_adjust(&unique_id, delta) {
                     self.emit(HostMessage::PointsAwarded {
                         unique_id: award.unique_id,
                         delta: award.delta,
@@ -91,7 +102,7 @@ impl AppCore {
                     });
                 }
                 self.emit(HostMessage::Leaderboard {
-                    viewers: self.points.leaderboard(Some(100)),
+                    viewers: self.points_leaderboard(Some(100)),
                 });
             }
             PageMessage::GetCreator { unique_id } => {
@@ -190,41 +201,20 @@ impl AppCore {
                 });
             }
             PageMessage::GetAutomationContext => {
-                let event = self
-                    .last_automation_event
-                    .read()
-                    .expect("automation event lock poisoned")
-                    .clone();
-                let captured_at = *self
-                    .last_automation_event_at
-                    .read()
-                    .expect("automation timestamp lock poisoned");
+                let (event, captured_at) = self.automation_context();
                 self.emit(HostMessage::AutomationContext { event, captured_at });
             }
-            PageMessage::SaveAutomationWorkflow { graph } => {
-                #[cfg(feature = "persistence")]
-                {
-                    if let Err(error) = self.db.save_workflow(&graph) {
-                        self.emit(HostMessage::AutomationError {
-                            message: error.to_string(),
-                        });
-                    } else {
-                        self.emit_persisted_workflows();
-                    }
-                }
-                #[cfg(not(feature = "persistence"))]
-                {
-                    let _ = graph;
-                    self.emit(HostMessage::AutomationError {
-                        message: "Rust persistence is disabled in this build.".to_owned(),
-                    });
-                }
-            }
+            PageMessage::SaveAutomationWorkflow { graph } => match self.workflow_save(graph) {
+                Ok(_) => self.emit_persisted_workflows(),
+                Err(error) => self.emit(HostMessage::AutomationError {
+                    message: error.message().to_owned(),
+                }),
+            },
             PageMessage::DeleteAutomationWorkflow { id } => {
                 #[cfg(feature = "persistence")]
-                if let Err(error) = self.db.delete_workflow(&id) {
+                if let Err(error) = self.workflow_delete(&id) {
                     self.emit(HostMessage::AutomationError {
-                        message: error.to_string(),
+                        message: error.message().to_owned(),
                     });
                 }
                 #[cfg(not(feature = "persistence"))]
@@ -232,17 +222,9 @@ impl AppCore {
                 self.emit_persisted_workflows();
             }
             PageMessage::SetAutomationWorkflowEnabled { id, enabled } => {
-                #[cfg(feature = "persistence")]
-                if let Err(error) = self.db.set_workflow_enabled(&id, enabled) {
+                if let Err(error) = self.workflow_set_enabled(&id, enabled) {
                     self.emit(HostMessage::AutomationError {
-                        message: error.to_string(),
-                    });
-                }
-                #[cfg(not(feature = "persistence"))]
-                {
-                    let _ = (id, enabled);
-                    self.emit(HostMessage::AutomationError {
-                        message: "Rust persistence is disabled in this build.".to_owned(),
+                        message: error.message().to_owned(),
                     });
                 }
                 self.emit_persisted_workflows();
@@ -275,73 +257,18 @@ impl AppCore {
                 self.set_behavior_enabled("behavior_events", &id, enabled);
             }
             PageMessage::SetPluginInstall { id, installed } => {
-                let state_updated = {
-                    #[cfg(feature = "persistence")]
-                    {
-                        if let Err(error) = self.db.set_plugin_state(&id, installed, true) {
-                            self.emit(HostMessage::AutomationError {
-                                message: error.to_string(),
-                            });
-                            false
-                        } else {
-                            true
-                        }
-                    }
-                    #[cfg(not(feature = "persistence"))]
-                    {
-                        let _ = installed;
-                        self.emit(HostMessage::AutomationError {
-                            message: "Rust persistence is disabled in this build.".to_owned(),
-                        });
-                        false
-                    }
-                };
-                if state_updated && !installed {
-                    if let Err(error) = self.plugins.stop(&id) {
-                        tracing::debug!(plugin = %id, %error, "plugin was not running during uninstall");
-                    }
-                }
-                if state_updated {
-                    self.set_plugin_activation(&id, installed, true);
-                    self.rebuild_processor_index();
+                if let Err(error) = self.plugin_set_installed(&id, installed) {
+                    self.emit(HostMessage::AutomationError {
+                        message: error.message().to_owned(),
+                    });
                 }
                 self.emit_persisted_behavior();
             }
             PageMessage::SetPluginEnabled { id, enabled } => {
-                let state_updated = {
-                    #[cfg(feature = "persistence")]
-                    {
-                        if let Err(error) = self.db.set_plugin_state(&id, true, enabled) {
-                            self.emit(HostMessage::AutomationError {
-                                message: error.to_string(),
-                            });
-                            false
-                        } else {
-                            true
-                        }
-                    }
-                    #[cfg(not(feature = "persistence"))]
-                    {
-                        let _ = enabled;
-                        self.emit(HostMessage::AutomationError {
-                            message: "Rust persistence is disabled in this build.".to_owned(),
-                        });
-                        false
-                    }
-                };
-                if state_updated {
-                    let result = if enabled {
-                        self.plugins.start(&id)
-                    } else {
-                        self.plugins.stop(&id)
-                    };
-                    if let Err(error) = result {
-                        self.emit(HostMessage::BehaviorError {
-                            message: error.to_string(),
-                        });
-                    }
-                    self.set_plugin_activation(&id, true, enabled);
-                    self.rebuild_processor_index();
+                if let Err(error) = self.plugin_set_enabled(&id, enabled) {
+                    self.emit(HostMessage::BehaviorError {
+                        message: error.message().to_owned(),
+                    });
                 }
                 self.emit_persisted_behavior();
             }
@@ -355,10 +282,11 @@ impl AppCore {
                 self.handle_uninstall_plugin_package(id);
             }
             PageMessage::GetActionOptions { source } => {
-                let (options, error) = self.resolve_action_options(&source).await;
+                let (options, selected, error) = self.resolve_action_options(&source).await;
                 self.emit(HostMessage::ActionOptions {
                     source,
                     options,
+                    selected,
                     error,
                 });
             }
@@ -415,32 +343,42 @@ impl AppCore {
             }
             PageMessage::TestAction { action, trigger } => {
                 self.emit(HostMessage::BehaviorTestResult {
-                    runs: vec![self.test_action(&action, trigger.as_deref()).await],
+                    runs: vec![
+                        self.test_automation_action(&action, trigger.as_deref())
+                            .await,
+                    ],
                 });
             }
             PageMessage::TestEvent { event } => {
                 self.emit(HostMessage::BehaviorTestResult {
-                    runs: vec![self.test_event(&event).await],
+                    runs: vec![self.test_automation_event(&event).await],
                 });
             }
             PageMessage::TestProcessor {
                 plugin_id,
                 processor_id,
                 event,
-            } => {
-                let outcome = self.test_processor(&plugin_id, &processor_id, event).await;
-                self.emit(HostMessage::ProcessorTestResult {
-                    plugin_id,
-                    processor_id,
+            } => match self.processor_test(&plugin_id, &processor_id, event).await {
+                Ok(outcome) => self.emit(HostMessage::ProcessorTestResult {
+                    plugin_id: outcome.plugin_id,
+                    processor_id: outcome.processor_id,
                     ok: outcome.ok,
                     duration_ms: outcome.duration_ms,
                     result: outcome.result,
                     error: outcome.error,
-                });
-            }
+                }),
+                Err(error) => self.emit(HostMessage::ProcessorTestResult {
+                    plugin_id,
+                    processor_id,
+                    ok: false,
+                    duration_ms: 0,
+                    result: Value::Null,
+                    error: Some(error.message().to_owned()),
+                }),
+            },
             PageMessage::GetProcessorStatus => {
                 self.emit(HostMessage::ProcessorStatus {
-                    processors: self.processor_status_snapshot(),
+                    processors: self.processor_status(),
                 });
             }
             PageMessage::GetAnalyticsSummary {
@@ -495,84 +433,66 @@ impl AppCore {
     }
 
     fn handle_install_plugin_package(&self, path: String, replace_existing: bool) {
-        #[cfg(feature = "plugin-install")]
-        {
-            // The installer owns canonicalization, validation, staging, and
-            // atomic replacement. The frontend never supplies a plugin id or
-            // destination: identity always comes from `plugin.json`.
-            match self.install_plugin(std::path::PathBuf::from(&path), replace_existing) {
-                Ok(installed) => {
-                    // `install_plugin` already rescanned; refresh the behavior
-                    // snapshot so the Plugins UI updates without a restart.
-                    self.emit_persisted_behavior();
-                    self.emit(HostMessage::plugin_install_success(
-                        installed.manifest.id,
-                        installed.manifest.version,
-                        replace_existing,
-                    ));
-                }
-                Err(error) => {
-                    let message = error.to_string();
-                    // Never expose sensitive filesystem internals beyond the
-                    // installer message itself; classify for structured UI flow.
-                    let code = crate::ipc::messages::classify_plugin_install_error(&message);
-                    tracing::warn!(%message, ?code, "plugin package installation failed");
-                    self.emit(HostMessage::plugin_install_failure(code, message));
-                }
+        // The installer owns canonicalization, validation, staging, and
+        // atomic replacement. The frontend never supplies a plugin id or
+        // destination: identity always comes from `plugin.json`.
+        match self.plugin_install(&path, replace_existing) {
+            Ok(installed) => {
+                self.emit_persisted_behavior();
+                self.emit(HostMessage::plugin_install_success(
+                    installed.id,
+                    installed.version,
+                    replace_existing,
+                ));
             }
-        }
-        #[cfg(not(feature = "plugin-install"))]
-        {
-            let _ = (path, replace_existing);
-            self.emit(HostMessage::plugin_install_failure(
-                crate::ipc::messages::PluginInstallErrorCode::Unknown,
-                "plugin installation was disabled in this build".to_owned(),
-            ));
+            Err(error) => {
+                let message = error.message().to_owned();
+                // Never expose sensitive filesystem internals beyond the
+                // installer message itself; classify for structured UI flow.
+                let code = crate::ipc::messages::classify_plugin_install_error(&message);
+                tracing::warn!(%message, ?code, "plugin package installation failed");
+                self.emit(HostMessage::plugin_install_failure(code, message));
+            }
         }
     }
 
     fn handle_uninstall_plugin_package(&self, id: String) {
-        #[cfg(feature = "plugin-install")]
-        {
-            match self.uninstall_plugin(&id) {
-                Ok(()) => {
-                    self.emit_persisted_behavior();
-                    self.emit(HostMessage::plugin_uninstall_success(id));
-                }
-                Err(error) => {
-                    let message = error.to_string();
-                    tracing::warn!(plugin = %id, %message, "plugin package uninstall failed");
-                    self.emit(HostMessage::plugin_uninstall_failure(id, message));
-                }
+        match self.plugin_uninstall(&id) {
+            Ok(()) => {
+                self.emit_persisted_behavior();
+                self.emit(HostMessage::plugin_uninstall_success(id));
             }
-        }
-        #[cfg(not(feature = "plugin-install"))]
-        {
-            self.emit(HostMessage::plugin_uninstall_failure(
-                id,
-                "plugin installation was disabled in this build".to_owned(),
-            ));
+            Err(error) => {
+                let message = error.message().to_owned();
+                tracing::warn!(plugin = %id, %message, "plugin package uninstall failed");
+                self.emit(HostMessage::plugin_uninstall_failure(id, message));
+            }
         }
     }
 
     /// Real (non-dry-run) plugin action execution for host-owned surfaces
-    /// such as the TTS voice tester and automatic chat TTS.
+    /// such as the TTS voice tester, automatic chat TTS, and the TTS audio
+    /// output selector.
     ///
     /// Unlike `test-action`, this sends the declarative HTTP request. Input
-    /// was already shape-validated by `PageMessage::parse`; this re-checks
-    /// the spoken text and emits a bounded `plugin-action-result`.
+    /// was already shape-validated by `PageMessage::parse`; actions whose
+    /// descriptor declares a `text` field additionally require non-empty
+    /// bounded spoken text, while textless actions (output switching) run
+    /// with the given config. Every path emits a bounded
+    /// `plugin-action-result`.
     async fn execute_plugin_action_ipc(
         self: &Arc<Self>,
         action_type: String,
         config: crate::ipc::messages::JsonObject,
     ) {
         let started = crate::helpers::now_millis();
+        let needs_text = self.action_declares_field(&action_type, "text");
         let text = config
             .get("text")
             .and_then(serde_json::Value::as_str)
             .unwrap_or_default()
             .to_owned();
-        if text.trim().is_empty() {
+        if needs_text && text.trim().is_empty() {
             let duration_ms = crate::helpers::now_millis().saturating_sub(started);
             let message = "Give the voice tester some text to speak.".to_owned();
             self.emit(HostMessage::PluginActionResult {
@@ -585,7 +505,7 @@ impl AppCore {
             });
             return;
         }
-        if text.len() > 4_096 {
+        if needs_text && text.len() > 4_096 {
             let duration_ms = crate::helpers::now_millis().saturating_sub(started);
             let message = "Text is too long (4,096 character limit).".to_owned();
             self.emit(HostMessage::PluginActionResult {
@@ -598,45 +518,27 @@ impl AppCore {
             });
             return;
         }
-        let config_object: serde_json::Map<String, serde_json::Value> =
-            config.into_iter().collect();
-        let action = serde_json::json!({
-            "typeId": action_type.clone(),
-            "config": serde_json::Value::Object(config_object),
-        });
-        // TTS text is already resolved frontend-side; the event only feeds
-        // templates that reference `event.*`, so a minimal envelope is enough.
-        let event = serde_json::json!({
-            "id": format!("tts-{}", started),
-            "type": "tts.speak",
-            "timestamp": started,
-            "data": {},
-        });
-        let mut logs = Vec::new();
-        match self
-            .execute_plugin_action(&action_type, &action, &event, &mut logs, false)
-            .await
-        {
-            Ok(summary) => {
-                let duration_ms = crate::helpers::now_millis().saturating_sub(started);
-                self.emit(HostMessage::PluginActionResult {
-                    action_type,
-                    ok: true,
-                    summary,
-                    logs: logs.into_iter().take(20).collect(),
-                    duration_ms,
-                    error: None,
-                });
-            }
+        // Same authoritative execution as the control API; the pre-checks
+        // above only preserve the voice-tester-specific UX messages.
+        match self.plugin_action_execute(&action_type, config, true).await {
+            Ok(outcome) => self.emit(HostMessage::PluginActionResult {
+                action_type: outcome.action_type,
+                ok: outcome.ok,
+                summary: outcome.summary,
+                logs: outcome.logs,
+                duration_ms: outcome.duration_ms,
+                error: outcome.error,
+            }),
             Err(error) => {
                 let duration_ms = crate::helpers::now_millis().saturating_sub(started);
+                let message = error.message().to_owned();
                 self.emit(HostMessage::PluginActionResult {
                     action_type,
                     ok: false,
-                    summary: error.clone(),
-                    logs: logs.into_iter().take(20).collect(),
+                    summary: message.clone(),
+                    logs: Vec::new(),
                     duration_ms,
-                    error: Some(error),
+                    error: Some(message),
                 });
             }
         }

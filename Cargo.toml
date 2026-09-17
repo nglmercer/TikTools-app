@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "crates/tiktools-control-api",
+    "crates/tiktools-cli",
     "crates/tiktools-desktop",
     "crates/tiktools-core",
     "crates/tiktools-plugin-api",
@@ -25,7 +27,7 @@ thiserror = "2.0"
 unicode-segmentation = "1.13"
 tracing = "0.1"
 fastrand = "2.5"
-tokio = { version = "1.48", features = ["rt-multi-thread", "sync", "macros", "time", "net", "io-util", "fs"] }
+tokio = { version = "1.48", features = ["rt-multi-thread", "sync", "macros", "time", "net", "io-util", "io-std", "fs"] }
 rusqlite = { version = "0.40", default-features = false }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }

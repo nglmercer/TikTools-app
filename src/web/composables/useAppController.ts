@@ -146,6 +146,13 @@ export function useAppController() {
   const processorTest = ref<Extract<HostMessage, { type: 'processor-test-result' }> | null>(null);
   const actionOptions = ref<Record<string, ActionOptionItem[]>>({});
   const actionOptionErrors = ref<Record<string, string>>({});
+  /** Server-reported selection per option source (option documents only). */
+  const actionOptionSelected = ref<Record<string, string>>({});
+  /** Audio output switch in flight per plugin id (TTS output selector). */
+  const ttsOutputPending = ref<Record<string, string>>({});
+  /** Last audio output switch failure per plugin id. */
+  const ttsOutputErrors = ref<Record<string, string>>({});
+  const outputPending: Array<{ pluginId: string; actionType: string; source: string; device: string }> = [];
   const pluginConnections = ref<Record<string, PluginConnectionState>>({});
   const pluginProvision = ref<Record<string, { working: boolean; ok: boolean; message: string }>>({});
   const pluginInstallState = ref<PluginInstallState>({ ...initialPluginInstallState });
@@ -420,6 +427,26 @@ export function useAppController() {
     }
 
     if (message.type === 'plugin-action-result') {
+      // Audio output switches resolve separately from speech: success
+      // re-reads the server selection, failure surfaces without persisting.
+      const outputIndex = outputPending.findIndex((entry) => entry.actionType === message.actionType);
+      const output = outputIndex >= 0 ? outputPending.splice(outputIndex, 1)[0] : undefined;
+      if (output) {
+        const rest = { ...ttsOutputPending.value };
+        delete rest[output.pluginId];
+        ttsOutputPending.value = rest;
+        if (message.ok) {
+          const errors = { ...ttsOutputErrors.value };
+          delete errors[output.pluginId];
+          ttsOutputErrors.value = errors;
+          send({ type: 'get-action-options', source: output.source });
+        } else {
+          ttsOutputErrors.value = {
+            ...ttsOutputErrors.value,
+            [output.pluginId]: message.error || message.summary,
+          };
+        }
+      }
       const pendingIndex = ttsPending.findIndex((entry) => entry.actionType === message.actionType);
       const pending = pendingIndex >= 0 ? ttsPending.splice(pendingIndex, 1)[0] : undefined;
       const pluginId = pending?.pluginId;
@@ -492,6 +519,15 @@ export function useAppController() {
         const rest = { ...actionOptionErrors.value };
         delete rest[message.source];
         actionOptionErrors.value = rest;
+      }
+      // A fresh fetch without a selection clears the previous one so the
+      // outputs selector never shows a value the server no longer reports.
+      if (typeof message.selected === 'string') {
+        actionOptionSelected.value = { ...actionOptionSelected.value, [message.source]: message.selected };
+      } else {
+        const rest = { ...actionOptionSelected.value };
+        delete rest[message.source];
+        actionOptionSelected.value = rest;
       }
     }
 
@@ -681,6 +717,23 @@ export function useAppController() {
     const resolvedVoice = voice.trim() || settings.defaultVoice.trim() || firstAvailableVoice(availableVoices);
     queueTtsSpeak(pluginId, actionType, 'tester', clean, resolvedVoice, settings.language, true);
   };
+
+  /**
+   * Runs the outputs switch action immediately (TTS audio output selector).
+   * The device is sent verbatim; the result handler re-reads the server
+   * selection on success and surfaces the error without persisting on
+   * failure, so the selector always reflects server state.
+   */
+  const handleTtsOutputSelect = (pluginId: string, actionType: string, field: string, device: string, source: string): void => {
+    if (!device.trim() || ttsOutputPending.value[pluginId] !== undefined) return;
+    outputPending.push({ pluginId, actionType, source, device });
+    if (outputPending.length > 20) outputPending.splice(0, outputPending.length - 20);
+    ttsOutputPending.value = { ...ttsOutputPending.value, [pluginId]: device };
+    const errors = { ...ttsOutputErrors.value };
+    delete errors[pluginId];
+    ttsOutputErrors.value = errors;
+    send({ type: 'execute-plugin-action', actionType, config: { [field]: device } });
+  };
   const ttsSettingsOrDefault = (pluginId: string): TtsSettings => ttsSettingsFor(pluginId);
 
   const openMediaPicker = (options: MediaPickerOptions, onSelected: MediaSelectionHandler): void => {
@@ -848,6 +901,10 @@ export function useAppController() {
     ttsSettingsOrDefault,
     handleTtsSettingsChange,
     handleTtsSpeak,
+    actionOptionSelected,
+    ttsOutputPending,
+    ttsOutputErrors,
+    handleTtsOutputSelect,
     analyticsSummary,
     handleGetAnalyticsRange: (startDay: number, endDay: number): void => {
       send({

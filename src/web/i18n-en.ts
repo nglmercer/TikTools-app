@@ -444,6 +444,15 @@ export const english = {
   pluginListEmpty: 'Nothing reported yet.',
   pluginListRefresh: 'Refresh',
   pluginPageSettingsSaved: 'Settings saved.',
+  ttsAudioOutput: 'Audio output',
+  ttsAudioOutputChoose: 'Choose an output…',
+  ttsAudioOutputsLoading: 'Loading audio outputs…',
+  ttsAudioOutputsUnavailable: 'Audio devices unavailable',
+  ttsAudioOutputsNoPlayback: 'This SonicBoom server does not expose local audio playback controls. TTS generation remains available.',
+  ttsAudioOutputsEmpty: 'No audio outputs reported by the server.',
+  ttsAudioOutputSwitching: 'Switching audio output…',
+  ttsAudioOutputHint: 'Playback follows the selected server output.',
+  ttsRefreshOutputs: 'Refresh outputs',
 } as const;
 
 export type TranslationKey = keyof typeof english;

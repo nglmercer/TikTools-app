@@ -78,6 +78,42 @@
           "timeoutMs": 8000
         }
       }
+    },
+    {
+      "id": "sonicboom.server.set-output-device",
+      "version": 1,
+      "title": {"default": "Set SonicBoom audio output", "i18key": "sonicboom.server.set-output-device.title"},
+      "description": {"default": "Switch the audio output device used by the SonicBoom server for playback.", "i18key": "sonicboom.server.set-output-device.description"},
+      "tag": "tts",
+      "requiredCapabilities": ["http.request"],
+      "fields": [
+        {
+          "key": "device",
+          "label": {"default": "Audio output", "i18key": "sonicboom.server.set-output-device.device.label"},
+          "kind": "select",
+          "value": "default",
+          "optionsFrom": "plugin-action-options:sonicboom.server.set-output-device:device",
+          "hint": {"default": "Outputs load live from the server. System Default always plays through the server's default device.", "i18key": "sonicboom.server.set-output-device.device.hint"}
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "path": "/api/audio/output",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"device\":\"{{ config.device }}\"}",
+        "timeoutMs": 10000
+      },
+      "optionSources": {
+        "device": {
+          "path": "/api/audio/devices",
+          "itemsPath": "devices",
+          "valuePath": "id",
+          "labelPath": "name",
+          "timeoutMs": 8000
+        }
+      }
     }
   ],
   "settings": {
@@ -212,12 +248,13 @@
       "sections": [
         {
           "kind": "text",
-          "text": {"default": "Decide who may trigger speech, what it costs, and which voice speaks. Voices load live from the configured server.", "i18key": "sonicboom.server.page.tts.intro"}
+          "text": {"default": "Choose the voice and server-side audio output used for SonicBoom playback. Audio outputs are discovered from the connected SonicBoom server.", "i18key": "sonicboom.server.page.tts.intro"}
         },
         {
           "kind": "tts",
           "actionType": "sonicboom.server.speak",
-          "voicesFrom": "plugin-action-options:sonicboom.server.speak:voice"
+          "voicesFrom": "plugin-action-options:sonicboom.server.speak:voice",
+          "outputsFrom": "plugin-action-options:sonicboom.server.set-output-device:device"
         }
       ]
     }

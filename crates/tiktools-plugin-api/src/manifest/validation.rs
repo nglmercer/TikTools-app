@@ -588,6 +588,16 @@ fn validate_page_section(section: &Value) -> Result<(), ManifestError> {
             if voices_from.trim().is_empty() || voices_from.len() > 256 {
                 return Err(ManifestError::InvalidField("pages"));
             }
+            // Server-side audio outputs are optional: older manifests omit
+            // the selector, and the host hides it when the source is absent.
+            if let Some(outputs_from) = object.get("outputsFrom") {
+                let outputs_from = outputs_from
+                    .as_str()
+                    .ok_or(ManifestError::InvalidField("pages"))?;
+                if outputs_from.trim().is_empty() || outputs_from.len() > 256 {
+                    return Err(ManifestError::InvalidField("pages"));
+                }
+            }
             Ok(())
         }
         _ => Err(ManifestError::InvalidField("pages")),

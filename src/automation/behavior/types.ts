@@ -273,6 +273,8 @@ export interface PluginPageSection {
   actionType?: string;
   /** `tts` only. Option source id feeding the voice selectors. */
   voicesFrom?: string;
+  /** `tts` only. Optional option source id feeding the audio output selector. */
+  outputsFrom?: string;
 }
 
 /** One configuration page contributed by a plugin manifest (schema v3). */

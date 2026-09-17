@@ -5,6 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use tiktools_control_api::ControlApi;
 use tiktools_core::{ipc::IpcRouter, AppCore};
 use tokio::runtime::Handle;
 use winit::{
@@ -31,6 +32,7 @@ pub struct DesktopApp {
     webview: Option<WebView>,
     core: Arc<AppCore>,
     router: Arc<IpcRouter>,
+    control: Arc<ControlApi>,
     frontend: FrontendSource,
     runtime: Handle,
     proxy: EventLoopProxy<DesktopEvent>,
@@ -67,11 +69,13 @@ impl DesktopApp {
         proxy: EventLoopProxy<DesktopEvent>,
         log_path: PathBuf,
     ) -> Self {
+        let control = Arc::new(ControlApi::new(core.clone()));
         Self {
             window: None,
             webview: None,
             core,
             router,
+            control,
             frontend,
             runtime,
             proxy,
@@ -101,6 +105,7 @@ impl DesktopApp {
             .map_err(|error| format!("could not create window: {error}"))?;
 
         let router = self.router.clone();
+        let control = self.control.clone();
         let runtime = self.runtime.clone();
         let proxy_for_ipc = self.proxy.clone();
         let navigation_frontend = self.frontend.clone();
@@ -138,7 +143,31 @@ impl DesktopApp {
                     return;
                 }
                 let router = router.clone();
+                let control = control.clone();
+                let proxy = proxy_for_ipc.clone();
                 runtime.spawn(async move {
+                    // JSON-RPC messages (`{"method": ...}`) go through the
+                    // same ControlApi as CLI/stdio/IPC; legacy `{"type": ...}`
+                    // messages keep the PageMessage path during migration.
+                    if is_control_rpc(&raw) {
+                        let response = match serde_json::from_str::<serde_json::Value>(&raw) {
+                            Ok(raw) => control.execute_value(&raw).await,
+                            Err(error) => tiktools_control_api::RpcResponse::error(
+                                tiktools_control_api::RpcId::Null,
+                                tiktools_control_api::ApiError::invalid_params(format!(
+                                    "invalid JSON: {error}"
+                                )),
+                            ),
+                        };
+                        let payload = serde_json::json!({
+                            "type": "rpc-response",
+                            "response": response,
+                        });
+                        let _ = proxy.send_event(DesktopEvent::Command(
+                            DesktopCommand::EmitToWebview(payload.to_string()),
+                        ));
+                        return;
+                    }
                     if let Err(error) = router.dispatch(&raw).await {
                         tracing::warn!(%error, "invalid WebView IPC message");
                     }
@@ -455,4 +484,18 @@ fn is_frontend_ready(raw: &str) -> bool {
         })
         .as_deref()
         == Some("frontend-ready")
+}
+
+/// Control-plane messages carry `method` (JSON-RPC style); legacy WebView
+/// messages carry `type` (PageMessage). The two shapes never overlap.
+fn is_control_rpc(raw: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(raw)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("method")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        })
+        .is_some()
 }

@@ -3,11 +3,11 @@ use super::*;
 impl AppCore {
     pub(super) fn emit_persisted_workflows(&self) {
         #[cfg(feature = "persistence")]
-        let workflows = match self.db.load_workflows() {
+        let workflows = match self.workflow_list() {
             Ok(workflows) => workflows,
             Err(error) => {
                 self.emit(HostMessage::AutomationError {
-                    message: error.to_string(),
+                    message: error.message().to_owned(),
                 });
                 Vec::new()
             }
@@ -32,22 +32,17 @@ impl AppCore {
     }
 
     pub(super) fn emit_persisted_behavior(&self) {
+        // Same authoritative path as the control API; the WebView only adds
+        // UI-shaped error reporting around it.
         #[cfg(feature = "persistence")]
-        let mut snapshot = match self.db.load_behavior_snapshot() {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                self.emit(HostMessage::AutomationError {
-                    message: error.to_string(),
-                });
-                empty_behavior_snapshot()
-            }
-        };
-        #[cfg(not(feature = "persistence"))]
-        let mut snapshot = empty_behavior_snapshot();
-        self.merge_runtime_catalog(&mut snapshot);
-        self.automation.replace_snapshot(&snapshot);
-        self.request_hotkey_sync();
-        self.emit(HostMessage::Behavior { snapshot });
+        if let Err(error) = self.db.load_behavior_snapshot() {
+            self.emit(HostMessage::AutomationError {
+                message: error.to_string(),
+            });
+        }
+        self.emit(HostMessage::Behavior {
+            snapshot: self.behavior_snapshot(),
+        });
     }
 
     /// Loads only the persisted records needed by the asynchronous hotkey
@@ -248,30 +243,15 @@ impl AppCore {
     }
 
     pub(super) fn emit_plugin_settings(&self, id: &str) {
-        let Some(plugin) = self.plugins.get(id) else {
-            self.emit(HostMessage::BehaviorError {
-                message: format!("Plugin `{id}` is not installed."),
-            });
-            return;
-        };
-        let Some(schema) = plugin.manifest.settings_schema.clone() else {
-            self.emit(HostMessage::BehaviorError {
-                message: format!("Plugin settings are not declared by `{id}`."),
-            });
-            return;
-        };
-        match self
-            .capabilities
-            .load_plugin_settings_for_display(&plugin.manifest)
-        {
-            Ok(values) => self.emit(HostMessage::PluginSettings {
-                id: id.to_owned(),
-                schema,
-                ui_hints: plugin.manifest.settings_ui_hints.clone(),
-                values,
+        match self.plugin_settings(id) {
+            Ok(settings) => self.emit(HostMessage::PluginSettings {
+                id: settings.plugin_id,
+                schema: settings.schema,
+                ui_hints: settings.ui_hints,
+                values: Value::Object(settings.values.into_iter().collect()),
             }),
             Err(error) => self.emit(HostMessage::BehaviorError {
-                message: error.to_string(),
+                message: error.message().to_owned(),
             }),
         }
     }
@@ -281,100 +261,75 @@ impl AppCore {
         id: &str,
         values: std::collections::BTreeMap<String, Value>,
     ) {
-        let Some(plugin) = self.plugins.get(id) else {
-            self.emit(HostMessage::BehaviorError {
-                message: format!("Plugin `{id}` is not installed."),
-            });
-            return;
-        };
-        let Some(schema) = plugin.manifest.settings_schema.clone() else {
-            self.emit(HostMessage::BehaviorError {
-                message: format!("Plugin settings are not declared by `{id}`."),
-            });
-            return;
-        };
-        match self
-            .capabilities
-            .save_plugin_settings(&plugin.manifest, &values)
-        {
-            Ok(values) => {
-                // Processors receive settings inside each enrich request; the
-                // revision bump makes the next call reload this file.
-                self.bump_processor_settings_revision(id);
-                // A server URL or token may have changed what option
-                // endpoints return, so cached option lists are dropped.
-                self.option_sources.clear();
-                self.emit(HostMessage::PluginSettings {
-                    id: id.to_owned(),
-                    schema,
-                    ui_hints: plugin.manifest.settings_ui_hints.clone(),
-                    values,
-                });
-            }
+        match self.plugin_settings_save(id, values) {
+            Ok(settings) => self.emit(HostMessage::PluginSettings {
+                id: settings.plugin_id,
+                schema: settings.schema,
+                ui_hints: settings.ui_hints,
+                values: Value::Object(settings.values.into_iter().collect()),
+            }),
             Err(error) => self.emit(HostMessage::BehaviorError {
-                message: error.to_string(),
+                message: error.message().to_owned(),
             }),
         }
     }
 
     pub(super) fn save_behavior_record(&self, table: &str, value: serde_json::Value) {
-        #[cfg(feature = "persistence")]
-        {
-            if let Err(error) = self.db.save_behavior(table, &value) {
-                self.emit(HostMessage::AutomationError {
-                    message: error.to_string(),
-                });
-            } else {
-                self.emit_persisted_behavior();
-            }
-        }
-        #[cfg(not(feature = "persistence"))]
-        {
-            let _ = (table, value);
+        let Some(kind) = automation_kind_from_table(table) else {
             self.emit(HostMessage::AutomationError {
-                message: "Rust persistence is disabled in this build.".to_owned(),
+                message: format!("unknown behavior table `{table}`"),
             });
+            return;
+        };
+        if let Err(error) = self.automation_save(kind, &value) {
+            self.emit(HostMessage::AutomationError {
+                message: error.message().to_owned(),
+            });
+        } else {
+            self.emit_persisted_behavior();
         }
     }
 
     pub(super) fn delete_behavior_record(&self, table: &str, id: &str) {
-        #[cfg(feature = "persistence")]
-        {
-            if let Err(error) = self.db.delete_behavior(table, id) {
-                self.emit(HostMessage::AutomationError {
-                    message: error.to_string(),
-                });
-            } else {
-                self.emit_persisted_behavior();
-            }
-        }
-        #[cfg(not(feature = "persistence"))]
-        {
-            let _ = (table, id);
+        let Some(kind) = automation_kind_from_table(table) else {
             self.emit(HostMessage::AutomationError {
-                message: "Rust persistence is disabled in this build.".to_owned(),
+                message: format!("unknown behavior table `{table}`"),
             });
+            return;
+        };
+        if let Err(error) = self.automation_delete(kind, id) {
+            self.emit(HostMessage::AutomationError {
+                message: error.message().to_owned(),
+            });
+        } else {
+            self.emit_persisted_behavior();
         }
     }
 
     pub(super) fn set_behavior_enabled(&self, table: &str, id: &str, enabled: bool) {
-        #[cfg(feature = "persistence")]
-        {
-            if let Err(error) = self.db.set_behavior_enabled(table, id, enabled) {
-                self.emit(HostMessage::AutomationError {
-                    message: error.to_string(),
-                });
-            } else {
-                self.emit_persisted_behavior();
-            }
-        }
-        #[cfg(not(feature = "persistence"))]
-        {
-            let _ = (table, id, enabled);
+        let Some(kind) = automation_kind_from_table(table) else {
             self.emit(HostMessage::AutomationError {
-                message: "Rust persistence is disabled in this build.".to_owned(),
+                message: format!("unknown behavior table `{table}`"),
             });
+            return;
+        };
+        if let Err(error) = self.automation_set_enabled(kind, id, enabled) {
+            self.emit(HostMessage::AutomationError {
+                message: error.message().to_owned(),
+            });
+        } else {
+            self.emit_persisted_behavior();
         }
+    }
+}
+
+/// Maps the legacy behavior table names onto control operation kinds.
+/// Callers only ever pass the two constants below; anything else is a bug.
+pub(super) fn automation_kind_from_table(table: &str) -> Option<crate::control::AutomationKind> {
+    match table {
+        "behavior_events" => Some(crate::control::AutomationKind::Event),
+        "behavior_actions" => Some(crate::control::AutomationKind::Action),
+        _ => None,
     }
 }
 

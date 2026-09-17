@@ -406,6 +406,43 @@ fn tts_page_section_needs_an_action_and_a_voice_source() {
 }
 
 #[test]
+fn tts_outputs_source_is_optional_but_bounded() {
+    // A declared outputs source enables the host output selector...
+    assert!(validate_plugin_page(&serde_json::json!({
+        "id": "tts",
+        "title": {"default": "TTS"},
+        "sections": [{
+            "kind": "tts",
+            "actionType": "sonicboom.server.speak",
+            "voicesFrom": "plugin-action-options:sonicboom.server.speak:voice",
+            "outputsFrom": "plugin-action-options:sonicboom.server.set-output-device:device"
+        }]
+    }))
+    .is_ok());
+    // ...while malformed values fail discovery instead of reaching the UI.
+    for outputs_from in [
+        serde_json::json!("   "),
+        serde_json::json!("x".repeat(257)),
+        serde_json::json!(42),
+    ] {
+        assert!(
+            validate_plugin_page(&serde_json::json!({
+                "id": "tts",
+                "title": {"default": "TTS"},
+                "sections": [{
+                    "kind": "tts",
+                    "actionType": "sonicboom.server.speak",
+                    "voicesFrom": "plugin-action-options:sonicboom.server.speak:voice",
+                    "outputsFrom": outputs_from
+                }]
+            }))
+            .is_err(),
+            "outputsFrom {outputs_from} should be rejected"
+        );
+    }
+}
+
+#[test]
 fn shipped_sonicboom_example_parses() {
     // Conformance gate for examples/sonicboom-server/plugin.json: the
     // declarative example the host ships must always parse and validate.
@@ -421,8 +458,10 @@ fn shipped_sonicboom_example_parses() {
     assert_eq!(manifest.runtime, PluginRuntimeKind::Declarative);
     assert!(manifest.validate_compatibility().is_ok());
     assert!(validate_http_config(manifest.http.as_ref().unwrap()).is_ok());
-    assert_eq!(manifest.action_types.len(), 1);
-    assert!(validate_declarative_action(&manifest.action_types[0]).is_ok());
+    assert_eq!(manifest.action_types.len(), 2);
+    for action in &manifest.action_types {
+        assert!(validate_declarative_action(action).is_ok());
+    }
     assert_eq!(manifest.templates.len(), 1);
     assert!(validate_plugin_template(&manifest.templates[0]).is_ok());
     assert_eq!(manifest.pages.len(), 2);

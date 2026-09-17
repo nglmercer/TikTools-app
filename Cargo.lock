@@ -4354,6 +4354,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "tiktools-cli"
+version = "0.2.0"
+dependencies = [
+ "serde_json",
+ "tiktools-control-api",
+ "tiktools-core",
+ "tokio",
+]
+
+[[package]]
+name = "tiktools-control-api"
+version = "0.2.0"
+dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tiktools-core",
+ "tiktools-plugin-api",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "tiktools-core"
 version = "0.2.0"
 dependencies = [
@@ -4387,6 +4411,7 @@ dependencies = [
  "rodio",
  "rustls",
  "serde_json",
+ "tiktools-control-api",
  "tiktools-core",
  "tiktools-plugin-api",
  "tokio",

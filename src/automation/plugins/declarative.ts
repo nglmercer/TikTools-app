@@ -241,6 +241,13 @@ function toPluginPageSection(value: JsonValue): PluginPageSection | undefined {
       }
       section.actionType = value.actionType;
       section.voicesFrom = value.voicesFrom;
+      // Server-side audio outputs are optional: a malformed marker hides the
+      // selector instead of dropping the whole TTS panel. (The host already
+      // rejects malformed markers at discovery; this is defense in depth.)
+      if (value.outputsFrom !== undefined) {
+        const outputs = typeof value.outputsFrom === 'string' ? normalizeOptionsFrom(value.outputsFrom) : undefined;
+        if (outputs) section.outputsFrom = outputs;
+      }
       return section;
     }
   }

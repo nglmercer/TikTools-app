@@ -12,7 +12,8 @@ pub struct PointsService {
     database: Option<Arc<DatabaseManager>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PointAward {
     pub unique_id: String,
     pub delta: f64,
