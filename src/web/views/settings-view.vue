@@ -31,9 +31,6 @@ function ThemePreview({ theme, onThemeChange, darkLabel, lightLabel }: { theme: 
           aria-label={mode.label}
         >
           <span class="theme-preview__icon" aria-hidden="true">{mode.icon}</span>
-          <span class="theme-preview__bar" aria-hidden="true" />
-          <span class="theme-preview__line" aria-hidden="true" />
-          <span class="theme-preview__line is-short" aria-hidden="true" />
           <span class="theme-preview__caption">{mode.label}</span>
         </button>
       ))}
