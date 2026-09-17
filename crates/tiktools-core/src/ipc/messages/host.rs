@@ -163,6 +163,13 @@ pub enum HostMessage {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         error: Option<String>,
     },
+    #[serde(rename = "plugin-provision-result")]
+    PluginProvisionResult {
+        id: String,
+        ok: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
     #[serde(rename = "plugin-install-result")]
     PluginInstallResult {
         success: bool,

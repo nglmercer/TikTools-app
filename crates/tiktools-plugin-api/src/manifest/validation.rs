@@ -197,6 +197,28 @@ pub fn validate_http_config(http: &Value) -> Result<(), ManifestError> {
             validate_http_timeout(timeout).map_err(|_| ManifestError::InvalidField("http"))?;
         }
     }
+    if let Some(provisioning) = object.get("tokenProvisioning") {
+        validate_token_provisioning(provisioning)?;
+    }
+    Ok(())
+}
+
+/// Validate the optional `tokenProvisioning` descriptor: a named strategy
+/// the host can execute to mint an API token from operator credentials.
+/// Shape errors fail discovery; unknown strategy names pass validation but
+/// the host offers no provisioning for them, so newer manifests keep
+/// loading on older hosts with the button simply absent.
+fn validate_token_provisioning(provisioning: &Value) -> Result<(), ManifestError> {
+    let object = provisioning
+        .as_object()
+        .ok_or(ManifestError::InvalidField("http"))?;
+    let strategy = object
+        .get("strategy")
+        .and_then(Value::as_str)
+        .ok_or(ManifestError::InvalidField("http"))?;
+    if strategy.trim().is_empty() || strategy.len() > 64 {
+        return Err(ManifestError::InvalidField("http"));
+    }
     Ok(())
 }
 

@@ -141,7 +141,8 @@ impl AppCore {
                     "actionTypeIds": action_ids,
                     "eventTypeIds": event_type_ids,
                     "hasSettings": plugin.manifest.settings_schema.is_some(),
-                    "hasConnectionProbe": plugin.manifest.http.as_ref().and_then(|http| http.get("health")).is_some()
+                    "hasConnectionProbe": plugin.manifest.http.as_ref().and_then(|http| http.get("health")).is_some(),
+                    "supportsTokenProvisioning": crate::services::token_provision::supports_token_provisioning(&plugin.manifest)
                 },
                 "installed": installed,
                 "enabled": enabled,

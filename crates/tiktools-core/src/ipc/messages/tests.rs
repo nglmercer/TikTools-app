@@ -275,6 +275,34 @@ fn execute_plugin_action_validates_its_config() {
 }
 
 #[test]
+fn provision_plugin_token_has_a_dedicated_wire_contract() {
+    let message = PageMessage::parse(
+        r#"{"type":"provision-plugin-token","id":"sonicboom.server","username":"admin","password":"secret"}"#,
+    )
+    .unwrap();
+    assert_eq!(message.type_name(), "provision-plugin-token");
+    assert!(matches!(message, PageMessage::ProvisionPluginToken { .. }));
+    assert!(PageMessage::parse(
+        r#"{"type":"provision-plugin-token","id":"sonicboom.server","username":"","password":"secret"}"#
+    )
+    .is_err());
+    assert!(PageMessage::parse(
+        r#"{"type":"provision-plugin-token","id":"sonicboom.server","username":"admin","password":""}"#
+    )
+    .is_err());
+
+    let json = HostMessage::PluginProvisionResult {
+        id: "sonicboom.server".to_owned(),
+        ok: false,
+        error: Some("Admin login rejected.".to_owned()),
+    }
+    .to_json()
+    .unwrap();
+    assert!(json.starts_with(r#"{"type":"plugin-provision-result""#));
+    assert!(json.contains("Admin login rejected."));
+}
+
+#[test]
 fn uninstall_plugin_package_has_a_dedicated_wire_contract() {
     let message = PageMessage::parse(r#"{"type":"uninstall-plugin-package","id":"demo"}"#).unwrap();
     assert_eq!(message.type_name(), "uninstall-plugin-package");

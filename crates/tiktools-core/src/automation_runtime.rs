@@ -567,14 +567,15 @@ impl AppCore {
             .await;
         }
         if !(200..300).contains(&status) {
-            return Err(format!(
-                "HTTP {status} {}",
-                if status >= 500 {
-                    "server error"
-                } else {
-                    "request failed"
-                }
-            ));
+            let base = if status >= 500 {
+                "server error"
+            } else {
+                "request failed"
+            };
+            return match http_error_reason(&body) {
+                Some(reason) => Err(format!("HTTP {status} {base}: {reason}")),
+                None => Err(format!("HTTP {status} {base}")),
+            };
         }
         Ok(format!("{status} OK · {elapsed} ms · {response_url}"))
     }
@@ -610,6 +611,38 @@ pub(super) struct HardenedHttpResponse {
     pub response_url: String,
     pub body: Value,
     pub elapsed_ms: u64,
+}
+
+/// Best-effort one-line reason from an error response body.
+///
+/// Servers commonly explain failures as `{"message": "..."}` (SonicBoom
+/// included); anything else falls back to a whitespace-collapsed, truncated
+/// snippet. Pure and total: empty or unparseable bodies yield `None` and the
+/// caller keeps the legacy bare status text.
+#[cfg_attr(not(feature = "http"), allow(dead_code))]
+fn http_error_reason(body: &Value) -> Option<String> {
+    const MAX_REASON_CHARS: usize = 300;
+    let raw = match body {
+        Value::String(text) => text.clone(),
+        Value::Object(map) => map
+            .get("message")
+            .or_else(|| map.get("error"))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .unwrap_or_else(|| serde_json::to_string(body).unwrap_or_default()),
+        _ => return None,
+    };
+    let collapsed = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    let trimmed = collapsed.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.chars().count() > MAX_REASON_CHARS {
+        let snippet: String = trimmed.chars().take(MAX_REASON_CHARS).collect();
+        Some(format!("{snippet}…"))
+    } else {
+        Some(trimmed.to_owned())
+    }
 }
 
 impl AppCore {
@@ -704,5 +737,41 @@ impl AppCore {
         _configured_host: &str,
     ) -> Result<HardenedHttpResponse, String> {
         Err("HTTP action execution requires the host HTTP capability.".to_owned())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn error_reasons_prefer_server_messages_then_snippets() {
+        // SonicBoom-style JSON error envelope.
+        assert_eq!(
+            http_error_reason(
+                &json!({"error": "bad_request", "message": "voice must be a valid voice name"})
+            )
+            .as_deref(),
+            Some("voice must be a valid voice name")
+        );
+        // Code-only envelope falls back to the code.
+        assert_eq!(
+            http_error_reason(&json!({"error": "bad_request"})).as_deref(),
+            Some("bad_request")
+        );
+        // Plain-text bodies collapse whitespace and truncate.
+        assert_eq!(
+            http_error_reason(&Value::String("  failed\nbadly  ".to_owned())).as_deref(),
+            Some("failed badly")
+        );
+        let long = "x".repeat(500);
+        let reason = http_error_reason(&Value::String(long)).unwrap();
+        assert_eq!(reason.chars().count(), 301);
+        assert!(reason.ends_with('…'));
+        // Empty or scalar bodies keep the legacy bare status text.
+        assert_eq!(http_error_reason(&Value::String("   ".to_owned())), None);
+        assert_eq!(http_error_reason(&Value::Null), None);
+        assert_eq!(http_error_reason(&json!(500)), None);
     }
 }

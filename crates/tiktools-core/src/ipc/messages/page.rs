@@ -171,6 +171,12 @@ pub enum PageMessage {
     },
     #[serde(rename = "test-plugin-connection")]
     TestPluginConnection { id: String },
+    #[serde(rename = "provision-plugin-token")]
+    ProvisionPluginToken {
+        id: String,
+        username: String,
+        password: String,
+    },
     #[serde(rename = "test-processor")]
     TestProcessor {
         #[serde(rename = "pluginId")]
@@ -247,6 +253,7 @@ impl PageMessage {
             Self::GetActionOptions { .. } => "get-action-options",
             Self::ExecutePluginAction { .. } => "execute-plugin-action",
             Self::TestPluginConnection { .. } => "test-plugin-connection",
+            Self::ProvisionPluginToken { .. } => "provision-plugin-token",
             Self::TestProcessor { .. } => "test-processor",
             Self::GetProcessorStatus => "get-processor-status",
             Self::GetAnalyticsSummary { .. } => "get-analytics-summary",
@@ -359,6 +366,17 @@ impl PageMessage {
             }
             Self::UninstallPluginPackage { id } => bounded_string(id, "id", 128)?,
             Self::TestPluginConnection { id } => bounded_string(id, "id", 128)?,
+            Self::ProvisionPluginToken {
+                id,
+                username,
+                password,
+            } => {
+                bounded_string(id, "id", 128)?;
+                bounded_string(username, "username", 128)?;
+                // Operator credential, used once for the provisioning login
+                // and never persisted. Bounded like other secret inputs.
+                bounded_string(password, "password", 4_096)?;
+            }
             Self::TestProcessor {
                 plugin_id,
                 processor_id,

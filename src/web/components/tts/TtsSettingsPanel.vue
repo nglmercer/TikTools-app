@@ -171,7 +171,7 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                   value={settings.defaultVoice}
                   onChange={(event) => update({ defaultVoice: (event.currentTarget as HTMLSelectElement).value })}
                 >
-                  <option value="">Server default</option>
+                  <option value="">Auto (first available)</option>
                   {voiceList.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
@@ -494,7 +494,7 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                   value={testerVoice.value}
                   onChange={(event) => { testerVoiceTouched = true; testerVoice.value = (event.currentTarget as HTMLSelectElement).value; }}
                 >
-                  <option value="">Server default</option>
+                  <option value="">Auto (default voice)</option>
                   {testerVoices.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
@@ -524,7 +524,7 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                 </button>
                 <span class="tts-pill">{props.voices.length} voices</span>
               </div>
-              <p class="tts-hint">401/403 errors mean the server rejected the credentials — check the API token in the Connection page. Each log line shows the exact request path and whether a credential was attached (never the value itself).</p>
+              <p class="tts-hint">401/403 errors mean the server rejected the credentials — open Connection and use Get API token with your admin login to mint one. Each log line shows the exact request path and whether a credential was attached (never the value itself).</p>
               <h4 class="tts-card__title">TTS logs</h4>
               {props.logs.length === 0 ? (
                 <span class="plg-group-note">Nothing spoken yet.</span>

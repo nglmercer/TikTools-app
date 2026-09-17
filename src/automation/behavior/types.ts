@@ -188,6 +188,8 @@ export interface PluginDescriptor {
   hasSettings?: boolean;
   /** True when the plugin declares a health endpoint the host can probe. */
   hasConnectionProbe?: boolean;
+  /** True when the host can mint this plugin's API token from an admin login. */
+  supportsTokenProvisioning?: boolean;
 }
 
 export interface PluginStatus {

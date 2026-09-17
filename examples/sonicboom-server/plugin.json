@@ -17,6 +17,9 @@
     "health": {
       "path": "/ready",
       "timeoutMs": 5000
+    },
+    "tokenProvisioning": {
+      "strategy": "admin-form"
     }
   },
   "actionTypes": [
@@ -91,7 +94,7 @@
         "apiToken": {
           "type": "string",
           "title": "API token",
-          "description": "API token from the SonicBoom admin panel (Tokens page), sent as a Bearer credential. This is not the admin password. Required when the server runs with SONICBOOM_AUTH_REQUIRED=true (the default), even on this machine.",
+          "description": "API token from the SonicBoom admin panel (Tokens page), sent as a Bearer credential. This is not the admin password. Required when the server runs with SONICBOOM_AUTH_REQUIRED=true (the default), even on this machine. Use Get API token below to mint one with your admin login instead of copying it by hand.",
           "secret": true
         },
         "defaultVoice": {

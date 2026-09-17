@@ -38,6 +38,13 @@ const activePluginName: ComputedRef<string> = computed(() => {
   const plugin = plugins.find((entry) => entry.descriptor.id === page.pluginId);
   return plugin ? i18nText(controller.locale.value, plugin.descriptor.name) : page.pluginId;
 });
+const activePluginSupportsProvisioning: ComputedRef<boolean> = computed(() => {
+  const page = activePluginPage.value;
+  if (!page) return false;
+  const plugins: PluginStatus[] = controller.behavior.value.plugins;
+  const plugin = plugins.find((entry) => entry.descriptor.id === page.pluginId);
+  return plugin?.descriptor.supportsTokenProvisioning ?? false;
+});
 </script>
 <template>
   <div class="app-shell">
@@ -199,6 +206,9 @@ const activePluginName: ComputedRef<string> = computed(() => {
         :tts-logs="app.ttsLogs[activePluginPage.pluginId] ?? []"
         :on-tts-settings-change="app.handleTtsSettingsChange"
         :on-tts-speak="app.handleTtsSpeak"
+        :supports-provisioning="activePluginSupportsProvisioning"
+        :provision-state="app.pluginProvision[activePluginPage.pluginId]"
+        :on-provision-token="app.handleProvisionPluginToken"
       />
     </div>
   </div>

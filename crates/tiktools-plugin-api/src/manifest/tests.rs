@@ -339,6 +339,17 @@ fn rejects_malformed_declarative_blocks() {
         r#"{"schemaVersion":3,"id":"bad","name":"Bad","version":"1.0.0","runtime":"declarative","actionTypes":[{"id":"bad.action","http":{"path":"https://evil.example/x"}}]}"#,
     )
     .is_err());
+    // Malformed token provisioning descriptor.
+    assert!(PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"bad","name":"Bad","version":"1.0.0","runtime":"declarative","http":{"baseUrl":"http://localhost:3000","tokenProvisioning":{"strategy":""}}}"#,
+    )
+    .is_err());
+    // Unknown provisioning strategies pass validation; the host just
+    // offers no provisioning button for them.
+    assert!(PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"ok","name":"Ok","version":"1.0.0","runtime":"declarative","http":{"baseUrl":"http://localhost:3000","tokenProvisioning":{"strategy":"future-v2"}}}"#,
+    )
+    .is_ok());
     // Template without workflow nodes.
     assert!(validate_plugin_template(&serde_json::json!({
         "id": "empty",

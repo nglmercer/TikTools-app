@@ -371,6 +371,13 @@ impl AppCore {
             PageMessage::TestPluginConnection { id } => {
                 self.probe_plugin_connection(&id).await;
             }
+            PageMessage::ProvisionPluginToken {
+                id,
+                username,
+                password,
+            } => {
+                self.provision_plugin_token(id, username, password).await;
+            }
             PageMessage::GetPluginSettings { id } => {
                 self.emit_plugin_settings(&id);
             }

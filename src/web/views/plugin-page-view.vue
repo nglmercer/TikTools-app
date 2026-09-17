@@ -36,6 +36,7 @@ import type {
 } from '../../shared/messages.ts';
 import type { PluginSettingsState } from '../types.ts';
 import { SchemaForm } from '../components/ui/SchemaForm.vue';
+import { ProvisionTokenModal } from '../components/ProvisionTokenModal.vue';
 import { TtsSettingsPanel } from '../components/tts/TtsSettingsPanel.vue';
 import { i18nText, t, type Locale } from '../i18n.ts';
 import type { TtsLogEntry, TtsSettings } from '../tts/tts-policy.ts';
@@ -58,6 +59,9 @@ type PluginPageViewProps = {
   ttsLogs?: TtsLogEntry[];
   onTtsSettingsChange?: (pluginId: string, next: TtsSettings) => void;
   onTtsSpeak?: (pluginId: string, actionType: string, text: string, voice: string) => void;
+  supportsProvisioning?: boolean;
+  provisionState?: { working: boolean; ok: boolean; message: string };
+  onProvisionToken?: (id: string, username: string, password: string) => void;
 };
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -85,11 +89,12 @@ function toSettingValues(value: JsonObject): PluginSettingValues {
  * manifest-declared speech action and voice source.
  */
 export const PluginPageView = defineVueComponent<PluginPageViewProps>(
-  ['locale', 'page', 'pluginName', 'settingsState', 'connection', 'actionOptions', 'actionOptionErrors', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onTestConnection', 'onOpenMediaPicker', 'ttsSettings', 'ttsSpeaking', 'ttsLogs', 'onTtsSettingsChange', 'onTtsSpeak'],
+  ['locale', 'page', 'pluginName', 'settingsState', 'connection', 'actionOptions', 'actionOptionErrors', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onTestConnection', 'onOpenMediaPicker', 'ttsSettings', 'ttsSpeaking', 'ttsLogs', 'onTtsSettingsChange', 'onTtsSpeak', 'supportsProvisioning', 'provisionState', 'onProvisionToken'],
   (props) => {
   const draft = ref<JsonObject | null>(null);
   const editing = ref(false);
   const testing = ref(false);
+  const showProvision = ref(false);
   const saveState = ref<SaveState>('idle');
   const lastSeenProbe = ref(0);
   const lastSent = ref<PluginSettingValues | null>(null);
@@ -262,6 +267,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
     draft.value = null;
     editing.value = false;
     testing.value = false;
+    showProvision.value = false;
     saveState.value = 'idle';
     lastSent.value = null;
     lastSentJson.value = null;
@@ -356,6 +362,45 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
     );
   };
 
+  /**
+   * One-click API token provisioning entry point, rendered only when the
+   * manifest declares a supported strategy. The admin login lives in its
+   * own modal so operator credentials are never confused with the plugin
+   * settings around them; progress and outcome come from controller state.
+   */
+  const renderProvision = () => {
+    const provision = props.onProvisionToken;
+    if (!props.supportsProvisioning || !provision) return null;
+    const pluginId = props.page.pluginId;
+    const state = props.provisionState;
+    const result = state && !state.working && state.message
+      ? { ok: state.ok, message: state.message }
+      : undefined;
+    return (
+      <>
+        <div class="plg-connect__actions">
+          <button
+            type="button"
+            class="plg-btn plg-btn--sm"
+            onClick={() => { showProvision.value = true; }}
+          >
+            Get API token…
+          </button>
+        </div>
+        {showProvision.value && (
+          <ProvisionTokenModal
+            locale={props.locale}
+            pluginName={props.pluginName}
+            working={state?.working ?? false}
+            result={result}
+            onSubmit={(username, password) => provision(pluginId, username, password)}
+            onClose={() => { showProvision.value = false; }}
+          />
+        )}
+      </>
+    );
+  };
+
   const renderConnectionCard = (index: number) => {
     const locale = props.locale;
     const state = props.settingsState;
@@ -397,6 +442,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
                 {t(locale, 'pluginEditSettings')}
               </button>
             </div>
+            {renderProvision()}
           </div>
         </section>
       );
@@ -462,6 +508,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
               ? t(locale, 'pluginLocalTrustedNote')
               : t(locale, 'pluginConnectionHint')}
           </p>
+          {renderProvision()}
         </div>
       </section>
     );

@@ -8,6 +8,7 @@ mod media;
 pub(crate) mod option_sources;
 mod points;
 mod script;
+pub(crate) mod token_provision;
 
 pub use app_state::AppStateService;
 pub(crate) use automation::read_event_path;

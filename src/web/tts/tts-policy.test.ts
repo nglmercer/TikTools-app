@@ -5,6 +5,7 @@ import {
   chooseVoice,
   decideTts,
   defaultTtsSettings,
+  firstAvailableVoice,
   evaluateCommentFilter,
   evaluateUserEligibility,
   normalizeHandle,
@@ -173,6 +174,16 @@ describe('chooseVoice', () => {
     expect(chooseVoice(on, '  ', ['A', 'B'], () => 0.99)).toBe('B');
     expect(chooseVoice(settings({ defaultVoice: 'D1' }), '', ['A'])).toBe('D1');
     expect(chooseVoice(settings({ defaultVoice: 'D1', randomVoice: true }), '', [])).toBe('D1');
+  });
+
+  test('falls back to the first available voice instead of empty', () => {
+    // Present-but-empty voice params 400 on servers whose default only
+    // applies when the param is absent, so '' must never win while voices
+    // are known.
+    expect(chooseVoice(settings({ defaultVoice: '' }), '', ['M1', 'F1'])).toBe('M1');
+    expect(chooseVoice(settings({ defaultVoice: '  ' }), '', ['  ', 'F1'])).toBe('F1');
+    expect(firstAvailableVoice(['  ', 'F2'])).toBe('F2');
+    expect(chooseVoice(settings({ defaultVoice: '' }), '', [])).toBe('');
   });
 });
 

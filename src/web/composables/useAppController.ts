@@ -23,6 +23,7 @@ import {
 import {
   decideTts,
   defaultTtsSettings,
+  firstAvailableVoice,
   normalizeHandle,
   parseTtsSettings,
   sanitizeTtsSettings,
@@ -146,6 +147,7 @@ export function useAppController() {
   const actionOptions = ref<Record<string, ActionOptionItem[]>>({});
   const actionOptionErrors = ref<Record<string, string>>({});
   const pluginConnections = ref<Record<string, PluginConnectionState>>({});
+  const pluginProvision = ref<Record<string, { working: boolean; ok: boolean; message: string }>>({});
   const pluginInstallState = ref<PluginInstallState>({ ...initialPluginInstallState });
   const pluginProgress = ref<Extract<HostMessage, { type: 'plugin-progress' }> | null>(null);
   // Host-owned TTS state, one entry per plugin id. Settings persist through
@@ -500,6 +502,23 @@ export function useAppController() {
       };
     }
 
+    if (message.type === 'plugin-provision-result') {
+      pluginProvision.value = {
+        ...pluginProvision.value,
+        [message.id]: {
+          working: false,
+          ok: message.ok,
+          message: message.ok ? 'API token saved.' : (message.error ?? 'Provisioning failed.'),
+        },
+      };
+      if (message.ok) {
+        // The save path already refreshes the settings echo; re-probe so the
+        // connection summary reflects the newly stored token.
+        send({ type: 'get-plugin-settings', id: message.id });
+        send({ type: 'test-plugin-connection', id: message.id });
+      }
+    }
+
     if (message.type === 'plugin-install-result') {
       // The behavior snapshot emitted by the backend refreshes the list.
       pluginInstallState.value = applyPluginInstallResult(
@@ -639,6 +658,10 @@ export function useAppController() {
   };
   const handleGetActionOptions = (source: string): void => send({ type: 'get-action-options', source });
   const handleTestPluginConnection = (id: string): void => send({ type: 'test-plugin-connection', id });
+  const handleProvisionPluginToken = (id: string, username: string, password: string): void => {
+    pluginProvision.value = { ...pluginProvision.value, [id]: { working: true, ok: false, message: '' } };
+    send({ type: 'provision-plugin-token', id, username, password });
+  };
   const handleTtsSettingsChange = (pluginId: string, next: TtsSettings): void => {
     const clean = sanitizeTtsSettings(next);
     ttsDirty.add(pluginId);
@@ -649,7 +672,14 @@ export function useAppController() {
     const settings = ttsSettingsFor(pluginId);
     const clean = text.trim().slice(0, 4_096);
     if (!clean) return;
-    queueTtsSpeak(pluginId, actionType, 'tester', clean, voice.trim(), settings.language, true);
+    // Same trailing fallback as automatic TTS: never send an empty voice
+    // while a voice list is known (servers 400 on present-but-empty params).
+    const section = ttsSections.value.find((entry) => entry.pluginId === pluginId);
+    const availableVoices = section
+      ? (actionOptions.value[section.voicesSource] ?? []).map((option) => option.value)
+      : [];
+    const resolvedVoice = voice.trim() || settings.defaultVoice.trim() || firstAvailableVoice(availableVoices);
+    queueTtsSpeak(pluginId, actionType, 'tester', clean, resolvedVoice, settings.language, true);
   };
   const ttsSettingsOrDefault = (pluginId: string): TtsSettings => ttsSettingsFor(pluginId);
 
@@ -810,6 +840,8 @@ export function useAppController() {
     handleTestProcessor,
     handleGetActionOptions,
     handleTestPluginConnection,
+    pluginProvision,
+    handleProvisionPluginToken,
     ttsSettings,
     ttsSpeaking,
     ttsLogs,
