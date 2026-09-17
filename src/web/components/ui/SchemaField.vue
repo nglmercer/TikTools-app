@@ -24,10 +24,62 @@ import type { Locale } from '../../i18n.ts';
 import type { JsonObject, JsonValue } from '../../../automation/types.ts';
 import { isSecretField } from '../../../automation/plugins/declarative.ts';
 import type { OpenMediaPicker } from '../../../shared/messages.ts';
+import { defineVueComponent } from '../../vue/component.ts';
 import { localized, toDisplayValue, resolveSelectDisplayValue, formatJson, type FieldOption } from './schema-form-helpers.ts';
 import { KeyValueEditor } from './KeyValueEditor.vue';
 
-export function SchemaField({ locale, name, schema, hint, value, onChange, templateSuggestions, fieldOptions, error, onOpenMediaPicker }: {
+export type SchemaFieldProps = {
+  locale: Locale;
+  name: string;
+  schema: JsonObject;
+  hint?: JsonObject;
+  value: JsonValue | undefined;
+  onChange: (value: JsonValue) => void;
+  templateSuggestions: AutocompleteItem[];
+  fieldOptions?: FieldOption[];
+  error?: string;
+  onOpenMediaPicker?: OpenMediaPicker;
+};
+
+/**
+ * Declared component (not a plain render function): props are registered at
+ * runtime and `inheritAttrs` is disabled, so a listener-looking `onChange`
+ * prop can never fall through onto the rendered native tree and a bubbled
+ * DOM `change` Event can never overwrite settings state.
+ */
+export const SchemaField = defineVueComponent<SchemaFieldProps>(
+  ['locale', 'name', 'schema', 'hint', 'value', 'onChange', 'templateSuggestions', 'fieldOptions', 'error', 'onOpenMediaPicker'],
+  (props) => {
+    return () => {
+      const {
+        locale,
+        name,
+        schema,
+        hint,
+        value,
+        onChange,
+        templateSuggestions,
+        fieldOptions,
+        error,
+        onOpenMediaPicker,
+      } = props;
+      return renderSchemaField({
+        locale,
+        name,
+        schema,
+        hint,
+        value,
+        onChange,
+        templateSuggestions,
+        fieldOptions,
+        error,
+        onOpenMediaPicker,
+      });
+    };
+  },
+);
+
+function renderSchemaField({ locale, name, schema, hint, value, onChange, templateSuggestions, fieldOptions, error, onOpenMediaPicker }: {
   locale: Locale;
   name: string;
   schema: JsonObject;
@@ -283,19 +335,16 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
           hint: entry.hint,
           icon: entry.icon ? <Icon name={entry.icon} size={14} /> : undefined,
         }));
-    return (
-      <SelectField
-        name={name}
-        label={label}
-        hintText={hintText}
-        template={template}
-        value={effectiveValue}
-        options={options as SelectOption[]}
-        iconOptions={iconOptions}
-        error={error}
-        onChange={onChange}
-      />
-    );
+    return renderSelectField({
+      name,
+      label,
+      hintText,
+      value: effectiveValue,
+      options: options as SelectOption[],
+      iconOptions,
+      error,
+      onValueChange: onChange,
+    });
   }
 
   if (kind === 'textarea' || kind === 'code' || schema.type === 'array' || schema.format === 'json') {
@@ -447,8 +496,19 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
     </div>
   );
 }
-/** Select with floating label + tooltips on every option (`title`). Choices with icons use IconSelect. */
-function SelectField({
+/** Select with floating label + tooltips on every option (`title`). Choices with icons use IconSelect. Called directly (not rendered as a component vnode), so Vue can never perform listener fallthrough on the callback. */
+type SelectRenderArgs = {
+  name: string;
+  label: string;
+  hintText: string;
+  value: string;
+  options: SelectOption[];
+  iconOptions?: IconSelectOption[];
+  error?: string;
+  onValueChange: (value: JsonValue) => void;
+};
+
+function renderSelectField({
   name,
   label,
   hintText,
@@ -456,18 +516,8 @@ function SelectField({
   options,
   iconOptions,
   error,
-  onChange,
-}: {
-  name: string;
-  label: string;
-  hintText: string;
-  template?: boolean;
-  value: string;
-  options: SelectOption[];
-  iconOptions?: IconSelectOption[];
-  error?: string;
-  onChange: (value: JsonValue) => void;
-}) {
+  onValueChange,
+}: SelectRenderArgs) {
   if (iconOptions) {
     return (
       <div class="plg-field">
@@ -479,7 +529,7 @@ function SelectField({
           ariaLabel={label}
           value={value}
           options={iconOptions}
-          onChange={(next) => onChange(next)}
+          onChange={(next) => onValueChange(next)}
           invalid={Boolean(error)}
         />
         {error ? <span class="field-message field-message--error">{error}</span> : null}
@@ -495,7 +545,7 @@ function SelectField({
         value={value}
         options={options}
         error={error}
-        onValueChange={(next) => onChange(next)}
+        onValueChange={(next) => onValueChange(next)}
       />
     </div>
   );

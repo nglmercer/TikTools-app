@@ -105,6 +105,28 @@ export function toDisplayValue(value: JsonValue | undefined, type: JsonValue | u
   return type === 'object' || type === 'array' ? formatJson(value) : JSON.stringify(value);
 }
 
+/**
+ * Schema-aware gate for values entering settings state. A DOM Event is not a
+ * valid JsonValue, yet a bubbled/fallthrough listener can deliver one at
+ * runtime despite the types. Reject by declared scalar type so event objects
+ * (or any mistyped payload) can never be stored — and later serialized into
+ * controls — instead of a real setting. Never logs the value: schema fields
+ * can contain secrets.
+ */
+export function acceptSchemaFieldValue(field: JsonObject, next: unknown): next is JsonValue {
+  switch (field.type) {
+    case 'string':
+      return typeof next === 'string';
+    case 'boolean':
+      return typeof next === 'boolean';
+    case 'number':
+    case 'integer':
+      return typeof next === 'number';
+    default:
+      return true;
+  }
+}
+
 export function formatJson(value: JsonValue | undefined): string {
   if (value === undefined) return '';
   try { return JSON.stringify(value, null, 2) ?? ''; } catch { return ''; }

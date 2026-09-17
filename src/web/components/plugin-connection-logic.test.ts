@@ -21,7 +21,7 @@ import {
   SUMMARY_ROW_LIMIT,
   withSchemaDefaults,
 } from './plugin-connection-logic.ts';
-import { resolveSelectDisplayValue } from './ui/schema-form-helpers.ts';
+import { acceptSchemaFieldValue, resolveSelectDisplayValue } from './ui/schema-form-helpers.ts';
 
 test('autosave waits out typing but confirms quickly', () => {
   expect(AUTOSAVE_DEBOUNCE_MS).toBeGreaterThanOrEqual(600);
@@ -410,4 +410,32 @@ test('select focusout sources skip the immediate autosave flush', () => {
   expect(isSelectFocusSource(asTarget('BUTTON'))).toBe(false);
   expect(isSelectFocusSource(null)).toBe(false);
   expect(isSelectFocusSource(undefined)).toBe(false);
+});
+
+test('schema form boundary never stores DOM events as settings', () => {
+  // Shape of a bubbled Vue DOM Event: serializing it produced
+  // {"isTrusted":true,"_vts":...} in defaultLanguage.
+  const fakeVueEvent = { isTrusted: true, _vts: Date.now() };
+  const stringField: JsonObject = { type: 'string', default: 'en', enum: ['en', 'es'] };
+
+  expect(acceptSchemaFieldValue(stringField, fakeVueEvent)).toBe(false);
+  expect(acceptSchemaFieldValue(stringField, 'es')).toBe(true);
+  expect(acceptSchemaFieldValue({ type: 'boolean' }, true)).toBe(true);
+  expect(acceptSchemaFieldValue({ type: 'boolean' }, 'es')).toBe(false);
+  expect(acceptSchemaFieldValue({ type: 'number' }, 3)).toBe(true);
+  expect(acceptSchemaFieldValue({ type: 'number' }, '3')).toBe(false);
+  expect(acceptSchemaFieldValue({ type: 'integer' }, 3)).toBe(true);
+
+  // The SchemaForm.update gate: correct commits land, events are dropped.
+  let values: Record<string, unknown> = { defaultLanguage: 'en' };
+  const update = (key: string, field: JsonObject, next: unknown): void => {
+    if (!acceptSchemaFieldValue(field, next)) return;
+    values = { ...values, [key]: next };
+  };
+  update('defaultLanguage', stringField, 'es');
+  expect(values.defaultLanguage).toBe('es');
+  expect(typeof values.defaultLanguage).toBe('string');
+  update('defaultLanguage', stringField, fakeVueEvent);
+  expect(values.defaultLanguage).toBe('es');
+  expect(typeof values.defaultLanguage).toBe('string');
 });

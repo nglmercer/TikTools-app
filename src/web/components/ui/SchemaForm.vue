@@ -11,6 +11,7 @@ import type { OpenMediaPicker } from '../../../shared/messages.ts';
 import { SchemaField } from './SchemaField.vue';
 import {
   applies,
+  acceptSchemaFieldValue,
   formSchemaFromJsonSchema,
   objectProperties,
   resolveAutocompleteSources,
@@ -84,7 +85,15 @@ export const SchemaForm = defineVueComponent<SchemaFormProps>(
   const visible = Object.entries(properties.value).filter(([key]) => applies(hints[key]?.showIf, props.value));
   const basic = visible.filter(([key]) => hints[key]?.advanced !== true);
   const advanced = visible.filter(([key]) => hints[key]?.advanced === true);
-  const update = (key: string, next: JsonValue): void => props.onChange({ ...props.value, [key]: next });
+  // Schema-aware gate: a bubbled DOM Event must never enter settings state.
+  // Reject by declared scalar type (never log `next`: fields can be secret).
+  const update = (key: string, field: JsonObject, next: JsonValue): void => {
+    if (!acceptSchemaFieldValue(field, next)) {
+      console.warn(`[SchemaForm] rejected non-${String(field.type)} value for "${key}"`);
+      return;
+    }
+    props.onChange({ ...props.value, [key]: next });
+  };
 
   const suggestionsFor = resolveAutocompleteSources({
     locale: props.locale,
@@ -105,7 +114,7 @@ export const SchemaForm = defineVueComponent<SchemaFormProps>(
           schema={field}
           hint={hints[key]}
           value={props.value[key]}
-          onChange={(next) => update(key, next)}
+          onChange={(next) => update(key, field, next)}
           templateSuggestions={suggestionsFor(key, (hints[key]?.template as boolean) === true)}
           fieldOptions={fieldOptions[key]}
           error={fieldErrors[key]}
@@ -126,7 +135,7 @@ export const SchemaForm = defineVueComponent<SchemaFormProps>(
               schema={field}
               hint={hints[key]}
               value={props.value[key]}
-              onChange={(next) => update(key, next)}
+              onChange={(next) => update(key, field, next)}
               templateSuggestions={suggestionsFor(key, (hints[key]?.template as boolean) === true)}
               fieldOptions={fieldOptions[key]}
               error={fieldErrors[key]}
