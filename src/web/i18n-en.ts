@@ -64,6 +64,11 @@ export const english = {
   dialogClose: 'Close',
   dialogPromptLabel: 'Value',
   dialogRequired: 'This field is required.',
+  showPassword: 'Show',
+  hidePassword: 'Hide',
+  clearField: 'Clear',
+  increaseValue: 'Increase value',
+  decreaseValue: 'Decrease value',
   hotkeyStatusTitle: 'Global Hotkeys',
   hotkeyRawInputHint: 'This trigger needs raw keyboard access on Wayland. TikTools will request it automatically through the system authorization dialog.',
 
@@ -316,6 +321,10 @@ export const english = {
   addHeaderTooltip: 'Add another header',
   advancedHttpHint: 'Headers, timeout, response event and local network. Not needed for a plain webhook.',
   autocompleteNavigateInsert: 'Tab ↵ to insert · ↑ ↓ to navigate',
+  autocompleteQuickDestinations: 'Quick destinations',
+  autocompleteGroupUser: 'User',
+  autocompleteGroupMessage: 'Message',
+  autocompleteGroupTextIntelligence: 'Text Intelligence',
   nodeNoForm: 'This node has no configurable options.',
   // Node editor field labels (replaces formLabels() ternaries)
   nodeEventType: 'Trigger event',

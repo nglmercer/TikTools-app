@@ -1,10 +1,11 @@
 <script lang="tsx">
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import type { VNodeChild } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
-import { InfoTip } from './InfoTip.vue';
-import { IconClose, IconSearch } from '../icons/index.ts';
-import { dispatchControlEvent, normalizeControlString, syncNativeControlValue } from './control-events.ts';
+import type { Locale } from '../../i18n.ts';
+import { normalizeControlString } from './control-events.ts';
+import { SearchField, TextField, type SearchFieldHandle, type TextFieldHandle } from './fields/index.ts';
+import type { FieldSize } from './fields/field-logic.ts';
 
 export type TextInputHandle = {
   getValue: () => string;
@@ -18,7 +19,7 @@ type TextInputProps = {
   value: string;
   onValueChange: (v: string) => void;
   placeholder?: string;
-  /** MUI-style floating label. When set, the label lives inside until focus/filled. */
+  /** Label-above-input. (Previously a floating label; the prop is unchanged.) */
   label?: string;
   /** Tooltip-only explanation (ⓘ). Never rendered as a paragraph. */
   hint?: string;
@@ -42,107 +43,54 @@ type TextInputProps = {
   required?: boolean;
   clearable?: boolean;
   onEnter?: () => void;
+  size?: FieldSize;
+  locale?: Locale;
 };
 
+/**
+ * Compatibility shim over TextField: identical props/handles, shared shell.
+ * `label` now renders label-above-input (floating mode removed per spec).
+ */
 export const TextInput = defineVueComponent<TextInputProps>(
-  ['value', 'onValueChange', 'placeholder', 'label', 'hint', 'template', 'templateHint', 'prefix', 'suffix', 'leadingIcon', 'trailingIcon', 'className', 'disabled', 'readonly', 'error', 'id', 'name', 'type', 'autoComplete', 'spellCheck', 'required', 'clearable', 'onEnter'],
+  ['value', 'onValueChange', 'placeholder', 'label', 'hint', 'template', 'templateHint', 'prefix', 'suffix', 'leadingIcon', 'trailingIcon', 'className', 'disabled', 'readonly', 'error', 'id', 'name', 'type', 'autoComplete', 'spellCheck', 'required', 'clearable', 'onEnter', 'size', 'locale'],
   (props, context) => {
-  const innerRef = ref<HTMLInputElement | null>(null);
-  const commitProgrammaticValue = (value: string): void => {
-    const control = innerRef.value;
-    if (control) {
-      syncNativeControlValue(control, value);
-      dispatchControlEvent(control);
-    }
-    props.onValueChange(value);
-  };
-  context.expose({
-    getValue: () => innerRef.value?.value ?? normalizeControlString(props.value),
-    setValue: commitProgrammaticValue,
-    focus: () => innerRef.value?.focus(),
-    clear: () => commitProgrammaticValue(''),
-    validate: () => !(props.required && !normalizeControlString(props.value).trim()),
-  });
+    const fieldRef = ref<TextFieldHandle | null>(null);
+    context.expose({
+      getValue: () => fieldRef.value?.getValue() ?? normalizeControlString(props.value),
+      setValue: (value: string) => fieldRef.value?.setValue(value),
+      focus: () => fieldRef.value?.focus(),
+      clear: () => fieldRef.value?.clear(),
+      validate: () => fieldRef.value?.validate() ?? !(props.required && !normalizeControlString(props.value).trim()),
+    } satisfies TextInputHandle);
 
-  watch(() => props.value, (value) => {
-    if (innerRef.value) syncNativeControlValue(innerRef.value, value);
-  });
-
-  const handleInput = (e: Event) => props.onValueChange((e.currentTarget as HTMLInputElement).value);
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && props.onEnter) props.onEnter();
-  };
-
-  return () => {
-    const { placeholder, label, hint, prefix, suffix, leadingIcon, trailingIcon, className = '', disabled, readonly, error, id, name, type = 'text', autoComplete = 'off', spellCheck = false, required, clearable } = props;
-    const value = normalizeControlString(props.value);
-    if (label) {
-      const filled = value.trim().length > 0 || type === 'password' && value.length > 0;
-      return (
-      <div class={`ui-float ${filled ? 'is-filled' : ''} ${error ? 'has-error' : ''} ${disabled ? 'is-disabled' : ''} ${className}`}>
-        <div class={`ui-float__control${leadingIcon ? ' has-leading-icon' : ''}${trailingIcon ? ' has-trailing-icon' : ''}`}>
-          {prefix ? <span class="ui-float__prefix">{prefix}</span> : null}
-          {leadingIcon ? <span class="ui-float__leading" aria-hidden="true">{leadingIcon}</span> : null}
-          <input
-            ref={innerRef}
-            id={id}
-            name={name}
-            type={type}
-            value={value}
-            placeholder=" "
-            disabled={disabled} readonly={readonly}
-            autocomplete={autoComplete}
-            spellcheck={spellCheck}
-            required={required}
-            aria-invalid={Boolean(error)}
-            aria-label={label}
-            onInput={handleInput}
-            onKeydown={handleKeyDown}
-          />
-          <label class="ui-float__label" for={id}>
-            {label}{required ? ' *' : ''}
-            {hint ? <InfoTip text={hint} position="right" /> : null}
-          </label>
-          {clearable && value ? (
-            <button type="button" class="ui-float__clear" style={{ right: suffix || trailingIcon ? 44 : 8 }} onClick={() => commitProgrammaticValue('')} aria-label="Clear"><IconClose size={10} /></button>
-          ) : null}
-          {trailingIcon ? <span class="ui-float__trailing" aria-hidden="true">{trailingIcon}</span> : null}
-          {suffix ? <span class="ui-float__suffix">{suffix}</span> : null}
-        </div>
-        {error ? <span class="ui-float__error">{error}</span> : null}
-      </div>
-    );
-    }
-
-    return (
-    <div class={`ui-input ${error ? 'has-error' : ''} ${disabled ? 'is-disabled' : ''} ${prefix ? 'has-prefix' : ''} ${suffix || clearable ? 'has-suffix' : ''} ${leadingIcon ? 'has-leading-icon' : ''} ${trailingIcon ? 'has-trailing-icon' : ''} ${className}`}>
-      {prefix ? <span class="ui-input__prefix">{prefix}</span> : null}
-      {leadingIcon ? <span class="ui-input__leading" aria-hidden="true">{leadingIcon}</span> : null}
-      <input
-        ref={innerRef}
-        id={id}
-        name={name}
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        disabled={disabled} readonly={readonly}
-        autocomplete={autoComplete}
-        spellcheck={spellCheck}
-        required={required}
-        aria-invalid={Boolean(error)}
-        onInput={handleInput}
-        onKeydown={handleKeyDown}
+    return () => (
+      <TextField
+        ref={fieldRef}
+        value={normalizeControlString(props.value)}
+        onValueChange={props.onValueChange}
+        placeholder={props.placeholder}
+        label={props.label}
+        hint={props.hint}
+        prefix={props.prefix}
+        suffix={props.suffix}
+        leading={props.leadingIcon}
+        trailing={props.trailingIcon}
+        className={props.className}
+        disabled={props.disabled}
+        readonly={props.readonly}
+        error={props.error}
+        id={props.id}
+        name={props.name}
+        inputType={props.type ?? 'text'}
+        autoComplete={props.autoComplete}
+        spellCheck={props.spellCheck}
+        required={props.required}
+        clearable={props.clearable}
+        onEnter={props.onEnter}
+        size={props.size}
+        locale={props.locale}
       />
-      {trailingIcon ? <span class="ui-input__trailing" aria-hidden="true">{trailingIcon}</span> : null}
-      {clearable && value ? (
-        <button type="button" class="ui-input__clear" onClick={() => commitProgrammaticValue('')} aria-label="Clear">
-          <IconClose size={10} />
-        </button>
-      ) : null}
-      {suffix ? <span class="ui-input__suffix">{suffix}</span> : null}
-    </div>
     );
-  };
   },
 );
 
@@ -156,35 +104,32 @@ export type SearchInputProps = {
 };
 
 /**
- * Pill-shaped search field. A thin wrapper over TextInput: the magnifier uses
- * the shared leading-icon API and clearing uses the shared clearable control,
- * so there is only one icon/clear implementation to maintain.
+ * Pill-shaped search field over SearchField: the magnifier uses the shared
+ * leading-icon API and clearing uses the shared clearable control, so there
+ * is only one icon/clear implementation to maintain.
  */
 export const SearchInput = defineVueComponent<SearchInputProps>(
   ['value', 'onValueChange', 'placeholder', 'disabled', 'id', 'name'],
   (props, context) => {
-  const inputRef = ref<TextInputHandle | null>(null);
-  context.expose({
-    getValue: () => inputRef.value?.getValue() ?? normalizeControlString(props.value),
-    setValue: (value: string) => inputRef.value?.setValue(value),
-    focus: () => inputRef.value?.focus(),
-    clear: () => inputRef.value?.clear(),
-    validate: () => true,
-  });
-  return () => (
-    <TextInput
-      ref={inputRef}
-      className="ui-search"
-      value={normalizeControlString(props.value)}
-      onValueChange={props.onValueChange}
-      placeholder={props.placeholder}
-      disabled={props.disabled}
-      id={props.id}
-      name={props.name}
-      leadingIcon={<IconSearch size={13} />}
-      clearable
-    />
-  );
+    const fieldRef = ref<SearchFieldHandle | null>(null);
+    context.expose({
+      getValue: () => fieldRef.value?.getValue() ?? normalizeControlString(props.value),
+      setValue: (value: string) => fieldRef.value?.setValue(value),
+      focus: () => fieldRef.value?.focus(),
+      clear: () => fieldRef.value?.clear(),
+      validate: () => true,
+    } satisfies TextInputHandle);
+    return () => (
+      <SearchField
+        ref={fieldRef}
+        value={normalizeControlString(props.value)}
+        onValueChange={props.onValueChange}
+        placeholder={props.placeholder}
+        disabled={props.disabled}
+        id={props.id}
+        name={props.name}
+      />
+    );
   },
 );
 

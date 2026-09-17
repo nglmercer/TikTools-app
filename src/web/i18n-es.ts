@@ -66,6 +66,11 @@ export const spanish: Record<TranslationKey, string> = {
   dialogClose: 'Cerrar',
   dialogPromptLabel: 'Valor',
   dialogRequired: 'Este campo es obligatorio.',
+  showPassword: 'Mostrar',
+  hidePassword: 'Ocultar',
+  clearField: 'Borrar',
+  increaseValue: 'Aumentar valor',
+  decreaseValue: 'Disminuir valor',
   hotkeyStatusTitle: 'Atajos globales',
   hotkeyRawInputHint: 'Este disparador necesita acceso al teclado sin procesar en Wayland. TikTools lo solicitará automáticamente mediante el diálogo de autorización del sistema.',
 
@@ -319,6 +324,10 @@ export const spanish: Record<TranslationKey, string> = {
   addHeaderTooltip: 'Añade una cabecera más',
   advancedHttpHint: 'Headers, timeout, evento de respuesta y red local. No hace falta tocarlo para un webhook normal.',
   autocompleteNavigateInsert: 'Tab ↵ para insertar · ↑ ↓ para navegar',
+  autocompleteQuickDestinations: 'Destinos rápidos',
+  autocompleteGroupUser: 'Usuario',
+  autocompleteGroupMessage: 'Mensaje',
+  autocompleteGroupTextIntelligence: 'Inteligencia de texto',
   nodeNoForm: 'Este nodo no tiene opciones configurables.',
   // Node editor field labels (replaces formLabels() ternaries)
   nodeEventType: 'Evento que activa el flujo',

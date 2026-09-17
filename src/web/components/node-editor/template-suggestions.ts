@@ -6,6 +6,7 @@ import {
   type RegistryField,
 } from '../../../automation/event-registry.ts';
 import { mergeSuggestions, suggestionsFromObject, type AutocompleteItem } from '../autocomplete/index.ts';
+import { applyPresetInsert } from '../autocomplete/autocomplete-controller.ts';
 import type { Locale } from '../../i18n.ts';
 
 export type TemplateSuggestionScope =
@@ -271,14 +272,9 @@ function extractFetchHostname(rawUrl: string): string {
 /**
  * Apply a preset keeping the user's path/query: only the `scheme://host`
  * origin is swapped. With no origin yet (empty field, `https://`), the
- * preset URL is used as-is.
+ * preset URL is used as-is. Delegates to the shared controller insert so
+ * there is exactly one origin-swap implementation.
  */
 export function applyFetchUrlTemplate(current: string, templateUrl: string): string {
-  const origin = /^https?:\/\/[^/?#\s]*/i.exec(templateUrl.trim())?.[0]?.replace(/\/+$/, '') ?? templateUrl.trim();
-  const match = /^https?:\/\/[^/?#\s]*/i.exec(current);
-  if (!match) return templateUrl;
-  const rest = current.slice(match[0].length);
-  if (!rest) return `${origin}/`;
-  if (/^[/?#]/.test(rest)) return `${origin}${rest}`;
-  return `${origin}/${rest}`;
+  return applyPresetInsert(current, templateUrl).value;
 }

@@ -18,11 +18,9 @@
   min-width: 0;
   margin-left: auto;
 }
-.plg-section__tools .plg-input { min-width: 0; }
-.plg-section__tools .ui-search { width: 100%; max-width: 320px; }
+.plg-section__tools > .field--search { width: 100%; min-width: 0; }
 @media (max-width: 720px) {
   .plg-section__tools { grid-template-columns: 1fr; width: 100%; }
-  .plg-section__tools .ui-search { max-width: none; }
 }
 
 .plg-table { display: flex; flex-direction: column; gap: 8px; }
@@ -146,11 +144,6 @@
 }
 .plg-sentence strong { color: var(--plg-text); font-weight: 600; }
 
-.plg-filter { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--plg-line); border-radius: 10px; background: var(--plg-surface); }
-.plg-filter__lead { font-size: 11px; color: var(--plg-dim); }
-.plg-filter__controls { display: flex; flex-wrap: wrap; gap: 8px; }
-.plg-filter__controls .plg-select { flex: 1 1 150px; }
-.plg-filter__controls .plg-input { flex: 1 1 150px; }
 .plg-values { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .plg-value {
   display: inline-flex;
@@ -271,7 +264,7 @@
 /* ---- form density: a minimal form with the explanations behind an icon ----
    MUI-style floating labels: label inside when empty, floats to top on focus/filled. */
 .plg-form__main { max-width: 720px; }
-.plg-form__schema { display: flex; flex-direction: column; gap: 14px; }
+.plg-form__schema { display: flex; flex-direction: column; gap: var(--field-stack-gap); }
 .plg-float { position: relative; display: flex; flex-direction: column; width: 100%; }
 .plg-float__control {
   position: relative; display: flex; align-items: stretch;
@@ -365,7 +358,6 @@
 .plg-details > summary > span:first-child { flex: 1; }
 .plg-details__tip { display: inline-flex; }
 .plg-kv-row__value { flex: 1; min-width: 0; }
-.plg-kv-row__value > .node-editor-template-field { width: 100%; }
 
 .plg-details {
   border: 1px solid var(--plg-line);
@@ -383,7 +375,7 @@
 .plg-details > summary::-webkit-details-marker { display: none; }
 .plg-details > summary::before { content: '▸ '; color: var(--plg-dim); }
 .plg-details[open] > summary::before { content: '▾ '; }
-.plg-details__body { display: flex; flex-direction: column; gap: 14px; padding: 2px 0 14px; }
+.plg-details__body { display: flex; flex-direction: column; gap: var(--field-stack-gap); padding: 2px 0 14px; }
 
 /* ---- step navigation ---- */
 .plg-steps { display: flex; flex-direction: column; gap: 8px; }

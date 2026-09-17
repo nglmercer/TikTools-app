@@ -15,68 +15,32 @@
 .ui-field-row__label { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .ui-field-row__control { flex-shrink:0; }
 
-/* ---- TextInput / Search / Number / Select shared ---- */
-.ui-input, .ui-search, .ui-number, .ui-select {
-  position:relative; display:flex; align-items:center;
-  width:100%; height:38px; border-radius:9px;
-  background:var(--input-bg); border:1px solid var(--line);
-  transition:border-color .15s, box-shadow .15s;
-}
-.ui-input:focus-within, .ui-search:focus-within, .ui-number:focus-within, .ui-select:focus-within {
-  border-color:var(--line-focus); box-shadow:0 0 0 3px rgba(37,244,238,0.13);
-}
-.ui-input.has-error, .ui-search.has-error, .ui-number.has-error, .ui-select.has-error { border-color:rgba(239,71,111,0.45); }
-.ui-input.is-disabled, .ui-number.is-disabled, .ui-select.is-disabled, .ui-search.is-disabled { opacity:0.45; pointer-events:none; }
+/* Text/search/number/select inputs render through the shared field system
+   (fields.css). Only IconSelect below keeps kit-level control styling. */
 
-.ui-input input, .ui-search input, .ui-number input {
-  flex:1; min-width:0; height:100%; border:none; outline:none;
-  background:transparent; color:var(--text); font-size:13px; padding:0 12px;
-}
-.ui-input.has-prefix input { padding-left:26px; }
-.ui-input__prefix { position:absolute; left:11px; color:var(--tt-pink); font-weight:700; font-size:14px; pointer-events:none; }
-.ui-input__suffix, .ui-number__suffix { padding-right:10px; font-size:12px; color:var(--text-muted); white-space:nowrap; }
-.ui-input__clear { position:absolute; right:8px; width:18px; height:18px; border-radius:50%; background:transparent; border:none; color:var(--text-muted); cursor:pointer; }
-.ui-input__leading, .ui-input__trailing { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; flex:0 0 16px; color:var(--text-muted); pointer-events:none; }
-.ui-input.has-leading-icon { padding-left:10px; }
-.ui-input.has-leading-icon input { padding-left:4px; }
-.ui-input.has-trailing-icon { padding-right:10px; }
-.ui-input.has-trailing-icon input { padding-right:4px; }
-.ui-input.has-trailing-icon .ui-input__clear { right:32px; }
-.ui-search { min-width:150px; max-width:360px; height:30px; border-radius:15px; }
-.ui-search input { padding:0 26px 0 26px; font-size:11px; }
-:root[data-theme="light"] .ui-search input { background:transparent; }
-
-/* hide native number spinners — we use custom steppers; fixes duplicated arrows seen in screenshot 1 */
-.ui-number input::-webkit-inner-spin-button,
-.ui-number input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.ui-number input { -moz-appearance: textfield; text-align:right; padding-right:6px; font-weight:600; }
-.ui-number { width:84px; flex-shrink:0; }
-.ui-number--wide { width:160px; }
-.ui-number--wide input { text-align:left; }
-.ui-number__steppers { display:flex; flex-direction:column; border-left:1px solid var(--line); height:100%; }
-.ui-number__steppers button { flex:1; width:18px; background:transparent; border:none; color:var(--text-muted); font-size:7px; cursor:pointer; line-height:1; padding:0; }
-.ui-number__steppers button:hover { color:var(--text); background:rgba(255,255,255,0.05); }
-
-.ui-select select {
-  flex:1; height:100%; border:none; outline:none; background:transparent; color:var(--text); font-size:13px; padding:0 28px 0 12px; appearance:none; cursor:pointer;
-}
-.ui-select__arrow { position:absolute; right:10px; color:var(--text-muted); pointer-events:none; font-size:10px; }
-.ui-select__leading { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; flex:0 0 16px; color:var(--text-muted); pointer-events:none; margin-left:10px; }
-.ui-select.has-leading-icon select { padding-left:4px; }
-
-/* ---- IconSelect: custom listbox for choices with icons (the native one cannot draw them) ---- */
+/* ---- IconSelect: custom listbox for choices with icons (the native one cannot draw them) ----
+   Closed control shares the field tokens so it matches TextField/SelectField. */
 .ui-icon-select { position:relative; min-width:0; }
 .ui-icon-select__control {
   display:flex; align-items:center; justify-content:flex-start; gap:8px;
-  width:100%; height:44px; padding:0 10px;
-  border:1px solid var(--line); border-radius:8px;
-  background:var(--input-bg); color:var(--text);
+  width:100%; height:var(--field-height-md); padding:0 10px; box-sizing:border-box;
+  border:1px solid var(--field-border); border-radius:var(--field-radius);
+  background:var(--field-bg); color:var(--text);
   font-size:13px; font-weight:600; text-align:left; cursor:pointer;
+  transition:border-color .15s, box-shadow .15s;
 }
-.ui-icon-select__control:hover { transform:none; border-color:var(--line-focus); }
+.ui-icon-select--sm .ui-icon-select__control { height:var(--field-height-sm); }
+.ui-icon-select--lg .ui-icon-select__control { height:var(--field-height-lg); }
+.ui-icon-select__control:hover { transform:none; border-color:var(--text-muted); }
 .ui-icon-select__control:active { transform:none; }
-.ui-icon-select__control.is-open { border-color:var(--line-focus); }
-.ui-icon-select__control:focus-visible { outline:2px solid var(--line-focus); outline-offset:1px; }
+.ui-icon-select__control.is-open { border-color:var(--field-border-focus); box-shadow:0 0 0 3px rgba(37,244,238,0.13); }
+.ui-icon-select__control:focus-visible { outline:none; border-color:var(--field-border-focus); box-shadow:0 0 0 3px rgba(37,244,238,0.13); }
+:root[data-theme="light"] .ui-icon-select__control.is-open,
+:root[data-theme="light"] .ui-icon-select__control:focus-visible { box-shadow:0 0 0 3px rgba(14,165,233,0.16); }
+.ui-icon-select.is-invalid .ui-icon-select__control { border-color:rgba(239,71,111,0.45); }
+:root[data-theme="light"] .ui-icon-select.is-invalid .ui-icon-select__control { border-color:rgba(153,27,27,0.5); }
+.ui-icon-select.is-disabled { opacity:0.55; }
+.ui-icon-select.is-disabled .ui-icon-select__control { cursor:not-allowed; }
 .ui-icon-select__icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; flex:none; color:var(--text-secondary); }
 .ui-icon-select__value { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ui-icon-select__caret { flex:none; color:var(--text-muted); }
@@ -103,9 +67,6 @@
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .ui-icon-select__option.is-selected .ui-icon-select__icon { color:var(--tt-pink); }
-@media (min-width: 900px) {
-  .ui-icon-select__control { height:36px; }
-}
 
 /* ---- Checkbox / Switch ---- */
 .ui-check.is-disabled, .ui-switch.is-disabled { opacity:0.45; pointer-events:none; }
@@ -242,66 +203,10 @@
 .ui-stat__value{ font-size:20px; font-weight:800; letter-spacing:-0.02em; }
 .ui-stat__label{ font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; }
 
-/* ---- Floating-label (MUI-style minimalist) ----
-   Label lives INSIDE the control when empty, floats to the top border
-   on focus / filled. Hints live behind ⓘ only — never as paragraphs. */
-.ui-float { position:relative; display:flex; flex-direction:column; width:100%; }
-.ui-float__control {
-  position:relative; display:flex; align-items:stretch;
-  width:100%; min-height:48px; border-radius:9px;
-  background:var(--input-bg); border:1px solid var(--line);
-  transition:border-color .15s, box-shadow .15s;
-}
-.ui-float__control:focus-within { border-color:var(--line-focus); box-shadow:0 0 0 3px rgba(37,244,238,0.13); }
-.ui-float.has-error .ui-float__control { border-color:rgba(239,71,111,0.45); }
-.ui-float.is-disabled { opacity:0.45; pointer-events:none; }
-.ui-float__control input, .ui-float__control select, .ui-float__control textarea {
-  flex:1; min-width:0; border:none; outline:none; background:transparent;
-  color:var(--text); font-size:13px; padding:20px 12px 6px;
-}
-.ui-float__control textarea { padding-top:22px; min-height:88px; resize:vertical; line-height:1.5; }
-.ui-float__control select { padding-right:28px; appearance:none; cursor:pointer; height:48px; }
-.ui-float__label {
-  position:absolute; left:10px; top:50%; transform:translateY(-50%);
-  display:inline-flex; align-items:center; gap:4px; max-width:calc(100% - 20px);
-  font-size:13px; font-weight:400; color:var(--text-muted);
-  pointer-events:none; transition:all .15s ease; white-space:nowrap;
-  overflow:hidden; text-overflow:ellipsis;
-}
-.ui-float__control--textarea .ui-float__label { top:24px; }
-.ui-float__control:focus-within .ui-float__label,
-.ui-float.is-filled .ui-float__label {
-  top:0; transform:translateY(-50%) scale(0.82); transform-origin:left top;
-  background:var(--panel-elevated, var(--panel-solid, var(--input-bg)));
-  padding:0 5px; border-radius:4px; color:var(--text-secondary); font-weight:600;
-  pointer-events:auto; max-width:calc(100% - 8px);
-}
-.ui-float__control:focus-within .ui-float__label { color:var(--tt-cyan); }
-.ui-float__label .ui-infotip { pointer-events:auto; width:14px; height:14px; }
-.ui-float__badge {
-  align-self:center; margin-right:8px; padding:1px 6px; border-radius:5px;
-  border:1px solid rgba(37,244,238,0.35); background:rgba(37,244,238,0.08);
-  color:var(--tt-cyan); font-family:ui-monospace,monospace; font-size:10px; font-weight:700;
-  cursor:help; flex-shrink:0;
-}
-.ui-float__prefix { align-self:center; padding-left:12px; color:var(--tt-pink); font-weight:700; font-size:14px; }
-.ui-float__control:has(.ui-float__prefix) input { padding-left:6px; }
-.ui-float__control:has(.ui-float__prefix) .ui-float__label { left:30px; }
-.ui-float__suffix { align-self:center; padding-right:10px; font-size:12px; color:var(--text-muted); white-space:nowrap; }
-.ui-float__leading, .ui-float__trailing { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; flex:0 0 16px; align-self:center; color:var(--text-muted); pointer-events:none; }
-.ui-float__control.has-leading-icon { padding-left:10px; }
-.ui-float__control.has-leading-icon input, .ui-float__control.has-leading-icon select { padding-left:4px; }
-.ui-float__control.has-leading-icon .ui-float__label { left:30px; }
-.ui-float__control.has-trailing-icon { padding-right:10px; }
-.ui-float__clear { position:absolute; right:8px; top:50%; transform:translateY(-50%); width:18px; height:18px; border-radius:50%; background:transparent; border:none; color:var(--text-muted); cursor:pointer; }
-.ui-float__arrow { position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--text-muted); pointer-events:none; font-size:10px; }
-.ui-float__error { font-size:11px; color:var(--tt-danger); font-weight:600; margin-top:4px; }
-.ui-float__tokens { font-size:11px; color:var(--text-muted); margin-top:4px; display:flex; justify-content:space-between; gap:8px; }
-
 /* ---- Native media reference field ---- */
 .ui-media-field { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:start; }
 .ui-media-field__input { min-width:0; }
-.ui-media-field__browse { align-self:start; min-height:38px; margin-top:5px; white-space:nowrap; }
+.ui-media-field__browse { align-self:start; min-height:var(--field-height-md); margin-top:24px; white-space:nowrap; }
 .ui-media-field__error { grid-column:1 / -1; color:var(--tt-danger); font-size:11px; line-height:1.4; }
 @media (max-width:640px) {
   .ui-media-field { grid-template-columns:minmax(0,1fr); }
@@ -316,8 +221,6 @@
   .ui-card__body { gap:8px; }
   .ui-field-row { flex-direction:column; align-items:stretch; gap:8px; }
   .ui-field-row__control { width:100%; }
-  .ui-field-row__control .ui-number { width:100%; }
-  .ui-number { width:100%; }
   .ui-table { font-size:11px; min-width:520px; }
   .ui-table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:8px; }
   .ui-pagination { flex-direction:column; align-items:stretch; gap:8px; }
@@ -326,7 +229,6 @@
   .ui-stat { padding:10px; gap:8px; }
   .ui-stat__icon { width:32px; height:32px; }
   .ui-stat__value { font-size:16px; }
-  .ui-search { max-width:none; width:100%; }
   .ui-split { grid-template-columns:1fr; }
 }
 
@@ -412,22 +314,14 @@
 .ui-color__hex { flex:1; height:38px; border-radius:9px; border:1px solid var(--line); background:var(--input-bg); color:var(--text); font-size:13px; padding:0 12px; font-family:ui-monospace,monospace; }
 .ui-color__swatch { width:20px; height:20px; border-radius:6px; border:1px solid var(--line); }
 
-/* ---- Combobox / multi-select ---- */
-.ui-combobox, .ui-multi-select { position:relative; width:100%; }
-.ui-combobox__control { position:relative; display:flex; align-items:center; width:100%; min-height:38px; border-radius:9px; background:var(--input-bg); border:1px solid var(--line); }
-.ui-combobox:focus-within .ui-combobox__control, .ui-combobox.is-open .ui-combobox__control { border-color:var(--line-focus); box-shadow:0 0 0 3px rgba(37,244,238,0.13); }
-.ui-combobox.has-error .ui-combobox__control { border-color:rgba(239,71,111,0.45); }
-.ui-combobox.is-disabled { opacity:0.45; pointer-events:none; }
-.ui-combobox__control input { flex:1; min-width:0; border:none; outline:none; background:transparent; color:var(--text); font-size:13px; padding:0 12px; height:38px; }
-.ui-combobox__clear, .ui-combobox__arrow { border:none; background:transparent; color:var(--text-muted); cursor:pointer; padding:0 8px; font-size:12px; }
-.ui-combobox__clear:hover, .ui-combobox__arrow:hover { color:var(--text); }
-.ui-combobox__list, .ui-multi-select__list { list-style:none; margin:6px 0 0; padding:4px; border-radius:10px; background:var(--panel-elevated); border:1px solid var(--line); box-shadow:0 12px 32px rgba(0,0,0,0.35); max-height:220px; overflow:auto; z-index:var(--z-dropdown); }
-.ui-combobox__list { position:absolute; left:0; right:0; top:100%; }
-.ui-combobox__option, .ui-multi-select__option { padding:8px 10px; border-radius:7px; font-size:12.5px; color:var(--text); cursor:pointer; display:flex; align-items:center; gap:8px; }
-.ui-combobox__option.is-active, .ui-multi-select__option.is-active { background:rgba(37,244,238,0.1); }
-.ui-combobox__option.is-selected, .ui-multi-select__option.is-selected { color:var(--tt-pink); font-weight:700; }
-.ui-combobox__option.is-disabled, .ui-multi-select__option.is-disabled { opacity:0.45; cursor:not-allowed; }
-.ui-combobox__empty, .ui-multi-select__empty { padding:10px; font-size:12px; color:var(--text-muted); }
+/* ---- Multi-select ---- */
+.ui-multi-select { position:relative; width:100%; }
+.ui-multi-select__list { list-style:none; margin:6px 0 0; padding:4px; border-radius:10px; background:var(--panel-elevated); border:1px solid var(--line); box-shadow:0 12px 32px rgba(0,0,0,0.35); max-height:220px; overflow:auto; z-index:var(--z-dropdown); }
+.ui-multi-select__option { padding:8px 10px; border-radius:7px; font-size:12.5px; color:var(--text); cursor:pointer; display:flex; align-items:center; gap:8px; }
+.ui-multi-select__option.is-active { background:rgba(37,244,238,0.1); }
+.ui-multi-select__option.is-selected { color:var(--tt-pink); font-weight:700; }
+.ui-multi-select__option.is-disabled { opacity:0.45; cursor:not-allowed; }
+.ui-multi-select__empty { padding:10px; font-size:12px; color:var(--text-muted); }
 .ui-multi-select__control { display:flex; align-items:center; gap:8px; width:100%; min-height:38px; border-radius:9px; background:var(--input-bg); border:1px solid var(--line); padding:4px 8px; cursor:pointer; }
 .ui-multi-select.is-open .ui-multi-select__control { border-color:var(--line-focus); box-shadow:0 0 0 3px rgba(37,244,238,0.13); }
 .ui-multi-select.has-error .ui-multi-select__control { border-color:rgba(239,71,111,0.45); }
@@ -491,26 +385,7 @@
 .ui-rating__clear { border:none; background:transparent; color:var(--text-muted); cursor:pointer; font-size:14px; margin-left:6px; }
 .ui-rating__clear:hover { color:var(--tt-danger); }
 
-/* ---- Kit bridges: kit controls inside plugin/condition/table layouts ---- */
-.ui-pagination .ui-select { height: 28px; min-width: 88px; }
-.ui-pagination .ui-select select { font-size: 11px; }
-.ui-picker__tools .ui-search { width: 100%; max-width: none; }
-.ui-picker__manual-row .ui-input { flex: 1; min-width: 0; }
-.plg-toolbar .ui-search { width: 100%; max-width: 280px; }
-.plg-cond__cell--value > .ui-input,
-.plg-cond__cell--value > .ui-number,
+/* ---- Kit bridges: kit controls inside plugin/condition/table layouts ----
+   (Field bridges live with the field system in fields.css.) */
 .plg-cond__cell--value > .ui-tags { flex: 1; min-width: 0; }
-.plg-cond__cell--value > .ui-number { width: auto; }
-.plg-cond__row > .ui-input { grid-column: 1 / -1; }
 .plg-table__row > .ui-switch { grid-column: 1; grid-row: 1; align-self: center; justify-self: center; }
-
-/* Native <option> popups are OS-rendered and do not reliably inherit the
-   page color-scheme, so give them explicit theme colors. Without this the
-   dark-mode popup keeps a light background while options inherit the
-   near-white control text and become unreadable. */
-.ui-select select option,
-.ui-float__control select option,
-.plg-select option {
-  background-color: var(--panel-solid);
-  color: var(--text);
-}

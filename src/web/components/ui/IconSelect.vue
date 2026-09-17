@@ -2,6 +2,9 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import type { VNodeChild } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
+import { Icon } from '../icons/index.ts';
+import { resolveFieldSize } from './fields/field-logic.ts';
+import type { FieldSize } from './fields/field-logic.ts';
 
 export type IconSelectOption = {
   value: string;
@@ -21,15 +24,21 @@ type IconSelectProps = {
   className?: string;
   /** Shown when the value matches no option (a hand-written path). */
   placeholder?: string;
+  disabled?: boolean;
+  invalid?: boolean;
+  size?: FieldSize;
+  id?: string;
 };
 
 /**
  * A select that can draw an icon. The native one cannot, which is why the
  * icon used to sit outside as a second element; here the closed control shows
  * the selected option exactly as the list does, so there is only one of it.
+ * The closed control shares the field tokens (height/radius/border/focus),
+ * so it matches TextField at the same size.
  */
 export const IconSelect = defineVueComponent<IconSelectProps>(
-  ['value', 'options', 'onChange', 'ariaLabel', 'className', 'placeholder'],
+  ['value', 'options', 'onChange', 'ariaLabel', 'className', 'placeholder', 'disabled', 'invalid', 'size', 'id'],
   (props) => {
   const open = ref(false);
   const active = ref(0);
@@ -42,17 +51,20 @@ export const IconSelect = defineVueComponent<IconSelectProps>(
   onUnmounted(() => document.removeEventListener('mousedown', onPointerDown));
 
   const openAt = (): void => {
+    if (props.disabled) return;
     active.value = Math.max(0, props.options.findIndex((option) => option.value === props.value));
     open.value = true;
   };
 
   const commit = (index: number): void => {
+    if (props.disabled) return;
     const option = props.options[index];
     if (option) props.onChange(option.value);
     open.value = false;
   };
 
   const onKeydown = (event: KeyboardEvent): void => {
+    if (props.disabled) return;
     if (event.key === 'Escape') {
       open.value = false;
       return;
@@ -78,33 +90,23 @@ export const IconSelect = defineVueComponent<IconSelectProps>(
   return () => {
     const { value, options, ariaLabel, className = '', placeholder } = props;
     const selected = options.find((option) => option.value === value);
+    const size = resolveFieldSize(props.size);
     return (
-    <div class={`ui-icon-select ${className}`.trim()} ref={rootRef}>
+    <div id={props.id} class={`ui-icon-select ui-icon-select--${size}${props.invalid ? ' is-invalid' : ''}${props.disabled ? ' is-disabled' : ''} ${className}`.trim()} ref={rootRef}>
       <button
         type="button"
         class={`ui-icon-select__control${open.value ? ' is-open' : ''}`}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open.value}
+        aria-disabled={props.disabled}
+        disabled={props.disabled}
         onClick={() => (open.value ? (open.value = false) : openAt())}
         onKeydown={onKeydown}
       >
         {selected?.icon && <span class="ui-icon-select__icon">{selected.icon}</span>}
         <span class="ui-icon-select__value">{selected?.label ?? placeholder ?? ''}</span>
-        <svg
-          class="ui-icon-select__caret"
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        <Icon name="arrow-down" size={12} className="ui-icon-select__caret" />
       </button>
 
       {open.value && (

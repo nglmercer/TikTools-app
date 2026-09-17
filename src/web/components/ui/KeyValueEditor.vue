@@ -1,5 +1,6 @@
 <script lang="tsx">
-import { TemplateField } from '../node-editor/TemplateField.vue';
+import { TextField } from './fields/TextField.vue';
+import { TemplateField } from './fields/TemplateField.vue';
 import { InfoTip } from './InfoTip.vue';
 import { Tooltip } from './Tooltip.vue';
 import { IconClose } from '../icons/index.ts';
@@ -36,20 +37,20 @@ export function KeyValueEditor({
       {Object.entries(entries).map(([key, entry], index) => (
         <div class="plg-kv-row" key={`header-${index}`}>
           <Tooltip text={keyLabel} position="right">
-            <input
-              class="plg-input plg-input--mono plg-input--key"
+            <TextField
               value={key}
-              aria-label={keyLabel}
+              onValueChange={(nextName) => {
+                const list = Object.entries(entries);
+                const next: JsonObject = {};
+                list.forEach(([currentKey, currentValue], currentIndex) => {
+                  next[currentIndex === index ? nextName : currentKey] = currentValue;
+                });
+                onChange(next);
+              }}
+              ariaLabel={keyLabel}
               placeholder="content-type"
-            onInput={(event) => {
-              const nextName = (event.currentTarget as HTMLInputElement).value;
-              const list = Object.entries(entries);
-              const next: JsonObject = {};
-              list.forEach(([currentKey, currentValue], currentIndex) => {
-                next[currentIndex === index ? nextName : currentKey] = currentValue;
-              });
-              onChange(next);
-            }}
+              locale={locale}
+              className="field--mono"
             />
           </Tooltip>
           <span class="plg-kv-row__value">
@@ -66,7 +67,6 @@ export function KeyValueEditor({
               }}
               suggestions={suggestions}
               ariaLabel={valueLabel}
-              label={valueLabel}
             />
           </span>
           <Tooltip text={removeLabel} position="left">

@@ -7,7 +7,7 @@ import type { JsonObject } from '../../../automation/types.ts';
 import { Checkbox } from '../ui/Checkbox.vue';
 import { NumberInput } from '../ui/NumberInput.vue';
 import { Select } from '../ui/Select.vue';
-import { TemplateField } from '../node-editor/TemplateField.vue';
+import { TemplateField } from '../ui/fields/TemplateField.vue';
 import { t, type Locale } from '../../i18n.ts';
 import { HttpEndpointField, type HttpMethodOption } from './HttpEndpointField.vue';
 import { HttpHeadersEditor } from './HttpHeadersEditor.vue';
@@ -224,7 +224,7 @@ export const HttpRequestEditor = defineVueComponent<HttpRequestEditorProps>(
                 value={typeof config.emitResponseAs === 'string' ? config.emitResponseAs : ''}
                 onValueChange={(next) => onPatchConfig({ emitResponseAs: next })}
                 suggestions={props.emitResponseAsSuggestions ?? []}
-                ariaLabel={props.emitResponseAsLabel ?? 'Emit the response as'}
+                scope="identity"
                 placeholder={props.emitResponseAsPlaceholder}
               />
             )}

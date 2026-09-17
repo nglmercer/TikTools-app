@@ -16,7 +16,8 @@ import { Rating } from './Rating.vue';
 import { TagsInput } from './TagsInput.vue';
 import { MultiSelect } from './MultiSelect.vue';
 import { CodeEditor, formatJsonText } from './CodeEditor.vue';
-import { TemplateField } from '../node-editor/TemplateField.vue';
+import { TemplateField } from './fields/TemplateField.vue';
+import { TextField } from './fields/TextField.vue';
 import { getFetchUrlTemplates } from '../node-editor/template-suggestions.ts';
 import type { AutocompleteItem } from '../autocomplete/index.ts';
 import type { Locale } from '../../i18n.ts';
@@ -258,17 +259,21 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
   const dynamicOptions = Array.isArray(fieldOptions) ? fieldOptions.filter((entry) => entry && typeof entry.value === 'string') : [];
   const options = schemaOptions.length > 0 ? schemaOptions : dynamicOptions.length > 0 ? dynamicOptions : hintedEntries;
   if (options.length > 0) {
-    // Only hinted options can carry icons; when any does, the whole list
-    // renders as an IconSelect because native <option> cannot draw SVGs.
-    const useIcons = options === hintedEntries && hintedEntries.some((entry) => entry.icon !== undefined);
-    const iconOptions: IconSelectOption[] | undefined = useIcons
-      ? hintedEntries.map((entry) => ({
-        value: entry.value,
-        label: entry.label,
-        hint: entry.hint,
-        icon: entry.icon ? <Icon name={entry.icon} size={14} /> : undefined,
-      }))
-      : undefined;
+    // Dynamic (optionsFrom) lists and icon-carrying hinted lists render as an
+    // IconSelect; static lists use the native Select. Native <option> cannot
+    // draw SVGs, which is why icon lists need the custom control.
+    const isDynamic = options === dynamicOptions;
+    const useIcons = isDynamic || (options === hintedEntries && hintedEntries.some((entry) => entry.icon !== undefined));
+    const iconOptions: IconSelectOption[] | undefined = !useIcons
+      ? undefined
+      : isDynamic
+        ? dynamicOptions.map((entry) => ({ value: entry.value, label: entry.label }))
+        : hintedEntries.map((entry) => ({
+          value: entry.value,
+          label: entry.label,
+          hint: entry.hint,
+          icon: entry.icon ? <Icon name={entry.icon} size={14} /> : undefined,
+        }));
     return (
       <SelectField
         name={name}
@@ -285,11 +290,27 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
   }
 
   if (kind === 'textarea' || kind === 'code' || schema.type === 'array' || schema.format === 'json') {
-    // Templated textareas (Body…) get the code editor: line numbers, JSON
-    // highlight, `{{ }}` pills and variable autocomplete.
+    // Templated plain-text textareas (TTS text…) get a multiline
+    // TemplateField; JSON keeps the code editor (highlight + validation).
     if (hasAutocomplete && schema.type !== 'array' && kind !== 'code') {
-      const json = schema.format === 'json';
-      const editorValue = json && typeof value === 'string' ? value : displayValue;
+      if (schema.format !== 'json') {
+        return (
+          <TemplateField
+            locale={locale}
+            name={name}
+            label={label}
+            hint={hintText || undefined}
+            value={displayValue}
+            onValueChange={onChange}
+            suggestions={templateSuggestions}
+            multiline
+            rows={6}
+            error={error}
+            placeholder={typeof hint?.placeholder === 'string' ? hint.placeholder : undefined}
+          />
+        );
+      }
+      const editorValue = typeof value === 'string' ? value : displayValue;
       return (
         <div class="plg-field">
           <div class="plg-label-row">
@@ -298,19 +319,19 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
           </div>
           <CodeEditor
             locale={locale}
-            language={json ? 'json' : 'text'}
+            language="json"
             name={name}
             value={editorValue}
             onValueChange={onChange}
             suggestions={templateSuggestions}
-            filename={json ? `${name}.json` : undefined}
-            mime={json ? 'application/json' : undefined}
+            filename={`${name}.json`}
+            mime="application/json"
             rows={6}
             ariaLabel={label}
-            onFormat={json ? () => {
+            onFormat={() => {
               const formatted = formatJsonText(editorValue);
               if (formatted !== null && formatted !== editorValue) onChange(formatted);
-            } : undefined}
+            }}
           />
         </div>
       );
@@ -364,26 +385,42 @@ export function SchemaField({ locale, name, schema, hint, value, onChange, templ
     );
   }
 
-  // Text: templated (or with pushed suggestions) → autocomplete input.
-  // URL-like fields stay quiet while typing a hostname: bare words match URL
-  // presets in the dropdown, variables only inside `{{ }}` or via Ctrl+Space.
+  // Text: templated (or with pushed suggestions) → TemplateField.
+  // Plain URL fields get preset shortcuts but NEVER event variables;
+  // templated URL fields add presets beside `{{ }}` variables.
   if (hasAutocomplete) {
-    const isUrlField = /url|link|endpoint|webhook/i.test(name);
-    return (
-      <div class="plg-field">
-        <TemplateField
+    const isUrlField = /url|link|endpoint|webhook/i.test(name) || schema.format === 'uri';
+    const placeholder = typeof hint?.placeholder === 'string' ? hint.placeholder : undefined;
+    if (isUrlField && !template) {
+      return (
+        <TextField
           locale={locale}
           name={name}
-          value={displayValue}
-          onValueChange={onChange}
-          suggestions={templateSuggestions}
-          ariaLabel={label}
           label={label}
           hint={hintText || undefined}
-          bareWordTrigger={!isUrlField}
-          urlPresets={isUrlField ? getFetchUrlTemplates() : undefined}
+          value={displayValue}
+          onValueChange={onChange}
+          error={error}
+          leadingIcon="globe"
+          presets={getFetchUrlTemplates()}
+          placeholder={placeholder}
         />
-      </div>
+      );
+    }
+    return (
+      <TemplateField
+        locale={locale}
+        name={name}
+        label={label}
+        hint={hintText || undefined}
+        value={displayValue}
+        onValueChange={onChange}
+        suggestions={templateSuggestions}
+        scope={isUrlField ? 'http-url' : 'generic'}
+        presets={isUrlField ? getFetchUrlTemplates() : undefined}
+        error={error}
+        placeholder={placeholder}
+      />
     );
   }
 
@@ -434,7 +471,9 @@ function SelectField({
           value={value}
           options={iconOptions}
           onChange={(next) => onChange(next)}
+          invalid={Boolean(error)}
         />
+        {error ? <span class="field-message field-message--error">{error}</span> : null}
       </div>
     );
   }

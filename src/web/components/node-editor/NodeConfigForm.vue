@@ -15,10 +15,10 @@ import type {
 import { TextInput } from '../ui/TextInput.vue';
 import { NumberInput } from '../ui/NumberInput.vue';
 import { Select } from '../ui/Select.vue';
-import { TemplateField } from './TemplateField.vue';
+import { TemplateField } from '../ui/fields/TemplateField.vue';
 import { getTemplateSuggestions, type TemplateSuggestionScope } from './template-suggestions.ts';
 import { HttpRequestEditor } from '../http/index.ts';
-import { AutocompletePortal } from './AutocompletePortal.vue';
+import { AutocompletePopover } from '../autocomplete/AutocompletePopover.vue';
 import { WORKFLOW_EVENT_CHOICES } from './WorkflowWizardModal.vue';
 import { asNumber, asString } from './graph.ts';
 import { i18nText, t, type Locale } from '../../i18n.ts';
@@ -69,7 +69,7 @@ export function NodeConfigForm({ locale, node, definition, analysis, eventType, 
             value={asString(config.leftPath)}
             onValueChange={(value) => update('leftPath', value)}
             suggestions={templateValues('compare')}
-            suggestionMode="path"
+            mode="options"
           />
           <Select
             label={t(locale, 'nodeOperator')}
@@ -94,7 +94,7 @@ export function NodeConfigForm({ locale, node, definition, analysis, eventType, 
     case 'transform.template':
       return (
         <div class="node-editor-form-stack">
-          <TemplateField locale={locale} label={t(locale, 'nodeTemplate')} hint={t(locale, 'nodeTemplateHint')} value={asString(config.template)} onValueChange={(value) => update('template', value)} suggestions={templateValues('message')} multiline rows={5} />
+          <TemplateField locale={locale} label={t(locale, 'nodeTemplate')} hint={t(locale, 'nodeTemplateHint')} value={asString(config.template)} onValueChange={(value) => update('template', value)} suggestions={templateValues('message')} scope="message" multiline rows={5} />
         </div>
       );
     case 'transform.script':
@@ -109,13 +109,13 @@ export function NodeConfigForm({ locale, node, definition, analysis, eventType, 
       return (
         <div class="node-editor-form-stack">
           <NumberInput label={t(locale, 'nodeDuration')} hint={t(locale, 'nodeCooldownHint')} value={asNumber(config.durationMs)} min={0} max={86_400_000} step={100} suffix="ms" onValueChange={(value) => update('durationMs', value)} />
-          <TemplateField locale={locale} label={t(locale, 'nodeCooldownKey')} value={asString(config.key)} onValueChange={(value) => update('key', value)} suggestions={templateValues('identity')} />
+          <TemplateField locale={locale} label={t(locale, 'nodeCooldownKey')} value={asString(config.key)} onValueChange={(value) => update('key', value)} suggestions={templateValues('identity')} scope="identity" />
         </div>
       );
     case 'action.log':
       return (
         <div class="node-editor-form-stack">
-          <TemplateField locale={locale} label={t(locale, 'nodeMessage')} hint={t(locale, 'nodeTemplateHint')} value={asString(config.message)} onValueChange={(value) => update('message', value)} suggestions={templateValues('message')} multiline rows={5} />
+          <TemplateField locale={locale} label={t(locale, 'nodeMessage')} hint={t(locale, 'nodeTemplateHint')} value={asString(config.message)} onValueChange={(value) => update('message', value)} suggestions={templateValues('message')} scope="message" multiline rows={5} />
         </div>
       );
     case 'action.http':
@@ -169,7 +169,7 @@ export function NodeConfigForm({ locale, node, definition, analysis, eventType, 
     case 'action.adjust-points':
       return (
         <div class="node-editor-form-stack">
-          <TemplateField locale={locale} label={t(locale, 'nodeViewer')} hint={t(locale, 'nodeViewerHint')} value={asString(config.uniqueId)} onValueChange={(value) => update('uniqueId', value)} suggestions={templateValues('identity')} />
+          <TemplateField locale={locale} label={t(locale, 'nodeViewer')} hint={t(locale, 'nodeViewerHint')} value={asString(config.uniqueId)} onValueChange={(value) => update('uniqueId', value)} suggestions={templateValues('identity')} scope="identity" />
           <NumberInput label={t(locale, 'nodeDelta')} value={asNumber(config.delta, 10)} step={1} onValueChange={(value) => update('delta', value)} />
         </div>
       );
@@ -273,7 +273,7 @@ const ScriptConfigForm = defineVueComponent<NodeConfigFormProps>(
                 props.onAnalyzeScript(props.node.id, source.value, target.selectionStart ?? source.value.length, props.eventType);
               }}
             />
-            <AutocompletePortal anchorRef={completionAnchorRef} cursorRef={textareaRef} cursorOffset={cursor.value} open={completionOpen.value && visibleCompletions.value.length > 0}>
+            <AutocompletePopover anchor={completionAnchorRef.value} open={completionOpen.value && visibleCompletions.value.length > 0} updateKey={cursor.value}>
               <div class="node-editor-code-completions" role="listbox">
                 {visibleCompletions.value.map((completion, index) => (
                   <button
@@ -294,7 +294,7 @@ const ScriptConfigForm = defineVueComponent<NodeConfigFormProps>(
                 ))}
                 <small>↑ ↓ {t(props.locale, 'navigate')} · Tab {t(props.locale, 'insertAction')}</small>
               </div>
-            </AutocompletePortal>
+            </AutocompletePopover>
           </div>
           <label class="plg-float__label">
             {t(props.locale, 'scriptEditor')}

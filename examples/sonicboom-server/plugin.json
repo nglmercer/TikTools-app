@@ -103,7 +103,8 @@
           "type": "string",
           "title": "Default language",
           "description": "Language code sent with speech requests.",
-          "default": "en"
+          "default": "en",
+          "enum": ["en", "es"]
         }
       }
     },

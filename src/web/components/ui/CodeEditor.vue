@@ -3,10 +3,10 @@ import { computed, ref, watch } from 'vue';
 import type { VNode } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import type { AutocompleteItem } from '../autocomplete/index.ts';
-import { filterSuggestions, moveAutocompleteSelection, normalizeAutocompleteItems } from '../autocomplete/index.ts';
-import { getAutocompleteToken } from '../autocomplete/token.ts';
+import { comboboxInputAttrs } from '../autocomplete/autocomplete-controller.ts';
+import { useAutocompleteInput } from '../autocomplete/use-autocomplete.ts';
 import { AutocompleteList } from '../autocomplete/AutocompleteList.vue';
-import { AutocompletePortal } from '../node-editor/AutocompletePortal.vue';
+import { AutocompletePopover } from '../autocomplete/AutocompletePopover.vue';
 import { t, type Locale } from '../../i18n.ts';
 import { formatJsonText, shouldFormatPastedJson, tokenizeJson, validateJsonText, type JsonValidation } from './code-editor-logic.ts';
 import { IconCheck, IconWarning } from '../icons/index.ts';
@@ -44,7 +44,8 @@ type CodeEditorProps = {
 /**
  * Small dependency-free code editor: gutter with line numbers, a highlighted
  * backdrop (JSON tokens + `{{ }}` pills) behind a transparent textarea, and
- * the same quiet variable autocomplete as the single-line template inputs.
+ * template-variable autocomplete through the shared controller (opens inside
+ * `{{ }}` or via Ctrl+Space, like TemplateField).
  */
 export const CodeEditor = defineVueComponent<CodeEditorProps>(
   [
@@ -70,10 +71,14 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
   const gutterRef = ref<HTMLDivElement | null>(null);
   const backdropRef = ref<HTMLPreElement | null>(null);
   const focused = ref(false);
-  const forcedOpen = ref(false);
   const value = computed(() => normalizeControlString(props.value));
   const cursor = ref(value.value.length);
-  const suggestionIndex = ref(0);
+  const autocomplete = useAutocompleteInput(() => ({
+    mode: 'template',
+    suggestions: props.suggestions,
+    supportsTemplates: true,
+    locale: props.locale ?? 'en',
+  }));
   const language = computed(() => props.language ?? 'text');
   const validateJsonEnabled = computed(() => props.validateJson ?? (language.value === 'json'));
   const validation = computed<JsonValidation | null>(() => (
@@ -87,24 +92,6 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
   const nodes = computed(() => (
     language.value === 'json' ? highlightJson(value.value) : highlightText(value.value)
   ));
-
-  const token = computed(() => getAutocompleteToken(value.value, cursor.value));
-  const items = computed(() => normalizeAutocompleteItems(props.suggestions ?? []));
-  const scored = computed(() => filterSuggestions(items.value, token.value.query, 7));
-  const visible = computed(() => scored.value.map((entry) => ({ item: entry.item, ranges: entry.matchRanges })));
-  const showSuggestions = computed(() => (
-    focused.value
-    && (forcedOpen.value || token.value.inside || token.value.query.length >= 2)
-    && visible.value.length > 0
-  ));
-
-  watch(() => [token.value.query, (props.suggestions ?? []).length], () => {
-    suggestionIndex.value = 0;
-  });
-
-  watch(showSuggestions, (open) => {
-    if (!open) forcedOpen.value = false;
-  });
 
   watch(value, (next) => {
     if (inputRef.value) syncNativeControlValue(inputRef.value, next);
@@ -126,6 +113,11 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
     cursor.value = target?.selectionStart ?? value.value.length;
   };
 
+  const pushState = (next?: string): void => {
+    updateCursor();
+    autocomplete.update(next ?? value.value, cursor.value, focused.value);
+  };
+
   const commitProgrammaticValue = (nextValue: string): void => {
     const control = inputRef.value;
     if (control) {
@@ -135,18 +127,9 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
     props.onValueChange(nextValue);
   };
 
-  const insertSuggestion = (suggestion: { value: string }): void => {
-    const offset = inputRef.value?.selectionStart ?? cursor.value;
-    const current = getAutocompleteToken(value.value, offset);
-    // Replace the exact word/`{{ …` span being typed; inserting at the
-    // cursor without replacing duplicated the typed text.
-    const start = current.inside || current.query.length > 0 ? current.start : offset;
-    const inserted = `{{ ${suggestion.value} }}`;
-    const nextValue = `${value.value.slice(0, start)}${inserted}${value.value.slice(offset)}`;
-    const nextCursor = start + inserted.length;
+  const applyCommitResult = (nextValue: string, nextCursor: number): void => {
     commitProgrammaticValue(nextValue);
     cursor.value = nextCursor;
-    forcedOpen.value = false;
     requestAnimationFrame(() => {
       inputRef.value?.focus();
       inputRef.value?.setSelectionRange(nextCursor, nextCursor);
@@ -177,29 +160,11 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
   };
 
   const handleKeyDown = (event: KeyboardEvent): void => {
-    if ((event.ctrlKey || event.metaKey) && event.key === ' ') {
-      event.preventDefault();
-      forcedOpen.value = true;
-      focused.value = true;
-      return;
-    }
-    if (!showSuggestions.value || visible.value.length === 0) return;
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      suggestionIndex.value = moveAutocompleteSelection(suggestionIndex.value, 1, visible.value.length);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      suggestionIndex.value = moveAutocompleteSelection(suggestionIndex.value, -1, visible.value.length);
-    } else if (event.key === 'Tab' || (event.key === 'Enter' && (token.value.inside || forcedOpen.value))) {
-      event.preventDefault();
-      const selected = visible.value[suggestionIndex.value]?.item;
-      if (selected) insertSuggestion(selected);
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      if (forcedOpen.value) forcedOpen.value = false;
-      else focused.value = false;
-      (event.currentTarget as HTMLElement).blur?.();
-    }
+    const result = autocomplete.keydown(event);
+    if (result !== 'commit') return;
+    const offset = inputRef.value?.selectionStart ?? cursor.value;
+    const applied = autocomplete.commit(value.value, offset);
+    if (applied) applyCommitResult(applied.value, applied.caret);
   };
 
   return () => {
@@ -207,6 +172,13 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
     const locale = props.locale ?? 'en';
     const showHead = Boolean(props.filename || props.mime || props.onFormat);
     const showStatus = (props.showValidationStatus ?? true) && validation.value !== null && validation.value.state !== 'empty';
+    const snapshot = autocomplete.snapshot.value;
+    const comboAttrs = comboboxInputAttrs({
+      listId: autocomplete.listId,
+      open: snapshot.open,
+      activeIndex: snapshot.activeIndex,
+      rowCount: snapshot.rowCount,
+    });
     return (
     <div ref={boxRef} class="codeed">
       {showHead && (
@@ -251,36 +223,42 @@ export const CodeEditor = defineVueComponent<CodeEditorProps>(
             spellcheck={false}
             wrap="off"
             aria-label={props.ariaLabel}
-            onFocus={() => { focused.value = true; }}
+            {...comboAttrs}
+            onFocus={() => { focused.value = true; pushState(); }}
             onBlur={() => {
               focused.value = false;
-              forcedOpen.value = false;
+              pushState();
             }}
             onKeydown={handleKeyDown}
             onInput={(event) => {
               const target = event.currentTarget as HTMLTextAreaElement;
               props.onValueChange(target.value);
-              updateCursor();
+              pushState(target.value);
             }}
             onPaste={handlePaste}
-            onKeyup={updateCursor}
-            onSelect={updateCursor}
-            onClick={updateCursor}
+            onKeyup={() => pushState()}
+            onSelect={() => pushState()}
+            onClick={() => pushState()}
             onScroll={syncScroll}
           />
         </div>
       </div>
       {showStatus ? <CodeEditorStatus locale={locale} validation={validation.value!} /> : null}
-      <AutocompletePortal anchorRef={boxRef} cursorRef={inputRef} cursorOffset={cursor.value} open={showSuggestions.value}>
+      <AutocompletePopover anchor={boxRef.value} open={snapshot.open} updateKey={cursor.value}>
         <AutocompleteList
-          rows={visible.value.map(({ item, ranges }) => ({ item, ranges }))}
-          selectedIndex={suggestionIndex.value}
-          onHover={(index) => { suggestionIndex.value = index; }}
-          onPick={(row) => insertSuggestion(row.item)}
+          sections={snapshot.sections}
+          selectedIndex={snapshot.activeIndex}
+          onHover={(index) => autocomplete.hover(index)}
+          onPick={(row) => {
+            const offset = inputRef.value?.selectionStart ?? cursor.value;
+            const applied = autocomplete.pickRow(value.value, offset, row.key ?? row.item.value);
+            if (applied) applyCommitResult(applied.value, applied.caret);
+          }}
           ariaLabel={props.ariaLabel ?? 'Suggestions'}
           footer={t(locale, 'autocompleteNavigateInsert')}
+          listId={autocomplete.listId}
         />
-      </AutocompletePortal>
+      </AutocompletePopover>
     </div>
   );
   };

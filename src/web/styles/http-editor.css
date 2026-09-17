@@ -47,5 +47,5 @@
 .http-advanced {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--field-stack-gap);
 }

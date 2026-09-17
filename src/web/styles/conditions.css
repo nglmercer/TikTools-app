@@ -26,7 +26,6 @@
 .plg-cond__cell > .ui-icon-select { flex: 1; }
 .plg-cond__cell--value { min-width: 0; }
 .plg-cond__select { flex: 1; min-width: 0; }
-.plg-cond__cell--value > .plg-input,
 .plg-cond__cell--value > .plg-cond__pick,
 .plg-cond__cell--value > .plg-cond__list { flex: 1; min-width: 0; }
 
@@ -50,8 +49,7 @@
 }
 .plg-cond__pick:hover { transform: none; border-color: var(--plg-accent); }
 .plg-cond__pick:active { transform: none; }
-.plg-cond__pick.is-missing,
-.plg-input.is-missing { border-color: rgba(239, 71, 111, 0.55); color: var(--plg-err); }
+.plg-cond__pick.is-missing { border-color: rgba(239, 71, 111, 0.55); color: var(--plg-err); }
 .plg-cond__fixed { font-size: 12.5px; font-weight: 600; color: var(--plg-muted); }
 .plg-cond__list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .plg-cond__cell--value > .plg-cond__option-value { flex: 1; min-width: 0; }
@@ -66,7 +64,6 @@
 .plg-cond__record:focus-visible { outline: 2px solid var(--plg-accent); outline-offset: 1px; }
 .plg-cond__record.is-armed { border-color: var(--plg-err); color: var(--plg-err); animation: plg-record-pulse 1s infinite; }
 @keyframes plg-record-pulse { 50% { box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.25); } }
-.plg-cond__list .plg-input { flex: 1 1 120px; min-width: 0; }
 .plg-cond__err { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--plg-err); }
 
 @media (min-width: 720px) {
@@ -97,7 +94,6 @@
 /* ---- picker modal: searchable list with a picture per row ---- */
 .ui-picker { width: min(100%, 560px); }
 .ui-picker__tools { padding-bottom: 10px; }
-.ui-picker__tools .plg-input { width: 100%; }
 .ui-picker__list {
   display: flex;
   flex-direction: column;
@@ -153,15 +149,9 @@
 .ui-picker__empty { margin: 12px 6px; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
 .ui-picker__manual { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; }
 .ui-picker__manual-row { display: flex; gap: 8px; }
-.ui-picker__manual-row .plg-input { flex: 1; min-width: 0; }
 .ui-picker__chosen { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 10px; }
 .ui-picker__chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .ui-picker__chip:hover { transform: none; border-color: var(--tt-danger); }
-
-/* The native spinner sat on top of the placeholder, so values type instead. */
-.plg-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
-.plg-input[type="number"]::-webkit-outer-spin-button,
-.plg-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* ---- sorting: clickable headers on the table, a control on the cards ---- */
 .plg-sorth {

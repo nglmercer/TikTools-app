@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 
+import { applyPresetInsert } from '../autocomplete/autocomplete-controller.ts';
 import {
   applyFetchUrlTemplate,
   getFetchUrlTemplates,
@@ -61,4 +62,30 @@ test('applyFetchUrlTemplate keeps path and query, swaps origin', () => {
   expect(applyFetchUrlTemplate('', 'http://localhost:3000/')).toBe('http://localhost:3000/');
   expect(applyFetchUrlTemplate('https://', 'http://localhost:3000/')).toBe('http://localhost:3000/');
   expect(applyFetchUrlTemplate('https://old.example.com', 'http://localhost:3000/')).toBe('http://localhost:3000/');
+});
+
+test('applyFetchUrlTemplate matches the shared preset insert exactly', () => {
+  const cases: Array<[string, string]> = [
+    ['', 'http://localhost:3000/'],
+    ['https://', 'http://localhost:3000/'],
+    ['https://old.example.com', 'http://localhost:3000/'],
+    ['https://old.example.com/a?x=1#f', 'http://localhost:3000/'],
+    ['http://127.0.0.1:8000/hook?q=1', 'https://hooks.example.com/live'],
+    ['not a url', 'http://localhost:3000/'],
+  ];
+  for (const [current, preset] of cases) {
+    expect(applyFetchUrlTemplate(current, preset)).toBe(applyPresetInsert(current, preset).value);
+  }
+});
+
+test('text scope offers raw comment and Text Intelligence TTS text', () => {
+  // The automation TTS text TemplateField resolves this scope: both the raw
+  // comment and the TTS-normalized view must be suggestible.
+  for (const suggestions of [
+    getTemplateSuggestions('tiktok.chat', 'en', undefined, 'text'),
+    getTemplateSuggestions(undefined, 'en', undefined, 'text'),
+  ]) {
+    expect(suggestions.some((entry) => entry.value === 'event.data.comment')).toBe(true);
+    expect(suggestions.some((entry) => entry.value === 'event.intel.comment.tts.text')).toBe(true);
+  }
 });

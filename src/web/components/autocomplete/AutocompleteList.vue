@@ -1,77 +1,110 @@
 <script lang="tsx">
 import { defineVueComponent } from '../../vue/component.ts';
-import type { AutocompleteItem, AutocompleteRow } from './types.ts';
-import { highlightSegments } from './scoring.ts';
+import type { AutocompleteRow, SuggestionRow, SuggestionSection } from './types.ts';
+import { AutocompleteItem } from './AutocompleteItem.vue';
+import { AutocompleteSection } from './AutocompleteSection.vue';
+import { suggestionOptionId } from './types.ts';
 
 export type AutocompleteListProps = {
-  rows: AutocompleteRow[];
+  /** Legacy flat rows (TemplateField/CodeEditor pass these; `meta` passes through to `onPick`). */
+  rows?: AutocompleteRow[];
+  /** Grouped rows (new callers pass these; preferred over `rows`). */
+  sections?: SuggestionSection[];
+  /** Global active index across sections. */
   selectedIndex: number;
   onHover: (index: number) => void;
   onPick: (row: AutocompleteRow) => void;
   ariaLabel?: string;
   groupLabel?: string;
   footer?: string;
+  /** Listbox id; defaults to a stable per-instance id. Drives `aria-activedescendant`. */
+  listId?: string;
 };
 
+let autocompleteListFallback = 0;
+
+/**
+ * Listbox popup content: sections (or legacy flat rows) of icon + label +
+ * badge + description rows. `listId` + `selectedIndex` give Phase 3 the
+ * `aria-activedescendant` target (`${listId}-option-${selectedIndex}`).
+ */
 export const AutocompleteList = defineVueComponent<AutocompleteListProps>(
-  ['rows', 'selectedIndex', 'onHover', 'onPick', 'ariaLabel', 'groupLabel', 'footer'],
-  (props) => () => (
-    <div class="tpl-suggest" role="listbox" aria-label={props.ariaLabel ?? 'Suggestions'}>
-      {props.groupLabel ? <div class="tpl-group">{props.groupLabel}</div> : null}
-      {props.rows.map((row, index) => <AutocompleteRowButton
-        key={row.key ?? `${row.item.value}:${index}`}
-        row={row}
-        selected={index === props.selectedIndex}
-        onHover={() => props.onHover(index)}
-        onPick={() => props.onPick(row)}
-      />)}
-      {props.footer ? <div class="tpl-foot">{props.footer}</div> : null}
-    </div>
-  ),
+  ['rows', 'selectedIndex', 'onHover', 'onPick', 'ariaLabel', 'groupLabel', 'footer', 'sections', 'listId'],
+  (props) => {
+    autocompleteListFallback += 1;
+    const fallbackId = `tt-ac-list-${autocompleteListFallback}`;
+    return () => {
+      const listId = props.listId ?? fallbackId;
+      const sections = props.sections;
+      return (
+        <div id={listId} class="autocomplete-list" role="listbox" aria-label={props.ariaLabel ?? 'Suggestions'}>
+          {sections && sections.length > 0 ? (
+            <SectionedRows
+              sections={sections}
+              listId={listId}
+              selectedIndex={props.selectedIndex}
+              onHover={props.onHover}
+              onPick={props.onPick}
+            />
+          ) : (
+            <>
+              {props.groupLabel ? <div class="autocomplete-section__label">{props.groupLabel}</div> : null}
+              {(props.rows ?? []).map((row, index) => (
+                <AutocompleteItem
+                  key={row.key ?? `${row.item.value}:${index}`}
+                  id={suggestionOptionId(listId, index)}
+                  item={row.item}
+                  ranges={row.ranges}
+                  selected={index === props.selectedIndex}
+                  onHover={() => props.onHover(index)}
+                  onPick={() => props.onPick(row)}
+                />
+              ))}
+            </>
+          )}
+          {props.footer ? <div class="autocomplete-list__footer">{props.footer}</div> : null}
+        </div>
+      );
+    };
+  },
 );
 
 export default AutocompleteList;
 
-function AutocompleteRowButton({
-  row,
-  selected,
+function SectionedRows({
+  sections,
+  listId,
+  selectedIndex,
   onHover,
   onPick,
 }: {
-  row: AutocompleteRow;
-  selected: boolean;
-  onHover: () => void;
-  onPick: () => void;
+  sections: SuggestionSection[];
+  listId: string;
+  selectedIndex: number;
+  onHover: (index: number) => void;
+  onPick: (row: AutocompleteRow) => void;
 }) {
-  const item: AutocompleteItem = row.item;
-  const valueSegments = highlightSegments(item.value, row.ranges);
-  const hoverTitle = [
-    item.value,
-    item.detail ?? item.kind ? `type: ${item.detail ?? item.kind}` : '',
-    item.preview ? `= ${item.preview}` : '',
-    item.documentation ?? '',
-  ].filter(Boolean).join('\n');
+  let startIndex = 0;
   return (
-    <button
-      type="button"
-      role="option"
-      aria-selected={selected}
-      class={selected ? 'is-selected' : ''}
-      title={hoverTitle || item.value}
-      onMousedown={(event) => event.preventDefault()}
-      onMouseenter={onHover}
-      onFocus={onHover}
-      onClick={onPick}
-    >
-      <i class={`tpl-dot tpl-dot--${item.kind ?? 'unknown'}`} aria-hidden="true" />
-      <code class="tpl-path">
-        {valueSegments.map((segment, segmentIndex) => (
-          segment.highlight ? <mark key={segmentIndex}>{segment.text}</mark> : <span key={segmentIndex}>{segment.text}</span>
-        ))}
-      </code>
-      {item.detail ?? item.kind ? <span class="tpl-kind">{item.detail ?? item.kind}</span> : null}
-      {item.preview ? <span class="tpl-preview" title={item.preview}>{item.preview}</span> : null}
-    </button>
+    <>
+      {sections.map((section) => {
+        const start = startIndex;
+        startIndex += section.rows.length;
+        return (
+          <AutocompleteSection
+            key={section.id}
+            id={section.id}
+            label={section.label}
+            rows={section.rows}
+            selectedIndex={selectedIndex}
+            startIndex={start}
+            listId={listId}
+            onHover={onHover}
+            onPick={(row: SuggestionRow) => onPick(row)}
+          />
+        );
+      })}
+    </>
   );
 }
 </script>

@@ -113,7 +113,6 @@ export const BEHAVIOR_UI_TRANSLATIONS: TranslationCatalog = {
     "behavior.trigger.plugin.emit": "Internal event",
     ...ns("behavior.editor.", {
       endpoint: "Destination endpoint",
-      urlPresets: "Quick targets",
       localNetHint: "Local address: enable “Allow local network” in Advanced options.",
       enableLocalNet: "Enable",
       actionName: "Action name",
@@ -306,7 +305,6 @@ export const BEHAVIOR_UI_TRANSLATIONS: TranslationCatalog = {
     "behavior.trigger.plugin.emit": "Evento interno",
     ...ns("behavior.editor.", {
       endpoint: "Endpoint de destino",
-      urlPresets: "Destinos rápidos",
       localNetHint: "Dirección local: activa «Permitir red local» en Opciones avanzadas.",
       enableLocalNet: "Activar",
       actionName: "Nombre de la acción",

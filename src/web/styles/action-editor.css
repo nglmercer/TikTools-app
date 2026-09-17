@@ -1,5 +1,6 @@
-/* Action editor system: `act-*` layout, `codeed` code editor, `tpl-*` template controls.
-   One component stylesheet so the webhook mockup stays 1:1 everywhere. */
+/* Action editor system: `act-*` layout + `codeed` code editor. Field and
+   dropdown styling lives in the shared stylesheets (fields.css,
+   autocomplete.css); this file keeps screen layout only. */
 
 /* ---- action editor (webhook mockup language, shared by every action) ---- */
 .act-label {
@@ -12,65 +13,23 @@
   text-transform: uppercase;
   color: var(--plg-dim);
 }
-.act-name-input {
-  height: 40px;
-  font-size: 13.5px;
-  font-weight: 600;
-}
-.act-fetch { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.act-fetch { display: flex; flex-direction: column; gap: var(--field-stack-gap); min-width: 0; }
 
-/* Endpoint: method + URL joined in one control. Widths are explicit so the
-   method never stretches and the URL always takes the remaining space. */
+/* Endpoint: method select + URL field side by side. Each field owns its own
+   box and focus ring; the row only aligns the boxes at the bottom so the
+   URL label above never offsets the method control. */
 .act-endpoint {
   display: flex;
-  align-items: stretch;
+  align-items: flex-end;
+  gap: 8px;
   width: 100%;
-  border: 1px solid var(--plg-line);
-  border-radius: 9px;
-  background: var(--plg-field);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  min-width: 0;
 }
-.act-endpoint:focus-within {
-  border-color: var(--tt-cyan);
-  box-shadow: 0 0 0 3px rgba(37, 244, 238, 0.13);
-}
-.act-method {
-  flex: 0 0 auto;
-  width: auto;
-  max-width: 150px;
-  border: 0;
-  border-right: 1px solid var(--plg-line);
-  border-radius: 9px 0 0 9px;
-  outline: 0;
-  background: transparent;
-  color: #06d6a0;
-  font-family: var(--plg-mono);
-  font-size: 11.5px;
-  font-weight: 800;
-  padding: 0 6px 0 12px;
-  cursor: pointer;
-}
-.act-method option { background-color: var(--panel-solid); color: var(--text); font-weight: 400; }
-.act-endpoint > .node-editor-template-field { flex: 1 1 0%; min-width: 0; width: auto; }
-.act-endpoint .node-editor-template-control-wrap,
-.act-endpoint .tpl-edit { min-width: 0; }
-.act-endpoint .node-editor-template-control-wrap {
-  border: 0;
-  border-radius: 0 9px 9px 0;
-  background: transparent;
-  box-shadow: none;
-  min-height: 38px;
-}
-/* The endpoint already paints its own focus ring; the inner template wrap
-   must not paint a second one (double cyan border looked like an error). */
-.act-endpoint .node-editor-template-control-wrap:focus-within {
-  border-color: transparent;
-  box-shadow: none;
-}
-.act-endpoint .node-editor-template-control:not(textarea) { height: 38px; }
+.act-endpoint__method { flex: 0 0 118px; min-width: 0; }
+.act-endpoint__url { flex: 1 1 0%; min-width: 0; }
 
 /* Local-network hint under the endpoint. URL presets live in the input's own
-   autocomplete dropdown (see `.tpl-group`), not in a chips row. */
+   autocomplete dropdown (Quick destinations), not in a chips row. */
 .act-preset {
   padding: 3px 10px;
   border: 1px solid var(--plg-line);
@@ -88,7 +47,7 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin: 8px 0 0;
+  margin: 0;
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--plg-dim);
@@ -154,7 +113,6 @@
   font-size: 12px;
   line-height: 1.5;
 }
-.act-headers .plg-field { margin: 0; }
 .act-adv__summary {
   margin-left: auto;
   overflow: hidden;
@@ -258,6 +216,15 @@
   border-radius: 10px;
   background: #0d1117;
   overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+/* Same focus ring as the shared fields, in both themes. */
+.codeed:focus-within {
+  border-color: var(--field-border-focus);
+  box-shadow: 0 0 0 3px rgba(37, 244, 238, 0.13);
+}
+:root[data-theme="light"] .codeed:focus-within {
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.16);
 }
 .codeed-head {
   display: flex;
@@ -365,169 +332,6 @@
   color: #efeaff;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
-}
-
-/* ---- inline {{ }} highlight: backdrop mirrors the input text ---- */
-.tpl-edit {
-  position: relative;
-  display: flex;
-  flex: 1;
-  min-width: 0;
-}
-.tpl-edit--multi .tpl-highlight {
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-}
-.tpl-highlight {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  padding: 0 12px;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-  line-height: 1.45;
-  white-space: pre;
-  pointer-events: none;
-}
-/* Flex items may shrink by default; a shrinking span would render narrower
-   than the same chars in the input and shift every char after it. */
-.tpl-highlight > span { flex: none; }
-.node-editor-template-field--float .tpl-highlight {
-  padding: 20px 12px 6px;
-}
-.node-editor-template-field--float.is-multiline .tpl-highlight {
-  padding: 22px 12px 8px;
-}
-.tpl-edit--multi .tpl-highlight {
-  display: block;
-  align-items: flex-start;
-  padding: 9px 10px;
-}
-.tpl-highlight .tpl-var {
-  /* Same font as the input text: a different family here changes char widths
-     and shifts cursor and selection for everything after the pill. */
-  border-radius: 4px;
-  background: rgba(37, 244, 238, 0.14);
-  color: var(--tt-cyan);
-  font-family: inherit;
-}
-.tpl-transparent {
-  position: relative;
-  background: transparent !important;
-  color: transparent !important;
-  caret-color: var(--text);
-}
-.tpl-transparent::selection {
-  background: rgba(37, 244, 238, 0.3);
-}
-.tpl-transparent::placeholder {
-  color: var(--text-muted);
-  opacity: 1;
-}
-
-/* ---- simple single-column autocomplete ---- */
-.tpl-suggest {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 240px;
-  overflow: auto;
-  padding: 5px;
-  border: 1px solid var(--line-focus);
-  border-radius: 9px;
-  background: var(--panel-solid);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
-}
-.tpl-suggest button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
-  text-align: left;
-  cursor: pointer;
-  font-size: 11px;
-}
-.tpl-suggest button:hover,
-.tpl-suggest button.is-selected {
-  background: rgba(37, 244, 238, 0.1);
-  color: var(--text);
-}
-.tpl-suggest mark {
-  padding: 0 1px;
-  border-radius: 3px;
-  background: rgba(37, 244, 238, 0.28);
-  color: inherit;
-}
-.tpl-dot {
-  flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-.tpl-dot--string { background: #25f4ee; }
-.tpl-dot--number { background: #f5a623; }
-.tpl-dot--boolean { background: #c084fc; }
-.tpl-dot--object { background: #34d399; }
-.tpl-dot--array { background: #60a5fa; }
-.tpl-dot--null { background: var(--text-muted); }
-.tpl-dot--path { background: #25f4ee; }
-.tpl-dot--snippet { background: #fe2c55; }
-.tpl-dot--unknown { background: var(--text-muted); }
-.tpl-path {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--tt-cyan);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tpl-kind {
-  flex: 0 0 auto;
-  padding: 0 5px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  color: var(--text-muted);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.tpl-preview {
-  flex: 0 1 auto;
-  max-width: 150px;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tpl-foot {
-  padding: 5px 8px 2px;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-.tpl-group {
-  padding: 6px 8px 2px;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.node-editor-autocomplete-portal > .tpl-suggest {
-  width: 100%;
 }
 
 /* ---- editor column parity: fill the viewport like the mockup ----

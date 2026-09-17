@@ -80,37 +80,8 @@
 .plg-field { display: flex; flex-direction: column; gap: 6px; }
 .plg-label { font-size: 12px; font-weight: 600; color: var(--plg-muted); }
 .plg-label span { color: var(--plg-dim); font-weight: 400; }
-.plg-input,
-.plg-select {
-  width: 100%;
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--plg-line);
-  border-radius: 8px;
-  background: var(--plg-field);
-  color: var(--plg-text);
-  font-size: 13px;
-  outline: none;
-}
-.plg-input:focus,
-.plg-select:focus,
-.plg-textarea:focus { border-color: var(--plg-accent); }
-.plg-input--mono { font-family: var(--plg-mono); font-size: 12.5px; }
-.plg-textarea {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid var(--plg-line);
-  border-radius: 8px;
-  background: var(--plg-field);
-  color: var(--plg-text);
-  font-family: var(--plg-mono);
-  font-size: 12.5px;
-  line-height: 1.7;
-  resize: vertical;
-  outline: none;
-  tab-size: 2;
-}
-.plg-textarea--code { min-height: 320px; }
+/* Text inputs render through the shared field system (fields.css); only the
+   switch below keeps plugin-specific control styling. */
 
 .plg-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
 .plg-chip {
@@ -507,11 +478,10 @@
   white-space: nowrap;
 }
 .plg-kv-row { display: flex; gap: 8px; align-items: center; }
-.plg-kv-row .plg-input { flex: 1; min-width: 0; }
-.plg-kv-row .plg-input--key { flex: 0 0 34%; }
-/* The key input sits inside a tooltip trigger: the trigger carries the flex basis. */
-.plg-kv-row .ui-tooltip-trigger:has(> .plg-input--key) { flex: 0 0 34%; min-width: 0; }
-.plg-kv-row .ui-tooltip-trigger > .plg-input { width: 100%; }
+/* The key field sits inside a tooltip trigger: the trigger carries the flex
+   basis. The value column (.plg-kv-row__value) flexes in behavior.css. */
+.plg-kv-row > .ui-tooltip-trigger:has(> .field) { flex: 0 0 34%; min-width: 0; }
+.plg-kv-row .ui-tooltip-trigger > .field { width: 100%; }
 
 /* ---- desktop: the same screens with a second column ---- */
 /* The aside only appears once the main column can still hold a table. */
@@ -526,12 +496,10 @@
 
 @media (min-width: 900px) {
   .plg-toolbar { flex-direction: row; align-items: center; justify-content: space-between; }
-  .plg-toolbar .plg-input { max-width: 280px; }
   .plg-detail { display: flex; }
   .plg-modal { align-items: center; padding: 24px; }
   .plg-modal__card { max-height: 720px; border-radius: 12px; }
   .plg-btn { height: 36px; }
   .plg-btn--icon { width: 36px; }
-  .plg-input, .plg-select { height: 36px; }
 }
 
