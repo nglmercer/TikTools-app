@@ -178,10 +178,6 @@
 .theme-preview__swatch.is-dark .theme-preview__icon { color:#e8ecf4; }
 .theme-preview__swatch.is-light .theme-preview__icon { color:#0f172a; }
 .theme-preview__bar { height:8px; border-radius:4px; background:var(--tt-cyan); opacity:0.8; }
-.theme-preview__line { height:6px; border-radius:3px; background:currentColor; opacity:0.55; }
-.theme-preview__swatch.is-dark .theme-preview__line { color:#e8ecf4; }
-.theme-preview__swatch.is-light .theme-preview__line { color:#0f172a; }
-.theme-preview__line.is-short { width:60%; }
 .theme-preview__caption { font-size:10px; font-weight:700; margin-top:2px; }
 .theme-preview__swatch.is-dark .theme-preview__caption { color:#e8ecf4; }
 .theme-preview__swatch.is-light .theme-preview__caption { color:#0f172a; }
