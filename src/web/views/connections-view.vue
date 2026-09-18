@@ -67,6 +67,11 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
   ['locale', 'uniqueId', 'cookie', 'status', 'recents', 'error', 'plugins', 'pluginPages', 'connections', 'pluginSettings', 'actionOptions', 'provisionStates', 'onUniqueIdChange', 'onCookieChange', 'onConnect', 'onDisconnect', 'onReconnect', 'onPickLive', 'onSelectRecent', 'onTestConnection', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onOpenMediaPicker', 'onProvisionToken', 'onOpenPlugins'],
   (props) => {
   const showCookie = ref(Boolean(props.cookie));
+  // Manual per-server overrides; untouched servers follow the smart default
+  // (expanded while they need attention, collapsed once healthy).
+  const openServers = ref<Record<string, boolean>>({});
+  const isServerOpen = (id: string, connection?: PluginConnectionState): boolean =>
+    openServers.value[id] ?? !(connection?.ok === true);
 
   const connectionPageFor = (pluginId: string): PluginPageDescriptor | undefined => {
     const pages = props.pluginPages.filter((page) => page.pluginId === pluginId);
@@ -191,32 +196,48 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
                 // duplicate nav entry.
                 const iconName = readIconName(page?.icon) ?? 'plugin';
                 const conn = props.connections[id];
+                const open = isServerOpen(id, conn);
+                // The card stays mounted while collapsed so its auto-probe,
+                // draft, and autosave state survive; collapse is purely visual.
                 return (
-                  <div key={id} class="srv-server">
-                    <div class="srv-server__head">
+                  <div key={id} class={`srv-server${open ? ' is-open' : ''}`}>
+                    <button
+                      type="button"
+                      class="srv-server__head"
+                      aria-expanded={open ? 'true' : 'false'}
+                      aria-controls={`srv-body-${id}`}
+                      onClick={() => {
+                        openServers.value = { ...openServers.value, [id]: !open };
+                      }}
+                    >
                       <span class="srv-server__icon" aria-hidden="true">
                         <Icon name={iconName} size={15} />
                       </span>
                       <span class="srv-server__name">{i18nText(locale, plugin.descriptor.name)}</span>
                       {conn ? <span class={`plg-dot${conn.ok ? ' is-ok' : ' is-err'}`} aria-hidden="true" /> : null}
+                      <span class="srv-server__chevron" aria-hidden="true">
+                        <Icon name="chevron-right" size={15} />
+                      </span>
+                    </button>
+                    <div id={`srv-body-${id}`} class="srv-server__body">
+                      <PluginConnectionCard
+                        inline
+                        locale={locale}
+                        pluginId={id}
+                        pluginName={i18nText(locale, plugin.descriptor.name)}
+                        settingsState={props.pluginSettings[id]}
+                        connection={props.connections[id]}
+                        actionOptions={props.actionOptions}
+                        onGetSettings={props.onGetSettings}
+                        onSaveSettings={props.onSaveSettings}
+                        onGetActionOptions={props.onGetActionOptions}
+                        onTestConnection={props.onTestConnection}
+                        onOpenMediaPicker={props.onOpenMediaPicker}
+                        supportsProvisioning={plugin.descriptor.supportsTokenProvisioning}
+                        provisionState={props.provisionStates[id]}
+                        onProvisionToken={props.onProvisionToken}
+                      />
                     </div>
-                    <PluginConnectionCard
-                      inline
-                      locale={locale}
-                      pluginId={id}
-                      pluginName={i18nText(locale, plugin.descriptor.name)}
-                      settingsState={props.pluginSettings[id]}
-                      connection={props.connections[id]}
-                      actionOptions={props.actionOptions}
-                      onGetSettings={props.onGetSettings}
-                      onSaveSettings={props.onSaveSettings}
-                      onGetActionOptions={props.onGetActionOptions}
-                      onTestConnection={props.onTestConnection}
-                      onOpenMediaPicker={props.onOpenMediaPicker}
-                      supportsProvisioning={plugin.descriptor.supportsTokenProvisioning}
-                      provisionState={props.provisionStates[id]}
-                      onProvisionToken={props.onProvisionToken}
-                    />
                   </div>
                 );
               })}

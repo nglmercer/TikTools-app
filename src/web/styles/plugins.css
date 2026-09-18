@@ -500,10 +500,23 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 11px 14px;
+  border: none;
   border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   min-width: 0;
 }
+.srv-server__head:hover .srv-server__chevron { color: var(--text); }
+.srv-server__head:focus-visible { outline: 2px solid var(--plg-accent); outline-offset: -2px; }
+/* Collapsed entries hide the divider so it never doubles the card edge. */
+.srv-server:not(.is-open) .srv-server__head { border-bottom-color: transparent; }
+.srv-server:not(.is-open) .srv-server__body { display: none; }
 .srv-server__icon { display: inline-flex; color: var(--tt-cyan); flex-shrink: 0; }
 .srv-server__name {
   flex: 1;
@@ -514,6 +527,16 @@
   font-size: 13px;
   font-weight: 700;
   color: var(--text);
+}
+.srv-server__chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--plg-dim);
+  transition: transform 0.15s;
+}
+.srv-server.is-open .srv-server__chevron { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .srv-server__chevron { transition: none; }
 }
 /* ---- connection card: one centered column, no side rails ---- */
 .plg-connect {

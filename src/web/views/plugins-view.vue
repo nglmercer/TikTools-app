@@ -66,7 +66,6 @@ function pluginCopy(locale: Locale) {
     install: t(locale, 'pluginInstall'),
     activate: t(locale, 'pluginActivate'),
     uninstall: t(locale, 'pluginUninstall'),
-    deactivate: t(locale, 'pluginDeactivate'),
     active: t(locale, 'pluginActive'),
     disabled: t(locale, 'pluginDisabled'),
     unavailable: t(locale, 'pluginUnavailable'),
@@ -428,36 +427,17 @@ const PluginCard = defineVueComponent<PluginCardProps>(
               <span>{t(props.locale, 'pluginConnect')}</span>
             </button>
           )}
-          <button
-            type="button"
-            class={`plg-btn plg-btn--sm${plugin.installed ? ' plg-btn--danger' : ' plg-btn--primary'}`}
-            onClick={async () => {
-              if (!plugin.installed) {
-                props.onSetInstalled(plugin.descriptor.id, true);
-              } else if (canUninstall) {
-                const confirmed = await dialogs.confirm(copy.confirm, {
-                  title: copy.uninstall,
-                  confirmLabel: copy.uninstall,
-                  cancelLabel: copy.cancel,
-                  danger: true,
-                });
-                if (confirmed) props.onUninstall(plugin.descriptor.id);
-              } else {
-                props.onSetInstalled(plugin.descriptor.id, false);
-              }
-            }}
-          >
-            {plugin.installed ? (canUninstall ? copy.uninstall : copy.deactivate) : (canUninstall ? copy.activate : copy.install)}
-          </button>
+          {!plugin.installed && (
+            <button
+              type="button"
+              class="plg-btn plg-btn--sm plg-btn--primary"
+              onClick={() => { props.onSetInstalled(plugin.descriptor.id, true); }}
+            >
+              {canUninstall ? copy.activate : copy.install}
+            </button>
+          )}
         </div>
       </div>
-
-      {plugin.installed && props.usedBy > 0 && (
-        <div class="plg-warn">
-          <strong>{canUninstall ? copy.uninstall : copy.deactivate}:</strong>
-          {copy.usedBy(props.usedBy)}
-        </div>
-      )}
 
       {open.value && (
         <div class="plg-plugin__details">
@@ -492,6 +472,33 @@ const PluginCard = defineVueComponent<PluginCardProps>(
               onGetActionOptions={props.onGetActionOptions}
               onOpenMediaPicker={props.onOpenMediaPicker}
             />
+          )}
+          {plugin.installed && canUninstall && (
+            <div class="plg-plugin__danger">
+              {props.usedBy > 0 && (
+                <div class="plg-warn">
+                  <strong>{copy.uninstall}:</strong>
+                  {copy.usedBy(props.usedBy)}
+                </div>
+              )}
+              <div>
+                <button
+                  type="button"
+                  class="plg-btn plg-btn--sm plg-btn--danger"
+                  onClick={async () => {
+                    const confirmed = await dialogs.confirm(copy.confirm, {
+                      title: copy.uninstall,
+                      confirmLabel: copy.uninstall,
+                      cancelLabel: copy.cancel,
+                      danger: true,
+                    });
+                    if (confirmed) props.onUninstall(plugin.descriptor.id);
+                  }}
+                >
+                  {copy.uninstall}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

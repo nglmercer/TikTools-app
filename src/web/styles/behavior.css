@@ -208,6 +208,7 @@
 .plg-plugin__controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .plg-plugin__details { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--plg-line); }
 .plg-plugin__long { font-size: 12.5px; line-height: 1.6; color: var(--plg-muted); }
+.plg-plugin__danger { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--plg-line); }
 .plg-plugin__desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .plg-btn.is-active { border-color: var(--plg-accent); color: var(--plg-accent); }
 .plg-plugin-list {
