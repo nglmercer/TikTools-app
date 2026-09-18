@@ -1,8 +1,9 @@
 <script lang="tsx">
+import { ref } from 'vue';
 import type { VNode } from 'vue';
 
 import { EventCard } from '../components/event-card.vue';
-import { IconArrowDown, IconBolt, IconChat, IconDot, IconGift, IconHeart, IconPause, IconRadio, IconTrash, IconUsers } from '../components/icons.vue';
+import { IconArrowDown, IconBolt, IconChat, IconChevronLeft, IconChevronRight, IconDot, IconGift, IconHeart, IconPause, IconRadio, IconTrash, IconUsers } from '../components/icons.vue';
 import { Button } from '../components/ui/Button.vue';
 import { SearchInput } from '../components/ui/TextInput.vue';
 import { Tooltip } from '../components/ui/Tooltip.vue';
@@ -28,6 +29,16 @@ type FeedViewProps = {
   streamContainerRef: (el: Element | null) => void;
 };
 
+const VIEWERS_COLLAPSED_KEY = 'tiktok-live-viewers-collapsed';
+
+function readViewersCollapsed(): boolean {
+  try {
+    return localStorage.getItem(VIEWERS_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 function renderFeedView({
   locale,
   events,
@@ -43,7 +54,12 @@ function renderFeedView({
   onToggleAutoScroll,
   onClearFeed,
   streamContainerRef,
-}: FeedViewProps) {
+  viewersCollapsed,
+  onToggleViewers,
+}: FeedViewProps & {
+  viewersCollapsed: boolean;
+  onToggleViewers: () => void;
+}) {
   const filterButtons: Array<{ key: EventFilter; tooltip: string; icon: VNode }> = [
     { key: 'all', tooltip: t(locale, 'filterAll'), icon: <IconBolt /> },
     { key: 'chat', tooltip: t(locale, 'filterChats'), icon: <IconChat /> },
@@ -65,6 +81,12 @@ function renderFeedView({
     }
     return true;
   });
+
+  const viewersTotal = liveViewers > 0
+    ? liveViewers
+    : topViewers.length > 0
+      ? topViewers.length
+      : leaderboard.length;
 
   return (
     <main class="feed-pane">
@@ -123,8 +145,45 @@ function renderFeedView({
           </footer>
         </section>
 
-        <aside class="feed-side" aria-label={t(locale, 'topContributors')}>
-          <TopViewersRibbon locale={locale} topViewers={topViewers} leaderboard={leaderboard} liveViewers={liveViewers} />
+        <aside class={`feed-side${viewersCollapsed ? ' is-collapsed' : ''}`} aria-label={t(locale, 'topContributors')}>
+          <div class="feed-side__head">
+            {viewersCollapsed ? (
+              <Tooltip text={t(locale, 'expandViewers')} position="left">
+                <button
+                  type="button"
+                  class="feed-side__toggle"
+                  aria-label={t(locale, 'expandViewers')}
+                  aria-expanded="false"
+                  onClick={onToggleViewers}
+                >
+                  <IconChevronLeft size={15} />
+                </button>
+              </Tooltip>
+            ) : (
+              <>
+                <span class="feed-side__title">
+                  {t(locale, 'viewersCount')}
+                  <span class="feed-side__count">{viewersTotal}</span>
+                </span>
+                <Tooltip text={t(locale, 'collapseViewers')} position="left">
+                  <button
+                    type="button"
+                    class="feed-side__toggle"
+                    aria-label={t(locale, 'collapseViewers')}
+                    aria-expanded="true"
+                    onClick={onToggleViewers}
+                  >
+                    <IconChevronRight size={15} />
+                  </button>
+                </Tooltip>
+              </>
+            )}
+          </div>
+          {viewersCollapsed ? null : (
+            <div class="feed-side__body">
+              <TopViewersRibbon locale={locale} topViewers={topViewers} leaderboard={leaderboard} liveViewers={liveViewers} />
+            </div>
+          )}
         </aside>
       </div>
 
@@ -156,7 +215,18 @@ export const FeedView = defineVueComponent<FeedViewProps>(
     'onClearFeed',
     'streamContainerRef',
   ],
-  (props) => () => renderFeedView(props),
+  (props) => {
+    const viewersCollapsed = ref(readViewersCollapsed());
+    const onToggleViewers = (): void => {
+      viewersCollapsed.value = !viewersCollapsed.value;
+      try {
+        localStorage.setItem(VIEWERS_COLLAPSED_KEY, viewersCollapsed.value ? '1' : '0');
+      } catch {
+        // Collapse preference is best-effort when storage is unavailable.
+      }
+    };
+    return () => renderFeedView({ ...props, viewersCollapsed: viewersCollapsed.value, onToggleViewers });
+  },
 );
 
 export default FeedView;

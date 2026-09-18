@@ -190,13 +190,15 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
                 // connection-only tab keeps its wayfinding without a
                 // duplicate nav entry.
                 const iconName = readIconName(page?.icon) ?? 'plugin';
+                const conn = props.connections[id];
                 return (
-                  <div key={id}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <span style={{ display: 'inline-flex', color: 'var(--tt-cyan)' }} aria-hidden="true">
-                        <Icon name={iconName} size={16} />
+                  <div key={id} class="srv-server">
+                    <div class="srv-server__head">
+                      <span class="srv-server__icon" aria-hidden="true">
+                        <Icon name={iconName} size={15} />
                       </span>
-                      <span style={{ fontWeight: 700 }}>{i18nText(locale, plugin.descriptor.name)}</span>
+                      <span class="srv-server__name">{i18nText(locale, plugin.descriptor.name)}</span>
+                      {conn ? <span class={`plg-dot${conn.ok ? ' is-ok' : ' is-err'}`} aria-hidden="true" /> : null}
                     </div>
                     <PluginConnectionCard
                       inline

@@ -469,3 +469,68 @@ fn shipped_sonicboom_example_parses() {
         assert!(validate_plugin_page(page).is_ok());
     }
 }
+
+#[test]
+fn sonicboom_output_action_declares_live_device_source() {
+    // Pins the integration contract the TTS output selector relies on: the
+    // switch action posts the chosen device to SonicBoom, and its option
+    // source reads the live device list (plus server selection) back from
+    // the same server. No hardcoded device names anywhere.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/sonicboom-server/plugin.json");
+    if !path.exists() {
+        // The crate is consumed outside the workspace; nothing to gate.
+        return;
+    }
+    let input = std::fs::read_to_string(&path).unwrap();
+    let manifest = PluginManifest::from_json_str(&input).unwrap();
+    let action = manifest
+        .action_types
+        .iter()
+        .find(|action| {
+            action.get("id").and_then(Value::as_str) == Some("sonicboom.server.set-output-device")
+        })
+        .expect("set-output-device action declared");
+    let device = action
+        .get("fields")
+        .and_then(Value::as_array)
+        .and_then(|fields| {
+            fields
+                .iter()
+                .find(|field| field.get("key").and_then(Value::as_str) == Some("device"))
+        })
+        .expect("device field declared");
+    assert_eq!(
+        device.get("optionsFrom").and_then(Value::as_str),
+        Some("plugin-action-options:sonicboom.server.set-output-device:device")
+    );
+    let http = action.get("http").expect("declarative http block");
+    assert_eq!(http.get("method").and_then(Value::as_str), Some("POST"));
+    assert_eq!(
+        http.get("path").and_then(Value::as_str),
+        Some("/api/audio/output")
+    );
+    assert!(
+        http.get("body")
+            .and_then(Value::as_str)
+            .is_some_and(|body| body.contains("{{ config.device }}")),
+        "switch posts the chosen device verbatim"
+    );
+    let source = action
+        .get("optionSources")
+        .and_then(|sources| sources.get("device"))
+        .expect("device option source declared");
+    assert_eq!(
+        source.get("path").and_then(Value::as_str),
+        Some("/api/audio/devices")
+    );
+    assert_eq!(
+        source.get("itemsPath").and_then(Value::as_str),
+        Some("devices")
+    );
+    assert_eq!(source.get("valuePath").and_then(Value::as_str), Some("id"));
+    assert_eq!(
+        source.get("labelPath").and_then(Value::as_str),
+        Some("name")
+    );
+}

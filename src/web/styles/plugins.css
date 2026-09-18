@@ -169,7 +169,7 @@
 .plg-switch--field .plg-switch__input:checked + .plg-switch__track { border-color: var(--plg-accent); background: rgba(254, 44, 85, 0.22); }
 .plg-switch--field .plg-switch__input:checked + .plg-switch__track .plg-switch__thumb { background: var(--plg-accent); transform: translateX(14px); }
 
-.plg-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--plg-dim); flex-shrink: 0; }
+.plg-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--plg-dim); flex-shrink: 0; }
 .plg-dot.is-ok { background: var(--plg-ok); }
 .plg-dot.is-err { background: var(--plg-err); }
 
@@ -371,21 +371,57 @@
   border-color: color-mix(in srgb, var(--plg-ok) 45%, transparent);
   color: var(--plg-ok);
 }
+/* ---- server entry (Connections tab): one bordered card, header + body share
+   the same padding so the status line aligns with the server name ---- */
+.srv-server {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-elevated);
+  overflow: hidden;
+}
+.srv-server__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.srv-server__icon { display: inline-flex; color: var(--tt-cyan); flex-shrink: 0; }
+.srv-server__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
 /* ---- connection card: one centered column, no side rails ---- */
 .plg-connect {
   display: flex;
   justify-content: center;
   padding: 4px 16px 24px;
 }
-/* Inline (Connections tab server list): same readable column as the plugin
-   page, left-aligned in the wide hub card instead of stretching edge to
-   edge. The card stays fluid below 720px so narrow windows are unaffected. */
+/* Inline (Connections tab server list): borderless body inside .srv-server —
+   the outer server card already draws the border, so the inner card must not
+   add a second padded box (that double box caused the "indented status"
+   look). */
 .plg-connect--inline {
-  justify-content: flex-start;
+  justify-content: stretch;
   padding: 0;
 }
 .plg-connect--inline .plg-connect__card {
-  max-width: 720px;
+  max-width: none;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 12px 14px 14px;
+  gap: 10px;
 }
 .plg-connect__card {
   display: flex;
@@ -410,15 +446,20 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1;
   font-size: 12.5px;
-  color: var(--plg-muted);
+  font-weight: 600;
+  color: var(--plg-text);
 }
 .plg-connect__url {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--plg-mono);
+  min-width: 0;
+  flex: 1;
   font-size: 12px;
+  font-weight: 500;
+  color: var(--plg-muted);
 }
 .plg-connect__save {
   flex-shrink: 0;
@@ -431,18 +472,18 @@
 .plg-connect__rows {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   margin: 0;
   padding: 0;
-  max-width: 560px;
+  max-width: none;
 }
-/* Label/value grid keeps values next to their labels on wide windows
-   instead of pushing them to the far edge (space-between). */
+/* Minimalist key/value rows: compact label column, plain text values that
+   wrap instead of pushing to the far edge or truncating with ellipsis. */
 .plg-connect__row {
   display: grid;
-  grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
+  grid-template-columns: minmax(110px, 150px) minmax(0, 1fr);
   align-items: baseline;
-  gap: 16px;
+  gap: 12px;
   font-size: 12.5px;
 }
 @media (max-width: 480px) {
@@ -455,21 +496,27 @@
   margin: 0;
   color: var(--plg-dim);
   flex-shrink: 0;
+  font-size: 12px;
 }
 .plg-connect__row dd {
   margin: 0;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--plg-muted);
-  font-family: var(--plg-mono);
-  font-size: 12px;
+  overflow-wrap: anywhere;
+  color: var(--plg-text);
+  font-size: 12.5px;
+  font-weight: 600;
 }
 .plg-connect__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  padding-top: 2px;
+}
+/* Secondary connection buttons must read as buttons: the global `button`
+   reset + the dark input-bg made them look like plain text links. */
+.plg-connect__actions .plg-btn--sm {
+  border-color: var(--plg-line-strong);
+  background: var(--panel-elevated);
 }
 .plg-connect__actions .plg-btn--block { flex: 1 1 100%; }
 .plg-list {
