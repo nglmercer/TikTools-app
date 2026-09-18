@@ -401,22 +401,15 @@ const PluginCard = defineVueComponent<PluginCardProps>(
         </div>
 
         <div class="plg-plugin__controls">
-          {plugin.installed && (
-            <Switch
-              checked={plugin.enabled}
-              onCheckedChange={() => props.onSetEnabled(plugin.descriptor.id, !plugin.enabled)}
-              ariaLabel={i18nText(props.locale, plugin.descriptor.name)}
-            />
+          {!plugin.installed && (
+            <button
+              type="button"
+              class="plg-btn plg-btn--sm plg-btn--primary"
+              onClick={() => { props.onSetInstalled(plugin.descriptor.id, true); }}
+            >
+              {canUninstall ? copy.activate : copy.install}
+            </button>
           )}
-          <button
-            type="button"
-            class={`plg-btn plg-btn--sm${open.value ? ' is-active' : ''}`}
-            aria-expanded={open.value ? 'true' : 'false'}
-            onClick={() => { open.value = !open.value; }}
-          >
-            <Icon name="doc" size={14} />
-            <span>{copy.details}</span>
-          </button>
           {plugin.installed && plugin.enabled && plugin.descriptor.hasConnectionProbe && (
             <button
               type="button"
@@ -427,14 +420,21 @@ const PluginCard = defineVueComponent<PluginCardProps>(
               <span>{t(props.locale, 'pluginConnect')}</span>
             </button>
           )}
-          {!plugin.installed && (
-            <button
-              type="button"
-              class="plg-btn plg-btn--sm plg-btn--primary"
-              onClick={() => { props.onSetInstalled(plugin.descriptor.id, true); }}
-            >
-              {canUninstall ? copy.activate : copy.install}
-            </button>
+          <button
+            type="button"
+            class={`plg-btn plg-btn--sm${open.value ? ' is-active' : ''}`}
+            aria-expanded={open.value ? 'true' : 'false'}
+            onClick={() => { open.value = !open.value; }}
+          >
+            <Icon name="doc" size={14} />
+            <span>{copy.details}</span>
+          </button>
+          {plugin.installed && (
+            <Switch
+              checked={plugin.enabled}
+              onCheckedChange={() => props.onSetEnabled(plugin.descriptor.id, !plugin.enabled)}
+              ariaLabel={i18nText(props.locale, plugin.descriptor.name)}
+            />
           )}
         </div>
       </div>
