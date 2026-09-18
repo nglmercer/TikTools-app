@@ -655,6 +655,7 @@ fn saturated_subscriber_does_not_block_live_domain_events() {
         message: "post-burst".to_owned(),
     });
     let mut saw_marker = false;
+    let mut saw_reliable_gap = false;
     for _ in 0..64 {
         match live.try_recv() {
             Ok(DomainEvent::LiveError { phase, .. }) if phase == "burst-marker" => {
@@ -662,13 +663,20 @@ fn saturated_subscriber_does_not_block_live_domain_events() {
                 break;
             }
             Ok(_) => {}
-            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => {}
-            Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
-            Err(tokio::sync::broadcast::error::TryRecvError::Closed) => {
+            Err(crate::events::DomainTryRecvError::ReliableLagged(_)) => {
+                saw_reliable_gap = true;
+            }
+            Err(crate::events::DomainTryRecvError::LossyLagged(_)) => {}
+            Err(crate::events::DomainTryRecvError::Empty) => break,
+            Err(crate::events::DomainTryRecvError::Closed) => {
                 panic!("bus must stay open under saturation")
             }
         }
     }
+    assert!(
+        saw_reliable_gap,
+        "a reliable burst must surface as an explicit gap, never silent loss"
+    );
     assert!(
         saw_marker,
         "live subscriber must receive post-burst events despite saturation"
@@ -695,14 +703,18 @@ fn lossy_flood_does_not_evict_reliable_transitions() {
     // Reliable drains first, intact and in order; the lossy lane lags
     // independently without touching it.
     let mut markers = Vec::new();
+    let mut saw_reliable_gap = false;
     for _ in 0..700 {
         match live.try_recv() {
             Ok(DomainEvent::LiveError { phase, .. }) => markers.push(phase),
             Ok(DomainEvent::LiveDisconnected) => markers.push("disconnect".to_owned()),
             Ok(_) => {}
-            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => {}
-            Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
-            Err(tokio::sync::broadcast::error::TryRecvError::Closed) => {
+            Err(crate::events::DomainTryRecvError::ReliableLagged(_)) => {
+                saw_reliable_gap = true;
+            }
+            Err(crate::events::DomainTryRecvError::LossyLagged(_)) => {}
+            Err(crate::events::DomainTryRecvError::Empty) => break,
+            Err(crate::events::DomainTryRecvError::Closed) => {
                 panic!("bus must stay open under a lossy flood")
             }
         }
@@ -712,6 +724,61 @@ fn lossy_flood_does_not_evict_reliable_transitions() {
         vec!["before-flood".to_owned(), "disconnect".to_owned()],
         "reliable transitions must survive a lossy flood in order"
     );
+    assert!(
+        !saw_reliable_gap,
+        "a lossy flood must never cause a reliable gap"
+    );
+}
+
+#[test]
+fn event_gaps_degrade_system_health_until_acknowledged() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = AppCore::new(emitter);
+    let health = core.system_health();
+    assert_eq!(health["status"], "ok");
+    assert_eq!(health["events"]["status"], "ok");
+    assert_eq!(health["events"]["reliableGaps"], 0);
+    assert!(health["events"]["lastGapAt"].is_null());
+
+    core.record_event_gap();
+    core.record_event_gap();
+    let health = core.system_health();
+    assert_eq!(health["status"], "degraded");
+    assert_eq!(health["events"]["status"], "degraded");
+    assert_eq!(health["events"]["reliableGaps"], 2);
+    assert!(
+        health["events"]["lastGapAt"].as_u64().unwrap_or_default() > 0,
+        "health must timestamp the gap: {health}"
+    );
+    assert!(
+        health.to_string().contains("resync"),
+        "health must tell agents to resync: {health}"
+    );
+
+    // After every affected client resynced, an explicit acknowledge
+    // returns health to OK.
+    core.acknowledge_event_gaps();
+    let health = core.system_health();
+    assert_eq!(health["status"], "ok");
+    assert_eq!(health["events"]["status"], "ok");
+    assert_eq!(health["events"]["reliableGaps"], 0);
+    assert!(health["events"]["lastGapAt"].is_null());
+}
+
+#[test]
+fn webview_error_degrades_system_health() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = AppCore::new(emitter);
+    assert_eq!(core.system_health()["status"], "ok");
+    core.set_webview_error(Some("WebView transport failed".to_owned()));
+    let health = core.system_health();
+    assert_eq!(health["status"], "degraded");
+    assert!(
+        health.to_string().contains("WebView transport failed"),
+        "health must name the WebView failure: {health}"
+    );
+    core.set_webview_error(None);
+    assert_eq!(core.system_health()["status"], "ok");
 }
 
 #[test]

@@ -20,7 +20,7 @@ pub mod response;
 pub mod router;
 pub mod transport;
 
-pub use client::{ClientError, ControlClient};
+pub use client::{ClientError, ControlClient, ControlEvent};
 pub use error::ApiError;
 pub use registry::MethodMeta;
 pub use request::{RpcId, RpcRequest};
@@ -167,5 +167,21 @@ pub fn event_notification(event: &tiktools_core::events::DomainEvent) -> Value {
         "jsonrpc": "2.0",
         "method": "event",
         "params": serde_json::to_value(event).unwrap_or(Value::Null),
+    })
+}
+
+/// Maps a reliable-lane lag onto the JSON-RPC gap notification envelope:
+/// `{ jsonrpc, method: "event.gap", params: { lost, resync: true } }`.
+/// `lost` counts the skipped authoritative events. The stream is no
+/// longer complete: the client must refresh authoritative state instead
+/// of reconstructing the missing events.
+pub fn gap_notification(lost: u64) -> Value {
+    serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "event.gap",
+        "params": {
+            "lost": lost,
+            "resync": true,
+        },
     })
 }

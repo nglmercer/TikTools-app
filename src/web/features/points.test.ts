@@ -43,6 +43,7 @@ function stubControl(board: ViewerRecord[]): ControlClient & {
     },
     onPush: () => () => {},
     onTransportError: () => () => {},
+    onGap: () => () => {},
   };
 }
 

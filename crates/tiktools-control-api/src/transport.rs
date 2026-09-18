@@ -369,12 +369,10 @@ mod pipe_security {
             if status != ERROR_SUCCESS {
                 return Err(io::Error::from_raw_os_error(status as i32));
             }
-            let mut descriptor: Box<SECURITY_DESCRIPTOR> =
-                Box::new(unsafe { std::mem::zeroed() });
+            let mut descriptor: Box<SECURITY_DESCRIPTOR> = Box::new(unsafe { std::mem::zeroed() });
             unsafe {
                 let descriptor_ptr = &mut *descriptor as *mut _ as *mut core::ffi::c_void;
-                if InitializeSecurityDescriptor(descriptor_ptr, SECURITY_DESCRIPTOR_REVISION) == 0
-                {
+                if InitializeSecurityDescriptor(descriptor_ptr, SECURITY_DESCRIPTOR_REVISION) == 0 {
                     return Err(io::Error::last_os_error());
                 }
                 if SetSecurityDescriptorDacl(descriptor_ptr, 1, acl as *const _, 0) == 0 {
@@ -532,7 +530,7 @@ where
                         write_response(&mut writer, &response).await?;
                         // Flush events the request published (a biased select
                         // would otherwise starve them behind piped requests).
-                        drain_events(&mut writer, &mut events).await?;
+                        drain_events(&mut writer, &mut events, api.core()).await?;
                         if api.core().is_shutdown() {
                             writer.flush().await?;
                             return Ok(());
@@ -553,17 +551,44 @@ where
             }
             event = async {
                 match events.as_mut() {
-                    Some(receiver) => receiver.recv().await.ok(),
+                    Some(receiver) => Some(receiver.recv().await),
                     None => std::future::pending().await,
                 }
             } => {
-                if let Some(event) = event {
-                    let notification = event_notification(&event);
-                    let mut bytes = serde_json::to_vec(&notification)
-                        .unwrap_or_else(|_| b"{}".to_vec());
-                    bytes.push(b'\n');
-                    writer.write_all(&bytes).await?;
-                    writer.flush().await?;
+                use tiktools_core::events::DomainRecvError;
+                match event {
+                    Some(Ok(event)) => {
+                        write_notification(
+                            &mut writer,
+                            &event_notification(&event),
+                        )
+                        .await?;
+                    }
+                    // Reliable lag is never silent: the client learns it
+                    // missed authoritative events and must resync, while
+                    // the connection stays alive for later events.
+                    Some(Err(DomainRecvError::ReliableLagged(lost))) => {
+                        tracing::warn!(
+                            lost,
+                            "control IPC event subscriber lagged on the reliable lane"
+                        );
+                        api.core().record_event_gap();
+                        write_notification(&mut writer, &crate::gap_notification(lost)).await?;
+                    }
+                    // Lossy lag only skipped feed/snapshots: continue with
+                    // no gap signal.
+                    Some(Err(DomainRecvError::LossyLagged(skipped))) => {
+                        tracing::debug!(
+                            skipped,
+                            "control IPC event subscriber skipped a lossy burst"
+                        );
+                    }
+                    // The bus is gone: terminate the event stream, not the
+                    // connection. Disarming here also avoids a Closed
+                    // busy loop (a closed receiver is always ready).
+                    Some(Err(DomainRecvError::Closed)) | None => {
+                        events = None;
+                    }
                 }
             }
         }
@@ -641,23 +666,49 @@ where
     }
 }
 
-/// Writes every queued domain event as a notification. Stops at the
-/// first empty/lagged/closed drain so a hot bus cannot stall responses.
+/// Writes every queued domain event as a notification. Lag never
+/// stops the drain: reliable lag emits an explicit gap notification and
+/// draining continues, lossy lag just continues. Only an empty lane or
+/// a closed bus ends the drain (a closed bus disarms the stream).
 async fn drain_events<W>(
     writer: &mut W,
     events: &mut Option<tiktools_core::events::DomainSubscription>,
+    core: &tiktools_core::AppCore,
 ) -> std::io::Result<()>
 where
     W: AsyncWrite + Unpin,
 {
+    use tiktools_core::events::DomainTryRecvError;
     let Some(receiver) = events.as_mut() else {
         return Ok(());
     };
-    while let Ok(event) = receiver.try_recv() {
-        let notification = event_notification(&event);
-        let mut bytes = serde_json::to_vec(&notification).unwrap_or_else(|_| b"{}".to_vec());
-        bytes.push(b'\n');
-        writer.write_all(&bytes).await?;
+    loop {
+        match receiver.try_recv() {
+            Ok(event) => {
+                let notification = event_notification(&event);
+                let mut bytes =
+                    serde_json::to_vec(&notification).unwrap_or_else(|_| b"{}".to_vec());
+                bytes.push(b'\n');
+                writer.write_all(&bytes).await?;
+            }
+            Err(DomainTryRecvError::ReliableLagged(lost)) => {
+                tracing::warn!(lost, "control IPC event drain lagged on the reliable lane");
+                core.record_event_gap();
+                let notification = crate::gap_notification(lost);
+                let mut bytes =
+                    serde_json::to_vec(&notification).unwrap_or_else(|_| b"{}".to_vec());
+                bytes.push(b'\n');
+                writer.write_all(&bytes).await?;
+            }
+            Err(DomainTryRecvError::LossyLagged(skipped)) => {
+                tracing::debug!(skipped, "control IPC event drain skipped a lossy burst");
+            }
+            Err(DomainTryRecvError::Empty) => break,
+            Err(DomainTryRecvError::Closed) => {
+                *events = None;
+                break;
+            }
+        }
     }
     writer.flush().await
 }
@@ -686,6 +737,20 @@ where
 {
     let mut bytes = serde_json::to_vec(response)
         .unwrap_or_else(|_| b"{\"jsonrpc\":\"2.0\",\"id\":null}".to_vec());
+    bytes.push(b'\n');
+    writer.write_all(&bytes).await?;
+    writer.flush().await
+}
+
+/// Writes one JSON-RPC notification line (domain event or event gap).
+async fn write_notification<W>(
+    writer: &mut W,
+    notification: &serde_json::Value,
+) -> std::io::Result<()>
+where
+    W: AsyncWrite + Unpin,
+{
+    let mut bytes = serde_json::to_vec(notification).unwrap_or_else(|_| b"{}".to_vec());
     bytes.push(b'\n');
     writer.write_all(&bytes).await?;
     writer.flush().await
@@ -771,6 +836,218 @@ mod tests {
             .expect("EOF timed out")
             .unwrap();
         assert!(eof.is_none());
+        tokio::time::timeout(std::time::Duration::from_secs(10), server_task)
+            .await
+            .expect("server task hung after EOF")
+            .expect("server task panicked")
+            .unwrap();
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// Isolated core for tests that need gap recording without a server.
+    fn gap_test_core(tag: &str) -> (std::sync::Arc<tiktools_core::AppCore>, std::path::PathBuf) {
+        struct Emitter;
+        impl tiktools_core::HostEmitter for Emitter {
+            fn emit(&self, _message: tiktools_core::ipc::messages::HostMessage) {}
+        }
+        let home = std::env::temp_dir().join(format!(
+            "tiktools-transport-gap-{tag}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        ));
+        std::env::set_var("TIKTOOLS_HOME", &home);
+        (
+            std::sync::Arc::new(tiktools_core::AppCore::new(std::sync::Arc::new(Emitter))),
+            home,
+        )
+    }
+
+    #[tokio::test]
+    async fn drain_emits_gap_and_continues_after_reliable_lag() {
+        use tiktools_core::events::DomainEvent;
+        let (core, home) = gap_test_core("drain");
+        let bus = tiktools_core::events::EventBus::new(1);
+        let mut events = Some(bus.subscribe_domain());
+        // Lag the reliable lane deterministically, then publish a marker
+        // that must still arrive after the gap.
+        for _ in 0..600 {
+            bus.publish_domain(DomainEvent::LiveDisconnected);
+        }
+        bus.publish_domain(DomainEvent::LiveError {
+            phase: "post-gap-marker".to_owned(),
+            message: "m".to_owned(),
+        });
+        let mut output = Vec::new();
+        drain_events(&mut output, &mut events, &core)
+            .await
+            .expect("drain succeeds");
+        let text = String::from_utf8(output).expect("drain writes UTF-8 lines");
+        let mut saw_gap = false;
+        let mut saw_marker = false;
+        for line in text.lines() {
+            let value: serde_json::Value =
+                serde_json::from_str(line).expect("drain writes JSON lines");
+            if value.get("method").and_then(|method| method.as_str()) == Some("event.gap") {
+                saw_gap = true;
+                assert_eq!(value["params"]["resync"], serde_json::json!(true));
+                assert!(
+                    value["params"]["lost"].as_u64().unwrap_or_default() > 0,
+                    "gap must count the lost events: {line}"
+                );
+            }
+            if line.contains("post-gap-marker") {
+                saw_marker = true;
+            }
+        }
+        assert!(saw_gap, "reliable lag must emit event.gap, not silent loss");
+        assert!(
+            saw_marker,
+            "draining must continue past lag to later events"
+        );
+        assert_eq!(core.event_gap_stats().0, 1);
+        assert!(
+            events.is_some(),
+            "the stream stays armed after a recoverable gap"
+        );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[tokio::test]
+    async fn drain_skips_lossy_bursts_without_gap_signal() {
+        use tiktools_core::events::DomainEvent;
+        let (core, home) = gap_test_core("lossy");
+        let bus = tiktools_core::events::EventBus::new(1);
+        let mut events = Some(bus.subscribe_domain());
+        for index in 0..600 {
+            bus.publish_domain(DomainEvent::LiveUiEvent {
+                event: serde_json::json!({"n": index}),
+            });
+        }
+        let mut output = Vec::new();
+        drain_events(&mut output, &mut events, &core)
+            .await
+            .expect("drain succeeds");
+        let text = String::from_utf8(output).expect("drain writes UTF-8 lines");
+        assert!(
+            !text.contains("event.gap"),
+            "a lossy flood must never cause a gap signal: {text}"
+        );
+        assert_eq!(core.event_gap_stats().0, 0);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// End to end: a reliable burst over a slow connection produces an
+    /// explicit gap, the connection stays alive, and later events still
+    /// arrive. Current-thread on purpose: the burst publishes without
+    /// yielding, so the server cannot interleave reads and the lag is
+    /// deterministic.
+    #[tokio::test(flavor = "current_thread")]
+    async fn burst_lags_connection_with_gap_but_stays_alive() {
+        use tiktools_core::events::DomainEvent;
+        struct Emitter;
+        impl tiktools_core::HostEmitter for Emitter {
+            fn emit(&self, _message: tiktools_core::ipc::messages::HostMessage) {}
+        }
+        let home = std::env::temp_dir().join(format!(
+            "tiktools-transport-burst-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        ));
+        std::env::set_var("TIKTOOLS_HOME", &home);
+        let core = std::sync::Arc::new(tiktools_core::AppCore::new(std::sync::Arc::new(Emitter)));
+        let api = ControlApi::new(std::sync::Arc::clone(&core));
+        // Tiny duplex: the server blocks writing the burst, guaranteeing
+        // the connection subscription lags while the test is not reading.
+        let (client, server) = tokio::io::duplex(1024);
+        let (server_read, server_write) = tokio::io::split(server);
+        let server_task = tokio::spawn(async move {
+            serve_stream(
+                &api,
+                tokio::io::BufReader::new(server_read),
+                server_write,
+                true,
+            )
+            .await
+        });
+        let (client_read, mut client_write) = tokio::io::split(client);
+        let mut lines = tokio::io::BufReader::new(client_read).lines();
+        async fn next_line(
+            lines: &mut tokio::io::Lines<
+                tokio::io::BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>,
+            >,
+        ) -> Option<String> {
+            tokio::time::timeout(std::time::Duration::from_secs(10), lines.next_line())
+                .await
+                .expect("line timed out")
+                .expect("read failed")
+        }
+        // Round trip first so the server is subscribed before the burst.
+        client_write
+            .write_all(b"{\"id\":1,\"method\":\"system.ping\"}\n")
+            .await
+            .unwrap();
+        assert!(next_line(&mut lines).await.unwrap().contains("\"id\":1"));
+        // No awaits: on this runtime the server cannot read mid-burst, so
+        // 600 reliable events into a 256-capacity lane must lag it.
+        for _ in 0..600 {
+            core.events.publish_domain(DomainEvent::LiveDisconnected);
+        }
+        // The client receives an explicit gap notification.
+        let mut saw_gap = false;
+        for _ in 0..700 {
+            let line = next_line(&mut lines).await.expect("gap line");
+            if line.contains("\"method\":\"event.gap\"") {
+                let value: serde_json::Value = serde_json::from_str(&line).expect("gap is JSON");
+                assert_eq!(value["params"]["resync"], serde_json::json!(true));
+                assert!(
+                    value["params"]["lost"].as_u64().unwrap_or_default() > 0,
+                    "gap must count lost events: {line}"
+                );
+                saw_gap = true;
+                break;
+            }
+        }
+        assert!(saw_gap, "burst must produce an event.gap notification");
+        assert!(
+            core.event_gap_stats().0 >= 1,
+            "the gap must be recorded for system.health"
+        );
+        // The connection remains alive: RPC still works after the gap.
+        client_write
+            .write_all(b"{\"id\":2,\"method\":\"system.ping\"}\n")
+            .await
+            .unwrap();
+        let mut saw_pong = false;
+        for _ in 0..700 {
+            let line = next_line(&mut lines).await.expect("post-gap line");
+            if line.contains("\"id\":2") {
+                assert!(line.contains("\"ok\":true"), "unexpected pong: {line}");
+                saw_pong = true;
+                break;
+            }
+        }
+        assert!(saw_pong, "connection must stay alive after the gap");
+        // Later events still arrive after the gap.
+        core.events.publish_domain(DomainEvent::LiveError {
+            phase: "post-gap-marker".to_owned(),
+            message: "m".to_owned(),
+        });
+        let mut saw_marker = false;
+        for _ in 0..700 {
+            let line = next_line(&mut lines).await.expect("marker line");
+            if line.contains("post-gap-marker") {
+                saw_marker = true;
+                break;
+            }
+        }
+        assert!(saw_marker, "post-gap events must still arrive");
+        client_write.shutdown().await.unwrap();
+        // Drain to EOF so a server blocked on a full buffer can finish.
+        while next_line(&mut lines).await.is_some() {}
         tokio::time::timeout(std::time::Duration::from_secs(10), server_task)
             .await
             .expect("server task hung after EOF")

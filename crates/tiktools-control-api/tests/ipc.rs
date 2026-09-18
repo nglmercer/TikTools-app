@@ -307,11 +307,18 @@ async fn event_subscription_receives_domain_events_without_blocking_rpc() {
     let event = within("event recv", events.recv())
         .await
         .expect("event channel open");
-    assert_eq!(
-        event.topic(),
-        "points.changed",
-        "unexpected event: {event:?}"
-    );
+    match event {
+        tiktools_control_api::ControlEvent::Domain(event) => {
+            assert_eq!(
+                event.topic(),
+                "points.changed",
+                "unexpected event: {event:?}"
+            );
+        }
+        tiktools_control_api::ControlEvent::Gap { lost } => {
+            panic!("unexpected gap (lost {lost}) on an idle stream");
+        }
+    }
 
     // RPC still works after events interleaved on the stream.
     let ping: Value = within("system.ping", client.call_value("system.ping", json!({})))
@@ -378,7 +385,17 @@ async fn event_subscription_continues_after_burst() {
     let event = within("post-burst event recv", events.recv())
         .await
         .expect("event channel open after burst");
-    assert_eq!(event.topic(), "points.changed");
+    match event {
+        tiktools_control_api::ControlEvent::Domain(event) => {
+            assert_eq!(event.topic(), "points.changed");
+        }
+        // The 64-mutation burst may legitimately lag the fan-out; a gap
+        // here still proves the stream reports loss explicitly and stays
+        // attached for later events.
+        tiktools_control_api::ControlEvent::Gap { lost } => {
+            assert!(lost > 0, "gap must count the lost events");
+        }
+    }
 
     let _shutdown: Value = within(
         "system.shutdown",

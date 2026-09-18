@@ -36,4 +36,13 @@ impl IpcRouter {
         self.core.handle_page_message(message).await;
         Ok(())
     }
+
+    /// Dispatches an already-parsed payload, so the WebView router parses
+    /// inbound JSON exactly once. The caller already size-checked `raw`.
+    pub async fn dispatch_value(&self, value: &serde_json::Value) -> Result<(), IpcError> {
+        let message = PageMessage::parse_value(value)?;
+        tracing::debug!(message = %message, "WebView IPC message received");
+        self.core.handle_page_message(message).await;
+        Ok(())
+    }
 }

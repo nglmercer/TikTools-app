@@ -31,6 +31,8 @@ export function errorMessage(failure: unknown): string {
 export type TopicHandler<T = unknown> = (data: T) => void;
 export type PushHandler = (message: HostMessage) => void;
 export type TransportErrorHandler = (message: string) => void;
+/** Reliable-gap signal: `lost` counts the skipped authoritative events. */
+export type GapHandler = (lost: number) => void;
 export type Unsubscribe = () => void;
 
 type PendingCall = {
@@ -66,6 +68,7 @@ export interface ControlClient {
   onTopic<T = unknown>(topic: string, handler: TopicHandler<T>): Unsubscribe;
   onPush(type: HostMessage['type'], handler: PushHandler): Unsubscribe;
   onTransportError(handler: TransportErrorHandler): Unsubscribe;
+  onGap(handler: GapHandler): Unsubscribe;
 }
 
 /**
@@ -83,6 +86,7 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
   const topics = new Map<string, Set<TopicHandler<unknown>>>();
   const pushes = new Map<string, Set<PushHandler>>();
   const transportErrors = new Set<TransportErrorHandler>();
+  const gaps = new Set<GapHandler>();
   let attachedReceive: ((raw: string) => void) | undefined;
 
   const reportTransportError = (message: string): void => {
@@ -118,6 +122,21 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
         call.reject(new ControlCallError(code, message, response.error.data));
       } else {
         call.resolve(response.result ?? null);
+      }
+      return;
+    }
+    // Reliable-gap signal: { method: 'event.gap', params: { lost, resync } }.
+    // The stream is no longer complete: listeners refresh authoritative
+    // state instead of reconstructing the missing events.
+    if (value['method'] === 'event.gap' && isRecord(value['params'])) {
+      const params = value['params'] as { lost?: unknown };
+      const lost = typeof params.lost === 'number' ? params.lost : 0;
+      for (const handler of gaps) {
+        try {
+          handler(lost);
+        } catch {
+          // Listener errors never break dispatch.
+        }
       }
       return;
     }
@@ -176,6 +195,7 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
       topics.clear();
       pushes.clear();
       transportErrors.clear();
+      gaps.clear();
       for (const [, call] of pending) {
         clearTimeout(call.timer);
         call.reject(new ControlCallError('transport', 'control client detached'));
@@ -260,6 +280,13 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
       transportErrors.add(handler);
       return () => {
         transportErrors.delete(handler);
+      };
+    },
+
+    onGap(handler): Unsubscribe {
+      gaps.add(handler);
+      return () => {
+        gaps.delete(handler);
       };
     },
   };

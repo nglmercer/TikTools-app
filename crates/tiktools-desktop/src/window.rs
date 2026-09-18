@@ -1,6 +1,9 @@
 use std::{
     path::PathBuf,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
@@ -41,6 +44,13 @@ pub struct DesktopApp {
     startup_state: StartupState,
     startup_deadline: Option<Instant>,
     pending_activation: bool,
+    /// Shared with the Wry IPC handler: while set, inbound RPC is
+    /// rejected with a transport failure instead of queueing work for a
+    /// dead page. Cleared when the reloaded page handshakes.
+    webview_failed: Arc<AtomicBool>,
+    /// A reload/recreate is waiting for the fresh page's handshake, which
+    /// recovers the failed transport (see `frontend_ready`).
+    reload_pending: bool,
     log_path: PathBuf,
 }
 
@@ -133,8 +143,9 @@ impl DesktopApp {
         // bus as CLI/IPC streaming clients.
         {
             let events = control.subscribe();
+            let core = core.clone();
             let proxy = proxy.clone();
-            runtime.spawn(forward_domain_events(events, move |notification| {
+            runtime.spawn(forward_domain_events(events, core, move |notification| {
                 let _ = proxy.send_event(DesktopEvent::Command(DesktopCommand::EmitToWebview(
                     notification,
                 )));
@@ -155,6 +166,8 @@ impl DesktopApp {
             startup_state: StartupState::Initializing,
             startup_deadline: None,
             pending_activation: false,
+            webview_failed: Arc::new(AtomicBool::new(false)),
+            reload_pending: false,
             log_path,
         }
     }
@@ -178,6 +191,7 @@ impl DesktopApp {
         let control = self.control.clone();
         let runtime = self.runtime.clone();
         let proxy_for_ipc = self.proxy.clone();
+        let transport_failed = self.webview_failed.clone();
         let navigation_frontend = self.frontend.clone();
         let mut builder = WebViewBuilder::new()
             .with_devtools(cfg!(debug_assertions) || cfg!(feature = "devtools"))
@@ -206,6 +220,11 @@ impl DesktopApp {
             })
             .with_ipc_handler(move |request| {
                 let raw = request.body().clone();
+                // The Winit callback never parses JSON: size-check, match
+                // the tiny boot handshake, then move the payload to Tokio,
+                // where it is parsed exactly once and classified on the
+                // value. This keeps malicious or very large valid JSON off
+                // the UI loop.
                 // Same transport limits as local IPC: reject oversized
                 // payloads before any JSON parsing so the WebView cannot
                 // bypass them. (`MAX_PARAMS_BYTES` is enforced inside
@@ -219,13 +238,7 @@ impl DesktopApp {
                             tiktools_control_api::RpcId::extract_from_prefix(&raw),
                             tiktools_control_api::ApiError::too_large(),
                         );
-                        let payload = serde_json::json!({
-                            "type": "rpc-response",
-                            "response": response,
-                        });
-                        let _ = proxy_for_ipc.send_event(DesktopEvent::Command(
-                            DesktopCommand::EmitToWebview(payload.to_string()),
-                        ));
+                        emit_rpc_response(&proxy_for_ipc, &response);
                     } else {
                         tracing::warn!(
                             bytes = raw.len(),
@@ -234,7 +247,7 @@ impl DesktopApp {
                     }
                     return;
                 }
-                if is_frontend_ready(&raw) {
+                if is_frontend_ready_fast(&raw) {
                     let _ = proxy_for_ipc.send_event(DesktopEvent::Command(
                         DesktopCommand::FrontendReady,
                     ));
@@ -243,32 +256,16 @@ impl DesktopApp {
                 let router = router.clone();
                 let control = control.clone();
                 let proxy = proxy_for_ipc.clone();
+                let transport_failed = transport_failed.clone();
                 runtime.spawn(async move {
-                    // JSON-RPC messages (`{"method": ...}`) go through the
-                    // same ControlApi as CLI/stdio/IPC; legacy `{"type": ...}`
-                    // messages keep the PageMessage path during migration.
-                    if is_control_rpc(&raw) {
-                        let response = match serde_json::from_str::<serde_json::Value>(&raw) {
-                            Ok(raw) => control.execute_value(&raw).await,
-                            Err(error) => tiktools_control_api::RpcResponse::error(
-                                tiktools_control_api::RpcId::extract_from_prefix(&raw),
-                                tiktools_control_api::ApiError::invalid_params(format!(
-                                    "invalid JSON: {error}"
-                                )),
-                            ),
-                        };
-                        let payload = serde_json::json!({
-                            "type": "rpc-response",
-                            "response": response,
-                        });
-                        let _ = proxy.send_event(DesktopEvent::Command(
-                            DesktopCommand::EmitToWebview(payload.to_string()),
-                        ));
-                        return;
-                    }
-                    if let Err(error) = router.dispatch(&raw).await {
-                        tracing::warn!(%error, "invalid WebView IPC message");
-                    }
+                    handle_webview_ipc_message(
+                        raw,
+                        &router,
+                        &control,
+                        &proxy,
+                        &transport_failed,
+                    )
+                    .await;
                 });
             });
 
@@ -322,9 +319,43 @@ impl DesktopApp {
 
     /// Two-lane enqueue: RPC responses and critical transitions land in
     /// the reliable lane (never dropped); snapshots coalesce and feed is
-    /// bounded in the lossy lane.
+    /// bounded in the lossy lane. A tripped reliable safety policy fails
+    /// the transport loudly instead of growing memory without bound.
     fn emit_to_webview(&mut self, message: String) {
         self.pending_host_messages.push(message);
+        if self.pending_host_messages.take_transport_failure() {
+            self.fail_webview_transport();
+        }
+    }
+
+    /// Fails the WebView transport loudly after the reliable outbox
+    /// exceeded its safety policy: health degrades, stale queued messages
+    /// are cleared for the rebooting page, new RPC is rejected, and the
+    /// WebView reloads. The latch releases when the fresh page completes
+    /// its handshake (see `frontend_ready`); without that handshake the
+    /// transport stays failed rather than delivering to a dead page.
+    fn fail_webview_transport(&mut self) {
+        self.webview_failed.store(true, Ordering::SeqCst);
+        self.core.set_webview_error(Some(
+            "WebView transport failed: reliable backlog overflow; reloading".to_owned(),
+        ));
+        self.pending_host_messages.clear_for_reload();
+        match self.webview.as_ref() {
+            Some(webview) => match webview.reload() {
+                Ok(()) => {
+                    tracing::error!("WebView reloaded after reliable backlog overflow");
+                    self.reload_pending = true;
+                }
+                Err(error) => {
+                    tracing::error!(%error, "WebView reload failed after reliable backlog overflow; RPC stays rejected");
+                }
+            },
+            None => {
+                tracing::error!(
+                    "WebView transport failed with no WebView to reload; RPC stays rejected"
+                );
+            }
+        }
     }
 
     /// Drains up to one batch per UI tick through a single
@@ -435,6 +466,18 @@ impl DesktopApp {
     }
 
     fn frontend_ready(&mut self) {
+        // A reload/recreate handshake recovers a failed transport only
+        // once the fresh page is actually running: stale responses can
+        // never mis-resolve the new page's calls, and the mount reads
+        // resync authoritative state. Recovery runs before the startup
+        // gate below so a mid-startup reload still completes startup.
+        if self.reload_pending && !self.shutting_down {
+            self.reload_pending = false;
+            self.pending_host_messages.recover_transport();
+            self.webview_failed.store(false, Ordering::SeqCst);
+            self.core.set_webview_error(None);
+            tracing::error!("WebView transport recovered after reload");
+        }
         if self.shutting_down || self.startup_state == StartupState::Ready {
             return;
         }
@@ -565,6 +608,13 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
                         tracing::error!(%error, "could not recreate TikTools window from tray");
                         return;
                     }
+                    // A failed transport recreates with a fresh page: drop
+                    // the stale backlog now; the mount handshake recovers
+                    // the latch (see `frontend_ready`).
+                    if self.pending_host_messages.transport_failed() {
+                        self.pending_host_messages.clear_for_reload();
+                        self.reload_pending = true;
+                    }
                 }
                 self.restore_window();
             }
@@ -625,6 +675,13 @@ const MAX_PENDING_WEBVIEW_MESSAGES: usize = 512;
 /// reliable lane is never dropped: a stuck/slow frontend shows up as a
 /// growing backlog in logs instead of silently lost RPC responses.
 const MAX_RELIABLE_WEBVIEW_BACKLOG: usize = 1024;
+/// Reliable-lane safety policy: past either bound the transport is
+/// broken (a stuck page that never drains), so it fails loudly —
+/// health degrades, RPC is rejected, the WebView reloads — instead of
+/// consuming unlimited memory. Reliable messages are never silently
+/// evicted to stay under these bounds.
+const MAX_RELIABLE_MESSAGES: usize = 4096;
+const MAX_RELIABLE_BYTES: usize = 16 * 1024 * 1024;
 /// Maximum messages delivered in one UI tick through one `evaluate_script`.
 const MAX_BATCH_PER_TICK: usize = 128;
 
@@ -720,7 +777,10 @@ struct QueuedWebviewMessage {
 ///
 /// * `reliable` holds Critical messages (RPC responses, connection and
 ///   lifecycle transitions, errors, shutdown). It is never shed: a slow
-///   frontend builds a loud backlog instead of losing results.
+///   frontend builds a loud backlog instead of losing results, up to the
+///   `MAX_RELIABLE_*` safety policy, past which the whole transport
+///   fails loudly (health, RPC rejection, reload) instead of growing
+///   memory without bound.
 /// * `lossy` holds Coalescable snapshots (latest per key wins) and
 ///   Droppable feed, bounded by `MAX_PENDING_WEBVIEW_MESSAGES` with
 ///   oldest-first shedding.
@@ -734,6 +794,19 @@ struct QueuedWebviewMessage {
 struct WebviewOutbox {
     reliable: std::collections::VecDeque<String>,
     lossy: std::collections::VecDeque<QueuedWebviewMessage>,
+    /// Serialized bytes currently held in the reliable lane.
+    reliable_bytes: usize,
+    /// Latched when the reliable lane exceeds its safety policy. While
+    /// set, new reliable messages are counted (never queued) and inbound
+    /// RPC is rejected, until a clean reload recovers the transport.
+    transport_failed: bool,
+    /// Edge flag: set on the trip, taken by the UI loop to run the
+    /// fail-loud handling exactly once per trip.
+    failure_pending: bool,
+    /// Reliable messages refused while the transport was failed. Counted
+    /// and logged, never silent — but the page is dead, so queueing more
+    /// would only pin memory no reader can consume.
+    dropped_while_failed: u64,
 }
 
 impl WebviewOutbox {
@@ -745,8 +818,58 @@ impl WebviewOutbox {
         self.reliable.is_empty() && self.lossy.is_empty()
     }
 
+    fn transport_failed(&self) -> bool {
+        self.transport_failed
+    }
+
+    #[cfg(test)]
+    fn reliable_bytes(&self) -> usize {
+        self.reliable_bytes
+    }
+
+    /// Takes the failure edge exactly once per trip so the UI loop runs
+    /// the fail-loud handling (health + reload) a single time.
+    fn take_transport_failure(&mut self) -> bool {
+        std::mem::take(&mut self.failure_pending)
+    }
+
+    /// Clears both lanes after the transport failed. The page is dead or
+    /// rebooting, so retained messages are undeliverable; the rebooted
+    /// frontend resyncs authoritative state through its mount reads.
+    fn clear_for_reload(&mut self) {
+        let reliable = self.reliable.len();
+        let lossy = self.lossy.len();
+        self.reliable.clear();
+        self.lossy.clear();
+        self.reliable_bytes = 0;
+        tracing::error!(
+            reliable,
+            lossy,
+            "cleared WebView outbox for transport reload"
+        );
+    }
+
+    /// Releases the failure latch after the reloaded page handshakes. New
+    /// messages queue again; the rebooted frontend resyncs through its
+    /// mount reads.
+    fn recover_transport(&mut self) {
+        self.transport_failed = false;
+        self.dropped_while_failed = 0;
+    }
+
     fn push(&mut self, body: String) {
         if classify_webview_message(&body) == WebviewMessageClass::Critical {
+            if self.transport_failed {
+                self.dropped_while_failed += 1;
+                if self.dropped_while_failed == 1 || self.dropped_while_failed.is_multiple_of(256) {
+                    tracing::error!(
+                        dropped = self.dropped_while_failed,
+                        "WebView transport failed; refusing reliable backlog for a dead page"
+                    );
+                }
+                return;
+            }
+            self.reliable_bytes += body.len();
             self.reliable.push_back(body);
             // Loud backlog instead of silent drops: warn once when the
             // budget is crossed, then once per additional budget of lag.
@@ -758,6 +881,19 @@ impl WebviewOutbox {
                 tracing::error!(
                     backlog,
                     "WebView reliable backlog growing; RPC responses and transitions are held, not dropped"
+                );
+            }
+            // Safety policy: never evict to stay under the bounds — fail
+            // the whole transport loudly instead.
+            if self.reliable.len() > MAX_RELIABLE_MESSAGES
+                || self.reliable_bytes > MAX_RELIABLE_BYTES
+            {
+                self.transport_failed = true;
+                self.failure_pending = true;
+                tracing::error!(
+                    messages = self.reliable.len(),
+                    bytes = self.reliable_bytes,
+                    "WebView reliable backlog exceeded the safety policy; failing the transport loudly"
                 );
             }
             return;
@@ -800,6 +936,7 @@ impl WebviewOutbox {
         let mut batch = Vec::new();
         while batch.len() < MAX_BATCH_PER_TICK {
             if let Some(body) = self.reliable.pop_front() {
+                self.reliable_bytes = self.reliable_bytes.saturating_sub(body.len());
                 batch.push(body);
             } else {
                 break;
@@ -817,24 +954,37 @@ impl WebviewOutbox {
 }
 
 /// Forwards domain events to a UI sink as JSON-RPC `event` notifications.
-/// A lagged receiver skips the missed burst and continues: only a closed
-/// channel or the shutdown event terminates the forwarder, so a temporary
-/// burst never permanently disables WebView events.
+/// Reliable lag emits an explicit `event.gap` notification (and records
+/// it for `system.health`) so the frontend resyncs instead of assuming a
+/// complete stream; lossy lag just skips. Only a closed channel or the
+/// shutdown event terminates the forwarder, so a temporary burst never
+/// permanently disables WebView events.
 async fn forward_domain_events(
     mut events: tiktools_core::events::DomainSubscription,
+    core: Arc<AppCore>,
     mut send: impl FnMut(String),
 ) {
+    use tiktools_core::events::DomainRecvError;
     loop {
         let event = match events.recv().await {
             Ok(event) => event,
-            Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+            Err(DomainRecvError::ReliableLagged(lost)) => {
                 tracing::warn!(
+                    lost,
+                    "WebView domain event receiver lagged on the reliable lane"
+                );
+                core.record_event_gap();
+                send(tiktools_control_api::gap_notification(lost).to_string());
+                continue;
+            }
+            Err(DomainRecvError::LossyLagged(skipped)) => {
+                tracing::debug!(
                     skipped,
-                    "WebView domain event receiver lagged; skipping burst"
+                    "WebView domain event receiver skipped a lossy burst"
                 );
                 continue;
             }
-            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            Err(DomainRecvError::Closed) => break,
         };
         let shutdown = matches!(event, tiktools_core::events::DomainEvent::Shutdown);
         let notification = tiktools_control_api::event_notification(&event);
@@ -845,42 +995,170 @@ async fn forward_domain_events(
     }
 }
 
-fn is_frontend_ready(raw: &str) -> bool {
-    serde_json::from_str::<serde_json::Value>(raw)
-        .ok()
-        .and_then(|value| {
-            value
-                .get("type")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned)
-        })
-        .as_deref()
-        == Some("frontend-ready")
-}
-
 /// Raw inbound bound shared with local IPC. Checked before any parsing.
 fn webview_request_too_large(raw: &str) -> bool {
     raw.len() > tiktools_control_api::MAX_REQUEST_BYTES
 }
 
 /// Allocation-free control-shape probe used only to route oversized-payload
-/// errors (full parsing happens later, on size-capped input).
+/// errors and malformed input (full parsing happens later, on size-capped
+/// input, off the UI thread).
 fn is_probably_control_rpc(raw: &str) -> bool {
     raw.contains("\"method\"")
 }
 
-/// Control-plane messages carry `method` (JSON-RPC style); legacy WebView
-/// messages carry `type` (PageMessage). The two shapes never overlap.
-fn is_control_rpc(raw: &str) -> bool {
-    serde_json::from_str::<serde_json::Value>(raw)
-        .ok()
-        .and_then(|value| {
-            value
+/// Allocation-free boot-handshake probe for the Winit thread: exact match
+/// on the `notifyFrontendReady` payload (plus ASCII-whitespace tolerance).
+/// Anything else — including handshake whitespace variants — moves to
+/// Tokio, where the parsed classifier recognizes `frontend-ready`
+/// robustly. The length gate alone rejects large JSON without parsing.
+fn is_frontend_ready_fast(raw: &str) -> bool {
+    if raw.len() > 128 {
+        return false;
+    }
+    raw.trim_matches(|character: char| character.is_ascii_whitespace())
+        == r#"{"type":"frontend-ready"}"#
+}
+
+/// One parsed inbound route. The payload is parsed exactly once, off the
+/// UI thread; classification runs on the value, never by re-scanning the
+/// raw text.
+#[derive(Debug, PartialEq, Eq)]
+enum InboundRoute {
+    /// JSON-RPC control call: execute through the shared ControlApi.
+    Control(serde_json::Value),
+    /// Legacy `{"type": ...}` page message.
+    Legacy(serde_json::Value),
+    /// Boot handshake in a shape the Winit fast path did not match
+    /// (whitespace variants): complete startup without touching routers.
+    FrontendReady,
+    /// Unparseable but control-shaped: answer with a correlated RPC error
+    /// carrying the parse failure.
+    MalformedControl(String),
+    /// Unparseable legacy-shaped input: diagnose, never route to ControlApi.
+    MalformedLegacy,
+}
+
+/// Parses once and classifies on the value. Control-plane messages carry
+/// `method` (JSON-RPC style); legacy WebView messages carry `type`
+/// (PageMessage). The two shapes never overlap.
+fn classify_inbound_message(raw: &str) -> InboundRoute {
+    match serde_json::from_str::<serde_json::Value>(raw) {
+        Ok(value) => {
+            if value
                 .get("method")
                 .and_then(serde_json::Value::as_str)
-                .map(str::to_owned)
-        })
-        .is_some()
+                .is_some()
+            {
+                InboundRoute::Control(value)
+            } else if value.get("type").and_then(serde_json::Value::as_str)
+                == Some("frontend-ready")
+            {
+                InboundRoute::FrontendReady
+            } else {
+                InboundRoute::Legacy(value)
+            }
+        }
+        Err(error) => {
+            if is_probably_control_rpc(raw) {
+                InboundRoute::MalformedControl(error.to_string())
+            } else {
+                InboundRoute::MalformedLegacy
+            }
+        }
+    }
+}
+
+/// Tokio-side inbound dispatch: parse once, classify on the value,
+/// execute. Control calls share the ControlApi with CLI/stdio/IPC;
+/// legacy messages keep the PageMessage path during migration.
+async fn handle_webview_ipc_message(
+    raw: String,
+    router: &Arc<IpcRouter>,
+    control: &Arc<ControlApi>,
+    proxy: &EventLoopProxy<DesktopEvent>,
+    transport_failed: &AtomicBool,
+) {
+    // A failed transport rejects RPC loudly instead of queueing work for
+    // a dead page; legacy input is diagnosed and dropped.
+    if transport_failed.load(Ordering::SeqCst) {
+        handle_failed_transport_message(&raw, proxy);
+        return;
+    }
+    match classify_inbound_message(&raw) {
+        InboundRoute::Control(value) => {
+            let response = control.execute_value(&value).await;
+            emit_rpc_response(proxy, &response);
+        }
+        InboundRoute::Legacy(value) => {
+            if let Err(error) = router.dispatch_value(&value).await {
+                tracing::warn!(%error, "invalid WebView IPC message");
+            }
+        }
+        InboundRoute::FrontendReady => {
+            let _ = proxy.send_event(DesktopEvent::Command(DesktopCommand::FrontendReady));
+        }
+        InboundRoute::MalformedControl(error) => {
+            let response = tiktools_control_api::RpcResponse::error(
+                tiktools_control_api::RpcId::extract_from_prefix(&raw),
+                tiktools_control_api::ApiError::invalid_params(format!("invalid JSON: {error}")),
+            );
+            emit_rpc_response(proxy, &response);
+        }
+        InboundRoute::MalformedLegacy => {
+            tracing::warn!("invalid legacy WebView message");
+        }
+    }
+}
+
+/// Inbound dispatch while the transport is failed: control calls are
+/// rejected with a transport failure (the id lets the rebooting frontend
+/// fail the call instead of hanging it), the boot handshake still flows
+/// so recovery can complete, and everything else is diagnosed.
+fn handle_failed_transport_message(raw: &str, proxy: &EventLoopProxy<DesktopEvent>) {
+    match classify_inbound_message(raw) {
+        InboundRoute::Control(value) => {
+            let response = tiktools_control_api::RpcResponse::error(
+                tiktools_control_api::RpcId::extract(&value),
+                tiktools_control_api::ApiError::new(
+                    "transport",
+                    "WebView transport failed; the UI is reloading",
+                ),
+            );
+            emit_rpc_response(proxy, &response);
+        }
+        InboundRoute::MalformedControl(error) => {
+            let response = tiktools_control_api::RpcResponse::error(
+                tiktools_control_api::RpcId::extract_from_prefix(raw),
+                tiktools_control_api::ApiError::new(
+                    "transport",
+                    format!("WebView transport failed; dropping malformed input (invalid JSON: {error})"),
+                ),
+            );
+            emit_rpc_response(proxy, &response);
+        }
+        InboundRoute::FrontendReady => {
+            let _ = proxy.send_event(DesktopEvent::Command(DesktopCommand::FrontendReady));
+        }
+        InboundRoute::Legacy(_) | InboundRoute::MalformedLegacy => {
+            tracing::warn!("dropping WebView IPC while the transport is failed");
+        }
+    }
+}
+
+/// Sends one RPC response to the frontend through the host-message batch
+/// path (reliable lane: never shed).
+fn emit_rpc_response(
+    proxy: &EventLoopProxy<DesktopEvent>,
+    response: &tiktools_control_api::RpcResponse,
+) {
+    let payload = serde_json::json!({
+        "type": "rpc-response",
+        "response": response,
+    });
+    let _ = proxy.send_event(DesktopEvent::Command(DesktopCommand::EmitToWebview(
+        payload.to_string(),
+    )));
 }
 
 #[cfg(test)]
@@ -923,6 +1201,14 @@ mod webview_queue_tests {
         );
         assert_eq!(
             classify_webview_message(&domain_event("shutdown", "{}")),
+            Critical
+        );
+        // The gap/resync signal is authoritative: it travels the reliable
+        // lane, never shed under saturation.
+        assert_eq!(
+            classify_webview_message(
+                r#"{"jsonrpc":"2.0","method":"event.gap","params":{"lost":12,"resync":true}}"#
+            ),
             Critical
         );
         assert_eq!(
@@ -1165,8 +1451,25 @@ mod webview_queue_tests {
         assert!(!is_probably_control_rpc(r#"{"type":"disconnect"}"#));
     }
 
+    fn forwarder_test_core(tag: &str) -> (Arc<AppCore>, std::path::PathBuf) {
+        struct Emitter;
+        impl tiktools_core::HostEmitter for Emitter {
+            fn emit(&self, _message: tiktools_core::ipc::messages::HostMessage) {}
+        }
+        let home = std::env::temp_dir().join(format!(
+            "tiktools-webview-gap-{tag}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default()
+        ));
+        std::env::set_var("TIKTOOLS_HOME", &home);
+        (Arc::new(AppCore::new(Arc::new(Emitter))), home)
+    }
+
     #[tokio::test]
-    async fn lagged_burst_does_not_stop_event_forwarder() {
+    async fn lagged_burst_emits_gap_and_forwarder_survives() {
+        let (core, home) = forwarder_test_core("reliable");
         let bus = tiktools_core::events::EventBus::new(1);
         let receiver = bus.subscribe_domain();
         // Lag the receiver deterministically: blast a >512-event burst
@@ -1177,7 +1480,8 @@ mod webview_queue_tests {
         let forwarded = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let task = {
             let forwarded = std::sync::Arc::clone(&forwarded);
-            tokio::spawn(forward_domain_events(receiver, move |notification| {
+            let core = Arc::clone(&core);
+            tokio::spawn(forward_domain_events(receiver, core, move |notification| {
                 forwarded
                     .lock()
                     .expect("forwarded lock poisoned")
@@ -1189,6 +1493,66 @@ mod webview_queue_tests {
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             loop {
                 let delivered = forwarded.lock().expect("forwarded lock poisoned").len();
+                if delivered >= 2 {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("forwarder must deliver gap plus backlog after lag");
+        bus.publish_domain(tiktools_core::events::DomainEvent::Shutdown);
+        tokio::time::timeout(std::time::Duration::from_secs(5), task)
+            .await
+            .expect("forwarder must terminate after Shutdown")
+            .expect("forwarder panicked");
+        let forwarded = forwarded.lock().expect("forwarded lock poisoned");
+        // Reliable lag is explicit, never silent: a gap notification heads
+        // the retained backlog, later events still arrive, and Shutdown
+        // still terminates the forwarder.
+        assert_eq!(
+            forwarded.len(),
+            3,
+            "unexpected forwarded batch: {forwarded:?}"
+        );
+        let gap: serde_json::Value = serde_json::from_str(&forwarded[0]).expect("gap is JSON");
+        assert_eq!(gap["method"], serde_json::json!("event.gap"));
+        assert_eq!(gap["params"]["resync"], serde_json::json!(true));
+        assert!(
+            gap["params"]["lost"].as_u64().unwrap_or_default() > 0,
+            "gap must count the lost events: {gap}"
+        );
+        assert!(forwarded[1].contains("live.disconnected"), "{forwarded:?}");
+        assert!(forwarded[2].contains("shutdown"), "{forwarded:?}");
+        assert_eq!(core.event_gap_stats().0, 1);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[tokio::test]
+    async fn lossy_burst_forwards_without_gap_signal() {
+        let (core, home) = forwarder_test_core("lossy");
+        let bus = tiktools_core::events::EventBus::new(1);
+        let receiver = bus.subscribe_domain();
+        for index in 0..600 {
+            bus.publish_domain(tiktools_core::events::DomainEvent::LiveUiEvent {
+                event: serde_json::json!({"n": index}),
+            });
+        }
+        let forwarded = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let task = {
+            let forwarded = std::sync::Arc::clone(&forwarded);
+            let core = Arc::clone(&core);
+            tokio::spawn(forward_domain_events(receiver, core, move |notification| {
+                forwarded
+                    .lock()
+                    .expect("forwarded lock poisoned")
+                    .push(notification);
+            }))
+        };
+        // Wait for the retained lossy backlog, then terminate cleanly.
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let delivered = forwarded.lock().expect("forwarded lock poisoned").len();
                 if delivered >= 1 {
                     break;
                 }
@@ -1196,22 +1560,158 @@ mod webview_queue_tests {
             }
         })
         .await
-        .expect("forwarder must deliver after Lagged");
+        .expect("forwarder must deliver the retained backlog");
         bus.publish_domain(tiktools_core::events::DomainEvent::Shutdown);
         tokio::time::timeout(std::time::Duration::from_secs(5), task)
             .await
             .expect("forwarder must terminate after Shutdown")
             .expect("forwarder panicked");
         let forwarded = forwarded.lock().expect("forwarded lock poisoned");
-        // The burst-skipping forwarder survives Lagged: it drops the missed
-        // burst but still delivers what follows, ending with Shutdown. The
-        // old break-on-any-error code would have forwarded nothing here.
-        assert_eq!(
-            forwarded.len(),
-            2,
-            "unexpected forwarded batch: {forwarded:?}"
+        assert!(
+            !forwarded.iter().any(|line| line.contains("event.gap")),
+            "a lossy flood must never cause a gap signal: {forwarded:?}"
         );
-        assert!(forwarded[0].contains("live.disconnected"), "{forwarded:?}");
-        assert!(forwarded[1].contains("shutdown"), "{forwarded:?}");
+        assert!(
+            forwarded
+                .last()
+                .is_some_and(|line| line.contains("shutdown")),
+            "shutdown still terminates after a lossy flood: {forwarded:?}"
+        );
+        assert_eq!(core.event_gap_stats().0, 0);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn reliable_lane_trips_safety_policy_by_count() {
+        let mut outbox = WebviewOutbox::new();
+        for index in 0..MAX_RELIABLE_MESSAGES {
+            outbox.push(format!(
+                r#"{{"type":"rpc-response","response":{{"id":{index}}}}}"#
+            ));
+        }
+        assert!(!outbox.transport_failed());
+        assert!(!outbox.take_transport_failure());
+        // The 4097th message trips the policy: the failure edge fires
+        // exactly once and every queued message is still retained.
+        outbox.push(r#"{"type":"rpc-response","response":{"id":"trip"}}"#.to_owned());
+        assert!(outbox.transport_failed());
+        assert!(outbox.take_transport_failure());
+        assert!(!outbox.take_transport_failure());
+        assert_eq!(outbox.reliable.len(), MAX_RELIABLE_MESSAGES + 1);
+        assert!(outbox.reliable_bytes() > 0);
+        // While failed, new reliable messages are counted, never queued:
+        // the queue cannot grow without bound for a dead page.
+        outbox.push(r#"{"type":"rpc-response","response":{"id":"refused"}}"#.to_owned());
+        assert_eq!(outbox.reliable.len(), MAX_RELIABLE_MESSAGES + 1);
+        assert_eq!(outbox.dropped_while_failed, 1);
+        // Recovery rearms the transport: new messages queue again.
+        outbox.clear_for_reload();
+        assert!(outbox.is_empty());
+        assert_eq!(outbox.reliable_bytes(), 0);
+        outbox.recover_transport();
+        assert!(!outbox.transport_failed());
+        outbox.push(r#"{"type":"rpc-response","response":{"id":"recovered"}}"#.to_owned());
+        assert_eq!(outbox.reliable.len(), 1);
+    }
+
+    #[test]
+    fn reliable_lane_trips_safety_policy_by_bytes() {
+        let mut outbox = WebviewOutbox::new();
+        // 17 one-megabyte critical messages exceed the 16 MiB policy with
+        // far fewer than 4096 messages.
+        let big = format!(
+            r#"{{"type":"rpc-response","response":{{"blob":"{}"}}}}"#,
+            "x".repeat(1024 * 1024)
+        );
+        for _ in 0..17 {
+            outbox.push(big.clone());
+        }
+        assert!(outbox.transport_failed());
+        assert!(outbox.reliable_bytes() > MAX_RELIABLE_BYTES);
+        assert!(outbox.take_transport_failure());
+    }
+
+    #[test]
+    fn take_batch_accounts_reliable_bytes() {
+        let mut outbox = WebviewOutbox::new();
+        outbox.push(r#"{"type":"rpc-response","response":{"id":1}}"#.to_owned());
+        outbox.push(r#"{"type":"rpc-response","response":{"id":2}}"#.to_owned());
+        let held = outbox.reliable_bytes();
+        assert!(held > 0);
+        let batch = outbox.take_batch();
+        assert_eq!(batch.len(), 2);
+        assert_eq!(outbox.reliable_bytes(), 0);
+        assert!(outbox.is_empty());
+    }
+
+    #[test]
+    fn inbound_routing_parses_once_and_correlates_errors() {
+        // Valid shapes route by value, never by re-scanning text.
+        assert!(matches!(
+            classify_inbound_message(r#"{"jsonrpc":"2.0","id":1,"method":"system.ping"}"#),
+            InboundRoute::Control(_)
+        ));
+        assert!(matches!(
+            classify_inbound_message(r#"{"type":"disconnect"}"#),
+            InboundRoute::Legacy(_)
+        ));
+        // The exact handshake and its whitespace variants both complete
+        // startup without touching either router.
+        assert_eq!(
+            classify_inbound_message(r#"{"type":"frontend-ready"}"#),
+            InboundRoute::FrontendReady
+        );
+        assert_eq!(
+            classify_inbound_message("  { \"type\" : \"frontend-ready\" }  "),
+            InboundRoute::FrontendReady
+        );
+        // Malformed control-shaped input answers with a correlated RPC
+        // error instead of falling into the legacy router.
+        assert!(matches!(
+            classify_inbound_message(r#"{"id":7,"method":"system.ping","params":{broken"#),
+            InboundRoute::MalformedControl(_)
+        ));
+        assert_eq!(
+            tiktools_control_api::RpcId::extract_from_prefix(
+                r#"{"id":7,"method":"system.ping","params":{broken"#
+            ),
+            tiktools_control_api::RpcId::Number(7)
+        );
+        // Malformed legacy-shaped input never enters the ControlApi.
+        assert_eq!(
+            classify_inbound_message(r#"{"type":"disconnect",oops"#),
+            InboundRoute::MalformedLegacy
+        );
+        assert_eq!(
+            classify_inbound_message("not json at all"),
+            InboundRoute::MalformedLegacy
+        );
+    }
+
+    #[test]
+    fn frontend_ready_fast_path_rejects_large_json_without_parsing() {
+        // Exact handshake (plus padding) matches on the Winit thread.
+        assert!(is_frontend_ready_fast(r#"{"type":"frontend-ready"}"#));
+        assert!(is_frontend_ready_fast("  {\"type\":\"frontend-ready\"}\n"));
+        assert!(!is_frontend_ready_fast(r#"{"type":"disconnect"}"#));
+        assert!(!is_frontend_ready_fast(r#"{"method":"system.ping"}"#));
+        // The length gate alone rejects large payloads: a 1 MiB valid
+        // JSON document never reaches a parser on the UI thread.
+        let large = format!(
+            r#"{{"method":"system.ping","params":{{"blob":"{}"}}}}"#,
+            "y".repeat(1024 * 1024)
+        );
+        assert!(!is_frontend_ready_fast(&large));
+        // Even a large payload smuggling the handshake string is rejected
+        // here and classified off-thread instead.
+        let smuggled = format!(
+            r#"{{"note":"frontend-ready","blob":"{}"}}"#,
+            "z".repeat(1024)
+        );
+        assert!(!is_frontend_ready_fast(&smuggled));
+        assert!(matches!(
+            classify_inbound_message(&smuggled),
+            InboundRoute::Legacy(_)
+        ));
     }
 }

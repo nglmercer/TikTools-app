@@ -142,6 +142,14 @@ pub struct AppCore {
     plugin_install_lock: Mutex<()>,
     shutdown_started: AtomicBool,
     ipc_error: RwLock<Option<String>>,
+    webview_error: RwLock<Option<String>>,
+    /// Cumulative reliable-lane event gaps observed by any transport
+    /// (IPC connections, WebView forwarder). Reported through
+    /// `system.health`; see `record_event_gap`.
+    event_gaps: AtomicU64,
+    /// `now_millis()` of the most recent reliable gap, or 0 when no gap
+    /// has been recorded since boot/acknowledge.
+    last_event_gap_at: AtomicU64,
 }
 
 impl AppCore {
@@ -261,6 +269,9 @@ impl AppCore {
             plugin_install_lock: Mutex::new(()),
             shutdown_started: AtomicBool::new(false),
             ipc_error: RwLock::new(None),
+            webview_error: RwLock::new(None),
+            event_gaps: AtomicU64::new(0),
+            last_event_gap_at: AtomicU64::new(0),
         };
         #[cfg(feature = "http")]
         if let Some(message) = core.http_client_error.clone() {

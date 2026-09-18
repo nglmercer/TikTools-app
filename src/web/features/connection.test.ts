@@ -21,6 +21,7 @@ function stubControl(overrides?: Partial<ControlClient>): ControlClient & {
     onTopic: () => () => {},
     onPush: () => () => {},
     onTransportError: () => () => {},
+    onGap: () => () => {},
     ...overrides,
   };
 }
@@ -110,5 +111,59 @@ describe('useConnection pick-live', () => {
     await flushPromises();
 
     expect(control.calls[0]?.params).toEqual({ sessionCookie: 'sessionid=abc' });
+  });
+});
+
+describe('useConnection refreshStatus', () => {
+  test('a connected read rebuilds the pill from the authoritative state', async () => {
+    const control = stubControl({
+      call: <T,>(method: string): Promise<T> => {
+        expect(method).toBe('live.status');
+        return Promise.resolve({
+          connected: true,
+          uniqueId: '@resync_creator',
+          roomId: '123',
+          connectionId: 'connection-1',
+          native: true,
+        } as T);
+      },
+    });
+    const connection = useConnection(control, callbacks);
+
+    await connection.refreshStatus();
+
+    expect(connection.status.value).toBe('connected');
+    expect(connection.activeCreator.value).toBe('resync_creator');
+  });
+
+  test('a disconnected read clears a stale pill after a gap', async () => {
+    const control = stubControl({
+      call: <T,>(): Promise<T> =>
+        Promise.resolve({
+          connected: false,
+          uniqueId: null,
+          roomId: null,
+          connectionId: null,
+          native: false,
+        } as T),
+    });
+    const connection = useConnection(control, callbacks);
+
+    await connection.refreshStatus();
+
+    expect(connection.status.value).toBe('disconnected');
+  });
+
+  test('a failed refresh keeps local state instead of guessing', async () => {
+    const control = stubControl({
+      call: <T,>(): Promise<T> =>
+        Promise.reject(new ControlCallError('unavailable', 'host away')) as Promise<T>,
+    });
+    const connection = useConnection(control, callbacks);
+
+    await connection.refreshStatus();
+
+    expect(connection.status.value).toBe('idle');
+    expect(connection.error.value).toBe('');
   });
 });

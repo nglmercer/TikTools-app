@@ -142,6 +142,46 @@ test('event notifications dispatch by topic only', () => {
   delete (globalThis as Record<string, unknown>)['window'];
 });
 
+test('gap notifications dispatch to gap handlers with the lost count', () => {
+  installMockIpc();
+  const control = createControlClient();
+  control.attach();
+  const seen: number[] = [];
+  const topics: unknown[] = [];
+  const unsubscribe = control.onGap((lost) => seen.push(lost));
+  control.onTopic('points.changed', (data) => topics.push(data));
+  const receive = hostMessage();
+  // A gap fans out to gap handlers only, never to topic handlers, and
+  // later events still arrive afterwards.
+  receive(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'event.gap',
+      params: { lost: 12, resync: true },
+    }),
+  );
+  expect(seen).toEqual([12]);
+  expect(topics).toEqual([]);
+  receive(
+    JSON.stringify({
+      method: 'event',
+      params: { topic: 'points.changed', data: { uniqueId: 'alice' } },
+    }),
+  );
+  expect(topics).toEqual([{ uniqueId: 'alice' }]);
+  // A malformed gap still forces resync (lost: 0) rather than silently
+  // assuming a complete stream.
+  receive(JSON.stringify({ method: 'event.gap', params: { resync: true } }));
+  expect(seen).toEqual([12, 0]);
+  unsubscribe();
+  receive(
+    JSON.stringify({ method: 'event.gap', params: { lost: 3, resync: true } }),
+  );
+  expect(seen).toEqual([12, 0]);
+  control.detach();
+  delete (globalThis as Record<string, unknown>)['window'];
+});
+
 test('legacy pushes dispatch by message type', () => {
   installMockIpc();
   const control = createControlClient();

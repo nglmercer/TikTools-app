@@ -145,6 +145,23 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     cookie.value = value;
   };
 
+  // Authoritative live-status re-read for gap resync: the stream may have
+  // skipped connect/disconnect/error transitions, so the status pill is
+  // rebuilt from the host instead of reconstructed from guesses.
+  const refreshStatus = async (): Promise<void> => {
+    try {
+      const result = await control.call<LiveStatusResult>('live.status', {});
+      if (result.connected) {
+        status.value = 'connected';
+        if (result.uniqueId) noteCreatorSeen(normalizeUsername(result.uniqueId), false);
+      } else {
+        status.value = 'disconnected';
+      }
+    } catch (failure) {
+      console.warn(`live status refresh failed: ${errorMessage(failure)}`);
+    }
+  };
+
   return {
     uniqueId,
     cookie,
@@ -161,5 +178,6 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     handleSelectRecent,
     setUniqueId,
     setCookie,
+    refreshStatus,
   };
 }

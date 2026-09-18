@@ -163,11 +163,43 @@ impl EventBus {
     }
 }
 
-/// Merged view over the reliable and lossy lanes with `broadcast`
-/// semantics: `recv`/`try_recv` report `Lagged` (recoverable: the caller
-/// logs and continues) or `Closed` (the bus is gone) exactly like a
-/// single receiver. Reliable messages are always drained first, so a
-/// state transition never waits behind feed backlog.
+/// Lane-aware `recv` failure. A lagged lane reports once and then
+/// streams its retained backlog; the other lane is unaffected. Reliable
+/// lag is never silent: the caller must emit an explicit gap/resync
+/// signal so clients refresh authoritative state instead of assuming a
+/// complete stream. Lossy lag only skipped feed/snapshots and needs no
+/// signal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DomainRecvError {
+    /// Authoritative events were lost on the reliable lane; `u64` counts
+    /// the skipped messages. The caller must send a gap notification.
+    ReliableLagged(u64),
+    /// Feed/snapshot messages were skipped on the lossy lane; safe to
+    /// log at debug level and continue with no gap signal.
+    LossyLagged(u64),
+    /// The bus is gone and both lanes are drained.
+    Closed,
+}
+
+/// Lane-aware `try_recv` failure. See [`DomainRecvError`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DomainTryRecvError {
+    /// Authoritative events were lost on the reliable lane; `u64` counts
+    /// the skipped messages. The caller must send a gap notification and
+    /// keep draining, never stop.
+    ReliableLagged(u64),
+    /// Feed/snapshot messages were skipped on the lossy lane; safe to
+    /// continue draining with no gap signal.
+    LossyLagged(u64),
+    Empty,
+    Closed,
+}
+
+/// Merged view over the reliable and lossy lanes. `recv`/`try_recv`
+/// report lane-aware lag (recoverable: the caller handles the lag and
+/// continues) or `Closed` (the bus is gone). Reliable messages are
+/// always drained first, so a state transition never waits behind feed
+/// backlog.
 pub struct DomainSubscription {
     reliable: broadcast::Receiver<DomainEvent>,
     lossy: broadcast::Receiver<DomainEvent>,
@@ -175,15 +207,19 @@ pub struct DomainSubscription {
 
 impl DomainSubscription {
     /// Receives the next event, reliable lane first. A lagged lane
-    /// reports `Lagged` once and then streams its retained backlog; the
-    /// other lane is unaffected.
-    pub async fn recv(&mut self) -> Result<DomainEvent, broadcast::error::RecvError> {
-        use broadcast::error::{RecvError, TryRecvError};
+    /// reports once and then streams its retained backlog; the other
+    /// lane is unaffected.
+    pub async fn recv(&mut self) -> Result<DomainEvent, DomainRecvError> {
         match self.try_recv() {
-            Err(TryRecvError::Empty) => {}
+            Err(DomainTryRecvError::Empty) => {}
             Ok(event) => return Ok(event),
-            Err(TryRecvError::Lagged(skipped)) => return Err(RecvError::Lagged(skipped)),
-            Err(TryRecvError::Closed) => return Err(RecvError::Closed),
+            Err(DomainTryRecvError::ReliableLagged(skipped)) => {
+                return Err(DomainRecvError::ReliableLagged(skipped));
+            }
+            Err(DomainTryRecvError::LossyLagged(skipped)) => {
+                return Err(DomainRecvError::LossyLagged(skipped));
+            }
+            Err(DomainTryRecvError::Closed) => return Err(DomainRecvError::Closed),
         }
         // Both lanes are empty: wait biased toward reliable. A lossy
         // wake may overtake a reliable message published a moment later;
@@ -192,38 +228,75 @@ impl DomainSubscription {
         tokio::select! {
             biased;
             message = self.reliable.recv() => {
-                // The bus died mid-wait: drain lossy stragglers buffered
-                // before the drop instead of losing them to Closed.
-                if matches!(message, Err(broadcast::error::RecvError::Closed)) {
-                    if let Ok(straggler) = self.lossy.try_recv() {
-                        return Ok(straggler);
+                match message {
+                    // The bus died mid-wait: drain lossy stragglers buffered
+                    // before the drop instead of losing them to Closed.
+                    Err(broadcast::error::RecvError::Closed) => {
+                        match self.lossy.try_recv() {
+                            Ok(straggler) => Ok(straggler),
+                            Err(broadcast::error::TryRecvError::Lagged(skipped)) => {
+                                Err(DomainRecvError::LossyLagged(skipped))
+                            }
+                            Err(_) => Err(DomainRecvError::Closed),
+                        }
                     }
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        Err(DomainRecvError::ReliableLagged(skipped))
+                    }
+                    Ok(event) => Ok(event),
                 }
-                message
             }
-            message = self.lossy.recv() => message,
+            message = self.lossy.recv() => {
+                match message {
+                    // The reliable lane may still hold buffered messages
+                    // (or stay open), so never strand them behind a lossy
+                    // close: fall back to the reliable backlog first.
+                    Err(broadcast::error::RecvError::Closed) => match self.reliable.try_recv() {
+                        Ok(event) => Ok(event),
+                        Err(broadcast::error::TryRecvError::Lagged(skipped)) => {
+                            Err(DomainRecvError::ReliableLagged(skipped))
+                        }
+                        Err(_) => Err(DomainRecvError::Closed),
+                    },
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        Err(DomainRecvError::LossyLagged(skipped))
+                    }
+                    Ok(event) => Ok(event),
+                }
+            }
         }
     }
 
-    pub fn try_recv(&mut self) -> Result<DomainEvent, broadcast::error::TryRecvError> {
+    pub fn try_recv(&mut self) -> Result<DomainEvent, DomainTryRecvError> {
         use broadcast::error::TryRecvError;
         match self.reliable.try_recv() {
             Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Lagged(skipped)) => {
+                return Err(DomainTryRecvError::ReliableLagged(skipped));
+            }
             Err(TryRecvError::Closed) => {
                 // The bus is gone: drain lossy stragglers before Closed.
                 return match self.lossy.try_recv() {
-                    Err(TryRecvError::Empty) => Err(TryRecvError::Closed),
-                    other => other,
+                    Ok(event) => Ok(event),
+                    Err(TryRecvError::Empty) | Err(TryRecvError::Closed) => {
+                        Err(DomainTryRecvError::Closed)
+                    }
+                    Err(TryRecvError::Lagged(skipped)) => {
+                        Err(DomainTryRecvError::LossyLagged(skipped))
+                    }
                 };
             }
-            other => return other,
+            Ok(event) => return Ok(event),
         }
         match self.lossy.try_recv() {
             // Both lanes empty and the reliable sender is alive (it would
             // report Closed, not Empty, otherwise), so more events can
-            // still arrive: report Empty, never Closed.
-            Err(TryRecvError::Empty) => Err(TryRecvError::Empty),
-            other => other,
+            // still arrive: report Empty, never Closed. Both senders live
+            // in one `EventBus` and drop together, so a lossy Closed here
+            // is unreachable; map it to Empty for the same reason.
+            Err(TryRecvError::Empty) | Err(TryRecvError::Closed) => Err(DomainTryRecvError::Empty),
+            Err(TryRecvError::Lagged(skipped)) => Err(DomainTryRecvError::LossyLagged(skipped)),
+            Ok(event) => Ok(event),
         }
     }
 }

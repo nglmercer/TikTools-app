@@ -132,17 +132,29 @@ impl AsyncWrite for ClientStream {
 type PendingMap =
     Arc<Mutex<HashMap<i64, tokio::sync::oneshot::Sender<Result<Value, ClientError>>>>>;
 
+/// One item on the client's event stream: either an authoritative domain
+/// event or an explicit reliable-gap signal. A gap means the host skipped
+/// authoritative events this client never saw (`lost` counts them): the
+/// stream is no longer complete and the client must refresh authoritative
+/// state (live status, points, plugins, creators, workflows) instead of
+/// reconstructing the missing events.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ControlEvent {
+    Domain(tiktools_core::events::DomainEvent),
+    Gap { lost: u64 },
+}
+
 /// Connected control client.
 ///
 /// One background reader task demultiplexes the IPC stream: responses
-/// resolve their pending RPC by id while `event` notifications fan out to
-/// every subscriber. Any number of RPCs may be in flight concurrently and
-/// events are never discarded to unblock a call.
+/// resolve their pending RPC by id while `event` and `event.gap`
+/// notifications fan out to every subscriber. Any number of RPCs may be
+/// in flight concurrently and events are never discarded to unblock a call.
 #[derive(Clone)]
 pub struct ControlClient {
     writer: Arc<tokio::sync::Mutex<tokio::io::WriteHalf<ClientStream>>>,
     pending: PendingMap,
-    events: tokio::sync::broadcast::Sender<tiktools_core::events::DomainEvent>,
+    events: tokio::sync::broadcast::Sender<ControlEvent>,
     next_id: Arc<AtomicI64>,
 }
 
@@ -177,12 +189,11 @@ impl ControlClient {
         client
     }
 
-    /// Subscribes to the host's domain-event broadcast. The reader task
-    /// forwards every `event` notification here; slow receivers lag and
-    /// skip, matching the host bus semantics.
-    pub fn subscribe(
-        &self,
-    ) -> tokio::sync::broadcast::Receiver<tiktools_core::events::DomainEvent> {
+    /// Subscribes to the host's event broadcast. The reader task
+    /// forwards every `event` notification as [`ControlEvent::Domain`]
+    /// and every `event.gap` notification as [`ControlEvent::Gap`]; slow
+    /// receivers lag and skip, matching the host bus semantics.
+    pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<ControlEvent> {
         self.events.subscribe()
     }
 
@@ -259,7 +270,7 @@ impl ControlClient {
 async fn reader_task(
     mut reader: BufReader<tokio::io::ReadHalf<ClientStream>>,
     pending: PendingMap,
-    events: tokio::sync::broadcast::Sender<tiktools_core::events::DomainEvent>,
+    events: tokio::sync::broadcast::Sender<ControlEvent>,
 ) {
     loop {
         let mut line = String::new();
@@ -287,15 +298,15 @@ async fn reader_task(
     }
 }
 
-/// Demultiplexes one host line: `event` notifications fan out to
-/// subscribers while responses resolve their pending RPC by id.
-/// Malformed input is diagnosed (never with line contents, which may
+/// Demultiplexes one host line: `event` and `event.gap` notifications
+/// fan out to subscribers while responses resolve their pending RPC by
+/// id. Malformed input is diagnosed (never with line contents, which may
 /// carry secrets) and a response matching a live call but carrying
 /// neither result nor error fails fast instead of hanging to timeout.
 fn handle_client_line(
     line: &str,
     pending: &PendingMap,
-    events: &tokio::sync::broadcast::Sender<tiktools_core::events::DomainEvent>,
+    events: &tokio::sync::broadcast::Sender<ControlEvent>,
 ) {
     let value: Value = match serde_json::from_str(line.trim()) {
         Ok(value) => value,
@@ -308,12 +319,27 @@ fn handle_client_line(
             return;
         }
     };
+    if value.get("method").and_then(Value::as_str) == Some("event.gap") {
+        // A gap always means resync, even when the count itself is
+        // malformed: failing loud (lost: 0) beats silently assuming a
+        // complete stream.
+        let lost = value
+            .get("params")
+            .and_then(|params| params.get("lost"))
+            .and_then(Value::as_u64)
+            .unwrap_or_else(|| {
+                tracing::warn!("event.gap notification without a lost count; assuming resync");
+                0
+            });
+        let _ = events.send(ControlEvent::Gap { lost });
+        return;
+    }
     if value.get("method").and_then(Value::as_str) == Some("event") {
         match value.get("params") {
             Some(params) => {
                 match serde_json::from_value::<tiktools_core::events::DomainEvent>(params.clone()) {
                     Ok(event) => {
-                        let _ = events.send(event);
+                        let _ = events.send(ControlEvent::Domain(event));
                     }
                     Err(error) => {
                         let topic = params.get("topic").and_then(Value::as_str).unwrap_or("?");
@@ -427,10 +453,7 @@ mod client_line_tests {
 
     use super::*;
 
-    fn harness() -> (
-        PendingMap,
-        tokio::sync::broadcast::Sender<tiktools_core::events::DomainEvent>,
-    ) {
+    fn harness() -> (PendingMap, tokio::sync::broadcast::Sender<ControlEvent>) {
         let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
         let (events, _) = tokio::sync::broadcast::channel(16);
         (pending, events)
@@ -500,6 +523,45 @@ mod client_line_tests {
             &events,
         );
         let event = subscriber.try_recv().expect("event fans out");
-        assert_eq!(event.topic(), "live.disconnected");
+        assert!(matches!(
+            event,
+            ControlEvent::Domain(tiktools_core::events::DomainEvent::LiveDisconnected)
+        ));
+    }
+
+    #[tokio::test]
+    async fn gap_notification_fans_out_as_gap() {
+        let (pending, events) = harness();
+        let mut subscriber = events.subscribe();
+        handle_client_line(
+            r#"{"jsonrpc":"2.0","method":"event.gap","params":{"lost":12,"resync":true}}"#,
+            &pending,
+            &events,
+        );
+        assert_eq!(
+            subscriber.try_recv().expect("gap fans out"),
+            ControlEvent::Gap { lost: 12 }
+        );
+        // A malformed gap still forces resync rather than silently
+        // assuming a complete stream.
+        handle_client_line(
+            r#"{"method":"event.gap","params":{"resync":true}}"#,
+            &pending,
+            &events,
+        );
+        assert_eq!(
+            subscriber.try_recv().expect("malformed gap still fans out"),
+            ControlEvent::Gap { lost: 0 }
+        );
+        // Later domain events still arrive after the gap.
+        handle_client_line(
+            r#"{"method":"event","params":{"topic":"live.disconnected"}}"#,
+            &pending,
+            &events,
+        );
+        assert!(matches!(
+            subscriber.try_recv().expect("post-gap event fans out"),
+            ControlEvent::Domain(_)
+        ));
     }
 }

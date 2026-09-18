@@ -285,6 +285,50 @@ impl AppCore {
             .clone()
     }
 
+    /// Records a broken WebView transport (reliable outbox overflow) so
+    /// `system.health` reports degraded instead of silently losing the UI
+    /// while RPCs fail. `None` clears the degraded state after recovery.
+    pub fn set_webview_error(&self, message: Option<String>) {
+        *self
+            .webview_error
+            .write()
+            .expect("webview error lock poisoned") = message;
+    }
+
+    pub fn webview_error(&self) -> Option<String> {
+        self.webview_error
+            .read()
+            .expect("webview error lock poisoned")
+            .clone()
+    }
+
+    /// Records one reliable-lane event gap observed by a transport. The
+    /// transport already sent the affected client an explicit `event.gap`
+    /// notification; this cumulative counter plus timestamp lets
+    /// `system.health` tell agents their local state may be stale.
+    pub fn record_event_gap(&self) {
+        self.event_gaps.fetch_add(1, Ordering::Relaxed);
+        self.last_event_gap_at
+            .store(now_millis(), Ordering::Relaxed);
+    }
+
+    /// Cumulative reliable gaps plus the most recent gap timestamp
+    /// (`None` when no gap was recorded since boot/acknowledge).
+    pub fn event_gap_stats(&self) -> (u64, Option<u64>) {
+        let gaps = self.event_gaps.load(Ordering::Relaxed);
+        let at = self.last_event_gap_at.load(Ordering::Relaxed);
+        (gaps, if at == 0 { None } else { Some(at) })
+    }
+
+    /// Clears recorded event gaps after every affected client resynced
+    /// authoritative state, returning health to OK. Only call this once
+    /// resync completed; clearing early hides staleness from agents that
+    /// have not refreshed yet.
+    pub fn acknowledge_event_gaps(&self) {
+        self.event_gaps.store(0, Ordering::Relaxed);
+        self.last_event_gap_at.store(0, Ordering::Relaxed);
+    }
+
     /// Loads the merged behavior snapshot (persisted records plus the live
     /// runtime catalog) and refreshes the in-memory automation projection.
     /// This is the value-returning twin of the `get-behavior` emit path.
@@ -1304,9 +1348,23 @@ impl AppCore {
         if let Some(message) = self.ipc_error() {
             degraded.push(message);
         }
+        if let Some(message) = self.webview_error() {
+            degraded.push(message);
+        }
+        let (event_gaps, last_gap_at) = self.event_gap_stats();
+        if event_gaps > 0 {
+            degraded.push(format!(
+                "{event_gaps} reliable event gap(s); resync authoritative state"
+            ));
+        }
         json!({
             "status": if degraded.is_empty() { "ok" } else { "degraded" },
             "reasons": degraded,
+            "events": {
+                "status": if event_gaps > 0 { "degraded" } else { "ok" },
+                "reliableGaps": event_gaps,
+                "lastGapAt": last_gap_at,
+            },
             "liveConnected": self.live.is_connected(),
             "plugins": {
                 "total": plugins.len(),

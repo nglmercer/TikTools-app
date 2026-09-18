@@ -103,6 +103,18 @@ export function useAppController() {
     systemAuthor: () => translate('system'),
   });
 
+  // Reliable-gap resync: the host skipped authoritative events this client
+  // never saw, so every authoritative snapshot is re-read (live status,
+  // points config/leaderboard, creators, automation/workflows including
+  // plugin state, gifts). Missing events are never reconstructed.
+  control.onGap(() => {
+    void connection.refreshStatus();
+    void points.refresh();
+    void creators.refresh();
+    void automation.refresh();
+    void live.refresh();
+  });
+
   watch(locale, (value) => {
     document.documentElement.lang = value;
     saveLocale(value);

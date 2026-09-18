@@ -205,7 +205,13 @@ impl PageMessage {
         if raw.len() > 2 * 1024 * 1024 {
             return Err(IpcMessageError::TooLarge);
         }
-        let message: Self = serde_json::from_str(raw)?;
+        Self::parse_value(&serde_json::from_str(raw)?)
+    }
+
+    /// Typed parse of an already-parsed payload, so the WebView router
+    /// parses inbound JSON exactly once and classifies on the value.
+    pub fn parse_value(value: &serde_json::Value) -> Result<Self, IpcMessageError> {
+        let message: Self = serde_json::from_value(value.clone())?;
         message.validate()?;
         Ok(message)
     }
