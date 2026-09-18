@@ -230,8 +230,8 @@ impl AppCore {
             PageMessage::UninstallPluginPackage { id } => {
                 self.handle_uninstall_plugin_package(id);
             }
-            PageMessage::GetActionOptions { source } => {
-                match self.plugin_action_options(&source).await {
+            PageMessage::GetActionOptions { source, refresh } => {
+                match self.plugin_action_options(&source, refresh).await {
                     Ok((options, selected)) => self.emit(HostMessage::ActionOptions {
                         source,
                         options,

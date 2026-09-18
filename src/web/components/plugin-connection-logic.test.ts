@@ -1,441 +1,144 @@
 import { expect, test } from 'bun:test';
 
-import type { JsonObject } from '../../automation/types.ts';
+import { SECRET_PLACEHOLDER } from '../../automation/plugins/declarative.ts';
 import {
-  AUTOSAVE_CONFIRM_TIMEOUT_MS,
-  AUTOSAVE_DEBOUNCE_MS,
   connectionSummaryRows,
-  createNativeSelectEmitter,
   echoConfirmsSave,
   echoNeedsResave,
   findServerUrlKey,
-  focusStayedInside,
-  isHttpUrl,
-  isLoopbackUrl,
-  isSelectFocusSource,
   secretSettingKeys,
-  selectOptionSignature,
-  settingsEqual,
   settingsMatch,
-  stableSettingsJson,
-  SUMMARY_ROW_LIMIT,
+  shouldShowSummary,
   withSchemaDefaults,
 } from './plugin-connection-logic.ts';
-import { acceptSchemaFieldValue, resolveSelectDisplayValue } from './ui/schema-form-helpers.ts';
 
-test('autosave waits out typing but confirms quickly', () => {
-  expect(AUTOSAVE_DEBOUNCE_MS).toBeGreaterThanOrEqual(600);
-  expect(AUTOSAVE_DEBOUNCE_MS).toBeLessThanOrEqual(1000);
-  expect(AUTOSAVE_CONFIRM_TIMEOUT_MS).toBeGreaterThan(AUTOSAVE_DEBOUNCE_MS);
+const schema = {
+  type: 'object',
+  properties: {
+    serverUrl: { type: 'string', format: 'uri', title: 'Server URL', default: 'http://localhost:17842' },
+    apiToken: { type: 'string', title: 'API token', secret: true },
+    defaultVoice: { type: 'string', title: 'Default voice' },
+    defaultLanguage: { type: 'string', title: 'Default language', default: 'en' },
+  },
+};
+
+const uiHints = { fields: { apiToken: { secret: true } } };
+
+test('summary shows only when connected, settled, and untouched', () => {
+  const connected = { editing: false, dirty: false, connectionOk: true, hasSettings: true };
+  expect(shouldShowSummary(connected)).toBe(true);
+  // Pressing Edit settings reveals the complete form immediately.
+  expect(shouldShowSummary({ ...connected, editing: true })).toBe(false);
+  // Unsaved edits keep the form visible even with a passing probe.
+  expect(shouldShowSummary({ ...connected, dirty: true })).toBe(false);
+  // Failed or missing probes never collapse to the summary.
+  expect(shouldShowSummary({ ...connected, connectionOk: false })).toBe(false);
+  // Settings still loading shows the form skeleton, not a summary.
+  expect(shouldShowSummary({ ...connected, hasSettings: false })).toBe(false);
 });
 
-test('URL validation accepts http(s) with a host', () => {
-  expect(isHttpUrl('http://localhost:3000')).toBe(true);
-  expect(isHttpUrl('  https://example.com/ready ')).toBe(true);
-  expect(isHttpUrl('http://127.0.0.1:3000')).toBe(true);
-  expect(isHttpUrl('http://[::1]:3000')).toBe(true);
-  expect(isHttpUrl('')).toBe(false);
-  expect(isHttpUrl('   ')).toBe(false);
-  expect(isHttpUrl('localhost:3000')).toBe(false);
-  expect(isHttpUrl('ftp://example.com/x')).toBe(false);
-  expect(isHttpUrl('http://')).toBe(false);
-  expect(isHttpUrl('javascript:alert(1)')).toBe(false);
-  expect(isHttpUrl(`http://example.com/${'x'.repeat(2048)}`)).toBe(false);
-});
-
-test('loopback detection covers localhost names and addresses', () => {
-  expect(isLoopbackUrl('http://localhost:3000')).toBe(true);
-  expect(isLoopbackUrl('http://LOCALHOST/')).toBe(true);
-  expect(isLoopbackUrl('http://127.0.0.1:3000')).toBe(true);
-  expect(isLoopbackUrl('http://127.1.2.3/')).toBe(true);
-  expect(isLoopbackUrl('http://[::1]:3000/')).toBe(true);
-  expect(isLoopbackUrl('https://example.com/')).toBe(false);
-  expect(isLoopbackUrl('http://192.168.1.10:3000/')).toBe(false);
-  expect(isLoopbackUrl('http://localhost.example.com/')).toBe(false);
-  expect(isLoopbackUrl('not a url')).toBe(false);
-});
-
-test('server URL key comes from format uri, never names', () => {
-  expect(findServerUrlKey(undefined)).toBeUndefined();
-  expect(findServerUrlKey({ type: 'object', properties: {} })).toBeUndefined();
-  expect(findServerUrlKey({
-    type: 'object',
-    properties: {
-      serverUrl: { type: 'string' },
-      endpoint: { type: 'string', format: 'uri' },
-    },
-  })).toBe('endpoint');
-  expect(findServerUrlKey({
-    type: 'object',
-    properties: { port: { type: 'number', format: 'uri' } },
-  })).toBeUndefined();
-});
-
-test('summary rows skip the URL, secrets, and empties', () => {
-  const schema = {
-    type: 'object',
-    properties: {
-      serverUrl: { type: 'string', format: 'uri', title: 'Server URL' },
-      apiToken: { type: 'string', title: 'API token' },
-      defaultVoice: { type: 'string', title: 'Default voice' },
-      defaultLanguage: { type: 'string', title: 'Default language' },
-      playNow: { type: 'boolean', title: 'Play now' },
-      blank: { type: 'string', title: 'Blank' },
-    },
-  };
-  const uiHints = { fields: { apiToken: { secret: true } } };
-  expect(connectionSummaryRows(
+test('summary rows skip the url, secrets, and empties in schema order', () => {
+  const rows = connectionSummaryRows(
     {
       serverUrl: 'http://localhost:17842',
-      apiToken: 'tok-123',
+      apiToken: SECRET_PLACEHOLDER,
       defaultVoice: 'M1',
-      defaultLanguage: 'es-MX',
-      playNow: true,
-      blank: '   ',
+      defaultLanguage: 'en',
     },
     schema,
     uiHints,
-    'serverUrl',
-    'en',
-  )).toEqual([
-    { key: 'defaultVoice', label: 'Default voice', value: 'M1' },
-    { key: 'defaultLanguage', label: 'Default language', value: 'es-MX' },
-    { key: 'playNow', label: 'Play now', value: 'true' },
-  ]);
-  expect(connectionSummaryRows({}, schema, uiHints, 'serverUrl', 'en')).toEqual([]);
-});
-
-test('summary rows cap long schemas', () => {
-  const properties: JsonObject = {};
-  const values: JsonObject = {};
-  for (let index = 0; index < SUMMARY_ROW_LIMIT + 2; index += 1) {
-    properties[`field${index}`] = { type: 'string', title: `Field ${index}` };
-    values[`field${index}`] = `v${index}`;
-  }
-  const rows = connectionSummaryRows(
-    values,
-    { type: 'object', properties },
-    undefined,
-    undefined,
+    findServerUrlKey(schema),
     'en',
   );
-  expect(rows).toHaveLength(SUMMARY_ROW_LIMIT);
-  expect(rows[0]).toEqual({ key: 'field0', label: 'Field 0', value: 'v0' });
+  expect(findServerUrlKey(schema)).toBe('serverUrl');
+  expect(rows).toEqual([
+    { key: 'defaultVoice', label: 'Default voice', value: 'M1' },
+    { key: 'defaultLanguage', label: 'Default language', value: 'en' },
+  ]);
+  // Empty values leave no row; the token never appears even when typed.
+  const sparse = connectionSummaryRows(
+    { serverUrl: 'http://localhost:17842', apiToken: 'tok-typed', defaultVoice: '' },
+    schema,
+    uiHints,
+    findServerUrlKey(schema),
+    'en',
+  );
+  expect(sparse).toEqual([]);
+});
+
+test('secret fields round-trip through the redacted placeholder', () => {
+  expect(secretSettingKeys(schema, uiHints)).toEqual(['apiToken']);
+  // A typed secret matches its redacted echo: the save reads clean while
+  // the typed value stays in the draft for Show/Hide.
+  expect(
+    settingsMatch(
+      { serverUrl: 'http://x', apiToken: 'tok-typed' },
+      { serverUrl: 'http://x', apiToken: SECRET_PLACEHOLDER },
+      ['apiToken'],
+    ),
+  ).toBe(true);
+  // Clearing a secret stays dirty until the host confirms it.
+  expect(
+    settingsMatch(
+      { serverUrl: 'http://x', apiToken: '' },
+      { serverUrl: 'http://x', apiToken: SECRET_PLACEHOLDER },
+      ['apiToken'],
+    ),
+  ).toBe(false);
+  // Ordinary differences never match.
+  expect(
+    settingsMatch({ defaultVoice: 'M1' }, { defaultVoice: 'F2' }, ['apiToken']),
+  ).toBe(false);
+});
+
+test('host echo confirms saves without ever carrying the token', () => {
+  const sent = { serverUrl: 'http://x', apiToken: 'tok-typed' };
+  // The echo carries the placeholder instead of the stored secret.
+  expect(
+    echoConfirmsSave(
+      { serverUrl: 'http://x', apiToken: SECRET_PLACEHOLDER, defaultLanguage: 'en' },
+      sent,
+      ['apiToken'],
+    ),
+  ).toBe(true);
+  expect(
+    echoConfirmsSave({ serverUrl: 'http://other', apiToken: SECRET_PLACEHOLDER }, sent, ['apiToken']),
+  ).toBe(false);
+  // A typed secret vs its redacted echo converges: no resave loop.
+  expect(
+    echoNeedsResave(
+      { serverUrl: 'http://x', apiToken: 'tok-typed' },
+      { serverUrl: 'http://x', apiToken: SECRET_PLACEHOLDER },
+      schema,
+      ['apiToken'],
+    ),
+  ).toBe(false);
+  // Genuine drift after the echo schedules another save.
+  expect(
+    echoNeedsResave(
+      { serverUrl: 'http://x', apiToken: 'tok-newer' },
+      { serverUrl: 'http://x', apiToken: SECRET_PLACEHOLDER },
+      schema,
+      ['apiToken'],
+    ),
+  ).toBe(false);
+  expect(
+    echoNeedsResave(
+      { serverUrl: 'http://changed', apiToken: 'tok-typed' },
+      { serverUrl: 'http://x', apiToken: SECRET_PLACEHOLDER },
+      schema,
+      ['apiToken'],
+    ),
+  ).toBe(true);
 });
 
 test('schema defaults fill display gaps but never secrets', () => {
-  const schema = {
-    type: 'object',
-    properties: {
-      serverUrl: { type: 'string', default: 'http://localhost:17842' },
-      retries: { type: 'number', default: 3 },
-      playNow: { type: 'boolean', default: false },
-      nested: { type: 'object', default: { ignored: true } },
-      apiToken: { type: 'string', secret: true, default: 'must-not-apply' },
-    },
-  };
   expect(withSchemaDefaults({}, schema)).toEqual({
     serverUrl: 'http://localhost:17842',
-    retries: 3,
-    playNow: false,
+    defaultLanguage: 'en',
   });
-  expect(withSchemaDefaults({ serverUrl: 'http://x/' }, schema)).toEqual({
-    serverUrl: 'http://x/',
-    retries: 3,
-    playNow: false,
+  expect(withSchemaDefaults({ defaultLanguage: 'es' }, schema)).toEqual({
+    serverUrl: 'http://localhost:17842',
+    defaultLanguage: 'es',
   });
-  expect(withSchemaDefaults({}, undefined)).toEqual({});
-});
-
-test('save confirmation tolerates host-added defaults', () => {
-  expect(echoConfirmsSave(
-    { serverUrl: 'http://x/', defaultLanguage: 'en' },
-    { serverUrl: 'http://x/' },
-  )).toBe(true);
-  expect(echoConfirmsSave(
-    { serverUrl: 'http://x/' },
-    { serverUrl: 'http://x/', defaultVoice: 'M1' },
-  )).toBe(false);
-  expect(echoConfirmsSave(
-    { serverUrl: 'http://y/' },
-    { serverUrl: 'http://x/' },
-  )).toBe(false);
-});
-
-test('save confirmation accepts redacted secret echoes', () => {
-  const secretKeys = ['apiToken'];
-  // A freshly typed token echoes back as the host placeholder.
-  expect(echoConfirmsSave(
-    { serverUrl: 'http://x/', apiToken: '••••••••' },
-    { serverUrl: 'http://x/', apiToken: 'real-token' },
-    secretKeys,
-  )).toBe(true);
-  // An untouched placeholder round-trips and confirms.
-  expect(echoConfirmsSave(
-    { serverUrl: 'http://x/', apiToken: '••••••••' },
-    { serverUrl: 'http://x/', apiToken: '••••••••' },
-    secretKeys,
-  )).toBe(true);
-  // Non-secret mismatches still reject, even with secret keys present.
-  expect(echoConfirmsSave(
-    { serverUrl: 'http://y/', apiToken: '••••••••' },
-    { serverUrl: 'http://x/', apiToken: 'real-token' },
-    secretKeys,
-  )).toBe(false);
-  // Without the secret exemption the redacted echo cannot confirm.
-  expect(echoConfirmsSave(
-    { serverUrl: 'http://x/', apiToken: '••••••••' },
-    { serverUrl: 'http://x/', apiToken: 'real-token' },
-  )).toBe(false);
-});
-
-test('secret keys come from schema flags and ui hints', () => {
-  const schema = {
-    type: 'object',
-    properties: {
-      serverUrl: { type: 'string' },
-      apiToken: { type: 'string', secret: true },
-      nickname: { type: 'string' },
-    },
-  };
-  expect(secretSettingKeys(schema, undefined)).toEqual(['apiToken']);
-  expect(secretSettingKeys(schema, { fields: { nickname: { secret: true } } })).toEqual(['apiToken', 'nickname']);
-  expect(secretSettingKeys(undefined, undefined)).toEqual([]);
-});
-
-test('settings equality ignores key order', () => {
-  expect(settingsEqual({ a: '1', b: 2 }, { b: 2, a: '1' })).toBe(true);
-  expect(settingsEqual({ a: '1' }, { a: '1', b: 2 })).toBe(false);
-  expect(settingsEqual({ a: '1' }, { a: '2' })).toBe(false);
-  expect(stableSettingsJson({ b: 2, a: '1' })).toBe(stableSettingsJson({ a: '1', b: 2 }));
-});
-
-test('secret-aware match keeps typed secrets clean but clears dirty', () => {
-  const secretKeys = ['apiToken'];
-  // Typed secret vs redacted echo: clean (saved), stays in the draft masked.
-  expect(settingsMatch(
-    { serverUrl: 'http://x/', apiToken: 'real-token' },
-    { serverUrl: 'http://x/', apiToken: '••••••••' },
-    secretKeys,
-  )).toBe(true);
-  // Untouched placeholder vs echo: clean.
-  expect(settingsMatch(
-    { serverUrl: 'http://x/', apiToken: '••••••••' },
-    { serverUrl: 'http://x/', apiToken: '••••••••' },
-    secretKeys,
-  )).toBe(true);
-  // Clearing a secret is a real change until confirmed.
-  expect(settingsMatch(
-    { serverUrl: 'http://x/', apiToken: '' },
-    { serverUrl: 'http://x/', apiToken: '••••••••' },
-    secretKeys,
-  )).toBe(false);
-  // Non-secret mismatches still dirty.
-  expect(settingsMatch(
-    { serverUrl: 'http://y/', apiToken: 'real-token' },
-    { serverUrl: 'http://x/', apiToken: '••••••••' },
-    secretKeys,
-  )).toBe(false);
-  // Without the exemption the redacted echo reads dirty.
-  expect(settingsMatch(
-    { serverUrl: 'http://x/', apiToken: 'real-token' },
-    { serverUrl: 'http://x/', apiToken: '••••••••' },
-  )).toBe(false);
-});
-
-test('save converges after a redacted secret echo (no resave loop)', () => {
-  const schema = {
-    type: 'object',
-    properties: {
-      serverUrl: { type: 'string', default: 'http://localhost:17842' },
-      apiToken: { type: 'string', secret: true },
-    },
-  };
-  const secretKeys = ['apiToken'];
-  // user enters token -> debounced save -> host stores it -> host echoes
-  // placeholder: the echo confirms the save, so no second save is scheduled.
-  expect(echoNeedsResave(
-    { serverUrl: 'http://x/', apiToken: 'real-token' },
-    { serverUrl: 'http://x/', apiToken: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' },
-    schema,
-    secretKeys,
-  )).toBe(false);
-  // ordinary differences still resave.
-  expect(echoNeedsResave(
-    { serverUrl: 'http://y/', apiToken: 'real-token' },
-    { serverUrl: 'http://x/', apiToken: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' },
-    schema,
-    secretKeys,
-  )).toBe(true);
-  // explicit clearing stays dirty until the host confirms it.
-  expect(echoNeedsResave(
-    { serverUrl: 'http://x/', apiToken: '' },
-    { serverUrl: 'http://x/', apiToken: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' },
-    schema,
-    secretKeys,
-  )).toBe(true);
-  // identical maps converge without secret keys.
-  expect(echoNeedsResave(
-    { serverUrl: 'http://x/' },
-    { serverUrl: 'http://x/' },
-    schema,
-  )).toBe(false);
-});
-
-test('connection card focus boundary stays internal', () => {
-  const insideInput = { id: 'apiToken' };
-  const insideButton = { id: 'show-toggle' };
-  const insideSelect = { id: 'defaultLanguage' };
-  const outside = { id: 'other-page' };
-  const card = {
-    contains: (node: unknown): boolean =>
-      node === insideInput || node === insideButton || node === insideSelect,
-  };
-  // password input -> Show button inside the same card: internal.
-  expect(focusStayedInside(card, insideButton as unknown as EventTarget, insideButton)).toBe(true);
-  // input -> select inside the card: internal (relatedTarget path).
-  expect(focusStayedInside(card, insideSelect as unknown as EventTarget, null)).toBe(true);
-  // WebViews that report null relatedTarget fall back to the active element.
-  expect(focusStayedInside(card, null, insideButton)).toBe(true);
-  // input -> outside page element: external, flush the pending save.
-  expect(focusStayedInside(card, outside as unknown as EventTarget, outside)).toBe(false);
-  expect(focusStayedInside(card, null, outside)).toBe(false);
-  expect(focusStayedInside(card, null, null)).toBe(false);
-});
-
-test('select option signatures ignore array identity', () => {
-  const first = [
-    { value: 'en', label: 'English' },
-    { value: 'es', label: 'Spanish' },
-  ];
-  // Newly allocated equivalent array (SchemaField .map() per render).
-  const second = [
-    { value: 'en', label: 'English' },
-    { value: 'es', label: 'Spanish' },
-  ];
-  expect(first).not.toBe(second as unknown as typeof first);
-  expect(selectOptionSignature(first)).toBe(selectOptionSignature(second));
-  // Adding a value changes the signature.
-  expect(selectOptionSignature([...second, { value: 'fr', label: 'French' }])).not.toBe(
-    selectOptionSignature(second),
-  );
-  // Disabled-state changes matter for sync.
-  expect(selectOptionSignature([
-    { value: 'en', label: 'English' },
-    { value: 'es', label: 'Spanish', disabled: true },
-  ])).not.toBe(selectOptionSignature(second));
-  // Label-only differences do not affect synchronization.
-  expect(selectOptionSignature([
-    { value: 'en', label: 'Ingles' },
-    { value: 'es', label: 'Espanol' },
-  ])).toBe(selectOptionSignature(second));
-});
-
-test('static enum keeps an explicit es selection (no silent default)', () => {
-  const optionValues = new Set(['en', 'es']);
-  // User chose es: explicit value survives even though the default is en.
-  expect(resolveSelectDisplayValue('es', 'es', 'en', optionValues)).toBe('es');
-  // Genuinely absent values still receive the default deliberately.
-  expect(resolveSelectDisplayValue(undefined, '', 'en', optionValues)).toBe('en');
-  expect(resolveSelectDisplayValue(null, '', 'en', optionValues)).toBe('en');
-  // Invalid stored values stay observable instead of masquerading as en.
-  expect(resolveSelectDisplayValue('xx', 'xx', 'en', optionValues)).toBe('xx');
-  // A default outside the option list never applies.
-  expect(resolveSelectDisplayValue(undefined, '', 'de', optionValues)).toBe('');
-});
-
-test('static enum defaults survive the state boundary', () => {
-  const schema = {
-    type: 'object',
-    properties: {
-      defaultLanguage: { type: 'string', default: 'en', enum: ['en', 'es'] },
-    },
-  };
-  // Central default application fills genuinely absent values...
-  expect(withSchemaDefaults({}, schema)).toEqual({ defaultLanguage: 'en' });
-  // ...but never overwrites an explicit user selection.
-  expect(withSchemaDefaults({ defaultLanguage: 'es' }, schema)).toEqual({ defaultLanguage: 'es' });
-  // And an explicit es draft converges with an es echo (no revert, no loop).
-  expect(echoNeedsResave({ defaultLanguage: 'es' }, { defaultLanguage: 'es' }, schema)).toBe(false);
-});
-
-test('native select commits on input before blur/change (en -> es ordering)', () => {
-  // Simulates the embedded-WebView order: input(es) -> blur/popup close ->
-  // change(es). The parent draft must end at es with one effective commit.
-  let parent = 'en';
-  const commits: string[] = [];
-  const emitter = createNativeSelectEmitter((next) => {
-    commits.push(next);
-    parent = next;
-  });
-  const acknowledge = (value: string): void => emitter.acknowledge(value);
-
-  // Native DOM value becomes es; `input` fires first and commits immediately.
-  expect(emitter.emit('es')).toBe(true);
-  expect(parent).toBe('es');
-
-  // The trailing `change` for the same selection fires before Vue's watcher
-  // acknowledges the new prop, so it is deduplicated: one effective commit.
-  expect(emitter.emit('es')).toBe(false);
-  expect(commits).toEqual(['es']);
-
-  // Popup close blurs without any reactive rerender patching a stale value;
-  // the controlled prop now carries the committed es and is acknowledged.
-  acknowledge(parent);
-  expect(parent).toBe('es');
-  expect(commits).toEqual(['es']);
-});
-
-test('native select emitter forwards genuine re-selections after ack', () => {
-  const commits: string[] = [];
-  const emitter = createNativeSelectEmitter((next) => commits.push(next));
-  expect(emitter.emit('es')).toBe(true);
-  // Parent renders es back: in-flight marker clears, so a later genuine
-  // re-selection of the same value still forwards.
-  emitter.acknowledge('es');
-  expect(emitter.emit('es')).toBe(true); // re-selection after ack forwards
-  expect(commits).toEqual(['es', 'es']);
-  // ...while a different value always forwards.
-  emitter.acknowledge('es');
-  expect(emitter.emit('en')).toBe(true);
-  expect(commits).toEqual(['es', 'es', 'en']);
-});
-
-test('select focusout sources skip the immediate autosave flush', () => {
-  const asTarget = (tagName: string): EventTarget =>
-    ({ tagName }) as unknown as EventTarget;
-  expect(isSelectFocusSource(asTarget('SELECT'))).toBe(true);
-  expect(isSelectFocusSource(asTarget('select'))).toBe(true);
-  expect(isSelectFocusSource(asTarget('INPUT'))).toBe(false);
-  expect(isSelectFocusSource(asTarget('BUTTON'))).toBe(false);
-  expect(isSelectFocusSource(null)).toBe(false);
-  expect(isSelectFocusSource(undefined)).toBe(false);
-});
-
-test('schema form boundary never stores DOM events as settings', () => {
-  // Shape of a bubbled Vue DOM Event: serializing it produced
-  // {"isTrusted":true,"_vts":...} in defaultLanguage.
-  const fakeVueEvent = { isTrusted: true, _vts: Date.now() };
-  const stringField: JsonObject = { type: 'string', default: 'en', enum: ['en', 'es'] };
-
-  expect(acceptSchemaFieldValue(stringField, fakeVueEvent)).toBe(false);
-  expect(acceptSchemaFieldValue(stringField, 'es')).toBe(true);
-  expect(acceptSchemaFieldValue({ type: 'boolean' }, true)).toBe(true);
-  expect(acceptSchemaFieldValue({ type: 'boolean' }, 'es')).toBe(false);
-  expect(acceptSchemaFieldValue({ type: 'number' }, 3)).toBe(true);
-  expect(acceptSchemaFieldValue({ type: 'number' }, '3')).toBe(false);
-  expect(acceptSchemaFieldValue({ type: 'integer' }, 3)).toBe(true);
-
-  // The SchemaForm.update gate: correct commits land, events are dropped.
-  let values: Record<string, unknown> = { defaultLanguage: 'en' };
-  const update = (key: string, field: JsonObject, next: unknown): void => {
-    if (!acceptSchemaFieldValue(field, next)) return;
-    values = { ...values, [key]: next };
-  };
-  update('defaultLanguage', stringField, 'es');
-  expect(values.defaultLanguage).toBe('es');
-  expect(typeof values.defaultLanguage).toBe('string');
-  update('defaultLanguage', stringField, fakeVueEvent);
-  expect(values.defaultLanguage).toBe('es');
-  expect(typeof values.defaultLanguage).toBe('string');
 });

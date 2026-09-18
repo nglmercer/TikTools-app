@@ -93,6 +93,22 @@ export type ConnectionSummaryRow = {
 };
 
 /**
+ * True when the connection card shows its compact connected summary
+ * instead of the full settings form: the last probe passed, the user is
+ * not editing, nothing is dirty, and settings have loaded. Every other
+ * state renders the complete form (server URL, token, voice, language)
+ * so a successful probe never hides the way back to the settings.
+ */
+export function shouldShowSummary(args: {
+  editing: boolean;
+  dirty: boolean;
+  connectionOk: boolean;
+  hasSettings: boolean;
+}): boolean {
+  return !args.editing && !args.dirty && args.connectionOk && args.hasSettings;
+}
+
+/**
  * Compact summary rows for a connected card: schema order, URL and secrets
  * excluded, empties skipped, capped so long schemas stay one glance.
  */

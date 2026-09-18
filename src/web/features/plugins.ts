@@ -205,9 +205,18 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
       });
   };
 
-  const handleGetActionOptions = (source: string): void => {
+  /**
+   * Reads one option source. `refresh` bypasses the host option cache for
+   * this read (Refresh buttons, post-mutation re-reads); normal reads stay
+   * cached. The second parameter is optional so every existing single-arg
+   * call site keeps working unchanged.
+   */
+  const handleGetActionOptions = (source: string, refresh?: boolean): void => {
     void control
-      .call<PluginOptionsResult>('plugins.options', { source })
+      .call<PluginOptionsResult>(
+        'plugins.options',
+        refresh ? { source, refresh: true } : { source },
+      )
       .then((result) => applyOptions(result))
       .catch((failure: unknown) => {
         applyOptions({ source, options: [], selected: null }, errorMessage(failure));

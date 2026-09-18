@@ -377,13 +377,15 @@
   justify-content: center;
   padding: 4px 16px 24px;
 }
-/* Inline (Connections tab server list): stretch to the card, no page padding. */
+/* Inline (Connections tab server list): same readable column as the plugin
+   page, left-aligned in the wide hub card instead of stretching edge to
+   edge. The card stays fluid below 720px so narrow windows are unaffected. */
 .plg-connect--inline {
-  justify-content: stretch;
+  justify-content: flex-start;
   padding: 0;
 }
 .plg-connect--inline .plg-connect__card {
-  max-width: none;
+  max-width: 720px;
 }
 .plg-connect__card {
   display: flex;
@@ -432,13 +434,22 @@
   gap: 6px;
   margin: 0;
   padding: 0;
+  max-width: 560px;
 }
+/* Label/value grid keeps values next to their labels on wide windows
+   instead of pushing them to the far edge (space-between). */
 .plg-connect__row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(140px, 180px) minmax(0, 1fr);
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   font-size: 12.5px;
+}
+@media (max-width: 480px) {
+  .plg-connect__row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }
 .plg-connect__row dt {
   margin: 0;

@@ -84,6 +84,38 @@ impl OptionSourceService {
             .expect("option cache lock poisoned")
             .clear();
     }
+
+    /// Drops one cached option list. Explicit refresh after a
+    /// state-changing action calls this so the next read re-fetches instead
+    /// of serving the pre-mutation selection until the TTL expires.
+    pub fn invalidate(&self, source: &str) {
+        self.cache
+            .lock()
+            .expect("option cache lock poisoned")
+            .remove(source);
+    }
+
+    /// Drops every cached option list owned by one action type (all fields).
+    /// A successful live execution may have changed what the server reports,
+    /// so its own option sources are never served stale afterwards. Other
+    /// actions keep their cached entries.
+    pub fn invalidate_action(&self, action_type: &str) {
+        let owned: Vec<String> = self
+            .cache
+            .lock()
+            .expect("option cache lock poisoned")
+            .keys()
+            .filter(|source| {
+                parse_option_source(source)
+                    .map(|(owner, _)| owner == action_type)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+        for source in owned {
+            self.invalidate(&source);
+        }
+    }
 }
 
 /// Splits `plugin-action-options:<actionType>:<field>` into its parts.
@@ -258,15 +290,20 @@ fn scalar_text(value: &Value) -> Option<String> {
 impl crate::AppCore {
     /// Resolves one `get-action-options` source to its items, the
     /// server-reported selection (if the document advertises one), and an
-    /// optional display-safe error. Cache hits skip the fetch; failures yield
-    /// empty options with an explanatory error instead of failing the form.
+    /// optional display-safe error. Cache hits skip the fetch unless
+    /// `force_refresh` bypasses the cache (manual Refresh, post-mutation
+    /// re-read); failures yield empty options with an explanatory error
+    /// instead of failing the form.
     pub(crate) async fn resolve_action_options(
         self: &std::sync::Arc<Self>,
         source: &str,
+        force_refresh: bool,
     ) -> (Vec<Value>, Option<String>, Option<String>) {
         let fail = |message: String| (Vec::new(), None, Some(message));
-        if let Some((options, selected)) = self.option_sources.cached(source) {
-            return (options, selected, None);
+        if !force_refresh {
+            if let Some((options, selected)) = self.option_sources.cached(source) {
+                return (options, selected, None);
+            }
         }
         let Some((action_type, field)) = parse_option_source(source) else {
             return fail(format!("Unknown option source `{source}`."));
@@ -432,6 +469,47 @@ mod tests {
     }
 
     #[test]
+    fn invalidate_drops_one_source_and_keeps_the_rest() {
+        let service = OptionSourceService::new();
+        let outputs = "plugin-action-options:sonicboom.server.set-output-device:device";
+        let voices = "plugin-action-options:sonicboom.server.speak:voice";
+        service.store(
+            outputs,
+            vec![json!({"value": "default", "label": "System Default"})],
+            Some("default".to_owned()),
+        );
+        service.store(
+            voices,
+            vec![json!({"value": "M1", "label": "Marcus"})],
+            None,
+        );
+        // Regression: after a device switch the outputs re-read must not
+        // serve the pre-mutation `selected=default`.
+        service.invalidate(outputs);
+        assert!(service.cached(outputs).is_none());
+        assert!(service.cached(voices).is_some());
+        // Unknown sources are a no-op, never a panic.
+        service.invalidate("plugin-action-options:missing.action:field");
+        assert!(service.cached(voices).is_some());
+    }
+
+    #[test]
+    fn invalidate_action_drops_only_that_actions_sources() {
+        let service = OptionSourceService::new();
+        let device = "plugin-action-options:sonicboom.server.set-output-device:device";
+        let voices = "plugin-action-options:sonicboom.server.speak:voice";
+        service.store(device, vec![], Some("default".to_owned()));
+        service.store(voices, vec![], None);
+        service.invalidate_action("sonicboom.server.set-output-device");
+        assert!(service.cached(device).is_none());
+        assert!(service.cached(voices).is_some());
+        // A sibling prefix must not match: `speak` shares no owner here,
+        // and unknown actions change nothing.
+        service.invalidate_action("sonicboom.server.unknown");
+        assert!(service.cached(voices).is_some());
+    }
+
+    #[test]
     fn reports_server_selected_option() {
         // SonicBoom-style devices document: top-level `selected` wins over
         // per-item flags, and values follow the declared value path.
@@ -493,6 +571,31 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn force_refresh_bypasses_the_cache_for_one_read() {
+        let core = std::sync::Arc::new(crate::AppCore::new(std::sync::Arc::new(Emitter)));
+        let source = "plugin-action-options:sonicboom.server.set-output-device:device";
+        core.option_sources.store(
+            source,
+            vec![json!({"value": "default", "label": "System Default"})],
+            Some("default".to_owned()),
+        );
+        // Normal read: cache hit, no plugin lookup, no fetch.
+        let (options, selected, error) = core.resolve_action_options(source, false).await;
+        assert!(error.is_none());
+        assert_eq!(options.len(), 1);
+        assert_eq!(selected.as_deref(), Some("default"));
+        // Forced read: the cache is skipped, so resolution proceeds to the
+        // plugin lookup and fails there (no plugins registered in this
+        // core) instead of returning the stale cached selection.
+        let (options, selected, error) = core.resolve_action_options(source, true).await;
+        assert!(options.is_empty());
+        assert!(selected.is_none());
+        assert!(error.unwrap().contains("not available"));
+        // The bypass reads through without poisoning the stored entry.
+        assert!(core.option_sources.cached(source).is_some());
+    }
+
     struct Emitter;
     impl crate::HostEmitter for Emitter {
         fn emit(&self, _message: crate::ipc::messages::HostMessage) {}
@@ -501,12 +604,12 @@ mod tests {
     #[tokio::test]
     async fn resolution_errors_stay_display_safe() {
         let core = std::sync::Arc::new(crate::AppCore::new(std::sync::Arc::new(Emitter)));
-        let (options, selected, error) = core.resolve_action_options("not-a-source").await;
+        let (options, selected, error) = core.resolve_action_options("not-a-source", false).await;
         assert!(options.is_empty());
         assert!(selected.is_none());
         assert!(error.unwrap().contains("Unknown option source"));
         let (options, selected, error) = core
-            .resolve_action_options("plugin-action-options:missing.action:field")
+            .resolve_action_options("plugin-action-options:missing.action:field", false)
             .await;
         assert!(options.is_empty());
         assert!(selected.is_none());

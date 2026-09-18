@@ -985,9 +985,12 @@ impl AppCore {
 
     /// Resolves `action-type/field` option documents for action configs.
     /// Returns the items plus the server-reported selection, if any.
+    /// `refresh` bypasses the option cache for one read (manual Refresh,
+    /// post-mutation re-read) without disabling caching globally.
     pub async fn plugin_action_options(
         self: &Arc<Self>,
         source: &str,
+        refresh: bool,
     ) -> Result<(Vec<Value>, Option<String>), OperationError> {
         let source = source.trim();
         if source.is_empty() || source.len() > 256 {
@@ -995,7 +998,7 @@ impl AppCore {
                 "option source must be 1..=256 characters",
             ));
         }
-        let (options, selected, error) = self.resolve_action_options(source).await;
+        let (options, selected, error) = self.resolve_action_options(source, refresh).await;
         if let Some(error) = error {
             return Err(OperationError::internal(error));
         }
@@ -1053,14 +1056,24 @@ impl AppCore {
             .execute_plugin_action(action_type, &action, &event, &mut logs, !live)
             .await
         {
-            Ok(summary) => Ok(PluginActionOutcome {
-                action_type: action_type.to_owned(),
-                ok: true,
-                summary,
-                logs: logs.into_iter().take(20).collect(),
-                duration_ms: now_millis().saturating_sub(started),
-                error: None,
-            }),
+            Ok(summary) => {
+                // A live execution may have changed server state (audio
+                // output switches, renames): drop this action's cached
+                // option lists so the follow-up re-read reports the new
+                // server selection instead of the pre-mutation one. Dry
+                // runs send nothing, so their cache entries stay valid.
+                if live {
+                    self.option_sources.invalidate_action(action_type);
+                }
+                Ok(PluginActionOutcome {
+                    action_type: action_type.to_owned(),
+                    ok: true,
+                    summary,
+                    logs: logs.into_iter().take(20).collect(),
+                    duration_ms: now_millis().saturating_sub(started),
+                    error: None,
+                })
+            }
             Err(error) => Ok(PluginActionOutcome {
                 action_type: action_type.to_owned(),
                 ok: false,

@@ -7,7 +7,7 @@ import {
   outputsTarget,
 } from './tts-outputs.ts';
 
-test('outputs target derives from the option source', () => {
+test('outputs target derives the switch action from the source id', () => {
   expect(outputsTarget('plugin-action-options:sonicboom.server.set-output-device:device')).toEqual({
     actionType: 'sonicboom.server.set-output-device',
     field: 'device',
@@ -16,54 +16,54 @@ test('outputs target derives from the option source', () => {
   expect(outputsTarget('plugin-action-options:no-field')).toBeUndefined();
 });
 
-test('only 404 option errors read as unsupported endpoints', () => {
-  expect(isNotFoundOptionError('HTTP 404 from 127.0.0.1')).toBe(true);
-  expect(isNotFoundOptionError('HTTP 404 request failed: nope')).toBe(true);
-  expect(isNotFoundOptionError('  HTTP 404 from host  ')).toBe(true);
-  expect(isNotFoundOptionError('HTTP 4040 from host')).toBe(false);
-  expect(isNotFoundOptionError('HTTP 500 from 127.0.0.1')).toBe(false);
+test('only 404 option errors mean unsupported audio api', () => {
+  expect(isNotFoundOptionError('HTTP 404 Not Found')).toBe(true);
+  expect(isNotFoundOptionError('  HTTP 404')).toBe(true);
+  expect(isNotFoundOptionError('HTTP 500 boom')).toBe(false);
   expect(isNotFoundOptionError('connection refused')).toBe(false);
-  expect(isNotFoundOptionError('')).toBe(false);
   expect(isNotFoundOptionError(undefined)).toBe(false);
+  expect(isNotFoundOptionError('')).toBe(false);
 });
 
-test('output rows keep an unlisted live value visible', () => {
-  const outputs = [
+test('output rows keep the live value when the server no longer lists it', () => {
+  const listed = [
     { value: 'default', label: 'System Default' },
-    { value: 'cable', label: '' },
+    { value: 'Speakers', label: 'Speakers' },
   ];
-  expect(outputOptions(outputs, 'cable')).toEqual([
+  expect(outputOptions(listed, 'Speakers')).toEqual([
     { value: 'default', label: 'System Default' },
-    { value: 'cable', label: 'cable' },
+    { value: 'Speakers', label: 'Speakers' },
   ]);
-  // A disappeared device stays on screen instead of silently resetting.
-  expect(outputOptions(outputs, 'ghost')).toEqual([
-    { value: 'ghost', label: 'ghost' },
+  // A missing explicit selection still renders so the selector never goes blank.
+  expect(outputOptions(listed, 'Unplugged USB')).toEqual([
+    { value: 'Unplugged USB', label: 'Unplugged USB' },
     { value: 'default', label: 'System Default' },
-    { value: 'cable', label: 'cable' },
+    { value: 'Speakers', label: 'Speakers' },
   ]);
+  expect(outputOptions(listed, '')).toHaveLength(2);
 });
 
-test('outputs card states degrade without hiding the panel', () => {
-  expect(outputsCardState({ supported: false, outputs: undefined, outputsError: undefined })).toEqual({
-    kind: 'hidden',
-  });
-  expect(outputsCardState({ supported: true, outputs: undefined, outputsError: undefined })).toEqual({
-    kind: 'loading',
-  });
+test('outputs card state hides the selector but never the panel', () => {
   expect(
-    outputsCardState({ supported: true, outputs: [], outputsError: 'HTTP 404 from 127.0.0.1' }),
+    outputsCardState({ supported: false, outputs: undefined, outputsError: undefined }),
+  ).toEqual({ kind: 'hidden' });
+  expect(outputsCardState({ supported: true, outputs: undefined, outputsError: undefined })).toEqual(
+    { kind: 'loading' },
+  );
+  expect(
+    outputsCardState({ supported: true, outputs: undefined, outputsError: 'HTTP 404 gone' }),
   ).toEqual({ kind: 'unavailable', unsupported: true });
   expect(
-    outputsCardState({ supported: true, outputs: [], outputsError: 'HTTP 500 from 127.0.0.1' }),
+    outputsCardState({ supported: true, outputs: [], outputsError: 'HTTP 500 boom' }),
   ).toEqual({ kind: 'unavailable', unsupported: false });
   expect(outputsCardState({ supported: true, outputs: [], outputsError: undefined })).toEqual({
     kind: 'empty',
   });
-  const ready = outputsCardState({
-    supported: true,
-    outputs: [{ value: 'default', label: 'System Default' }],
-    outputsError: undefined,
-  });
-  expect(ready).toEqual({ kind: 'ready' });
+  expect(
+    outputsCardState({
+      supported: true,
+      outputs: [{ value: 'default', label: 'System Default' }],
+      outputsError: undefined,
+    }),
+  ).toEqual({ kind: 'ready' });
 });

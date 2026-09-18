@@ -33,7 +33,7 @@ type ActionEditorProps = {
   testRuns: BehaviorRun[];
   actionOptions: Record<string, ActionOptionItem[]>;
   actionOptionErrors: Record<string, string>;
-  onGetActionOptions: (source: string) => void;
+  onGetActionOptions: (source: string, refresh?: boolean) => void;
   onOpenMediaPicker: OpenMediaPicker;
   onCancel: () => void;
   onSave: (action: LiveAction) => void;
@@ -176,7 +176,7 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
                     <button
                       type="button"
                       class="plg-btn plg-btn--sm"
-                      onClick={() => { for (const field of dynamicFieldsValue) props.onGetActionOptions(field.source); }}
+                      onClick={() => { for (const field of dynamicFieldsValue) props.onGetActionOptions(field.source, true); }}
                     >
                       {t(locale, 'behavior.copy.refreshOptions')}
                     </button>

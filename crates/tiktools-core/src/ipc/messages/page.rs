@@ -162,7 +162,11 @@ pub enum PageMessage {
     #[serde(rename = "save-plugin-settings")]
     SavePluginSettings { id: String, values: JsonObject },
     #[serde(rename = "get-action-options")]
-    GetActionOptions { source: String },
+    GetActionOptions {
+        source: String,
+        #[serde(default)]
+        refresh: bool,
+    },
     #[serde(rename = "execute-plugin-action")]
     ExecutePluginAction {
         #[serde(rename = "actionType")]
@@ -321,7 +325,7 @@ impl PageMessage {
                     return Err(IpcMessageError::InvalidField("source/offset"));
                 }
             }
-            Self::GetActionOptions { source } => {
+            Self::GetActionOptions { source, .. } => {
                 if !valid_option_source(source) {
                     return Err(IpcMessageError::InvalidField("source"));
                 }

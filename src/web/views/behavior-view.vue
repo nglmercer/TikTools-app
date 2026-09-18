@@ -58,7 +58,7 @@ type BehaviorViewProps = {
   actionOptions: Record<string, ActionOptionItem[]>;
   /** Per-source fetch errors for the option lists above. */
   actionOptionErrors: Record<string, string>;
-  onGetActionOptions: (source: string) => void;
+  onGetActionOptions: (source: string, refresh?: boolean) => void;
 };
 
 type Screen =

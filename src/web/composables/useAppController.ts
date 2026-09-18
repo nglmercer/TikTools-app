@@ -93,7 +93,7 @@ export function useAppController() {
   const tts = useTts(control, plugins.actionOptions, automation.pluginPages, {
     executeAction: (actionType, config, live) =>
       plugins.executeAction(actionType, config, live),
-    refreshOptions: (source) => plugins.handleGetActionOptions(source),
+    refreshOptions: (source) => plugins.handleGetActionOptions(source, true),
     adjustPoints: (uniqueId, delta) => points.handleAdjustPoints(uniqueId, delta),
     leaderboardPointsFor: (handle) => points.leaderboardPointsFor(handle),
   });

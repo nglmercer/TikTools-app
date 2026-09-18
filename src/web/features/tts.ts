@@ -233,9 +233,9 @@ export function useTts(
 
   /**
    * Runs the outputs switch action immediately (TTS audio output selector).
-   * The device is sent verbatim; the result handler re-reads the server
-   * selection on success and surfaces the error without persisting on
-   * failure, so the selector always reflects server state.
+   * The device is sent verbatim; the result handler force-refreshes the
+   * server selection on success and surfaces the error without persisting
+   * on failure, so the selector always reflects server state.
    */
   const handleTtsOutputSelect = (
     pluginId: string,

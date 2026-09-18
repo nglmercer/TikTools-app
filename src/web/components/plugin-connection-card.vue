@@ -21,6 +21,7 @@ import {
   secretSettingKeys,
   settingsEqual,
   settingsMatch,
+  shouldShowSummary,
   stableSettingsJson,
   withSchemaDefaults,
 } from './plugin-connection-logic.ts';
@@ -136,12 +137,12 @@ export const PluginConnectionCard = defineVueComponent<PluginConnectionCardProps
       secretKeys.value,
     );
   });
-  const showSummary = computed(() => (
-    !editing.value
-    && !dirty.value
-    && props.connection?.ok === true
-    && props.settingsState !== undefined
-  ));
+  const showSummary = computed(() => shouldShowSummary({
+    editing: editing.value,
+    dirty: dirty.value,
+    connectionOk: props.connection?.ok === true,
+    hasSettings: props.settingsState !== undefined,
+  }));
   const summaryRows = computed(() => connectionSummaryRows(
     displayValues.value,
     props.settingsState?.schema,

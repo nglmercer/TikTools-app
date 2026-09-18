@@ -40,7 +40,7 @@ type PluginPageViewProps = {
   onTtsOutputSelect?: (pluginId: string, actionType: string, field: string, device: string, source: string) => void;
   onGetSettings: (id: string) => void;
   onSaveSettings: (id: string, values: PluginSettingValues) => void;
-  onGetActionOptions: (source: string) => void;
+  onGetActionOptions: (source: string, refresh?: boolean) => void;
   onTestConnection: (id: string) => void;
   onOpenMediaPicker?: OpenMediaPicker;
   ttsSettings?: TtsSettings;
@@ -249,7 +249,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
               speaking={props.ttsSpeaking ?? false}
               logs={props.ttsLogs ?? []}
               onSettingsChange={(next) => onSettingsChange(pluginId, next)}
-              onRefreshVoices={() => { if (source) props.onGetActionOptions(source); }}
+              onRefreshVoices={() => { if (source) props.onGetActionOptions(source, true); }}
               onSpeak={(text, voice) => onSpeak(pluginId, actionType, text, voice)}
               outputsSupported={!!outputsSource}
               outputs={outputsSource ? props.actionOptions[outputsSource] : undefined}
@@ -260,7 +260,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
               onSelectOutput={outputTarget && onOutputSelect && outputsSource
                 ? (device) => onOutputSelect(pluginId, outputTarget.actionType, outputTarget.field, device, outputsSource)
                 : undefined}
-              onRefreshOutputs={outputsSource ? () => props.onGetActionOptions(outputsSource) : undefined}
+              onRefreshOutputs={outputsSource ? () => props.onGetActionOptions(outputsSource, true) : undefined}
             />
           </section>
         );
@@ -289,7 +289,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
               <button
                 type="button"
                 class="plg-btn plg-btn--sm"
-                onClick={() => { if (source) props.onGetActionOptions(source); }}
+                onClick={() => { if (source) props.onGetActionOptions(source, true); }}
               >
                 {t(locale, 'pluginListRefresh')}
               </button>

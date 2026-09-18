@@ -46,6 +46,10 @@ pub struct PluginInstallParams {
 #[serde(rename_all = "camelCase")]
 pub struct PluginOptionsParams {
     pub source: String,
+    /// Bypass the option cache for one read (manual Refresh, post-mutation
+    /// re-read). Defaults to false: normal reads stay cached.
+    #[serde(default)]
+    pub refresh: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -193,7 +197,7 @@ pub fn register(router: &mut ControlRouter) {
         "Resolves action-type/field option documents",
         false,
         |core: Arc<AppCore>, params: PluginOptionsParams| async move {
-            core.plugin_action_options(&params.source)
+            core.plugin_action_options(&params.source, params.refresh)
                 .await
                 .map(|(options, selected)| PluginOptionsResult {
                     source: params.source,
