@@ -299,15 +299,13 @@ export function sentenceFor(event: LiveEvent, actions: LiveAction[], locale: Loc
     return `${items.slice(0, -1).join(', ')} ${t(locale, 'andWord')} ${last}`;
   };
 
-  if (locale === 'es') {
-    const condition = filters.length ? ` y ${join(filters)}` : '';
-    const what = event.runMode === 'random' ? `una de: ${join(names)}` : join(names);
-    return `Cuando ${trigger}${condition}, ejecuta ${what}.`;
-  }
-
-  const condition = filters.length ? ` and ${join(filters)}` : '';
-  const what = event.runMode === 'random' ? `one of: ${join(names)}` : join(names);
-  return `When ${trigger}${condition}, run ${what}.`;
+  const condition = filters.length
+    ? t(locale, 'behavior.copy.summaryCondition', { filters: join(filters) })
+    : '';
+  const what = event.runMode === 'random'
+    ? t(locale, 'behavior.copy.summaryOneOf', { names: join(names) })
+    : join(names);
+  return t(locale, 'behavior.copy.summarySentence', { trigger, condition, actions: what });
 }
 
 export function relativeTime(timestamp: number, locale: Locale): string {

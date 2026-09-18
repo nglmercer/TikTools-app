@@ -1,11 +1,13 @@
 <script lang="tsx">
 import { defineVueFunctional } from '../../vue/component.ts';
+import { t, type Locale } from '../../i18n.ts';
 import type { AnalyticsTotals } from '../../../shared/messages.ts';
 import { buildMetricBreakdown, type AnalyticsMetric } from './analytics-chart.ts';
-import { formatCount, formatDayLabel } from './analytics-range.ts';
+import { formatDayDate } from './analytics-intraday.ts';
+import { formatCount } from './analytics-range.ts';
 
 type AnalyticsDayBreakdownProps = {
-  locale: string;
+  locale: Locale;
   day: number;
   totals: AnalyticsTotals;
   metric: AnalyticsMetric;
@@ -14,9 +16,9 @@ type AnalyticsDayBreakdownProps = {
 };
 
 /**
- * Single-day fallback for the Today view. A one-point line chart is
- * meaningless, so render every metric as a normalized horizontal bar with
- * the active metric highlighted. No chart library — pure divs.
+ * Single-day totals below the Today hourly graphic. Every metric renders as
+ * a normalized horizontal bar with the active metric highlighted.
+ * No chart library — pure divs. All copy goes through i18n.
  */
 export const AnalyticsDayBreakdown = defineVueFunctional<AnalyticsDayBreakdownProps>((props) => {
   const { locale, day, totals, metric, metricLabel, onMetricChange } = props;
@@ -31,8 +33,10 @@ export const AnalyticsDayBreakdown = defineVueFunctional<AnalyticsDayBreakdownPr
   return (
     <div class="analytics-single">
       <div class="analytics-single__head">
-        <span class="analytics-single__day">{formatDayLabel(day, locale)}</span>
-        <span class="analytics-single__hint">{formatCount(totals.chats + totals.gifts + totals.likes, locale)} events</span>
+        <span class="analytics-single__day">{formatDayDate(day, locale)}</span>
+        <span class="analytics-single__hint">
+          {t(locale, 'analyticsEventsCount', { count: formatCount(totals.chats + totals.gifts + totals.likes, locale) })}
+        </span>
       </div>
       <div class="analytics-bars" role="list">
         {entries.map((entry) => {

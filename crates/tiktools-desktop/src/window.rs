@@ -670,9 +670,7 @@ fn classify_value(value: &serde_json::Value) -> WebviewMessageClass {
     if let Some(kind) = value.get("type").and_then(serde_json::Value::as_str) {
         return match kind {
             // Compat duplicates of authoritative domain twins: safe to shed.
-            "live-event" | "points-awarded" | "plugin-progress" => {
-                WebviewMessageClass::Droppable
-            }
+            "live-event" | "points-awarded" | "plugin-progress" => WebviewMessageClass::Droppable,
             "room-stats" | "leaderboard" | "analytics-summary" | "processor-status"
             | "automation-context" | "gift-catalog" => WebviewMessageClass::Coalescable,
             // rpc-response, connection/error/reconnecting transitions, and
@@ -721,10 +719,12 @@ struct QueuedWebviewMessage {
     is_rpc_response: bool,
 }
 
-fn push_webview_message(queue: &mut std::collections::VecDeque<QueuedWebviewMessage>, body: String) {
+fn push_webview_message(
+    queue: &mut std::collections::VecDeque<QueuedWebviewMessage>,
+    body: String,
+) {
     let class = classify_webview_message(&body);
-    let (coalesce_key, is_rpc_response) = match serde_json::from_str::<serde_json::Value>(&body)
-    {
+    let (coalesce_key, is_rpc_response) = match serde_json::from_str::<serde_json::Value>(&body) {
         Ok(value) => (webview_coalesce_key(&value), is_rpc_response_value(&value)),
         Err(_) => (None, false),
     };
@@ -791,7 +791,10 @@ async fn forward_domain_events(
         let event = match events.recv().await {
             Ok(event) => event,
             Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                tracing::warn!(skipped, "WebView domain event receiver lagged; skipping burst");
+                tracing::warn!(
+                    skipped,
+                    "WebView domain event receiver lagged; skipping burst"
+                );
                 continue;
             }
             Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
@@ -848,7 +851,9 @@ mod webview_queue_tests {
     use super::*;
 
     fn domain_event(topic: &str, data: &str) -> String {
-        format!(r#"{{"jsonrpc":"2.0","method":"event","params":{{"topic":"{topic}","data":{data}}}}}"#)
+        format!(
+            r#"{{"jsonrpc":"2.0","method":"event","params":{{"topic":"{topic}","data":{data}}}}}"#
+        )
     }
 
     #[test]
@@ -986,8 +991,14 @@ mod webview_queue_tests {
             &mut queue,
             domain_event("live.ui-event", r#"{"event":{"n":2}}"#),
         );
-        push_webview_message(&mut queue, domain_event("plugin.started", r#"{"pluginId":"p1"}"#));
-        push_webview_message(&mut queue, domain_event("plugin.started", r#"{"pluginId":"p1"}"#));
+        push_webview_message(
+            &mut queue,
+            domain_event("plugin.started", r#"{"pluginId":"p1"}"#),
+        );
+        push_webview_message(
+            &mut queue,
+            domain_event("plugin.started", r#"{"pluginId":"p1"}"#),
+        );
         assert_eq!(queue.len(), 8, "unexpected queue len");
         assert!(queue[0].body.contains(r#""viewers":2"#));
         assert!(queue[1].body.contains(r#""creatorUniqueId":"b""#));
@@ -1029,7 +1040,9 @@ mod webview_queue_tests {
             "rpc-response was evicted under saturation"
         );
         assert!(
-            !queue.iter().any(|queued| queued.body.contains(r#"{"n":0}"#)),
+            !queue
+                .iter()
+                .any(|queued| queued.body.contains(r#"{"n":0}"#)),
             "saturation must shed oldest droppable first"
         );
     }
@@ -1108,9 +1121,9 @@ mod webview_queue_tests {
     #[tokio::test]
     async fn lagged_burst_does_not_stop_event_forwarder() {
         let (sender, receiver) = tokio::sync::broadcast::channel(1);
-        // Lag the receiver deterministically: blast a burst through the
-        // capacity-1 channel before the forwarder ever reads.
-        for _ in 0..50 {
+        // Lag the receiver deterministically: blast a >512-event burst
+        // through the capacity-1 channel before the forwarder ever reads.
+        for _ in 0..600 {
             sender
                 .send(tiktools_core::events::DomainEvent::LiveDisconnected)
                 .expect("send fits");

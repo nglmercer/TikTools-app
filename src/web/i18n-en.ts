@@ -97,6 +97,11 @@ export const english = {
   analyticsShares: 'Shares',
   analyticsJoins: 'Joins',
   analyticsInteractions: 'Interactions',
+  analyticsTodayTimeline: 'Today timeline',
+  analyticsHourlyHint: 'Hourly distribution from each viewer last activity time',
+  analyticsEventsCount: '{count} events',
+  lastActive: 'Last active',
+  analyticsNoHourlyData: 'No hourly activity yet',
   analyticsEmpty: 'No analytics yet',
   analyticsEmptyHint: 'Connect to a LIVE to start collecting persistent stats.',
   tabConnect: 'Connection & Streamers',
@@ -453,6 +458,11 @@ export const english = {
   ttsAudioOutputSwitching: 'Switching audio output…',
   ttsAudioOutputHint: 'Playback follows the selected server output.',
   ttsRefreshOutputs: 'Refresh outputs',
+  ttsSpeedPitchNote: 'Speed and pitch are stored for later. The current SonicBoom server does not apply them to synthesis.',
+  ttsRolesNote: 'Follower, moderator, team, and top-gifter rules apply only when the host supplies authoritative role data.',
+  ttsCostNote: 'Messages are rejected when the viewer cannot cover the cost. Each spoken message is charged exactly once.',
+  ttsSpecialUsersNote: 'Special-user settings override global defaults. Blocked users never speak, even when all users are allowed.',
+  ttsAuthNote: '401/403 errors mean the server rejected the credentials — open Connection and use Get API token with your admin login to mint one. Each log line shows the exact request path and whether a credential was attached (never the value itself).',
 } as const;
 
 export type TranslationKey = keyof typeof english;

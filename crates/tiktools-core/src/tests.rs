@@ -638,6 +638,44 @@ fn empty_session_cookie_is_allowed_for_guest_mode() {
 }
 
 #[test]
+fn saturated_subscriber_does_not_block_live_domain_events() {
+    use crate::events::{DomainEvent, EventBus};
+
+    let bus = EventBus::new(16);
+    // A saturated automation consumer that never polls: publishing is
+    // synchronous and must never block on it, and every other
+    // subscriber must keep receiving live events after the burst.
+    let _stalled_automation = bus.subscribe_domain();
+    let mut live = bus.subscribe_domain();
+    for _ in 0..600 {
+        bus.publish_domain(DomainEvent::LiveDisconnected);
+    }
+    bus.publish_domain(DomainEvent::LiveError {
+        phase: "burst-marker".to_owned(),
+        message: "post-burst".to_owned(),
+    });
+    let mut saw_marker = false;
+    for _ in 0..64 {
+        match live.try_recv() {
+            Ok(DomainEvent::LiveError { phase, .. }) if phase == "burst-marker" => {
+                saw_marker = true;
+                break;
+            }
+            Ok(_) => {}
+            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => {}
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
+            Err(tokio::sync::broadcast::error::TryRecvError::Closed) => {
+                panic!("bus must stay open under saturation")
+            }
+        }
+    }
+    assert!(
+        saw_marker,
+        "live subscriber must receive post-burst events despite saturation"
+    );
+}
+
+#[test]
 fn ipc_error_degrades_system_health() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = AppCore::new(emitter);

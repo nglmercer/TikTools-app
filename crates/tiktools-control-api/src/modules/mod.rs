@@ -36,7 +36,10 @@ impl OkResult {
 /// Runs synchronous SQLite/filesystem work on the blocking pool so RPC
 /// handlers never stall Tokio workers. Pure in-memory reads must NOT use
 /// this; the pool hop would only add latency.
-pub(crate) async fn blocking_task<T, F>(what: &'static str, task: F) -> Result<T, super::error::ApiError>
+pub(crate) async fn blocking_task<T, F>(
+    what: &'static str,
+    task: F,
+) -> Result<T, super::error::ApiError>
 where
     T: Send + 'static,
     F: FnOnce() -> T + Send + 'static,

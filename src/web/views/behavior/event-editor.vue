@@ -227,9 +227,7 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
                     <div class="plg-label-row">
                       <label class="plg-label" for="eventCooldownScope">{t(props.locale, 'behavior.copy.cooldownScope')}</label>
                       <InfoTip
-                        text={props.locale === 'es'
-                          ? 'Por usuario: la espera cuenta para cada espectador. Global: una sola espera para todos.'
-                          : 'Per viewer: the cooldown counts per person. Global: one cooldown for everyone.'}
+                        text={t(props.locale, 'behavior.copy.cooldownScopeHint')}
                         position="left"
                       />
                     </div>

@@ -5,6 +5,7 @@ import type { AnalyticsTopViewer } from '../../../shared/messages.ts';
 import { IconTrophy } from '../icons.vue';
 import { Card } from '../ui/Card.vue';
 import { DataTable, type Column } from '../ui/Table.vue';
+import { formatTime } from './analytics-intraday.ts';
 import { formatCount } from './analytics-range.ts';
 
 type AnalyticsContributorsCardProps = {
@@ -70,6 +71,17 @@ export const AnalyticsContributorsCard = defineVueFunctional<AnalyticsContributo
       width: '110px',
       align: 'right' as const,
       render: (row) => <span style={{ fontWeight: 700 }}>{formatCount(row.interactions, locale)}</span>,
+    },
+    {
+      key: 'lastSeen',
+      header: t(locale, 'lastActive'),
+      width: '90px',
+      align: 'right' as const,
+      render: (row) => (
+        <span style={{ color: 'var(--text-muted)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+          {formatTime(row.lastSeen, locale)}
+        </span>
+      ),
     },
   ];
 

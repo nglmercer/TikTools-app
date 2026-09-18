@@ -180,7 +180,24 @@
 
 .analytics-chart__bar {
   fill: var(--tt-cyan);
-  opacity: 0.85;
+  opacity: 0.55;
+}
+
+.analytics-chart__bar.is-peak {
+  opacity: 1;
+}
+
+.analytics-hourly {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.analytics-hourly__empty {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .analytics-chart__value {

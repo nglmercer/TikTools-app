@@ -317,7 +317,7 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                 />
               </div>
               {TTS_SPEED_PITCH_UNSUPPORTED && (
-                <p class="tts-hint">Speed and pitch are stored for later. The current SonicBoom server does not apply them to synthesis.</p>
+                <p class="tts-hint">{t(props.locale, 'ttsSpeedPitchNote')}</p>
               )}
               <div class="tts-row tts-row--stack">
                 <label class="tts-label" for="tts-volume">
@@ -388,7 +388,7 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                   onInput={(event) => updateNumber('topGifterCount', (event.currentTarget as HTMLInputElement).value)}
                 />
               </div>
-              <p class="tts-hint">Follower, moderator, team, and top-gifter rules apply only when the host supplies authoritative role data.</p>
+              <p class="tts-hint">{t(props.locale, 'ttsRolesNote')}</p>
               <label class="tts-check">
                 <input type="checkbox" checked={settings.allowListedUsers} onChange={(event) => update({ allowListedUsers: (event.currentTarget as HTMLInputElement).checked })} />
                 Allowed users list
@@ -482,14 +482,14 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                   onInput={(event) => updateNumber('pointsCost', (event.currentTarget as HTMLInputElement).value)}
                 />
               </div>
-              <p class="tts-hint">Messages are rejected when the viewer cannot cover the cost. Each spoken message is charged exactly once.</p>
+              <p class="tts-hint">{t(props.locale, 'ttsCostNote')}</p>
             </section>
           </div>
 
           <div class="tts-grid tts-grid--bottom">
             <section class="tts-card">
               <h4 class="tts-card__title">Special Users</h4>
-              <p class="tts-hint">Special-user settings override global defaults. Blocked users never speak, even when all users are allowed.</p>
+              <p class="tts-hint">{t(props.locale, 'ttsSpecialUsersNote')}</p>
               <div class="tts-add-row">
                 <input
                   class="tts-input"
@@ -623,7 +623,7 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                 </button>
                 <span class="tts-pill">{props.voices.length} voices</span>
               </div>
-              <p class="tts-hint">401/403 errors mean the server rejected the credentials — open Connection and use Get API token with your admin login to mint one. Each log line shows the exact request path and whether a credential was attached (never the value itself).</p>
+              <p class="tts-hint">{t(props.locale, 'ttsAuthNote')}</p>
               <h4 class="tts-card__title">TTS logs</h4>
               {props.logs.length === 0 ? (
                 <span class="plg-group-note">Nothing spoken yet.</span>

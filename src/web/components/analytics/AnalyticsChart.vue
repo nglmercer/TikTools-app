@@ -55,7 +55,7 @@ export const AnalyticsChart = defineVueFunctional<AnalyticsChartProps>((props) =
       class="analytics-chart"
       viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
       role="img"
-      aria-label={`${label}: ${formatCount(geometry.max, locale)} max`}
+      aria-label={`${label}: ${formatCount(geometry.max, locale)}`}
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">

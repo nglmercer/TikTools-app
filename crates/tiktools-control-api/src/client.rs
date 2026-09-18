@@ -311,16 +311,12 @@ fn handle_client_line(
     if value.get("method").and_then(Value::as_str) == Some("event") {
         match value.get("params") {
             Some(params) => {
-                match serde_json::from_value::<tiktools_core::events::DomainEvent>(params.clone())
-                {
+                match serde_json::from_value::<tiktools_core::events::DomainEvent>(params.clone()) {
                     Ok(event) => {
                         let _ = events.send(event);
                     }
                     Err(error) => {
-                        let topic = params
-                            .get("topic")
-                            .and_then(Value::as_str)
-                            .unwrap_or("?");
+                        let topic = params.get("topic").and_then(Value::as_str).unwrap_or("?");
                         tracing::warn!(
                             topic,
                             %error,
@@ -479,7 +475,11 @@ mod client_line_tests {
             &pending,
             &events,
         );
-        handle_client_line(r#"{"jsonrpc":"2.0","id":9,"result":{"ok":true}}"#, &pending, &events);
+        handle_client_line(
+            r#"{"jsonrpc":"2.0","id":9,"result":{"ok":true}}"#,
+            &pending,
+            &events,
+        );
         let outcome = tokio::time::timeout(Duration::from_secs(5), receiver)
             .await
             .expect("resolves promptly")

@@ -282,11 +282,10 @@ pub fn register(router: &mut ControlRouter) {
         false,
         |core: Arc<AppCore>, _params: Empty| async move {
             // Snapshot load plus catalog merge stays off Tokio workers.
-            let snapshot =
-                crate::modules::blocking_task("automation.snapshot", move || {
-                    core.behavior_snapshot()
-                })
-                .await?;
+            let snapshot = crate::modules::blocking_task("automation.snapshot", move || {
+                core.behavior_snapshot()
+            })
+            .await?;
             Ok::<Value, ApiError>(snapshot)
         },
     );

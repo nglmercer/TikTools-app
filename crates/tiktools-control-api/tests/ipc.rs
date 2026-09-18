@@ -489,14 +489,12 @@ async fn ready_signal_fires_on_listen_and_not_on_conflict() {
     // its ready signal must never fire (no false recovery).
     let rival_ready = Arc::new(AtomicBool::new(false));
     let rival_core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
-    let rival = tiktools_control_api::run_ipc_shared_with_ready(
-        Arc::new(ControlApi::new(rival_core)),
-        {
+    let rival =
+        tiktools_control_api::run_ipc_shared_with_ready(Arc::new(ControlApi::new(rival_core)), {
             let rival_ready = Arc::clone(&rival_ready);
             move || rival_ready.store(true, Ordering::SeqCst)
-        },
-    )
-    .await;
+        })
+        .await;
     assert!(rival.is_err(), "second owner must fail");
     assert!(
         !rival_ready.load(Ordering::SeqCst),
