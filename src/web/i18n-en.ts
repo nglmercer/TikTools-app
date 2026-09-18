@@ -102,6 +102,7 @@ export const english = {
   analyticsEventsCount: '{count} events',
   lastActive: 'Last active',
   analyticsNoHourlyData: 'No hourly activity yet',
+  analyticsEmptyTodayHint: 'No events recorded for {date} yet. Your stream may sit in the adjacent day — widen the range to 7 days to see recent activity.',
   analyticsEmpty: 'No analytics yet',
   analyticsEmptyHint: 'Connect to a LIVE to start collecting persistent stats.',
   tabConnect: 'Connection & Streamers',

@@ -2,17 +2,19 @@
 import { ref, watch } from 'vue';
 
 import { IconBarChart } from '../components/icons.vue';
-import type { AnalyticsMetric } from '../components/analytics/analytics-chart.ts';
+import { isSingleDaySpan, type AnalyticsMetric } from '../components/analytics/analytics-chart.ts';
 import { AnalyticsActivityCard } from '../components/analytics/AnalyticsActivityCard.vue';
 import { AnalyticsContributorsCard } from '../components/analytics/AnalyticsContributorsCard.vue';
 import { AnalyticsRangeFilter } from '../components/analytics/AnalyticsRangeFilter.vue';
 import { AnalyticsSessionsCard } from '../components/analytics/AnalyticsSessionsCard.vue';
 import { AnalyticsStatsGrid } from '../components/analytics/AnalyticsStatsGrid.vue';
+import { formatDayTimeSubtitle } from '../components/analytics/analytics-intraday.ts';
 import {
   dayToIsoDate,
   isoDateToDay,
   resolveAnalyticsRange,
-  utcDay,
+  systemDay,
+  tzOffsetSecsForDay,
   type AnalyticsRangeKey,
 } from '../components/analytics/analytics-range.ts';
 import { Badge, Card, EmptyState } from '../components/ui/Card.vue';
@@ -25,7 +27,7 @@ type AnalyticsViewProps = {
   locale: Locale;
   creator: string;
   summary: AnalyticsSummaryData | null;
-  onRequestRange: (startDay: number, endDay: number) => void;
+  onRequestRange: (startDay: number, endDay: number, tzOffsetSecs: number) => void;
 };
 
 export const AnalyticsView = defineVueComponent<AnalyticsViewProps>(
@@ -33,16 +35,19 @@ export const AnalyticsView = defineVueComponent<AnalyticsViewProps>(
   (props) => {
   const range = ref<AnalyticsRangeKey>('7d');
   const metric = ref<AnalyticsMetric>('chats');
-  const customStart = ref(dayToIsoDate(utcDay(Date.now()) - 6));
-  const customEnd = ref(dayToIsoDate(utcDay(Date.now())));
+  // Date inputs work on system-local calendar labels.
+  const customStart = ref(dayToIsoDate(systemDay(Date.now()) - 6));
+  const customEnd = ref(dayToIsoDate(systemDay(Date.now())));
 
   const request = (): void => {
-    const today = utcDay(Date.now());
+    // Today follows the system clock, and the zone offset travels with the
+    // request so the host buckets days and hours in the same frame.
+    const today = systemDay(Date.now());
     const span = resolveAnalyticsRange(range.value, today, {
       startDay: isoDateToDay(customStart.value) ?? today,
       endDay: isoDateToDay(customEnd.value) ?? today,
     });
-    props.onRequestRange(span.startDay, span.endDay);
+    props.onRequestRange(span.startDay, span.endDay, tzOffsetSecsForDay(span.endDay));
   };
   watch([range, customStart, customEnd, () => props.creator], request, { immediate: true });
 
@@ -53,8 +58,10 @@ export const AnalyticsView = defineVueComponent<AnalyticsViewProps>(
       summary.days.length > 0
       || summary.topViewers.length > 0
       || summary.sessions > 0
+      || (summary.hours ?? []).some((row) => Object.values(row).some((value) => typeof value === 'number' && value > 0))
       || (totals !== undefined && Object.values(totals).some((value) => value > 0))
     );
+    const emptySingleDay = summary !== null && isSingleDaySpan(summary.startDay, summary.endDay);
 
     return (
       <Page width="wide">
@@ -75,8 +82,19 @@ export const AnalyticsView = defineVueComponent<AnalyticsViewProps>(
         />
 
         {!summary ? null : !hasData ? (
-          <Card title={t(locale, 'analyticsActivity')} icon={<IconBarChart />}>
-            <EmptyState title={t(locale, 'analyticsEmpty')} description={t(locale, 'analyticsEmptyHint')} />
+          <Card
+            title={emptySingleDay ? t(locale, 'analyticsTodayTimeline') : t(locale, 'analyticsActivity')}
+            subtitle={emptySingleDay ? formatDayTimeSubtitle(summary.startDay, locale) : undefined}
+            icon={<IconBarChart />}
+          >
+            <EmptyState
+              title={t(locale, 'analyticsEmpty')}
+              description={
+                emptySingleDay
+                  ? t(locale, 'analyticsEmptyTodayHint', { date: formatDayTimeSubtitle(summary.startDay, locale) })
+                  : t(locale, 'analyticsEmptyHint')
+              }
+            />
           </Card>
         ) : (
           <>

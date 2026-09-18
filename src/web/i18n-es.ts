@@ -105,6 +105,7 @@ export const spanish: Record<TranslationKey, string> = {
   analyticsEventsCount: '{count} eventos',
   lastActive: 'Última actividad',
   analyticsNoHourlyData: 'Sin actividad por hora todavía',
+  analyticsEmptyTodayHint: 'Sin eventos registrados para {date} todavía. Tu directo puede estar en el día contiguo: amplía el rango a 7 días para ver la actividad reciente.',
   analyticsEmpty: 'Aún no hay analíticas',
   analyticsEmptyHint: 'Conecta a un LIVE para empezar a recopilar estadísticas persistentes.',
   tabConnect: 'Conexión y Creadores',

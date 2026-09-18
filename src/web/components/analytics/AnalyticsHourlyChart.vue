@@ -59,7 +59,7 @@ export const AnalyticsHourlyChart = defineVueFunctional<AnalyticsHourlyChartProp
               rx={3}
               class={`analytics-chart__bar${value > 0 && value === max ? ' is-peak' : ''}`}
             >
-              <title>{`${formatHourLabel(hour, locale)} — ${formatCount(value, locale)} ${label}`}</title>
+              <title>{`${formatHourLabel(hour)} — ${formatCount(value, locale)} ${label}`}</title>
             </rect>
           );
         })}
@@ -68,7 +68,7 @@ export const AnalyticsHourlyChart = defineVueFunctional<AnalyticsHourlyChartProp
           const anchor = hour === 0 ? 'start' : hour === 23 ? 'end' : 'middle';
           return (
             <text key={hour} x={Math.round(x * 100) / 100} y={CHART_HEIGHT - 2} text-anchor={anchor} class="analytics-chart__tick">
-              {formatHourLabel(hour, locale)}
+              {formatHourLabel(hour)}
             </text>
           );
         })}

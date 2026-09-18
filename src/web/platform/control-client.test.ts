@@ -70,6 +70,37 @@ test('call rejects without a native bridge', async () => {
   delete (globalThis as Record<string, unknown>)['window'];
 });
 
+test('call rejects oversized payloads before postMessage', async () => {
+  const mock = installMockIpc();
+  const control = createControlClient({ timeoutMs: 5 });
+  control.attach();
+  const huge = 'x'.repeat(1024 * 1024 + 1);
+  await expect(control.call('system.ping', { blob: huge })).rejects.toMatchObject({
+    code: 'too_large',
+  });
+  expect(mock.sent).toHaveLength(0);
+  control.detach();
+  delete (globalThis as Record<string, unknown>)['window'];
+});
+
+test('host too_large error with an id rejects the pending call', async () => {
+  installMockIpc();
+  const control = createControlClient();
+  control.attach();
+  const pending = control.call('system.ping', {});
+  // The host preserves the request id on oversized/invalid payloads, so
+  // the error correlates instead of hanging until timeout.
+  hostMessage()(
+    JSON.stringify({
+      type: 'rpc-response',
+      response: { id: 1, error: { code: 'too_large', message: 'request too large' } },
+    }),
+  );
+  await expect(pending).rejects.toMatchObject({ code: 'too_large' });
+  control.detach();
+  delete (globalThis as Record<string, unknown>)['window'];
+});
+
 test('call times out and reports a transport error', async () => {
   installMockIpc();
   const control = createControlClient({ timeoutMs: 5 });

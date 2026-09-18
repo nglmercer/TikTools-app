@@ -8,7 +8,8 @@ import { AnalyticsChart } from './AnalyticsChart.vue';
 import { AnalyticsDayBreakdown } from './AnalyticsDayBreakdown.vue';
 import { AnalyticsHourlyChart } from './AnalyticsHourlyChart.vue';
 import { ANALYTICS_METRICS, isSingleDaySpan, type AnalyticsMetric } from './analytics-chart.ts';
-import { buildHourlySeries, formatDayDate } from './analytics-intraday.ts';
+import { buildHourlySeries, formatDayTimeSubtitle } from './analytics-intraday.ts';
+import { tzOffsetSecsForDay } from './analytics-range.ts';
 
 type AnalyticsActivityCardProps = {
   locale: Locale;
@@ -28,20 +29,31 @@ const METRIC_LABELS: Record<AnalyticsMetric, 'analyticsChats' | 'analyticsGifts'
 /**
  * Activity card that works for every range:
  * - multi-day spans render the daily trend line (AnalyticsChart),
- * - single-day spans (Today) render an hourly time graphic built from the
- *   existing `lastSeen` datetimes + per-viewer totals (AnalyticsHourlyChart)
- *   above the per-metric breakdown, with the full date-time in the subtitle.
+ * - single-day spans (Today preset or a custom From==To day, in the system
+ *   zone) render an hourly time graphic above the per-metric breakdown, with
+ *   the local date and zone in the subtitle.
+ * The hourly chart prefers the backend's true per-hour counters and falls
+ * back to the last-activity approximation for pre-hourly data.
  * Metric switching reuses the shared Chip/ChipGroup primitives.
  */
 export const AnalyticsActivityCard = defineVueFunctional<AnalyticsActivityCardProps>((props) => {
   const { locale, summary, metric, onMetricChange } = props;
   const singleDay = isSingleDaySpan(summary.startDay, summary.endDay);
-  const hourly = singleDay ? buildHourlySeries(summary.topViewers, summary.startDay, metric) : [];
+  const hourly = singleDay
+    ? summary.hours.length > 0
+      ? summary.hours.map((row) => row[metric] ?? 0)
+      : buildHourlySeries(
+          summary.topViewers,
+          summary.startDay,
+          metric,
+          tzOffsetSecsForDay(summary.startDay),
+        )
+    : [];
 
   return (
     <Card
       title={singleDay ? t(locale, 'analyticsTodayTimeline') : t(locale, 'analyticsActivity')}
-      subtitle={singleDay ? `${formatDayDate(summary.startDay, locale)} · 00:00–23:59 UTC` : undefined}
+      subtitle={singleDay ? formatDayTimeSubtitle(summary.startDay, locale) : undefined}
       hint={singleDay ? t(locale, 'analyticsHourlyHint') : undefined}
       icon={<IconBarChart />}
     >

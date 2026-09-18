@@ -12,7 +12,7 @@ export interface AnalyticsSummaryResult {
 export function useAnalytics(control: ControlClient, activeCreator: () => string) {
   const analyticsSummary = ref<AnalyticsSummaryData | null>(null);
 
-  const handleGetAnalyticsRange = (startDay: number, endDay: number): void => {
+  const handleGetAnalyticsRange = (startDay: number, endDay: number, tzOffsetSecs = 0): void => {
     const creatorUniqueId = activeCreator().trim().replace(/^@/, '');
     void control
       .call<AnalyticsSummaryResult>('analytics.summary', {
@@ -20,6 +20,7 @@ export function useAnalytics(control: ControlClient, activeCreator: () => string
         startDay,
         endDay,
         limit: 10,
+        tzOffsetSecs,
       })
       .then((result) => {
         analyticsSummary.value = result.summary;

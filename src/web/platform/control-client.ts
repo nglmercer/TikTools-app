@@ -47,6 +47,14 @@ type RpcResponseWire = {
 
 const DEFAULT_TIMEOUT_MS = 150_000;
 
+/**
+ * Byte limit for one serialized WebView RPC request. Must match
+ * `MAX_REQUEST_BYTES` in `crates/tiktools-control-api/src/transport.rs`:
+ * oversized payloads are rejected here before `postMessage()` so the
+ * caller fails fast with `too_large` instead of waiting on a response.
+ */
+const MAX_WEBVIEW_REQUEST_BYTES = 1024 * 1024;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -182,6 +190,26 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
           return;
         }
         const id = ++nextId;
+        let payload: string;
+        try {
+          payload = JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {} });
+        } catch (error) {
+          reject(
+            new ControlCallError('transport', `could not serialize ${method}: ${String(error)}`),
+          );
+          return;
+        }
+        // Fail fast before postMessage: the host enforces the same byte
+        // limit, and a rejected-here call never occupies a pending slot.
+        if (new TextEncoder().encode(payload).length > MAX_WEBVIEW_REQUEST_BYTES) {
+          const error = new ControlCallError(
+            'too_large',
+            `request ${method} exceeds the ${MAX_WEBVIEW_REQUEST_BYTES}-byte limit`,
+          );
+          reportTransportError(error.message);
+          reject(error);
+          return;
+        }
         const timer = setTimeout(() => {
           pending.delete(id);
           const error = new ControlCallError('timeout', `request ${method} timed out`);
@@ -194,9 +222,7 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
           timer,
         });
         try {
-          window.ipc.postMessage(
-            JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {} }),
-          );
+          window.ipc.postMessage(payload);
         } catch (error) {
           pending.delete(id);
           clearTimeout(timer);
