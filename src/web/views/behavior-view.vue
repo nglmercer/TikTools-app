@@ -284,11 +284,15 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                   onValueChange={(next) => { actionQuery.value = next; }}
                   placeholder={t(locale, 'behavior.copy.searchAction')}
                 />
-                <SortControl locale={locale} value={actionSort.value} onChange={(value) => { actionSort.value = value; }} />
-                <button type="button" class="plg-btn plg-btn--primary plg-btn--sm" onClick={() => { screen.value = { kind: 'picker' }; }}>
-                  <Icon name="plus" size={14} />
-                  <span>{t(locale, 'behavior.copy.newAction')}</span>
-                </button>
+                <span class="plg-section__sort">
+                  <SortControl locale={locale} value={actionSort.value} onChange={(value) => { actionSort.value = value; }} />
+                </span>
+                <Tooltip text={t(locale, 'behavior.copy.newAction')} position="left">
+                  <button type="button" class="plg-btn plg-btn--primary plg-btn--sm plg-section__new" onClick={() => { screen.value = { kind: 'picker' }; }}>
+                    <Icon name="plus" size={14} />
+                    <span>{t(locale, 'behavior.copy.newAction')}</span>
+                  </button>
+                </Tooltip>
               </div>
             </div>
 
@@ -409,15 +413,19 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                   onValueChange={(next) => { eventQuery.value = next; }}
                   placeholder={t(locale, 'behavior.copy.searchEvent')}
                 />
-                <SortControl locale={locale} value={eventSort.value} onChange={(value) => { eventSort.value = value; }} />
-                <button
-                  type="button"
-                  class="plg-btn plg-btn--primary plg-btn--sm"
-                  onClick={() => { screen.value = { kind: 'event', event: createEvent(locale), isNew: true }; }}
-                >
-                  <Icon name="plus" size={14} />
-                  <span>{t(locale, 'behavior.copy.newEvent')}</span>
-                </button>
+                <span class="plg-section__sort">
+                  <SortControl locale={locale} value={eventSort.value} onChange={(value) => { eventSort.value = value; }} />
+                </span>
+                <Tooltip text={t(locale, 'behavior.copy.newEvent')} position="left">
+                  <button
+                    type="button"
+                    class="plg-btn plg-btn--primary plg-btn--sm plg-section__new"
+                    onClick={() => { screen.value = { kind: 'event', event: createEvent(locale), isNew: true }; }}
+                  >
+                    <Icon name="plus" size={14} />
+                    <span>{t(locale, 'behavior.copy.newEvent')}</span>
+                  </button>
+                </Tooltip>
               </div>
             </div>
 

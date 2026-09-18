@@ -12,17 +12,35 @@
 .plg-section__title .ui-tooltip-trigger { display: inline-flex; }
 .plg-section__tools {
   display: grid;
-  grid-template-columns: minmax(180px, 320px) minmax(150px, 180px) auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
   gap: 8px;
   align-items: center;
   justify-content: end;
   flex: 1 1 220px;
   min-width: 0;
+  max-width: 640px;
   margin-left: auto;
 }
 .plg-section__tools > .field--search { width: 100%; min-width: 0; }
+.plg-section__tools .plg-sort { width: 100%; }
+/* Icon-only New buttons everywhere; the hover tooltip carries the label. */
+.plg-section__new { width: 36px; padding: 0; }
+.plg-section__new > span { display: none; }
 @media (max-width: 720px) {
-  .plg-section__tools { grid-template-columns: 1fr; width: 100%; }
+  /* Compact rows: the section icon shares the first row with the icon-only
+     New button, search and sort split the second row 1:1. The tools box
+     flattens into the head grid so the New button can sit beside the icon. */
+  .plg-section__head {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 8px 10px;
+  }
+  .plg-section__title { grid-column: 1; grid-row: 1; }
+  .plg-section__tools { display: contents; }
+  .plg-section__tools > .field--search { grid-column: 1; grid-row: 2; }
+  .plg-section__sort { grid-column: 2; grid-row: 2; min-width: 0; }
+  .plg-section__tools > .ui-tooltip-trigger { grid-column: 2; grid-row: 1; justify-self: end; }
   /* Icon-only section headers; the hover tooltip carries the title. */
   .plg-section__title h3,
   .plg-section__title .plg-section__count { display: none; }

@@ -175,9 +175,5 @@
 .plg-sorth.is-active svg { opacity: 1; color: var(--plg-accent); }
 
 .plg-sort { width: 172px; flex: none; }
-@media (min-width: 1180px) {
-  /* The headers sort from 1180px up, so the control would be a second copy. */
-  .plg-sort { display: none; }
-}
 
 /* IconSelect renders on FieldShell/InputGroup + AutocompletePopover (see fields.css/autocomplete.css). */
