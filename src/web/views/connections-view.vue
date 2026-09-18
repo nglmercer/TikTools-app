@@ -1,18 +1,25 @@
 <script lang="tsx">
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { defineVueComponent } from '../vue/component.ts';
 
 import type { PluginPageDescriptor, PluginStatus } from '../../automation/behavior/types.ts';
-import { pluginNavId, type PluginConnectionState } from '../../automation/plugins/declarative.ts';
+import type { PluginConnectionState } from '../../automation/plugins/declarative.ts';
 import { IconConnected, IconDice, IconLock, IconRadio } from '../components/icons.vue';
+import { Icon, readIconName } from '../components/icons/index.ts';
 import { Alert, Badge, Card, EmptyState } from '../components/ui/Card.vue';
 import { Button } from '../components/ui/Button.vue';
 import { TextField, PasswordField } from '../components/ui/fields/index.ts';
 import { InfoTip } from '../components/ui/InfoTip.vue';
 import { Page, PageHeader } from '../components/ui/Page.vue';
+import { PluginConnectionCard } from '../components/plugin-connection-card.vue';
 import { i18nText, t, type Locale } from '../i18n.ts';
-import type { AppTab, ConnectionStatus } from '../types.ts';
+import type { ConnectionStatus, PluginSettingsState } from '../types.ts';
 import type { SuggestionItem } from '../components/autocomplete/types.ts';
+import type {
+  ActionOptionItem,
+  OpenMediaPicker,
+  PluginSettingValues,
+} from '../../shared/messages.ts';
 
 type ConnectionsViewProps = {
   locale: Locale;
@@ -24,6 +31,9 @@ type ConnectionsViewProps = {
   plugins: PluginStatus[];
   pluginPages: PluginPageDescriptor[];
   connections: Record<string, PluginConnectionState>;
+  pluginSettings: Record<string, PluginSettingsState | undefined>;
+  actionOptions: Record<string, ActionOptionItem[]>;
+  provisionStates: Record<string, { working: boolean; ok: boolean; message: string } | undefined>;
   onUniqueIdChange: (val: string) => void;
   onCookieChange: (val: string) => void;
   onConnect: () => void;
@@ -32,48 +42,35 @@ type ConnectionsViewProps = {
   onPickLive: () => void;
   onSelectRecent: (username: string) => void;
   onTestConnection: (id: string) => void;
-  onOpenPluginPage: (tab: AppTab) => void;
+  onGetSettings: (id: string) => void;
+  onSaveSettings: (id: string, values: PluginSettingValues) => void;
+  onGetActionOptions: (source: string) => void;
+  onOpenMediaPicker?: OpenMediaPicker;
+  onProvisionToken?: (id: string, username: string, password: string) => void;
   onOpenPlugins: () => void;
 };
 
 /**
  * Unified Connections hub: TikTok LIVE (creator ComboBox + cookie) and
- * plugin server connections on one tab. TopNav owns the global connection
- * status and current creator, so this view renders no status badges.
- * Recent streamers live inside the creator autocomplete (open on focus,
- * filter while typing) instead of a second card.
+ * every plugin server connection on one tab. TopNav owns the global
+ * connection status and current creator, so this view renders no status
+ * badges. Recent streamers live inside the creator autocomplete
+ * (open on focus, filter while typing) instead of a second card.
+ *
+ * Server connections render the shared PluginConnectionCard inline — the
+ * same component as the plugin `connection` page section. Connection-only
+ * plugin pages stay out of the nav rail (see isConnectionOnlyPage) so
+ * each server plugin doesn't mint a duplicate minimal tab; their page
+ * icon is reused here instead.
  */
 export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
-  ['locale', 'uniqueId', 'cookie', 'status', 'recents', 'error', 'plugins', 'pluginPages', 'connections', 'onUniqueIdChange', 'onCookieChange', 'onConnect', 'onDisconnect', 'onReconnect', 'onPickLive', 'onSelectRecent', 'onTestConnection', 'onOpenPluginPage', 'onOpenPlugins'],
+  ['locale', 'uniqueId', 'cookie', 'status', 'recents', 'error', 'plugins', 'pluginPages', 'connections', 'pluginSettings', 'actionOptions', 'provisionStates', 'onUniqueIdChange', 'onCookieChange', 'onConnect', 'onDisconnect', 'onReconnect', 'onPickLive', 'onSelectRecent', 'onTestConnection', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onOpenMediaPicker', 'onProvisionToken', 'onOpenPlugins'],
   (props) => {
   const showCookie = ref(Boolean(props.cookie));
-  const testing = ref<Record<string, boolean>>({});
-  const seenAt = ref<Record<string, number>>({});
 
-  watch(() => props.connections, (next) => {
-    for (const id of Object.keys(testing.value)) {
-      if (!testing.value[id]) continue;
-      const at = next[id]?.at ?? 0;
-      if (at !== (seenAt.value[id] ?? 0)) {
-        testing.value[id] = false;
-        seenAt.value[id] = at;
-      }
-    }
-  });
-
-  const testServer = (id: string): void => {
-    seenAt.value[id] = props.connections[id]?.at ?? 0;
-    testing.value[id] = true;
-    props.onTestConnection(id);
-  };
-
-  const configureTarget = (pluginId: string): AppTab | null => {
+  const connectionPageFor = (pluginId: string): PluginPageDescriptor | undefined => {
     const pages = props.pluginPages.filter((page) => page.pluginId === pluginId);
-    if (pages.length === 0) return null;
-    const withConnection = pages.find((page) => page.sections.some((section) => section.kind === 'connection'));
-    const target = withConnection ?? pages[0];
-    if (!target) return null;
-    return pluginNavId(pluginId, target.id);
+    return pages.find((page) => page.sections.some((section) => section.kind === 'connection')) ?? pages[0];
   };
 
   return () => {
@@ -185,50 +182,43 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
           action={servers.length ? <Badge>{servers.length}</Badge> : null}
         >
           {servers.length > 0 ? (
-            <ul class="plg-list">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {servers.map((plugin) => {
                 const id = plugin.descriptor.id;
-                const connection = props.connections[id];
-                const busy = testing.value[id] === true;
-                const dot = busy || !connection ? '' : connection.ok ? ' is-ok' : ' is-err';
-                const detail = busy
-                  ? t(locale, 'pluginTestingConnection')
-                  : !connection
-                    ? t(locale, 'pluginStatusNotConfigured')
-                    : connection.ok
-                      ? t(locale, 'pluginConnectedIn', { ms: connection.latencyMs })
-                      : (connection.error || t(locale, 'pluginConnectionFailed'));
-                const target = configureTarget(id);
+                const page = connectionPageFor(id);
+                // Reuse the connection page icon inline so the hidden
+                // connection-only tab keeps its wayfinding without a
+                // duplicate nav entry.
+                const iconName = readIconName(page?.icon) ?? 'plugin';
                 return (
-                  <li key={id} class="plg-list__row">
-                    <span class="plg-list__label" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                      <span class={`plg-dot${dot}`} aria-hidden="true" />
+                  <div key={id}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <span style={{ display: 'inline-flex', color: 'var(--tt-cyan)' }} aria-hidden="true">
+                        <Icon name={iconName} size={16} />
+                      </span>
                       <span style={{ fontWeight: 700 }}>{i18nText(locale, plugin.descriptor.name)}</span>
-                      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{detail}</span>
-                    </span>
-                    <span style={{ display: 'inline-flex', gap: 6 }}>
-                      <button
-                        type="button"
-                        class="plg-btn plg-btn--sm"
-                        disabled={busy}
-                        onClick={() => testServer(id)}
-                      >
-                        {busy ? t(locale, 'pluginTestingConnection') : t(locale, 'connectionsTest')}
-                      </button>
-                      {target ? (
-                        <button
-                          type="button"
-                          class="plg-btn plg-btn--sm"
-                          onClick={() => props.onOpenPluginPage(target)}
-                        >
-                          {t(locale, 'connectionsConfigure')}
-                        </button>
-                      ) : null}
-                    </span>
-                  </li>
+                    </div>
+                    <PluginConnectionCard
+                      inline
+                      locale={locale}
+                      pluginId={id}
+                      pluginName={i18nText(locale, plugin.descriptor.name)}
+                      settingsState={props.pluginSettings[id]}
+                      connection={props.connections[id]}
+                      actionOptions={props.actionOptions}
+                      onGetSettings={props.onGetSettings}
+                      onSaveSettings={props.onSaveSettings}
+                      onGetActionOptions={props.onGetActionOptions}
+                      onTestConnection={props.onTestConnection}
+                      onOpenMediaPicker={props.onOpenMediaPicker}
+                      supportsProvisioning={plugin.descriptor.supportsTokenProvisioning}
+                      provisionState={props.provisionStates[id]}
+                      onProvisionToken={props.onProvisionToken}
+                    />
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           ) : (
             <EmptyState
               title={t(locale, 'connectionsNoServers')}

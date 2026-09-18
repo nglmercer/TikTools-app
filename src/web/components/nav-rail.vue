@@ -3,7 +3,7 @@ import { computed, type Component } from 'vue';
 import { i18nText, t, type Locale } from '../i18n.ts';
 import type { AppTab } from '../types.ts';
 import type { PluginPageDescriptor } from '../../automation/behavior/types.ts';
-import { pluginNavId } from '../../automation/plugins/declarative.ts';
+import { isConnectionOnlyPage, pluginNavId } from '../../automation/plugins/declarative.ts';
 import { Tooltip } from './ui/Tooltip.vue';
 import { Icon, readIconName } from './icons/index.ts';
 import {
@@ -45,8 +45,13 @@ const builtinTabs = computed<NavigationTab[]>(() => [
  * Plugin page tabs appended after the builtins. Icons pass through the
  * registry allowlist (unknown manifest names fall back to the plugin glyph),
  * and labels are manifest data rendered as tooltip text only.
+ *
+ * Connection-only pages (a `connection` section plus optional intro text)
+ * are hidden: the Connections tab renders the same card inline, so each
+ * server-style plugin doesn't mint a duplicate minimal tab. Their page
+ * icon is reused on the inline card instead.
  */
-const pluginTabs = computed<NavigationTab[]>(() => props.pluginPages.map((page) => ({
+const pluginTabs = computed<NavigationTab[]>(() => props.pluginPages.filter((page) => !isConnectionOnlyPage(page)).map((page) => ({
   id: pluginNavId(page.pluginId, page.id),
   tooltip: i18nText(props.locale, page.title),
   icon: readIconName(page.icon) ?? 'plugin',

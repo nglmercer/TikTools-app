@@ -224,7 +224,11 @@ and test panel). Unknown kinds are rejected at validation, and manifest
 strings are never parsed as markup: no `html`, `script`, `component`, or
 equivalent can reach the WebView. Pages become navigation tabs
 (`plugin:<pluginId>:<pageId>`) with allowlisted icons, and disappear with
-their plugin.
+their plugin — except connection-only pages (a `connection` section plus
+optional intro `text`): those stay out of the rail and render inline in
+the Connections tab server list through the same shared connection card,
+reusing the page icon, so every server-style plugin doesn't mint a
+duplicate minimal tab.
 
 A `tts` section needs `actionType` (speech action) and `voicesFrom`
 (voice option source). It may also declare `outputsFrom`, an option

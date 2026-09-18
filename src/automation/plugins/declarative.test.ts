@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 
 import type { JsonValue } from '../types.ts';
 import {
+  isConnectionOnlyPage,
   mergePluginPages,
   mergePluginTemplates,
   normalizeOptionsFrom,
@@ -115,6 +116,21 @@ test('page descriptors enforce the fixed widget set', () => {
     toPluginPageDescriptor({ ...valid, sections: [{ kind: 'tts', voicesFrom: 'plugin-action-options:a.b:c' }] }),
   ).toBeUndefined();
   expect(mergePluginPages([valid, { ...valid }, 'nope'])).toHaveLength(1);
+});
+
+test('connection-only pages are owned by the Connections tab', () => {
+  const sections = (...kinds: string[]) => kinds.map((kind) => ({ kind }));
+  // Bare connection and text + connection (SonicBoom style) collapse into Connections.
+  expect(isConnectionOnlyPage({ sections: sections('connection') })).toBe(true);
+  expect(isConnectionOnlyPage({ sections: sections('text', 'connection') })).toBe(true);
+  expect(isConnectionOnlyPage({ sections: sections('connection', 'connection') })).toBe(true);
+  // Anything with its own editors stays a standalone tab.
+  expect(isConnectionOnlyPage({ sections: sections('connection', 'form') })).toBe(false);
+  expect(isConnectionOnlyPage({ sections: sections('text', 'connection', 'tts') })).toBe(false);
+  expect(isConnectionOnlyPage({ sections: sections('connection', 'list') })).toBe(false);
+  expect(isConnectionOnlyPage({ sections: sections('text') })).toBe(false);
+  expect(isConnectionOnlyPage({ sections: sections('form') })).toBe(false);
+  expect(isConnectionOnlyPage({ sections: [] })).toBe(false);
 });
 
 test('tts outputs source stays optional and never drops the panel', () => {

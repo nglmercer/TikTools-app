@@ -319,6 +319,25 @@ export function mergePluginPages(stamped: readonly unknown[] | undefined): Plugi
   return merged;
 }
 
+/**
+ * True when a plugin page is connection-only: it carries at least one
+ * `connection` section and no `form`/`list`/`tts` sections (`text` intros
+ * don't count). Such pages are owned by the Connections tab, which renders
+ * the same connection card inline — the nav rail hides them so every
+ * server-style plugin doesn't mint its own duplicate minimal tab.
+ */
+export function isConnectionOnlyPage(page: { sections: readonly { kind: string }[] }): boolean {
+  let hasConnection = false;
+  for (const section of page.sections) {
+    if (section.kind === 'connection') {
+      hasConnection = true;
+    } else if (section.kind === 'form' || section.kind === 'list' || section.kind === 'tts') {
+      return false;
+    }
+  }
+  return hasConnection;
+}
+
 /** Connection probe result held per plugin id by the app controller. */
 export type PluginConnectionState = {
   ok: boolean;

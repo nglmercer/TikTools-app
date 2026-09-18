@@ -176,6 +176,9 @@ const activePluginSupportsProvisioning: ComputedRef<boolean> = computed(() => {
         :plugins="app.behavior.plugins"
         :plugin-pages="app.pluginPages"
         :connections="app.pluginConnections"
+        :plugin-settings="app.pluginSettings"
+        :action-options="app.actionOptions"
+        :provision-states="app.pluginProvision"
         :on-unique-id-change="app.setUniqueId"
         :on-cookie-change="app.setCookie"
         :on-connect="() => app.handleConnect()"
@@ -184,7 +187,11 @@ const activePluginSupportsProvisioning: ComputedRef<boolean> = computed(() => {
         :on-pick-live="app.handlePickLive"
         :on-select-recent="app.handleSelectRecent"
         :on-test-connection="app.handleTestPluginConnection"
-        :on-open-plugin-page="app.setActiveTab"
+        :on-get-settings="app.handleGetPluginSettings"
+        :on-save-settings="app.handleSavePluginSettings"
+        :on-get-action-options="app.handleGetActionOptions"
+        :on-open-media-picker="app.openMediaPicker"
+        :on-provision-token="app.handleProvisionPluginToken"
         :on-open-plugins="app.openPlugins"
       />
 

@@ -377,6 +377,14 @@
   justify-content: center;
   padding: 4px 16px 24px;
 }
+/* Inline (Connections tab server list): stretch to the card, no page padding. */
+.plg-connect--inline {
+  justify-content: stretch;
+  padding: 0;
+}
+.plg-connect--inline .plg-connect__card {
+  max-width: none;
+}
 .plg-connect__card {
   display: flex;
   flex-direction: column;
