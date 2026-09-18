@@ -5,9 +5,11 @@
 
 .plg-section { display: flex; flex-direction: column; gap: 10px; padding: 0 16px 20px; }
 .plg-section__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-.plg-section__title { display: flex; align-items: baseline; gap: 10px; }
+.plg-section__title { display: flex; align-items: center; gap: 10px; }
 .plg-section__title h3 { margin: 0; font-size: 15px; font-weight: 600; }
 .plg-section__count { font-size: 12px; color: var(--plg-dim); }
+.plg-section__icon { display: inline-flex; }
+.plg-section__title .ui-tooltip-trigger { display: inline-flex; }
 .plg-section__tools {
   display: grid;
   grid-template-columns: minmax(180px, 320px) minmax(150px, 180px) auto;
@@ -21,6 +23,9 @@
 .plg-section__tools > .field--search { width: 100%; min-width: 0; }
 @media (max-width: 720px) {
   .plg-section__tools { grid-template-columns: 1fr; width: 100%; }
+  /* Icon-only section headers; the hover tooltip carries the title. */
+  .plg-section__title h3,
+  .plg-section__title .plg-section__count { display: none; }
 }
 
 .plg-table { display: flex; flex-direction: column; gap: 8px; }

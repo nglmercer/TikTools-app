@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { defineVueComponent } from '../vue/component.ts';
 import { IconPencil, IconTrash } from '../components/icons.vue';
+import { Icon } from '../components/icons/index.ts';
 import { Switch } from '../components/ui/Checkbox.vue';
 import { SearchInput } from '../components/ui/TextInput.vue';
 import { Tooltip } from '../components/ui/Tooltip.vue';
@@ -247,13 +248,6 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
 
   return (
     <div class="plg">
-      <div class="plg-topbar">
-        <div class="plg-topbar__text">
-          <h2 class="plg-topbar__title">{t(locale, 'behavior.copy.title')}</h2>
-          <span class="plg-topbar__subtitle">{t(locale, 'behavior.copy.lead')}</span>
-        </div>
-      </div>
-
       {error && <div class="plg-stack"><div class="plg-alert">{error}</div></div>}
 
       {hotkeyPanel && (
@@ -275,6 +269,11 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
           <div class="plg-section">
             <div class="plg-section__head">
               <div class="plg-section__title">
+                <Tooltip text={t(locale, 'behavior.copy.actions')} position="right">
+                  <span class="plg-section__icon" aria-hidden="true">
+                    <Icon name="bolt" size={16} />
+                  </span>
+                </Tooltip>
                 <h3>{t(locale, 'behavior.copy.actions')}</h3>
                 <span class="plg-section__count">{snapshot.actions.length}</span>
               </div>
@@ -287,7 +286,8 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                 />
                 <SortControl locale={locale} value={actionSort.value} onChange={(value) => { actionSort.value = value; }} />
                 <button type="button" class="plg-btn plg-btn--primary plg-btn--sm" onClick={() => { screen.value = { kind: 'picker' }; }}>
-                  {t(locale, 'behavior.copy.newAction')}
+                  <Icon name="plus" size={14} />
+                  <span>{t(locale, 'behavior.copy.newAction')}</span>
                 </button>
               </div>
             </div>
@@ -383,7 +383,8 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                 <div class="plg-empty">
                   <span class="plg-empty__desc">{t(locale, 'behavior.copy.noActions')}</span>
                   <button type="button" class="plg-btn plg-btn--primary" onClick={() => { screen.value = { kind: 'picker' }; }}>
-                    {t(locale, 'behavior.copy.newAction')}
+                    <Icon name="plus" size={14} />
+                    <span>{t(locale, 'behavior.copy.newAction')}</span>
                   </button>
                 </div>
               )}
@@ -393,6 +394,11 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
           <div class="plg-section">
             <div class="plg-section__head">
               <div class="plg-section__title">
+                <Tooltip text={t(locale, 'behavior.copy.events')} position="right">
+                  <span class="plg-section__icon" aria-hidden="true">
+                    <Icon name="radio" size={16} />
+                  </span>
+                </Tooltip>
                 <h3>{t(locale, 'behavior.copy.events')}</h3>
                 <span class="plg-section__count">{snapshot.events.length}</span>
               </div>
@@ -409,7 +415,8 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                   class="plg-btn plg-btn--primary plg-btn--sm"
                   onClick={() => { screen.value = { kind: 'event', event: createEvent(locale), isNew: true }; }}
                 >
-                  {t(locale, 'behavior.copy.newEvent')}
+                  <Icon name="plus" size={14} />
+                  <span>{t(locale, 'behavior.copy.newEvent')}</span>
                 </button>
               </div>
             </div>
@@ -495,7 +502,8 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                     class="plg-btn plg-btn--primary"
                     onClick={() => { screen.value = { kind: 'event', event: createEvent(locale), isNew: true }; }}
                   >
-                    {t(locale, 'behavior.copy.newEvent')}
+                    <Icon name="plus" size={14} />
+                    <span>{t(locale, 'behavior.copy.newEvent')}</span>
                   </button>
                 </div>
               )}
