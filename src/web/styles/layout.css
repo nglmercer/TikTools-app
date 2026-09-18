@@ -126,6 +126,36 @@
   gap: 6px;
 }
 
+/* Stateful connection control: one explicit CTA per connection state. */
+.connect-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 2px;
+}
+
+.connect-btn {
+  white-space: nowrap;
+}
+
+.connect-btn.is-busy {
+  color: var(--text-secondary);
+}
+
+.connect-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: connect-spin 0.8s linear infinite;
+  flex: none;
+}
+
+@keyframes connect-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Minimalist App Navigation Rail */
 .nav-rail {
   display: flex;

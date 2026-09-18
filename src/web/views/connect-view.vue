@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { defineVueComponent } from '../vue/component.ts';
 
-import { IconDice, IconRadio, IconUsers } from '../components/icons.vue';
+import { IconConnected, IconDice, IconUsers } from '../components/icons.vue';
 import { Alert, Badge, Card, Chip, ChipGroup, EmptyState } from '../components/ui/Card.vue';
 import { Button } from '../components/ui/Button.vue';
 import { TextInput } from '../components/ui/TextInput.vue';
@@ -42,7 +42,7 @@ export const ConnectView = defineVueComponent<ConnectViewProps>(
     return (
       <Page>
         <div class="ui-cols-2">
-        <Card title={t(locale, 'connectToLive')} subtitle={t(locale, 'setupLead')} icon={<IconRadio />}>
+        <Card title={t(locale, 'connectToLive')} subtitle={t(locale, 'setupLead')} icon={<IconConnected />}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {isLive ? <Alert variant="info">{t(locale, 'live')} — {t(locale, 'disconnectToChangeCreator')}</Alert> : null}
             <TextInput

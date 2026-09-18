@@ -1,5 +1,5 @@
 <script lang="tsx">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { IconBarChart } from '../components/icons.vue';
 import { isSingleDaySpan, type AnalyticsMetric } from '../components/analytics/analytics-chart.ts';
@@ -17,8 +17,9 @@ import {
   tzOffsetSecsForDay,
   type AnalyticsRangeKey,
 } from '../components/analytics/analytics-range.ts';
-import { Badge, Card, EmptyState } from '../components/ui/Card.vue';
+import { Badge, Card, Chip, ChipGroup, EmptyState } from '../components/ui/Card.vue';
 import { Page, PageHeader } from '../components/ui/Page.vue';
+import { SearchInput } from '../components/ui/TextInput.vue';
 import { defineVueComponent } from '../vue/component.ts';
 import { t, type Locale } from '../i18n.ts';
 import type { AnalyticsSummaryData } from '../../shared/messages.ts';
@@ -30,11 +31,15 @@ type AnalyticsViewProps = {
   onRequestRange: (startDay: number, endDay: number, tzOffsetSecs: number) => void;
 };
 
+type AnalyticsTab = 'overview' | 'engagement' | 'contributors' | 'sessions';
+
 export const AnalyticsView = defineVueComponent<AnalyticsViewProps>(
   ['locale', 'creator', 'summary', 'onRequestRange'],
   (props) => {
   const range = ref<AnalyticsRangeKey>('7d');
   const metric = ref<AnalyticsMetric>('chats');
+  const tab = ref<AnalyticsTab>('overview');
+  const contributorQuery = ref('');
   // Date inputs work on system-local calendar labels.
   const customStart = ref(dayToIsoDate(systemDay(Date.now()) - 6));
   const customEnd = ref(dayToIsoDate(systemDay(Date.now())));
@@ -51,6 +56,13 @@ export const AnalyticsView = defineVueComponent<AnalyticsViewProps>(
   };
   watch([range, customStart, customEnd, () => props.creator], request, { immediate: true });
 
+  const filteredContributors = computed(() => {
+    const q = contributorQuery.value.trim().toLowerCase();
+    const rows = props.summary?.topViewers ?? [];
+    if (!q) return rows;
+    return rows.filter((row) => row.uniqueId.toLowerCase().includes(q));
+  });
+
   return () => {
     const { locale, creator, summary } = props;
     const totals = summary?.totals;
@@ -62,6 +74,12 @@ export const AnalyticsView = defineVueComponent<AnalyticsViewProps>(
       || (totals !== undefined && Object.values(totals).some((value) => value > 0))
     );
     const emptySingleDay = summary !== null && isSingleDaySpan(summary.startDay, summary.endDay);
+    const tabs: Array<{ key: AnalyticsTab; label: string }> = [
+      { key: 'overview', label: t(locale, 'analyticsTabOverview') },
+      { key: 'engagement', label: t(locale, 'analyticsTabEngagement') },
+      { key: 'contributors', label: t(locale, 'analyticsTabContributors') },
+      { key: 'sessions', label: t(locale, 'analyticsTabSessions') },
+    ];
 
     return (
       <Page width="wide">
@@ -98,19 +116,62 @@ export const AnalyticsView = defineVueComponent<AnalyticsViewProps>(
           </Card>
         ) : (
           <>
-            {totals ? <AnalyticsStatsGrid locale={locale} totals={totals} sessions={summary.sessions} /> : null}
-
-            <div class="analytics-main">
-              <AnalyticsActivityCard
-                locale={locale}
-                summary={summary}
-                metric={metric.value}
-                onMetricChange={(next) => { metric.value = next; }}
-              />
-              <AnalyticsSessionsCard locale={locale} summary={summary} />
+            <div class="analytics-tabs" role="tablist">
+              <ChipGroup>
+                {tabs.map((entry) => (
+                  <Chip key={entry.key} active={tab.value === entry.key} onClick={() => { tab.value = entry.key; }}>
+                    {entry.label}
+                  </Chip>
+                ))}
+              </ChipGroup>
             </div>
 
-            <AnalyticsContributorsCard locale={locale} topViewers={summary.topViewers} />
+            {tab.value === 'overview' ? (
+              <>
+                {totals ? <AnalyticsStatsGrid locale={locale} totals={totals} sessions={summary.sessions} /> : null}
+
+                <div class="analytics-main">
+                  <AnalyticsActivityCard
+                    locale={locale}
+                    summary={summary}
+                    metric={metric.value}
+                    onMetricChange={(next) => { metric.value = next; }}
+                  />
+                  <AnalyticsSessionsCard locale={locale} summary={summary} />
+                </div>
+
+                <AnalyticsContributorsCard locale={locale} topViewers={summary.topViewers} />
+              </>
+            ) : null}
+
+            {tab.value === 'engagement' ? (
+              <div class="analytics-engagement-tab">
+                <p class="analytics-tab-hint">{t(locale, 'analyticsEngagementHint')}</p>
+                <AnalyticsActivityCard
+                  locale={locale}
+                  summary={summary}
+                  metric={metric.value}
+                  onMetricChange={(next) => { metric.value = next; }}
+                />
+              </div>
+            ) : null}
+
+            {tab.value === 'contributors' ? (
+              <div class="analytics-contributors-tab">
+                <SearchInput
+                  value={contributorQuery.value}
+                  onValueChange={(next) => { contributorQuery.value = next; }}
+                  placeholder={t(locale, 'analyticsSearchContributors')}
+                />
+                <AnalyticsContributorsCard locale={locale} topViewers={filteredContributors.value} />
+              </div>
+            ) : null}
+
+            {tab.value === 'sessions' ? (
+              <div class="analytics-sessions-tab">
+                <AnalyticsSessionsCard locale={locale} summary={summary} />
+              </div>
+            ) : null}
           </>
         )}
       </Page>

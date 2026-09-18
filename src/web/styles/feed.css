@@ -138,6 +138,15 @@
   justify-content: center;
 }
 
+/* Illustration variant: larger, lighter, distinct from nav/toolbar glyphs. */
+.empty-icon--illustration {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
 /* Event Message Cards */
 .event-card {
   display: flex;
@@ -239,5 +248,62 @@
   background: var(--panel);
   font-size: 11px;
   color: var(--text-muted);
+}
+
+/* Two-column live layout: stream left, contributors right. */
+.feed-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.feed-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.feed-side {
+  width: 288px;
+  flex: none;
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.feed-side:empty {
+  display: none;
+}
+
+.feed-side .tt-viewers-ribbon {
+  flex-direction: column;
+  align-items: stretch;
+  border-bottom: none;
+}
+
+.feed-side .tt-top-contributors {
+  flex-direction: column;
+  align-items: stretch;
+  overflow-x: visible;
+}
+
+.feed-side .tt-contributor-chip {
+  justify-content: flex-start;
+}
+
+@media (max-width: 960px) {
+  .feed-layout {
+    flex-direction: column;
+  }
+  .feed-side {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--line);
+    overflow: visible;
+  }
 }
 

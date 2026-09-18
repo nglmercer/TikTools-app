@@ -15,7 +15,7 @@ export type IconComponent = (props?: IconProps) => VNode;
  * functional wrapper so JSX children arrive through Vue slots.
  */
 export const SvgIcon = defineVueFunctional<IconProps & { filled?: boolean; children?: VNodeChild }>((props) => {
-  const { size = 16, strokeWidth = 2, className, filled = false, children } = props;
+  const { size = 18, strokeWidth = 1.75, className, filled = false, children } = props;
   return (
     <svg
       width={size}

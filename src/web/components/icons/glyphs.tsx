@@ -1,7 +1,7 @@
 import type { VNode } from 'vue';
 import { SvgIcon, type IconComponent, type IconProps } from './icon-base.tsx';
 
-export function IconTikTok({ size = 18, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconTikTok({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
       <path d="M19.589 6.686a4.793 4.793 0 0 1-3.77-4.245V2h-3.445v13.672a2.896 2.896 0 0 1-2.891 2.891 2.896 2.896 0 0 1-2.892-2.891 2.896 2.896 0 0 1 2.892-2.892c.307 0 .602.05.878.142V9.458a6.32 6.32 0 0 0-.878-.061A6.338 6.338 0 0 0 3 15.736a6.338 6.338 0 0 0 6.338 6.338 6.338 6.338 0 0 0 6.338-6.338V8.674c1.23.882 2.732 1.408 4.355 1.457V6.686h-.442z" />
@@ -9,7 +9,7 @@ export function IconTikTok({ size = 18, strokeWidth = 2, className }: IconProps 
   );
 }
 
-export function IconChat({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconChat({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -17,7 +17,7 @@ export function IconChat({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconGift({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconGift({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <polyline points="20 12 20 22 4 22 4 12" />
@@ -29,7 +29,7 @@ export function IconGift({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconHeart({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconHeart({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
       <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
@@ -37,7 +37,7 @@ export function IconHeart({ size = 16, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconUsers({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconUsers({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -48,7 +48,7 @@ export function IconUsers({ size = 16, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconFollow({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconFollow({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -59,7 +59,7 @@ export function IconFollow({ size = 16, strokeWidth = 2, className }: IconProps 
   );
 }
 
-export function IconShare({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconShare({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <circle cx="18" cy="5" r="3" />
@@ -71,7 +71,7 @@ export function IconShare({ size = 16, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconJoin({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconJoin({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
@@ -81,7 +81,7 @@ export function IconJoin({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconBarChart({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconBarChart({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <line x1="12" y1="20" x2="12" y2="10" />
@@ -91,7 +91,7 @@ export function IconBarChart({ size = 16, strokeWidth = 2, className }: IconProp
   );
 }
 
-export function IconRadio({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconRadio({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <circle cx="12" cy="12" r="2" />
@@ -100,7 +100,7 @@ export function IconRadio({ size = 16, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconDice({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconDice({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
@@ -113,7 +113,7 @@ export function IconDice({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconConnected({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconConnected({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M12 22v-5" />
@@ -124,7 +124,7 @@ export function IconConnected({ size = 16, strokeWidth = 2, className }: IconPro
   );
 }
 
-export function IconDisconnected({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconDisconnected({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M12 22v-5" />
@@ -136,7 +136,7 @@ export function IconDisconnected({ size = 16, strokeWidth = 2, className }: Icon
   );
 }
 
-export function IconSparkles({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconSparkles({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M12 4l1.7 4.8 4.8 1.7-4.8 1.7L12 17l-1.7-4.8L5.5 10.5l4.8-1.7z" />
@@ -146,7 +146,7 @@ export function IconSparkles({ size = 16, strokeWidth = 2, className }: IconProp
   );
 }
 
-export function IconSettings({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconSettings({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <circle cx="12" cy="12" r="3" />
@@ -155,7 +155,7 @@ export function IconSettings({ size = 16, strokeWidth = 2, className }: IconProp
   );
 }
 
-export function IconSearch({ size = 13, strokeWidth = 2.5, className }: IconProps = {}): VNode {
+export function IconSearch({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <circle cx="11" cy="11" r="8" />
@@ -164,7 +164,7 @@ export function IconSearch({ size = 13, strokeWidth = 2.5, className }: IconProp
   );
 }
 
-export function IconRefresh({ size = 15, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconRefresh({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <polyline points="23 4 23 10 17 10" />
@@ -173,7 +173,7 @@ export function IconRefresh({ size = 15, strokeWidth = 2, className }: IconProps
   );
 }
 
-export function IconPower({ size = 15, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconPower({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
@@ -182,7 +182,7 @@ export function IconPower({ size = 15, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconTrash({ size = 14, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconTrash({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <polyline points="3 6 5 6 21 6" />
@@ -191,7 +191,7 @@ export function IconTrash({ size = 14, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconArrowDown({ size = 14, strokeWidth = 2.5, className }: IconProps = {}): VNode {
+export function IconArrowDown({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <line x1="12" y1="5" x2="12" y2="19" />
@@ -200,7 +200,7 @@ export function IconArrowDown({ size = 14, strokeWidth = 2.5, className }: IconP
   );
 }
 
-export function IconSun({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconSun({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <circle cx="12" cy="12" r="5" />
@@ -216,7 +216,7 @@ export function IconSun({ size = 16, strokeWidth = 2, className }: IconProps = {
   );
 }
 
-export function IconMoon({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconMoon({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
@@ -224,7 +224,7 @@ export function IconMoon({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconGlobe({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconGlobe({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <circle cx="12" cy="12" r="10" />
@@ -234,7 +234,7 @@ export function IconGlobe({ size = 16, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconHttp({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconHttp({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M8 3 4 7l4 4" />
@@ -245,7 +245,7 @@ export function IconHttp({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconWebhook({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconWebhook({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M9 11H7a5 5 0 0 1 0-10h9a5 5 0 0 1 5 5v2" />
@@ -255,7 +255,7 @@ export function IconWebhook({ size = 16, strokeWidth = 2, className }: IconProps
   );
 }
 
-export function IconCode({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconCode({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <polyline points="16 18 22 12 16 6" />
@@ -264,7 +264,7 @@ export function IconCode({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconJson({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconJson({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4c0 1.1.9 2 2 2h1" />
@@ -273,7 +273,7 @@ export function IconJson({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconTemplate({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconTemplate({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <rect x="3" y="3" width="18" height="7" rx="1" />
@@ -283,7 +283,7 @@ export function IconTemplate({ size = 16, strokeWidth = 2, className }: IconProp
   );
 }
 
-export function IconPoints({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconPoints({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <circle cx="8" cy="8" r="6" />
@@ -296,7 +296,7 @@ export function IconPoints({ size = 16, strokeWidth = 2, className }: IconProps 
 /** Backwards-compatible alias: the points glyph is the legacy coins icon. */
 export const IconCoins: IconComponent = IconPoints;
 
-export function IconTrophy({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconTrophy({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
@@ -308,7 +308,7 @@ export function IconTrophy({ size = 16, strokeWidth = 2, className }: IconProps 
   );
 }
 
-export function IconCrown({ size = 14, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconCrown({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
       <path d="M2 4l3 12h14l3-12-5 7-5-7-5 7-5-7zm1 14h18v2H3v-2z" />
@@ -316,7 +316,7 @@ export function IconCrown({ size = 14, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconSpeaker({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconSpeaker({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
@@ -325,7 +325,7 @@ export function IconSpeaker({ size = 16, strokeWidth = 2, className }: IconProps
   );
 }
 
-export function IconVolume({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconVolume({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
@@ -335,7 +335,7 @@ export function IconVolume({ size = 16, strokeWidth = 2, className }: IconProps 
   );
 }
 
-export function IconVoice({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconVoice({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -346,7 +346,7 @@ export function IconVoice({ size = 16, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconCheck({ size = 14, strokeWidth = 3, className }: IconProps = {}): VNode {
+export function IconCheck({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <polyline points="20 6 9 17 4 12" />
@@ -354,7 +354,7 @@ export function IconCheck({ size = 14, strokeWidth = 3, className }: IconProps =
   );
 }
 
-export function IconInfo({ size = 13, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconInfo({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <circle cx="12" cy="12" r="9" />
@@ -364,7 +364,7 @@ export function IconInfo({ size = 13, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconWarning({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconWarning({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -374,7 +374,7 @@ export function IconWarning({ size = 16, strokeWidth = 2, className }: IconProps
   );
 }
 
-export function IconFlame({ size = 14, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconFlame({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
       <path d="M12 23c-4.97 0-9-4.03-9-9 0-4.12 3.28-8.73 6.35-12.08a1 1 0 0 1 1.54.14c.94 1.54 2.23 3.65 2.86 5.09.91-1.3 1.25-2.82 1.25-2.82a1 1 0 0 1 1.63-.44c2.94 2.94 4.37 6.13 4.37 10.11 0 4.97-4.03 9-9 9z" />
@@ -382,7 +382,7 @@ export function IconFlame({ size = 14, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconStar({ size = 14, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconStar({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -390,7 +390,7 @@ export function IconStar({ size = 14, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconBolt({ size = 10, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconBolt({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
       <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />
@@ -398,7 +398,7 @@ export function IconBolt({ size = 10, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconClose({ size = 10, strokeWidth = 2.5, className }: IconProps = {}): VNode {
+export function IconClose({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <line x1="18" y1="6" x2="6" y2="18" />
@@ -410,7 +410,7 @@ export function IconClose({ size = 10, strokeWidth = 2.5, className }: IconProps
 /** Backwards-compatible alias for the close glyph. */
 export const IconX: IconComponent = IconClose;
 
-export function IconPause({ size = 10, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconPause({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
       <rect x="6" y="4" width="4" height="16" rx="1" />
@@ -419,7 +419,7 @@ export function IconPause({ size = 10, strokeWidth = 2, className }: IconProps =
   );
 }
 
-export function IconStop({ size = 14, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconStop({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
       <rect x="6" y="6" width="12" height="12" rx="2" />
@@ -427,7 +427,7 @@ export function IconStop({ size = 14, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconDot({ size = 10, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconDot({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
       <circle cx="12" cy="12" r="8" />
@@ -435,7 +435,7 @@ export function IconDot({ size = 10, strokeWidth = 2, className }: IconProps = {
   );
 }
 
-export function IconPlugins({ size = 18, strokeWidth = 1.9, className }: IconProps = {}): VNode {
+export function IconPlugins({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <rect x="3" y="3" width="7" height="7" rx="2" />
@@ -447,7 +447,7 @@ export function IconPlugins({ size = 18, strokeWidth = 1.9, className }: IconPro
   );
 }
 
-export function IconEdit({ size = 14, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconEdit({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M12 20h9" />
@@ -458,8 +458,7 @@ export function IconEdit({ size = 14, strokeWidth = 2, className }: IconProps = 
 
 /** Backwards-compatible alias for the edit glyph. */
 export const IconPencil: IconComponent = IconEdit;
-
-export function IconPlay({ size = 14, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconPlay({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none" />
@@ -467,7 +466,7 @@ export function IconPlay({ size = 14, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconPlus({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconPlus({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <line x1="12" y1="5" x2="12" y2="19" />
@@ -476,7 +475,7 @@ export function IconPlus({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconChevronLeft({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconChevronLeft({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <polyline points="15 18 9 12 15 6" />
@@ -484,7 +483,7 @@ export function IconChevronLeft({ size = 16, strokeWidth = 2, className }: IconP
   );
 }
 
-export function IconChevronRight({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconChevronRight({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <polyline points="9 18 15 12 9 6" />
@@ -492,7 +491,7 @@ export function IconChevronRight({ size = 16, strokeWidth = 2, className }: Icon
   );
 }
 
-export function IconFormat({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconFormat({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <line x1="21" y1="6" x2="3" y2="6" />
@@ -503,7 +502,7 @@ export function IconFormat({ size = 16, strokeWidth = 2, className }: IconProps 
   );
 }
 
-export function IconCopy({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconCopy({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <rect x="9" y="9" width="13" height="13" rx="2" />
@@ -512,7 +511,7 @@ export function IconCopy({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconLink({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconLink({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
@@ -521,7 +520,7 @@ export function IconLink({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconLock({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconLock({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <rect x="3" y="11" width="18" height="11" rx="2" />
@@ -530,7 +529,7 @@ export function IconLock({ size = 16, strokeWidth = 2, className }: IconProps = 
   );
 }
 
-export function IconUnlock({ size = 16, strokeWidth = 2, className }: IconProps = {}): VNode {
+export function IconUnlock({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
       <rect x="3" y="11" width="18" height="11" rx="2" />
@@ -538,3 +537,18 @@ export function IconUnlock({ size = 16, strokeWidth = 2, className }: IconProps 
     </SvgIcon>
   );
 }
+
+/**
+ * Semantic aliases: one meaning per name so navigation, toolbars, and empty
+ * states never reuse the same glyph for different concepts.
+ * - nav `connect` tab = live signal (radio); header/card connect action = plug
+ * - nav `analytics` = bar chart; `automation` = sparkles; feed `all` = bolt
+ */
+export const IconConnect: IconComponent = IconConnected;
+export const IconDisconnect: IconComponent = IconDisconnected;
+export const IconLive: IconComponent = IconRadio;
+export const IconAnalytics: IconComponent = IconBarChart;
+export const IconAutomation: IconComponent = IconSparkles;
+export const IconLikes: IconComponent = IconHeart;
+export const IconGifts: IconComponent = IconGift;
+export const IconContributors: IconComponent = IconUsers;

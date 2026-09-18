@@ -10,15 +10,24 @@ export type IconName =
   | 'tiktok'
   | 'chat'
   | 'gift'
+  | 'gifts'
   | 'heart'
+  | 'like'
+  | 'likes'
   | 'users'
+  | 'contributors'
   | 'follow'
   | 'share'
   | 'join'
   | 'stats'
+  | 'analytics'
   | 'connected'
+  | 'connect'
   | 'disconnected'
+  | 'disconnect'
+  | 'live'
   | 'plugin'
+  | 'plugins'
   | 'points'
   | 'trophy'
   | 'speaker'
@@ -27,13 +36,16 @@ export type IconName =
   | 'http'
   | 'webhook'
   | 'globe'
+  | 'language'
   | 'code'
   | 'json'
   | 'template'
   | 'sparkles'
+  | 'automation'
   | 'search'
   | 'refresh'
   | 'settings'
+  | 'theme'
   | 'trash'
   | 'edit'
   | 'plus'
@@ -67,15 +79,24 @@ export const ICONS: Record<IconName, IconComponent> = {
   tiktok: IconTikTok,
   chat: IconChat,
   gift: IconGift,
+  gifts: IconGift,
   heart: IconHeart,
+  like: IconHeart,
+  likes: IconHeart,
   users: IconUsers,
+  contributors: IconUsers,
   follow: IconFollow,
   share: IconShare,
   join: IconJoin,
   stats: IconBarChart,
+  analytics: IconBarChart,
   connected: IconConnected,
+  connect: IconConnected,
   disconnected: IconDisconnected,
+  disconnect: IconDisconnected,
+  live: IconRadio,
   plugin: IconPlugins,
+  plugins: IconPlugins,
   points: IconPoints,
   trophy: IconTrophy,
   speaker: IconSpeaker,
@@ -84,13 +105,16 @@ export const ICONS: Record<IconName, IconComponent> = {
   http: IconHttp,
   webhook: IconWebhook,
   globe: IconGlobe,
+  language: IconGlobe,
   code: IconCode,
   json: IconJson,
   template: IconTemplate,
   sparkles: IconSparkles,
+  automation: IconSparkles,
   search: IconSearch,
   refresh: IconRefresh,
   settings: IconSettings,
+  theme: IconSun,
   trash: IconTrash,
   edit: IconEdit,
   plus: IconPlus,

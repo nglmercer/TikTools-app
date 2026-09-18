@@ -3,12 +3,11 @@ import { t, type Locale } from '../i18n.ts';
 import type { Theme } from '../preferences.ts';
 import type { ConnectionStatus } from '../types.ts';
 import { AppIcon } from './app-icon.vue';
+import ConnectButton from './connect-button.vue';
 import { Tooltip } from './ui/Tooltip.vue';
 import {
   IconGlobe,
   IconMoon,
-  IconPower,
-  IconRefresh,
   IconSun,
 } from './icons.vue';
 
@@ -19,6 +18,7 @@ type TopNavProps = {
   activeCreator: string;
   onThemeToggle: () => void;
   onLocaleToggle: () => void;
+  onConnect: () => void;
   onReconnect: () => void;
   onDisconnect: () => void;
 };
@@ -54,26 +54,13 @@ const props = defineProps<TopNavProps>();
     </div>
 
     <div class="top-actions">
-      <template v-if="props.status === 'connected'">
-        <Tooltip :text="t(props.locale, 'reconnect')" position="bottom">
-          <button
-            class="btn-icon"
-            type="button"
-            @click="props.onReconnect"
-          >
-            <IconRefresh />
-          </button>
-        </Tooltip>
-        <Tooltip :text="t(props.locale, 'disconnect')" position="bottom">
-          <button
-            class="btn-icon btn-danger"
-            type="button"
-            @click="props.onDisconnect"
-          >
-            <IconPower />
-          </button>
-        </Tooltip>
-      </template>
+      <ConnectButton
+        :locale="props.locale"
+        :status="props.status"
+        :on-connect="props.onConnect"
+        :on-reconnect="props.onReconnect"
+        :on-disconnect="props.onDisconnect"
+      />
 
       <Tooltip :text="t(props.locale, 'switchTheme')" position="bottom">
         <button

@@ -2,7 +2,7 @@
 import type { VNode } from 'vue';
 
 import { EventCard } from '../components/event-card.vue';
-import { IconArrowDown, IconChat, IconDot, IconGift, IconHeart, IconPause, IconSparkles, IconTrash, IconUsers } from '../components/icons.vue';
+import { IconArrowDown, IconBolt, IconChat, IconDot, IconGift, IconHeart, IconPause, IconRadio, IconTrash, IconUsers } from '../components/icons.vue';
 import { Button } from '../components/ui/Button.vue';
 import { SearchInput } from '../components/ui/TextInput.vue';
 import { Tooltip } from '../components/ui/Tooltip.vue';
@@ -45,7 +45,7 @@ function renderFeedView({
   streamContainerRef,
 }: FeedViewProps) {
   const filterButtons: Array<{ key: EventFilter; tooltip: string; icon: VNode }> = [
-    { key: 'all', tooltip: t(locale, 'filterAll'), icon: <IconSparkles /> },
+    { key: 'all', tooltip: t(locale, 'filterAll'), icon: <IconBolt /> },
     { key: 'chat', tooltip: t(locale, 'filterChats'), icon: <IconChat /> },
     { key: 'gift', tooltip: t(locale, 'filterGifts'), icon: <IconGift /> },
     { key: 'like', tooltip: t(locale, 'filterLikes'), icon: <IconHeart /> },
@@ -69,7 +69,7 @@ function renderFeedView({
   return (
     <main class="feed-pane">
       <div class="feed-toolbar">
-        <div class="filter-icon-group">
+        <div class="filter-icon-group" role="tablist" aria-label={t(locale, 'filterAll')}>
           {filterButtons.map((btn) => (
             <Tooltip key={btn.key} text={btn.tooltip} position="bottom">
               <button
@@ -88,19 +88,44 @@ function renderFeedView({
         <SearchInput value={searchQuery} onValueChange={onSearchChange} placeholder={t(locale, 'searchEvents')} />
       </div>
 
-      <TopViewersRibbon locale={locale} topViewers={topViewers} leaderboard={leaderboard} liveViewers={liveViewers} />
-
-      <div class="feed-stream" ref={(element) => streamContainerRef(element as Element | null)}>
-        {filteredEvents.length === 0 ? (
-          <div class="feed-empty">
-            <div class="empty-icon">
-              <IconChat />
-            </div>
-            <p>{t(locale, 'messagesEmpty')}</p>
+      <div class="feed-layout">
+        <section class="feed-main">
+          <div class="feed-stream" ref={(element) => streamContainerRef(element as Element | null)}>
+            {filteredEvents.length === 0 ? (
+              <div class="feed-empty">
+                <div class="empty-icon empty-icon--illustration">
+                  <IconRadio size={28} />
+                </div>
+                <p>{t(locale, 'messagesEmpty')}</p>
+              </div>
+            ) : (
+              filteredEvents.map((ev) => <EventCard key={ev.id} event={ev} locale={locale} />)
+            )}
           </div>
-        ) : (
-          filteredEvents.map((ev) => <EventCard key={ev.id} event={ev} locale={locale} />)
-        )}
+
+          <footer class="feed-footer-info">
+            <span>
+              {t(locale, filteredEvents.length === 1 ? 'messageCountOne' : 'messageCountMany', {
+                count: filteredEvents.length,
+              })}
+            </span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <Button
+                size="sm"
+                variant="soft"
+                tooltip={autoScroll ? t(locale, 'autoScrollOn') : t(locale, 'autoScrollPaused')}
+                icon={autoScroll ? <span style={{ color: 'var(--tt-green)', display: 'inline-flex' }}><IconDot /></span> : <IconPause />}
+                iconOnly
+                onClick={onToggleAutoScroll}
+              />
+              <Button size="sm" variant="soft" tooltip={t(locale, 'clearFeed')} icon={<IconTrash />} iconOnly onClick={onClearFeed} />
+            </div>
+          </footer>
+        </section>
+
+        <aside class="feed-side" aria-label={t(locale, 'topContributors')}>
+          <TopViewersRibbon locale={locale} topViewers={topViewers} leaderboard={leaderboard} liveViewers={liveViewers} />
+        </aside>
       </div>
 
       {!autoScroll && unreadCount > 0 ? (
@@ -110,25 +135,6 @@ function renderFeedView({
           </Button>
         </div>
       ) : null}
-
-      <footer class="feed-footer-info">
-        <span>
-          {t(locale, filteredEvents.length === 1 ? 'messageCountOne' : 'messageCountMany', {
-            count: filteredEvents.length,
-          })}
-        </span>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <Button
-            size="sm"
-            variant="soft"
-            tooltip={autoScroll ? t(locale, 'autoScrollOn') : t(locale, 'autoScrollPaused')}
-            icon={autoScroll ? <span style={{ color: 'var(--tt-green)', display: 'inline-flex' }}><IconDot /></span> : <IconPause />}
-            iconOnly
-            onClick={onToggleAutoScroll}
-          />
-          <Button size="sm" variant="soft" tooltip={t(locale, 'clearFeed')} icon={<IconTrash />} iconOnly onClick={onClearFeed} />
-        </div>
-      </footer>
     </main>
   );
 }

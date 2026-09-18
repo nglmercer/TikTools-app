@@ -61,6 +61,7 @@ const activePluginSupportsProvisioning: ComputedRef<boolean> = computed(() => {
       :active-creator="app.activeCreator"
       :on-theme-toggle="app.handleThemeToggle"
       :on-locale-toggle="app.handleLocaleToggle"
+      :on-connect="() => (app.uniqueId || app.activeCreator ? app.handleConnect() : app.setActiveTab('connect'))"
       :on-reconnect="app.handleReconnect"
       :on-disconnect="app.handleDisconnect"
     />
