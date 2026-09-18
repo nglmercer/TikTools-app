@@ -214,16 +214,6 @@ export const PluginsView = defineVueComponent<PluginsViewProps>(
             />
           ) : (
           <>
-          {tab.value === 'installed' && (
-            <div class="plg-banner">
-              <span class="plg-dot is-ok" />
-              <span class="plg-banner__label">{copy.builtInLabel}</span>
-              <span class="plg-banner__list">
-                {props.actionTypes.filter((type) => type.source.kind === 'builtin').map((type) => i18nText(props.locale, type.title)).join(' · ')}
-              </span>
-              <span class="plg-banner__note">{copy.builtInNote}</span>
-            </div>
-          )}
 
           {visible.length > 0 && (
             <div class="plg-plugin-grid">
