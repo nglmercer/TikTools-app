@@ -59,22 +59,59 @@ function validIpcName(name: string): boolean {
   );
 }
 
-/** Local IPC endpoint: pipe path on Windows, socket path elsewhere. */
+/** Parse `whoami /user /FO CSV /NH` output (`"domain\user","SID"`) for the SID. */
+export function parseWhoamiSid(output: string): string | undefined {
+  const match = output.match(/"[^"]*"\s*,\s*"([^"]+)"/);
+  const sid = match?.[1]?.trim();
+  if (sid && /^S-1-[0-9-]+$/.test(sid)) return sid;
+  return undefined;
+}
+
+/**
+ * Current Windows user SID, matching the Rust `current_user_sid_string()`
+ * form. `TIKTOOLS_TEST_USER_SID` injects a value for deterministic tests.
+ * Throws when the SID cannot be determined: the launcher must fail loudly
+ * instead of probing the wrong pipe and missing a stale host.
+ */
+export function windowsUserSid(): string {
+  const injected = process.env.TIKTOOLS_TEST_USER_SID;
+  if (injected && injected.length > 0) {
+    if (!/^S-1-[0-9-]+$/.test(injected)) {
+      throw new Error(`Development startup failed: invalid TIKTOOLS_TEST_USER_SID ${injected}`);
+    }
+    return injected;
+  }
+  const result = Bun.spawnSync({
+    cmd: ['whoami', '/user', '/FO', 'CSV', '/NH'],
+    stdout: 'pipe',
+    stderr: 'ignore',
+  });
+  const sid = result.success ? parseWhoamiSid(result.stdout.toString()) : undefined;
+  if (!sid) {
+    throw new Error(
+      'Development startup failed: could not determine the Windows user SID to probe ' +
+        'the per-user control pipe.',
+    );
+  }
+  return sid;
+}
+
+/** Local IPC endpoint: per-user pipe path on Windows, socket path elsewhere. */
 export function ipcEndpoint(platform: NodeJS.Platform = process.platform): string {
   if (platform === 'win32') {
     const override = process.env.TIKTOOLS_IPC_NAME;
     if (override && validIpcName(override)) return `\\\\.\\pipe\\${override}`;
-    return `\\\\.\\pipe\\${IPC_NAME}`;
+    return `\\\\.\\pipe\\${IPC_NAME}-${windowsUserSid()}`;
   }
   return join(appRoot(), `${IPC_NAME}.sock`);
 }
 
-/**
- * Probe whether a control host already owns the production IPC endpoint.
- * A successful connection means a stale desktop/host is still running.
- */
-export async function isControlHostRunning(timeoutMs = 500): Promise<boolean> {
-  const path = ipcEndpoint();
+/** Legacy machine-wide pipe from before per-user isolation (old desktops). */
+export function legacyWindowsPipe(): string {
+  return `\\\\.\\pipe\\${IPC_NAME}`;
+}
+
+function probeEndpoint(path: string, timeoutMs: number): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false;
     const done = (value: boolean): void => {
@@ -103,6 +140,20 @@ export async function isControlHostRunning(timeoutMs = 500): Promise<boolean> {
       done(false);
     });
   });
+}
+
+/**
+ * Probe whether a control host already owns the production IPC endpoint.
+ * A successful connection means a stale desktop/host is still running.
+ * On Windows the per-user pipe is probed first, then the legacy
+ * machine-wide pipe so an old desktop is never mixed with a new session.
+ */
+export async function isControlHostRunning(timeoutMs = 500): Promise<boolean> {
+  if (process.platform === 'win32' && !process.env.TIKTOOLS_IPC_NAME) {
+    if (await probeEndpoint(ipcEndpoint(), timeoutMs)) return true;
+    return probeEndpoint(legacyWindowsPipe(), timeoutMs);
+  }
+  return probeEndpoint(ipcEndpoint(), timeoutMs);
 }
 
 /**

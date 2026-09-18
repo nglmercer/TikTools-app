@@ -108,22 +108,122 @@ impl DomainEvent {
     }
 }
 
+impl DomainEvent {
+    /// High-rate feed and superseding snapshots (live feed, room stats,
+    /// analytics, gift catalog, plugin progress) travel the lossy lane:
+    /// a lagged subscriber skips them and takes the latest. Every other
+    /// event — connection/lifecycle transitions, errors, points changes,
+    /// shutdown — travels the reliable lane, so a feed burst can never
+    /// overwrite a state transition a subscriber has not read yet.
+    /// Mirrors the WebView `Coalescable`/`Droppable` classes.
+    pub fn is_lossy(&self) -> bool {
+        matches!(
+            self,
+            Self::LiveEvent { .. }
+                | Self::LiveUiEvent { .. }
+                | Self::RoomStats { .. }
+                | Self::AnalyticsUpdated { .. }
+                | Self::GiftsCatalog { .. }
+                | Self::PluginProgress { .. }
+        )
+    }
+}
+
 #[derive(Clone)]
 pub struct EventBus {
-    domain: broadcast::Sender<DomainEvent>,
+    reliable: broadcast::Sender<DomainEvent>,
+    lossy: broadcast::Sender<DomainEvent>,
 }
 
 impl EventBus {
+    /// `capacity` sizes the reliable lane; the lossy lane gets four times
+    /// that for high-rate feed bursts.
     pub fn new(capacity: usize) -> Self {
-        let (domain, _) = broadcast::channel(capacity);
-        Self { domain }
+        let (reliable, _) = broadcast::channel(capacity);
+        let (lossy, _) = broadcast::channel(capacity.saturating_mul(4).max(1));
+        Self { reliable, lossy }
     }
 
+    /// Publishes to the reliable or lossy lane by event class. Like
+    /// `broadcast::send`, this never blocks and never fails for a slow
+    /// subscriber: laggards skip on their own cursor only.
     pub fn publish_domain(&self, event: DomainEvent) {
-        let _ = self.domain.send(event);
+        if event.is_lossy() {
+            let _ = self.lossy.send(event);
+        } else {
+            let _ = self.reliable.send(event);
+        }
     }
 
-    pub fn subscribe_domain(&self) -> broadcast::Receiver<DomainEvent> {
-        self.domain.subscribe()
+    pub fn subscribe_domain(&self) -> DomainSubscription {
+        DomainSubscription {
+            reliable: self.reliable.subscribe(),
+            lossy: self.lossy.subscribe(),
+        }
+    }
+}
+
+/// Merged view over the reliable and lossy lanes with `broadcast`
+/// semantics: `recv`/`try_recv` report `Lagged` (recoverable: the caller
+/// logs and continues) or `Closed` (the bus is gone) exactly like a
+/// single receiver. Reliable messages are always drained first, so a
+/// state transition never waits behind feed backlog.
+pub struct DomainSubscription {
+    reliable: broadcast::Receiver<DomainEvent>,
+    lossy: broadcast::Receiver<DomainEvent>,
+}
+
+impl DomainSubscription {
+    /// Receives the next event, reliable lane first. A lagged lane
+    /// reports `Lagged` once and then streams its retained backlog; the
+    /// other lane is unaffected.
+    pub async fn recv(&mut self) -> Result<DomainEvent, broadcast::error::RecvError> {
+        use broadcast::error::{RecvError, TryRecvError};
+        match self.try_recv() {
+            Err(TryRecvError::Empty) => {}
+            Ok(event) => return Ok(event),
+            Err(TryRecvError::Lagged(skipped)) => return Err(RecvError::Lagged(skipped)),
+            Err(TryRecvError::Closed) => return Err(RecvError::Closed),
+        }
+        // Both lanes are empty: wait biased toward reliable. A lossy
+        // wake may overtake a reliable message published a moment later;
+        // the next `recv` takes reliable first, so control events stay
+        // prompt while feed stays merely ordered.
+        tokio::select! {
+            biased;
+            message = self.reliable.recv() => {
+                // The bus died mid-wait: drain lossy stragglers buffered
+                // before the drop instead of losing them to Closed.
+                if matches!(message, Err(broadcast::error::RecvError::Closed)) {
+                    if let Ok(straggler) = self.lossy.try_recv() {
+                        return Ok(straggler);
+                    }
+                }
+                message
+            }
+            message = self.lossy.recv() => message,
+        }
+    }
+
+    pub fn try_recv(&mut self) -> Result<DomainEvent, broadcast::error::TryRecvError> {
+        use broadcast::error::TryRecvError;
+        match self.reliable.try_recv() {
+            Err(TryRecvError::Empty) => {}
+            Err(TryRecvError::Closed) => {
+                // The bus is gone: drain lossy stragglers before Closed.
+                return match self.lossy.try_recv() {
+                    Err(TryRecvError::Empty) => Err(TryRecvError::Closed),
+                    other => other,
+                };
+            }
+            other => return other,
+        }
+        match self.lossy.try_recv() {
+            // Both lanes empty and the reliable sender is alive (it would
+            // report Closed, not Empty, otherwise), so more events can
+            // still arrive: report Empty, never Closed.
+            Err(TryRecvError::Empty) => Err(TryRecvError::Empty),
+            other => other,
+        }
     }
 }

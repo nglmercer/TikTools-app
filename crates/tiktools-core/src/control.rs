@@ -1648,6 +1648,7 @@ impl AppCore {
         start_day: Option<i64>,
         end_day: Option<i64>,
         limit: Option<i64>,
+        tz_offset_secs: Option<i64>,
     ) -> Option<Value> {
         #[cfg(feature = "persistence")]
         {
@@ -1665,10 +1666,13 @@ impl AppCore {
             if creator.is_empty() {
                 return None;
             }
-            match self
-                .db
-                .analytics_summary(&creator, start, end, limit.unwrap_or(10))
-            {
+            match self.db.analytics_summary(
+                &creator,
+                start,
+                end,
+                limit.unwrap_or(10),
+                tz_offset_secs.unwrap_or(0),
+            ) {
                 Ok(summary) => match serde_json::to_value(summary) {
                     Ok(summary) => Some(summary),
                     Err(error) => {
@@ -1684,7 +1688,7 @@ impl AppCore {
         }
         #[cfg(not(feature = "persistence"))]
         {
-            let _ = (creator_unique_id, start_day, end_day, limit);
+            let _ = (creator_unique_id, start_day, end_day, limit, tz_offset_secs);
             None
         }
     }

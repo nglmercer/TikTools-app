@@ -152,11 +152,10 @@ impl ControlApi {
         .await
     }
 
-    /// Subscribes to the domain event bus. Each event maps to one
-    /// JSON-RPC notification via [`event_notification`].
-    pub fn subscribe(
-        &self,
-    ) -> tokio::sync::broadcast::Receiver<tiktools_core::events::DomainEvent> {
+    /// Subscribes to the domain event bus (reliable + lossy lanes,
+    /// reliable drained first). Each event maps to one JSON-RPC
+    /// notification via [`event_notification`].
+    pub fn subscribe(&self) -> tiktools_core::events::DomainSubscription {
         self.core.events.subscribe_domain()
     }
 }

@@ -85,11 +85,12 @@ tiktools host --ipc                # Unix socket / Windows named pipe
 ```
 
 The IPC endpoint is `$TIKTOOLS_HOME/tiktools-control.sock` on Unix and
-the `tiktools-control` named pipe on Windows, speaking the same NDJSON
-protocol as stdio. The desktop host serves this endpoint itself from its
-one `AppCore`; `host --ipc` refuses to start when a host is already
-listening. The Unix socket is created owner-only (`0600`); integration
-tests isolate Windows pipes with `TIKTOOLS_IPC_NAME`.
+the per-user `tiktools-control-<user-sid>` named pipe on Windows, speaking
+the same NDJSON protocol as stdio. The desktop host serves this endpoint
+itself from its one `AppCore`; `host --ipc` refuses to start when a host is
+already listening. The Unix socket is created owner-only (`0600`); the
+Windows pipe carries a current-user-only DACL. Integration tests isolate
+Windows pipes with `TIKTOOLS_IPC_NAME`.
 
 ## Methods
 

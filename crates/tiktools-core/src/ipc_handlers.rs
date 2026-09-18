@@ -340,7 +340,7 @@ impl AppCore {
                 limit,
             } => {
                 if let Some(summary) =
-                    self.analytics_summary(creator_unique_id, start_day, end_day, limit)
+                    self.analytics_summary(creator_unique_id, start_day, end_day, limit, None)
                 {
                     self.emit(HostMessage::AnalyticsSummary { summary });
                 }

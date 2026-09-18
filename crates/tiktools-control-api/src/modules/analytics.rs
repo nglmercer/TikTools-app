@@ -14,6 +14,9 @@ pub struct AnalyticsSummaryParams {
     pub start_day: Option<i64>,
     pub end_day: Option<i64>,
     pub limit: Option<i64>,
+    /// System-zone offset in seconds east of UTC (local = UTC + offset).
+    /// Day bounds are interpreted in that frame; `None`/0 keeps UTC days.
+    pub tz_offset_secs: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -35,6 +38,7 @@ pub fn register(router: &mut ControlRouter) {
                     params.start_day,
                     params.end_day,
                     params.limit,
+                    params.tz_offset_secs,
                 )
             })
             .await?;

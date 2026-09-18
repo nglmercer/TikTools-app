@@ -4,6 +4,12 @@
 //! guard is an OS ownership primitive held for the server's lifetime — never
 //! a `ControlClient::connect()` probe, which races with startup and cannot
 //! distinguish a live owner from a stale socket.
+//!
+//! Layering on Windows: this mutex is session-scoped, so it is the fast
+//! same-session guard. True ownership across sessions/users is enforced at
+//! pipe bind time in `transport::pipe_security`: the production pipe name
+//! carries the user SID, the first instance claims the name exclusively,
+//! and the pipe DACL admits the owning user only.
 
 use std::io;
 

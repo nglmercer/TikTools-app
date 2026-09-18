@@ -676,6 +676,45 @@ fn saturated_subscriber_does_not_block_live_domain_events() {
 }
 
 #[test]
+fn lossy_flood_does_not_evict_reliable_transitions() {
+    use crate::events::{DomainEvent, EventBus};
+
+    let bus = EventBus::new(16);
+    let mut live = bus.subscribe_domain();
+    // A reliable transition published before the flood must survive it.
+    bus.publish_domain(DomainEvent::LiveError {
+        phase: "before-flood".to_owned(),
+        message: "m".to_owned(),
+    });
+    for index in 0..600 {
+        bus.publish_domain(DomainEvent::LiveUiEvent {
+            event: serde_json::json!({"n": index}),
+        });
+    }
+    bus.publish_domain(DomainEvent::LiveDisconnected);
+    // Reliable drains first, intact and in order; the lossy lane lags
+    // independently without touching it.
+    let mut markers = Vec::new();
+    for _ in 0..700 {
+        match live.try_recv() {
+            Ok(DomainEvent::LiveError { phase, .. }) => markers.push(phase),
+            Ok(DomainEvent::LiveDisconnected) => markers.push("disconnect".to_owned()),
+            Ok(_) => {}
+            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => {}
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
+            Err(tokio::sync::broadcast::error::TryRecvError::Closed) => {
+                panic!("bus must stay open under a lossy flood")
+            }
+        }
+    }
+    assert_eq!(
+        markers,
+        vec!["before-flood".to_owned(), "disconnect".to_owned()],
+        "reliable transitions must survive a lossy flood in order"
+    );
+}
+
+#[test]
 fn ipc_error_degrades_system_health() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = AppCore::new(emitter);

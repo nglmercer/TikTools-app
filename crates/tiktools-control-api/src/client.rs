@@ -407,8 +407,9 @@ async fn try_connect_stream() -> std::io::Result<ClientStream> {
     }
     #[cfg(windows)]
     {
+        let name = transport::ipc_pipe_name()?;
         tokio::net::windows::named_pipe::ClientOptions::new()
-            .open(transport::ipc_pipe_name())
+            .open(name)
             .map(ClientStream::Pipe)
     }
     #[cfg(not(any(unix, windows)))]

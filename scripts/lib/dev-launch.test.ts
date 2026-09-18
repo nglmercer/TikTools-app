@@ -8,9 +8,12 @@ import {
   devUrl,
   findDesktopOwners,
   ipcEndpoint,
+  legacyWindowsPipe,
   parsePsOwners,
   parseTasklistOwners,
+  parseWhoamiSid,
   waitForHttp,
+  windowsUserSid,
 } from './dev-launch.ts';
 
 describe('dev-launch', () => {
@@ -53,6 +56,43 @@ describe('dev-launch', () => {
     } finally {
       if (previous === undefined) delete process.env.TIKTOOLS_IPC_NAME;
       else process.env.TIKTOOLS_IPC_NAME = previous;
+    }
+  });
+
+  test('parseWhoamiSid extracts the SID and rejects garbage', () => {
+    expect(parseWhoamiSid('"desktop-7\\user","S-1-5-21-1-2-3-1001"\r\n')).toBe(
+      'S-1-5-21-1-2-3-1001',
+    );
+    expect(parseWhoamiSid('')).toBeUndefined();
+    expect(parseWhoamiSid('ERROR: something failed')).toBeUndefined();
+    expect(parseWhoamiSid('"a","not-a-sid!"')).toBeUndefined();
+  });
+
+  test('production windows pipe carries the user SID', () => {
+    const previousName = process.env.TIKTOOLS_IPC_NAME;
+    const previousSid = process.env.TIKTOOLS_TEST_USER_SID;
+    delete process.env.TIKTOOLS_IPC_NAME;
+    process.env.TIKTOOLS_TEST_USER_SID = 'S-1-5-21-1-2-3-1001';
+    try {
+      expect(windowsUserSid()).toBe('S-1-5-21-1-2-3-1001');
+      expect(ipcEndpoint('win32')).toBe('\\\\.\\pipe\\tiktools-control-S-1-5-21-1-2-3-1001');
+      expect(legacyWindowsPipe()).toBe('\\\\.\\pipe\\tiktools-control');
+    } finally {
+      if (previousName === undefined) delete process.env.TIKTOOLS_IPC_NAME;
+      else process.env.TIKTOOLS_IPC_NAME = previousName;
+      if (previousSid === undefined) delete process.env.TIKTOOLS_TEST_USER_SID;
+      else process.env.TIKTOOLS_TEST_USER_SID = previousSid;
+    }
+  });
+
+  test('invalid injected SID fails loudly', () => {
+    const previous = process.env.TIKTOOLS_TEST_USER_SID;
+    process.env.TIKTOOLS_TEST_USER_SID = 'bogus';
+    try {
+      expect(() => windowsUserSid()).toThrow(/invalid TIKTOOLS_TEST_USER_SID/);
+    } finally {
+      if (previous === undefined) delete process.env.TIKTOOLS_TEST_USER_SID;
+      else process.env.TIKTOOLS_TEST_USER_SID = previous;
     }
   });
 

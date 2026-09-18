@@ -1,5 +1,4 @@
 use std::{
-    collections::VecDeque,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -37,7 +36,7 @@ pub struct DesktopApp {
     runtime: Handle,
     proxy: EventLoopProxy<DesktopEvent>,
     tray: Option<TrayController>,
-    pending_host_messages: VecDeque<QueuedWebviewMessage>,
+    pending_host_messages: WebviewOutbox,
     shutting_down: bool,
     startup_state: StartupState,
     startup_deadline: Option<Instant>,
@@ -151,7 +150,7 @@ impl DesktopApp {
             runtime,
             proxy,
             tray: None,
-            pending_host_messages: VecDeque::new(),
+            pending_host_messages: WebviewOutbox::new(),
             shutting_down: false,
             startup_state: StartupState::Initializing,
             startup_deadline: None,
@@ -213,8 +212,11 @@ impl DesktopApp {
                 // `ControlApi::execute`, which all WebView RPCs traverse.)
                 if webview_request_too_large(&raw) {
                     if is_probably_control_rpc(&raw) {
+                        // Preserve the request id so the frontend resolves
+                        // (rejects) the pending call instead of hanging it
+                        // until timeout; the id sits in the bounded prefix.
                         let response = tiktools_control_api::RpcResponse::error(
-                            tiktools_control_api::RpcId::Null,
+                            tiktools_control_api::RpcId::extract_from_prefix(&raw),
                             tiktools_control_api::ApiError::too_large(),
                         );
                         let payload = serde_json::json!({
@@ -249,7 +251,7 @@ impl DesktopApp {
                         let response = match serde_json::from_str::<serde_json::Value>(&raw) {
                             Ok(raw) => control.execute_value(&raw).await,
                             Err(error) => tiktools_control_api::RpcResponse::error(
-                                tiktools_control_api::RpcId::Null,
+                                tiktools_control_api::RpcId::extract_from_prefix(&raw),
                                 tiktools_control_api::ApiError::invalid_params(format!(
                                     "invalid JSON: {error}"
                                 )),
@@ -318,12 +320,11 @@ impl DesktopApp {
         self.flush_webview_batch();
     }
 
-    /// Bounded enqueue with coalescing. Disposable snapshots (room stats,
-    /// leaderboard, analytics, processor metrics, automation context) keep
-    /// only their latest value so high-rate producers cannot flood the
-    /// queue; the queue itself never exceeds its bound.
+    /// Two-lane enqueue: RPC responses and critical transitions land in
+    /// the reliable lane (never dropped); snapshots coalesce and feed is
+    /// bounded in the lossy lane.
     fn emit_to_webview(&mut self, message: String) {
-        push_webview_message(&mut self.pending_host_messages, message);
+        self.pending_host_messages.push(message);
     }
 
     /// Drains up to one batch per UI tick through a single
@@ -336,7 +337,7 @@ impl DesktopApp {
         if self.pending_host_messages.is_empty() {
             return;
         }
-        let batch = take_next_batch(&mut self.pending_host_messages);
+        let batch = self.pending_host_messages.take_batch();
         let argument = match serde_json::to_string(&batch) {
             Ok(argument) => argument,
             Err(error) => {
@@ -617,13 +618,13 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
     }
 }
 
-/// Soft bound for queued WebView messages. Past this point the queue sheds
-/// droppable feed events, then stale snapshots — never critical messages.
-/// All-critical bursts may grow past the soft bound toward the hard cap.
+/// Bound for the lossy lane (snapshots + feed). Past this point the
+/// oldest lossy message is shed — never a reliable one.
 const MAX_PENDING_WEBVIEW_MESSAGES: usize = 512;
-/// Absolute memory safety cap. Only a pathological all-critical flood can
-/// reach it; shedding there prefers anything that is not an RPC response.
-const MAX_PENDING_WEBVIEW_MESSAGES_HARD: usize = 1024;
+/// Backlog size at which the reliable lane starts warning loudly. The
+/// reliable lane is never dropped: a stuck/slow frontend shows up as a
+/// growing backlog in logs instead of silently lost RPC responses.
+const MAX_RELIABLE_WEBVIEW_BACKLOG: usize = 1024;
 /// Maximum messages delivered in one UI tick through one `evaluate_script`.
 const MAX_BATCH_PER_TICK: usize = 128;
 
@@ -705,78 +706,114 @@ fn classify_webview_message(message: &str) -> WebviewMessageClass {
     }
 }
 
-fn is_rpc_response_value(value: &serde_json::Value) -> bool {
-    value.get("type").and_then(serde_json::Value::as_str) == Some("rpc-response")
-}
-
-/// One queued message with its delivery class computed once at enqueue
-/// time, so saturation scans never re-parse JSON on the UI thread.
+/// One lossy-lane message with its delivery class computed once at
+/// enqueue time, so saturation scans never re-parse JSON on the UI thread.
 #[derive(Debug)]
 struct QueuedWebviewMessage {
     body: String,
     class: WebviewMessageClass,
     coalesce_key: Option<String>,
-    is_rpc_response: bool,
 }
 
-fn push_webview_message(
-    queue: &mut std::collections::VecDeque<QueuedWebviewMessage>,
-    body: String,
-) {
-    let class = classify_webview_message(&body);
-    let (coalesce_key, is_rpc_response) = match serde_json::from_str::<serde_json::Value>(&body) {
-        Ok(value) => (webview_coalesce_key(&value), is_rpc_response_value(&value)),
-        Err(_) => (None, false),
-    };
-    if class == WebviewMessageClass::Coalescable {
-        // Keep only the latest snapshot per coalesce key.
-        if let Some(key) = coalesce_key.as_deref() {
-            queue.retain(|queued| queued.coalesce_key.as_deref() != Some(key));
-        }
-    }
-    queue.push_back(QueuedWebviewMessage {
-        body,
-        class,
-        coalesce_key,
-        is_rpc_response,
-    });
-    // Soft cap: shed droppable feed first, then stale snapshots. Critical
-    // messages are never evicted here; an all-critical burst grows past
-    // the soft cap instead of dropping RPC responses or transitions.
-    while queue.len() > MAX_PENDING_WEBVIEW_MESSAGES {
-        if let Some(index) = queue
-            .iter()
-            .position(|queued| queued.class == WebviewMessageClass::Droppable)
-        {
-            queue.remove(index);
-        } else if let Some(index) = queue
-            .iter()
-            .position(|queued| queued.class == WebviewMessageClass::Coalescable)
-        {
-            queue.remove(index);
-        } else {
-            break;
-        }
-    }
-    // Hard safety cap: absolute memory bound. Shed anything that is not
-    // an RPC response first; only a queue of nothing but RPC responses
-    // sacrifices the oldest one, loudly.
-    while queue.len() > MAX_PENDING_WEBVIEW_MESSAGES_HARD {
-        if let Some(index) = queue.iter().position(|queued| !queued.is_rpc_response) {
-            queue.remove(index);
-        } else {
-            tracing::error!(
-                "WebView queue exceeded hard cap with RPC responses only; dropping oldest response"
-            );
-            queue.pop_front();
-        }
-    }
+/// Two-lane outbox enforcing the core invariant: RPC responses and
+/// critical state transitions must never silently disappear.
+///
+/// * `reliable` holds Critical messages (RPC responses, connection and
+///   lifecycle transitions, errors, shutdown). It is never shed: a slow
+///   frontend builds a loud backlog instead of losing results.
+/// * `lossy` holds Coalescable snapshots (latest per key wins) and
+///   Droppable feed, bounded by `MAX_PENDING_WEBVIEW_MESSAGES` with
+///   oldest-first shedding.
+///
+/// Ordering contract: FIFO within each lane; each batch drains reliable
+/// first, then fills the remainder of the tick from lossy. A snapshot or
+/// feed item may therefore be delivered after a reliable message that was
+/// enqueued later — acceptable because snapshots supersede and feed is
+/// explicitly lossy, while results and transitions stay prompt.
+#[derive(Debug, Default)]
+struct WebviewOutbox {
+    reliable: std::collections::VecDeque<String>,
+    lossy: std::collections::VecDeque<QueuedWebviewMessage>,
 }
 
-/// Takes at most one UI tick's worth of messages, preserving order.
-fn take_next_batch(queue: &mut std::collections::VecDeque<QueuedWebviewMessage>) -> Vec<String> {
-    let take = queue.len().min(MAX_BATCH_PER_TICK);
-    queue.drain(..take).map(|queued| queued.body).collect()
+impl WebviewOutbox {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.reliable.is_empty() && self.lossy.is_empty()
+    }
+
+    fn push(&mut self, body: String) {
+        if classify_webview_message(&body) == WebviewMessageClass::Critical {
+            self.reliable.push_back(body);
+            // Loud backlog instead of silent drops: warn once when the
+            // budget is crossed, then once per additional budget of lag.
+            let backlog = self.reliable.len();
+            if backlog == MAX_RELIABLE_WEBVIEW_BACKLOG + 1
+                || (backlog > MAX_RELIABLE_WEBVIEW_BACKLOG
+                    && backlog.is_multiple_of(MAX_RELIABLE_WEBVIEW_BACKLOG))
+            {
+                tracing::error!(
+                    backlog,
+                    "WebView reliable backlog growing; RPC responses and transitions are held, not dropped"
+                );
+            }
+            return;
+        }
+        let coalesce_key = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|value| webview_coalesce_key(&value));
+        let class = classify_webview_message(&body);
+        if class == WebviewMessageClass::Coalescable {
+            // Keep only the latest snapshot per coalesce key.
+            if let Some(key) = coalesce_key.as_deref() {
+                self.lossy
+                    .retain(|queued| queued.coalesce_key.as_deref() != Some(key));
+            }
+        }
+        self.lossy.push_back(QueuedWebviewMessage {
+            body,
+            class,
+            coalesce_key,
+        });
+        // Bounded lossy lane: shed oldest droppable feed first, then the
+        // oldest snapshot. Reliable messages live in the other lane and
+        // are never candidates here.
+        while self.lossy.len() > MAX_PENDING_WEBVIEW_MESSAGES {
+            if let Some(index) = self
+                .lossy
+                .iter()
+                .position(|queued| queued.class == WebviewMessageClass::Droppable)
+            {
+                self.lossy.remove(index);
+            } else {
+                self.lossy.pop_front();
+            }
+        }
+    }
+
+    /// Takes at most one UI tick's worth of messages: reliable first,
+    /// then lossy fill. FIFO within each lane.
+    fn take_batch(&mut self) -> Vec<String> {
+        let mut batch = Vec::new();
+        while batch.len() < MAX_BATCH_PER_TICK {
+            if let Some(body) = self.reliable.pop_front() {
+                batch.push(body);
+            } else {
+                break;
+            }
+        }
+        while batch.len() < MAX_BATCH_PER_TICK {
+            if let Some(queued) = self.lossy.pop_front() {
+                batch.push(queued.body);
+            } else {
+                break;
+            }
+        }
+        batch
+    }
 }
 
 /// Forwards domain events to a UI sink as JSON-RPC `event` notifications.
@@ -784,7 +821,7 @@ fn take_next_batch(queue: &mut std::collections::VecDeque<QueuedWebviewMessage>)
 /// channel or the shutdown event terminates the forwarder, so a temporary
 /// burst never permanently disables WebView events.
 async fn forward_domain_events(
-    mut events: tokio::sync::broadcast::Receiver<tiktools_core::events::DomainEvent>,
+    mut events: tiktools_core::events::DomainSubscription,
     mut send: impl FnMut(String),
 ) {
     loop {
@@ -939,146 +976,156 @@ mod webview_queue_tests {
 
     #[test]
     fn coalesces_disposable_snapshots() {
-        let mut queue = std::collections::VecDeque::new();
-        push_webview_message(
-            &mut queue,
-            r#"{"type":"room-stats","viewers":1,"totalUsers":1,"topViewers":[]}"#.to_owned(),
-        );
-        push_webview_message(
-            &mut queue,
-            r#"{"type":"room-stats","viewers":2,"totalUsers":2,"topViewers":[]}"#.to_owned(),
-        );
-        push_webview_message(
-            &mut queue,
-            r#"{"type":"live-event","event":{"kind":"chat"}}"#.to_owned(),
-        );
-        assert_eq!(queue.len(), 2);
-        assert!(queue[0].body.contains("\"viewers\":2"));
+        let mut outbox = WebviewOutbox::new();
+        outbox
+            .push(r#"{"type":"room-stats","viewers":1,"totalUsers":1,"topViewers":[]}"#.to_owned());
+        outbox
+            .push(r#"{"type":"room-stats","viewers":2,"totalUsers":2,"topViewers":[]}"#.to_owned());
+        outbox.push(r#"{"type":"live-event","event":{"kind":"chat"}}"#.to_owned());
+        assert_eq!(outbox.lossy.len(), 2);
+        assert!(outbox.lossy[0].body.contains("\"viewers\":2"));
+        assert!(outbox.reliable.is_empty());
     }
 
     #[test]
     fn domain_snapshots_coalesce_but_feed_and_lifecycle_do_not() {
-        let mut queue = std::collections::VecDeque::new();
-        push_webview_message(&mut queue, domain_event("room.stats", r#"{"viewers":1}"#));
-        push_webview_message(&mut queue, domain_event("room.stats", r#"{"viewers":2}"#));
-        push_webview_message(
-            &mut queue,
-            domain_event("analytics.updated", r#"{"creatorUniqueId":"a"}"#),
-        );
-        push_webview_message(
-            &mut queue,
-            domain_event("analytics.updated", r#"{"creatorUniqueId":"b"}"#),
-        );
+        let mut outbox = WebviewOutbox::new();
+        outbox.push(domain_event("room.stats", r#"{"viewers":1}"#));
+        outbox.push(domain_event("room.stats", r#"{"viewers":2}"#));
+        outbox.push(domain_event(
+            "analytics.updated",
+            r#"{"creatorUniqueId":"a"}"#,
+        ));
+        outbox.push(domain_event(
+            "analytics.updated",
+            r#"{"creatorUniqueId":"b"}"#,
+        ));
         // Same plugin collapses; a different plugin is a separate stream.
-        push_webview_message(
-            &mut queue,
-            domain_event("plugin.progress", r#"{"pluginId":"p1","state":"loading"}"#),
-        );
-        push_webview_message(
-            &mut queue,
-            domain_event("plugin.progress", r#"{"pluginId":"p1","state":"ready"}"#),
-        );
-        push_webview_message(
-            &mut queue,
-            domain_event("plugin.progress", r#"{"pluginId":"p2","state":"ready"}"#),
-        );
-        // Feed and lifecycle are never coalesced.
-        push_webview_message(
-            &mut queue,
-            domain_event("live.ui-event", r#"{"event":{"n":1}}"#),
-        );
-        push_webview_message(
-            &mut queue,
-            domain_event("live.ui-event", r#"{"event":{"n":2}}"#),
-        );
-        push_webview_message(
-            &mut queue,
-            domain_event("plugin.started", r#"{"pluginId":"p1"}"#),
-        );
-        push_webview_message(
-            &mut queue,
-            domain_event("plugin.started", r#"{"pluginId":"p1"}"#),
-        );
-        assert_eq!(queue.len(), 8, "unexpected queue len");
-        assert!(queue[0].body.contains(r#""viewers":2"#));
-        assert!(queue[1].body.contains(r#""creatorUniqueId":"b""#));
-        assert!(queue[2].body.contains(r#""state":"ready""#));
-        assert!(queue[3].body.contains(r#""pluginId":"p2""#));
+        outbox.push(domain_event(
+            "plugin.progress",
+            r#"{"pluginId":"p1","state":"loading"}"#,
+        ));
+        outbox.push(domain_event(
+            "plugin.progress",
+            r#"{"pluginId":"p1","state":"ready"}"#,
+        ));
+        outbox.push(domain_event(
+            "plugin.progress",
+            r#"{"pluginId":"p2","state":"ready"}"#,
+        ));
+        // Feed is never coalesced.
+        outbox.push(domain_event("live.ui-event", r#"{"event":{"n":1}}"#));
+        outbox.push(domain_event("live.ui-event", r#"{"event":{"n":2}}"#));
+        // Lifecycle is reliable: never coalesced, never shed.
+        outbox.push(domain_event("plugin.started", r#"{"pluginId":"p1"}"#));
+        outbox.push(domain_event("plugin.started", r#"{"pluginId":"p1"}"#));
+        assert_eq!(outbox.lossy.len(), 6, "unexpected lossy len");
+        assert_eq!(outbox.reliable.len(), 2, "unexpected reliable len");
+        assert!(outbox.lossy[0].body.contains(r#""viewers":2"#));
+        assert!(outbox.lossy[1].body.contains(r#""creatorUniqueId":"b""#));
+        assert!(outbox.lossy[2].body.contains(r#""state":"ready""#));
+        assert!(outbox.lossy[3].body.contains(r#""pluginId":"p2""#));
     }
 
     #[test]
-    fn queue_never_exceeds_bound() {
-        let mut queue = std::collections::VecDeque::new();
+    fn lossy_lane_never_exceeds_bound() {
+        let mut outbox = WebviewOutbox::new();
         for index in 0..(MAX_PENDING_WEBVIEW_MESSAGES + 50) {
-            push_webview_message(
-                &mut queue,
-                format!(r#"{{"type":"live-event","n":{index}}}"#),
-            );
+            outbox.push(format!(r#"{{"type":"live-event","n":{index}}}"#));
         }
-        assert_eq!(queue.len(), MAX_PENDING_WEBVIEW_MESSAGES);
+        assert_eq!(outbox.lossy.len(), MAX_PENDING_WEBVIEW_MESSAGES);
+        // Oldest-first shedding: n:0..50 are gone, n:50 survives.
+        assert!(outbox.lossy[0].body.contains(r#""n":50"#));
+        assert!(outbox.reliable.is_empty());
     }
 
     #[test]
     fn rpc_response_survives_saturation() {
-        let mut queue = std::collections::VecDeque::new();
+        let mut outbox = WebviewOutbox::new();
         for index in 0..MAX_PENDING_WEBVIEW_MESSAGES {
-            push_webview_message(
-                &mut queue,
-                domain_event("live.ui-event", &format!(r#"{{"event":{{"n":{index}}}}}"#)),
-            );
+            outbox.push(domain_event(
+                "live.ui-event",
+                &format!(r#"{{"event":{{"n":{index}}}}}"#),
+            ));
         }
-        assert_eq!(queue.len(), MAX_PENDING_WEBVIEW_MESSAGES);
-        push_webview_message(
-            &mut queue,
-            r#"{"type":"rpc-response","response":{"id":7,"result":{}}}"#.to_owned(),
-        );
-        // Still capped, the response kept, and exactly the oldest feed
-        // event shed to make room for it.
-        assert_eq!(queue.len(), MAX_PENDING_WEBVIEW_MESSAGES);
-        assert!(
-            queue.iter().any(|queued| queued.body.contains(r#""id":7"#)),
-            "rpc-response was evicted under saturation"
-        );
-        assert!(
-            !queue
-                .iter()
-                .any(|queued| queued.body.contains(r#"{"n":0}"#)),
-            "saturation must shed oldest droppable first"
-        );
+        assert_eq!(outbox.lossy.len(), MAX_PENDING_WEBVIEW_MESSAGES);
+        outbox.push(r#"{"type":"rpc-response","response":{"id":7,"result":{}}}"#.to_owned());
+        // The response lands in the reliable lane, untouched by the full
+        // lossy lane, and heads the very next batch.
+        assert_eq!(outbox.reliable.len(), 1);
+        assert!(outbox.reliable[0].contains(r#""id":7"#));
+        let batch = outbox.take_batch();
+        assert!(batch[0].contains(r#""id":7"#));
     }
 
     #[test]
-    fn all_critical_burst_grows_without_drops_below_hard_cap() {
-        let mut queue = std::collections::VecDeque::new();
-        for index in 0..600 {
-            push_webview_message(
-                &mut queue,
-                format!(r#"{{"type":"rpc-response","response":{{"id":{index}}}}}"#),
+    fn reliable_lane_never_drops_under_massive_burst() {
+        let mut outbox = WebviewOutbox::new();
+        // 1500 critical messages blow past the old 1024 hard cap that used
+        // to shed them; every one must be retained and drain in order.
+        for index in 0..1500 {
+            outbox.push(format!(
+                r#"{{"type":"rpc-response","response":{{"id":{index}}}}}"#
+            ));
+        }
+        assert_eq!(outbox.reliable.len(), 1500);
+        assert!(outbox.reliable[0].contains(r#""id":0"#));
+        assert!(outbox.reliable[1499].contains(r#""id":1499"#));
+        let mut drained = 0;
+        while !outbox.is_empty() {
+            let batch = outbox.take_batch();
+            assert!(!batch.is_empty());
+            assert!(batch.len() <= MAX_BATCH_PER_TICK);
+            drained += batch.len();
+        }
+        assert_eq!(drained, 1500);
+    }
+
+    #[test]
+    fn critical_transitions_survive_lossy_flood() {
+        let mut outbox = WebviewOutbox::new();
+        for index in 0..(MAX_PENDING_WEBVIEW_MESSAGES + 100) {
+            outbox.push(domain_event(
+                "live.ui-event",
+                &format!(r#"{{"event":{{"n":{index}}}}}"#),
+            ));
+        }
+        for topic in [
+            "live.disconnected",
+            "live.error",
+            "plugin.stopped",
+            "points.changed",
+            "shutdown",
+        ] {
+            outbox.push(domain_event(topic, "{}"));
+        }
+        assert_eq!(outbox.reliable.len(), 5);
+        assert_eq!(outbox.lossy.len(), MAX_PENDING_WEBVIEW_MESSAGES);
+        let batch = outbox.take_batch();
+        for topic in [
+            "live.disconnected",
+            "live.error",
+            "plugin.stopped",
+            "points.changed",
+            "shutdown",
+        ] {
+            assert!(
+                batch.iter().any(|body| body.contains(topic)),
+                "lost {topic} under lossy flood"
             );
         }
-        // Past the soft cap but nothing critical is evicted there.
-        assert_eq!(queue.len(), 600);
-        assert!(queue[0].body.contains(r#""id":0"#));
-        for index in 600..(MAX_PENDING_WEBVIEW_MESSAGES_HARD + 100) {
-            push_webview_message(
-                &mut queue,
-                format!(r#"{{"type":"rpc-response","response":{{"id":{index}}}}}"#),
-            );
-        }
-        // The hard safety cap still bounds memory absolutely.
-        assert_eq!(queue.len(), MAX_PENDING_WEBVIEW_MESSAGES_HARD);
     }
 
     #[test]
     fn live_feed_keeps_fifo_order() {
-        let mut queue = std::collections::VecDeque::new();
+        let mut outbox = WebviewOutbox::new();
         for index in 0..50 {
-            push_webview_message(
-                &mut queue,
-                domain_event("live.ui-event", &format!(r#"{{"event":{{"n":{index}}}}}"#)),
-            );
+            outbox.push(domain_event(
+                "live.ui-event",
+                &format!(r#"{{"event":{{"n":{index}}}}}"#),
+            ));
         }
-        for (position, queued) in queue.iter().enumerate() {
+        for (position, queued) in outbox.lossy.iter().enumerate() {
             assert!(
                 queued.body.contains(&format!(r#"{{"n":{position}}}"#)),
                 "feed reordered at {position}: {}",
@@ -1089,24 +1136,24 @@ mod webview_queue_tests {
 
     #[test]
     fn oversized_bursts_drain_in_capped_batches() {
-        let mut queue = std::collections::VecDeque::new();
+        let mut outbox = WebviewOutbox::new();
         for index in 0..300 {
-            push_webview_message(
-                &mut queue,
-                domain_event("live.ui-event", &format!(r#"{{"event":{{"n":{index}}}}}"#)),
-            );
+            outbox.push(domain_event(
+                "live.ui-event",
+                &format!(r#"{{"event":{{"n":{index}}}}}"#),
+            ));
         }
-        // Below the soft cap nothing is shed; 300 messages need three
-        // capped batches, each preserving order, until the queue is empty.
-        let first = take_next_batch(&mut queue);
-        let second = take_next_batch(&mut queue);
-        let third = take_next_batch(&mut queue);
+        // Below the lossy cap nothing is shed; 300 messages need three
+        // capped batches, each preserving order, until the outbox is empty.
+        let first = outbox.take_batch();
+        let second = outbox.take_batch();
+        let third = outbox.take_batch();
         assert_eq!((first.len(), second.len(), third.len()), (128, 128, 44));
         assert!(first[0].contains(r#"{"n":0}"#));
         assert!(second[0].contains(r#"{"n":128}"#));
         assert!(third[0].contains(r#"{"n":256}"#));
-        assert!(queue.is_empty());
-        assert!(take_next_batch(&mut queue).is_empty());
+        assert!(outbox.is_empty());
+        assert!(outbox.take_batch().is_empty());
     }
 
     #[test]
@@ -1120,13 +1167,12 @@ mod webview_queue_tests {
 
     #[tokio::test]
     async fn lagged_burst_does_not_stop_event_forwarder() {
-        let (sender, receiver) = tokio::sync::broadcast::channel(1);
+        let bus = tiktools_core::events::EventBus::new(1);
+        let receiver = bus.subscribe_domain();
         // Lag the receiver deterministically: blast a >512-event burst
-        // through the capacity-1 channel before the forwarder ever reads.
+        // through the capacity-1 reliable lane before the forwarder reads.
         for _ in 0..600 {
-            sender
-                .send(tiktools_core::events::DomainEvent::LiveDisconnected)
-                .expect("send fits");
+            bus.publish_domain(tiktools_core::events::DomainEvent::LiveDisconnected);
         }
         let forwarded = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let task = {
@@ -1151,9 +1197,7 @@ mod webview_queue_tests {
         })
         .await
         .expect("forwarder must deliver after Lagged");
-        sender
-            .send(tiktools_core::events::DomainEvent::Shutdown)
-            .expect("send fits");
+        bus.publish_domain(tiktools_core::events::DomainEvent::Shutdown);
         tokio::time::timeout(std::time::Duration::from_secs(5), task)
             .await
             .expect("forwarder must terminate after Shutdown")

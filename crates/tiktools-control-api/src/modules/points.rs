@@ -69,7 +69,11 @@ pub fn register(router: &mut ControlRouter) {
         "Updates points configuration (partial object)",
         true,
         |core: Arc<AppCore>, params: PartialPointsConfig| async move {
-            Ok::<PointsConfig, ApiError>(core.points_update_config(params))
+            // Synchronous SQLite write: off the Tokio workers.
+            crate::modules::blocking_task("points.config.set", move || {
+                core.points_update_config(params)
+            })
+            .await
         },
     );
     router.register_typed::<PointsViewerParams, PointsViewerResult, _, _>(
@@ -87,8 +91,12 @@ pub fn register(router: &mut ControlRouter) {
         "Manual points adjustment (creates the viewer record if missing)",
         true,
         |core: Arc<AppCore>, params: PointsAdjustParams| async move {
-            core.points_adjust(&params.unique_id, params.delta)
-                .map_err(ApiError::from)
+            // Synchronous SQLite write: off the Tokio workers.
+            crate::modules::blocking_task("points.adjust", move || {
+                core.points_adjust(&params.unique_id, params.delta)
+            })
+            .await?
+            .map_err(ApiError::from)
         },
     );
     router.register_typed::<PointsLeaderboardParams, PointsLeaderboardResult, _, _>(
@@ -106,7 +114,11 @@ pub fn register(router: &mut ControlRouter) {
         "Resets points for one viewer, or all viewers when uniqueId is omitted",
         true,
         |core: Arc<AppCore>, params: PointsResetParams| async move {
-            core.points_reset(params.unique_id.as_deref());
+            // Synchronous SQLite write: off the Tokio workers.
+            crate::modules::blocking_task("points.reset", move || {
+                core.points_reset(params.unique_id.as_deref());
+            })
+            .await?;
             Ok::<OkResult, ApiError>(OkResult::ok())
         },
     );

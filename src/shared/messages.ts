@@ -355,6 +355,10 @@ export type AnalyticsTopViewer = {
   lastSeen: number;
 };
 
+export type AnalyticsHourRow = {
+  hour: number;
+} & AnalyticsTotals;
+
 export type AnalyticsSummaryData = {
   creatorUniqueId: string;
   startDay: number;
@@ -363,4 +367,7 @@ export type AnalyticsSummaryData = {
   days: AnalyticsDayRow[];
   topViewers: AnalyticsTopViewer[];
   sessions: number;
+  /** True per-hour counters for single-day spans (empty for multi-day spans
+   * and for hosts predating the hourly table). */
+  hours: AnalyticsHourRow[];
 };
