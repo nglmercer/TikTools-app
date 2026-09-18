@@ -456,6 +456,9 @@ fn shipped_sonicboom_example_parses() {
     let manifest = PluginManifest::from_json_str(&input).unwrap();
     assert_eq!(manifest.id, "sonicboom.server");
     assert_eq!(manifest.runtime, PluginRuntimeKind::Declarative);
+    assert_eq!(manifest.icon.as_deref(), Some("voice"));
+    assert!(manifest.tags.contains(&"tts".to_owned()));
+    assert!(manifest.long_description.is_some());
     assert!(manifest.validate_compatibility().is_ok());
     assert!(validate_http_config(manifest.http.as_ref().unwrap()).is_ok());
     assert_eq!(manifest.action_types.len(), 2);
@@ -533,4 +536,77 @@ fn sonicboom_output_action_declares_live_device_source() {
         source.get("labelPath").and_then(Value::as_str),
         Some("name")
     );
+}
+
+#[test]
+fn reads_display_metadata_for_plugin_cards() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{
+            "schemaVersion": 2,
+            "id": "demo.cards",
+            "name": "Demo",
+            "version": "1.0.0",
+            "description": "Short **pitch** with `code`.",
+            "longDescription": "Long **pitch**.\n\n- first\n- second",
+            "icon": "voice",
+            "tags": ["TTS", "chat"],
+            "runtime": "process",
+            "entry": "demo"
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(manifest.icon.as_deref(), Some("voice"));
+    assert_eq!(manifest.tags, vec!["tts".to_owned(), "chat".to_owned()]);
+    assert!(
+        manifest
+            .long_description
+            .as_deref()
+            .is_some_and(|long| long.contains("- second")),
+        "long description survives verbatim for the markdown-lite renderer"
+    );
+}
+
+#[test]
+fn sanitizes_card_metadata_without_failing_discovery() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{
+            "schemaVersion": 2,
+            "id": "demo.cards",
+            "name": "Demo",
+            "version": "1.0.0",
+            "runtime": "process",
+            "entry": "demo",
+            "icon": "<img onerror=1>",
+            "tags": ["ok", "  ", "has space", "ok", 42, "way-too-long-tag-name-over-32-chars!"]
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(manifest.icon, None);
+    assert_eq!(manifest.tags, vec!["ok".to_owned()]);
+
+    let manifest = PluginManifest::from_json_str(
+        r#"{
+            "schemaVersion": 2,
+            "id": "demo.cards",
+            "name": "Demo",
+            "version": "1.0.0",
+            "runtime": "process",
+            "entry": "demo",
+            "tags": "not-an-array"
+        }"#,
+    )
+    .unwrap();
+    assert!(manifest.tags.is_empty());
+}
+
+#[test]
+fn rejects_oversized_long_description() {
+    let long = "x".repeat(17 * 1024);
+    let manifest = format!(
+        r#"{{"schemaVersion": 2, "id": "demo.cards", "name": "Demo", "version": "1.0.0", "runtime": "process", "entry": "demo", "longDescription": "{long}"}}"#
+    );
+    assert!(matches!(
+        PluginManifest::from_json_str(&manifest),
+        Err(ManifestError::InvalidField("longDescription"))
+    ));
 }

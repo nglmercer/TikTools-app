@@ -538,6 +538,34 @@ export function IconUnlock({ size = 18, strokeWidth = 1.75, className }: IconPro
   );
 }
 
+export function IconKeyboard({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6" />
+    </SvgIcon>
+  );
+}
+
+export function IconAudio({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4" />
+    </SvgIcon>
+  );
+}
+
+export function IconDoc({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="9" y1="13" x2="15" y2="13" />
+      <line x1="9" y1="17" x2="13" y2="17" />
+    </SvgIcon>
+  );
+}
+
 /**
  * Semantic aliases: one meaning per name so navigation, toolbars, and empty
  * states never reuse the same glyph for different concepts.

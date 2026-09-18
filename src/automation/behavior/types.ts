@@ -179,6 +179,12 @@ export interface PluginDescriptor {
   name: Localized;
   version: string;
   description: Localized;
+  /** Long-form Details copy (markdown-lite); falls back to `description`. */
+  longDescription?: Localized;
+  /** Host-registry icon name; unknown names fall back to a heuristic icon. */
+  icon?: string;
+  /** Short discovery tags rendered as chips; derived from actions when absent. */
+  tags?: string[];
   /** What it needs from outside the app, in plain words. */
   dependency: Localized;
   permissions: string[];

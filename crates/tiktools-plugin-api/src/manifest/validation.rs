@@ -13,6 +13,9 @@ pub(crate) fn is_supported_schema(version: u32) -> bool {
 pub(crate) const MAX_MANIFEST_BYTES: usize = 256 * 1024;
 pub(crate) const MAX_LIST_ENTRIES: usize = 128;
 pub(crate) const MAX_DESCRIPTOR_BYTES: usize = 64 * 1024;
+/// Long-form card copy rendered as markdown-lite in Details. Four times the
+/// short description: room for a paragraph plus a short list, still bounded.
+pub(crate) const MAX_LONG_DESCRIPTION_LEN: usize = 16 * 1024;
 /// Declarative HTTP timeouts stay inside the automation executor's clamp.
 pub(crate) const MIN_HTTP_TIMEOUT_MS: u64 = 100;
 pub(crate) const MAX_HTTP_TIMEOUT_MS: u64 = 120_000;

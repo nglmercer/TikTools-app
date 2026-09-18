@@ -114,6 +114,16 @@ pub struct PluginManifest {
     /// builds its processor catalog; the raw list is kept here so discovery
     /// never fails on a single bad entry.
     pub processor_types: Vec<Value>,
+    /// Optional host-registry icon name (`keyboard`, `voice`, ...). The host
+    /// only renders names from its own icon registry and falls back to a
+    /// heuristic icon otherwise. Plugins can only name icons, never supply SVG.
+    pub icon: Option<String>,
+    /// Short discovery tags rendered as chips on the plugin card (`tts`,
+    /// `chat`). Sanitized at parse; invalid entries are dropped, never fatal.
+    pub tags: Vec<String>,
+    /// Optional long-form description rendered as safe markdown-lite in the
+    /// Details panel. Snippets fall back to `description` when this is absent.
+    pub long_description: Option<String>,
     /// Host-rendered settings schema, kept as data and never executed.
     pub settings_schema: Option<Value>,
     pub settings_ui_hints: Option<Value>,

@@ -1,5 +1,5 @@
 import type { IconComponent } from './icon-base.tsx';
-import { IconArrowDown, IconBarChart, IconBolt, IconChat, IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconCode, IconConnected, IconCopy, IconCrown, IconDice, IconDisconnected, IconDot, IconEdit, IconFlame, IconFollow, IconFormat, IconGift, IconGlobe, IconHeart, IconHttp, IconInfo, IconJoin, IconJson, IconLink, IconLock, IconMoon, IconPause, IconPlay, IconPlugins, IconPlus, IconPoints, IconPower, IconRadio, IconRefresh, IconSearch, IconSettings, IconShare, IconSparkles, IconSpeaker, IconStar, IconStop, IconSun, IconTemplate, IconTikTok, IconTrash, IconTrophy, IconUnlock, IconUsers, IconVoice, IconVolume, IconWarning, IconWebhook } from './glyphs.tsx';
+import { IconArrowDown, IconAudio, IconBarChart, IconBolt, IconChat, IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconCode, IconConnected, IconCopy, IconCrown, IconDice, IconDisconnected, IconDoc, IconDot, IconEdit, IconFlame, IconFollow, IconFormat, IconGift, IconGlobe, IconHeart, IconHttp, IconInfo, IconJoin, IconJson, IconKeyboard, IconLink, IconLock, IconMoon, IconPause, IconPlay, IconPlugins, IconPlus, IconPoints, IconPower, IconRadio, IconRefresh, IconSearch, IconSettings, IconShare, IconSparkles, IconSpeaker, IconStar, IconStop, IconSun, IconTemplate, IconTikTok, IconTrash, IconTrophy, IconUnlock, IconUsers, IconVoice, IconVolume, IconWarning, IconWebhook } from './glyphs.tsx';
 
 /**
  * Icon identifiers for data-driven UI (event presentation, templates). The
@@ -73,7 +73,10 @@ export type IconName =
   | 'flame'
   | 'star'
   | 'bolt'
-  | 'dot';
+  | 'dot'
+  | 'keyboard'
+  | 'audio'
+  | 'doc';
 
 export const ICONS: Record<IconName, IconComponent> = {
   tiktok: IconTikTok,
@@ -143,6 +146,9 @@ export const ICONS: Record<IconName, IconComponent> = {
   star: IconStar,
   bolt: IconBolt,
   dot: IconDot,
+  keyboard: IconKeyboard,
+  audio: IconAudio,
+  doc: IconDoc,
 };
 
 /** Resolve an icon name with a neutral fallback for unknown values. */

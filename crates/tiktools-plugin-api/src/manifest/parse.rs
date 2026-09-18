@@ -6,7 +6,7 @@ use super::{
         current_platform, current_target, is_safe_relative_path, is_supported_schema,
         is_valid_plugin_id, validate_action_type, validate_declarative_action,
         validate_http_config, ManifestError, MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES,
-        MAX_MANIFEST_BYTES,
+        MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES,
     },
 };
 use crate::{TIKTOOLS_PLUGIN_ABI_VERSION, TIKTOOLS_PLUGIN_PROTOCOL_VERSION};
@@ -54,6 +54,17 @@ impl PluginManifest {
             .is_some_and(|value| value.len() > 4_096)
         {
             return Err(ManifestError::InvalidField("description"));
+        }
+        // Display-only card metadata is sanitized, never fatal: a mistyped
+        // icon or tag must not fail discovery of an otherwise valid plugin.
+        let icon = optional_string(object, "icon").filter(|value| is_icon_name(value));
+        let tags = sanitized_tags(object.get("tags"));
+        let long_description = optional_string(object, "longDescription");
+        if long_description
+            .as_deref()
+            .is_some_and(|value| value.len() > MAX_LONG_DESCRIPTION_LEN)
+        {
+            return Err(ManifestError::InvalidField("longDescription"));
         }
 
         let runtime = optional_string(object, "runtime")
@@ -143,6 +154,9 @@ impl PluginManifest {
             name,
             version,
             description,
+            icon,
+            tags,
+            long_description,
             runtime,
             entry,
             trust,
@@ -257,6 +271,48 @@ fn json_list(object: &Map<String, Value>, key: &'static str) -> Result<Vec<Value
         return Err(ManifestError::InvalidField(key));
     }
     Ok(entries.clone())
+}
+
+/// Host icon-registry names are lowercase slugs the WebView allowlists
+/// before rendering. Well-formed but unknown names still parse and fall back
+/// to a heuristic icon at render time.
+fn is_icon_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value.chars().all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+        })
+}
+
+/// Display tags are lowercase slugs, deduplicated and capped. A non-array
+/// `tags` value is ignored, like every other malformed entry here.
+fn sanitized_tags(value: Option<&Value>) -> Vec<String> {
+    const MAX_TAGS: usize = 12;
+    let Some(entries) = value.and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let mut tags = Vec::new();
+    for entry in entries {
+        let Some(tag) = entry.as_str().map(str::trim).map(str::to_ascii_lowercase) else {
+            continue;
+        };
+        if tag.is_empty()
+            || tag.len() > 32
+            || !tag.chars().all(|character| {
+                character.is_ascii_lowercase()
+                    || character.is_ascii_digit()
+                    || matches!(character, '.' | '_' | '-')
+            })
+            || tags.contains(&tag)
+        {
+            continue;
+        }
+        tags.push(tag);
+        if tags.len() >= MAX_TAGS {
+            break;
+        }
+    }
+    tags
 }
 
 fn settings(object: &Map<String, Value>) -> Result<(Option<Value>, Option<Value>), ManifestError> {

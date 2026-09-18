@@ -162,6 +162,35 @@ Keep action identifiers stable. Protocol and ABI versions are independent:
 
 The host rejects incompatible versions before loading a native library.
 
+## Card display: icon, tags, and descriptions
+
+The Plugins view renders each package as a card with an icon tile, tag chips,
+and a short description; the Details panel shows the long description when
+the manifest provides one:
+
+```json
+{
+  "description": "Short pitch, clamped to two lines on the card.",
+  "longDescription": "Long **pitch** with `code`.\n\n- first\n- second",
+  "icon": "voice",
+  "tags": ["tts", "voice", "chat"]
+}
+```
+
+- `icon` names a host-registry icon (`keyboard`, `audio`, `voice`, `chat`,
+  `webhook`, ...); see `src/web/components/icons/icon-registry.ts`. Plugins
+  can only name icons, never supply SVG: unknown names fall back to a
+  heuristic icon derived from the plugin id, name, tags, and action tags.
+- `tags` are lowercase slugs (12 at most) shown as chips; when absent, the
+  host derives chips from the plugin's action tags. Malformed entries are
+  dropped and never fail discovery.
+- `description` (4096 chars) and `longDescription` (16 KB) render as
+  markdown-lite: `**bold**`, `*italic*`, `` `code` ``, `[label](https://…)`
+  and bare http(s) links, paragraphs, and `- ` lists. Everything else —
+  HTML, scripts, `javascript:` URLs — renders as inert text, because the
+  host builds text nodes instead of parsing markup. The card snippet uses
+  the inline subset; Details renders the full block subset.
+
 ## Event triggers
 
 A plugin can declare its own event types (global hotkeys, timers, file
