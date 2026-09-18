@@ -5,9 +5,9 @@ import { defineVueComponent } from '../vue/component.ts';
 import { IconBolt, IconCheck, IconCoins, IconFlame, IconStar, IconTrash, IconTrophy } from '../components/icons.vue';
 import { Alert, Badge, Card, EmptyState } from '../components/ui/Card.vue';
 import { Button } from '../components/ui/Button.vue';
-import { FormField } from '../components/ui/FormField.vue';
 import { Modal, ModalActions } from '../components/ui/Modal.vue';
 import { NumberInput } from '../components/ui/NumberInput.vue';
+import { NumberField } from '../components/ui/fields/index.ts';
 import { SettingRow } from '../components/ui/SettingRow.vue';
 import { SearchInput, TextInput } from '../components/ui/TextInput.vue';
 import { SplitLayout } from '../components/ui/Page.vue';
@@ -419,9 +419,13 @@ export const PointsView = defineVueComponent<PointsViewProps>(
           }
         >
           <form onSubmit={handleAdjustSubmit}>
-            <FormField label={deductMode.value ? t(locale, 'pointsToDeduct') : t(locale, 'pointsToAdd')}>
-              <NumberInput value={parseFloat(adjustDelta.value) || 0} onValueChange={(value) => { adjustDelta.value = String(Math.abs(value ?? 0)); }} min={0} step={1} />
-            </FormField>
+            <NumberField
+              label={deductMode.value ? t(locale, 'pointsToDeduct') : t(locale, 'pointsToAdd')}
+              value={parseFloat(adjustDelta.value) || 0}
+              onValueChange={(value) => { adjustDelta.value = String(Math.abs(value ?? 0)); }}
+              min={0}
+              step={1}
+            />
           </form>
         </Modal>
       ) : null}

@@ -1,10 +1,14 @@
 <script lang="tsx">
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
-import { FormField } from './FormField.vue';
 import { IconClose } from '../icons/index.ts';
 import { filterMultiOptions } from './controls.ts';
-import { fieldIds, type SelectOption } from './controls.ts';
+import { fieldIds } from './controls.ts';
+import type { SelectOption } from './controls.ts';
+import { FieldShell } from './fields/FieldShell.vue';
+import { InputGroup } from './fields/InputGroup.vue';
+import { AutocompletePopover } from '../autocomplete/AutocompletePopover.vue';
+import { describeField, fieldMessageIds } from './fields/field-logic.ts';
 
 type MultiSelectProps = {
   value: string[];
@@ -12,6 +16,7 @@ type MultiSelectProps = {
   options: SelectOption[];
   label?: string;
   hint?: string;
+  description?: string;
   placeholder?: string;
   disabled?: boolean;
   required?: boolean;
@@ -25,27 +30,40 @@ type MultiSelectProps = {
 let multiFallback = 0;
 
 
+/**
+ * Multi-select on the canonical field system: FieldShell owns
+ * label/required/hint/description/error/border/background/radius/focus/
+ * disabled/size; the dropdown floats through the shared
+ * AutocompletePopover with autocomplete-list styling — no duplicated
+ * popup CSS.
+ */
 export const MultiSelect = defineVueComponent<MultiSelectProps>(
-  ['value', 'onValueChange', 'options', 'label', 'hint', 'placeholder', 'disabled', 'required', 'error', 'id', 'name', 'searchable', 'clearable'],
+  ['value', 'onValueChange', 'options', 'label', 'hint', 'description', 'placeholder', 'disabled', 'required', 'error', 'id', 'name', 'searchable', 'clearable'],
   (props, context) => {
   const open = ref(false);
   const active = ref(-1);
   const query = ref('');
   const rootRef = ref<HTMLDivElement | null>(null);
   const searchRef = ref<HTMLInputElement | null>(null);
+  const controlRef = ref<HTMLDivElement | null>(null);
   const listId = ref('');
   context.expose({
     getValue: () => [...props.value],
     setValue: (v: string[]) => props.onValueChange([...v]),
     clear: () => props.onValueChange([]),
-    focus: () => searchRef.value?.focus(),
+    focus: () => controlRef.value?.focus(),
   });
-  const close = (): void => {
+  const close = (restoreFocus = false): void => {
     open.value = false;
     active.value = -1;
+    if (restoreFocus) controlRef.value?.focus();
   };
   const onOutside = (event: Event): void => {
-    if (rootRef.value && !rootRef.value.contains(event.target as Node)) close();
+    const target = event.target as Node | null;
+    if (rootRef.value && target && rootRef.value.contains(target)) return;
+    const popover = document.querySelector('.autocomplete-popover');
+    if (popover && target && popover.contains(target)) return;
+    close(false);
   };
   if (typeof document !== 'undefined') document.addEventListener('pointerdown', onOutside, true);
   onBeforeUnmount(() => {
@@ -60,89 +78,117 @@ export const MultiSelect = defineVueComponent<MultiSelectProps>(
     multiFallback += 1;
     const { id, describedBy } = fieldIds(props, `tt-multi-${multiFallback}`);
     if (!listId.value) listId.value = `${id}-listbox`;
+    const { descriptionId, errorId } = fieldMessageIds(id);
     const filtered = computed(() => filterMultiOptions(props.options, query.value).filter((o) => !props.value.includes(o.value) || true));
-    const hintId = props.hint ? `${id}-hint` : undefined;
-    const errorId = props.error ? `${id}-error` : undefined;
     const labelOf = (v: string): string => props.options.find((o) => o.value === v)?.label ?? v;
-    const control = (
-      <div ref={rootRef} class={`ui-multi-select ${open.value ? 'is-open' : ''} ${props.error ? 'has-error' : ''} ${props.disabled ? 'is-disabled' : ''}`}>
-        {props.name ? props.value.map((v) => <input key={v} type="hidden" name={props.name} value={v} />) : null}
-        <div
-          class="ui-multi-select__control"
-          role="combobox"
-          aria-expanded={open.value}
-          aria-controls={listId.value}
-          aria-invalid={Boolean(props.error)}
-          aria-describedby={describedBy([hintId, errorId])}
-          aria-label={props.label ?? 'Multi select'}
-          tabindex={props.disabled ? -1 : 0}
-          onClick={() => {
-            if (props.disabled) return;
-            open.value = !open.value;
-            if (open.value) searchRef.value?.focus();
-          }}
-          onKeydown={(e) => {
-            const list = filtered.value.filter((o) => !o.disabled);
-            if (e.key === 'Escape') {
-              e.preventDefault();
-              close();
-            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-              e.preventDefault();
-              open.value = true;
-              const dir = e.key === 'ArrowDown' ? 1 : -1;
-              active.value = list.length === 0 ? -1 : (active.value + dir + list.length) % list.length;
-            } else if (e.key === 'Enter' && open.value && active.value >= 0) {
-              e.preventDefault();
-              const option = filtered.value[active.value];
-              if (option) toggle(option);
-            } else if (e.key === 'Backspace' && props.value.length > 0 && query.value === '') {
-              props.onValueChange(props.value.slice(0, -1));
-            }
-          }}
+    const anchor = (() => {
+      const control = controlRef.value;
+      if (!control) return rootRef.value;
+      const box = control.closest?.('.field__box');
+      return ((box as HTMLElement | null) ?? control) as HTMLElement | null;
+    })();
+    const described = describeField([props.description ? descriptionId : undefined, props.error ? errorId : undefined]) ?? describedBy([props.hint ? `${id}-hint` : undefined, props.error ? `${id}-error` : undefined]);
+    return (
+      <div ref={rootRef}>
+        <FieldShell
+          id={id}
+          label={props.label}
+          hint={props.hint}
+          description={props.description}
+          error={props.error}
+          required={props.required}
+          disabled={props.disabled}
         >
-          <div class="ui-multi-select__chips">
-            {props.value.length === 0 ? (
-              <span class="ui-multi-select__placeholder">{props.placeholder ?? 'Select options'}</span>
-            ) : props.value.map((v) => {
-              const option = props.options.find((o) => o.value === v);
-              const optionDisabled = option?.disabled;
-              return (
-                <span key={v} class="ui-multi-select__chip">
-                  <span>{labelOf(v)}</span>
+          <InputGroup invalid={Boolean(props.error)} disabled={props.disabled}>
+            <div
+              ref={controlRef}
+              class="ui-multi-select__control field-input"
+              role="combobox"
+              aria-expanded={open.value}
+              aria-controls={open.value ? listId.value : undefined}
+              aria-activedescendant={open.value && active.value >= 0 ? `${listId.value}-${active.value}` : undefined}
+              aria-invalid={Boolean(props.error)}
+              aria-describedby={described}
+              aria-label={props.label ?? 'Multi select'}
+              tabindex={props.disabled ? -1 : 0}
+              onClick={() => {
+                if (props.disabled) return;
+                open.value = !open.value;
+                if (open.value) requestAnimationFrame(() => searchRef.value?.focus());
+              }}
+              onKeydown={(e) => {
+                const list = filtered.value.filter((o) => !o.disabled);
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  close(true);
+                } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  open.value = true;
+                  const dir = e.key === 'ArrowDown' ? 1 : -1;
+                  active.value = list.length === 0 ? -1 : (active.value + dir + list.length) % list.length;
+                } else if ((e.key === 'Enter' || e.key === ' ') && open.value && active.value >= 0) {
+                  e.preventDefault();
+                  const option = filtered.value[active.value];
+                  if (option) toggle(option);
+                } else if (e.key === 'Backspace' && props.value.length > 0 && query.value === '') {
+                  props.onValueChange(props.value.slice(0, -1));
+                } else if (e.key === 'Tab' && open.value) {
+                  close(false);
+                }
+              }}
+            >
+              {props.name ? props.value.map((v) => <input key={v} type="hidden" name={props.name} value={v} />) : null}
+              <div class="ui-multi-select__chips">
+                {props.value.length === 0 ? (
+                  <span class="ui-multi-select__placeholder">{props.placeholder ?? 'Select options'}</span>
+                ) : props.value.map((v) => {
+                  const option = props.options.find((o) => o.value === v);
+                  const optionDisabled = option?.disabled;
+                  return (
+                    <span key={v} class="ui-multi-select__chip">
+                      <span>{labelOf(v)}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${labelOf(v)}`}
+                        disabled={props.disabled || optionDisabled}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          props.onValueChange(props.value.filter((entry) => entry !== v));
+                        }}
+                      >
+                        <IconClose size={10} />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+              <span class="ui-multi-select__actions">
+                {props.clearable !== false && props.value.length > 0 ? (
                   <button
                     type="button"
-                    aria-label={`Remove ${labelOf(v)}`}
-                    disabled={props.disabled || optionDisabled}
+                    aria-label="Clear all selected"
+                    disabled={props.disabled}
                     onClick={(e) => {
                       e.stopPropagation();
-                      props.onValueChange(props.value.filter((entry) => entry !== v));
+                      props.onValueChange([]);
                     }}
                   >
                     <IconClose size={10} />
                   </button>
-                </span>
-              );
-            })}
-          </div>
-          <span class="ui-multi-select__actions">
-            {props.clearable !== false && props.value.length > 0 ? (
-              <button
-                type="button"
-                aria-label="Clear all selected"
-                disabled={props.disabled}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  props.onValueChange([]);
-                }}
-              >
-                <IconClose size={10} />
-              </button>
-            ) : null}
-            <span aria-hidden class="ui-multi-select__arrow">▾</span>
-          </span>
-        </div>
-        {open.value && !props.disabled ? (
-          <div class="ui-multi-select__dropdown">
+                ) : null}
+                <span aria-hidden class="ui-multi-select__arrow">▾</span>
+              </span>
+            </div>
+          </InputGroup>
+        </FieldShell>
+        <AutocompletePopover
+          anchor={anchor}
+          open={open.value && !props.disabled}
+          updateKey={`${query.value}:${filtered.value.length}`}
+          anchorMode="field"
+          onPopupPointerChange={() => {}}
+        >
+          <div class="autocomplete-list">
             {props.searchable !== false ? (
               <input
                 ref={searchRef}
@@ -155,13 +201,12 @@ export const MultiSelect = defineVueComponent<MultiSelectProps>(
                   query.value = (e.currentTarget as HTMLInputElement).value;
                   active.value = -1;
                 }}
-                onKeydown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               />
             ) : null}
-            <ul id={listId.value} role="listbox" aria-multiselectable={true} class="ui-multi-select__list" aria-label={props.label ?? 'Options'}>
+            <ul id={listId.value} role="listbox" aria-multiselectable={true} class="autocomplete-section" aria-label={props.label ?? 'Options'}>
               {filtered.value.length === 0 ? (
-                <li class="ui-multi-select__empty" role="option" aria-selected={false}>No options found</li>
+                <li class="autocomplete-item" role="option" aria-selected={false}>No options found</li>
               ) : filtered.value.map((option, index) => {
                 const selected = props.value.includes(option.value);
                 return (
@@ -171,28 +216,22 @@ export const MultiSelect = defineVueComponent<MultiSelectProps>(
                     role="option"
                     aria-selected={selected}
                     aria-disabled={option.disabled}
-                    class={`ui-multi-select__option ${selected ? 'is-selected' : ''} ${active.value === index ? 'is-active' : ''} ${option.disabled ? 'is-disabled' : ''}`}
+                    class={`autocomplete-item ${selected ? 'is-selected' : ''} ${active.value === index ? 'is-selected' : ''} ${option.disabled ? 'is-disabled' : ''}`}
                     onMouseenter={() => { if (!option.disabled) active.value = index; }}
                     onMousedown={(e) => {
                       e.preventDefault();
                       toggle(option);
                     }}
                   >
-                    <span class="ui-multi-select__check" aria-hidden>{selected ? '✓' : ''}</span>
-                    <span>{option.label}</span>
+                    <span class="autocomplete-item__icon" aria-hidden>{selected ? '✓' : ''}</span>
+                    <span class="autocomplete-item__body"><span class="autocomplete-item__label">{option.label}</span></span>
                   </li>
                 );
               })}
             </ul>
           </div>
-        ) : null}
+        </AutocompletePopover>
       </div>
-    );
-    if (!props.label && !props.hint && !props.error) return control;
-    return (
-      <FormField label={props.label} hint={props.hint} error={props.error} htmlFor={id} required={props.required}>
-        {control}
-      </FormField>
     );
   };
   },

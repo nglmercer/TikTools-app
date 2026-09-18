@@ -1,6 +1,10 @@
-# UI Kit — Quick Reference (new `src/web/components/ui/`)
+# UI Kit — Quick Reference (canonical `src/web/components/ui/fields/`)
 
-All primitives share the same controlled API + imperative `getValue/setValue` via `ref`. This replaces 5 ad-hoc input styles.
+All primitives share the same controlled API + imperative `getValue/setValue` via `ref`.
+FieldShell is the sole owner of label, required marker, info tooltip,
+description/error, border, background, radius, focus ring, disabled state
+and size. Never wrap a field in `FormField`/`FieldRow` — pass `label`,
+`hint`, `description` and `error` straight to the field.
 
 ## Installation
 Already imported in `src/web/styles.css` via `ui.css`. No new deps.
@@ -8,49 +12,58 @@ Already imported in `src/web/styles.css` via `ui.css`. No new deps.
 ## Primitives
 
 ```vue
-import { FormField, FieldRow } from './components/ui/FormField.vue';
-import { TextInput, SearchInput } from './components/ui/TextInput.vue';
-import { NumberInput } from './components/ui/NumberInput.vue';
-import { Select } from './components/ui/Select.vue';
+import { FieldShell, InputGroup } from './components/ui/fields/index.ts';
+import { TextField, SearchField, NumberField, SelectField, PasswordField, TemplateField } from './components/ui/fields/index.ts';
 import { Checkbox, Switch } from './components/ui/Checkbox.vue';
 import { Card, Badge, Alert, EmptyState, Chip, ChipGroup } from './components/ui/Card.vue';
 import { Button } from './components/ui/Button.vue';
 import { DataTable, type Column } from './components/ui/Table.vue';
 import { Page, PageHeader, SplitLayout, StatCard, StatGrid } from './components/ui/Page.vue';
+import { IconSelect } from './components/ui/IconSelect.vue';
+import { MultiSelect } from './components/ui/MultiSelect.vue';
 ```
+
+`TextInput` / `NumberInput` / `Select` / `PasswordInput` / `SearchInput`
+remain as thin compatibility shims over the canonical fields. New code
+should import the `*Field` directly.
 
 ## Form — same `value/onValueChange` everywhere
 
 ```vue
-// Text (prefix @)
-const userRef = useRef<TextInputHandle>(null);
-<TextInput value={user} onValueChange={setUser} prefix="@" placeholder="handle" error={err} />
+// Text (prefix @, label owned by the field itself)
+const userRef = useRef<TextFieldHandle>(null);
+<TextField id="user" value={user} onValueChange={setUser} label="Usuario del Creador" hint="El @ es opcional" prefix="@" placeholder="handle" error={err} />
 userRef.current?.getValue() // "crizthplay"
 userRef.current?.setValue("other")
 userRef.current?.clear()
 
 // Number with stepper + suffix
-<NumberInput value={bonus} onValueChange={setBonus} min={0} max={500} step={5} suffix="%" />
+<NumberField value={bonus} onValueChange={setBonus} label="Bonus" min={0} max={500} step={5} suffix="%" />
 
-// Select
-<Select value={locale} onValueChange={setLocale} options={[{value:'en',label:'English'}]} />
+// Native select (OS popup; custom icon lists use IconSelect)
+<SelectField value={locale} onValueChange={setLocale} label="Language" options={[{value:'en',label:'English'}]} />
+
+// Icon select (custom listbox on the shared AutocompletePopover)
+<IconSelect value={voice} onChange={setVoice} label="Voice" ariaLabel="Voice" options={voiceOptions} />
+
+// ComboBox: TextField with options (recents, dynamic lists).
+// Focus-empty opens, typing filters, pick commits — same popover,
+// same field-anchored sizing as every autocomplete.
+<TextField value={creator} onValueChange={setCreator} label="Creator" options={recentOptions} onOptionPick={connect} />
 
 // Checkbox / Switch
 <Checkbox checked={enabled} onCheckedChange={setEnabled} label="Puntos por Like" />
 <Switch checked={enabled} onCheckedChange={setEnabled} label="Activo" />
 
 // Search (with clear button)
-<SearchInput value={q} onValueChange={setQ} placeholder="Buscar…" />
-
-// Wrap with label/hint/error
-<FormField label="Usuario del Creador" hint="El @ es opcional" error={fieldError} htmlFor="user">
-  <TextInput id="user" value={user} onValueChange={setUser} />
-</FormField>
-
-<FieldRow label="Puntos por moneda">
-  <NumberInput value={pts} onValueChange={setPts} min={0} step={0.1} />
-</FieldRow>
+<SearchField value={q} onValueChange={setQ} label="Search" placeholder="Buscar…" />
 ```
+
+Dropdowns (`SelectField` native popup excluded) share one floating
+primitive: `AutocompletePopover` + `autocomplete-list` classes. Field-
+anchored popups match the anchor control width and clamp only to the
+viewport/global maximum. Caret-anchored template autocomplete uses a
+compact preferred width. Do not add per-input popup CSS.
 
 ## Card / Page
 
@@ -96,15 +109,15 @@ const cols: Column<ViewerRecord>[] = [
 
 ```vue
 <Button variant="primary" block>Conectar al LIVE</Button>
-<Button variant="soft" size="sm">+ Cookie</Button>
+<Button variant="soft" size="sm" icon={<IconLock size={14} />} tooltip="Guest mode is fast & anonymous">Cookie de sesión</Button>
 <Button variant="cyan" icon={<IconDice/>} iconOnly tooltip="Pick Random LIVE" />
 <Button variant="danger" icon={<IconTrash/>} />
 ```
 
 ## Migration Checklist
 - [ ] Replace `connect-card`/`tikfinity-card`/`stats-card-large` → `<Card>`
-- [ ] Replace `input[type=text]`/`tikfinity-number-input`/`feed-search-wrap` → `TextInput`/`NumberInput`/`SearchInput` + `FormField`
-- [ ] Replace `tikfinity-toggle-row` → `<FieldRow><Checkbox/><NumberInput/></FieldRow>`
+- [ ] Replace `input[type=text]`/`tikfinity-number-input`/`feed-search-wrap` → `TextField`/`NumberField`/`SearchField` with `label`/`hint`/`error` props directly (no `FormField` wrapper)
+- [ ] Replace `tikfinity-toggle-row` → `<Checkbox/>` + `<NumberField/>` with direct labels
 - [ ] Replace `tikfinity-table` + analytics flex list → `<DataTable>`
 - [ ] Replace `.error-banner`/`.recent-chip`/inline styles → `<Alert>`/`<Chip>`/`<Badge>`
 - [ ] Wrap each view in `<Page>` (`narrow` for Connect/Settings)

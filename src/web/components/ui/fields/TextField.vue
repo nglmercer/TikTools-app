@@ -10,11 +10,7 @@ import { FieldShell } from './FieldShell.vue';
 import { InputGroup } from './InputGroup.vue';
 import { describeField, fieldControlId, fieldMessageIds, type FieldSize } from './field-logic.ts';
 import { comboboxInputAttrs, type PresetItem } from '../../autocomplete/autocomplete-controller.ts';
-import {
-  AUTOCOMPLETE_PREFERRED_WIDTH,
-  AUTOCOMPLETE_PRESET_MAX_WIDTH,
-  AUTOCOMPLETE_PRESET_MIN_WIDTH,
-} from '../../autocomplete/autocomplete-position.ts';
+import type { SuggestionItem } from '../../autocomplete/types.ts';
 import { useAutocompleteInput } from '../../autocomplete/use-autocomplete.ts';
 import { AutocompleteList } from '../../autocomplete/AutocompleteList.vue';
 import { AutocompletePopover } from '../../autocomplete/AutocompletePopover.vue';
@@ -68,6 +64,17 @@ export type TextFieldProps = {
    * are NEVER suggested here (see TemplateField for those).
    */
   presets?: PresetItem[];
+  /**
+   * ComboBox options (recent creators, dynamic lists). When present this
+   * field runs the options-mode controller: focus-empty opens the full
+   * list, typing filters by label/value, click/Enter commits the value.
+   * Takes precedence over `presets`; same field-anchored popover.
+   */
+  options?: SuggestionItem[];
+  /** Open the options list on focus-empty (default true). */
+  openOnFocus?: boolean;
+  /** Fires with the committed option value (in addition to onValueChange). */
+  onOptionPick?: (value: string) => void;
   onEnter?: () => void;
   onFocus?: () => void;
   onBlur?: () => void;
@@ -83,16 +90,20 @@ let textFieldFallback = 0;
  * controller — which by construction never suggests template variables.
  */
 export const TextField = defineVueComponent<TextFieldProps>(
-  ['value', 'onValueChange', 'id', 'name', 'label', 'hint', 'hintPosition', 'description', 'error', 'placeholder', 'required', 'disabled', 'readonly', 'size', 'locale', 'ariaLabel', 'leadingIcon', 'trailingIcon', 'leading', 'trailing', 'prefix', 'suffix', 'clearable', 'clearLabel', 'inputType', 'autoComplete', 'spellCheck', 'maxLength', 'presets', 'onEnter', 'onFocus', 'onBlur', 'className'],
+  ['value', 'onValueChange', 'id', 'name', 'label', 'hint', 'hintPosition', 'description', 'error', 'placeholder', 'required', 'disabled', 'readonly', 'size', 'locale', 'ariaLabel', 'leadingIcon', 'trailingIcon', 'leading', 'trailing', 'prefix', 'suffix', 'clearable', 'clearLabel', 'inputType', 'autoComplete', 'spellCheck', 'maxLength', 'presets', 'options', 'openOnFocus', 'onOptionPick', 'onEnter', 'onFocus', 'onBlur', 'className'],
   (props, context) => {
     const innerRef = ref<HTMLInputElement | null>(null);
     const focused = ref(false);
     const cursor = ref(normalizeControlString(props.value).length);
     textFieldFallback += 1;
     const fallbackId = `tt-field-${textFieldFallback}`;
+    const hasOptions = (): boolean => (props.options?.length ?? 0) > 0;
+    const hasPresets = (): boolean => !hasOptions() && (props.presets?.length ?? 0) > 0;
     const autocomplete = useAutocompleteInput(() => ({
-      mode: 'preset',
+      mode: hasOptions() ? 'options' : 'preset',
       presets: props.presets,
+      options: props.options,
+      openOptionsOnFocus: props.openOnFocus,
       locale: props.locale ?? 'en',
     }));
     const readCaret = (): number => {
@@ -141,13 +152,13 @@ export const TextField = defineVueComponent<TextFieldProps>(
       const { descriptionId, errorId } = fieldMessageIds(id);
       const locale = props.locale ?? 'en';
       const value = normalizeControlString(props.value);
-      const presetMode = (props.presets?.length ?? 0) > 0;
+      const suggestMode = hasOptions() || hasPresets();
       const snapshot = autocomplete.snapshot.value;
       const showClear = Boolean(props.clearable && value && !props.disabled && !props.readonly);
       const leading = props.leading ?? (props.leadingIcon ? <Icon name={props.leadingIcon} size={14} /> : undefined);
       const trailing = props.trailing ?? (props.trailingIcon ? <Icon name={props.trailingIcon} size={14} /> : undefined);
       const describedBy = describeField([props.description ? descriptionId : undefined, props.error ? errorId : undefined]);
-      const comboAttrs = presetMode
+      const comboAttrs = suggestMode
         ? comboboxInputAttrs({
           listId: autocomplete.listId,
           open: snapshot.open,
@@ -164,7 +175,11 @@ export const TextField = defineVueComponent<TextFieldProps>(
         } as const;
       const pushState = (next: string, caret: number, isFocused: boolean): void => {
         cursor.value = caret;
-        if (presetMode) autocomplete.update(next, caret, isFocused);
+        if (suggestMode) autocomplete.update(next, caret, isFocused);
+      };
+      const applySuggestResult = (applied: { value: string; caret: number; row: { item: { value: string } } }): void => {
+        applyPresetResult(applied.value, applied.caret);
+        if (hasOptions()) props.onOptionPick?.(applied.row.item.value);
       };
       return (
         <>
@@ -211,14 +226,15 @@ export const TextField = defineVueComponent<TextFieldProps>(
                   pushState(target.value, target.selectionStart ?? target.value.length, true);
                 }}
                 onKeydown={(e) => {
-                  if (presetMode) {
+                  if (suggestMode) {
                     const result = autocomplete.keydown(e);
                     if (result === 'commit') {
                       const caret = readCaret();
                       const applied = autocomplete.commit(value, caret);
-                      if (applied) applyPresetResult(applied.value, applied.caret);
+                      if (applied) applySuggestResult(applied);
                       return;
                     }
+                    if (result === 'dismissed') return;
                   }
                   if (e.key === 'Enter' && props.onEnter) props.onEnter();
                 }}
@@ -240,15 +256,17 @@ export const TextField = defineVueComponent<TextFieldProps>(
               ) : null}
             </InputGroup>
           </FieldShell>
-          {presetMode ? (
+          {suggestMode ? (
             <AutocompletePopover
-              anchor={innerRef.value}
+              anchor={(() => {
+                const input = innerRef.value;
+                if (!input) return null;
+                const box = input.closest?.('.field__box');
+                return (box as HTMLElement | null) ?? input;
+              })()}
               open={snapshot.open}
               updateKey={cursor.value}
               anchorMode="field"
-              preferredWidth={AUTOCOMPLETE_PREFERRED_WIDTH}
-              minWidth={AUTOCOMPLETE_PRESET_MIN_WIDTH}
-              maxWidth={AUTOCOMPLETE_PRESET_MAX_WIDTH}
               onPopupPointerChange={(inside) => autocomplete.setPopupPointerInside(inside)}
             >
               <AutocompleteList
@@ -260,7 +278,7 @@ export const TextField = defineVueComponent<TextFieldProps>(
                 onPick={(row) => {
                   const caret = readCaret();
                   const applied = autocomplete.pickRow(value, caret, row.key ?? row.item.value);
-                  if (applied) applyPresetResult(applied.value, applied.caret);
+                  if (applied) applySuggestResult(applied);
                 }}
                 ariaLabel={props.label ?? 'Suggestions'}
                 footer={t(locale, 'autocompleteNavigateInsert')}

@@ -4,14 +4,15 @@ import { defineVueComponent } from '../vue/component.ts';
 
 import type { PluginPageDescriptor, PluginStatus } from '../../automation/behavior/types.ts';
 import { pluginNavId, type PluginConnectionState } from '../../automation/plugins/declarative.ts';
-import { IconConnected, IconDice, IconRadio, IconUsers } from '../components/icons.vue';
-import { Alert, Badge, Card, Chip, ChipGroup, EmptyState } from '../components/ui/Card.vue';
+import { IconConnected, IconDice, IconLock, IconRadio } from '../components/icons.vue';
+import { Alert, Badge, Card, EmptyState } from '../components/ui/Card.vue';
 import { Button } from '../components/ui/Button.vue';
-import { TextInput } from '../components/ui/TextInput.vue';
-import { PasswordInput } from '../components/ui/PasswordInput.vue';
+import { TextField, PasswordField } from '../components/ui/fields/index.ts';
+import { InfoTip } from '../components/ui/InfoTip.vue';
 import { Page, PageHeader } from '../components/ui/Page.vue';
 import { i18nText, t, type Locale } from '../i18n.ts';
 import type { AppTab, ConnectionStatus } from '../types.ts';
+import type { SuggestionItem } from '../components/autocomplete/types.ts';
 
 type ConnectionsViewProps = {
   locale: Locale;
@@ -36,11 +37,11 @@ type ConnectionsViewProps = {
 };
 
 /**
- * Unified Connections hub: TikTok LIVE (creator form + recent streamers)
- * and plugin server connections (status, test, configure) live on one tab
- * instead of two same-named "Connection" entries. Cards reuse the shared
- * Card/Badge/Chip primitives and the plugin status copy so both connection
- * kinds read as one experience.
+ * Unified Connections hub: TikTok LIVE (creator ComboBox + cookie) and
+ * plugin server connections on one tab. TopNav owns the global connection
+ * status and current creator, so this view renders no status badges.
+ * Recent streamers live inside the creator autocomplete (open on focus,
+ * filter while typing) instead of a second card.
  */
 export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
   ['locale', 'uniqueId', 'cookie', 'status', 'recents', 'error', 'plugins', 'pluginPages', 'connections', 'onUniqueIdChange', 'onCookieChange', 'onConnect', 'onDisconnect', 'onReconnect', 'onPickLive', 'onSelectRecent', 'onTestConnection', 'onOpenPluginPage', 'onOpenPlugins'],
@@ -79,13 +80,6 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
     const { locale, uniqueId, cookie, status, recents, error, onUniqueIdChange, onCookieChange, onConnect, onDisconnect, onReconnect, onPickLive, onSelectRecent } = props;
     const isBusy = status === 'connecting' || status === 'retrying';
     const isLive = status === 'connected';
-    const statusKey = status === 'connected'
-      ? 'live'
-      : status === 'connecting' || status === 'retrying'
-        ? 'connecting'
-        : status === 'error'
-          ? 'needsAttention'
-          : 'disconnected';
     const handleSubmit = (e: SubmitEvent) => {
       e.preventDefault();
       onConnect();
@@ -93,95 +87,96 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
     const servers = props.plugins.filter(
       (plugin) => plugin.installed && plugin.enabled && plugin.descriptor.hasConnectionProbe,
     );
+    const recentOptions: SuggestionItem[] = recents.map((creator) => ({
+      value: creator.replace(/^@/, ''),
+      label: `@${creator.replace(/^@/, '')}`,
+      kind: 'path' as const,
+      icon: 'users' as const,
+    }));
 
     return (
       <Page width="wide">
         <PageHeader
           title={t(locale, 'connectionsTitle')}
           icon={<IconConnected />}
-          meta={(
-            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-              <Badge>{t(locale, statusKey)}</Badge>
-              {props.uniqueId ? <Badge>@{props.uniqueId.replace(/^@/, '')}</Badge> : null}
-            </span>
-          )}
         />
 
-        <div class="ui-cols-2">
-          <Card title={t(locale, 'connectToLive')} subtitle={t(locale, 'connectionsLiveLead')} icon={<IconRadio />}>
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {isLive ? <Alert variant="info">{t(locale, 'live')} — {t(locale, 'disconnectToChangeCreator')}</Alert> : null}
-              <TextInput
-                id="connect-creator"
-                name="creator"
-                value={uniqueId}
-                onValueChange={onUniqueIdChange}
-                label={t(locale, 'creatorHandle')}
-                hint={t(locale, 'leadingAtOptional')}
-                prefix="@"
-                required
+        <Card title={t(locale, 'connectToLive')} subtitle={t(locale, 'connectionsLiveLead')} icon={<IconRadio />}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {isLive ? <Alert variant="info">{t(locale, 'live')} — {t(locale, 'disconnectToChangeCreator')}</Alert> : null}
+            <TextField
+              id="connect-creator"
+              name="creator"
+              value={uniqueId}
+              onValueChange={onUniqueIdChange}
+              options={recentOptions}
+              onOptionPick={(picked) => onSelectRecent(picked)}
+              label={t(locale, 'creatorHandle')}
+              hint={t(locale, 'leadingAtOptional')}
+              prefix="@"
+              placeholder={t(locale, 'usernamePlaceholder')}
+              required
+              disabled={isLive || isBusy}
+              onEnter={onConnect}
+              locale={locale}
+              autoComplete="off"
+            />
+
+            {showCookie.value ? (
+              <PasswordField
+                id="connect-cookie"
+                name="cookie"
+                value={cookie}
+                onValueChange={onCookieChange}
+                label={`${t(locale, 'authenticatedCookie')} ${t(locale, 'optional')}`}
+                hint={t(locale, 'guestCookieHint')}
+                placeholder={t(locale, 'cookiePlaceholder')}
                 disabled={isLive || isBusy}
-                onEnter={onConnect}
+                autoComplete="off"
+                locale={locale}
               />
+            ) : null}
 
-              {showCookie.value ? (
-                <PasswordInput
-                  id="connect-cookie"
-                  name="cookie"
-                  value={cookie}
-                  onValueChange={onCookieChange}
-                  label={`${t(locale, 'authenticatedCookie')} ${t(locale, 'optional')}`}
-                  hint={t(locale, 'guestCookieHint')}
-                  disabled={isLive || isBusy}
-                  autoComplete="off"
-                  locale={locale}
-                />
-              ) : (
-                <div style={{ marginBottom: 4 }}>
-                  <Button variant="soft" size="sm" onClick={() => (showCookie.value = true)} disabled={isLive || isBusy}>
-                    + {t(locale, 'authenticatedCookie')}
+            {error ? <Alert variant="danger">{error}</Alert> : null}
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'stretch' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 'none' }}>
+                {!showCookie.value ? (
+                  <Button
+                    variant="soft"
+                    size="sm"
+                    icon={<IconLock size={14} />}
+                    tooltip={t(locale, 'guestCookieHint')}
+                    onClick={() => (showCookie.value = true)}
+                    disabled={isLive || isBusy}
+                  >
+                    {t(locale, 'authenticatedCookie')}
                   </Button>
-                </div>
-              )}
-
-              {error ? <Alert variant="danger">{error}</Alert> : null}
-
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                ) : null}
+                <InfoTip text={t(locale, 'guestCookieHint')} position="top" />
+              </div>
+              <div style={{ display: 'flex', gap: 8, flex: '1 1 auto', minWidth: 0 }}>
                 <Button type="submit" variant="primary" block loading={isBusy} disabled={isLive || !uniqueId.trim()}>
                   {isBusy ? t(locale, 'connecting') : isLive ? t(locale, 'live') : t(locale, 'connect')}
                 </Button>
                 <Button variant="cyan" tooltip={t(locale, 'pickLive')} disabled={isLive || isBusy} onClick={onPickLive} icon={<IconDice />} iconOnly />
               </div>
+            </div>
 
-              {isLive || status === 'error' ? (
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  {isLive ? (
-                    <Button variant="danger" block onClick={onDisconnect}>
-                      {t(locale, 'disconnect')}
-                    </Button>
-                  ) : null}
-                  <Button variant="soft" block onClick={onReconnect}>
-                    {t(locale, 'reconnect')}
+            {isLive || status === 'error' ? (
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                {isLive ? (
+                  <Button variant="danger" block onClick={onDisconnect}>
+                    {t(locale, 'disconnect')}
                   </Button>
-                </div>
-              ) : null}
-            </form>
-          </Card>
-
-          <Card title={t(locale, 'recentStreamers')} icon={<IconUsers />} action={recents.length ? <Badge>{recents.length}</Badge> : null}>
-            {recents.length > 0 ? (
-              <ChipGroup>
-                {recents.map((creator) => (
-                  <Chip key={creator} onClick={() => onSelectRecent(creator)}>
-                    @{creator}
-                  </Chip>
-                ))}
-              </ChipGroup>
-            ) : (
-              <EmptyState title={t(locale, 'noRecents')} description="" />
-            )}
-          </Card>
-        </div>
+                ) : null}
+                <Button variant="soft" block onClick={onReconnect}>
+                  {t(locale, 'reconnect')}
+                </Button>
+              </div>
+            ) : null}
+          </form>
+        </Card>
 
         <Card
           title={t(locale, 'connectionsServers')}

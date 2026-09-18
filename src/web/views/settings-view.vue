@@ -14,30 +14,10 @@ type SettingsViewProps = {
   onThemeChange: (t: Theme) => void;
 };
 
-function ThemePreview({ theme, onThemeChange, darkLabel, lightLabel }: { theme: Theme; onThemeChange: (t: Theme) => void; darkLabel: string; lightLabel: string }) {
-  const modes = [
-    { value: 'dark' as Theme, label: darkLabel, icon: <IconMoon size={18} /> },
-    { value: 'light' as Theme, label: lightLabel, icon: <IconSun size={18} /> },
-  ];
-  return (
-    <div class="theme-preview" role="group">
-      {modes.map((mode) => (
-        <button
-          key={mode.value}
-          type="button"
-          class={`theme-preview__swatch is-${mode.value}${theme === mode.value ? ' is-active' : ''}`}
-          onClick={() => onThemeChange(mode.value)}
-          aria-pressed={theme === mode.value}
-          aria-label={mode.label}
-        >
-          <span class="theme-preview__icon" aria-hidden="true">{mode.icon}</span>
-          <span class="theme-preview__caption">{mode.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
+/**
+ * Settings: one explicit theme selector (the top-nav button stays as the
+ * global shortcut). No duplicated Dark/Light preview buttons.
+ */
 function renderSettingsView({ locale, theme, onLocaleChange, onThemeChange }: SettingsViewProps) {
   return (
     <Page width="medium">
@@ -48,18 +28,13 @@ function renderSettingsView({ locale, theme, onLocaleChange, onThemeChange }: Se
             name="theme"
             value={theme}
             label={t(locale, 'theme')}
+            hint={t(locale, 'switchTheme')}
             onValueChange={(v) => onThemeChange(v as Theme)}
             leadingIcon={theme === 'dark' ? <IconMoon size={14} /> : <IconSun size={14} />}
             options={[
               { value: 'dark', label: t(locale, 'dark') },
               { value: 'light', label: t(locale, 'light') },
             ]}
-          />
-          <ThemePreview
-            theme={theme}
-            onThemeChange={onThemeChange}
-            darkLabel={t(locale, 'dark')}
-            lightLabel={t(locale, 'light')}
           />
         </Card>
 

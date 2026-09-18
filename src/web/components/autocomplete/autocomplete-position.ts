@@ -63,11 +63,13 @@ export const AUTOCOMPLETE_MAX_WIDTH = 520;
 export const AUTOCOMPLETE_MAX_HEIGHT = 360;
 export const AUTOCOMPLETE_GAP = 6;
 export const AUTOCOMPLETE_VIEWPORT_MARGIN = 8;
-/** Default desired width when the anchor is a caret, not a field box. */
+/**
+ * Default desired width when the anchor is a caret, not a field box.
+ * Field-anchored dropdowns intentionally have no preferred/min preset:
+ * they match the anchor control width and clamp only to the
+ * viewport/global maximum.
+ */
 export const AUTOCOMPLETE_PREFERRED_WIDTH = 360;
-/** Compact preset hint: only the width it needs, never the full input. */
-export const AUTOCOMPLETE_PRESET_MIN_WIDTH = 320;
-export const AUTOCOMPLETE_PRESET_MAX_WIDTH = 420;
 
 /** Clamp a desired popup width into the viewport and the width options. */
 export function resolvePopupWidth(

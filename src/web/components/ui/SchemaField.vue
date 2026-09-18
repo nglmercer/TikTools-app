@@ -520,20 +520,16 @@ function renderSelectField({
 }: SelectRenderArgs) {
   if (iconOptions) {
     return (
-      <div class="plg-field">
-        <div class="plg-label-row">
-          <label class="plg-label">{label}</label>
-          {hintText ? <InfoTip text={hintText} position="right" /> : null}
-        </div>
-        <IconSelect
-          ariaLabel={label}
-          value={value}
-          options={iconOptions}
-          onChange={(next) => onValueChange(next)}
-          invalid={Boolean(error)}
-        />
-        {error ? <span class="field-message field-message--error">{error}</span> : null}
-      </div>
+      <IconSelect
+        ariaLabel={label}
+        label={label}
+        hint={hintText || undefined}
+        value={value}
+        options={iconOptions}
+        onChange={(next) => onValueChange(next)}
+        invalid={Boolean(error)}
+        error={error}
+      />
     );
   }
   return (
