@@ -34,14 +34,6 @@ const props = defineProps<TopNavProps>();
           <AppIcon :size="28" />
         </div>
       </Tooltip>
-      <div class="brand-info">
-        <h1>
-          TikTok LIVE
-          <span :class="['badge-live', props.status === 'connected' ? 'live' : props.status === 'connecting' || props.status === 'retrying' ? 'busy' : 'offline']">
-            {{ props.status === 'connected' ? t(props.locale, 'live') : props.status === 'connecting' || props.status === 'retrying' ? t(props.locale, 'connecting') : t(props.locale, 'disconnected') }}
-          </span>
-        </h1>
-      </div>
     </div>
 
     <div class="top-center">
