@@ -335,7 +335,7 @@ export const PluginConnectionCard = defineVueComponent<PluginConnectionCardProps
         <div class="plg-connect__actions">
           <button
             type="button"
-            class="plg-btn plg-btn--sm"
+            class="btn btn-sm"
             onClick={() => { showProvision.value = true; }}
           >
             {t(props.locale, 'pluginGetApiToken')}
@@ -382,7 +382,7 @@ export const PluginConnectionCard = defineVueComponent<PluginConnectionCardProps
             <div class="plg-connect__actions">
               <button
                 type="button"
-                class="plg-btn plg-btn--primary plg-btn--sm"
+                class="btn btn-primary btn-sm"
                 disabled={testing.value}
                 onClick={testConnection}
               >
@@ -390,7 +390,7 @@ export const PluginConnectionCard = defineVueComponent<PluginConnectionCardProps
               </button>
               <button
                 type="button"
-                class="plg-btn plg-btn--sm"
+                class="btn btn-sm"
                 onClick={() => { editing.value = true; }}
               >
                 {t(locale, 'pluginEditSettings')}
@@ -450,7 +450,7 @@ export const PluginConnectionCard = defineVueComponent<PluginConnectionCardProps
           <div class="plg-connect__actions">
             <button
               type="button"
-              class="plg-btn plg-btn--primary plg-btn--block"
+              class="btn btn-primary btn-block"
               disabled={!state || testing.value || urlInvalid.value}
               onClick={testConnection}
             >

@@ -78,3 +78,59 @@ button:disabled {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+/* ==========================================================================
+   Generic buttons (daisyUI-like): compose `btn` + variant + size, e.g.
+   `btn btn-primary btn-sm`, `btn btn-block`, `btn btn-ghost btn-icon`.
+   Tokens come straight from :root so these work in EVERY view — no .plg
+   wrapper or feature scope needed. Prefer these for new markup; the legacy
+   .plg-btn* / .ui-btn* systems keep working as aliases.
+   ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-elevated);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s, filter 0.15s;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--tt-pink);
+  transform: none;
+}
+.btn:active:not(:disabled) { transform: none; }
+.btn:focus-visible { outline: 2px solid var(--line-focus); outline-offset: 1px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Variants */
+.btn-primary {
+  background: linear-gradient(135deg, var(--tt-pink), #c72477);
+  border-color: transparent;
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) { border-color: transparent; filter: brightness(1.08); }
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--line); color: var(--text); }
+/* .btn-danger extends the legacy standalone rule above with a clearer border
+   when composed as `btn btn-danger`. */
+.btn.btn-danger { border-color: rgba(239, 71, 111, 0.4); }
+
+/* Sizes & shapes */
+.btn-sm { height: 30px; min-height: 30px; padding: 0 10px; font-size: 12px; border-radius: 7px; }
+.btn-block { width: 100%; }
+.btn.btn-icon { width: 32px; min-height: 0; flex-shrink: 0; }
+

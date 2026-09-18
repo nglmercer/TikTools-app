@@ -3,7 +3,12 @@
    Tokens come from the app palette so light theme keeps working.
    ========================================================================== */
 
-.plg {
+/* --plg-* tokens live on :root (not only under .plg) so shared pieces like
+   PluginConnectionCard and .plg-dot render identically inside AND outside
+   .plg views. The Connections tab, for example, is a Page/Card — not wrapped
+   in .plg — so vars scoped to .plg alone resolved to nothing there and the
+   buttons fell back to transparent plain-text look. */
+:root {
   --plg-surface: var(--panel-solid);
   --plg-field: var(--input-bg);
   --plg-line: var(--line);
@@ -15,7 +20,11 @@
   --plg-ok: var(--tt-green);
   --plg-err: var(--tt-danger);
   --plg-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
 
+:root[data-theme="light"] { --plg-line-strong: rgba(15, 23, 42, 0.22); }
+
+.plg {
   display: flex;
   flex: 1;
   min-width: 0;
@@ -24,8 +33,6 @@
   overflow: hidden;
   color: var(--plg-text);
 }
-
-:root[data-theme="light"] .plg { --plg-line-strong: rgba(15, 23, 42, 0.22); }
 
 /* ---- shared primitives ---- */
 .plg-btn {
@@ -512,13 +519,15 @@
   gap: 8px;
   padding-top: 2px;
 }
-/* Secondary connection buttons must read as buttons: the global `button`
-   reset + the dark input-bg made them look like plain text links. */
+/* Legacy .plg-btn inside connection actions keeps a visible surface when it
+   is used (new markup uses the generic `btn` system from buttons.css, which
+   needs no override). */
 .plg-connect__actions .plg-btn--sm {
   border-color: var(--plg-line-strong);
   background: var(--panel-elevated);
 }
-.plg-connect__actions .plg-btn--block { flex: 1 1 100%; }
+.plg-connect__actions .plg-btn--block,
+.plg-connect__actions .btn-block { flex: 1 1 100%; }
 .plg-list {
   list-style: none;
   margin: 0;
