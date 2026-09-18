@@ -120,8 +120,8 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
   const error = props.error;
   const currentScreen = screen.value;
   const hotkeySummary = props.hotkeyStatus ? summarizeHotkeyStatus(props.hotkeyStatus) : null;
-  // Always-visible listener status while the plugin is installed: healthy
-  // and starting states must be as obvious as failures.
+  // Listener status while the plugin is installed, collapsed into a floating
+  // badge; the tooltip carries the full headline, diagnostics, and last event.
   const hotkeyPanel = (() => {
     const plugin = snapshot.plugins.find((entry) => entry.descriptor.id === 'hotkeys');
     if (!plugin?.installed) return null;
@@ -246,22 +246,28 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
   const sortedActions = sortRows(visibleActions, actionSort.value);
   const sortedEvents = sortRows(visibleEvents, eventSort.value);
 
+  const hotkeyTip = hotkeyPanel
+    ? [t(locale, 'hotkeyStatusTitle'), hotkeyPanel.headline, ...hotkeyPanel.lines, hotkeyPanel.lastEvent]
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+      .join(' — ')
+    : '';
+
   return (
-    <div class="plg">
+    <div class="plg plg--behavior">
       {error && <div class="plg-stack"><div class="plg-alert">{error}</div></div>}
 
       {hotkeyPanel && (
-        <div class="plg-stack plg-hotkey-status" role="status" aria-live="polite">
-          <div class={`plg-panel plg-hotkey-status__panel${hotkeyPanel.tone === 'err' ? ' plg-panel--err' : hotkeyPanel.tone === 'ok' ? ' plg-panel--ok' : ''}`}>
-            <div class="plg-hotkey-status__head">
-              <span class={`plg-dot${hotkeyPanel.tone === 'err' ? ' is-err' : hotkeyPanel.tone === 'ok' ? ' is-ok' : ''}`} />
-              <strong>{t(locale, 'hotkeyStatusTitle')}</strong>
-              <span class="plg-hotkey-status__headline">{hotkeyPanel.headline}</span>
-            </div>
-            {hotkeyPanel.lines.map((line) => <span class="plg-hotkey-status__line plg-mono" key={line}>{line}</span>)}
-            {hotkeyPanel.lastEvent && <span class="plg-hotkey-status__line plg-mono">{hotkeyPanel.lastEvent}</span>}
-          </div>
-        </div>
+        <span class="plg-hotkey-float">
+          <Tooltip text={hotkeyTip} position="left">
+            <span class="plg-hotkey-float__body" role="img" aria-label={hotkeyTip}>
+              <Icon name="keyboard" size={15} />
+              <span
+                class={`plg-dot${hotkeyPanel.tone === 'err' ? ' is-err' : hotkeyPanel.tone === 'ok' ? ' is-ok' : ''}`}
+                aria-hidden="true"
+              />
+            </span>
+          </Tooltip>
+        </span>
       )}
 
       <div class="plg-body">
