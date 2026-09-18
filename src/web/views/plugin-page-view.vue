@@ -391,7 +391,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
             class="plg-btn plg-btn--sm"
             onClick={() => { showProvision.value = true; }}
           >
-            Get API token…
+            {t(props.locale, 'pluginGetApiToken')}
           </button>
         </div>
         {showProvision.value && (

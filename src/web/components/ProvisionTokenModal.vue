@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { defineVueComponent } from '../vue/component.ts';
 import { Button } from './ui/Button.vue';
 import { Modal, ModalActions } from './ui/Modal.vue';
-import type { Locale } from '../i18n.ts';
+import { t, type Locale } from '../i18n.ts';
 
 type ProvisionTokenModalProps = {
   locale: Locale;
@@ -41,10 +41,11 @@ export const ProvisionTokenModal = defineVueComponent<ProvisionTokenModalProps>(
     const succeeded = attempted.value && !props.working && props.result?.ok === true;
     const failed = attempted.value && !props.working && props.result && !props.result.ok;
     const canSubmit = !props.working && username.value.trim().length > 0 && password.value.length > 0;
+    const locale = props.locale;
     return (
       <Modal
-        title="Get API token"
-        description={`Sign in with the ${props.pluginName} admin account once. TikTools mints an API token and saves it — the password is never stored.`}
+        title={t(locale, 'provisionTitle')}
+        description={t(locale, 'provisionLead', { name: props.pluginName })}
         size="sm"
         onClose={props.onClose}
         closeOnBackdrop={!props.working}
@@ -53,16 +54,16 @@ export const ProvisionTokenModal = defineVueComponent<ProvisionTokenModalProps>(
           succeeded ? (
             <ModalActions>
               <Button variant="primary" onClick={props.onClose}>
-                Done
+                {t(locale, 'dialogClose')}
               </Button>
             </ModalActions>
           ) : (
             <ModalActions>
               <Button variant="soft" disabled={props.working} onClick={props.onClose}>
-                Cancel
+                {t(locale, 'dialogCancel')}
               </Button>
               <Button variant="primary" disabled={!canSubmit} onClick={submit}>
-                {props.working ? 'Getting token…' : 'Get API token'}
+                {props.working ? t(locale, 'provisionWorking') : t(locale, 'provisionSubmit')}
               </Button>
             </ModalActions>
           )
@@ -82,7 +83,7 @@ export const ProvisionTokenModal = defineVueComponent<ProvisionTokenModalProps>(
           {!succeeded && (
             <>
               <div class="plg-field">
-                <label class="plg-label" for="prov-user">Admin ID</label>
+                <label class="plg-label" for="prov-user">{t(locale, 'provisionAdminId')}</label>
                 <input
                   id="prov-user"
                   class="plg-input"
@@ -94,7 +95,7 @@ export const ProvisionTokenModal = defineVueComponent<ProvisionTokenModalProps>(
                 />
               </div>
               <div class="plg-field">
-                <label class="plg-label" for="prov-pass">Admin password</label>
+                <label class="plg-label" for="prov-pass">{t(locale, 'provisionAdminPassword')}</label>
                 <input
                   id="prov-pass"
                   class="plg-input"

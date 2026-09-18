@@ -5,7 +5,7 @@ import type { PluginPageDescriptor, PluginStatus } from '../automation/behavior/
 import { i18nText } from './i18n.ts';
 import { AnalyticsView } from './views/analytics-view.vue';
 import { BehaviorView } from './views/behavior-view.vue';
-import { ConnectView } from './views/connect-view.vue';
+import { ConnectionsView } from './views/connections-view.vue';
 import { FeedView } from './views/feed-view.vue';
 import { PluginPageView } from './views/plugin-page-view.vue';
 import { PluginsView } from './views/plugins-view.vue';
@@ -164,7 +164,7 @@ const activePluginSupportsProvisioning: ComputedRef<boolean> = computed(() => {
         :on-test-processor="app.handleTestProcessor"
       />
 
-      <ConnectView
+      <ConnectionsView
         v-else-if="app.activeTab === 'connect'"
         :locale="app.locale"
         :unique-id="app.uniqueId"
@@ -172,11 +172,19 @@ const activePluginSupportsProvisioning: ComputedRef<boolean> = computed(() => {
         :status="app.status"
         :recents="app.recents"
         :error="app.error"
+        :plugins="app.behavior.plugins"
+        :plugin-pages="app.pluginPages"
+        :connections="app.pluginConnections"
         :on-unique-id-change="app.setUniqueId"
         :on-cookie-change="app.setCookie"
         :on-connect="() => app.handleConnect()"
+        :on-disconnect="app.handleDisconnect"
+        :on-reconnect="app.handleReconnect"
         :on-pick-live="app.handlePickLive"
         :on-select-recent="app.handleSelectRecent"
+        :on-test-connection="app.handleTestPluginConnection"
+        :on-open-plugin-page="app.setActiveTab"
+        :on-open-plugins="app.openPlugins"
       />
 
       <SettingsView
