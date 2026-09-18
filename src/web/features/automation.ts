@@ -21,6 +21,13 @@ export interface AutomationRunsResult {
   runs: BehaviorRun[];
 }
 
+export interface LastHotkeyEvent {
+  key: string;
+  modifiers: string;
+  backend: string;
+  at: number;
+}
+
 /** Behavior snapshot, records, runs, and the workflow graph editor. */
 export function useAutomation(control: ControlClient) {
   const behavior = ref<BehaviorSnapshot>({
@@ -34,6 +41,7 @@ export function useAutomation(control: ControlClient) {
   const behaviorTestRuns = ref<BehaviorRun[]>([]);
   const behaviorError = ref('');
   const hotkeyStatus = ref<HotkeyStatusData | null>(null);
+  const lastHotkeyEvent = ref<LastHotkeyEvent | null>(null);
 
   /** Plugin configuration pages from the behavior snapshot, validated. */
   const pluginPages: ComputedRef<PluginPageDescriptor[]> = computed(() =>
@@ -61,6 +69,36 @@ export function useAutomation(control: ControlClient) {
   control.onPush('hotkey-status', (message) => {
     if (message.type !== 'hotkey-status') return;
     hotkeyStatus.value = message.status;
+  });
+  // Live run updates: the authoritative `automation.runs.changed` domain
+  // topic is primary, the legacy `behavior-runs` push stays as compat.
+  // Both write the same ref, so no manual refresh is ever required.
+  control.onPush('behavior-runs', (message) => {
+    if (message.type !== 'behavior-runs') return;
+    behaviorRuns.value = message.runs;
+  });
+  control.onTopic<{ runs: BehaviorRun[] }>('automation.runs.changed', (data) => {
+    if (!data || !Array.isArray(data.runs)) return;
+    behaviorRuns.value = data.runs;
+  });
+  control.onTopic<{ pluginId?: unknown; eventType?: unknown; event?: unknown }>(
+    'plugin.event',
+    (data) => {
+      if (!data || data.eventType !== 'hotkey.pressed') return;
+      const event = data.event as { data?: { key?: unknown; modifiers?: unknown; backend?: unknown } } | undefined;
+      const detail = event?.data;
+      if (!detail || typeof detail.key !== 'string') return;
+      lastHotkeyEvent.value = {
+        key: detail.key,
+        modifiers: typeof detail.modifiers === 'string' ? detail.modifiers : '',
+        backend: typeof detail.backend === 'string' ? detail.backend : '',
+        at: Date.now(),
+      };
+    },
+  );
+  control.onTopic<{ status: HotkeyStatusData }>('plugin.status', (data) => {
+    if (!data || !data.status || !Array.isArray(data.status.backends)) return;
+    hotkeyStatus.value = data.status;
   });
   control.onPush('behavior-error', (message) => {
     if (message.type !== 'behavior-error') return;
@@ -185,6 +223,7 @@ export function useAutomation(control: ControlClient) {
     behaviorTestRuns,
     behaviorError,
     hotkeyStatus,
+    lastHotkeyEvent,
     pluginPages,
     clearBehaviorError,
     handleSaveAction,

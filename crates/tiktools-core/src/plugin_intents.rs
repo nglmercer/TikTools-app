@@ -68,13 +68,24 @@ impl AppCore {
     }
 
     /// Builds a typed event for one of the calling plugin's declared event
-    /// types. The host stamps identity, timing, depth, and connection context;
-    /// the plugin only supplies the type and its data payload.
-    pub(crate) fn make_plugin_event(&self, source: &Value, event_type: &str, data: Value) -> Value {
+    /// types. The host stamps identity, ownership, timing, depth, and
+    /// connection context; the plugin only supplies the type and its data
+    /// payload. `plugin_id` is host-determined (the polling plugin / the
+    /// emitting manifest), so a plugin can never spoof another owner: the
+    /// stamp is set after the payload is attached and survives the whole
+    /// poll → DomainEvent → automation → IPC → WebView path.
+    pub(crate) fn make_plugin_event(
+        &self,
+        plugin_id: &str,
+        source: &Value,
+        event_type: &str,
+        data: Value,
+    ) -> Value {
         let mut event = json!({
             "id": format!("plugin-event-{}", self.next_sequence()),
             "type": event_type,
             "timestamp": now_millis(),
+            "source": {"kind": "plugin", "pluginId": plugin_id},
             "data": data,
         });
         if let Some(data) = event.get_mut("data").and_then(Value::as_object_mut) {
@@ -121,6 +132,7 @@ impl AppCore {
             ));
         }
         Ok(Some(self.make_plugin_event(
+            &manifest.id,
             source,
             event_type,
             data.clone(),

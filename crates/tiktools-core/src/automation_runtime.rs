@@ -126,7 +126,15 @@ impl AppCore {
             tracing::warn!(event_type = ?event.get("type"), "automation emit depth limit reached");
             return;
         }
-        for record in self.automation.matching_events(&event) {
+        let matched = self.automation.matching_events(&event);
+        // Match outcome only (counts), never event contents: key data must
+        // not end up in logs.
+        tracing::debug!(
+            event_type = ?event.get("type"),
+            matched = matched.len(),
+            "automation matching completed"
+        );
+        for record in matched {
             if !self.automation.claim_event(&record, &event, now_millis()) {
                 continue;
             }
@@ -189,6 +197,31 @@ impl AppCore {
             "error": error
         });
         let runs = self.automation.record_run(run.clone());
+        let action_name = run
+            .get("actionName")
+            .and_then(|name| name.as_str())
+            .unwrap_or_default();
+        if status == "error" {
+            tracing::warn!(
+                action = %action_name,
+                summary = %summary,
+                "automation action failed"
+            );
+        } else {
+            tracing::debug!(
+                action = %action_name,
+                "automation action completed"
+            );
+        }
+        // Authoritative domain topics; the legacy push stays for compat.
+        self.events
+            .publish_domain(crate::events::DomainEvent::AutomationRunCompleted {
+                run: run.clone(),
+            });
+        self.events
+            .publish_domain(crate::events::DomainEvent::AutomationRunsChanged {
+                runs: runs.clone(),
+            });
         self.emit(HostMessage::BehaviorRuns { runs });
         run
     }

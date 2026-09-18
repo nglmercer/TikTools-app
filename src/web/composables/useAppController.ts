@@ -207,6 +207,7 @@ export function useAppController() {
     behaviorTestRuns: automation.behaviorTestRuns,
     behaviorError: automation.behaviorError,
     hotkeyStatus: automation.hotkeyStatus,
+    lastHotkeyEvent: automation.lastHotkeyEvent,
     pluginSettings: plugins.pluginSettings,
     processors: processors.processors,
     processorTest: processors.processorTest,

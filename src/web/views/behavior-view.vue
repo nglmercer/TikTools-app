@@ -30,7 +30,8 @@ import type {
 import type { ActionOptionItem, GiftCatalogEntry, HotkeyStatusData, OpenMediaPicker, ViewerRecord } from '../../shared/messages.ts';
 import { t, type Locale } from '../i18n.ts';
 import { useDialogs } from '../composables/useDialogs.ts';
-import { summarizeHotkeyStatus } from '../components/ui/hotkey-status.ts';
+import { formatHotkeyChord, hotkeyListenerState, summarizeHotkeyStatus } from '../components/ui/hotkey-status.ts';
+import type { LastHotkeyEvent } from '../features/automation.ts';
 
 type BehaviorViewProps = {
   locale: Locale;
@@ -41,6 +42,7 @@ type BehaviorViewProps = {
   runs: BehaviorRun[];
   testRuns: BehaviorRun[];
   hotkeyStatus?: HotkeyStatusData | null;
+  lastHotkeyEvent?: LastHotkeyEvent | null;
   error?: string;
   onSaveAction: (action: LiveAction) => void;
   onDeleteAction: (id: string) => void;
@@ -74,6 +76,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     'runs',
     'testRuns',
     'hotkeyStatus',
+    'lastHotkeyEvent',
     'error',
     'onSaveAction',
     'onDeleteAction',
@@ -116,6 +119,42 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
   const error = props.error;
   const currentScreen = screen.value;
   const hotkeySummary = props.hotkeyStatus ? summarizeHotkeyStatus(props.hotkeyStatus) : null;
+  // Always-visible listener status while the plugin is installed: healthy
+  // and starting states must be as obvious as failures.
+  const hotkeyPanel = (() => {
+    const plugin = snapshot.plugins.find((entry) => entry.descriptor.id === 'hotkeys');
+    if (!plugin?.installed) return null;
+    if (!plugin.enabled) {
+      return {
+        tone: 'idle' as const,
+        headline: t(locale, 'hotkeyStateDisabled'),
+        lines: [] as string[],
+        lastEvent: null as string | null,
+      };
+    }
+    const state = hotkeyListenerState(props.hotkeyStatus);
+    const headline = state === 'active'
+      ? `${t(locale, 'hotkeyStateActive')} · ${(hotkeySummary?.lines ?? []).find((line) => line.includes('via')) ?? hotkeySummary?.headline ?? ''}`
+      : state === 'starting' || state === 'unknown'
+        ? t(locale, 'hotkeyStateStarting')
+        : state === 'permission'
+          ? t(locale, 'hotkeyStatePermission')
+          : state === 'failed'
+            ? t(locale, 'hotkeyStateFailed')
+            : t(locale, 'hotkeyStateUnsupported');
+    const tone = state === 'active' ? 'ok' as const : (state === 'permission' || state === 'failed') ? 'err' as const : 'idle' as const;
+    const summary = hotkeySummary;
+    const lines = summary && (summary.needsAttention || state !== 'active')
+      ? summary.lines.filter((line) => line !== summary.headline)
+      : [];
+    const last = props.lastHotkeyEvent;
+    const lastEvent = last
+      ? `${t(locale, 'hotkeyLastEvent')}: ${formatHotkeyChord(last.key, last.modifiers)} · ${relativeTime(last.at, locale)}`
+      : state === 'active' || state === 'starting' || state === 'unknown'
+        ? t(locale, 'hotkeyStateNoEvents')
+        : null;
+    return { tone, headline, lines, lastEvent };
+  })();
 
   if (currentScreen.kind === 'picker') {
     return (
@@ -217,17 +256,16 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
 
       {error && <div class="plg-stack"><div class="plg-alert">{error}</div></div>}
 
-      {hotkeySummary?.needsAttention && (
+      {hotkeyPanel && (
         <div class="plg-stack plg-hotkey-status" role="status" aria-live="polite">
-          <div class={`plg-panel plg-hotkey-status__panel${hotkeySummary.needsPermission ? ' plg-panel--err' : ' plg-panel--ok'}`}>
+          <div class={`plg-panel plg-hotkey-status__panel${hotkeyPanel.tone === 'err' ? ' plg-panel--err' : hotkeyPanel.tone === 'ok' ? ' plg-panel--ok' : ''}`}>
             <div class="plg-hotkey-status__head">
-              <span class={`plg-dot${hotkeySummary.needsPermission ? ' is-err' : hotkeySummary.chordsSupported ? ' is-ok' : ''}`} />
+              <span class={`plg-dot${hotkeyPanel.tone === 'err' ? ' is-err' : hotkeyPanel.tone === 'ok' ? ' is-ok' : ''}`} />
               <strong>{t(locale, 'hotkeyStatusTitle')}</strong>
-              <span class="plg-hotkey-status__headline">{hotkeySummary.headline}</span>
+              <span class="plg-hotkey-status__headline">{hotkeyPanel.headline}</span>
             </div>
-            {hotkeySummary.lines
-              .filter((line) => line !== hotkeySummary.headline && (!hotkeySummary.needsPermission || !line.includes('active via')))
-              .map((line) => <span class="plg-hotkey-status__line plg-mono" key={line}>{line}</span>)}
+            {hotkeyPanel.lines.map((line) => <span class="plg-hotkey-status__line plg-mono" key={line}>{line}</span>)}
+            {hotkeyPanel.lastEvent && <span class="plg-hotkey-status__line plg-mono">{hotkeyPanel.lastEvent}</span>}
           </div>
         </div>
       )}

@@ -334,7 +334,12 @@ pub(crate) fn now_millis() -> u64 {
 /// spontaneous events (global hotkeys, timers, watchers).
 pub(crate) const PLUGIN_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(1);
 pub(crate) const PLUGIN_POLL_DEADLINE: std::time::Duration = std::time::Duration::from_secs(5);
-pub(crate) const MAX_POLLED_EVENTS_PER_TICK: usize = 16;
+/// Safety cap for one plugin poll response. Well-behaved plugins send at
+/// most [`tiktools_plugin_sdk::POLL_MAX_EVENTS_PER_RESPONSE`] events per
+/// poll and retain the rest for the next tick; this host-side bound only
+/// constrains misbehaving plugins, and every event dropped here is counted
+/// and logged instead of silently lost.
+pub(crate) const MAX_POLLED_EVENTS_PER_RESPONSE: usize = 64;
 pub(crate) const MAX_PLUGIN_EVENT_BYTES: usize = 64 * 1024;
 /// Host capability for plugins that need to report long-running preparation
 /// work without publishing an automation event.
@@ -422,6 +427,21 @@ pub(crate) fn declared_event_types(
         .collect()
 }
 
+/// Host-stamped owner of a plugin event (`source.kind == "plugin"`).
+/// Only the host writes this stamp (`make_plugin_event`); plugin payloads
+/// live under `data` and can never forge it.
+pub(crate) fn plugin_owner(event: &Value) -> Option<String> {
+    let source = event.get("source")?.as_object()?;
+    if source.get("kind").and_then(Value::as_str) != Some("plugin") {
+        return None;
+    }
+    source
+        .get("pluginId")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .map(ToOwned::to_owned)
+}
+
 /// Context for spontaneous polled events. A polled keypress starts a new
 /// chain, it never continues the previous one: connection/user identity is
 /// borrowed from the last event, but any inherited emit depth is dropped.
@@ -436,37 +456,68 @@ pub(crate) fn fresh_poll_context(source: &Value) -> Value {
     context
 }
 
+/// Validated `poll` response: publishable `(type, data)` pairs plus the
+/// per-reason drop counts the caller reports through diagnostics and logs.
+/// Drops are observable (`plugin_events_dropped_total`-style counters and
+/// structured warnings); they are never silent.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub(crate) struct ParsedPolledEvents {
+    pub(crate) events: Vec<(String, Value)>,
+    /// Response carried more than `MAX_POLLED_EVENTS_PER_RESPONSE` events.
+    pub(crate) truncated: u64,
+    /// Event type was not declared in the plugin manifest (or unparseable).
+    pub(crate) undeclared: u64,
+    /// Payload was not an object or exceeded `MAX_PLUGIN_EVENT_BYTES`.
+    pub(crate) invalid: u64,
+}
+
+impl ParsedPolledEvents {
+    pub(crate) fn dropped(&self) -> u64 {
+        self.truncated + self.undeclared + self.invalid
+    }
+}
+
 /// Parses a plugin `poll` response into publishable `(type, data)` pairs.
 /// Unknown types, non-object payloads, and oversized payloads are dropped so
-/// one misbehaving plugin cannot poison the automation pipeline.
+/// one misbehaving plugin cannot poison the automation pipeline. The
+/// complete bounded response is accepted: conforming plugins already batch
+/// to the protocol size, so the host cap is only a backstop.
 pub(crate) fn parse_polled_events(
     declared: &[String],
     response: &tiktools_plugin_sdk::PluginCallResult,
-) -> Vec<(String, Value)> {
-    response
-        .events
-        .iter()
-        .filter_map(|event| {
-            let event_type = event.event_type.as_str();
-            let data = &event.data;
-            let object = data.as_object()?;
-            Some((event_type, object, data))
-        })
-        .take(MAX_POLLED_EVENTS_PER_TICK)
-        .filter_map(|(event_type, _object, data)| {
-            let event_type = normalize_emit_type(event_type).ok()?;
-            if !declared.contains(&event_type) {
-                return None;
-            }
-            if serde_json::to_vec(&data)
-                .map(|bytes| bytes.len() > MAX_PLUGIN_EVENT_BYTES)
-                .unwrap_or(true)
-            {
-                return None;
-            }
-            Some((event_type, data.clone()))
-        })
-        .collect()
+) -> ParsedPolledEvents {
+    let mut parsed = ParsedPolledEvents::default();
+    for event in response.events.iter() {
+        if parsed.events.len() + (parsed.undeclared as usize + parsed.invalid as usize)
+            >= MAX_POLLED_EVENTS_PER_RESPONSE
+        {
+            parsed.truncated += 1;
+            continue;
+        }
+        let event_type = event.event_type.as_str();
+        let data = &event.data;
+        if data.as_object().is_none() {
+            parsed.invalid += 1;
+            continue;
+        }
+        let Ok(event_type) = normalize_emit_type(event_type) else {
+            parsed.undeclared += 1;
+            continue;
+        };
+        if !declared.contains(&event_type) {
+            parsed.undeclared += 1;
+            continue;
+        }
+        if serde_json::to_vec(&data)
+            .map(|bytes| bytes.len() > MAX_PLUGIN_EVENT_BYTES)
+            .unwrap_or(true)
+        {
+            parsed.invalid += 1;
+            continue;
+        }
+        parsed.events.push((event_type, data.clone()));
+    }
+    parsed
 }
 
 #[cfg(test)]
@@ -493,7 +544,9 @@ mod tests {
         );
         assert_eq!(update.progress, Some(0.5));
         assert_eq!(update.message, "Downloading model");
-        assert!(parse_polled_events(&[], &response).is_empty());
+        let parsed = parse_polled_events(&[], &response);
+        assert!(parsed.events.is_empty());
+        assert_eq!(parsed.undeclared, 1);
     }
 
     #[test]

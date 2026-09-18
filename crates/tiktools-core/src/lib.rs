@@ -19,6 +19,7 @@ mod hotkey_bindings;
 mod ipc_handlers;
 mod live_events;
 mod persistence;
+mod plugin_diagnostics;
 mod plugin_intents;
 mod plugin_invoker;
 mod plugin_processors;
@@ -136,6 +137,10 @@ pub struct AppCore {
     processor_settings: crate::plugin_processors::ProcessorSettingsStore,
     processor_index: RwLock<crate::plugin_processors::ContributionIndex>,
     processor_slots: Arc<tokio::sync::Semaphore>,
+    pub(crate) plugin_last_events:
+        Mutex<BTreeMap<String, crate::plugin_diagnostics::PluginLastEvent>>,
+    pub(crate) plugin_event_drops: Mutex<BTreeMap<String, u64>>,
+    pub(crate) hotkey_sync_state: Mutex<crate::plugin_diagnostics::HotkeySyncState>,
     plugin_poll_started: AtomicBool,
     plugin_poll_shutdown: Arc<Notify>,
     plugin_poll_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
@@ -263,6 +268,9 @@ impl AppCore {
             processor_slots: Arc::new(tokio::sync::Semaphore::new(
                 crate::plugin_processors::MAX_TOTAL_PROCESSOR_SLOTS,
             )),
+            plugin_last_events: Mutex::new(BTreeMap::new()),
+            plugin_event_drops: Mutex::new(BTreeMap::new()),
+            hotkey_sync_state: Mutex::new(crate::plugin_diagnostics::HotkeySyncState::default()),
             plugin_poll_started: AtomicBool::new(false),
             plugin_poll_shutdown: Arc::new(Notify::new()),
             plugin_poll_task: Mutex::new(None),

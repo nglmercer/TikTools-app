@@ -32,6 +32,33 @@ pub enum DomainEvent {
     },
     #[serde(rename = "plugin.settings-changed", rename_all = "camelCase")]
     PluginSettingsChanged { plugin_id: String },
+    /// Validated spontaneous plugin event (hotkeys, timers, watchers),
+    /// published immediately after poll/validation and before automation
+    /// enrichment/execution, so control-plane subscribers observe raw
+    /// plugin events even when automation drops, throttles, or fails.
+    #[serde(rename = "plugin.event", rename_all = "camelCase")]
+    PluginEvent {
+        plugin_id: String,
+        event_type: String,
+        event: serde_json::Value,
+    },
+    /// Plugin listener health snapshot (for example `hotkey.status`
+    /// payloads), published alongside the typed plugin event so UIs can
+    /// render backend state without polling.
+    #[serde(rename = "plugin.status", rename_all = "camelCase")]
+    PluginStatus {
+        plugin_id: String,
+        status: serde_json::Value,
+    },
+    /// One automation action finished (ok or error). Published with every
+    /// recorded run so subscribers observe completions without polling.
+    #[serde(rename = "automation.run.completed", rename_all = "camelCase")]
+    AutomationRunCompleted { run: serde_json::Value },
+    /// The authoritative recent-runs list changed. Carries the same list
+    /// as the legacy `behavior-runs` push; new subscribers should use
+    /// this topic instead of the compatibility push.
+    #[serde(rename = "automation.runs.changed", rename_all = "camelCase")]
+    AutomationRunsChanged { runs: Vec<serde_json::Value> },
     #[serde(rename = "live.connected", rename_all = "camelCase")]
     LiveConnected {
         unique_id: Option<String>,
@@ -91,6 +118,10 @@ impl DomainEvent {
             Self::PluginStopped { .. } => "plugin.stopped",
             Self::PluginProgress { .. } => "plugin.progress",
             Self::PluginSettingsChanged { .. } => "plugin.settings-changed",
+            Self::PluginEvent { .. } => "plugin.event",
+            Self::PluginStatus { .. } => "plugin.status",
+            Self::AutomationRunCompleted { .. } => "automation.run.completed",
+            Self::AutomationRunsChanged { .. } => "automation.runs.changed",
             Self::LiveConnected { .. } => "live.connected",
             Self::LiveDisconnected => "live.disconnected",
             Self::LiveEvent { .. } => "live.event",

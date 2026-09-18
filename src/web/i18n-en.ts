@@ -71,6 +71,14 @@ export const english = {
   increaseValue: 'Increase value',
   decreaseValue: 'Decrease value',
   hotkeyStatusTitle: 'Global Hotkeys',
+  hotkeyStateActive: 'Active',
+  hotkeyStateStarting: 'Starting',
+  hotkeyStatePermission: 'Permission required',
+  hotkeyStateFailed: 'Failed',
+  hotkeyStateUnsupported: 'Unsupported',
+  hotkeyStateDisabled: 'Disabled',
+  hotkeyStateNoEvents: 'No events received yet',
+  hotkeyLastEvent: 'Last event',
   hotkeyRawInputHint: 'This trigger needs raw keyboard access on Wayland. TikTools will request it automatically through the system authorization dialog.',
 
   // Minimalist Tabs & Tooltips

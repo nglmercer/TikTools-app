@@ -211,7 +211,7 @@ const HOTKEY: PluginEventType = {
       options: [{ value: '' }, { value: 'ctrl' }],
     },
   ],
-  sample: { key: 'ctrl+k' },
+  sample: { key: 'k', modifiers: 'ctrl' },
   source: { kind: 'plugin', pluginId: 'hotkeys' },
 };
 
@@ -235,7 +235,7 @@ describe('plugin event-type overlay', () => {
       setPluginEventTypes([HOTKEY]);
       expect(registryEventTypes()).toContain('hotkey.pressed');
       expect(pluginEventTypes().map((entry) => entry.type)).toEqual(['hotkey.pressed']);
-      expect(sampleDataForType('hotkey.pressed')).toMatchObject({ key: 'ctrl+k' });
+      expect(sampleDataForType('hotkey.pressed')).toMatchObject({ key: 'k', modifiers: 'ctrl' });
       const keyFields = fieldsForTrigger('hotkey.pressed');
       expect(keyFields.map((field) => field.path)).toEqual(['event.data.key', 'event.data.modifiers']);
       expect(keyFields[0]?.options?.map((option) => option.value)).toEqual(['k', 'space']);

@@ -1357,6 +1357,12 @@ impl AppCore {
                 "{event_gaps} reliable event gap(s); resync authoritative state"
             ));
         }
+        let dropped_plugin_events = self.plugin_drop_total();
+        if dropped_plugin_events > 0 {
+            degraded.push(format!(
+                "{dropped_plugin_events} plugin poll event(s) dropped during validation; see plugins.diagnostics"
+            ));
+        }
         json!({
             "status": if degraded.is_empty() { "ok" } else { "degraded" },
             "reasons": degraded,
@@ -1370,6 +1376,7 @@ impl AppCore {
                 "total": plugins.len(),
                 "running": running,
                 "unavailable": unavailable,
+                "droppedEvents": dropped_plugin_events,
             },
             "processors": self.processor_list().len(),
             "shutdown": self.is_shutdown(),

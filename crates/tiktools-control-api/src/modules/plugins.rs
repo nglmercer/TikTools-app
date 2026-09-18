@@ -180,6 +180,14 @@ pub fn register(router: &mut ControlRouter) {
                 .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
         },
     );
+    router.register_typed::<Empty, Value, _, _>(
+        "plugins.diagnostics",
+        "In-memory plugin runtime diagnostics: last event, poll drops, hotkey sync state",
+        false,
+        |core: Arc<AppCore>, _params: Empty| async move {
+            Ok::<Value, ApiError>(core.plugin_diagnostics())
+        },
+    );
     router.register_typed::<PluginOptionsParams, PluginOptionsResult, _, _>(
         "plugins.options",
         "Resolves action-type/field option documents",

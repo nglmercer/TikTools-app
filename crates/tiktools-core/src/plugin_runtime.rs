@@ -297,6 +297,7 @@ impl AppCore {
         }
         let core = Arc::clone(self);
         let shutdown = Arc::clone(&self.plugin_poll_shutdown);
+        tracing::info!("plugin event poll started");
         let task = runtime.spawn(async move {
             let mut ticker = tokio::time::interval(PLUGIN_POLL_INTERVAL);
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -439,9 +440,50 @@ impl AppCore {
                         message: progress.message,
                     });
             }
-            for (event_type, data) in parse_polled_events(&declared, &response) {
-                self.publish_automation_event(self.make_plugin_event(&source, &event_type, data))
-                    .await;
+            // Plugin-authored poll logs are operational notes (queue
+            // overflow, backend transitions), never key contents: surface
+            // them so a struggling plugin cannot look healthy.
+            for log in response.logs.iter().take(8) {
+                tracing::warn!(plugin = %plugin_id, message = %log, "plugin poll reported a warning");
+            }
+            let parsed = parse_polled_events(&declared, &response);
+            let dropped = parsed.dropped();
+            if dropped > 0 {
+                self.record_plugin_drops(&plugin_id, dropped);
+                tracing::warn!(
+                    plugin = %plugin_id,
+                    polled = response.events.len(),
+                    accepted = parsed.events.len(),
+                    truncated = parsed.truncated,
+                    undeclared = parsed.undeclared,
+                    invalid = parsed.invalid,
+                    "plugin poll events dropped during validation"
+                );
+            } else if !parsed.events.is_empty() {
+                tracing::debug!(
+                    plugin = %plugin_id,
+                    polled = response.events.len(),
+                    accepted = parsed.events.len(),
+                    "plugin poll events accepted"
+                );
+            }
+            for (event_type, data) in parsed.events {
+                tracing::debug!(
+                    plugin = %plugin_id,
+                    event_type = %event_type,
+                    "validated plugin event entering automation"
+                );
+                // `publish_automation_event` publishes the authoritative
+                // `plugin.event` domain event (and records diagnostics)
+                // before enrichment/execution, so control-plane visibility
+                // never depends on automation success.
+                self.publish_automation_event(self.make_plugin_event(
+                    &plugin_id,
+                    &source,
+                    &event_type,
+                    data,
+                ))
+                .await;
             }
         }
     }

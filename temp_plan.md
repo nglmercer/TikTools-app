@@ -1,477 +1,749 @@
-# TikTools — Fix Final Remaining Reliability Issues
+````markdown
+# TikTools — Fix Global Hotkeys End-to-End
 
-Reviewed head:
+Repository:
+https://github.com/nglmercer/TikTools-app
 
-```text
-57e80055f2e7da0d744c77562c6520e3314f5cc9
-```
+Branch:
+`remake`
 
 ## Goal
 
-Finish the control-plane reliability work.
+Make **Global Hotkeys** reliable across:
 
-Current architecture is mostly correct. Fix only the remaining event-delivery and transport edge cases below.
+```text
+OS keyboard
+  ↓
+Global Hotkeys process plugin
+  ↓
+validated plugin event
+  ↓
+AppCore
+  ├─ DomainEvent / Control API / IPC / agents
+  └─ Automation matching
+       ↓
+     actions
+       ↓
+     live run/status UI
+````
+
+Hotkey events must never silently disappear, depend on WebView readiness, or execute actions without the UI reflecting them.
 
 ---
 
-## 1. Make Reliable Domain Events Actually Reliable
+## 1. Make plugin events first-class DomainEvents
 
-Current `EventBus` uses two bounded `broadcast` channels:
+Current problem:
+
+`hotkey.pressed` enters the automation pipeline but `publish_live_domain_event()` only promotes `tiktok.*` events.
+
+Therefore WebView / IPC / CLI / agents cannot observe raw hotkey events.
+
+Add a generic domain event, for example:
 
 ```rust
-reliable: broadcast::Sender<DomainEvent>,
-lossy: broadcast::Sender<DomainEvent>,
+DomainEvent::PluginEvent {
+    plugin_id: String,
+    event_type: String,
+    event: Value,
+}
 ```
 
-The lossy/reliable split prevents live-feed floods from overwriting control events, but the reliable lane itself can still return:
+Requirements:
+
+* Publish validated plugin events immediately after polling/validation.
+* Do this before automation enrichment/execution.
+* Include owning plugin id.
+* Route through normal JSON-RPC `"event"` notifications.
+* Use a stable topic such as:
+
+```text
+plugin.event
+```
+
+with payload:
+
+```json
+{
+  "pluginId": "hotkeys",
+  "eventType": "hotkey.pressed",
+  "event": {
+    "type": "hotkey.pressed",
+    "data": {}
+  }
+}
+```
+
+Optionally expose specific topic aliases such as:
+
+```text
+plugin.hotkeys.hotkey.pressed
+```
+
+Do not special-case only hotkeys. Fix this generically for all plugin-declared events.
+
+---
+
+## 2. Fix missing live automation run updates
+
+Current backend emits:
 
 ```rust
-RecvError::Lagged(n)
+HostMessage::BehaviorRuns { runs }
 ```
 
-This can lose:
+after real automation execution.
+
+Current frontend `src/web/features/automation.ts` does not consume `behavior-runs`.
+
+Result:
 
 ```text
-points.changed
-live.connected
-live.disconnected
-live.error
-plugin.started
-plugin.stopped
-workflow.changed
-shutdown
+hotkey received
+→ behavior matched
+→ action executed
+→ backend emitted updated runs
+→ frontend ignored message
+→ UI looks broken
 ```
 
-Do not silently lose authoritative events.
+Fix frontend subscription:
 
-Preferred design:
+```ts
+control.onPush('behavior-runs', ...)
+```
+
+and update:
+
+```ts
+behaviorRuns.value
+```
+
+Preferred long-term fix:
+
+Add authoritative domain event:
 
 ```text
-DomainEvent
-   ├── reliable lane
-   │     -> guaranteed delivery or explicit resync
-   │
-   └── lossy lane
-         -> bounded/coalesced/feed
+automation.runs.changed
 ```
 
-Implement one of:
+or:
 
-### Preferred
+```text
+automation.run.completed
+```
 
-Per-subscriber bounded reliable queues with backpressure/disconnection semantics.
+and migrate frontend to `control.onTopic(...)`.
 
-### Acceptable
+Do not require manual refresh to see a real hotkey-triggered run.
 
-Keep bounded broadcast, but whenever reliable lag occurs emit an explicit gap/resync signal.
+---
+
+## 3. Fix hotkey event loss: 64 queued → only 16 consumed
+
+Current plugin can queue:
+
+```rust
+MAX_PENDING_EVENTS = 64
+```
+
+Current plugin poll drains everything:
+
+```rust
+queue.drain(..)
+```
+
+Host later limits:
+
+```rust
+MAX_POLLED_EVENTS_PER_TICK = 16
+```
+
+This silently destroys every event after the first 16.
+
+Example:
+
+```text
+40 queued
+→ plugin drains 40
+→ host accepts 16
+→ 24 permanently lost
+```
+
+Fix generically.
+
+Preferred approaches:
+
+```text
+A. Plugin poll only drains maximum protocol batch size
+OR
+B. Protocol supports hasMore / pagination
+OR
+C. Host accepts complete bounded plugin response
+```
+
+Never remove events from the producer queue if the consumer will discard them.
+
+Add tests with >16 hotkey events proving all events are eventually processed in order.
+
+---
+
+## 4. Start plugin polling with AppCore/host, not WebView
+
+Current desktop starts plugin polling from `frontend_ready()`.
+
+This makes spontaneous plugin events depend on Vue/WebView initialization.
+
+Wrong:
+
+```text
+WebView ready
+  ↓
+start plugin poll
+```
+
+Required:
+
+```text
+AppCore/control host starts
+  ↓
+start plugin poll
+```
+
+Requirements:
+
+* Desktop starts polling as part of host/runtime startup.
+* Headless `host --ipc` starts polling.
+* Headless stdio host starts polling when appropriate.
+* WebView refresh/reload must not stop hotkeys.
+* WebView never becomes owner of plugin lifecycle.
+* `spawn_plugin_event_poll()` remains idempotent.
+
+Add tests proving `hotkey.pressed` can be processed with no WebView.
+
+---
+
+## 5. Make Global Hotkeys status visible even when healthy
+
+Current Behavior UI only renders hotkey status when:
+
+```ts
+hotkeySummary.needsAttention
+```
+
+This hides the healthy state.
+
+Always show a compact Global Hotkeys status when the plugin is installed/enabled.
+
+Example:
+
+```text
+Global Hotkeys
+● Active · Native listener
+Last event: Ctrl+K · 2s ago
+```
+
+States should clearly distinguish:
+
+```text
+Active
+Starting
+Permission required
+Failed
+Unsupported
+No events received yet
+```
+
+Do not make users infer whether the listener exists.
+
+---
+
+## 6. Track last received hotkey event
+
+Add lightweight runtime diagnostics for:
+
+```text
+last event timestamp
+key
+modifiers
+backend
+sequence
+```
 
 Example:
 
 ```json
 {
-  "method": "event.gap",
-  "params": {
-    "lost": 12,
-    "resync": true
+  "pluginId": "hotkeys",
+  "lastEventAt": 123456789,
+  "lastEvent": {
+    "key": "k",
+    "modifiers": "ctrl",
+    "backend": "rdev"
   }
 }
 ```
 
-Clients must then refresh authoritative state.
+Expose this through plugin health/status or another read-only diagnostics RPC.
 
-Never pretend a lagged reliable stream is complete.
+Do not persist keyboard history to disk.
+
+Keep only minimal in-memory diagnostics.
 
 ---
 
-## 2. Fix IPC Event Lag Handling
+## 7. Preserve event ownership metadata
 
-Current IPC path effectively does:
+`make_plugin_event()` currently creates the typed event but does not visibly stamp its plugin owner.
 
-```rust
-receiver.recv().await.ok()
-```
+Add explicit host-owned metadata, for example:
 
-This converts:
-
-```rust
-RecvError::Lagged(n)
-```
-
-into:
-
-```text
-None
-```
-
-and silently loses information.
-
-Replace with explicit handling:
-
-```rust
-match receiver.recv().await {
-    Ok(event) => send_event(event),
-
-    Err(RecvError::Lagged(count)) => {
-        tracing::warn!(count, "control IPC event subscriber lagged");
-        send_gap_notification(count).await?;
-    }
-
-    Err(RecvError::Closed) => {
-        // terminate event stream
-    }
+```json
+{
+  "type": "hotkey.pressed",
+  "source": {
+    "kind": "plugin",
+    "pluginId": "hotkeys"
+  },
+  "data": {}
 }
 ```
 
-Do the same for:
+The plugin must not be allowed to spoof another plugin id.
 
-```rust
-drain_events()
-```
+Host determines ownership from the manifest/polling plugin.
 
-Do not silently stop draining when `try_recv()` returns `Lagged`.
-
-Add tests proving:
+This metadata should survive:
 
 ```text
-event burst
-↓
-Lagged
-↓
-connection remains alive
-↓
-client receives gap/resync notification
-↓
-later events still arrive
+poll
+→ DomainEvent
+→ automation
+→ IPC
+→ WebView
 ```
 
 ---
 
-## 3. Add Client Resync Handling
+## 8. Keep hotkey event publication independent from automation success
 
-Extend both Rust `ControlClient` and WebView `control-client.ts` to understand an event-gap notification.
-
-Example:
+A valid `hotkey.pressed` event must still reach subscribers if:
 
 ```text
-event.gap
+automation has no matching behavior
+automation action fails
+automation is overloaded
+processor/enrichment fails
 ```
 
-Expose a Rust API such as:
-
-```rust
-ControlEvent::Domain(event)
-ControlEvent::Gap { lost: u64 }
-```
-
-Frontend should support:
-
-```ts
-control.onGap(() => {
-  void refreshAuthoritativeState();
-});
-```
-
-At minimum resync:
+Correct ordering:
 
 ```text
-live status
-points leaderboard/config
-plugin state
-creator state
-workflow/automation state as needed
+plugin poll
+  ↓
+validate event
+  ↓
+publish authoritative PluginEvent
+  ↓
+record diagnostics
+  ↓
+run automation independently
 ```
 
-Do not attempt to reconstruct missing reliable events from guesses.
+Do not make control-plane visibility dependent on automation execution.
 
 ---
 
-## 4. Bound the Reliable WebView Queue Safely
+## 9. Improve hotkey polling observability
 
-Current reliable WebView lane:
-
-```rust
-reliable: VecDeque<String>
-```
-
-never drops messages, but is unbounded.
-
-That changes failure mode from message loss to unlimited memory growth if WebView becomes stuck.
-
-Keep reliable messages non-droppable, but add a byte/backlog safety policy.
-
-Example:
+Add structured logs/metrics around:
 
 ```text
-MAX_RELIABLE_MESSAGES = 4096
-MAX_RELIABLE_BYTES = 16 MiB
+plugin started
+backend listener active
+poll requested
+events returned
+events accepted
+events dropped
+event queue overflow
+automation matched
+automation not matched
+action completed
+action failed
 ```
 
-When exceeded:
+Example fields:
 
 ```text
-DO NOT DROP RPC RESPONSES
-DO NOT DROP STATE TRANSITIONS
-
-instead:
-  mark WebView transport unhealthy
-  stop accepting new WebView RPC
-  reject pending/new RPC with transport failure where possible
-  recreate/reload/fail the WebView cleanly
+plugin=hotkeys
+event_type=hotkey.pressed
+backend=rdev
+queued=4
+polled=4
+accepted=4
 ```
 
-A broken UI transport must fail loudly rather than consume unlimited memory.
-
-Track both:
-
-```rust
-reliable.len()
-reliable_bytes
-```
-
-Add tests with large critical-message bursts.
+Avoid logging arbitrary key history or sensitive keyboard contents.
 
 ---
 
-## 5. Fix Malformed WebView JSON-RPC Routing
+## 10. Fix queue overflow semantics
 
-Current logic parses once in:
-
-```rust
-is_control_rpc(&raw)
-```
-
-If JSON is malformed, it returns false, so malformed RPC-shaped input can fall into the legacy router.
-
-Then this intended error path is unreachable:
+Current plugin silently removes oldest events when:
 
 ```rust
-Err(error) => RpcResponse::error(
-    RpcId::extract_from_prefix(&raw),
-    ...
-)
+queue.len() > MAX_PENDING_EVENTS
 ```
 
-Refactor to parse exactly once.
+Keep a bounded queue, but make drops observable.
 
-Target:
-
-```rust
-match serde_json::from_str::<serde_json::Value>(&raw) {
-    Ok(value) => {
-        if value.get("method").is_some() {
-            control.execute_value(&value).await
-        } else {
-            legacy_dispatch(value).await
-        }
-    }
-
-    Err(error) => {
-        if is_probably_control_rpc(&raw) {
-            send_rpc_error(
-                RpcId::extract_from_prefix(&raw),
-                ApiError::invalid_params(
-                    format!("invalid JSON: {error}")
-                ),
-            );
-        } else {
-            tracing::warn!(%error, "invalid legacy WebView message");
-        }
-    }
-}
-```
-
-Avoid:
+Add counter such as:
 
 ```text
-parse
-↓
-classify
-↓
-parse again
+droppedHotkeyEvents
 ```
 
-The Winit callback should only:
+and report it through:
 
 ```text
-size-check
-special-case frontend-ready
-move payload to Tokio
-```
-
-Do parsing/classification off the UI thread.
-
----
-
-## 6. Keep WebView Callback Lightweight
-
-Audit:
-
-```rust
-with_ipc_handler(...)
-```
-
-Do not perform expensive JSON parsing on the Winit thread.
-
-Preferred:
-
-```text
-Wry callback
-   ↓
-raw size check
-   ↓
-frontend-ready tiny fast path
-   ↓
-Tokio task
-      -> parse
-      -> classify
-      -> execute
-```
-
-Protect the UI loop from malicious or very large valid JSON.
-
----
-
-## 7. Add Explicit Event Stream Health
-
-Expose event-stream status through:
-
-```text
+hotkey.status
+plugin health
 system.health
 ```
 
-Include fields similar to:
+Log a rate-limited warning when overflow occurs.
+
+Never silently lose events.
+
+---
+
+## 11. Ensure hotkey plugin is available in packaged releases
+
+Current release package creates an empty:
+
+```text
+TikTools/plugins/
+```
+
+directory.
+
+If Global Hotkeys is an official TikTools feature, package it.
+
+Expected Windows release:
+
+```text
+TikTools/
+  TikTools.exe
+  plugins/
+    hotkeys/
+      plugin.json
+      tiktools-hotkey-process-plugin.exe
+```
+
+Equivalent native binary for Linux/macOS.
+
+Requirements:
+
+* Build correct target binary.
+* Stage manifest + executable.
+* Preserve executable permissions on Unix.
+* Validate plugin exists in packaged archive.
+* Fail release packaging if required built-in plugin is missing.
+
+If hotkeys intentionally remain optional instead of bundled, make that explicit in UI/docs and provide a real installation path. Do not advertise Global Hotkeys as available when no plugin exists.
+
+---
+
+## 12. Verify Windows native listener path
+
+For Windows:
+
+```text
+rdev::listen
+→ EventType::KeyPress / KeyRelease
+→ key_name()
+→ emit_press()
+→ pending queue
+→ Plugin::poll()
+```
+
+Add Windows-focused tests where possible around:
+
+```text
+key normalization
+modifier normalization
+press/release state
+auto-repeat suppression
+queueing
+poll serialization
+```
+
+Do not replace `rdev` unless a reproducible listener failure is found.
+
+The current architecture is valid; fix downstream delivery first.
+
+---
+
+## 13. Keep hotkey filter contract consistent
+
+Current event contract is:
 
 ```json
 {
-  "events": {
-    "status": "ok",
-    "reliableGaps": 0,
-    "lastGapAt": null
+  "data": {
+    "key": "k",
+    "modifiers": "ctrl",
+    "sequence": "g k",
+    "backend": "rdev"
   }
 }
 ```
 
-After a reliable gap:
+Therefore behavior filters should be:
 
 ```text
-status = degraded
-reliableGaps += 1
+event.data.key        eq        k
+event.data.modifiers  eq        ctrl
 ```
 
-After successful resync, health may return to OK if appropriate.
+Not:
 
-Agents must be able to tell whether their local state may be stale.
+```text
+event.data.key        eq        ctrl+k
+```
+
+Make editor hints/examples consistent with this contract.
+
+Add regression tests for:
+
+```text
+Ctrl+K
+Ctrl+Shift+K
+bare A
+sequence G O
+function keys
+arrows
+numpad keys
+```
 
 ---
 
-## 8. Tests
+## 14. Make hotkey binding synchronization observable
 
-Add regression/stress tests for:
+Current host projects enabled Behavior filters into:
 
 ```text
-reliable-event burst causes explicit gap, not silent loss
-lossy flood never causes reliable gap
-IPC continues after Lagged
-post-gap events still arrive
-ControlClient exposes gap notification
-WebView triggers resync on gap
-reliable WebView queue never silently drops messages
-reliable queue over-limit fails transport cleanly
-malformed JSON-RPC returns correlated error id
-malformed legacy payload does not enter ControlApi
-large valid JSON parsing does not run on Winit thread
+hotkey.bind
 ```
 
-All async tests need bounded timeouts.
+Add explicit diagnostics showing current synchronized config:
+
+```json
+{
+  "shortcuts": [
+    {
+      "key": "k",
+      "modifiers": "ctrl"
+    }
+  ],
+  "sequencesNeeded": false,
+  "revision": 12
+}
+```
+
+Expose whether:
+
+```text
+desired revision
+==
+applied revision
+```
+
+If synchronization fails, surface the failure in plugin health/UI.
+
+Do not silently continue with stale bindings.
 
 ---
 
-## 9. Verification
+## 15. Handle plugin restart/recovery correctly
 
-Run:
+If hotkey process:
 
-```bash
-cargo fmt --all -- --check
-
-cargo check \
-  --workspace \
-  --all-features \
-  --locked
-
-cargo clippy \
-  --workspace \
-  --all-targets \
-  --all-features \
-  --locked \
-  -- -D warnings
-
-cargo test \
-  --workspace \
-  --locked
-
-bun run lint
-bun run typecheck
-bun test
-bun run build:web
-
-git diff --check
+```text
+crashes
+times out
+is killed
+returns malformed protocol
+listener exits
 ```
 
-Then manually verify:
+the host should:
+
+```text
+mark unhealthy
+back off
+restart process
+re-send desired hotkey.bind configuration
+resume polling
+```
+
+A restarted process must not come back with empty/stale portal bindings.
+
+Add regression test:
+
+```text
+configure Ctrl+K
+→ plugin running
+→ simulate plugin restart
+→ host restarts it
+→ host re-sends binding projection
+→ Ctrl+K events resume
+```
+
+---
+
+## 16. Domain-event topics for automation state
+
+Reduce remaining dependence on legacy HostMessage for this path.
+
+Introduce/migrate topics such as:
+
+```text
+plugin.event
+plugin.status
+automation.run.completed
+automation.runs.changed
+```
+
+Frontend should eventually use:
+
+```ts
+control.onTopic(...)
+```
+
+instead of requiring compatibility pushes for core runtime state.
+
+Keep old HostMessage paths temporarily only where compatibility requires them.
+
+---
+
+## 17. Add end-to-end tests
+
+Add tests covering the complete pipeline:
+
+```text
+fake hotkey plugin event
+→ poll
+→ validation
+→ PluginEvent domain publication
+→ automation matching
+→ action execution
+→ run recorded
+→ subscriber receives event
+```
+
+Required regression tests:
+
+1. Plugin starts without WebView.
+2. `hotkey.pressed` reaches automation.
+3. `hotkey.pressed` reaches DomainEvent subscribers.
+4. IPC subscriber receives plugin event.
+5. More than 16 queued events are not silently lost.
+6. Queue overflow increments drop diagnostics.
+7. `behavior-runs` / automation run topic updates frontend state.
+8. Healthy hotkey status is available.
+9. Disabled hotkey plugin does not publish events.
+10. Restarted plugin receives bindings again.
+11. Wrong/undeclared plugin event types are rejected.
+12. A failed automation action does not suppress the original hotkey event.
+13. Headless control host receives hotkeys without WebView.
+14. Packaged release contains the required hotkey plugin.
+
+---
+
+## 18. Manual verification
+
+Run development host:
 
 ```bash
 bun run scripts/start-dev.ts
 ```
 
-Test:
+Verify plugin:
+
+```bash
+cargo run -p tiktools-cli -- plugin get hotkeys --json
+cargo run -p tiktools-cli -- plugin health hotkeys --json
+cargo run -p tiktools-cli -- plugin action hotkey.status --live --json
+cargo run -p tiktools-cli -- plugin action hotkey.diagnostics --live --json
+```
+
+Create enabled behavior:
 
 ```text
-WebView RPC
-CLI RPC
-2+ concurrent IPC clients
-live event burst
-points burst
-plugin lifecycle burst
-WebView temporarily stalled
-IPC client temporarily stalled
-recovery after event gap
-shutdown
-restart
+trigger: hotkey.pressed
+
+event.data.key        eq  k
+event.data.modifiers  eq  ctrl
+```
+
+Press:
+
+```text
+Ctrl+K
+```
+
+Verify all of these independently:
+
+```text
+native listener received it
+plugin queue received it
+plugin poll returned it
+DomainEvent published it
+IPC subscriber received it
+automation matched it
+configured action executed
+Runs UI updated immediately
+last-hotkey diagnostics updated
 ```
 
 ---
 
-# Definition of Done
+## Acceptance Criteria
+
+The fix is complete only when:
 
 ```text
-[ ] reliable DomainEvents cannot disappear silently
-[ ] reliable lag produces explicit gap/resync signal
-[ ] IPC does not swallow Lagged
-[ ] Rust ControlClient reports gaps
-[ ] WebView client reports/resyncs gaps
-[ ] reliable WebView queue has bounded memory
-[ ] reliable messages are never silently evicted
-[ ] broken WebView transport fails loudly
-[ ] malformed JSON-RPC receives correlated error
-[ ] JSON parsing is off Winit thread
-[ ] system.health reports event-stream degradation
-[ ] stress tests cover all failure paths
-[ ] Rust checks pass
-[ ] Bun checks pass
+Global Hotkeys works without WebView readiness.
+hotkey.pressed is observable through the control plane.
+Automation executes from real key presses.
+Runs UI updates immediately after execution.
+Healthy/failed listener status is visible.
+No 64→16 silent event loss exists.
+Queue overflow is observable.
+Plugin restart restores bindings.
+Headless host receives plugin events.
+Release builds include the hotkey plugin if it is an official feature.
+No event path depends on legacy UI messages for authoritative delivery.
 ```
 
-## Core Invariant
+Run:
 
-```text
-Authoritative event:
-    delivered
-       OR
-    client explicitly told it missed data and must resync
+```bash
+bun run lint
+bun run typecheck
+bun test
+bun run build:web
 
-Never:
-    silently dropped
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --workspace --locked
+cargo check --workspace --locked
+
+bun run scripts/build-plugin.ts --all --debug
 ```
 
-Lossy feed traffic may be dropped/coalesced.
+Do not fix this with hotkey-specific frontend hacks. Fix plugin-event ownership, polling lifecycle, event transport, queue semantics, automation notifications, diagnostics, and packaging at the architecture boundaries.
 
-RPC responses and authoritative state transitions may not.
+```
+```

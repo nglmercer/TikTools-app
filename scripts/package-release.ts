@@ -1,25 +1,35 @@
-import { cp, mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, readFile, rm, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
+import { resolveRustTarget } from './lib/plugin-targets.ts';
 
 const repositoryRoot = resolve(import.meta.dir, '..');
 const supportedPlatforms = {
   'windows-x86_64': {
     archiveExtension: '.zip',
     binaryName: 'tiktools-desktop.exe',
+    rustTarget: 'x86_64-pc-windows-msvc',
   },
   'linux-x86_64': {
     archiveExtension: '.tar.gz',
     binaryName: 'tiktools-desktop',
+    rustTarget: 'x86_64-unknown-linux-gnu',
   },
   'macos-arm64': {
     archiveExtension: '.tar.gz',
     binaryName: 'tiktools-desktop',
+    rustTarget: 'aarch64-apple-darwin',
   },
   'macos-x86_64': {
     archiveExtension: '.tar.gz',
     binaryName: 'tiktools-desktop',
+    rustTarget: 'x86_64-apple-darwin',
   },
 } as const;
+
+/** Official built-in process plugins bundled with every release. */
+const BUNDLED_PLUGINS = [
+  { id: 'hotkeys', example: 'hotkey-process-plugin', entry: 'tiktools-hotkey-process-plugin' },
+] as const;
 
 type ReleasePlatform = keyof typeof supportedPlatforms;
 
@@ -90,11 +100,49 @@ await mkdir(bundleDirectory, { recursive: true });
 
 await cp(binaryPath, join(bundleDirectory, platform.binaryName));
 await mkdir(join(bundleDirectory, 'plugins'), { recursive: true });
-// Keep the portable plugin root visible in the archive even when empty.
-// `.gitkeep` is not a plugin directory: the runtime scanner only treats
-// subdirectories with a `plugin.json` manifest as plugins, so this file is
-// ignored naturally during discovery.
-await writeFile(join(bundleDirectory, 'plugins', '.gitkeep'), '');
+// Global Hotkeys is an official feature: build each bundled plugin for the
+// release target and stage manifest + executable. A missing built-in
+// plugin fails packaging loudly instead of shipping a hotkey-less app.
+const pluginTarget = resolveRustTarget(platform.rustTarget);
+for (const bundled of BUNDLED_PLUGINS) {
+  const exampleDirectory = join(repositoryRoot, 'examples', bundled.example);
+  const manifestPath = join(exampleDirectory, 'plugin.json');
+  if (!(await isFile(manifestPath))) {
+    fail(`bundled plugin manifest is missing ${manifestPath}`);
+  }
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as { id?: unknown };
+  if (manifest.id !== bundled.id) {
+    fail(`${manifestPath} declares id ${String(manifest.id)}, expected ${bundled.id}`);
+  }
+  run('cargo', [
+    'build',
+    '--release',
+    '--locked',
+    '--target',
+    pluginTarget.rustTarget,
+    '--manifest-path',
+    join(exampleDirectory, 'Cargo.toml'),
+  ]);
+  const builtEntryName = `${bundled.entry}${pluginTarget.executableExtension}`;
+  const builtEntryPath = join(
+    exampleDirectory,
+    'target',
+    pluginTarget.rustTarget,
+    'release',
+    builtEntryName,
+  );
+  if (!(await isFile(builtEntryPath))) {
+    fail(`cargo built ${bundled.id}, but its entry was not found at ${builtEntryPath}`);
+  }
+  const pluginDirectory = join(bundleDirectory, 'plugins', bundled.id);
+  await mkdir(pluginDirectory, { recursive: true });
+  await cp(manifestPath, join(pluginDirectory, 'plugin.json'));
+  const stagedEntry = join(pluginDirectory, builtEntryName);
+  await cp(builtEntryPath, stagedEntry);
+  if (pluginTarget.executableExtension === '') {
+    await chmod(stagedEntry, 0o755);
+  }
+}
 await cp(webRoot, join(bundleDirectory, 'web'), { recursive: true });
 for (const file of ['LICENSE', 'README.md']) {
   const source = resolve(repositoryRoot, file);
@@ -117,19 +165,15 @@ const expectedEntries = [
   `${bundleName}/web/index.html`,
   `${bundleName}/LICENSE`,
   `${bundleName}/README.md`,
+  ...BUNDLED_PLUGINS.flatMap((bundled) => [
+    `${bundleName}/plugins/${bundled.id}/plugin.json`,
+    `${bundleName}/plugins/${bundled.id}/${bundled.entry}${pluginTarget.executableExtension}`,
+  ]),
 ];
 for (const expectedEntry of expectedEntries) {
   if (!listingEntries.some((entry) => entry === expectedEntry)) {
     fail(`archive ${archivePath} does not contain ${expectedEntry}`);
   }
-}
-const hasPluginsDir = listingEntries.some((entry) =>
-  entry === `${bundleName}/plugins/` ||
-  entry === `${bundleName}/plugins` ||
-  entry === `${bundleName}/plugins/.gitkeep`,
-);
-if (!hasPluginsDir) {
-  fail(`archive ${archivePath} does not contain ${bundleName}/plugins/`);
 }
 
 // Verify the archive itself, not only the pre-archive staging directory. This
@@ -146,14 +190,14 @@ for (const relative of [
   'web/index.html',
   'LICENSE',
   'README.md',
+  ...BUNDLED_PLUGINS.flatMap((bundled) => [
+    `plugins/${bundled.id}/plugin.json`,
+    `plugins/${bundled.id}/${bundled.entry}${pluginTarget.executableExtension}`,
+  ]),
 ]) {
   if (!(await isFile(join(extractedBundle, relative)))) {
     fail(`extracted archive is missing ${bundleName}/${relative}`);
   }
-}
-const extractedPlugins = await stat(join(extractedBundle, 'plugins')).catch(() => null);
-if (!extractedPlugins?.isDirectory()) {
-  fail(`extracted archive is missing ${bundleName}/plugins/`);
 }
 
 console.log(`Created ${basename(archivePath)}`);

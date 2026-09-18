@@ -458,7 +458,8 @@ async fn sequential_polled_presses_start_fresh_chains() {
     let mut source = json!({});
     for _ in 0..5 {
         let context = crate::fresh_poll_context(&source);
-        let event = core.make_plugin_event(&context, "hotkey.pressed", json!({"key": "k"}));
+        let event =
+            core.make_plugin_event("hotkeys", &context, "hotkey.pressed", json!({"key": "k"}));
         assert_eq!(event["data"]["depth"], json!(1));
         source = event.clone();
         core.publish_automation_event(event).await;
@@ -795,4 +796,544 @@ fn ipc_error_degrades_system_health() {
     );
     core.set_ipc_error(None);
     assert_eq!(core.system_health()["status"], "ok");
+}
+
+// ------------------------------------------------------------------
+// Plugin poll end-to-end: fake process plugin through the real host.
+// ------------------------------------------------------------------
+
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
+use tiktools_plugin_api::PluginRuntimeKind;
+use tiktools_plugin_loader::{
+    PluginInstance, PluginLoaderError, PluginManager, PluginRoot, PluginRuntime, PluginSource,
+    RuntimeRegistry,
+};
+
+const FAKE_HOTKEY_MANIFEST: &str = r#"{
+    "schemaVersion": 2,
+    "id": "hotkeys",
+    "name": "Hotkeys",
+    "version": "1.0.0",
+    "runtime": "process",
+    "entry": "fake-entry",
+    "capabilities": ["events.publish"],
+    "actionTypes": [{"id": "hotkey.bind"}],
+    "eventTypes": [
+        {"type": "hotkey.pressed", "title": {"default": "Hotkey pressed"}},
+        {"type": "hotkey.status", "title": {"default": "Hotkey status"}}
+    ]
+}"#;
+
+#[derive(Default)]
+struct FakePluginState {
+    poll_batches: Mutex<VecDeque<Vec<Value>>>,
+    actions: Mutex<Vec<Value>>,
+    loads: AtomicU64,
+}
+
+struct FakeRuntime {
+    state: Arc<FakePluginState>,
+}
+
+impl PluginRuntime for FakeRuntime {
+    fn kind(&self) -> PluginRuntimeKind {
+        PluginRuntimeKind::Process
+    }
+
+    fn load(
+        &self,
+        manifest: &tiktools_plugin_api::PluginManifest,
+        _directory: &std::path::Path,
+    ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+        self.state.loads.fetch_add(1, AtomicOrdering::SeqCst);
+        Ok(Box::new(FakeInstance {
+            id: manifest.id.clone(),
+            state: Arc::clone(&self.state),
+        }))
+    }
+}
+
+struct FakeInstance {
+    id: String,
+    state: Arc<FakePluginState>,
+}
+
+impl PluginInstance for FakeInstance {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn handle_message(&mut self, request: &[u8]) -> Result<Vec<u8>, PluginLoaderError> {
+        let request: Value = serde_json::from_slice(request)
+            .map_err(|error| PluginLoaderError::Runtime(error.to_string()))?;
+        let response = match request.get("type").and_then(Value::as_str) {
+            Some("poll") => {
+                let batch = self
+                    .state
+                    .poll_batches
+                    .lock()
+                    .expect("fake batches poisoned")
+                    .pop_front()
+                    .unwrap_or_default();
+                json!({"events": batch})
+            }
+            Some("action") => {
+                self.state
+                    .actions
+                    .lock()
+                    .expect("fake actions poisoned")
+                    .push(request.clone());
+                json!({"summary": "fake ok"})
+            }
+            other => {
+                return Err(PluginLoaderError::Runtime(format!(
+                    "unexpected fake call {other:?}"
+                )));
+            }
+        };
+        serde_json::to_vec(&response).map_err(|error| PluginLoaderError::Runtime(error.to_string()))
+    }
+
+    fn shutdown(&mut self) -> Result<(), PluginLoaderError> {
+        Ok(())
+    }
+}
+
+fn fake_hotkey_manager(state: Arc<FakePluginState>) -> (PluginManager, PathBuf) {
+    let suffix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock before epoch")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("tiktools-fake-plugins-{suffix}"));
+    let directory = root.join("hotkeys");
+    std::fs::create_dir_all(&directory).unwrap();
+    std::fs::write(directory.join("plugin.json"), FAKE_HOTKEY_MANIFEST).unwrap();
+    std::fs::write(directory.join("fake-entry"), b"fake").unwrap();
+    let mut registry = RuntimeRegistry::new();
+    registry.register(Arc::new(FakeRuntime { state }));
+    let manager = PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        registry,
+    );
+    manager.scan().expect("fake plugin should scan");
+    assert!(manager
+        .get("hotkeys")
+        .is_some_and(|plugin| plugin.available));
+    (manager, root)
+}
+
+fn core_with_fake_hotkeys(
+    state: Arc<FakePluginState>,
+) -> (Arc<AppCore>, Arc<RecordingEmitter>, PathBuf) {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let mut core = AppCore::new(emitter.clone());
+    let (manager, root) = fake_hotkey_manager(Arc::clone(&state));
+    core.plugins = Arc::new(manager);
+    (Arc::new(core), emitter, root)
+}
+
+fn hotkey_snapshot(action_type: &str, action_config: Value) -> Value {
+    json!({
+        "actions": [{
+            "id": "hotkey-action",
+            "name": "Hotkey action",
+            "typeId": action_type,
+            "enabled": true,
+            "config": action_config,
+        }],
+        "events": [{
+            "id": "hotkey-event",
+            "name": "Hotkey event",
+            "enabled": true,
+            "trigger": "hotkey.pressed",
+            "filters": [
+                {"path": "event.data.key", "operator": "eq", "value": "k"},
+                {"path": "event.data.modifiers", "operator": "eq", "value": "ctrl"}
+            ],
+            "cooldownMs": 0,
+            "cooldownScope": "user",
+            "actionIds": ["hotkey-action"],
+            "runMode": "all"
+        }],
+        "eventTypes": [{
+            "type": "hotkey.pressed",
+            "title": {"default": "Hotkey pressed"},
+            "source": {"kind": "plugin", "pluginId": "hotkeys"}
+        }],
+        "plugins": [{
+            "descriptor": {"id": "hotkeys"},
+            "installed": true,
+            "enabled": true,
+            "available": true
+        }]
+    })
+}
+
+fn fake_press(key: &str, modifiers: &str) -> Value {
+    json!({
+        "type": "hotkey.pressed",
+        "data": {"key": key, "modifiers": modifiers, "sequence": key, "backend": "rdev"}
+    })
+}
+
+fn drain_domain(core: &AppCore) -> Vec<crate::events::DomainEvent> {
+    let mut events = core.events.subscribe_domain();
+    let mut drained = Vec::new();
+    while let Ok(event) = events.try_recv() {
+        drained.push(event);
+    }
+    drained
+}
+
+#[tokio::test]
+async fn fake_hotkey_poll_reaches_domain_automation_and_runs() {
+    let state = Arc::new(FakePluginState::default());
+    state
+        .poll_batches
+        .lock()
+        .unwrap()
+        .push_back(vec![fake_press("k", "ctrl")]);
+    let (core, emitter, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.automation
+        .replace_snapshot(&hotkey_snapshot("core.log", json!({"message": "key!"})));
+    let mut domain = core.events.subscribe_domain();
+
+    core.poll_plugin_events().await;
+
+    // Domain: authoritative plugin event with host-stamped ownership.
+    let mut saw_plugin_event = false;
+    let mut saw_runs_changed = false;
+    let mut saw_run_completed = false;
+    while let Ok(event) = domain.try_recv() {
+        match event {
+            crate::events::DomainEvent::PluginEvent {
+                plugin_id,
+                event_type,
+                event,
+            } => {
+                assert_eq!(plugin_id, "hotkeys");
+                assert_eq!(event_type, "hotkey.pressed");
+                assert_eq!(event["source"]["pluginId"], "hotkeys");
+                assert_eq!(event["source"]["kind"], "plugin");
+                assert_eq!(event["data"]["key"], "k");
+                saw_plugin_event = true;
+            }
+            crate::events::DomainEvent::AutomationRunsChanged { runs } => {
+                assert_eq!(runs.len(), 1);
+                saw_runs_changed = true;
+            }
+            crate::events::DomainEvent::AutomationRunCompleted { run } => {
+                assert_eq!(run["status"], "ok");
+                saw_run_completed = true;
+            }
+            _ => {}
+        }
+    }
+    assert!(saw_plugin_event, "plugin.event domain event missing");
+    assert!(saw_runs_changed, "automation.runs.changed missing");
+    assert!(saw_run_completed, "automation.run.completed missing");
+
+    // Automation executed and the legacy push still fires for compat.
+    assert_eq!(core.automation.recent_runs().len(), 1);
+    assert!(emitter
+        .messages
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|message| matches!(message, HostMessage::BehaviorRuns { .. })));
+
+    // Diagnostics recorded the chord without persisting history.
+    let diagnostics = core.plugin_diagnostics();
+    let hotkeys = diagnostics["plugins"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["pluginId"] == "hotkeys")
+        .unwrap();
+    assert_eq!(hotkeys["lastEventType"], "hotkey.pressed");
+    assert_eq!(hotkeys["lastEvent"]["key"], "k");
+    assert_eq!(hotkeys["lastEvent"]["modifiers"], "ctrl");
+    assert_eq!(hotkeys["droppedEvents"], 0);
+
+    // Initial bind projection was sent on first contact.
+    let actions = state.actions.lock().unwrap();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(actions[0]["action"]["typeId"], "hotkey.bind");
+    assert!(actions[0]["action"]["config"]["shortcuts"].is_array());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn more_than_sixteen_events_are_all_processed_in_order() {
+    let state = Arc::new(FakePluginState::default());
+    let batch: Vec<Value> = (0..40)
+        .map(|index| fake_press(&format!("k{index}"), "ctrl"))
+        .collect();
+    state.poll_batches.lock().unwrap().push_back(batch);
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.automation
+        .replace_snapshot(&hotkey_snapshot("core.log", json!({"message": "x"})));
+    let mut domain = core.events.subscribe_domain();
+
+    core.poll_plugin_events().await;
+
+    // All 40 cross the old 16-event boundary, in order.
+    let mut keys = Vec::new();
+    while let Ok(event) = domain.try_recv() {
+        if let crate::events::DomainEvent::PluginEvent { event, .. } = event {
+            keys.push(event["data"]["key"].as_str().unwrap_or_default().to_owned());
+        }
+    }
+    assert_eq!(keys.len(), 40);
+    assert_eq!(keys[0], "k0");
+    assert_eq!(keys[39], "k39");
+    assert_eq!(core.plugin_drop_total(), 0);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn failed_action_does_not_suppress_plugin_event() {
+    let state = Arc::new(FakePluginState::default());
+    state
+        .poll_batches
+        .lock()
+        .unwrap()
+        .push_back(vec![fake_press("k", "ctrl")]);
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    // Unknown action type: automation fails, control plane must not.
+    core.automation
+        .replace_snapshot(&hotkey_snapshot("no.such.action", json!({})));
+    let mut domain = core.events.subscribe_domain();
+
+    core.poll_plugin_events().await;
+
+    let mut saw_plugin_event = false;
+    while let Ok(event) = domain.try_recv() {
+        if matches!(event, crate::events::DomainEvent::PluginEvent { .. }) {
+            saw_plugin_event = true;
+        }
+    }
+    assert!(saw_plugin_event);
+    let runs = core.automation.recent_runs();
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0]["status"], "error");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn disabled_plugin_publishes_nothing() {
+    let state = Arc::new(FakePluginState::default());
+    state
+        .poll_batches
+        .lock()
+        .unwrap()
+        .push_back(vec![fake_press("k", "ctrl")]);
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.automation
+        .replace_snapshot(&hotkey_snapshot("core.log", json!({"message": "x"})));
+    core.set_plugin_activation("hotkeys", true, false);
+    core.poll_plugin_events().await;
+
+    assert!(drain_domain(&core).is_empty());
+    assert!(core.automation.recent_runs().is_empty());
+    assert_eq!(state.loads.load(AtomicOrdering::SeqCst), 0);
+    assert!(state.actions.lock().unwrap().is_empty());
+    assert_eq!(state.poll_batches.lock().unwrap().len(), 1);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn undeclared_event_types_are_rejected_and_counted() {
+    let state = Arc::new(FakePluginState::default());
+    state.poll_batches.lock().unwrap().push_back(vec![
+        json!({"type": "other.thing", "data": {}}),
+        json!({"type": "hotkey.pressed", "data": "not-an-object"}),
+    ]);
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.automation
+        .replace_snapshot(&hotkey_snapshot("core.log", json!({"message": "x"})));
+
+    core.poll_plugin_events().await;
+
+    assert!(drain_domain(&core)
+        .iter()
+        .all(|event| !matches!(event, crate::events::DomainEvent::PluginEvent { .. })));
+    assert!(core.automation.recent_runs().is_empty());
+    assert_eq!(core.plugin_drop_total(), 2);
+    assert_eq!(core.plugin_diagnostics()["plugins"][0]["droppedEvents"], 2);
+    assert_eq!(core.system_health()["status"], "degraded");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn restarted_plugin_receives_bindings_again() {
+    let state = Arc::new(FakePluginState::default());
+    state
+        .poll_batches
+        .lock()
+        .unwrap()
+        .push_back(vec![fake_press("k", "ctrl")]);
+    state
+        .poll_batches
+        .lock()
+        .unwrap()
+        .push_back(vec![fake_press("k", "ctrl")]);
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.automation
+        .replace_snapshot(&hotkey_snapshot("core.log", json!({"message": "x"})));
+
+    core.poll_plugin_events().await;
+    assert_eq!(state.loads.load(AtomicOrdering::SeqCst), 1);
+    assert_eq!(state.actions.lock().unwrap().len(), 1);
+    assert_eq!(core.automation.recent_runs().len(), 1);
+
+    // Simulate a crash: the loader retires the instance, the next tick
+    // restarts it and re-sends the binding projection before polling.
+    core.plugins.stop("hotkeys").expect("stop works");
+    core.poll_plugin_events().await;
+
+    assert_eq!(state.loads.load(AtomicOrdering::SeqCst), 2);
+    let actions = state.actions.lock().unwrap();
+    assert_eq!(actions.len(), 2);
+    assert_eq!(actions[1]["action"]["typeId"], "hotkey.bind");
+    assert_eq!(core.automation.recent_runs().len(), 2);
+    let diagnostics = core.plugin_diagnostics();
+    assert_eq!(diagnostics["hotkeySync"]["inSync"], true);
+    assert!(diagnostics["hotkeySync"]["appliedConfig"]["shortcuts"].is_array());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn plugin_poll_starts_without_any_webview() {
+    // No plugins, no WebView, no frontend handshake: lifecycle only.
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    assert!(!core
+        .plugin_poll_started
+        .load(std::sync::atomic::Ordering::Acquire));
+    let handle = tokio::runtime::Handle::current();
+    core.spawn_plugin_event_poll(&handle);
+    core.spawn_plugin_event_poll(&handle);
+    assert!(core
+        .plugin_poll_started
+        .load(std::sync::atomic::Ordering::Acquire));
+    // A tick with zero candidates is a clean no-op.
+    core.poll_plugin_events().await;
+    core.shutdown().await;
+}
+
+#[test]
+fn hotkey_filter_contract_matches_key_and_modifiers_separately() {
+    // Contract: `event.data.key eq k` + `event.data.modifiers eq ctrl`
+    // (never `key eq ctrl+k`). One snapshot per case through the real
+    // matcher, covering chords, bare keys, sequences, and special keys.
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = AppCore::new(emitter);
+    let cases = [
+        ("k", "ctrl", "k", "ctrl", true),
+        ("k", "ctrl+shift", "k", "ctrl+shift", true),
+        ("k", "ctrl", "k", "ctrl+shift", false),
+        ("a", "", "a", "", true),
+        ("o", "", "o", "", true),
+        ("f5", "ctrl", "f5", "ctrl", true),
+        ("up", "alt", "up", "alt", true),
+        ("5", "ctrl", "5", "ctrl", true),
+        // Combined `ctrl+k` in `key` never matches the real contract.
+        ("ctrl+k", "", "k", "ctrl", false),
+    ];
+    for (filter_key, filter_modifiers, event_key, event_modifiers, expected) in cases {
+        core.automation.replace_snapshot(&json!({
+            "actions": [{"id": "a", "name": "a", "typeId": "core.log", "enabled": true, "config": {}}],
+            "events": [{
+                "id": "e", "name": "e", "enabled": true, "trigger": "hotkey.pressed",
+                "filters": [
+                    {"path": "event.data.key", "operator": "eq", "value": filter_key},
+                    {"path": "event.data.modifiers", "operator": "eq", "value": filter_modifiers}
+                ],
+                "cooldownMs": 0, "cooldownScope": "user",
+                "actionIds": ["a"], "runMode": "all"
+            }],
+            "eventTypes": [{
+                "type": "hotkey.pressed", "title": {"default": "Hotkey pressed"},
+                "source": {"kind": "plugin", "pluginId": "hotkeys"}
+            }],
+            "plugins": [{
+                "descriptor": {"id": "hotkeys"},
+                "installed": true, "enabled": true, "available": true
+            }]
+        }));
+        let event = json!({
+            "type": "hotkey.pressed",
+            "data": {"key": event_key, "modifiers": event_modifiers, "sequence": "g o", "backend": "rdev"}
+        });
+        assert_eq!(
+            core.automation.matching_events(&event).len(),
+            usize::from(expected),
+            "key={filter_key} modifiers={filter_modifiers} vs event {event_key}/{event_modifiers}"
+        );
+    }
+    // Sequence filters observe the rolling history independently.
+    core.automation.replace_snapshot(&json!({
+        "actions": [{"id": "a", "name": "a", "typeId": "core.log", "enabled": true, "config": {}}],
+        "events": [{
+            "id": "e", "name": "e", "enabled": true, "trigger": "hotkey.pressed",
+            "filters": [{"path": "event.data.sequence", "operator": "contains", "value": "g o"}],
+            "cooldownMs": 0, "cooldownScope": "user",
+            "actionIds": ["a"], "runMode": "all"
+        }],
+        "eventTypes": [{
+            "type": "hotkey.pressed", "title": {"default": "Hotkey pressed"},
+            "source": {"kind": "plugin", "pluginId": "hotkeys"}
+        }],
+        "plugins": [{
+            "descriptor": {"id": "hotkeys"},
+            "installed": true, "enabled": true, "available": true
+        }]
+    }));
+    assert_eq!(
+        core.automation
+            .matching_events(&json!({
+                "type": "hotkey.pressed",
+                "data": {"key": "o", "modifiers": "", "sequence": "g o", "backend": "rdev"}
+            }))
+            .len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn hotkey_status_event_reaches_plugin_status_topic() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    let mut domain = core.events.subscribe_domain();
+    let source = json!({});
+    let event = core.make_plugin_event(
+        "hotkeys",
+        &source,
+        "hotkey.status",
+        json!({"platform": "windows", "backends": []}),
+    );
+    core.publish_automation_event(event).await;
+
+    let mut saw_event = false;
+    let mut saw_status = false;
+    while let Ok(event) = domain.try_recv() {
+        match event {
+            crate::events::DomainEvent::PluginEvent { event_type, .. } => {
+                assert_eq!(event_type, "hotkey.status");
+                saw_event = true;
+            }
+            crate::events::DomainEvent::PluginStatus { plugin_id, status } => {
+                assert_eq!(plugin_id, "hotkeys");
+                assert_eq!(status["platform"], "windows");
+                saw_status = true;
+            }
+            _ => {}
+        }
+    }
+    assert!(saw_event && saw_status);
 }

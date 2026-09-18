@@ -45,6 +45,35 @@ function capsOf(entry: HotkeyBackendStatus): HotkeyBackendCapabilities {
   };
 }
 
+export type HotkeyListenerState =
+  | 'active'
+  | 'starting'
+  | 'permission'
+  | 'failed'
+  | 'unsupported'
+  | 'unknown';
+
+/** Single listener state for the always-visible status panel. */
+export function hotkeyListenerState(
+  data: HotkeyStatusData | null | undefined,
+): HotkeyListenerState {
+  if (!data || !Array.isArray(data.backends) || data.backends.length === 0) return 'unknown';
+  const states = new Set(data.backends.map((entry) => entry.state));
+  if (data.backends.some((entry) => PERMISSION.has(entry.state))) return 'permission';
+  if (data.backends.some((entry) => entry.state === 'failed')) return 'failed';
+  if ([...states].every((state) => state === 'unsupported')) return 'unsupported';
+  if (data.backends.some((entry) => ACTIVE.has(entry.state))) return 'active';
+  return 'starting';
+}
+
+/** Human chord for the last received press, e.g. `Ctrl+K`. */
+export function formatHotkeyChord(key: string, modifiers: string): string {
+  const parts = [...modifiers.split('+').filter(Boolean), key].filter(Boolean);
+  return parts
+    .map((part) => (part.length <= 1 ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join('+');
+}
+
 export function summarizeHotkeyStatus(data: HotkeyStatusData | null | undefined): HotkeyStatusSummary {
   if (!data || !Array.isArray(data.backends) || data.backends.length === 0) {
     return {

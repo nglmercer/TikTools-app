@@ -185,3 +185,43 @@ pub fn gap_notification(lost: u64) -> Value {
         },
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_and_automation_topics_map_to_event_notifications() {
+        // The stdio/IPC/WebView transports all send `event_notification`
+        // verbatim, so this envelope is what an IPC subscriber receives.
+        for event in [
+            tiktools_core::events::DomainEvent::PluginEvent {
+                plugin_id: "hotkeys".to_owned(),
+                event_type: "hotkey.pressed".to_owned(),
+                event: serde_json::json!({"type": "hotkey.pressed"}),
+            },
+            tiktools_core::events::DomainEvent::PluginStatus {
+                plugin_id: "hotkeys".to_owned(),
+                status: serde_json::json!({}),
+            },
+            tiktools_core::events::DomainEvent::AutomationRunsChanged { runs: vec![] },
+            tiktools_core::events::DomainEvent::AutomationRunCompleted {
+                run: serde_json::json!({}),
+            },
+        ] {
+            let notification = event_notification(&event);
+            assert_eq!(notification["method"], "event");
+            assert_eq!(notification["params"]["topic"], event.topic());
+        }
+        let notification = event_notification(&tiktools_core::events::DomainEvent::PluginEvent {
+            plugin_id: "hotkeys".to_owned(),
+            event_type: "hotkey.pressed".to_owned(),
+            event: serde_json::json!({"type": "hotkey.pressed"}),
+        });
+        assert_eq!(notification["params"]["data"]["pluginId"], "hotkeys");
+        assert_eq!(
+            notification["params"]["data"]["eventType"],
+            "hotkey.pressed"
+        );
+    }
+}

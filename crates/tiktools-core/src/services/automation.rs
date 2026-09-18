@@ -548,10 +548,13 @@ mod tests {
             {"type": "other.thing", "data": {}},
         ]}))
         .unwrap();
-        let events = crate::parse_polled_events(&declared, &response);
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].0, "hotkey.pressed");
-        assert_eq!(events[0].1, json!({"key": "ctrl+k"}));
+        let parsed = crate::parse_polled_events(&declared, &response);
+        assert_eq!(parsed.events.len(), 1);
+        assert_eq!(parsed.events[0].0, "hotkey.pressed");
+        assert_eq!(parsed.events[0].1, json!({"key": "ctrl+k"}));
+        assert_eq!(parsed.undeclared, 2);
+        assert_eq!(parsed.invalid, 1);
+        assert_eq!(parsed.truncated, 0);
 
         // Oversized payloads are dropped.
         let big = "x".repeat(70 * 1024);
@@ -559,7 +562,8 @@ mod tests {
             json!({"events": [{"type": "hotkey.pressed", "data": {"blob": big}}]}),
         )
         .unwrap();
-        let events = crate::parse_polled_events(&declared, &response);
-        assert!(events.is_empty());
+        let parsed = crate::parse_polled_events(&declared, &response);
+        assert!(parsed.events.is_empty());
+        assert_eq!(parsed.invalid, 1);
     }
 }

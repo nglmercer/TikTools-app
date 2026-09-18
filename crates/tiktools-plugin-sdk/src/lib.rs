@@ -30,7 +30,7 @@ pub use plugin::{dispatch_plugin_call, Plugin};
 pub use process::{run_process_plugin, run_process_plugin_with};
 pub use results::{
     ActionResult, AudioPlayIntent, EmitIntent, HostIntent, PluginCallResult, PluginEvent,
-    PollResult,
+    PollResult, POLL_MAX_EVENTS_PER_RESPONSE,
 };
 pub use tiktools_plugin_api;
 pub use tiktools_plugin_macros::{tiktools_export_native_plugin, tiktools_process_plugin};

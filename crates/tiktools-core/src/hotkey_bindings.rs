@@ -48,9 +48,10 @@ impl AppCore {
         }
 
         let snapshot = self.load_behavior_snapshot_for_hotkey_sync();
+        let config = desired_hotkey_bind_config(&snapshot);
         let action = json!({
             "typeId": HOTKEY_BIND_ACTION,
-            "config": desired_hotkey_bind_config(&snapshot),
+            "config": config.clone(),
         });
         let mut logs = Vec::new();
         match self
@@ -61,7 +62,16 @@ impl AppCore {
                 self.hotkey_synced_revision
                     .store(revision, Ordering::Release);
                 self.record_plugin_success(HOTKEY_PLUGIN_ID);
-                tracing::debug!(
+                *self
+                    .hotkey_sync_state
+                    .lock()
+                    .expect("hotkey sync lock poisoned") =
+                    crate::plugin_diagnostics::HotkeySyncState {
+                        last_config: Some(config),
+                        last_error: None,
+                        last_sync_at: Some(now_millis()),
+                    };
+                tracing::info!(
                     plugin = HOTKEY_PLUGIN_ID,
                     revision,
                     summary = %summary,
@@ -70,6 +80,10 @@ impl AppCore {
             }
             Err(error) => {
                 self.record_plugin_failure(HOTKEY_PLUGIN_ID, error.clone());
+                self.hotkey_sync_state
+                    .lock()
+                    .expect("hotkey sync lock poisoned")
+                    .last_error = Some(error.clone());
                 tracing::warn!(
                     plugin = HOTKEY_PLUGIN_ID,
                     revision,

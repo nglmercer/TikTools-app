@@ -205,6 +205,10 @@ async fn serve_ipc_guarded() -> i32 {
 }
 
 async fn serve_stdio(api: ControlApi, events: bool) -> i32 {
+    // Headless hosts own the plugin lifecycle exactly like the desktop:
+    // polling starts with the host, never with a UI. Idempotent.
+    api.core()
+        .spawn_plugin_event_poll(&tokio::runtime::Handle::current());
     if let Err(error) = tiktools_control_api::run_stdio(api, events).await {
         eprintln!("tiktools: stdio host failed: {error}");
         return 3;
@@ -213,6 +217,10 @@ async fn serve_stdio(api: ControlApi, events: bool) -> i32 {
 }
 
 async fn serve_ipc(api: ControlApi) -> i32 {
+    // Headless hosts own the plugin lifecycle exactly like the desktop:
+    // polling starts with the host, never with a UI. Idempotent.
+    api.core()
+        .spawn_plugin_event_poll(&tokio::runtime::Handle::current());
     if let Err(error) = tiktools_control_api::run_ipc(api).await {
         if error.kind() == std::io::ErrorKind::AddrInUse {
             eprintln!("tiktools: a control host is already running on the local IPC endpoint");

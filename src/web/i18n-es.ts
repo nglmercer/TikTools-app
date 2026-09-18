@@ -73,6 +73,14 @@ export const spanish: Record<TranslationKey, string> = {
   increaseValue: 'Aumentar valor',
   decreaseValue: 'Disminuir valor',
   hotkeyStatusTitle: 'Atajos globales',
+  hotkeyStateActive: 'Activo',
+  hotkeyStateStarting: 'Iniciando',
+  hotkeyStatePermission: 'Permiso requerido',
+  hotkeyStateFailed: 'Fallido',
+  hotkeyStateUnsupported: 'No compatible',
+  hotkeyStateDisabled: 'Desactivado',
+  hotkeyStateNoEvents: 'Sin eventos recibidos aún',
+  hotkeyLastEvent: 'Último evento',
   hotkeyRawInputHint: 'Este disparador necesita acceso al teclado sin procesar en Wayland. TikTools lo solicitará automáticamente mediante el diálogo de autorización del sistema.',
 
   // Minimalist Tabs & Tooltips

@@ -167,6 +167,13 @@ impl ActionResult {
     }
 }
 
+/// Protocol batch size: one `poll` response carries at most this many
+/// events. Plugins with more pending events retain the remainder in their
+/// own queue for the next tick; the host accepts the complete bounded
+/// response, so events are never removed from the producer queue only to
+/// be discarded by the consumer.
+pub const POLL_MAX_EVENTS_PER_RESPONSE: usize = 16;
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PollResult {

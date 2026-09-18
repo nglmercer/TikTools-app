@@ -44,11 +44,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
 use tiktools_plugin_sdk::prelude::*;
+use tiktools_plugin_sdk::POLL_MAX_EVENTS_PER_RESPONSE;
 
 use self::event::{KeyState, MAX_PENDING_EVENTS};
-use self::shortcuts::{
-    parse_bind_config, sequences_needed_from_config, shortcuts_from_env, Chord,
-};
+use self::shortcuts::{parse_bind_config, sequences_needed_from_config, shortcuts_from_env, Chord};
 use self::state::{capabilities, BackendReport, SharedStatus, SharedStatusHandle};
 
 /// One normalized key press waiting for the host `poll` tick.
@@ -63,6 +62,10 @@ pub struct PendingEvent {
 
 pub type PendingQueue = Arc<Mutex<VecDeque<PendingEvent>>>;
 pub type KeyStateHandle = Arc<Mutex<KeyState>>;
+/// Cumulative producer-side overflow count. Bumped whenever the bounded
+/// pending queue drops the oldest event; reported through `hotkey.status`
+/// data, poll logs, and diagnostics so overflow is never silent.
+pub type DroppedCounter = Arc<Mutex<u64>>;
 
 /// Chords registered with the portal backend plus the raw-input opt-in.
 /// Bumped on every change so the portal thread can re-bind without restart.
@@ -126,6 +129,7 @@ pub type SharedConfigHandle = Arc<Mutex<SharedConfig>>;
 pub struct BackendHandles {
     pub key_state: KeyStateHandle,
     pub pending: PendingQueue,
+    pub dropped: DroppedCounter,
     pub shared: SharedStatusHandle,
     /// Only consulted by Linux backends (portal bindings, evdev gating).
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -171,14 +175,37 @@ pub fn emit_press(
         backend: backend.to_owned(),
         shortcut_id,
     });
+    let mut overflowed = 0u64;
     while queue.len() > MAX_PENDING_EVENTS {
         queue.pop_front();
+        overflowed += 1;
+    }
+    drop(queue);
+    if overflowed > 0 {
+        if let Ok(mut dropped) = handles.dropped.lock() {
+            *dropped = dropped.saturating_add(overflowed);
+        }
     }
     true
 }
 
+/// Drains at most one protocol batch from the pending queue, in order.
+/// Remainder stays queued for the next tick: events are never removed
+/// from the producer queue when the consumer would discard them.
+pub fn drain_batch(queue: &PendingQueue) -> Vec<PendingEvent> {
+    queue
+        .lock()
+        .map(|mut queue| {
+            let take = queue.len().min(POLL_MAX_EVENTS_PER_RESPONSE);
+            queue.drain(..take).collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
 pub struct HotkeyPlugin {
     pending: PendingQueue,
+    dropped: DroppedCounter,
+    last_reported_dropped: u64,
     /// Retained for the Linux late-evdev start; other platforms drive the
     /// listener purely through the spawned thread's cloned handles.
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -197,11 +224,13 @@ impl Default for HotkeyPlugin {
     fn default() -> Self {
         let key_state = Arc::new(Mutex::new(KeyState::default()));
         let pending = Arc::new(Mutex::new(VecDeque::new()));
+        let dropped = Arc::new(Mutex::new(0u64));
         let shared = Arc::new(Mutex::new(SharedStatus::default()));
         let config = Arc::new(Mutex::new(SharedConfig::initial()));
         let handles = BackendHandles {
             key_state: Arc::clone(&key_state),
             pending: Arc::clone(&pending),
+            dropped: Arc::clone(&dropped),
             shared: Arc::clone(&shared),
             config: Arc::clone(&config),
         };
@@ -211,6 +240,8 @@ impl Default for HotkeyPlugin {
         platform::start_platform_listeners(&handles);
         Self {
             pending,
+            dropped,
+            last_reported_dropped: 0,
             key_state,
             shared,
             config,
@@ -245,11 +276,7 @@ impl Plugin for HotkeyPlugin {
         #[cfg(target_os = "linux")]
         self.maybe_start_evdev_late();
         let mut result = PollResult::default();
-        let events = self
-            .pending
-            .lock()
-            .map(|mut queue| queue.drain(..).collect::<Vec<_>>())
-            .unwrap_or_default();
+        let events = drain_batch(&self.pending);
         for event in events {
             let mut data = serde_json::Map::new();
             data.insert("key".to_owned(), json!(event.key));
@@ -266,13 +293,30 @@ impl Plugin for HotkeyPlugin {
                 serde_json::Value::Object(data),
             )?);
         }
-        let status_change = self
+        let dropped = self.dropped.lock().map(|count| *count).unwrap_or(0);
+        let pending = self.pending.lock().map(|queue| queue.len()).unwrap_or(0);
+        // Fresh overflow this tick: one log line plus a status re-emit with
+        // the new counters, even when no backend changed state. Counts
+        // only — never key contents.
+        let fresh_overflow = dropped != self.last_reported_dropped;
+        if fresh_overflow {
+            result = result.log(format!(
+                "hotkey event queue overflowed: {dropped} event(s) dropped in total, {pending} pending"
+            ));
+            self.last_reported_dropped = dropped;
+        }
+        let (status_change, snapshot) = self
             .shared
             .lock()
-            .ok()
-            .and_then(|mut shared| shared.take_status_change());
-        if let Some(reports) = status_change {
-            result = result.event(status_event(&self.shared, &reports)?);
+            .map(|mut shared| {
+                let change = shared.take_status_change();
+                let snapshot = shared.backends.clone();
+                (change, snapshot)
+            })
+            .unwrap_or((None, Vec::new()));
+        if status_change.is_some() || (fresh_overflow && !snapshot.is_empty()) {
+            let reports = status_change.unwrap_or(snapshot);
+            result = result.event(status_event(&self.shared, &reports, dropped, pending)?);
         }
         Ok(result)
     }
@@ -281,6 +325,8 @@ impl Plugin for HotkeyPlugin {
 fn status_event(
     shared: &SharedStatusHandle,
     reports: &[BackendReport],
+    dropped_events: u64,
+    pending_events: usize,
 ) -> PluginResult<PluginEvent> {
     let (platform, session) = shared
         .lock()
@@ -291,6 +337,8 @@ fn status_event(
         json!({
             "platform": platform,
             "session": session,
+            "droppedEvents": dropped_events,
+            "pendingEvents": pending_events,
             "backends": reports.iter().map(|report| {
                 let caps = capabilities(report.backend);
                 json!({
@@ -384,6 +432,11 @@ impl HotkeyPlugin {
         for line in report.lines().map(str::to_owned) {
             result = result.log(line);
         }
+        let dropped = self.dropped.lock().map(|count| *count).unwrap_or(0);
+        let pending = self.pending.lock().map(|queue| queue.len()).unwrap_or(0);
+        result = result.log(format!(
+            "Queue:\n  dropped events (overflow): {dropped}\n  pending events: {pending}"
+        ));
         result
     }
 
@@ -403,6 +456,7 @@ impl HotkeyPlugin {
         let handles = BackendHandles {
             key_state: Arc::clone(&self.key_state),
             pending: Arc::clone(&self.pending),
+            dropped: Arc::clone(&self.dropped),
             shared: Arc::clone(&self.shared),
             config: Arc::clone(&self.config),
         };
@@ -414,9 +468,82 @@ impl HotkeyPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::VecDeque;
 
     #[test]
     fn startup_waits_for_host_projection_before_enabling_raw_input() {
         assert!(!SharedConfig::initial().sequences_needed);
+    }
+
+    fn test_handles() -> BackendHandles {
+        BackendHandles {
+            key_state: Arc::new(Mutex::new(KeyState::default())),
+            pending: Arc::new(Mutex::new(VecDeque::new())),
+            dropped: Arc::new(Mutex::new(0)),
+            shared: Arc::new(Mutex::new(SharedStatus::default())),
+            config: Arc::new(Mutex::new(SharedConfig::initial())),
+        }
+    }
+
+    fn press(handles: &BackendHandles, key: &str) {
+        assert!(emit_press(handles, key, true, "rdev", None, None));
+        handles
+            .key_state
+            .lock()
+            .unwrap()
+            .apply(key, false, now_ms());
+    }
+
+    #[test]
+    fn poll_drains_at_most_one_protocol_batch_in_order() {
+        let handles = test_handles();
+        for index in 0..40 {
+            press(&handles, &format!("k{index}"));
+        }
+        assert_eq!(handles.pending.lock().unwrap().len(), 40);
+        // 40 queued → three polls of 16/16/8, order preserved, none lost.
+        let first = drain_batch(&handles.pending);
+        assert_eq!(first.len(), POLL_MAX_EVENTS_PER_RESPONSE);
+        assert_eq!(first[0].key, "k0");
+        assert_eq!(first[15].key, "k15");
+        assert_eq!(handles.pending.lock().unwrap().len(), 24);
+        let second = drain_batch(&handles.pending);
+        assert_eq!(second.len(), POLL_MAX_EVENTS_PER_RESPONSE);
+        assert_eq!(second[0].key, "k16");
+        assert_eq!(handles.pending.lock().unwrap().len(), 8);
+        let third = drain_batch(&handles.pending);
+        assert_eq!(third.len(), 8);
+        assert_eq!(third[7].key, "k39");
+        assert!(handles.pending.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn queue_overflow_drops_oldest_and_counts_drops() {
+        let handles = test_handles();
+        for index in 0..(MAX_PENDING_EVENTS + 6) {
+            press(&handles, &format!("k{index}"));
+        }
+        assert_eq!(handles.pending.lock().unwrap().len(), MAX_PENDING_EVENTS);
+        assert_eq!(*handles.dropped.lock().unwrap(), 6);
+        // Oldest evicted, newest retained.
+        assert_eq!(handles.pending.lock().unwrap()[0].key, "k6");
+        // Drains still respect the protocol batch after overflow.
+        assert_eq!(
+            drain_batch(&handles.pending).len(),
+            POLL_MAX_EVENTS_PER_RESPONSE
+        );
+    }
+
+    #[test]
+    fn modifiers_normalize_to_canonical_chord_order() {
+        let handles = test_handles();
+        let mut state = handles.key_state.lock().unwrap();
+        for modifier in ["meta", "alt", "shift", "ctrl"] {
+            assert!(state.apply(modifier, true, 1).is_none());
+        }
+        let record = state.apply("k", true, 2).expect("press records");
+        assert_eq!(record.key, "k");
+        assert_eq!(record.modifiers, "ctrl+shift+alt+meta");
+        assert_eq!(record.sequence, "k");
     }
 }

@@ -138,6 +138,12 @@ impl DesktopApp {
                 }
             });
         }
+        // Plugin polling belongs to the host/runtime lifecycle, not the
+        // WebView: spontaneous plugin events (hotkeys, timers) must flow
+        // even before the frontend handshakes, across reloads, and while
+        // the window is hidden. Idempotent; the frontend-ready path must
+        // never own it.
+        core.spawn_plugin_event_poll(&runtime);
         // Forward domain events to the WebView as JSON-RPC `event`
         // notifications so the frontend control client observes the same
         // bus as CLI/IPC streaming clients.
@@ -488,7 +494,8 @@ impl DesktopApp {
         tracing::debug!("frontend-ready IPC received");
         self.startup_state = StartupState::Ready;
         self.startup_deadline = None;
-        self.core.spawn_plugin_event_poll(&self.runtime);
+        // Plugin polling is owned by host startup (see `DesktopApp::new`),
+        // never by WebView readiness: no lifecycle call here.
         self.set_window_visible(true);
         if let Some(window) = self.window.as_ref() {
             window.focus_window();

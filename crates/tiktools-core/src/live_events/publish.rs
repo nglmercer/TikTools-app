@@ -13,6 +13,20 @@ impl AppCore {
                         event: event.clone(),
                     });
             }
+            // Validated plugin events are first-class domain events,
+            // published here — before automation enrichment/execution — so
+            // subscribers observe them even when automation has no match,
+            // fails, or is saturated. Generic over all plugin-declared
+            // event types; ownership comes from the host stamp.
+            if let Some(plugin_id) = plugin_owner(event) {
+                self.record_plugin_event(&plugin_id, event);
+                self.events
+                    .publish_domain(crate::events::DomainEvent::PluginEvent {
+                        plugin_id,
+                        event_type: event_type.to_owned(),
+                        event: event.clone(),
+                    });
+            }
         }
     }
     pub(crate) async fn publish_automation_event(self: &Arc<Self>, event: serde_json::Value) {
@@ -55,10 +69,24 @@ impl AppCore {
             .last_automation_event_at
             .write()
             .expect("automation timestamp lock poisoned") = Some(now_millis());
-        if event.get("type").and_then(Value::as_str) == Some("hotkey.status") {
-            self.emit(HostMessage::HotkeyStatus {
-                status: event.get("data").cloned().unwrap_or_else(|| json!({})),
-            });
+        if let Some(event_type) = event.get("type").and_then(Value::as_str) {
+            // Any `<namespace>.status` plugin event carries listener health:
+            // publish it on the generic status topic. The legacy
+            // `hotkey-status` push stays as a compatibility path.
+            if event_type.ends_with(".status") {
+                if let Some(plugin_id) = plugin_owner(event) {
+                    self.events
+                        .publish_domain(crate::events::DomainEvent::PluginStatus {
+                            plugin_id,
+                            status: event.get("data").cloned().unwrap_or_else(|| json!({})),
+                        });
+                }
+            }
+            if event_type == "hotkey.status" {
+                self.emit(HostMessage::HotkeyStatus {
+                    status: event.get("data").cloned().unwrap_or_else(|| json!({})),
+                });
+            }
         }
         // DomainEvent delivery happens up front in `publish_live_domain_event`
         // (before automation slots), never here, so saturation cannot drop
