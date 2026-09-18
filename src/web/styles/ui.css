@@ -198,6 +198,7 @@
 .ui-stat__icon.is-cyan{ background:rgba(37,244,238,0.15); color:var(--tt-cyan); }
 .ui-stat__icon.is-pink{ background:rgba(254,44,85,0.15); color:var(--tt-pink); }
 .ui-stat__icon.is-yellow{ background:rgba(255,183,3,0.15); color:var(--tt-yellow); }
+.ui-stat__icon.is-purple{ background:rgba(157,78,221,0.15); color:var(--tt-purple); }
 .ui-stat__icon.is-green{ background:rgba(6,214,160,0.15); color:var(--tt-green); }
 .ui-stat__value{ font-size:20px; font-weight:800; letter-spacing:-0.02em; }
 .ui-stat__label{ font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; }

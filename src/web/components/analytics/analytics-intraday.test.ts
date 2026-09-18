@@ -6,8 +6,10 @@ import {
   formatHourLabel,
   formatTime,
   hourBucketOfTimestamp,
+  hourRowsToSeries,
   HOURS_PER_DAY,
 } from './analytics-intraday.ts';
+import { ANALYTICS_METRICS, METRIC_COLOR_VAR, METRIC_TONE } from './analytics-chart.ts';
 import { formatZoneShort, systemDay, tzOffsetSecsForDay } from './analytics-range.ts';
 
 const OFFSET = 0;
@@ -89,4 +91,26 @@ test('systemDay and tzOffsetSecsForDay agree with the runtime zone', () => {
 test('formatZoneShort exposes the system zone label', () => {
   expect(typeof formatZoneShort('en')).toBe('string');
   expect(typeof formatZoneShort('es')).toBe('string');
+});
+
+test('every metric has a distinct tone and theme color', () => {
+  const tones = new Set(ANALYTICS_METRICS.map((metric) => METRIC_TONE[metric]));
+  expect(tones.size).toBe(ANALYTICS_METRICS.length);
+  for (const metric of ANALYTICS_METRICS) {
+    expect(METRIC_COLOR_VAR[metric]).toMatch(/^var\(--tt-\w+\)$/);
+  }
+});
+
+test('hourRowsToSeries maps true backend hours per metric', () => {
+  const series = hourRowsToSeries([
+    { hour: 9, chats: 4, giftEvents: 0, gifts: 1, diamonds: 10, likeEvents: 0, likes: 0, joins: 0, follows: 0, shares: 0, peakViewers: 50 },
+    { hour: 21, chats: 0, giftEvents: 0, gifts: 0, diamonds: 0, likeEvents: 0, likes: 7, joins: 0, follows: 0, shares: 0, peakViewers: 0 },
+  ]);
+  expect(series.chats[9]).toBe(4);
+  expect(series.gifts[9]).toBe(1);
+  expect(series.diamonds[9]).toBe(10);
+  expect(series.peakViewers[9]).toBe(50);
+  expect(series.likes[21]).toBe(7);
+  expect(series.chats[10]).toBe(0);
+  expect(series.chats).toHaveLength(HOURS_PER_DAY);
 });

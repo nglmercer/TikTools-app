@@ -168,18 +168,22 @@
 }
 
 .analytics-chart__line {
-  stroke: var(--tt-cyan);
+  stroke: var(--metric-color, var(--tt-cyan));
   stroke-width: 2;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
 
 .analytics-chart__dot {
-  fill: var(--tt-cyan);
+  fill: var(--metric-color, var(--tt-cyan));
+}
+
+.analytics-chart__stop {
+  stop-color: var(--metric-color, var(--tt-cyan));
 }
 
 .analytics-chart__bar {
-  fill: var(--tt-cyan);
+  fill: var(--metric-color, var(--tt-cyan));
   opacity: 0.55;
 }
 
@@ -198,6 +202,45 @@
   font-size: 12px;
   color: var(--text-muted);
   text-align: center;
+}
+
+/* ---- stacked Today legend ---- */
+.analytics-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 8px 0 2px;
+}
+
+.analytics-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.analytics-legend__item.is-active {
+  color: var(--text);
+}
+
+.analytics-legend__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+
+/* ---- metric-tinted chips inside the activity card ---- */
+.analytics-activity .ui-chip-group {
+  margin-bottom: 2px;
+}
+
+.analytics-activity .ui-chip.is-active {
+  background: color-mix(in srgb, var(--metric-color, var(--tt-pink)) 12%, transparent);
+  border-color: color-mix(in srgb, var(--metric-color, var(--tt-pink)) 45%, transparent);
+  color: var(--text);
 }
 
 .analytics-chart__value {
@@ -261,7 +304,7 @@
 
 .analytics-bar-row.is-active {
   border-color: var(--line-focus);
-  background: rgba(37, 244, 238, 0.08);
+  background: color-mix(in srgb, var(--metric-color, var(--tt-cyan)) 8%, transparent);
 }
 
 .analytics-bar-row__label {
@@ -286,7 +329,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
-  background: var(--tt-cyan);
+  background: var(--metric-color, var(--tt-cyan));
   opacity: 0.85;
   transition: width 0.2s ease;
 }

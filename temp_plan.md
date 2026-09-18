@@ -1,571 +1,402 @@
-# TikTools — Finish Remaining IPC/Event Reliability Fixes
+# TikTools — Fix Final Remaining Reliability Issues
 
-Repository:
-
-```text
-nglmercer/TikTools-app
-```
-
-Branch:
+Reviewed head:
 
 ```text
-remake
-```
-
-Current reviewed commit:
-
-```text
-386094e0f280a19a18075a2983c5f56b8f45cac8
+57e80055f2e7da0d744c77562c6520e3314f5cc9
 ```
 
 ## Goal
 
-Finish the control-plane refactor and eliminate the remaining event-loss, WebView queue, IPC ownership, and blocking-I/O problems.
+Finish the control-plane reliability work.
 
-Target:
-
-```text
-ONE AppCore
-   │
-ControlApi
-   ├── WebView
-   ├── IPC
-   ├── CLI
-   └── agents
-
-DomainEvent = authoritative push/event channel
-```
+Current architecture is mostly correct. Fix only the remaining event-delivery and transport edge cases below.
 
 ---
 
-# 1. Fix WebView DomainEvent `Lagged`
+## 1. Make Reliable Domain Events Actually Reliable
 
-Current bug:
-
-```rust
-match events.recv().await {
-    Ok(event) => event,
-    Err(_) => break,
-}
-```
-
-`tokio::broadcast::RecvError::Lagged(_)` is recoverable.
-
-Required:
+Current `EventBus` uses two bounded `broadcast` channels:
 
 ```rust
-match events.recv().await {
-    Ok(event) => {
-        // forward
-    }
-
-    Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
-        tracing::warn!(count, "WebView domain event receiver lagged");
-        continue;
-    }
-
-    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-}
+reliable: broadcast::Sender<DomainEvent>,
+lossy: broadcast::Sender<DomainEvent>,
 ```
 
-A temporary burst must never permanently disable WebView events.
-
-Add a regression test.
-
----
-
-# 2. Never Drop RPC Responses from WebView Queue
-
-Current bounded queue may eventually do:
+The lossy/reliable split prevents live-feed floods from overwriting control events, but the reliable lane itself can still return:
 
 ```rust
-queue.pop_front();
+RecvError::Lagged(n)
 ```
 
-This can drop:
+This can lose:
 
 ```text
-rpc-response
-errors
-lifecycle events
-important state transitions
+points.changed
+live.connected
+live.disconnected
+live.error
+plugin.started
+plugin.stopped
+workflow.changed
+shutdown
 ```
 
-Implement message priority.
-
-Suggested classes:
-
-```text
-CRITICAL — never drop
-  rpc-response
-  live.connected
-  live.disconnected
-  plugin lifecycle
-  errors
-  shutdown
-
-COALESCABLE
-  room.stats
-  leaderboard snapshot
-  analytics.updated
-  processor metrics
-  automation context
-
-DROPPABLE
-  high-rate UI/live feed events when queue is saturated
-```
-
-Do not use blind FIFO eviction.
-
-If the queue contains only critical messages, apply backpressure or grow only within a second hard safety limit rather than dropping RPC responses.
-
-Add tests proving RPC responses survive saturation.
-
----
-
-# 3. Fix WebView Batch Tail Stall
-
-Current:
-
-```text
-MAX_BATCH_PER_TICK = 128
-```
-
-On Windows/macOS:
-
-```text
-flush 128
-remaining messages > 0
-ControlFlow::Wait
-no new event
-remaining messages can stall
-```
-
-Required:
-
-After a batch:
-
-```rust
-if !self.pending_host_messages.is_empty() {
-    schedule_another_ui_wake();
-}
-```
+Do not silently lose authoritative events.
 
 Preferred design:
 
 ```text
-queue not empty
-  -> send/retain FlushWebviewBatch event
-  -> next Winit turn
-  -> flush next batch
+DomainEvent
+   ├── reliable lane
+   │     -> guaranteed delivery or explicit resync
+   │
+   └── lossy lane
+         -> bounded/coalesced/feed
 ```
 
-Do not busy-loop.
+Implement one of:
 
-Add a test with >128 queued messages proving all batches eventually drain.
+### Preferred
 
----
+Per-subscriber bounded reliable queues with backpressure/disconnection semantics.
 
-# 4. Coalesce New Domain Events Too
+### Acceptable
 
-Current coalescer mainly understands legacy:
+Keep bounded broadcast, but whenever reliable lag occurs emit an explicit gap/resync signal.
 
-```json
-{"type":"room-stats"}
-```
-
-It must also understand:
+Example:
 
 ```json
 {
-  "method": "event",
+  "method": "event.gap",
   "params": {
-    "topic": "room.stats"
+    "lost": 12,
+    "resync": true
   }
 }
 ```
 
-Coalesce domain topics such as:
+Clients must then refresh authoritative state.
 
-```text
-room.stats
-analytics.updated
-processor metrics/status snapshot
-leaderboard snapshot if represented as a domain topic
-automation context snapshot
-```
-
-Never coalesce:
-
-```text
-live.ui-event
-rpc-response
-plugin lifecycle
-errors
-shutdown
-```
-
-Create one message-classification function shared by queue policy and tests.
+Never pretend a lagged reliable stream is complete.
 
 ---
 
-# 5. Clear IPC Health When Retry Successfully Binds
+## 2. Fix IPC Event Lag Handling
 
-Current logic clears:
+Current IPC path effectively does:
 
 ```rust
-core.set_ipc_error(None)
+receiver.recv().await.ok()
 ```
 
-only after `run_ipc_shared()` returns successfully.
+This converts:
 
-But a healthy server normally remains inside its accept loop until shutdown.
+```rust
+RecvError::Lagged(n)
+```
 
-Required architecture:
+into:
 
 ```text
-bind/claim endpoint
-   ↓
-server ready callback/signal
-   ↓
-core.set_ipc_error(None)
-   ↓
-accept loop
+None
 ```
 
-Possible API:
+and silently loses information.
+
+Replace with explicit handling:
 
 ```rust
-run_ipc_shared_with_ready(
-    control,
-    || core.set_ipc_error(None),
+match receiver.recv().await {
+    Ok(event) => send_event(event),
+
+    Err(RecvError::Lagged(count)) => {
+        tracing::warn!(count, "control IPC event subscriber lagged");
+        send_gap_notification(count).await?;
+    }
+
+    Err(RecvError::Closed) => {
+        // terminate event stream
+    }
+}
+```
+
+Do the same for:
+
+```rust
+drain_events()
+```
+
+Do not silently stop draining when `try_recv()` returns `Lagged`.
+
+Add tests proving:
+
+```text
+event burst
+↓
+Lagged
+↓
+connection remains alive
+↓
+client receives gap/resync notification
+↓
+later events still arrive
+```
+
+---
+
+## 3. Add Client Resync Handling
+
+Extend both Rust `ControlClient` and WebView `control-client.ts` to understand an event-gap notification.
+
+Example:
+
+```text
+event.gap
+```
+
+Expose a Rust API such as:
+
+```rust
+ControlEvent::Domain(event)
+ControlEvent::Gap { lost: u64 }
+```
+
+Frontend should support:
+
+```ts
+control.onGap(() => {
+  void refreshAuthoritativeState();
+});
+```
+
+At minimum resync:
+
+```text
+live status
+points leaderboard/config
+plugin state
+creator state
+workflow/automation state as needed
+```
+
+Do not attempt to reconstruct missing reliable events from guesses.
+
+---
+
+## 4. Bound the Reliable WebView Queue Safely
+
+Current reliable WebView lane:
+
+```rust
+reliable: VecDeque<String>
+```
+
+never drops messages, but is unbounded.
+
+That changes failure mode from message loss to unlimited memory growth if WebView becomes stuck.
+
+Keep reliable messages non-droppable, but add a byte/backlog safety policy.
+
+Example:
+
+```text
+MAX_RELIABLE_MESSAGES = 4096
+MAX_RELIABLE_BYTES = 16 MiB
+```
+
+When exceeded:
+
+```text
+DO NOT DROP RPC RESPONSES
+DO NOT DROP STATE TRANSITIONS
+
+instead:
+  mark WebView transport unhealthy
+  stop accepting new WebView RPC
+  reject pending/new RPC with transport failure where possible
+  recreate/reload/fail the WebView cleanly
+```
+
+A broken UI transport must fail loudly rather than consume unlimited memory.
+
+Track both:
+
+```rust
+reliable.len()
+reliable_bytes
+```
+
+Add tests with large critical-message bursts.
+
+---
+
+## 5. Fix Malformed WebView JSON-RPC Routing
+
+Current logic parses once in:
+
+```rust
+is_control_rpc(&raw)
+```
+
+If JSON is malformed, it returns false, so malformed RPC-shaped input can fall into the legacy router.
+
+Then this intended error path is unreachable:
+
+```rust
+Err(error) => RpcResponse::error(
+    RpcId::extract_from_prefix(&raw),
+    ...
 )
 ```
 
-or separate:
+Refactor to parse exactly once.
+
+Target:
 
 ```rust
-let server = bind_ipc(...)?;
-core.set_ipc_error(None);
-server.run().await;
+match serde_json::from_str::<serde_json::Value>(&raw) {
+    Ok(value) => {
+        if value.get("method").is_some() {
+            control.execute_value(&value).await
+        } else {
+            legacy_dispatch(value).await
+        }
+    }
+
+    Err(error) => {
+        if is_probably_control_rpc(&raw) {
+            send_rpc_error(
+                RpcId::extract_from_prefix(&raw),
+                ApiError::invalid_params(
+                    format!("invalid JSON: {error}")
+                ),
+            );
+        } else {
+            tracing::warn!(%error, "invalid legacy WebView message");
+        }
+    }
+}
 ```
 
-Health must transition:
+Avoid:
 
 ```text
-degraded -> ok
+parse
+↓
+classify
+↓
+parse again
 ```
 
-as soon as IPC is actually listening again.
+The Winit callback should only:
 
-Add test.
+```text
+size-check
+special-case frontend-ready
+move payload to Tokio
+```
+
+Do parsing/classification off the UI thread.
 
 ---
 
-# 6. Strengthen Unix Control-Host Ownership
+## 6. Keep WebView Callback Lightweight
 
-Current Unix ownership relies mostly on socket bind/stale socket cleanup.
+Audit:
 
-Add a real per-user lock held for server lifetime.
+```rust
+with_ipc_handler(...)
+```
+
+Do not perform expensive JSON parsing on the Winit thread.
 
 Preferred:
 
 ```text
-$TIKTOOLS_HOME/tiktools-control.lock
-```
-
-using:
-
-```text
-flock / fs2 / equivalent advisory file locking
-```
-
-Flow:
-
-```text
-acquire ownership lock
+Wry callback
    ↓
-inspect/remove stale socket
+raw size check
    ↓
-bind Unix socket
+frontend-ready tiny fast path
    ↓
-hold lock until server exits
+Tokio task
+      -> parse
+      -> classify
+      -> execute
 ```
 
-Never unlink a possibly-live socket before acquiring exclusive ownership.
-
-Keep:
-
-```text
-socket permissions = 0600
-```
-
-Add tests:
-
-```text
-first owner succeeds
-second owner fails
-stale socket cleanup works
-lock released after shutdown
-```
+Protect the UI loop from malicious or very large valid JSON.
 
 ---
 
-# 7. Complete Blocking-I/O Audit
+## 7. Add Explicit Event Stream Health
 
-Move synchronous persistence/filesystem work out of async Tokio handlers.
-
-Audit at minimum:
+Expose event-stream status through:
 
 ```text
-app.state.*
-creators.*
-workflows.*
-plugins.settings.*
-points.*
-gifts.*
-analytics.*
-plugin install/uninstall
-filesystem scans
-archive/file operations
+system.health
 ```
 
-Example:
+Include fields similar to:
 
-```rust
-let result = tokio::task::spawn_blocking(move || {
-    core.workflow_save(graph)
-})
-.await
-.map_err(...)?;
-```
-
-Do not unnecessarily wrap pure in-memory operations.
-
-Target rule:
-
-```text
-SQLite / filesystem / archive / sync plugin I/O
-    -> spawn_blocking
-
-network async
-    -> normal async
-
-pure memory
-    -> direct
-```
-
----
-
-# 8. Complete DomainEvent Migration
-
-Add domain equivalents for remaining legacy connection pushes.
-
-Add:
-
-```text
-live.reconnecting
-live.error
-```
-
-Suggested variants:
-
-```rust
-LiveReconnecting {
-    attempt: u32,
-    delay_ms: u64,
-}
-
-LiveError {
-    phase: String,
-    message: String,
+```json
+{
+  "events": {
+    "status": "ok",
+    "reliableGaps": 0,
+    "lastGapAt": null
+  }
 }
 ```
 
-Frontend should consume:
+After a reliable gap:
 
-```ts
-control.onTopic('live.reconnecting', ...)
-control.onTopic('live.error', ...)
+```text
+status = degraded
+reliableGaps += 1
 ```
 
-Remove corresponding frontend legacy push subscriptions after migration.
+After successful resync, health may return to OK if appropriate.
+
+Agents must be able to tell whether their local state may be stale.
 
 ---
 
-# 9. Stop Sending Duplicate Legacy Events
+## 8. Tests
 
-Once frontend consumes the domain equivalent, stop emitting duplicate legacy messages for that state.
-
-Examples to remove when safe:
+Add regression/stress tests for:
 
 ```text
-HostMessage::LiveEvent
-HostMessage::RoomStats
-HostMessage::PointsAwarded
-HostMessage::GiftCatalog
-HostMessage::PluginProgress
+reliable-event burst causes explicit gap, not silent loss
+lossy flood never causes reliable gap
+IPC continues after Lagged
+post-gap events still arrive
+ControlClient exposes gap notification
+WebView triggers resync on gap
+reliable WebView queue never silently drops messages
+reliable queue over-limit fails transport cleanly
+malformed JSON-RPC returns correlated error id
+malformed legacy payload does not enter ControlApi
+large valid JSON parsing does not run on Winit thread
 ```
 
-Do this incrementally only after the frontend no longer depends on them.
-
-Keep compatibility only where genuinely required.
-
-Goal:
-
-```text
-one event mutation
-   ↓
-one DomainEvent
-   ↓
-all clients
-```
+All async tests need bounded timeouts.
 
 ---
 
-# 10. Fix New Viewer Handling in `points.changed`
-
-Current frontend logic:
-
-```ts
-const index = leaderboard.value.findIndex(...);
-
-if (index < 0) return;
-```
-
-But `points.adjust` may create a new viewer.
-
-Fix with one of:
-
-### Preferred
-
-Make `points.changed` carry enough information to construct/update a full viewer record.
-
-or:
-
-### Acceptable
-
-If viewer is missing:
-
-```ts
-void refresh();
-```
-
-Do not silently ignore a newly created viewer.
-
-Add regression test:
-
-```text
-empty leaderboard
-points.adjust("new-user", 10)
-points.changed received
-new-user appears
-```
-
----
-
-# 11. Add Raw WebView IPC Size Limit
-
-Before:
-
-```rust
-serde_json::from_str(&raw)
-```
-
-validate:
-
-```rust
-if raw.len() > MAX_REQUEST_BYTES {
-    return/send request_too_large;
-}
-```
-
-Use the same limits as local IPC:
-
-```text
-MAX_REQUEST_BYTES
-MAX_PARAMS_BYTES
-```
-
-Do not let WebView bypass transport limits.
-
-Add malformed/oversized request tests.
-
----
-
-# 12. Improve Dev Stale-Host Detection
-
-Current dev launcher probes control IPC.
-
-Also make startup robust against stale desktop ownership.
-
-Requirements:
-
-```text
-existing control host -> fail
-existing desktop single-instance owner -> fail
-Vite process from current launcher only
-actual selected Vite port only
-```
-
-Prefer a small desktop/control probe with PID/version info if possible.
-
-Dev startup must never produce:
-
-```text
-new Vite + old desktop
-old IPC host + new frontend
-```
-
----
-
-# 13. Make IPC Client Reader Fail Loudly on Bad Wire Data
-
-Current reader silently skips malformed JSON/event payloads.
-
-Improve diagnostics:
-
-```rust
-tracing::warn!(..., "invalid control IPC response");
-```
-
-For malformed responses matching a pending ID, fail the pending request instead of leaving it until timeout where possible.
-
-Do not crash the connection for one malformed event notification unless framing is corrupt.
-
----
-
-# 14. Add Event-Loss / Queue Stress Tests
-
-Add tests for:
-
-```text
-broadcast Lagged does not terminate WebView event forwarder
->128 WebView messages fully drain
-queue saturation does not drop rpc-response
-domain snapshots coalesce
-live events remain ordered enough for UI use
-event subscription continues after bursts
-IPC reconnect clears degraded health
-Unix ownership lock
-new viewer points.changed
-oversized WebView RPC rejected
-```
-
-Use bounded timeouts on every async test.
-
-No test may hang indefinitely.
-
----
-
-# 15. Verification
+## 9. Verification
 
 Run:
 
 ```bash
 cargo fmt --all -- --check
 
-cargo check --workspace --all-features --locked
+cargo check \
+  --workspace \
+  --all-features \
+  --locked
 
 cargo clippy \
   --workspace \
@@ -574,7 +405,9 @@ cargo clippy \
   --locked \
   -- -D warnings
 
-cargo test --workspace --locked
+cargo test \
+  --workspace \
+  --locked
 
 bun run lint
 bun run typecheck
@@ -584,27 +417,26 @@ bun run build:web
 git diff --check
 ```
 
-Then manually test:
+Then manually verify:
 
 ```bash
 bun run scripts/start-dev.ts
 ```
 
-Verify:
+Test:
 
 ```text
-one Vite process
-one desktop host
-actual Vite URL passed to desktop
-CLI connects to same AppCore
-two concurrent IPC clients work
-domain events continue after event bursts
-automation saturation does not drop live domain events
-WebView survives >512-event burst
-RPC responses never disappear
-new point viewers appear
-IPC health recovers after temporary failure
-desktop shutdown releases IPC ownership
+WebView RPC
+CLI RPC
+2+ concurrent IPC clients
+live event burst
+points burst
+plugin lifecycle burst
+WebView temporarily stalled
+IPC client temporarily stalled
+recovery after event gap
+shutdown
+restart
 ```
 
 ---
@@ -612,39 +444,34 @@ desktop shutdown releases IPC ownership
 # Definition of Done
 
 ```text
-[ ] Lagged broadcast does not stop WebView events
-[ ] RPC responses cannot be evicted from WebView queue
-[ ] >128 queued messages always continue draining
-[ ] domain-event snapshots are coalesced correctly
-[ ] IPC health clears after successful rebind
-[ ] Unix has real exclusive ownership locking
-[ ] blocking SQLite/filesystem operations are off Tokio async workers
-[ ] reconnect/error use DomainEvent
-[ ] duplicate legacy pushes removed where migrated
-[ ] new points viewers update correctly
-[ ] WebView IPC has request-size limits
-[ ] stale dev desktop/host detection is reliable
-[ ] stress/regression tests cover event bursts
-[ ] Rust checks/tests pass
-[ ] Bun checks/tests/build pass
+[ ] reliable DomainEvents cannot disappear silently
+[ ] reliable lag produces explicit gap/resync signal
+[ ] IPC does not swallow Lagged
+[ ] Rust ControlClient reports gaps
+[ ] WebView client reports/resyncs gaps
+[ ] reliable WebView queue has bounded memory
+[ ] reliable messages are never silently evicted
+[ ] broken WebView transport fails loudly
+[ ] malformed JSON-RPC receives correlated error
+[ ] JSON parsing is off Winit thread
+[ ] system.health reports event-stream degradation
+[ ] stress tests cover all failure paths
+[ ] Rust checks pass
+[ ] Bun checks pass
 ```
 
-## Core Rule
-
-Do not fix these with feature-specific patches.
-
-Keep the architecture:
+## Core Invariant
 
 ```text
-state mutation
-   ↓
-AppCore
-   ↓
-DomainEvent
-   ↓
-ControlApi transport
-   ↓
-WebView / CLI / agents
+Authoritative event:
+    delivered
+       OR
+    client explicitly told it missed data and must resync
+
+Never:
+    silently dropped
 ```
 
-RPC responses and authoritative state transitions must never be silently dropped.
+Lossy feed traffic may be dropped/coalesced.
+
+RPC responses and authoritative state transitions may not.

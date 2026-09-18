@@ -7,8 +7,17 @@ import { Card, Chip, ChipGroup } from '../ui/Card.vue';
 import { AnalyticsChart } from './AnalyticsChart.vue';
 import { AnalyticsDayBreakdown } from './AnalyticsDayBreakdown.vue';
 import { AnalyticsHourlyChart } from './AnalyticsHourlyChart.vue';
-import { ANALYTICS_METRICS, isSingleDaySpan, type AnalyticsMetric } from './analytics-chart.ts';
-import { buildHourlySeries, formatDayTimeSubtitle } from './analytics-intraday.ts';
+import {
+  ANALYTICS_METRICS,
+  METRIC_COLOR_VAR,
+  isSingleDaySpan,
+  type AnalyticsMetric,
+} from './analytics-chart.ts';
+import {
+  buildHourlySeries,
+  formatDayTimeSubtitle,
+  hourRowsToSeries,
+} from './analytics-intraday.ts';
 import { tzOffsetSecsForDay } from './analytics-range.ts';
 
 type AnalyticsActivityCardProps = {
@@ -28,10 +37,11 @@ const METRIC_LABELS: Record<AnalyticsMetric, 'analyticsChats' | 'analyticsGifts'
 
 /**
  * Activity card that works for every range:
- * - multi-day spans render the daily trend line (AnalyticsChart),
+ * - multi-day spans render the daily trend line (AnalyticsChart) in the
+ *   selected metric's color,
  * - single-day spans (Today preset or a custom From==To day, in the system
- *   zone) render an hourly time graphic above the per-metric breakdown, with
- *   the local date and zone in the subtitle.
+ *   zone) render a stacked multi-metric hourly graphic with legend plus the
+ *   per-metric breakdown, with the local date and zone in the subtitle.
  * The hourly chart prefers the backend's true per-hour counters and falls
  * back to the last-activity approximation for pre-hourly data.
  * Metric switching reuses the shared Chip/ChipGroup primitives.
@@ -39,16 +49,18 @@ const METRIC_LABELS: Record<AnalyticsMetric, 'analyticsChats' | 'analyticsGifts'
 export const AnalyticsActivityCard = defineVueFunctional<AnalyticsActivityCardProps>((props) => {
   const { locale, summary, metric, onMetricChange } = props;
   const singleDay = isSingleDaySpan(summary.startDay, summary.endDay);
-  const hourly = singleDay
+  const offset = singleDay ? tzOffsetSecsForDay(summary.startDay) : 0;
+  const series: Record<AnalyticsMetric, number[]> = singleDay
     ? summary.hours.length > 0
-      ? summary.hours.map((row) => row[metric] ?? 0)
-      : buildHourlySeries(
-          summary.topViewers,
-          summary.startDay,
-          metric,
-          tzOffsetSecsForDay(summary.startDay),
-        )
-    : [];
+      ? hourRowsToSeries(summary.hours)
+      : {
+          chats: buildHourlySeries(summary.topViewers, summary.startDay, 'chats', offset),
+          gifts: buildHourlySeries(summary.topViewers, summary.startDay, 'gifts', offset),
+          likes: buildHourlySeries(summary.topViewers, summary.startDay, 'likes', offset),
+          diamonds: buildHourlySeries(summary.topViewers, summary.startDay, 'diamonds', offset),
+          peakViewers: buildHourlySeries(summary.topViewers, summary.startDay, 'peakViewers', offset),
+        }
+    : { chats: [], gifts: [], likes: [], diamonds: [], peakViewers: [] };
 
   return (
     <Card
@@ -57,35 +69,42 @@ export const AnalyticsActivityCard = defineVueFunctional<AnalyticsActivityCardPr
       hint={singleDay ? t(locale, 'analyticsHourlyHint') : undefined}
       icon={<IconBarChart />}
     >
-      <ChipGroup>
-        {ANALYTICS_METRICS.map((key) => (
-          <Chip key={key} active={metric === key} onClick={() => onMetricChange(key)}>
-            {t(locale, METRIC_LABELS[key])}
-          </Chip>
-        ))}
-      </ChipGroup>
-      {singleDay ? (
-        <>
-          <AnalyticsHourlyChart locale={locale} values={hourly} label={t(locale, METRIC_LABELS[metric])} />
-          <AnalyticsDayBreakdown
+      <div class="analytics-activity" style={{ '--metric-color': METRIC_COLOR_VAR[metric] }}>
+        <ChipGroup>
+          {ANALYTICS_METRICS.map((key) => (
+            <Chip key={key} active={metric === key} onClick={() => onMetricChange(key)}>
+              {t(locale, METRIC_LABELS[key])}
+            </Chip>
+          ))}
+        </ChipGroup>
+        {singleDay ? (
+          <>
+            <AnalyticsHourlyChart
+              locale={locale}
+              series={series}
+              active={metric}
+              metricLabel={(key) => t(locale, METRIC_LABELS[key])}
+            />
+            <AnalyticsDayBreakdown
+              locale={locale}
+              day={summary.startDay}
+              totals={summary.totals}
+              metric={metric}
+              metricLabel={(key) => t(locale, METRIC_LABELS[key])}
+              onMetricChange={onMetricChange}
+            />
+          </>
+        ) : (
+          <AnalyticsChart
             locale={locale}
-            day={summary.startDay}
-            totals={summary.totals}
+            days={summary.days}
+            startDay={summary.startDay}
+            endDay={summary.endDay}
             metric={metric}
-            metricLabel={(key) => t(locale, METRIC_LABELS[key])}
-            onMetricChange={onMetricChange}
+            label={t(locale, METRIC_LABELS[metric])}
           />
-        </>
-      ) : (
-        <AnalyticsChart
-          locale={locale}
-          days={summary.days}
-          startDay={summary.startDay}
-          endDay={summary.endDay}
-          metric={metric}
-          label={t(locale, METRIC_LABELS[metric])}
-        />
-      )}
+        )}
+      </div>
     </Card>
   );
 });

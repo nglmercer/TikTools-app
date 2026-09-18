@@ -51,7 +51,7 @@ export const SplitLayout = defineVueFunctional<SplitLayoutProps>((props) => {
   );
 });
 
-type StatCardProps = { icon: VNodeChild; value: string | number; label: string; tone?: 'cyan' | 'pink' | 'yellow' | 'green' };
+type StatCardProps = { icon: VNodeChild; value: string | number; label: string; tone?: 'cyan' | 'pink' | 'yellow' | 'purple' | 'green' };
 export const StatCard = defineVueFunctional<StatCardProps>((props) => {
   const { icon, value, label, tone = 'cyan' } = props;
   return (

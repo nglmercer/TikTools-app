@@ -98,7 +98,7 @@ export const english = {
   analyticsJoins: 'Joins',
   analyticsInteractions: 'Interactions',
   analyticsTodayTimeline: 'Today timeline',
-  analyticsHourlyHint: 'Hourly distribution from each viewer last activity time',
+  analyticsHourlyHint: 'Hourly bars stack every metric in its color — pick one to highlight it (Viewers shows peaks on their own scale)',
   analyticsEventsCount: '{count} events',
   lastActive: 'Last active',
   analyticsNoHourlyData: 'No hourly activity yet',

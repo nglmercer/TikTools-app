@@ -101,7 +101,7 @@ export const spanish: Record<TranslationKey, string> = {
   analyticsJoins: 'Entradas',
   analyticsInteractions: 'Interacciones',
   analyticsTodayTimeline: 'Actividad de hoy',
-  analyticsHourlyHint: 'Distribución por hora según la última actividad de cada espectador',
+  analyticsHourlyHint: 'Las barras apilan cada métrica en su color: elige una para resaltarla (Espectadores muestra máximos en su propia escala)',
   analyticsEventsCount: '{count} eventos',
   lastActive: 'Última actividad',
   analyticsNoHourlyData: 'Sin actividad por hora todavía',

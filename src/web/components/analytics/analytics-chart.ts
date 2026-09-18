@@ -4,6 +4,29 @@ export type AnalyticsMetric = 'chats' | 'gifts' | 'likes' | 'diamonds' | 'peakVi
 
 export const ANALYTICS_METRICS: AnalyticsMetric[] = ['chats', 'gifts', 'likes', 'diamonds', 'peakViewers'];
 
+/** Count metrics that stack together in the Today chart (peaks use their own scale). */
+export const STACKABLE_METRICS: AnalyticsMetric[] = ['chats', 'gifts', 'likes', 'diamonds'];
+
+export type MetricTone = 'cyan' | 'pink' | 'yellow' | 'purple' | 'green';
+
+/** One identity color per metric, shared by charts, breakdowns, chips and stat cards. */
+export const METRIC_TONE: Record<AnalyticsMetric, MetricTone> = {
+  chats: 'cyan',
+  gifts: 'pink',
+  likes: 'yellow',
+  diamonds: 'purple',
+  peakViewers: 'green',
+};
+
+/** Theme-aware CSS color for each metric (`var(--tt-…)` in both themes). */
+export const METRIC_COLOR_VAR: Record<AnalyticsMetric, string> = {
+  chats: 'var(--tt-cyan)',
+  gifts: 'var(--tt-pink)',
+  likes: 'var(--tt-yellow)',
+  diamonds: 'var(--tt-purple)',
+  peakViewers: 'var(--tt-green)',
+};
+
 export function metricValue(row: AnalyticsDayRow, metric: AnalyticsMetric): number {
   return row[metric] ?? 0;
 }

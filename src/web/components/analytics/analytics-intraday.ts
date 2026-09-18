@@ -1,5 +1,5 @@
-import type { AnalyticsTopViewer } from '../../../shared/messages.ts';
-import type { AnalyticsMetric } from './analytics-chart.ts';
+import type { AnalyticsHourRow, AnalyticsTopViewer } from '../../../shared/messages.ts';
+import { STACKABLE_METRICS, type AnalyticsMetric } from './analytics-chart.ts';
 import { formatZoneShort, systemTimeZone } from './analytics-range.ts';
 
 export const HOURS_PER_DAY = 24;
@@ -62,6 +62,28 @@ export function buildHourlySeries(
     if (weight > 0) values[hour] = (values[hour] ?? 0) + weight;
   }
   return values;
+}
+
+/**
+ * True backend hour rows mapped to one 24-value series per metric, ready for
+ * the stacked Today chart. Missing hours read as zero.
+ */
+export function hourRowsToSeries(hours: AnalyticsHourRow[]): Record<AnalyticsMetric, number[]> {
+  const series = {
+    chats: new Array<number>(HOURS_PER_DAY).fill(0),
+    gifts: new Array<number>(HOURS_PER_DAY).fill(0),
+    likes: new Array<number>(HOURS_PER_DAY).fill(0),
+    diamonds: new Array<number>(HOURS_PER_DAY).fill(0),
+    peakViewers: new Array<number>(HOURS_PER_DAY).fill(0),
+  };
+  for (const row of hours) {
+    if (row.hour < 0 || row.hour >= HOURS_PER_DAY) continue;
+    for (const metric of STACKABLE_METRICS) {
+      series[metric][row.hour] = Math.max(0, row[metric] ?? 0);
+    }
+    series.peakViewers[row.hour] = Math.max(0, row.peakViewers ?? 0);
+  }
+  return series;
 }
 
 /** Deterministic 24h axis tick (`00:00`, `13:00`) for a wall-clock hour. */

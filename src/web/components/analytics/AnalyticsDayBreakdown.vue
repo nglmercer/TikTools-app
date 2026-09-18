@@ -2,7 +2,11 @@
 import { defineVueFunctional } from '../../vue/component.ts';
 import { t, type Locale } from '../../i18n.ts';
 import type { AnalyticsTotals } from '../../../shared/messages.ts';
-import { buildMetricBreakdown, type AnalyticsMetric } from './analytics-chart.ts';
+import {
+  METRIC_COLOR_VAR,
+  buildMetricBreakdown,
+  type AnalyticsMetric,
+} from './analytics-chart.ts';
 import { formatDayDate } from './analytics-intraday.ts';
 import { formatCount } from './analytics-range.ts';
 
@@ -49,7 +53,10 @@ export const AnalyticsDayBreakdown = defineVueFunctional<AnalyticsDayBreakdownPr
               class={`analytics-bar-row${active ? ' is-active' : ''}`}
               aria-pressed={active}
               onClick={onMetricChange ? () => onMetricChange(entry.metric) : undefined}
-              style={{ cursor: onMetricChange ? 'pointer' : 'default' }}
+              style={{
+                cursor: onMetricChange ? 'pointer' : 'default',
+                '--metric-color': METRIC_COLOR_VAR[entry.metric],
+              }}
             >
               <span class="analytics-bar-row__label">{metricLabel(entry.metric)}</span>
               <span class="analytics-bar-row__track">

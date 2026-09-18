@@ -2,7 +2,12 @@
 import { defineVueFunctional } from '../../vue/component.ts';
 import type { AnalyticsDayRow } from '../../../shared/messages.ts';
 import { formatCount, formatDayLabel } from './analytics-range.ts';
-import { buildLineGeometry, fillDaySeries, type AnalyticsMetric } from './analytics-chart.ts';
+import {
+  METRIC_COLOR_VAR,
+  buildLineGeometry,
+  fillDaySeries,
+  type AnalyticsMetric,
+} from './analytics-chart.ts';
 
 type AnalyticsChartProps = {
   locale: string;
@@ -56,11 +61,12 @@ export const AnalyticsChart = defineVueFunctional<AnalyticsChartProps>((props) =
       viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
       role="img"
       aria-label={`${label}: ${formatCount(geometry.max, locale)}`}
+      style={{ '--metric-color': METRIC_COLOR_VAR[metric] }}
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--tt-cyan)" stop-opacity="0.35" />
-          <stop offset="100%" stop-color="var(--tt-cyan)" stop-opacity="0.02" />
+          <stop offset="0%" class="analytics-chart__stop" stop-opacity="0.35" />
+          <stop offset="100%" class="analytics-chart__stop" stop-opacity="0.02" />
         </linearGradient>
       </defs>
       {gridSteps.map((step) => {
