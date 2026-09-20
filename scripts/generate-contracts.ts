@@ -6,6 +6,7 @@ import { BUILTIN_EVENT_CONTRACTS } from '../src/automation/contracts/events.ts';
 
 type Schema = boolean | SchemaObject;
 type SchemaObject = {
+  [key: string]: unknown;
   $ref?: string;
   type?: string | string[];
   properties?: Record<string, Schema>;

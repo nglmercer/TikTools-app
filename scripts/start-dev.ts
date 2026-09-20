@@ -95,7 +95,7 @@ try {
 }
 
 console.log(`Vite is ready; launching the desktop host against ${actualDevUrl}...`);
-const environment = {
+const environment: Record<string, string | undefined> = {
   ...process.env,
   TIKTOOLS_DEV_URL: actualDevUrl,
   TIKTOOLS_WEB_PORT: String(webPort),
