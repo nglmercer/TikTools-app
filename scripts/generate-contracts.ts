@@ -439,7 +439,8 @@ function registrySource(schema: JsonRecord): string {
 
 async function runSchemaGenerator(output: string): Promise<void> {
   const process = Bun.spawn([
-    'cargo', 'run', '-q', '-p', 'tiktools-core', '--example', 'generate-contracts', '--locked', '--', output,
+    'node', resolve(repositoryRoot, 'scripts', 'cargo-with-linker.mjs'),
+    'run', '-q', '-p', 'tiktools-core', '--example', 'generate-contracts', '--locked', '--', output,
   ], { cwd: repositoryRoot, stdout: 'pipe', stderr: 'pipe' });
   const [exitCode, stdout, stderr] = await Promise.all([
     process.exited,

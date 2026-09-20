@@ -3,6 +3,10 @@
 ## Requirements
 
 - Rust 1.88 or newer with Cargo.
+- MSVC Build Tools are required on Windows.
+- LLVM `lld-link` is optional. When available on `PATH`, Rust commands
+  automatically use it for faster linking. Otherwise the default MSVC
+  linker is used.
 - Bun 1.4.1 for the frontend build and development server. The version is
   pinned by `package.json`.
 - A system WebView supported by Wry:
@@ -68,10 +72,10 @@ logs.
 cargo check -p tiktools-core --locked
 cargo test -p tiktools-core --locked
 cargo check -p tiktools-desktop --locked
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-cargo test --workspace --locked
-cargo build -p tiktools-desktop --release --locked
+npm run fmt:rust
+npm run rust:clippy
+npm run rust:test
+npm run build:desktop
 ```
 
 The core-only commands avoid desktop dependencies. `cargo test --workspace --locked`

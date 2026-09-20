@@ -99,13 +99,13 @@ jobs:
             cargo-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Check Rust formatting
-        run: cargo fmt --all -- --check
+        run: node scripts/cargo-with-linker.mjs fmt --all -- --check
 
       - name: Run Rust Clippy
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+        run: node scripts/cargo-with-linker.mjs clippy --workspace --all-targets --all-features --locked -- -D warnings
 
       - name: Test Rust workspace
-        run: cargo test --workspace --locked
+        run: node scripts/cargo-with-linker.mjs test --workspace --locked
 
       - name: Build all example plugins
         run: bun run scripts/build-plugin.ts --all --debug
@@ -138,6 +138,13 @@ jobs:
       - name: Install current Rust
         run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal
 
+      - name: Install optional LLVM linker
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        run: |
+          choco install llvm --no-progress -y
+          echo "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
+
       - name: Cache Cargo dependencies and build output
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -150,10 +157,10 @@ jobs:
             cargo-desktop-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Check desktop crate
-        run: cargo check -p tiktools-desktop --locked
+        run: node scripts/cargo-with-linker.mjs check -p tiktools-desktop --locked
 
       - name: Build Windows desktop release and verify GUI subsystem
         if: runner.os == 'Windows'
         run: |
-          cargo build -p tiktools-desktop --release --locked
+          node scripts/cargo-with-linker.mjs build -p tiktools-desktop --release --locked
           pwsh -NoProfile -File scripts/check-windows-pe.ps1 target/release/tiktools-desktop.exe

@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { detectHostTarget } from './lib/plugin-targets.ts';
 
 export const repositoryRoot = resolve(import.meta.dir, '..');
+const cargoWrapper = join(repositoryRoot, 'scripts', 'cargo-with-linker.mjs');
 const examplesRoot = join(repositoryRoot, 'examples');
 const developmentPluginRoot = join(repositoryRoot, '.dev-plugins');
 
@@ -83,7 +84,7 @@ async function stageExample(exampleDirectory: string): Promise<boolean> {
   }
 
   console.log(`Building development plugin ${id}...`);
-  run('cargo', ['build', '--manifest-path', cargoManifestPath]);
+  run('node', [cargoWrapper, 'build', '--manifest-path', cargoManifestPath]);
 
   // Development builds are host-only, but resolve the executable suffix
   // through the same shared target helper so dev and release naming agree.
@@ -134,4 +135,3 @@ export async function prepareDevelopmentPlugins(): Promise<string> {
   );
   return developmentPluginRoot;
 }
-

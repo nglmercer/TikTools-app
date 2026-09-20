@@ -11,6 +11,7 @@ import {
 } from './lib/plugin-targets.ts';
 
 const repositoryRoot = resolve(import.meta.dir, '..');
+const cargoWrapper = join(repositoryRoot, 'scripts', 'cargo-with-linker.mjs');
 const examplesRoot = join(repositoryRoot, 'examples');
 const defaultOutDirectory = join(repositoryRoot, 'dist', 'plugins');
 
@@ -204,7 +205,8 @@ for (const { directory, manifestPath, manifest } of targets) {
   console.log(
     `Building plugin ${id} (${profile}, ${packageTarget ?? 'target-independent'})...`,
   );
-  runInherit('cargo', [
+  runInherit('node', [
+    cargoWrapper,
     'build',
     ...(profile === 'release' ? ['--release'] : []),
     '--target',
@@ -227,7 +229,8 @@ for (const { directory, manifestPath, manifest } of targets) {
 
   const archiveName = artifactFileName(id, version, packageTarget);
   const archivePath = join(outDirectory, archiveName);
-  runInherit('cargo', [
+  runInherit('node', [
+    cargoWrapper,
     'run',
     '-p',
     'tiktools-plugin-sdk',

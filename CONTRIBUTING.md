@@ -7,6 +7,10 @@ Please keep changes focused and avoid unrelated architecture or UI rewrites.
 
 - Rust 1.88.0 or newer (the workspace MSRV is 1.88; CI uses Rust 1.98.1).
 - Bun 1.4.1, pinned in `package.json`.
+- MSVC Build Tools are required on Windows.
+- LLVM `lld-link` is optional. When available on `PATH`, Rust commands
+  automatically use it for faster linking. Otherwise the default MSVC
+  linker is used.
 - Linux desktop builds require GTK/WebKitGTK and audio development packages;
   see [Getting Started](docs/GETTING_STARTED.md).
 
@@ -30,10 +34,10 @@ bun run build:web
 Run the Rust checks with the committed `Cargo.lock`:
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-cargo test --workspace --locked
-cargo build -p tiktools-desktop --release --locked
+npm run fmt:rust
+npm run rust:clippy
+npm run rust:test
+npm run build:desktop
 ```
 
 Pull requests targeting `remake` should pass the frontend, Rust, desktop

@@ -3,6 +3,7 @@ import { basename, join, resolve } from 'node:path';
 import { resolveRustTarget } from './lib/plugin-targets.ts';
 
 const repositoryRoot = resolve(import.meta.dir, '..');
+const cargoWrapper = join(repositoryRoot, 'scripts', 'cargo-with-linker.mjs');
 const supportedPlatforms = {
   'windows-x86_64': {
     archiveExtension: '.zip',
@@ -114,7 +115,8 @@ for (const bundled of BUNDLED_PLUGINS) {
   if (manifest.id !== bundled.id) {
     fail(`${manifestPath} declares id ${String(manifest.id)}, expected ${bundled.id}`);
   }
-  run('cargo', [
+  run('node', [
+    cargoWrapper,
     'build',
     '--release',
     '--locked',

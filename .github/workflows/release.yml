@@ -98,7 +98,7 @@ jobs:
             cargo-release-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build release desktop binary
-        run: cargo build -p tiktools-desktop --release --locked
+        run: node scripts/cargo-with-linker.mjs build -p tiktools-desktop --release --locked
 
       - name: Verify Windows release uses the GUI subsystem
         if: runner.os == 'Windows'
