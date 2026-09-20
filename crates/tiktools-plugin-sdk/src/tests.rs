@@ -39,6 +39,26 @@ fn typed_plugin_call_preserves_legacy_wire_shape() {
 }
 
 #[test]
+fn event_call_uses_only_the_stable_topic_data_envelope() {
+    let call = PluginCall::event(tiktools_plugin_api::DomainEventEnvelope::new(
+        "live.event",
+        serde_json::json!({"eventType": "tiktok.chat"}),
+    ));
+    assert_eq!(
+        serde_json::to_value(&call).unwrap(),
+        serde_json::json!({
+            "type": "event",
+            "event": {"topic": "live.event", "data": {"eventType": "tiktok.chat"}}
+        })
+    );
+    assert_eq!(call.clone().into_event().unwrap().topic, "live.event");
+    assert_eq!(
+        dispatch_plugin_call(&mut TestPlugin, &test_context(), call).unwrap(),
+        Value::Null
+    );
+}
+
+#[test]
 fn compatibility_decoder_maps_legacy_intents_once() {
     let result = decode_plugin_result(serde_json::json!({
         "summary": "done",

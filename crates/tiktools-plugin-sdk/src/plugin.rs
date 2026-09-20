@@ -5,6 +5,7 @@ use crate::{
     ActionCall, ActionResult, EventEnrichmentRequest, EventEnrichmentResult, PluginCall,
     PluginCallResult, PluginContext, PluginError, PluginResult, PollResult,
 };
+use tiktools_plugin_api::DomainEventEnvelope;
 
 /// Runtime-neutral plugin business-logic trait.
 pub trait Plugin: Send + 'static {
@@ -62,6 +63,13 @@ pub trait Plugin: Send + 'static {
         Ok(EventEnrichmentResult::default())
     }
 
+    /// Observes one stable serialized host event. Delivery is asynchronous
+    /// from the host's domain-event publisher and is isolated behind a
+    /// bounded per-plugin queue.
+    fn event(&mut self, _context: &PluginContext, _event: DomainEventEnvelope) -> PluginResult<()> {
+        Ok(())
+    }
+
     fn shutdown(&mut self, _context: &PluginContext) -> PluginResult<()> {
         Ok(())
     }
@@ -93,5 +101,6 @@ pub fn dispatch_plugin_call<P: Plugin>(
         PluginCall::Enrich { request } => plugin
             .enrich(context, request)
             .and_then(serialize_call_result),
+        PluginCall::Event { event } => plugin.event(context, event).and_then(serialize_call_result),
     }
 }

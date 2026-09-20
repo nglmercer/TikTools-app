@@ -21,7 +21,8 @@ pub use types::{
     MAX_PLUGIN_ACTION_TIMEOUT_MS, MAX_PLUGIN_PROCESSOR_TIMEOUT_MS,
 };
 pub use validation::{
-    current_platform, current_target, is_safe_relative_path, is_valid_event_type,
-    is_valid_plugin_id, validate_action_type, validate_declarative_action, validate_event_type,
-    validate_http_config, validate_plugin_page, validate_plugin_template, ManifestError,
+    current_platform, current_target, is_safe_relative_path, is_valid_event_subscription,
+    is_valid_event_type, is_valid_plugin_id, validate_action_type, validate_declarative_action,
+    validate_event_type, validate_http_config, validate_plugin_page, validate_plugin_template,
+    ManifestError,
 };

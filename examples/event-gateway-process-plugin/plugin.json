@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 2,
+  "id": "tiktools.event-gateway",
+  "name": "Event Gateway",
+  "version": "1.0.0",
+  "description": "Expose TikTools domain events to local WebSocket and NDJSON widgets.",
+  "longDescription": "Starts a loopback-only event gateway at `127.0.0.1:17452`. The gateway owns browser origin validation, CORS, authentication, WebSocket clients, and the HTTP NDJSON fallback.",
+  "icon": "network",
+  "tags": ["events", "widgets", "websocket", "example"],
+  "runtime": "process",
+  "trust": "trusted",
+  "entry": "event-gateway",
+  "protocolVersion": 1,
+  "capabilities": ["events.subscribe"],
+  "eventSubscriptions": ["*"],
+  "settings": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "port": {
+          "type": "integer",
+          "title": "Port",
+          "default": 17452,
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "bind": {
+          "type": "string",
+          "title": "Bind address",
+          "default": "127.0.0.1",
+          "enum": ["127.0.0.1", "::1"]
+        },
+        "allowedOrigins": {
+          "type": "array",
+          "title": "Allowed browser origins",
+          "default": ["https://widgets.tiktools.app"],
+          "items": {"type": "string"}
+        },
+        "token": {
+          "type": "string",
+          "title": "Access token",
+          "secret": true,
+          "description": "Generated on first start. Use it in the WebSocket auth message or an HTTP Bearer token."
+        }
+      }
+    },
+    "uiHints": {
+      "fields": {
+        "bind": {"readonly": true},
+        "token": {"secret": true, "readonly": true}
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@
 
 pub mod abi;
 pub mod capabilities;
+pub mod events;
 pub mod intel;
 pub mod manifest;
 pub mod media;
@@ -13,6 +14,7 @@ pub mod text;
 
 pub use abi::{PluginBuffer, PluginInit, PluginStatus, TikToolsPluginApi};
 pub use capabilities::{CapabilityId, CapabilitySet, PermissionSet};
+pub use events::{event_subscription_matches, DomainEventEnvelope};
 pub use intel::{
     canonical_stable_comment, canonical_stable_user, EventIntel, IntelComment, IntelComposition,
     IntelError, IntelHandle, IntelLanguage, IntelLanguageCandidate, IntelNickname,

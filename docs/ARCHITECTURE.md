@@ -167,7 +167,12 @@ only a small serialized-message C ABI and stay loaded until shutdown. Process
 plugins are standalone executables using length-prefixed JSON over stdio.
 
 Plugins contribute actions (side effects), event sources (new triggers via
-poll/emit), and processors (pre-filter enrichment of host events). Processors
+poll/emit), generic domain-event observers, and processors (pre-filter
+enrichment of host events). Plugins with `events.subscribe` receive a stable
+serialized `{topic, data}` envelope through a bounded asynchronous host queue;
+the host does not expose its internal `DomainEvent` enum or any transport API.
+The optional event-gateway example uses that observer to own its loopback HTTP,
+NDJSON, WebSocket, authentication, and browser-origin behavior. Processors
 declare `processorTypes`, require the `events.enrich` capability, answer
 `enrich` calls with side-effect-free `{annotations, views, logs}` results,
 and receive their host-rendered settings inside each request; the host merges

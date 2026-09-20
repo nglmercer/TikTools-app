@@ -20,6 +20,7 @@ mod ipc_handlers;
 mod live_events;
 mod persistence;
 mod plugin_diagnostics;
+mod plugin_event_observer;
 mod plugin_intents;
 mod plugin_invoker;
 mod plugin_processors;
@@ -144,6 +145,9 @@ pub struct AppCore {
     plugin_poll_started: AtomicBool,
     plugin_poll_shutdown: Arc<Notify>,
     plugin_poll_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    plugin_event_observer_started: AtomicBool,
+    plugin_event_observer_shutdown: Arc<Notify>,
+    plugin_event_observer_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     plugin_install_lock: Mutex<()>,
     shutdown_started: AtomicBool,
     ipc_error: RwLock<Option<String>>,
@@ -274,6 +278,9 @@ impl AppCore {
             plugin_poll_started: AtomicBool::new(false),
             plugin_poll_shutdown: Arc::new(Notify::new()),
             plugin_poll_task: Mutex::new(None),
+            plugin_event_observer_started: AtomicBool::new(false),
+            plugin_event_observer_shutdown: Arc::new(Notify::new()),
+            plugin_event_observer_task: Mutex::new(None),
             plugin_install_lock: Mutex::new(()),
             shutdown_started: AtomicBool::new(false),
             ipc_error: RwLock::new(None),
@@ -480,6 +487,10 @@ impl AppCore {
         // when shutdown begins; `notify_waiters` alone would be lost before
         // the task reaches its select point.
         self.plugin_poll_shutdown.notify_one();
+        // `notify_one` queues a permit if the observer task has not reached
+        // its select yet; `notify_waiters` alone could be lost during startup.
+        // The observer drops its queues on exit, which wakes all workers.
+        self.plugin_event_observer_shutdown.notify_one();
         self.events
             .publish_domain(crate::events::DomainEvent::Shutdown);
         self.publish_disconnected_event().await;
@@ -490,6 +501,14 @@ impl AppCore {
             .expect("plugin poll task lock poisoned")
             .take();
         if let Some(task) = task {
+            let _ = task.await;
+        }
+        let observer_task = self
+            .plugin_event_observer_task
+            .lock()
+            .expect("plugin event observer task lock poisoned")
+            .take();
+        if let Some(task) = observer_task {
             let _ = task.await;
         }
         self.plugins.stop_all();

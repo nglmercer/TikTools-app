@@ -741,6 +741,22 @@ pub fn is_valid_event_type(value: &str) -> bool {
             .any(|prefix| value.starts_with(prefix))
 }
 
+/// Domain event subscriptions may observe host namespaces, unlike plugin
+/// `eventTypes` which are restricted to plugin-owned trigger namespaces.
+/// Keep the grammar deliberately small so wildcard routing is deterministic.
+pub fn is_valid_event_subscription(value: &str) -> bool {
+    if value == "*" {
+        return true;
+    }
+    let topic = value.strip_suffix(".*").unwrap_or(value);
+    let bytes = topic.as_bytes();
+    (2..=MAX_EVENT_TYPE_LEN).contains(&bytes.len())
+        && bytes.iter().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'_' | b'-')
+        })
+        && (!value.contains('*') || value.ends_with(".*"))
+}
+
 pub fn is_valid_plugin_id(value: &str) -> bool {
     let bytes = value.as_bytes();
     (2..=128).contains(&bytes.len())

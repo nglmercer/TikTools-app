@@ -4,9 +4,9 @@ use super::{
     types::{PluginManifest, PluginRuntimeKind, PluginSecurityModel, PluginTrust},
     validation::{
         current_platform, current_target, is_safe_relative_path, is_supported_schema,
-        is_valid_plugin_id, validate_action_type, validate_declarative_action,
-        validate_http_config, ManifestError, MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES,
-        MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES,
+        is_valid_event_subscription, is_valid_plugin_id, validate_action_type,
+        validate_declarative_action, validate_http_config, ManifestError, MAX_DESCRIPTOR_BYTES,
+        MAX_LIST_ENTRIES, MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES,
     },
 };
 use crate::{TIKTOOLS_PLUGIN_ABI_VERSION, TIKTOOLS_PLUGIN_PROTOCOL_VERSION};
@@ -123,6 +123,13 @@ impl PluginManifest {
             }
         }
         let event_types = json_list(object, "eventTypes")?;
+        let event_subscriptions = string_list(object, "eventSubscriptions")?;
+        if event_subscriptions
+            .iter()
+            .any(|subscription| !is_valid_event_subscription(subscription))
+        {
+            return Err(ManifestError::InvalidField("eventSubscriptions"));
+        }
         let processor_types = json_list(object, "processorTypes")?;
         let (settings_schema, settings_ui_hints) = settings(object)?;
         // Declarative integration blocks exist only on schema v3. A v2
@@ -167,6 +174,7 @@ impl PluginManifest {
             targets,
             action_types,
             event_types,
+            event_subscriptions,
             processor_types,
             settings_schema,
             settings_ui_hints,
@@ -192,6 +200,13 @@ impl PluginManifest {
         }
         for action_type in &self.action_types {
             validate_action_type(action_type)?;
+        }
+        if self
+            .event_subscriptions
+            .iter()
+            .any(|subscription| !is_valid_event_subscription(subscription))
+        {
+            return Err(ManifestError::InvalidField("eventSubscriptions"));
         }
         Ok(())
     }

@@ -277,6 +277,31 @@ bounded by the host. TikTools forwards valid updates as a typed UI progress
 notification. Progress-only plugins are not started by the global poll until
 one of their actions explicitly starts them.
 
+## Generic domain-event observers
+
+Plugins that need a background view of host events declare the
+`events.subscribe` capability and an optional `eventSubscriptions` list:
+
+```json
+{
+  "capabilities": ["events.subscribe"],
+  "eventSubscriptions": ["live.*", "points.*", "plugin.*"]
+}
+```
+
+Subscriptions support `*`, exact topics such as `points.changed`, and
+namespace wildcards such as `live.*`. The host sends the plugin protocol call
+`{"type":"event","event":{"topic":"...","data":{...}}}` using the
+stable serialized envelope; the internal Rust `DomainEvent` is never exposed.
+Delivery is asynchronous with one bounded queue per plugin, so a slow, stopped,
+disabled, or crashed plugin cannot block TikTools. Reliable-stream gaps are
+reported as `event.gap` envelopes when the host can no longer provide a
+complete sequence; lossy events may be dropped.
+
+This observer API is transport-neutral and is separate from `processorTypes`.
+Processors remain latency-sensitive, pre-filter, side-effect-free enrichers;
+they must not be used to start servers or forward a background event stream.
+
 ## Event processors
 
 A plugin can enrich existing host events before automation filters run by

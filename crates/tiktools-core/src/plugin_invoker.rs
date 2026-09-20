@@ -63,6 +63,32 @@ impl PluginInvoker {
         if let Err(error) = self.plugins.start(plugin_id) {
             return Err(InvokeError::Unavailable(error.to_string()));
         }
+        self.call_started(plugin_id, request, timeout).await
+    }
+
+    /// Invokes an already-running plugin without implicitly starting it.
+    /// Background observers use this boundary so a manually stopped or
+    /// crashed plugin cannot be resurrected by a later domain event.
+    pub(crate) async fn call_running(
+        &self,
+        plugin_id: &str,
+        request: &Value,
+        timeout: Duration,
+    ) -> Result<Value, InvokeError> {
+        if !self.plugins.is_running(plugin_id) {
+            return Err(InvokeError::Unavailable(format!(
+                "plugin `{plugin_id}` is not running"
+            )));
+        }
+        self.call_started(plugin_id, request, timeout).await
+    }
+
+    async fn call_started(
+        &self,
+        plugin_id: &str,
+        request: &Value,
+        timeout: Duration,
+    ) -> Result<Value, InvokeError> {
         let effective = self.plugins.claim_cold_start_grace(plugin_id, timeout);
         let plugins = Arc::clone(&self.plugins);
         let plugin_id_owned = plugin_id.to_owned();

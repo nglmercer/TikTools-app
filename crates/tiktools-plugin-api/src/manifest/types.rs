@@ -109,6 +109,11 @@ pub struct PluginManifest {
     /// Entries are validated when the host merges its catalog; the raw list
     /// is kept here so discovery never fails on a single bad entry.
     pub event_types: Vec<Value>,
+    /// Stable domain topics this plugin wants to observe through the generic
+    /// `events.subscribe` capability.  Patterns are `*`, an exact topic, or
+    /// a namespace wildcard such as `live.*`.
+    #[serde(rename = "eventSubscriptions")]
+    pub event_subscriptions: Vec<String>,
     /// JSON processor descriptors a plugin offers for pre-filter event
     /// enrichment. Like `event_types`, entries are validated when the host
     /// builds its processor catalog; the raw list is kept here so discovery

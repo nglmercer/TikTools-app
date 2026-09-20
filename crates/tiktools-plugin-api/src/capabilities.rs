@@ -118,6 +118,8 @@ pub const POINTS_WRITE: &str = "points.write";
 pub const STORAGE: &str = "storage";
 /// Lets a plugin publish its own declared event types (hotkeys, timers).
 pub const EVENTS_PUBLISH: &str = "events.publish";
+/// Lets a plugin receive serialized host `DomainEvent` envelopes.
+pub const EVENTS_SUBSCRIBE: &str = "events.subscribe";
 /// Lets a plugin enrich existing host events before automation filters run.
 /// The host checks this before sending any `enrich` call; it grants no
 /// unrelated capability (audio, points, storage, HTTP).

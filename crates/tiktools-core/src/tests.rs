@@ -803,7 +803,7 @@ fn ipc_error_degrades_system_health() {
 // ------------------------------------------------------------------
 
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering as AtomicOrdering};
 use tiktools_plugin_api::PluginRuntimeKind;
 use tiktools_plugin_loader::{
     PluginInstance, PluginLoaderError, PluginManager, PluginRoot, PluginRuntime, PluginSource,
@@ -817,7 +817,8 @@ const FAKE_HOTKEY_MANIFEST: &str = r#"{
     "version": "1.0.0",
     "runtime": "process",
     "entry": "fake-entry",
-    "capabilities": ["events.publish"],
+    "capabilities": ["events.publish", "events.subscribe"],
+    "eventSubscriptions": ["live.*", "points.changed", "plugin.*"],
     "actionTypes": [{"id": "hotkey.bind"}],
     "eventTypes": [
         {"type": "hotkey.pressed", "title": {"default": "Hotkey pressed"}},
@@ -829,6 +830,9 @@ const FAKE_HOTKEY_MANIFEST: &str = r#"{
 struct FakePluginState {
     poll_batches: Mutex<VecDeque<Vec<Value>>>,
     actions: Mutex<Vec<Value>>,
+    event_calls: Mutex<Vec<Value>>,
+    event_delay_ms: AtomicU64,
+    fail_next_event: AtomicBool,
     loads: AtomicU64,
 }
 
@@ -885,6 +889,25 @@ impl PluginInstance for FakeInstance {
                     .expect("fake actions poisoned")
                     .push(request.clone());
                 json!({"summary": "fake ok"})
+            }
+            Some("event") => {
+                let delay = self.state.event_delay_ms.load(AtomicOrdering::SeqCst);
+                if delay > 0 {
+                    std::thread::sleep(std::time::Duration::from_millis(delay));
+                }
+                if self
+                    .state
+                    .fail_next_event
+                    .swap(false, AtomicOrdering::SeqCst)
+                {
+                    return Err(PluginLoaderError::Runtime("fake event crash".to_owned()));
+                }
+                self.state
+                    .event_calls
+                    .lock()
+                    .expect("fake event calls poisoned")
+                    .push(request.clone());
+                json!({})
             }
             other => {
                 return Err(PluginLoaderError::Runtime(format!(
@@ -1224,6 +1247,85 @@ async fn plugin_poll_starts_without_any_webview() {
     // A tick with zero candidates is a clean no-op.
     core.poll_plugin_events().await;
     core.shutdown().await;
+}
+
+#[tokio::test]
+async fn enabled_event_subscriber_starts_with_host_runtime() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.spawn_plugin_event_poll(&tokio::runtime::Handle::current());
+
+    assert!(core.plugins.is_running("hotkeys"));
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn generic_event_observer_delivers_stable_envelopes_to_running_subscribers() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.plugins.start("hotkeys").expect("fake plugin starts");
+    core.spawn_plugin_event_observer(&tokio::runtime::Handle::current());
+
+    core.events
+        .publish_domain(crate::events::DomainEvent::PointsChanged {
+            unique_id: "viewer".to_owned(),
+            delta: 3.0,
+            total_points: 3.0,
+            level: 1,
+        });
+
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            if !state.event_calls.lock().unwrap().is_empty() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("event observer should deliver without blocking the publisher");
+    {
+        let calls = state.event_calls.lock().unwrap();
+        assert_eq!(calls[0]["type"], "event");
+        assert_eq!(calls[0]["event"]["topic"], "points.changed");
+        assert_eq!(calls[0]["event"]["data"]["uniqueId"], "viewer");
+    }
+
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn generic_event_observer_ignores_disabled_and_stopped_plugins() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.plugins.start("hotkeys").expect("fake plugin starts");
+    core.set_plugin_activation("hotkeys", true, false);
+    core.spawn_plugin_event_observer(&tokio::runtime::Handle::current());
+    core.events
+        .publish_domain(crate::events::DomainEvent::PointsChanged {
+            unique_id: "disabled".to_owned(),
+            delta: 1.0,
+            total_points: 1.0,
+            level: 1,
+        });
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert!(state.event_calls.lock().unwrap().is_empty());
+
+    core.set_plugin_activation("hotkeys", true, true);
+    core.plugins.stop("hotkeys").expect("fake plugin stops");
+    core.events
+        .publish_domain(crate::events::DomainEvent::PointsChanged {
+            unique_id: "stopped".to_owned(),
+            delta: 1.0,
+            total_points: 2.0,
+            level: 1,
+        });
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert!(state.event_calls.lock().unwrap().is_empty());
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
 }
 
 #[test]

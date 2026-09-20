@@ -62,9 +62,9 @@ impl AppCore {
             );
     }
 
-    /// Adds host-side poll drops for one plugin. Every drop is also logged
-    /// at the call site with its reason; the counter makes totals visible
-    /// through diagnostics and health RPCs.
+    /// Adds host-side plugin event drops for one plugin. Every drop is also
+    /// logged at the call site with its reason; the counter makes totals
+    /// visible through diagnostics and health RPCs.
     pub(crate) fn record_plugin_drops(&self, plugin_id: &str, dropped: u64) {
         if dropped == 0 {
             return;

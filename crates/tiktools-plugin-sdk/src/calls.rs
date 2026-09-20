@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::EventEnrichmentRequest;
+use crate::{tiktools_plugin_api::DomainEventEnvelope, EventEnrichmentRequest};
 
 /// A typed action call. The action descriptor remains a JSON value so plugin
 /// authors can define their own config schema without host-side registration.
@@ -30,8 +30,8 @@ impl ActionCall {
 
 /// Typed calls at the SDK boundary. The serialized shape remains compatible
 /// with the existing `{"type":"action"|"poll"}` process protocol; `enrich`
-/// is additive and the host only sends it to plugins that declare
-/// `processorTypes`, so existing plugins never observe the new variant.
+/// is additive. Existing plugins can keep their default handlers and never
+/// need to know about the newer call variants.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum PluginCall {
@@ -44,6 +44,9 @@ pub enum PluginCall {
     Enrich {
         request: EventEnrichmentRequest,
     },
+    Event {
+        event: DomainEventEnvelope,
+    },
 }
 
 impl PluginCall {
@@ -55,17 +58,28 @@ impl PluginCall {
         Self::Enrich { request }
     }
 
+    pub fn event(event: DomainEventEnvelope) -> Self {
+        Self::Event { event }
+    }
+
     pub fn into_action(self) -> Option<ActionCall> {
         match self {
             Self::Action { action, event } => Some(ActionCall { action, event }),
-            Self::Poll | Self::Enrich { .. } => None,
+            Self::Poll | Self::Enrich { .. } | Self::Event { .. } => None,
         }
     }
 
     pub fn into_enrich(self) -> Option<EventEnrichmentRequest> {
         match self {
             Self::Enrich { request } => Some(request),
-            Self::Action { .. } | Self::Poll => None,
+            Self::Action { .. } | Self::Poll | Self::Event { .. } => None,
+        }
+    }
+
+    pub fn into_event(self) -> Option<DomainEventEnvelope> {
+        match self {
+            Self::Event { event } => Some(event),
+            Self::Action { .. } | Self::Poll | Self::Enrich { .. } => None,
         }
     }
 }

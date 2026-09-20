@@ -755,6 +755,9 @@ impl AppCore {
             self.plugins.stop(&id)?;
         }
         self.set_plugin_activation(&id, installed, true);
+        if installed {
+            self.start_enabled_event_subscribers();
+        }
         self.rebuild_processor_index();
         self.refresh_automation_snapshot();
         Ok(())
@@ -817,6 +820,7 @@ impl AppCore {
         let installed = self
             .install_plugin(std::path::Path::new(trimmed), replace_existing)
             .map_err(|error| OperationError::internal(error.to_string()))?;
+        self.start_enabled_event_subscribers();
         self.refresh_automation_snapshot();
         let id = installed.manifest.id.clone();
         self.events.publish_domain(DomainEvent::PluginInstalled {
@@ -1373,7 +1377,7 @@ impl AppCore {
         let dropped_plugin_events = self.plugin_drop_total();
         if dropped_plugin_events > 0 {
             degraded.push(format!(
-                "{dropped_plugin_events} plugin poll event(s) dropped during validation; see plugins.diagnostics"
+                "{dropped_plugin_events} plugin event(s) dropped during validation or delivery; see plugins.diagnostics"
             ));
         }
         json!({

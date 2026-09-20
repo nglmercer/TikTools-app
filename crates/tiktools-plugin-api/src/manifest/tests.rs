@@ -86,6 +86,50 @@ fn reads_event_types_and_validates_them() {
 }
 
 #[test]
+fn reads_and_validates_domain_event_subscriptions() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{"schemaVersion":2,"id":"gateway","name":"Gateway","version":"1.0.0","runtime":"process","entry":"gateway","capabilities":["events.subscribe"],"eventSubscriptions":["*","live.*","points.changed","plugin.*"]}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        manifest.event_subscriptions,
+        vec![
+            "*".to_owned(),
+            "live.*".to_owned(),
+            "points.changed".to_owned(),
+            "plugin.*".to_owned()
+        ]
+    );
+    assert!(is_valid_event_subscription("*"));
+    assert!(is_valid_event_subscription("live.*"));
+    assert!(is_valid_event_subscription("points.changed"));
+    assert!(!is_valid_event_subscription("live.**"));
+    assert!(!is_valid_event_subscription("LIVE.*"));
+    assert!(manifest
+        .capabilities
+        .iter()
+        .any(|capability| capability == "events.subscribe"));
+}
+
+#[test]
+fn malformed_domain_event_subscriptions_fail_manifest_parsing() {
+    for subscriptions in [
+        r#"["live.**"]"#,
+        r#"["live.*.event"]"#,
+        r#"["* "]"#,
+        r#""not-an-array""#,
+    ] {
+        let manifest = format!(
+            r#"{{"schemaVersion":2,"id":"gateway","name":"Gateway","version":"1.0.0","runtime":"process","entry":"gateway","eventSubscriptions":{subscriptions}}}"#
+        );
+        assert!(
+            PluginManifest::from_json_str(&manifest).is_err(),
+            "subscription {subscriptions} should be rejected"
+        );
+    }
+}
+
+#[test]
 fn omitted_trust_preserves_schema_v2_defaults() {
     let process = PluginManifest::from_json_str(
         r#"{"schemaVersion":2,"id":"process","name":"Process","version":"1.0.0","runtime":"process","entry":"plugin.exe"}"#,

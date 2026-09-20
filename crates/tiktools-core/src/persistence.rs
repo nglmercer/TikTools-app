@@ -128,6 +128,7 @@ impl AppCore {
                     "tags": plugin.manifest.tags,
                     "dependency": localized(&dependency, "plugin.dependency"),
                     "permissions": plugin.manifest.permissions,
+                    "eventSubscriptions": plugin.manifest.event_subscriptions,
                     "actionTypeIds": action_ids,
                     "eventTypeIds": event_type_ids,
                     "hasSettings": plugin.manifest.settings_schema.is_some(),

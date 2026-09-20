@@ -10,7 +10,12 @@ members = [
     "crates/tiktools-plugin-loader",
     "crates/tiktools-tiktok",
 ]
-exclude = ["examples/audio-process-plugin", "examples/hotkey-process-plugin", "examples/textintel-process-plugin"]
+exclude = [
+    "examples/audio-process-plugin",
+    "examples/event-gateway-process-plugin",
+    "examples/hotkey-process-plugin",
+    "examples/textintel-process-plugin",
+]
 resolver = "2"
 
 [workspace.package]

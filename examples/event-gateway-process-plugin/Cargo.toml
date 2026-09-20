@@ -1,0 +1,26 @@
+[package]
+name = "tiktools-event-gateway"
+version = "1.0.0"
+edition = "2021"
+publish = false
+description = "Optional TikTools process plugin exposing DomainEvent over loopback HTTP/WebSocket"
+
+[[bin]]
+name = "event-gateway"
+path = "src/main.rs"
+
+[dependencies]
+base64 = "0.22"
+fastrand = "2.5"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha1 = "0.10"
+tiktools-plugin-sdk = { path = "../../crates/tiktools-plugin-sdk" }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+url = "2.5"
+
+[profile.release]
+lto = true
+codegen-units = 1
