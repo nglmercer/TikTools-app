@@ -562,6 +562,7 @@ async fn stale_socket_file_is_replaced_on_startup() {
     let home = isolated_home("stale");
     // Simulate a crashed host's leftover: a regular file where the socket
     // belongs. Startup must unlink it (while holding the lock) and bind.
+    std::fs::create_dir_all(&home).expect("create isolated home");
     let socket = home.join("tiktools-control.sock");
     std::fs::write(&socket, b"stale garbage").expect("stage stale file");
     assert!(socket.is_file());
