@@ -426,7 +426,7 @@ export const PluginConnectionCard = defineVueComponent<PluginConnectionCardProps
             </span>
             {renderSaveState(locale)}
           </div>
-          {failed && (
+          {failed && !props.inline && (
             <div class="plg-alert" role="status">
               {connection?.error || t(locale, 'pluginConnectionFailed')}
             </div>

@@ -6,6 +6,7 @@ import type {
   PluginStatus,
 } from '../../automation/behavior/types.ts';
 import {
+  connectionIconFor,
   matchesPluginQuery,
   pluginIconTone,
   pluginTags,
@@ -98,6 +99,26 @@ describe('resolvePluginIcon', () => {
 
   test('falls back to the generic plugin glyph', () => {
     expect(resolvePluginIcon(descriptor({ id: 'mystery' }), [])).toBe('plugin');
+  });
+});
+
+describe('connectionIconFor', () => {
+  test('prefers a declared icon and skips generic connection glyphs', () => {
+    expect(connectionIconFor(descriptor({ id: 'sonicboom.server', icon: 'voice' }), 'radio')).toBe('voice');
+    expect(connectionIconFor(descriptor({ id: 'mystery', icon: 'connected' }), 'radio')).not.toBe('radio');
+  });
+
+  test('stays stable and avoids icons already used by the list', () => {
+    const first = connectionIconFor(descriptor({ id: 'mystery', icon: 'connected' }), 'radio');
+    const stable = connectionIconFor(descriptor({ id: 'mystery', icon: 'connected' }), 'radio');
+    const alternate = connectionIconFor(
+      descriptor({ id: 'another-mystery', icon: 'connected' }),
+      'radio',
+      new Set([first]),
+    );
+
+    expect(stable).toBe(first);
+    expect(alternate).not.toBe(first);
   });
 });
 

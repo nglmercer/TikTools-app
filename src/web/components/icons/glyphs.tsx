@@ -555,6 +555,51 @@ export function IconAudio({ size = 18, strokeWidth = 1.75, className }: IconProp
   );
 }
 
+export function IconServer({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <rect x="3" y="3" width="18" height="7" rx="2" />
+      <rect x="3" y="14" width="18" height="7" rx="2" />
+      <path d="M7 6.5h.01M11 6.5h6M7 17.5h.01M11 17.5h6" />
+    </SvgIcon>
+  );
+}
+
+export function IconCloud({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <path d="M7.5 18h9a4.5 4.5 0 0 0 .7-8.95A5.5 5.5 0 0 0 6.6 7.5 4.5 4.5 0 0 0 7.5 18Z" />
+    </SvgIcon>
+  );
+}
+
+export function IconDatabase({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <ellipse cx="12" cy="5.5" rx="7.5" ry="3" />
+      <path d="M4.5 5.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6M4.5 11.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6" />
+    </SvgIcon>
+  );
+}
+
+export function IconShield({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <path d="M12 3l7 3v5c0 4.6-2.8 8.5-7 10-4.2-1.5-7-5.4-7-10V6l7-3Z" />
+      <path d="m8.5 12 2.2 2.2 4.8-5" />
+    </SvgIcon>
+  );
+}
+
+export function IconTerminal({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <polyline points="5 7 10 12 5 17" />
+      <line x1="13" y1="17" x2="19" y2="17" />
+    </SvgIcon>
+  );
+}
+
 export function IconDoc({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>

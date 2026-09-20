@@ -25,6 +25,11 @@ const TONE_BY_ICON: Partial<Record<IconName, PluginIconTone>> = {
   http: 'cyan',
   connect: 'cyan',
   connected: 'teal',
+  server: 'teal',
+  cloud: 'cyan',
+  database: 'slate',
+  shield: 'amber',
+  terminal: 'slate',
   format: 'slate',
   code: 'slate',
   json: 'slate',
@@ -46,7 +51,12 @@ const HEURISTIC_ICONS: Array<{ match: RegExp; icon: IconName }> = [
   { match: /chat|comment/, icon: 'chat' },
   { match: /webhook|discord/, icon: 'webhook' },
   { match: /obs|stream|scene/, icon: 'live' },
-  { match: /http|api|server|bridge/, icon: 'globe' },
+  { match: /database|postgres|mysql|sqlite|redis|storage/, icon: 'database' },
+  { match: /security|auth|token|shield/, icon: 'shield' },
+  { match: /shell|terminal|cli|command/, icon: 'terminal' },
+  { match: /server|daemon|service/, icon: 'server' },
+  { match: /http|api|bridge/, icon: 'globe' },
+  { match: /cloud|remote/, icon: 'cloud' },
   { match: /text|intel|language|translat|spell/, icon: 'format' },
   { match: /code|script|json|template/, icon: 'code' },
   { match: /point|reward|redeem/, icon: 'points' },
@@ -79,6 +89,65 @@ export function resolvePluginIcon(
     if (match.test(haystack)) return icon;
   }
   return 'plugin';
+}
+
+const CONNECTION_ICON_POOL: readonly IconName[] = [
+  'server',
+  'cloud',
+  'database',
+  'shield',
+  'terminal',
+  'voice',
+  'audio',
+  'webhook',
+  'globe',
+  'http',
+  'keyboard',
+  'format',
+  'code',
+  'speaker',
+  'volume',
+  'chat',
+];
+
+const GENERIC_CONNECTION_ICONS = new Set<IconName>([
+  'connected',
+  'connect',
+  'disconnected',
+  'disconnect',
+  'live',
+  'radio',
+  'plugin',
+  'plugins',
+]);
+
+/**
+ * Stable connection icon: declared plugin icons win, generic connection
+ * glyphs are skipped, and the fallback is hashed from the plugin id. The
+ * optional used set lets a rendered connection list avoid duplicate icons
+ * without relying on unstable Math.random() output.
+ */
+export function connectionIconFor(
+  descriptor: Pick<PluginDescriptor, 'id' | 'icon'>,
+  pageIcon: unknown,
+  usedIcons: ReadonlySet<IconName> = new Set<IconName>(),
+): IconName {
+  const preferred = [readIconName(descriptor.icon), readIconName(pageIcon)].filter(
+    (icon): icon is IconName => icon !== undefined && !GENERIC_CONNECTION_ICONS.has(icon),
+  );
+  for (const icon of preferred) {
+    if (!usedIcons.has(icon)) return icon;
+  }
+
+  let hash = 0;
+  for (const char of descriptor.id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  const start = hash % CONNECTION_ICON_POOL.length;
+  for (let offset = 0; offset < CONNECTION_ICON_POOL.length; offset += 1) {
+    const icon = CONNECTION_ICON_POOL[(start + offset) % CONNECTION_ICON_POOL.length];
+    if (icon && !usedIcons.has(icon)) return icon;
+  }
+
+  return preferred[0] ?? 'server';
 }
 
 /** Deterministic tile accent: fixed per icon, hashed per plugin id fallback. */

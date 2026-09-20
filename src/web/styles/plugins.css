@@ -541,8 +541,16 @@
   text-align: left;
   cursor: pointer;
   min-width: 0;
+  transition: background 0.15s, color 0.15s;
 }
-.srv-server__head:hover .srv-server__chevron { color: var(--text); }
+.srv-server > .ui-tooltip-trigger {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+.srv-server__head:hover { background: color-mix(in srgb, var(--panel) 42%, transparent); }
+.srv-server__head:hover .srv-server__chevron,
+.srv-server__head:focus-visible .srv-server__chevron { color: var(--text); }
 .srv-server__head:focus-visible { outline: 2px solid var(--plg-accent); outline-offset: -2px; }
 /* Collapsed entries hide the divider so it never doubles the card edge. */
 .srv-server:not(.is-open) .srv-server__head { border-bottom-color: transparent; }
@@ -558,6 +566,12 @@
   font-weight: 700;
   color: var(--text);
 }
+.srv-server__detail {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--plg-err);
+  opacity: 0.85;
+}
 .srv-server__chevron {
   display: inline-flex;
   flex-shrink: 0;
@@ -566,6 +580,7 @@
 }
 .srv-server.is-open .srv-server__chevron { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) {
+  .srv-server__head,
   .srv-server__chevron { transition: none; }
 }
 /* ---- connection card: one centered column, no side rails ---- */
@@ -737,4 +752,3 @@
   .plg-btn { height: 36px; }
   .plg-btn--icon { width: 36px; }
 }
-

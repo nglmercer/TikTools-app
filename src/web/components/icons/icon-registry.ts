@@ -1,5 +1,5 @@
 import type { IconComponent } from './icon-base.tsx';
-import { IconArrowDown, IconAudio, IconBarChart, IconBolt, IconChat, IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconCode, IconConnected, IconCopy, IconCrown, IconDice, IconDisconnected, IconDoc, IconDot, IconEdit, IconFlame, IconFollow, IconFormat, IconGift, IconGlobe, IconHeart, IconHttp, IconInfo, IconJoin, IconJson, IconKeyboard, IconLink, IconLock, IconMoon, IconPause, IconPlay, IconPlugins, IconPlus, IconPoints, IconPower, IconRadio, IconRefresh, IconSearch, IconSettings, IconShare, IconSparkles, IconSpeaker, IconStar, IconStop, IconSun, IconTemplate, IconTikTok, IconTrash, IconTrophy, IconUnlock, IconUsers, IconVoice, IconVolume, IconWarning, IconWebhook } from './glyphs.tsx';
+import { IconArrowDown, IconAudio, IconBarChart, IconBolt, IconChat, IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconCloud, IconCode, IconConnected, IconCopy, IconCrown, IconDatabase, IconDice, IconDisconnected, IconDoc, IconDot, IconEdit, IconFlame, IconFollow, IconFormat, IconGift, IconGlobe, IconHeart, IconHttp, IconInfo, IconJoin, IconJson, IconKeyboard, IconLink, IconLock, IconMoon, IconPause, IconPlay, IconPlugins, IconPlus, IconPoints, IconPower, IconRadio, IconRefresh, IconSearch, IconServer, IconSettings, IconShare, IconShield, IconSparkles, IconSpeaker, IconStar, IconStop, IconSun, IconTemplate, IconTerminal, IconTikTok, IconTrash, IconTrophy, IconUnlock, IconUsers, IconVoice, IconVolume, IconWarning, IconWebhook } from './glyphs.tsx';
 
 /**
  * Icon identifiers for data-driven UI (event presentation, templates). The
@@ -76,6 +76,11 @@ export type IconName =
   | 'dot'
   | 'keyboard'
   | 'audio'
+  | 'server'
+  | 'cloud'
+  | 'database'
+  | 'shield'
+  | 'terminal'
   | 'doc';
 
 export const ICONS: Record<IconName, IconComponent> = {
@@ -148,6 +153,11 @@ export const ICONS: Record<IconName, IconComponent> = {
   dot: IconDot,
   keyboard: IconKeyboard,
   audio: IconAudio,
+  server: IconServer,
+  cloud: IconCloud,
+  database: IconDatabase,
+  shield: IconShield,
+  terminal: IconTerminal,
   doc: IconDoc,
 };
 
