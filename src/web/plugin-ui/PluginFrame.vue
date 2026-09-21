@@ -70,6 +70,15 @@ export const PluginFrame = defineVueComponent<PluginFrameProps>(
       else disposeHost();
     });
 
+    // The broker binds one plugin id per frame: when the tab switches to a
+    // different plugin page, Vue may reuse this component (and its iframe
+    // element) with new props. Recreate the host so the new document talks
+    // to a backend scoped to the new plugin — never to the previous page's
+    // subscriptions and ownership. `mountHost` disposes the old host first.
+    watch([() => props.src, () => props.pluginId], () => {
+      if (frameRef.value) mountHost();
+    });
+
     const attach = (): void => {
       window.addEventListener('message', onMessage);
       mountHost();

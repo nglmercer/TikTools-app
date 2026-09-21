@@ -187,3 +187,49 @@ test('frame URLs stay on the plugin scheme with a test override', () => {
     else scope['window'] = previous;
   }
 });
+
+test('frame URLs reject identifier and path injection', () => {
+  const scope = globalThis as Record<string, unknown>;
+  const previous = scope['window'];
+  scope['window'] = { ipc: { postMessage: () => undefined } };
+  try {
+    const ok = 'tiktools-plugin://app/sonicboom.server/index.html#page=tts';
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts')).toBe(ok);
+    // Plugin ids cannot inject paths: the id travels as a URL segment.
+    expect(pluginUiUrl('', 'ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('../evil', 'ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('..%2fwebui', 'ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server/evil', 'ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server%2findex.html', 'ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom\\server', 'ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('9lives', 'ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('has space', 'ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('x'.repeat(129), 'ui/dist/index.html', 'tts')).toBe(null);
+    // Entries stay HTML basenames under relative directories.
+    expect(pluginUiUrl('sonicboom.server', '../index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', '..', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui/../index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', '/ui/dist/index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui//index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html/', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.HTML', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html\0.html', 'tts')).toBe(null);
+    // Only the basename travels: directory segments never reach the URL,
+    // so an encoded segment there cannot inject a server path.
+    expect(pluginUiUrl('sonicboom.server', '%2e%2e/index.html', 'tts')).toBe(ok);
+    // Page ids ride the fragment but still follow the identifier rule.
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', '')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', '../tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts/evil')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts evil')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'x'.repeat(129))).toBe(null);
+    // Dots, dashes, and underscores stay valid on both ids.
+    expect(pluginUiUrl('plugin-a_b.c', 'ui/dist/index.html', 'page-1_x.y')).toBe(
+      'tiktools-plugin://app/plugin-a_b.c/index.html#page=page-1_x.y',
+    );
+  } finally {
+    if (previous === undefined) delete scope['window'];
+    else scope['window'] = previous;
+  }
+});

@@ -88,6 +88,19 @@ export interface BrokerBackend {
 }
 
 /**
+ * Identifier rule for plugin and page ids in frame URLs. Mirrors the
+ * desktop `is_valid_ui_id` (the layer that consumes these URLs): a
+ * letter/underscore start, ASCII alphanumerics plus `.`/`_`/`-`, at most
+ * 128 characters. Manifest-valid ids are a subset, so every installed
+ * plugin passes; anything shaped like traversal or injection fails here
+ * before a URL is ever built.
+ */
+const UI_ID_PATTERN = /^[A-Za-z_][A-Za-z0-9._-]{0,127}$/;
+
+/** Basename rule for webview entry documents: HTML only, no directories. */
+const UI_ENTRY_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]*\.html$/;
+
+/**
  * Document URL for one inline plugin frame, or null when the current host
  * cannot serve plugin assets (plain browser without the desktop shell).
  *
@@ -100,10 +113,16 @@ export interface BrokerBackend {
  * production never sets it.
  */
 export function pluginUiUrl(pluginId: string, entry: string, pageId: string): string | null {
-  const file = entry.split('/').pop() ?? '';
-  if (!file.endsWith('.html') || file.includes('\\')) return null;
+  if (!UI_ID_PATTERN.test(pluginId)) return null;
+  if (entry.includes('\\') || entry.includes('\0')) return null;
+  const segments = entry.split('/');
+  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
+    return null;
+  }
+  const file = segments[segments.length - 1] ?? '';
+  if (file.length > 128 || !UI_ENTRY_PATTERN.test(file)) return null;
   const page = pageId.trim();
-  if (!page) return null;
+  if (!UI_ID_PATTERN.test(page)) return null;
   const scope =
     typeof window === 'undefined' ? undefined : (window as unknown as Record<string, unknown>);
   const override = scope?.['__TIKTOOLS_PLUGIN_UI_BASE__'];

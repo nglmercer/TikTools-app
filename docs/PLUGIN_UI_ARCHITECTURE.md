@@ -94,10 +94,23 @@ Broker action execution is always live (test buttons take real effect).
 
 Crossing notes: `postMessage` payloads must be plain JSON — Vue
 reactive Proxies are rejected by structured clone, so the plugin client
-deep-declones every request before posting. Web asset hosts must serve
-plugin assets with `Access-Control-Allow-Origin` (opaque-origin frames
-are CORS-checked); the desktop custom protocol is exempt by
-construction.
+deep-declones every request before posting.
+
+**Opaque-origin CORS rule: all plugin asset responses must be readable
+by the opaque/`null`-origin sandboxed plugin document.** Inline plugin
+frames run `sandbox="allow-scripts"` (no `allow-same-origin`), so the
+document origin is opaque — and strict engines (observed on WebKitGTK)
+CORS-check even same-scheme subresource loads from the custom protocol.
+Without `Access-Control-Allow-Origin: *` on every served asset, the
+bundle's external module scripts and stylesheets are rejected and the
+frame stays blank with a bare 200 status. The desktop custom protocol is
+NOT exempt by construction. This applies to every plugin-asset host:
+the desktop `PluginAssetServer`/`SharedPluginAssetServer` (success AND
+error responses, so a 404 surfaces as its real status instead of a
+misleading CORS failure), the Vite dev middleware (`/__plugins/…`), and
+`vite preview`. Error responses carry the same CORS/CSP headers as
+successful ones; both desktop servers share one response builder so the
+headers cannot drift.
 
 ## Backend (process plugin)
 
@@ -185,8 +198,34 @@ plugin owns. Shutdown drops the window manager with the app.
 - Capability validation stays host-side; process plugins get no native
   handles; broker methods are an allowlist with ownership injection.
 - UI actions are allowlisted data, never executable plugin code.
+- Inline frames stay `sandbox="allow-scripts"`: no `allow-same-origin`
+  (that would un-opaque the origin and widen the trust boundary).
+  Opaque-origin resource loading is fixed with explicit CORS/CSP
+  headers on the asset servers, never by relaxing the sandbox.
 - Every new plugin UI feature needs a negative test proving a plugin
   cannot exceed its declared scope.
+
+## Windows WebView2 protocol rewrite
+
+Wry serves custom protocols on Windows through WebView2, which cannot
+handle arbitrary schemes: `{scheme}://{rest}` reaches the WebView as
+`http://{scheme}.{rest}`. Concretely, `tiktools-plugin://app/…`
+becomes `http://tiktools-plugin.app/…`, and the main document
+`tiktools://app/…` becomes `http://tiktools.app/…`. A
+`tiktools-plugin:` CSP scheme source never matches the rewritten
+`http:` URLs, so both are pinned explicitly and covered by
+platform-independent unit tests (which assert the rewritten URL forms
+without needing Windows):
+
+- Plugin CSP resource directives list both `tiktools-plugin:` and
+  `http://tiktools-plugin.app`; `frame-ancestors` lists the packaged
+  host plus both rewritten main-app hosts.
+- The plugin HTML meta CSP repeats the same sources (header and meta
+  intersect — both must allow every load).
+- The packaged main-app CSP frames both `tiktools-plugin:` and
+  `http://tiktools-plugin.app`.
+- Navigation allowlists accept both the custom-scheme and the rewritten
+  `http:` forms, still confined to the owning plugin id.
 
 ## Known gaps
 

@@ -22,8 +22,12 @@ export default defineConfig({
     chunkSizeWarningLimit: 500,
   },
   // The sandboxed web host mounts this UI at an opaque origin, so the
-  // preview server answers cross-origin like any real plugin-asset host
-  // must (the desktop custom protocol is exempt by construction).
+  // preview server answers cross-origin like every real plugin-asset host
+  // must: dev middleware, `vite preview`, and the desktop custom protocol
+  // alike. (The desktop protocol is NOT exempt: strict engines such as
+  // WebKitGTK CORS-check custom-protocol subresource loads from opaque
+  // origins too. Production parity is pinned by the Rust asset-server
+  // header tests, not by this preview config.)
   preview: {
     headers: { 'Access-Control-Allow-Origin': '*' },
   },

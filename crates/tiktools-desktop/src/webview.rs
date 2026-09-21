@@ -24,7 +24,10 @@ const PACKAGED_CONTENT_SECURITY_POLICY: &str = concat!(
     "base-uri 'none'; ",
     "object-src 'none'; ",
     "frame-ancestors 'none'; ",
-    "frame-src tiktools-plugin:; ",
+    // Both the custom scheme and its Windows WebView2 rewrite (see
+    // `WINDOWS_WORKAROUND_HOST`): a `tiktools-plugin:` scheme source never
+    // matches the rewritten `http:` frame URLs.
+    "frame-src tiktools-plugin: http://tiktools-plugin.app; ",
     "form-action 'none'; ",
     "script-src 'self'; ",
     "style-src 'self' 'unsafe-inline'; ",
@@ -408,5 +411,45 @@ mod tests {
             packaged_asset_root(Path::new("C:/Apps/TikTools/tiktools-desktop.exe")),
             Some(PathBuf::from("C:/Apps/TikTools/web"))
         );
+    }
+
+    #[test]
+    fn plugin_asset_mime_types_cover_bundle_extensions() {
+        // Module scripts and stylesheets must never fall back to
+        // `application/octet-stream`: strict engines refuse to execute a
+        // module served with the wrong type, which blanks the plugin UI
+        // exactly like the CORS failure this fix addresses.
+        for (file, expected) in [
+            ("index.html", "text/html; charset=utf-8"),
+            ("app.js", "text/javascript; charset=utf-8"),
+            ("app.mjs", "text/javascript; charset=utf-8"),
+            ("app.css", "text/css; charset=utf-8"),
+            ("data.json", "application/json; charset=utf-8"),
+            ("icon.svg", "image/svg+xml"),
+            ("icon.png", "image/png"),
+            ("photo.jpg", "image/jpeg"),
+            ("photo.jpeg", "image/jpeg"),
+            ("photo.webp", "image/webp"),
+            ("font.woff", "font/woff"),
+            ("font.woff2", "font/woff2"),
+            ("module.wasm", "application/wasm"),
+        ] {
+            assert_eq!(content_type(Path::new(file)), expected, "{file}");
+        }
+    }
+
+    #[test]
+    fn packaged_csp_frames_plugin_urls_in_both_protocol_forms() {
+        // The main document embeds plugin frames; on Windows those frames
+        // load through the WebView2 rewrite, which a bare scheme source
+        // never matches. Both forms must be framed, and nothing else.
+        let frame_src = PACKAGED_CONTENT_SECURITY_POLICY
+            .split("; ")
+            .find_map(|part| part.strip_prefix("frame-src"))
+            .expect("frame-src missing from packaged CSP");
+        assert!(frame_src.contains("tiktools-plugin:"));
+        assert!(frame_src.contains("http://tiktools-plugin.app"));
+        assert!(!frame_src.contains("'self'"));
+        assert!(!frame_src.contains("https:"));
     }
 }

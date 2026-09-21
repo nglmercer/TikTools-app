@@ -17,9 +17,12 @@
 use std::{borrow::Cow, fs, sync::Arc};
 
 use tiktools_core::AppCore;
-use wry::http::{header::CONTENT_TYPE, Request, Response, StatusCode};
+use wry::http::{
+    header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE},
+    Request, Response, StatusCode,
+};
 
-use crate::webview::{content_type, error_response, requested_path};
+use crate::webview::{content_type, requested_path};
 
 pub const PLUGIN_ASSET_SCHEME: &str = "tiktools-plugin";
 pub const PLUGIN_ASSET_HOST: &str = "app";
@@ -39,7 +42,7 @@ pub const PLUGIN_CONTENT_SECURITY_POLICY: &str = concat!(
     "default-src 'none'; ",
     "base-uri 'none'; ",
     "object-src 'none'; ",
-    "frame-ancestors tiktools://app http://127.0.0.1:* http://localhost:*; ",
+    "frame-ancestors tiktools://app http://tiktools.app http://tiktools.localhost http://127.0.0.1:* http://localhost:*; ",
     "frame-src 'none'; ",
     "form-action 'none'; ",
     // NOTE: resource directives use explicit `tiktools-plugin:` scheme
@@ -49,13 +52,19 @@ pub const PLUGIN_CONTENT_SECURITY_POLICY: &str = concat!(
     // shell) never match `'self'` against an opaque origin. Scheme
     // sources match regardless of origin handling, so they behave
     // identically in every engine, framed or top-level.
-    "script-src tiktools-plugin:; ",
-    "style-src tiktools-plugin: 'unsafe-inline'; ",
-    "img-src tiktools-plugin: data:; ",
-    "font-src tiktools-plugin: data:; ",
+    //
+    // NOTE: every directive also lists the Windows WebView2 rewrite
+    // (`http://tiktools-plugin.app`, see `WINDOWS_PLUGIN_HOST`). A
+    // `tiktools-plugin:` scheme source never matches the rewritten
+    // `http:` URLs, so without the explicit host source all subresources
+    // would be blocked on Windows. Keep the two in sync.
+    "script-src tiktools-plugin: http://tiktools-plugin.app; ",
+    "style-src tiktools-plugin: http://tiktools-plugin.app 'unsafe-inline'; ",
+    "img-src tiktools-plugin: http://tiktools-plugin.app data:; ",
+    "font-src tiktools-plugin: http://tiktools-plugin.app data:; ",
     // Note: no `http://[::1]:*` — Chromium rejects an IPv6 loopback with a
     // wildcard port as an invalid CSP source and ignores it.
-    "media-src tiktools-plugin: blob: http://localhost:* http://127.0.0.1:*; ",
+    "media-src tiktools-plugin: http://tiktools-plugin.app blob: http://localhost:* http://127.0.0.1:*; ",
     "connect-src 'none'"
 );
 
@@ -118,11 +127,14 @@ impl PluginAssetServer {
     }
 
     pub fn respond(&self, request: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
-        let path = match plugin_asset_path(&self.plugin_id, request.uri().path()) {
+        let raw_path = request.uri().path().to_owned();
+        let path = match plugin_asset_path(&self.plugin_id, &raw_path) {
             Ok(path) => path,
-            Err((status, message)) => return error_response(status, message),
+            Err((status, message)) => {
+                return plugin_error_response(&self.plugin_id, &raw_path, status, message);
+            }
         };
-        serve_asset_file(self.root.as_path(), &path)
+        serve_asset_file(&self.plugin_id, self.root.as_path(), &path, &raw_path)
     }
 }
 
@@ -142,58 +154,145 @@ impl SharedPluginAssetServer {
     }
 
     pub fn respond(&self, request: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
-        let mut segments = request
-            .uri()
-            .path()
-            .split('/')
-            .filter(|segment| !segment.is_empty());
+        let raw_path = request.uri().path().to_owned();
+        let mut segments = raw_path.split('/').filter(|segment| !segment.is_empty());
         let owner = segments.next().unwrap_or_default();
         if !super::is_valid_ui_id(owner) {
-            return error_response(StatusCode::BAD_REQUEST, "invalid plugin id".to_owned());
+            return plugin_error_response(
+                owner,
+                &raw_path,
+                StatusCode::BAD_REQUEST,
+                "invalid plugin id".to_owned(),
+            );
         }
         let assets = match self.core.plugin_ui_assets(owner) {
             Ok(assets) => assets,
             Err(error) if error.code() == "not_found" => {
-                return error_response(StatusCode::NOT_FOUND, "plugin UI not found".to_owned());
+                return plugin_error_response(
+                    owner,
+                    &raw_path,
+                    StatusCode::NOT_FOUND,
+                    "plugin UI not found".to_owned(),
+                );
             }
             Err(_) => {
-                return error_response(StatusCode::FORBIDDEN, "plugin UI unavailable".to_owned());
+                return plugin_error_response(
+                    owner,
+                    &raw_path,
+                    StatusCode::FORBIDDEN,
+                    "plugin UI unavailable".to_owned(),
+                );
             }
         };
         let rest: Vec<&str> = segments.collect();
         let path = match requested_path(&rest.join("/")) {
             Ok(path) => path,
-            Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
+            Err(message) => {
+                return plugin_error_response(owner, &raw_path, StatusCode::BAD_REQUEST, message);
+            }
         };
-        serve_asset_file(&assets.asset_root, &path)
+        serve_asset_file(owner, &assets.asset_root, &path, &raw_path)
     }
+}
+
+/// One response builder for every plugin asset response, success or
+/// failure. Plugin documents load sandboxed without `allow-same-origin`,
+/// so they carry an opaque (`null`) origin, and strict engines (observed
+/// on WebKitGTK) CORS-check even same-scheme subresource loads from the
+/// custom protocol. Without `Access-Control-Allow-Origin: *` the bundle's
+/// external module scripts and stylesheets are rejected and the frame
+/// stays blank — with a bare 200 status that hides the real cause.
+/// Errors carry the same headers so a missing asset surfaces as its real
+/// HTTP status instead of a misleading CORS failure.
+fn plugin_response_builder(status: StatusCode) -> wry::http::response::Builder {
+    Response::builder()
+        .status(status)
+        .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .header("content-security-policy", PLUGIN_CONTENT_SECURITY_POLICY)
+}
+
+/// Plugin-scoped error response: same CORS/CSP headers as successful
+/// asset responses, plus a one-line diagnostic log. Only the plugin id,
+/// request path, status, and reason are logged — never file contents,
+/// settings, or credentials.
+fn plugin_error_response(
+    plugin_id: &str,
+    raw_path: &str,
+    status: StatusCode,
+    message: String,
+) -> Response<Cow<'static, [u8]>> {
+    // Traversal and cross-plugin probes are worth surfacing; routine
+    // missing-asset 404s stay at debug to avoid noisy logs.
+    if status == StatusCode::FORBIDDEN {
+        tracing::warn!(
+            plugin = plugin_id,
+            path = raw_path,
+            %status,
+            reason = %message,
+            "rejected plugin asset request"
+        );
+    } else {
+        tracing::debug!(
+            plugin = plugin_id,
+            path = raw_path,
+            %status,
+            reason = %message,
+            "plugin asset request failed"
+        );
+    }
+    plugin_response_builder(status)
+        .header(CONTENT_TYPE, "text/plain; charset=utf-8")
+        .body(Cow::Owned(message.into_bytes()))
+        .expect("plugin error response builder should accept static headers")
 }
 
 /// Serves one validated relative path from a confined root: canonicalize,
 /// containment check, strict plugin CSP. Shared by the per-window and
-/// main-window servers.
+/// main-window servers, so both always emit identical security headers.
 fn serve_asset_file(
+    plugin_id: &str,
     root: &std::path::Path,
     path: &std::path::Path,
+    raw_path: &str,
 ) -> Response<Cow<'static, [u8]>> {
+    // Canonicalizing the root resolves symlinks in the plugin directory
+    // itself, so the containment check below also catches symlink escapes
+    // staged inside the served directory.
     let root = match fs::canonicalize(root) {
         Ok(root) => root,
         Err(error) => {
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
+            return plugin_error_response(
+                plugin_id,
+                raw_path,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                error.to_string(),
+            );
         }
     };
     let candidate = root.join(path);
     let canonical = match fs::canonicalize(&candidate) {
         Ok(path) => path,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return error_response(StatusCode::NOT_FOUND, "asset not found".to_owned());
+            return plugin_error_response(
+                plugin_id,
+                raw_path,
+                StatusCode::NOT_FOUND,
+                "asset not found".to_owned(),
+            );
         }
         Err(error) => {
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
+            return plugin_error_response(
+                plugin_id,
+                raw_path,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                error.to_string(),
+            );
         }
     };
     if !canonical.starts_with(&root) || !canonical.is_file() {
-        return error_response(
+        return plugin_error_response(
+            plugin_id,
+            raw_path,
             StatusCode::FORBIDDEN,
             "asset path escapes plugin UI root".to_owned(),
         );
@@ -201,13 +300,16 @@ fn serve_asset_file(
     let bytes = match fs::read(&canonical) {
         Ok(bytes) => bytes,
         Err(error) => {
-            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
+            return plugin_error_response(
+                plugin_id,
+                raw_path,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                error.to_string(),
+            );
         }
     };
-    Response::builder()
-        .status(StatusCode::OK)
+    plugin_response_builder(StatusCode::OK)
         .header(CONTENT_TYPE, content_type(&canonical))
-        .header("content-security-policy", PLUGIN_CONTENT_SECURITY_POLICY)
         .body(Cow::Owned(bytes))
         .expect("asset response builder should accept static headers")
 }
@@ -348,6 +450,223 @@ mod tests {
                 "{directive} must not rely on 'self' (opaque origin in frames)"
             );
         }
+    }
+
+    #[test]
+    fn plugin_csp_covers_the_windows_webview2_rewrite() {
+        // On Windows the custom protocol reaches the WebView as
+        // `http://tiktools-plugin.app/...`, which a `tiktools-plugin:`
+        // scheme source never matches. Every resource directive must list
+        // the rewritten host explicitly, and the framed document must
+        // accept the rewritten main-app origins as embedders.
+        let rewritten = format!("http://{WINDOWS_PLUGIN_HOST}");
+        for directive in [
+            "script-src",
+            "style-src",
+            "img-src",
+            "font-src",
+            "media-src",
+        ] {
+            let body = PLUGIN_CONTENT_SECURITY_POLICY
+                .split("; ")
+                .find_map(|part| part.strip_prefix(directive))
+                .unwrap_or_else(|| panic!("{directive} missing from plugin CSP"));
+            assert!(
+                body.contains(rewritten.as_str()),
+                "{directive} must allow the Windows rewrite ({rewritten})"
+            );
+        }
+        let ancestors = PLUGIN_CONTENT_SECURITY_POLICY
+            .split("; ")
+            .find_map(|part| part.strip_prefix("frame-ancestors"))
+            .expect("frame-ancestors missing from plugin CSP");
+        for host in [
+            "tiktools://app",
+            "http://tiktools.app",
+            "http://tiktools.localhost",
+        ] {
+            assert!(
+                ancestors.contains(host),
+                "frame-ancestors must allow the host origin {host}"
+            );
+        }
+        // The lockdown stays: no network, no subframes, no plugins.
+        for pinned in [
+            "default-src 'none'",
+            "base-uri 'none'",
+            "object-src 'none'",
+            "frame-src 'none'",
+            "form-action 'none'",
+            "connect-src 'none'",
+        ] {
+            assert!(
+                PLUGIN_CONTENT_SECURITY_POLICY.contains(pinned),
+                "plugin CSP must keep `{pinned}`"
+            );
+        }
+    }
+
+    fn cors_header<'a>(response: &'a Response<Cow<'static, [u8]>>) -> Option<&'a str> {
+        response
+            .headers()
+            .get("access-control-allow-origin")
+            .and_then(|value| value.to_str().ok())
+    }
+
+    fn csp_header<'a>(response: &'a Response<Cow<'static, [u8]>>) -> Option<&'a str> {
+        response
+            .headers()
+            .get("content-security-policy")
+            .and_then(|value| value.to_str().ok())
+    }
+
+    fn asset_root(tag: &str) -> std::path::PathBuf {
+        let root = env::temp_dir().join(format!(
+            "tiktools-plugin-cors-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(root.join("assets")).unwrap();
+        fs::write(root.join("index.html"), "<html></html>").unwrap();
+        fs::write(root.join("assets").join("app.js"), "export {};").unwrap();
+        fs::write(root.join("assets").join("app.css"), "body {}").unwrap();
+        root
+    }
+
+    fn get_one(server: &PluginAssetServer, uri: &str) -> Response<Cow<'static, [u8]>> {
+        server.respond(Request::builder().uri(uri).body(Vec::new()).unwrap())
+    }
+
+    #[test]
+    fn plugin_assets_are_readable_from_the_opaque_origin() {
+        // Regression test for the blank-iframe bug: the sandboxed plugin
+        // document carries an opaque (`null`) origin, and strict engines
+        // (WebKitGTK) CORS-check even custom-protocol subresource loads.
+        // Every served asset must answer `Access-Control-Allow-Origin: *`
+        // with its correct content type and the strict plugin CSP.
+        let root = asset_root("ok");
+        let server = PluginAssetServer::new("owner".to_owned(), Arc::new(root.clone()));
+        for (uri, content_type) in [
+            ("/owner/index.html", "text/html; charset=utf-8"),
+            ("/owner/assets/app.js", "text/javascript; charset=utf-8"),
+            ("/owner/assets/app.css", "text/css; charset=utf-8"),
+        ] {
+            let response = get_one(&server, uri);
+            assert_eq!(response.status(), StatusCode::OK, "{uri}");
+            assert_eq!(cors_header(&response), Some("*"), "{uri}");
+            assert_eq!(
+                csp_header(&response),
+                Some(PLUGIN_CONTENT_SECURITY_POLICY),
+                "{uri}"
+            );
+            assert_eq!(
+                response
+                    .headers()
+                    .get("content-type")
+                    .and_then(|value| value.to_str().ok()),
+                Some(content_type),
+                "{uri}"
+            );
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn plugin_errors_keep_cors_so_statuses_stay_visible() {
+        // A missing or rejected asset must surface as its real HTTP
+        // status, not hide behind a CORS failure in the frame console.
+        let root = asset_root("errors");
+        let server = PluginAssetServer::new("owner".to_owned(), Arc::new(root.clone()));
+        // Missing file -> 404 with CORS.
+        let response = get_one(&server, "/owner/assets/missing.js");
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(cors_header(&response), Some("*"));
+        assert_eq!(csp_header(&response), Some(PLUGIN_CONTENT_SECURITY_POLICY));
+        // Cross-plugin read -> 403 with CORS, before any IO.
+        let response = get_one(&server, "/other/index.html");
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert_eq!(cors_header(&response), Some("*"));
+        // Traversal (plain, encoded, backslash) -> 400 with CORS.
+        // (Raw backslashes never survive URI parsing, so the backslash
+        // cases travel percent-encoded, as a real client would send them.)
+        for uri in [
+            "/owner/../plugin.json",
+            "/owner/%2e%2e/plugin.json",
+            "/owner/%2E%2E/plugin.json",
+            "/owner/..%2fplugin.json",
+            "/owner/..%5cplugin.json",
+            "/owner/%2e%2e%2fplugin.json",
+        ] {
+            let response = get_one(&server, uri);
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+            assert_eq!(cors_header(&response), Some("*"), "{uri}");
+        }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn symlink_escapes_inside_the_asset_root_are_contained() {
+        let root = asset_root("symlink");
+        let outside = env::temp_dir().join(format!(
+            "tiktools-plugin-cors-outside-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::write(&outside, "secret").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&outside, root.join("assets").join("sneaky.js")).unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(&outside, root.join("assets").join("sneaky.js"))
+            .unwrap();
+        let server = PluginAssetServer::new("owner".to_owned(), Arc::new(root.clone()));
+        let response = get_one(&server, "/owner/assets/sneaky.js");
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert_eq!(cors_header(&response), Some("*"));
+        assert_ne!(response.body().as_ref(), b"secret");
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_file(outside);
+    }
+
+    #[test]
+    fn shared_server_errors_keep_cors_headers() {
+        let root = env::temp_dir().join(format!(
+            "tiktools-shared-cors-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let server = SharedPluginAssetServer::new(webview_core(&root));
+        // Success still carries CORS + CSP + content type.
+        let response = get(&server, "/webui/index.html");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(cors_header(&response), Some("*"));
+        assert_eq!(csp_header(&response), Some(PLUGIN_CONTENT_SECURITY_POLICY));
+        // Unknown plugin, malformed id, and traversal all fail with CORS
+        // so the frame console shows the real status.
+        for (uri, status) in [
+            ("/missing/index.html", StatusCode::NOT_FOUND),
+            ("/../index.html", StatusCode::BAD_REQUEST),
+            ("/webui/%2e%2e/plugin-secret.txt", StatusCode::BAD_REQUEST),
+            ("/webui/..%5cplugin-secret.txt", StatusCode::BAD_REQUEST),
+        ] {
+            let response = get(&server, uri);
+            assert_eq!(response.status(), status, "{uri}");
+            assert_eq!(cors_header(&response), Some("*"), "{uri}");
+            assert_eq!(
+                csp_header(&response),
+                Some(PLUGIN_CONTENT_SECURITY_POLICY),
+                "{uri}"
+            );
+        }
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

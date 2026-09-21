@@ -36,7 +36,10 @@ The first run installs nothing extra: `@playwright/test` is a
 devDependency. The main config starts the app with `bun run serve:web`
 automatically (`reuseExistingServer: true`); the UI config serves the
 compiled `ui/dist/` with `vite preview` (with
-`Access-Control-Allow-Origin`, which opaque-origin frames require).
+`Access-Control-Allow-Origin: *`, which opaque-origin frames require —
+every plugin-asset host must send it, including the desktop custom
+protocol, which is NOT CORS-exempt; production parity is pinned by the
+Rust asset-server header tests, not by this preview config).
 
 ## Fake host (main suite)
 
@@ -81,6 +84,7 @@ and control client end to end).
 | `navigation.spec.ts` | boot, named nav, dynamic plugin tab, removal fallback |
 | `plugin-pages.spec.ts` | declarative form save, dynamic list + refresh, text page, option-source error |
 | `plugin-webview.spec.ts` | legacy TTS section degrades to a note; inline frame round-trips settings/actions/events; pop-out posts the host message |
+| `plugin-iframe-assets.spec.ts` | external module + stylesheet load in `sandbox="allow-scripts"` with CORS (and are blocked without it — the production blank-iframe mode); inline tab renders the real compiled SonicBoom bundle |
 | `connections.spec.ts` | empty state, probe success/failure, settings stay editable |
 | `accessibility.spec.ts` | named nav + `aria-current`, launcher keyboard reachability, `status` errors |
 | `screenshots.spec.ts` | semantic assertions + deterministic baselines |
@@ -94,7 +98,7 @@ actually ships in the isolated view.
 | file | coverage |
 |------|----------|
 | `tts-ui.spec.ts` | boot from broker (settings/voices/outputs), tester speak + log, failure surface, save coalescing, output refresh |
-| `interop.spec.ts` | the real `PluginWebviewHost` (bundled from `src/web` at test time) drives the real UI in a sandboxed iframe over `postMessage` |
+| `interop.spec.ts` | the real `PluginWebviewHost` (bundled from `src/web` at test time) drives the real UI in a sandboxed iframe over `postMessage`; preview ACAO header pinned as a documented assumption (production parity lives in the Rust tests) |
 
 The interop spec pins the versioned broker envelope on both sides at
 once — client/shim drift fails here, not in production. (It once caught

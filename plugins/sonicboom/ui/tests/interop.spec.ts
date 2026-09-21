@@ -138,6 +138,21 @@ function assertClean(errors: string[]): void {
   }
 }
 
+test('preview server answers cross-origin like every asset host must', async ({
+  request,
+  baseURL,
+}) => {
+  // The specs below load the UI in an opaque-origin iframe, which requires
+  // `Access-Control-Allow-Origin` on every asset — provided here by the
+  // `vite preview` headers. That config must never be mistaken for
+  // production coverage: the desktop custom-protocol server and the dev
+  // middleware have to send the same header, pinned by the Rust
+  // asset-server tests (opaque origins are CORS-checked on custom
+  // protocols too, as observed on WebKitGTK).
+  const response = await request.get(`${baseURL}/`);
+  expect(response.headers()['access-control-allow-origin']).toBe('*');
+});
+
 test('real host shim boots the real plugin UI over postMessage', async ({ page, baseURL }) => {
   const errors = await installHarness(page, `${baseURL}/`);
   const frame = page.frameLocator('#plugin-frame');

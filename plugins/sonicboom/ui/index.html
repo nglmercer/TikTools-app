@@ -10,16 +10,18 @@
       postMessage to the parent frame), never fetch/XHR. Mirrors the
       desktop asset-server header except `frame-ancestors`, which is
       header-only (browsers ignore it in a meta element) — the served
-      header carries it. Each resource directive lists both 'self' (http
-      dev/preview, where no header is served) and the tiktools-plugin:
-      scheme source (production, where header and meta intersect so both
-      must allow the load — and where 'self' alone would fail: framed
-      plugin documents carry an opaque origin that strict engines never
-      match against 'self').
+      header carries it. Each resource directive lists 'self' (http
+      dev/preview, where no header is served), the tiktools-plugin:
+      scheme source, and the Windows WebView2 rewrite host
+      (http://tiktools-plugin.app). Production header and meta intersect
+      so both must allow every load — and 'self' alone would fail there:
+      framed plugin documents carry an opaque origin that strict engines
+      never match against 'self', and the scheme source never matches the
+      rewritten `http:` URLs.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' tiktools-plugin:; style-src 'self' tiktools-plugin: 'unsafe-inline'; img-src 'self' tiktools-plugin: data:; font-src 'self' tiktools-plugin: data:; media-src 'self' tiktools-plugin: blob: http://localhost:* http://127.0.0.1:*; connect-src 'none'"
+      content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self' tiktools-plugin: http://tiktools-plugin.app; style-src 'self' tiktools-plugin: http://tiktools-plugin.app 'unsafe-inline'; img-src 'self' tiktools-plugin: http://tiktools-plugin.app data:; font-src 'self' tiktools-plugin: http://tiktools-plugin.app data:; media-src 'self' tiktools-plugin: http://tiktools-plugin.app blob: http://localhost:* http://127.0.0.1:*; connect-src 'none'"
     />
     <title>SonicBoom</title>
   </head>
