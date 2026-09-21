@@ -376,7 +376,9 @@ mod tests {
     /// One representative value per variant plus its stable topic and a
     /// data-shape assertion. Adding a variant without extending this table
     /// fails the count assertion in the conversion test below.
-    fn all_variant_cases() -> Vec<(DomainEvent, &'static str, fn(&Value))> {
+    type VariantCase = (DomainEvent, &'static str, fn(&Value));
+
+    fn all_variant_cases() -> Vec<VariantCase> {
         vec![
             (
                 DomainEvent::PluginInstalled {

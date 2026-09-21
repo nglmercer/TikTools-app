@@ -7,7 +7,6 @@ use crate::AppCore;
 use std::collections::BTreeMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
-use tiktools_plugin_api::DomainEventEnvelope;
 
 struct NoopEmitter;
 
