@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import type { JsonValue } from '../automation/types.ts';
+import type { JsonValue } from '../shared/json.ts';
 import { normalizeAction } from './actions.ts';
 
 test('accepts every allowlisted action type', () => {

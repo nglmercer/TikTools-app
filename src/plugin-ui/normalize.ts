@@ -8,8 +8,8 @@
  * executed.
  */
 
-import type { Localized } from '../automation/behavior/types.ts';
-import type { JsonObject, JsonValue } from '../automation/types.ts';
+import type { Localized } from '../shared/localized.ts';
+import type { JsonObject, JsonValue } from '../shared/json.ts';
 import { normalizeAction } from './actions.ts';
 import { parseBinding } from './bindings.ts';
 import {

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import type { JsonValue } from '../automation/types.ts';
+import type { JsonValue } from '../shared/json.ts';
 import { collectOptionSources, normalizeNode, normalizePage } from './normalize.ts';
 
 const text = { default: 'Hello', i18key: '' };

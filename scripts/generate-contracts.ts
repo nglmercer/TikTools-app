@@ -100,7 +100,7 @@ function generatedTypeSource(schema: JsonRecord): string {
 }
 
 function generatedJsonValueSource(): string {
-  return `// THIS FILE IS GENERATED. Run bun run contracts:generate.\n\nexport type JsonPrimitive = null | boolean | number | string;\nexport type JsonValue = JsonPrimitive | JsonObject | JsonArray;\nexport type JsonObject = { [key: string]: JsonValue | undefined };\nexport type JsonArray = JsonValue[];\n`;
+  return `// THIS FILE IS GENERATED. Run bun run contracts:generate.\n\n// Canonical definitions live in src/shared/json.ts so generic layers\n// never import automation for plain JSON types.\nexport type { JsonArray, JsonObject, JsonPrimitive, JsonValue } from '../../../shared/json.ts';\n`;
 }
 
 function generatedIndexSource(names: string[]): string {

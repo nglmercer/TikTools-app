@@ -1,5 +1,9 @@
 import type { AutomationEventType, JsonObject } from '../types.ts';
 
+/** Canonical localized-text contract lives in shared; re-exported for compatibility. */
+import type { Localized, TranslationCatalog } from '../../shared/localized.ts';
+export type { I18nText, Localized, TranslationCatalog } from '../../shared/localized.ts';
+
 /** A built-in trigger or a plugin-declared event type (hotkey.pressed). */
 export type TriggerType = AutomationEventType | (string & {});
 
@@ -12,24 +16,6 @@ export type TriggerType = AutomationEventType | (string & {});
  * filter must pass, and an "or" is expressed inside a single filter with the
  * `in` operator.
  */
-/**
- * Localized metadata is intentionally a small, serializable value object.
- *
- * `default` keeps a plugin usable when its optional locale file is missing;
- * `i18key` is the stable lookup key used by the host translation catalog.
- * Plugins should namespace keys with their plugin id.
- */
-export interface I18nText extends JsonObject {
-  default: string;
-  i18key: string;
-}
-
-/** Locale -> key -> translated value. Locale files use this exact shape. */
-export type TranslationCatalog = Record<string, Record<string, string>>;
-
-/** Every localized descriptor uses the default/key contract. */
-export type Localized = I18nText;
-
 export type ActionFieldKind =
   | 'text'
   | 'textarea'

@@ -6,7 +6,7 @@
  * operation with capability checks remaining host-side.
  */
 
-import type { JsonObject, JsonValue } from '../automation/types.ts';
+import type { JsonObject, JsonValue } from '../shared/json.ts';
 import { PLUGIN_UI_ACTION_TYPES, type PluginUiAction } from './contracts.ts';
 
 const ACTION_TYPE_PATTERN = /^[a-z][a-z0-9._-]{0,127}$/;

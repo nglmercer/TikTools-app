@@ -17,8 +17,8 @@
  * mirror it; validation parity is covered by fixture tests on both sides.
  */
 
-import type { Localized } from '../automation/behavior/types.ts';
-import type { JsonObject } from '../automation/types.ts';
+import type { Localized } from '../shared/localized.ts';
+import type { JsonObject } from '../shared/json.ts';
 
 /** Contract version carried by plugin manifests (`ui.uiVersion`). */
 export const PLUGIN_UI_VERSION = 1;
