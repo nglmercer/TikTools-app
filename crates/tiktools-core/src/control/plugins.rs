@@ -213,6 +213,78 @@ impl AppCore {
         Ok((options, selected))
     }
 
+    /// Scoped option read for untrusted callers (plugin UI broker): the
+    /// requesting plugin may only read option sources owned by its own
+    /// actions. Ownership resolves through the action catalog, never by
+    /// trusting name prefixes.
+    pub async fn plugin_action_options_scoped(
+        self: &Arc<Self>,
+        requesting_plugin: &str,
+        source: &str,
+        refresh: bool,
+    ) -> Result<(Vec<Value>, Option<String>), OperationError> {
+        let requesting = clean_plugin_id(requesting_plugin)?;
+        let source = source.trim();
+        if source.is_empty() || source.len() > 256 {
+            return Err(OperationError::invalid(
+                "option source must be 1..=256 characters",
+            ));
+        }
+        let Some((action_type, _)) =
+            crate::services::option_sources::parse_option_source(source)
+        else {
+            return Err(OperationError::invalid(format!(
+                "Unknown option source `{source}`."
+            )));
+        };
+        self.verify_action_owner(&action_type, &requesting)?;
+        self.plugin_action_options(source, refresh).await
+    }
+
+    /// Resolves the owning plugin of an action type from the action catalog
+    /// and rejects callers outside that scope. Unknown actions report
+    /// `not_found` (not `forbidden`) so scanners learn nothing about which
+    /// plugin owns what.
+    pub(crate) fn verify_action_owner(
+        &self,
+        action_type: &str,
+        requesting_plugin: &str,
+    ) -> Result<(), OperationError> {
+        let Some((plugin, _)) = self.plugin_for_action(action_type) else {
+            return Err(OperationError::not_found(format!(
+                "Action type `{action_type}` is not available in this host."
+            )));
+        };
+        if plugin.manifest.id != requesting_plugin {
+            return Err(OperationError::forbidden(format!(
+                "Action type `{action_type}` belongs to plugin `{}`.",
+                plugin.manifest.id
+            )));
+        }
+        Ok(())
+    }
+
+    /// Scoped action execution for untrusted callers (plugin UI broker):
+    /// the requesting plugin may only execute its own actions. Ownership
+    /// resolves through the action catalog, never by trusting name prefixes.
+    pub async fn plugin_action_execute_scoped(
+        self: &Arc<Self>,
+        requesting_plugin: &str,
+        action_type: &str,
+        config: BTreeMap<String, Value>,
+        live: bool,
+    ) -> Result<PluginActionOutcome, OperationError> {
+        let requesting = clean_plugin_id(requesting_plugin)?;
+        let action_type = action_type.trim();
+        if action_type.is_empty() || action_type.len() > 128 || !is_identifier(action_type) {
+            return Err(OperationError::invalid(
+                "action type is not a valid identifier",
+            ));
+        }
+        self.verify_action_owner(action_type, &requesting)?;
+        self.plugin_action_execute(action_type, config, live).await
+    }
+
     /// Executes one plugin action. `live = false` is a dry run (no HTTP is
     /// sent, no side effects); `live = true` performs the real execution.
     pub async fn plugin_action_execute(
@@ -291,5 +363,146 @@ impl AppCore {
                 error: Some(error),
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use tiktools_plugin_loader::{PluginManager, PluginRoot, PluginSource};
+
+    struct NullEmitter;
+
+    impl crate::HostEmitter for NullEmitter {
+        fn emit(&self, _message: crate::HostMessage) {}
+    }
+
+    fn manifest(id: &str, actions: &[&str]) -> String {
+        let actions = actions
+            .iter()
+            .map(|action| {
+                format!(
+                    r#"{{"id": "{action}", "title": {{"default": "{action}"}}, "tag": "test", "requiredCapabilities": []}}"#
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            r#"{{"schemaVersion": 3, "id": "{id}", "name": "{id}", "version": "1.0.0", "runtime": "declarative", "capabilities": [], "permissions": [], "actionTypes": [{actions}]}}"#
+        )
+    }
+
+    /// Builds an AppCore whose catalog holds two declarative plugins. The
+    /// actions declare no `http` block, so dry runs resolve and return
+    /// without touching any runtime or network.
+    fn core_with_two_plugins() -> (Arc<AppCore>, std::path::PathBuf) {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let root = std::env::temp_dir().join(format!(
+            "tiktools-ownership-test-{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::SeqCst)
+        ));
+        // plugin-b declares `plugina.spoof`: the action NAME looks like
+        // plugin-a's, but the catalog owner is plugin-b. Ownership must
+        // resolve through the catalog, never by prefix.
+        for (dir, id, actions) in [
+            ("plugin-a", "plugina", &["plugina.echo"][..]),
+            (
+                "plugin-b",
+                "pluginb",
+                &["pluginb.echo", "plugina.spoof"][..],
+            ),
+        ] {
+            let dir = root.join(dir);
+            std::fs::create_dir_all(&dir).expect("test plugin dir");
+            std::fs::write(dir.join("plugin.json"), manifest(id, actions)).expect("manifest");
+        }
+        let manager = PluginManager::new(vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }]);
+        manager.scan().expect("test scan");
+        assert_eq!(manager.list().len(), 2);
+        let mut core = AppCore::new(Arc::new(NullEmitter));
+        core.plugins = Arc::new(manager);
+        (Arc::new(core), root)
+    }
+
+    fn cleanup(root: &std::path::Path) {
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn scoped_execute_allows_own_actions() {
+        let (core, root) = core_with_two_plugins();
+        let outcome = core
+            .plugin_action_execute_scoped("plugina", "plugina.echo", BTreeMap::new(), false)
+            .await
+            .expect("own action executes");
+        assert!(outcome.ok, "dry run should succeed: {outcome:?}");
+        cleanup(&root);
+    }
+
+    #[tokio::test]
+    async fn scoped_execute_rejects_cross_plugin_actions() {
+        let (core, root) = core_with_two_plugins();
+        // plugin-a cannot invoke plugin-b's action.
+        let error = core
+            .plugin_action_execute_scoped("plugina", "pluginb.echo", BTreeMap::new(), false)
+            .await
+            .expect_err("cross-plugin execute must fail");
+        assert_eq!(error.code(), "forbidden");
+        // Prefix spoofing buys nothing: `plugina.spoof` is owned by
+        // plugin-b even though the name starts with plugin-a's id.
+        let error = core
+            .plugin_action_execute_scoped("plugina", "plugina.spoof", BTreeMap::new(), false)
+            .await
+            .expect_err("prefix-spoofed execute must fail");
+        assert_eq!(error.code(), "forbidden");
+        // Unknown actions report not_found, not forbidden.
+        let error = core
+            .plugin_action_execute_scoped("plugina", "nobody.there", BTreeMap::new(), false)
+            .await
+            .expect_err("unknown action must fail");
+        assert_eq!(error.code(), "not_found");
+        cleanup(&root);
+    }
+
+    #[tokio::test]
+    async fn scoped_options_rejects_cross_plugin_sources() {
+        let (core, root) = core_with_two_plugins();
+        // plugin-a cannot read plugin-b's option source.
+        let error = core
+            .plugin_action_options_scoped(
+                "plugina",
+                "plugin-action-options:pluginb.echo:field",
+                false,
+            )
+            .await
+            .expect_err("cross-plugin options read must fail");
+        assert_eq!(error.code(), "forbidden");
+        // Prefix-spoofed source resolves to plugin-b and is rejected.
+        let error = core
+            .plugin_action_options_scoped(
+                "plugina",
+                "plugin-action-options:plugina.spoof:field",
+                false,
+            )
+            .await
+            .expect_err("prefix-spoofed options read must fail");
+        assert_eq!(error.code(), "forbidden");
+        // Own source passes ownership: it proceeds to resolution, which
+        // reports the (declared-shape) absence of options — never forbidden.
+        let error = core
+            .plugin_action_options_scoped(
+                "plugina",
+                "plugin-action-options:plugina.echo:field",
+                false,
+            )
+            .await
+            .expect_err("undeclared options must fail resolution");
+        assert_ne!(error.code(), "forbidden");
+        cleanup(&root);
     }
 }

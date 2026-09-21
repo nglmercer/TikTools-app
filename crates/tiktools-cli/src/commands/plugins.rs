@@ -200,6 +200,7 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                 .plugins_options(PluginOptionsParams {
                     source,
                     refresh: false,
+                    plugin_id: None,
                 })
                 .await?,
         ),
@@ -213,6 +214,7 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                     action_type,
                     config,
                     live,
+                    plugin_id: None,
                 })
                 .await?,
         ),

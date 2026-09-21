@@ -109,14 +109,19 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
   };
 
   /** Runs one plugin action immediately (TTS speech, output switches). RPC
-   * failures synthesize the same outcome shape the host would have sent. */
+   * failures synthesize the same outcome shape the host would have sent.
+   * The requesting plugin id is always sent so the host verifies the
+   * action owner matches (generic UI never executes another plugin's
+   * action, even when descriptors reference foreign action types). */
   const executeAction = async (
+    pluginId: string,
     actionType: string,
     config: PluginSettingValues,
     live: boolean,
   ): Promise<PluginActionOutcome> => {
     try {
       return await control.call<PluginActionOutcome>('plugins.action.execute', {
+        pluginId,
         actionType,
         config,
         live,
@@ -208,15 +213,15 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
   /**
    * Reads one option source. `refresh` bypasses the host option cache for
    * this read (Refresh buttons, post-mutation re-reads); normal reads stay
-   * cached. The second parameter is optional so every existing single-arg
-   * call site keeps working unchanged.
+   * cached. Page renderers pass their owning `pluginId` so the host
+   * verifies the source owner matches; other trusted host UI omits it.
    */
-  const handleGetActionOptions = (source: string, refresh?: boolean): void => {
+  const handleGetActionOptions = (source: string, refresh?: boolean, pluginId?: string): void => {
+    const params: Record<string, unknown> = { source };
+    if (refresh) params.refresh = true;
+    if (pluginId) params.pluginId = pluginId;
     void control
-      .call<PluginOptionsResult>(
-        'plugins.options',
-        refresh ? { source, refresh: true } : { source },
-      )
+      .call<PluginOptionsResult>('plugins.options', params)
       .then((result) => applyOptions(result))
       .catch((failure: unknown) => {
         applyOptions({ source, options: [], selected: null }, errorMessage(failure));

@@ -28,14 +28,15 @@ function setup() {
   let resolveExecution!: (outcome: PluginActionOutcome) => void;
   const executed: Array<{ actionType: string; config: PluginSettingValues }> = [];
   const tts = useTts(stubControl(), actionOptions, pluginPages, {
-    executeAction: (actionType, config, live) => {
+    executeAction: (pluginId, actionType, config, live) => {
+      void pluginId;
       executed.push({ actionType, config });
       expect(live).toBe(true);
       return new Promise<PluginActionOutcome>((resolve) => {
         resolveExecution = resolve;
       });
     },
-    refreshOptions: (source) => {
+    refreshOptions: (_pluginId, source) => {
       refreshed.push(source);
     },
     adjustPoints: () => {},
@@ -112,7 +113,8 @@ function setupSpeech() {
   const resolvers: Array<(outcome: PluginActionOutcome) => void> = [];
   const rejecters: Array<(error: unknown) => void> = [];
   const tts = useTts(stubControl(), actionOptions, pluginPages, {
-    executeAction: (actionType, config, live) => {
+    executeAction: (pluginId, actionType, config, live) => {
+      void pluginId;
       expect(live).toBe(true);
       void actionType;
       void config;
@@ -249,7 +251,7 @@ test('settings changes update instantly but persist debounced per plugin', async
     ref<Record<string, ActionOptionItem[]>>({}),
     computed(() => []),
     {
-      executeAction: async (actionType) => speechOutcome(actionType),
+      executeAction: async (_pluginId, actionType) => speechOutcome(actionType),
       refreshOptions: () => {},
       adjustPoints: () => {},
       leaderboardPointsFor: () => undefined,
@@ -309,7 +311,7 @@ test('flush persists pending settings immediately with final state', async () =>
     ref<Record<string, ActionOptionItem[]>>({}),
     computed(() => []),
     {
-      executeAction: async (actionType) => speechOutcome(actionType),
+      executeAction: async (_pluginId, actionType) => speechOutcome(actionType),
       refreshOptions: () => {},
       adjustPoints: () => {},
       leaderboardPointsFor: () => undefined,
@@ -359,7 +361,7 @@ test('teardown flush delivers the final value even when teardown is immediate', 
     ref<Record<string, ActionOptionItem[]>>({}),
     computed(() => []),
     {
-      executeAction: async (actionType) => speechOutcome(actionType),
+      executeAction: async (_pluginId, actionType) => speechOutcome(actionType),
       refreshOptions: () => {},
       adjustPoints: () => {},
       leaderboardPointsFor: () => undefined,

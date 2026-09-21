@@ -67,6 +67,16 @@ impl OperationError {
         }
     }
 
+    /// Authenticated caller acts outside its own plugin scope (cross-plugin
+    /// action invocation or option-source read). The owner check resolves
+    /// through the action catalog, never through name prefixes.
+    pub fn forbidden(message: impl Into<String>) -> Self {
+        Self {
+            code: "forbidden",
+            message: message.into(),
+        }
+    }
+
     pub fn timeout(message: impl Into<String>) -> Self {
         Self {
             code: "timeout",

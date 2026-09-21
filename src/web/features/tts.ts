@@ -22,11 +22,12 @@ import type { PluginActionOutcome } from './plugins.ts';
 
 export interface TtsCallbacks {
   executeAction: (
+    pluginId: string,
     actionType: string,
     config: PluginSettingValues,
     live: boolean,
   ) => Promise<PluginActionOutcome>;
-  refreshOptions: (source: string) => void;
+  refreshOptions: (pluginId: string, source: string) => void;
   adjustPoints: (uniqueId: string, delta: number) => void;
   leaderboardPointsFor: (handle: string) => number | undefined;
 }
@@ -186,6 +187,7 @@ export function useTts(
     incrementSpeaking(pluginId);
     void callbacks
       .executeAction(
+        pluginId,
         actionType,
         {
           text,
@@ -382,7 +384,7 @@ export function useTts(
       const outputErrors = { ...ttsOutputErrors.value };
       delete outputErrors[pending.pluginId];
       ttsOutputErrors.value = outputErrors;
-      callbacks.refreshOptions(pending.source);
+      callbacks.refreshOptions(pending.pluginId, pending.source);
     } else {
       ttsOutputErrors.value = {
         ...ttsOutputErrors.value,
@@ -414,7 +416,7 @@ export function useTts(
     delete errors[pluginId];
     ttsOutputErrors.value = errors;
     void callbacks
-      .executeAction(actionType, { [field]: device }, true)
+      .executeAction(pluginId, actionType, { [field]: device }, true)
       .then((outcome) => handleOutputResult(pending, outcome))
       .catch((failure: unknown) => {
         const message = errorMessage(failure);

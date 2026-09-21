@@ -32,7 +32,7 @@ type PluginPageViewProps = {
   onTtsOutputSelect?: (pluginId: string, actionType: string, field: string, device: string, source: string) => void;
   onGetSettings: (id: string) => void;
   onSaveSettings: (id: string, values: PluginSettingValues) => void;
-  onGetActionOptions: (source: string, refresh?: boolean) => void;
+  onGetActionOptions: (source: string, refresh?: boolean, pluginId?: string) => void;
   onTestConnection: (id: string) => void;
   onOpenMediaPicker?: OpenMediaPicker;
   onExecuteAction?: (actionType: string, config: PluginSettingValues) => void;
@@ -77,7 +77,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
       values: props.actionOptions,
       errors: props.actionOptionErrors,
       selected: props.actionOptionSelected,
-      get: (source, refresh) => props.onGetActionOptions(source, refresh),
+      get: (source, refresh) => props.onGetActionOptions(source, refresh, props.page.pluginId),
     },
     actions: {
       execute: (actionType, config) => {
@@ -125,8 +125,10 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
   // generic page itself.
   const requestTtsSources = (): void => {
     for (const contribution of adapted.value.tts) {
-      props.onGetActionOptions(contribution.voicesFrom);
-      if (contribution.outputsFrom) props.onGetActionOptions(contribution.outputsFrom);
+      props.onGetActionOptions(contribution.voicesFrom, false, props.page.pluginId);
+      if (contribution.outputsFrom) {
+        props.onGetActionOptions(contribution.outputsFrom, false, props.page.pluginId);
+      }
     }
   };
 

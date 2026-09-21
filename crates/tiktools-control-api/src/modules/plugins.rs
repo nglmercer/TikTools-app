@@ -48,6 +48,10 @@ pub struct PluginOptionsParams {
     /// re-read). Defaults to false: normal reads stay cached.
     #[serde(default)]
     pub refresh: bool,
+    /// Requesting plugin id. When present, the host verifies the option
+    /// source owner matches before resolving (plugin UI broker scoping).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -82,6 +86,10 @@ pub struct PluginActionParams {
     /// Dry run by default; `live: true` performs the real execution.
     #[serde(default)]
     pub live: bool,
+    /// Requesting plugin id. When present, the host verifies the action
+    /// owner matches before executing (plugin UI broker scoping).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_id: Option<String>,
 }
 
 pub fn register(router: &mut ControlRouter) {
@@ -195,8 +203,14 @@ pub fn register(router: &mut ControlRouter) {
         "Resolves action-type/field option documents",
         false,
         |core: Arc<AppCore>, params: PluginOptionsParams| async move {
-            core.plugin_action_options(&params.source, params.refresh)
-                .await
+            let outcome = match params.plugin_id.as_deref() {
+                Some(requesting) => {
+                    core.plugin_action_options_scoped(requesting, &params.source, params.refresh)
+                        .await
+                }
+                None => core.plugin_action_options(&params.source, params.refresh).await,
+            };
+            outcome
                 .map(|(options, selected)| PluginOptionsResult {
                     source: params.source,
                     options,
@@ -211,9 +225,22 @@ pub fn register(router: &mut ControlRouter) {
         true,
         |core: Arc<AppCore>, params: PluginActionParams| async move {
             let live = params.live;
-            core.plugin_action_execute(&params.action_type, params.config, live)
-                .await
-                .map_err(ApiError::from)
+            let outcome = match params.plugin_id.as_deref() {
+                Some(requesting) => {
+                    core.plugin_action_execute_scoped(
+                        requesting,
+                        &params.action_type,
+                        params.config,
+                        live,
+                    )
+                    .await
+                }
+                None => {
+                    core.plugin_action_execute(&params.action_type, params.config, live)
+                        .await
+                }
+            };
+            outcome.map_err(ApiError::from)
         },
     );
     router.register_typed::<PluginProvisionParams, PluginProvisionResult, _, _>(

@@ -91,9 +91,9 @@ export function useAppController() {
   const processors = useProcessors(control);
   const media = useMedia(control);
   const tts = useTts(control, plugins.actionOptions, automation.pluginPages, {
-    executeAction: (actionType, config, live) =>
-      plugins.executeAction(actionType, config, live),
-    refreshOptions: (source) => plugins.handleGetActionOptions(source, true),
+    executeAction: (pluginId, actionType, config, live) =>
+      plugins.executeAction(pluginId, actionType, config, live),
+    refreshOptions: (pluginId, source) => plugins.handleGetActionOptions(source, true, pluginId),
     adjustPoints: (uniqueId, delta) => points.handleAdjustPoints(uniqueId, delta),
     leaderboardPointsFor: (handle) => points.leaderboardPointsFor(handle),
   });
