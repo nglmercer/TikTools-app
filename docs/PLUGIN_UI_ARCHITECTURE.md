@@ -33,7 +33,8 @@ snapshot: pluginPages (legacy nav) + pluginUis (typed descriptors)
     ├─► declarative UI ──► generic Vue renderer (src/web/plugin-ui/)
     │                       PluginPage → PluginNode registry → host components
     │
-    └─► webview UI ──► isolated window (desktop) / sandboxed frame (web)
+    └─► webview UI ──► sandboxed frame inline in the tab
+                        (native pop-out window on demand)
                         compiled plugin assets + restricted broker
 ```
 
@@ -50,20 +51,26 @@ Works with no custom WebView anywhere; this is the fallback every plugin
 gets for simple configuration.
 
 **Mode B — Isolated custom WebView.** For plugins that genuinely need
-arbitrary UI. The plugin UI is compiled separately (`ui/dist/`) and loads
-in its own native window on desktop, served from
-`tiktools-plugin://app/<plugin-id>/…` with a strict CSP (no network, no
-frames). On web it loads in a `sandbox="allow-scripts"` iframe at an
-opaque origin. Either way the document never sees the privileged bridge:
+arbitrary UI. The plugin UI is compiled separately (`ui/dist/`) and
+renders **inline in the plugin tab** inside a `sandbox="allow-scripts"`
+frame at an opaque origin — separate document, separate storage, no
+access to the host — served from `tiktools-plugin://app/<plugin-id>/…`
+with a strict CSP (no network, no subframes, framing limited to the
+TikTools host itself). The tab also offers a pop-out action that opens
+the same page in an isolated native window. Either way the document
+never sees the privileged bridge:
 
 ```text
 Main TikTools WebView (trusted) ──► Control API ──► AppCore
-Plugin custom WebView (restricted) ──► PluginUiBroker ──► AppCore
+Plugin frame/window (restricted) ──► PluginUiBroker ──► AppCore
 ```
 
-An initialization script captures `window.ipc`, installs the narrow
-`window.tiktools` surface, and deletes `window.ipc` before page scripts
-run. Shadow DOM is not a security boundary and is never used as one.
+Pop-out windows get an initialization script that captures `window.ipc`,
+installs the narrow `window.tiktools` surface, and deletes `window.ipc`
+before page scripts run; inline frames use the `postMessage` transport
+with a host shim bound to the frame's `contentWindow`. Plugin JS is
+never imported into the main Vue runtime. Shadow DOM is not a security
+boundary and is never used as one.
 
 ## Broker protocol
 
@@ -154,10 +161,12 @@ plugin view.`) — domain panels left the main frontend:
 `PluginPageView.vue` is the thin compatibility wrapper: it adapts the v3
 descriptor once and renders the generic `<PluginPage>` with a single
 `<PluginUiContext>`. When the snapshot's typed `ui` descriptor selects
-webview mode for the open page, the view renders the isolated launcher
-instead (`PluginWebviewPage.vue`), which asks the desktop host to open
-the native window. Visuals are verified by the Playwright baselines in
-`tests/e2e/screenshots.spec.ts-snapshots/`.
+webview mode for the open page, the view renders the inline frame
+instead (`PluginInlinePage.vue` + `PluginFrame.vue` + the `postMessage`
+shim), with a pop-out action for the native window; only a host that
+cannot serve plugin assets (plain browser) falls back to the desktop
+notice (`PluginWebviewPage.vue`). Visuals are verified by the Playwright
+baselines in `tests/e2e/screenshots.spec.ts-snapshots/`.
 
 ## Lifecycle
 

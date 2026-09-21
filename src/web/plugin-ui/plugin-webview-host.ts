@@ -87,6 +87,34 @@ export interface BrokerBackend {
   getTheme(): Promise<string>;
 }
 
+/**
+ * Document URL for one inline plugin frame, or null when the current host
+ * cannot serve plugin assets (plain browser without the desktop shell).
+ *
+ * On desktop the scheme is served by the main window's shared asset
+ * server; only the entry file name travels (the server confines every
+ * request to the entry's own directory), and the page id rides in the
+ * fragment for the plugin router.
+ *
+ * Tests point `window.__TIKTOOLS_PLUGIN_UI_BASE__` at a fixture route;
+ * production never sets it.
+ */
+export function pluginUiUrl(pluginId: string, entry: string, pageId: string): string | null {
+  const file = entry.split('/').pop() ?? '';
+  if (!file.endsWith('.html') || file.includes('\\')) return null;
+  const page = pageId.trim();
+  if (!page) return null;
+  const scope =
+    typeof window === 'undefined' ? undefined : (window as unknown as Record<string, unknown>);
+  const override = scope?.['__TIKTOOLS_PLUGIN_UI_BASE__'];
+  if (typeof override === 'string' && override.length > 0) {
+    const base = override.endsWith('/') ? override : `${override}/`;
+    return `${base}${pluginId}/${file}#page=${encodeURIComponent(page)}`;
+  }
+  if (!isDesktopHost()) return null;
+  return `tiktools-plugin://app/${pluginId}/${file}#page=${encodeURIComponent(page)}`;
+}
+
 /** True inside the desktop WebView, where native plugin windows exist. */
 export function isDesktopHost(): boolean {
   return (

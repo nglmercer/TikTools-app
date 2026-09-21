@@ -13,6 +13,10 @@ import { usePoints } from '../features/points.ts';
 import { useProcessors } from '../features/processors.ts';
 import { createControlClient } from '../platform/control-client.ts';
 import {
+  controlBackend,
+  type BrokerBackend,
+} from '../plugin-ui/plugin-webview-host.ts';
+import {
   applyTheme,
   getInitialLocale,
   getInitialTheme,
@@ -188,9 +192,31 @@ export function useAppController() {
     handleThemeToggle,
     handleLocaleToggle,
   };
+  // Host side of one inline plugin frame: a broker backend scoped to the
+  // plugin id plus topic subscriptions filtered to that plugin's own
+  // events. Cheap closures — subscriptions start when the frame mounts.
+  const createPluginBackend = (
+    pluginId: string,
+  ): {
+    backend: BrokerBackend;
+    subscribeTopic: (topic: string, listener: (data: unknown) => void) => () => void;
+  } => ({
+    backend: controlBackend(pluginId, control, () => locale.value, () => theme.value),
+    subscribeTopic: (topic, listener) =>
+      control.onTopic(topic, (data: unknown) => {
+        if (
+          data !== null &&
+          typeof data === 'object' &&
+          (data as Record<string, unknown>)['pluginId'] === pluginId
+        ) {
+          listener(data);
+        }
+      }),
+  });
   const pluginUi = {
     pluginPages: automation.pluginPages,
     pluginUis: automation.pluginUis,
+    createPluginBackend,
     pluginSettings: plugins.pluginSettings,
     actionOptions: plugins.actionOptions,
     actionOptionErrors: plugins.actionOptionErrors,
@@ -246,6 +272,7 @@ export function useAppController() {
     pluginConnections: plugins.pluginConnections,
     pluginPages: automation.pluginPages,
     pluginUis: automation.pluginUis,
+    createPluginBackend,
     pluginProgress: plugins.pluginProgress,
     dismissPluginProgress: plugins.dismissPluginProgress,
     autoScroll: live.autoScroll,

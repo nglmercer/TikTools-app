@@ -165,7 +165,10 @@ impl DesktopApp {
             .with_focused(false)
             .with_autoplay(true)
             .with_navigation_handler(move |url| {
-                let allowed = navigation_frontend.allows_navigation(&url);
+                // Plugin asset URLs load inline frames in the plugin tabs;
+                // installation is enforced per request by the asset server.
+                let allowed = navigation_frontend.allows_navigation(&url)
+                    || crate::plugin_webview::assets::allows_plugin_navigation(&url);
                 if !allowed {
                     tracing::warn!(url = %url, "blocked WebView navigation outside the application frontend");
                 }
@@ -254,6 +257,15 @@ impl DesktopApp {
                 assets.respond(request)
             });
         }
+        // Plugin UI assets for the inline tab frames, in dev and packaged
+        // builds alike (the main document URL is irrelevant: the scheme is
+        // registered on the WebView itself).
+        let plugin_assets =
+            crate::plugin_webview::assets::SharedPluginAssetServer::new(self.core.clone());
+        builder = builder.with_custom_protocol(
+            crate::plugin_webview::assets::PLUGIN_ASSET_SCHEME.to_owned(),
+            move |_id, request| plugin_assets.respond(request),
+        );
         builder = builder.with_url(self.frontend.url().as_str());
         tracing::debug!(
             url = %self.frontend.url(),

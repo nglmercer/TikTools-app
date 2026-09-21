@@ -2,10 +2,12 @@ import { expect, test } from '@playwright/test';
 
 import {
   assertNoUnhandledCalls,
+  emitTopic,
   installFakeHost,
   readHostState,
 } from './fixtures/tiktools-host.ts';
-import { SONICBOOM_ID } from './fixtures/plugins.ts';
+import { SONICBOOM_ID, SPEAK_ACTION } from './fixtures/plugins.ts';
+import { installPluginUiOverride, routePluginFixture } from './fixtures/plugin-frame.ts';
 import { ttsPageState, webviewPageState } from './fixtures/states.ts';
 
 async function openTts(page: Parameters<typeof installFakeHost>[0]) {
@@ -28,45 +30,63 @@ test('legacy TTS section degrades to a status note without plugin UI', async ({ 
   await expect(page.getByLabel('Voice', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('Text', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Play' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Open plugin view' })).toHaveCount(0);
+  await expect(page.locator('iframe.plg-frame')).toHaveCount(0);
 
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
 });
 
-test('webview page opens and closes through desktop host messages', async ({ page }) => {
+test('plugin UI renders inline and round-trips through the broker', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, webviewPageState());
+  await installPluginUiOverride(page);
+  await routePluginFixture(page);
   await page.goto('/');
   await openTts(page);
 
-  // The launcher explains the isolated view; the plugin bundle itself is
-  // never loaded here.
-  await expect(
-    page.getByText('This plugin renders its own view in a separate window.'),
-  ).toBeVisible();
-  const open = page.getByRole('button', { name: 'Open plugin view' });
-  await expect(open).toBeVisible();
+  const frame = page.frameLocator('.plg-frame');
+  // Settings flow from the fake host into the frame through the real shim.
+  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
 
-  await open.click();
+  // Actions execute live through the scoped backend.
+  await frame.locator('#speak').click();
+  await expect(frame.locator('#log')).toContainText('ok', { timeout: 5_000 });
+  const host = await readHostState(page);
+  const executed = host.calls.filter((call) => call.method === 'plugins.action.execute');
+  expect(executed.length).toBeGreaterThanOrEqual(1);
+  expect(executed[0]?.params).toMatchObject({
+    actionType: SPEAK_ACTION,
+    live: true,
+    pluginId: SONICBOOM_ID,
+  });
+
+  // Subscribed plugin events reach the frame; other plugins' do not.
+  await emitTopic(page, 'plugin.event', { pluginId: SONICBOOM_ID, eventType: 'speech.state' });
+  await expect(frame.locator('#events')).toContainText('speech.state', { timeout: 5_000 });
+  await emitTopic(page, 'plugin.event', { pluginId: 'someone.else', eventType: 'intruder' });
+  await page.waitForTimeout(300);
+  await expect(frame.locator('#events')).not.toContainText('intruder');
+
+  await assertNoUnhandledCalls(page);
+  consoleCapture.assertClean();
+});
+
+test('inline page pops out through desktop host messages', async ({ page }) => {
+  const consoleCapture = await installFakeHost(page, webviewPageState());
+  await installPluginUiOverride(page);
+  await routePluginFixture(page);
+  await page.goto('/');
+  await openTts(page);
+
+  const frame = page.frameLocator('.plg-frame');
+  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
+
+  await page.getByRole('button', { name: 'Open in separate window' }).click();
   await expect
     .poll(async () => (await readHostState(page)).legacyMessages.length)
     .toBe(1);
-  let host = await readHostState(page);
+  const host = await readHostState(page);
   expect(host.legacyMessages[0]).toMatchObject({
     type: 'plugin-ui-open',
-    pluginId: SONICBOOM_ID,
-    pageId: 'tts',
-  });
-
-  const close = page.getByRole('button', { name: 'Close plugin view' });
-  await expect(close).toBeVisible();
-  await close.click();
-  await expect
-    .poll(async () => (await readHostState(page)).legacyMessages.length)
-    .toBe(2);
-  host = await readHostState(page);
-  expect(host.legacyMessages[1]).toMatchObject({
-    type: 'plugin-ui-close',
     pluginId: SONICBOOM_ID,
     pageId: 'tts',
   });

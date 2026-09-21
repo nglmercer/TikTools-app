@@ -30,6 +30,9 @@ tray-icon = "0.24"
 rfd.workspace = true
 rodio.workspace = true
 
+[dev-dependencies]
+tiktools-plugin-loader = { path = "../tiktools-plugin-loader" }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
 x11-dl = "2.21"

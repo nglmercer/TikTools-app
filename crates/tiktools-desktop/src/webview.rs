@@ -24,7 +24,7 @@ const PACKAGED_CONTENT_SECURITY_POLICY: &str = concat!(
     "base-uri 'none'; ",
     "object-src 'none'; ",
     "frame-ancestors 'none'; ",
-    "frame-src 'none'; ",
+    "frame-src tiktools-plugin:; ",
     "form-action 'none'; ",
     "script-src 'self'; ",
     "style-src 'self' 'unsafe-inline'; ",

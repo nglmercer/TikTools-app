@@ -4,6 +4,7 @@ import {
   assertNoUnhandledCalls,
   installFakeHost,
 } from './fixtures/tiktools-host.ts';
+import { installPluginUiOverride, routePluginFixture } from './fixtures/plugin-frame.ts';
 import {
   connectedCreatorState,
   connectionPageState,
@@ -101,13 +102,16 @@ test('legacy plugin panel note', async ({ page }) => {
   consoleCapture.assertClean();
 });
 
-test('plugin webview launcher', async ({ page }) => {
+test('plugin inline frame', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, webviewPageState());
+  await installPluginUiOverride(page);
+  await routePluginFixture(page);
   await page.goto('/');
   await freezeClock(page);
   await page.getByRole('button', { name: 'Text to Speech' }).click();
-  await expect(page.getByRole('button', { name: 'Open plugin view' })).toBeVisible();
-  await expect(page).toHaveScreenshot('plugin-webview.png', { fullPage: true });
+  const frame = page.frameLocator('.plg-frame');
+  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
+  await expect(page).toHaveScreenshot('plugin-inline.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
 });
@@ -145,24 +149,31 @@ test('plugin connection success', async ({ page }) => {
   consoleCapture.assertClean();
 });
 
-test('light theme webview launcher', async ({ page }) => {
+test('light theme inline frame', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, webviewPageState(), { theme: 'light' });
+  await installPluginUiOverride(page);
+  await routePluginFixture(page);
   await page.goto('/');
   await freezeClock(page);
   await page.getByRole('button', { name: 'Text to Speech' }).click();
-  await expect(page.getByRole('button', { name: 'Open plugin view' })).toBeVisible();
-  await expect(page).toHaveScreenshot('plugin-webview-light.png', { fullPage: true });
+  const frame = page.frameLocator('.plg-frame');
+  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
+  await expect(page).toHaveScreenshot('plugin-inline-light.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
 });
 
-test('Spanish locale webview launcher', async ({ page }) => {
+test('Spanish locale inline frame', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, webviewPageState(), { locale: 'es' });
+  await installPluginUiOverride(page);
+  await routePluginFixture(page);
   await page.goto('/');
   await freezeClock(page);
   await page.getByRole('button', { name: 'Text to Speech' }).click();
-  await expect(page.getByRole('button', { name: 'Abrir vista del plugin' })).toBeVisible();
-  await expect(page).toHaveScreenshot('plugin-webview-es.png', { fullPage: true });
+  await expect(page.getByRole('button', { name: 'Abrir en ventana separada' })).toBeVisible();
+  const frame = page.frameLocator('.plg-frame');
+  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
+  await expect(page).toHaveScreenshot('plugin-inline-es.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
 });

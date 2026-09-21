@@ -3,7 +3,9 @@ import { expect, test } from '@playwright/test';
 import {
   assertNoUnhandledCalls,
   installFakeHost,
+  readHostState,
 } from './fixtures/tiktools-host.ts';
+import { installPluginUiOverride, routePluginFixture } from './fixtures/plugin-frame.ts';
 import { optionFailureState, ttsPageState, webviewPageState } from './fixtures/states.ts';
 
 test('navigation exposes named buttons and the active tab marker', async ({ page }) => {
@@ -32,19 +34,24 @@ test('navigation exposes named buttons and the active tab marker', async ({ page
   consoleCapture.assertClean();
 });
 
-test('plugin view launcher is labeled and keyboard reachable', async ({ page }) => {
+test('inline plugin frame exposes a keyboard-operable pop-out', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, webviewPageState());
+  await installPluginUiOverride(page);
+  await routePluginFixture(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Text to Speech' }).click();
 
-  const open = page.getByRole('button', { name: 'Open plugin view' });
-  await expect(open).toBeVisible();
+  const frame = page.frameLocator('.plg-frame');
+  await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
 
-  // Keyboard: the launcher button is reachable and operable by keyboard.
-  await open.focus();
-  await expect(open).toBeFocused();
+  // Keyboard: the pop-out action is reachable and operable by keyboard.
+  const popOut = page.getByRole('button', { name: 'Open in separate window' });
+  await popOut.focus();
+  await expect(popOut).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('button', { name: 'Close plugin view' })).toBeVisible();
+  await expect
+    .poll(async () => (await readHostState(page)).legacyMessages.length)
+    .toBe(1);
 
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();

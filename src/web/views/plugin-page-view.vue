@@ -16,7 +16,9 @@ import type { PluginSettingsState } from '../types.ts';
 import type { Locale } from '../i18n.ts';
 import type { PluginUiContext } from '../plugin-ui/PluginUiContext.ts';
 import { PluginPage } from '../plugin-ui/PluginPage.vue';
+import { PluginInlinePage } from '../plugin-ui/PluginInlinePage.vue';
 import { PluginWebviewPage } from '../plugin-ui/PluginWebviewPage.vue';
+import type { BrokerBackend } from '../plugin-ui/plugin-webview-host.ts';
 
 type PluginPageViewProps = {
   locale: Locale;
@@ -38,6 +40,9 @@ type PluginPageViewProps = {
   onProvisionToken?: (id: string, username: string, password: string) => void;
   /** Host-stamped `ui` descriptor for this plugin, when the snapshot carries one. */
   ui?: PluginUiDescriptor;
+  /** Broker backend for inline webview frames, scoped to this plugin. */
+  backend?: BrokerBackend;
+  subscribeTopic?: (topic: string, listener: (data: unknown) => void) => () => void;
 };
 
 /**
@@ -51,7 +56,7 @@ type PluginPageViewProps = {
  * adapter.
  */
 export const PluginPageView = defineVueComponent<PluginPageViewProps>(
-  ['locale', 'page', 'pluginName', 'settingsState', 'connection', 'actionOptions', 'actionOptionErrors', 'actionOptionSelected', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onTestConnection', 'onOpenMediaPicker', 'onExecuteAction', 'supportsProvisioning', 'provisionState', 'onProvisionToken', 'ui'],
+  ['locale', 'page', 'pluginName', 'settingsState', 'connection', 'actionOptions', 'actionOptionErrors', 'actionOptionSelected', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onTestConnection', 'onOpenMediaPicker', 'onExecuteAction', 'supportsProvisioning', 'provisionState', 'onProvisionToken', 'ui', 'backend', 'subscribeTopic'],
   (props) => {
   const adapted = computed(() => adaptLegacyPage(props.page));
   const localState = ref<Record<string, string | number | boolean>>({});
@@ -121,6 +126,23 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
   return () => {
     const webview = webviewPage.value;
     if (webview) {
+      // Inline by default: the compiled UI renders in a sandboxed frame
+      // in the tab. Without a servable URL (plain browser) the launcher
+      // explains that plugin views need the desktop host.
+      if (props.ui?.entry && props.backend) {
+        return (
+          <PluginInlinePage
+            locale={props.locale}
+            pluginId={props.page.pluginId}
+            pluginName={props.pluginName}
+            pageId={webview.id}
+            title={webview.title}
+            entry={props.ui.entry}
+            backend={props.backend}
+            subscribeTopic={props.subscribeTopic}
+          />
+        );
+      }
       return (
         <PluginWebviewPage
           locale={props.locale}

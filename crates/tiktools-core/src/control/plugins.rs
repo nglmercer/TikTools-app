@@ -38,6 +38,18 @@ pub struct PluginUiTarget {
     pub page_id: String,
 }
 
+/// Page-independent UI assets for the shared (multi-plugin) asset server.
+#[derive(Debug, Clone)]
+pub struct PluginUiAssets {
+    pub id: String,
+    pub name: String,
+    pub directory: std::path::PathBuf,
+    pub asset_root: std::path::PathBuf,
+    pub entry: String,
+    pub entry_file: String,
+    pub page_ids: Vec<String>,
+}
+
 /// Mirrors the discovery-time `is_valid_ui_entry` rule so a tampered
 /// manifest can never widen the servable directory at open time.
 fn is_confined_ui_entry(entry: &str) -> bool {
@@ -102,6 +114,37 @@ impl AppCore {
         id: &str,
         page_id: &str,
     ) -> Result<PluginUiTarget, OperationError> {
+        let assets = self.plugin_ui_assets(id)?;
+        if !assets.page_ids.iter().any(|page| page == page_id) {
+            return Err(OperationError::not_found(format!(
+                "Plugin `{}` has no UI page `{page_id}`.",
+                assets.id
+            )));
+        }
+        let file = assets.directory.join(&assets.entry);
+        if !file.is_file() {
+            return Err(OperationError::unavailable(format!(
+                "Plugin `{}` UI is not built (missing `{}`).",
+                assets.id, assets.entry
+            )));
+        }
+        Ok(PluginUiTarget {
+            id: assets.id,
+            name: assets.name,
+            directory: assets.directory,
+            asset_root: assets.asset_root,
+            entry_file: assets.entry_file,
+            page_id: page_id.to_owned(),
+        })
+    }
+
+    /// Resolves a webview-mode plugin's servable UI assets without
+    /// selecting a page. The main window's shared asset server calls this
+    /// per request to confine inline plugin frames; unknown plugins,
+    /// declarative plugins, and escaping entries fail before any file is
+    /// touched. Missing build output is left to the file server, which
+    /// 404s naturally per asset.
+    pub fn plugin_ui_assets(&self, id: &str) -> Result<PluginUiAssets, OperationError> {
         let plugin = self.require_discovered(id)?;
         let manifest = &plugin.manifest;
         let ui = manifest.ui.as_ref().ok_or_else(|| {
@@ -110,12 +153,6 @@ impl AppCore {
         if ui.mode != tiktools_plugin_api::ui::PluginUiMode::Webview {
             return Err(OperationError::unavailable(format!(
                 "Plugin `{}` uses declarative UI; no isolated webview.",
-                manifest.id
-            )));
-        }
-        if !ui.pages.iter().any(|page| page.id == page_id) {
-            return Err(OperationError::not_found(format!(
-                "Plugin `{}` has no UI page `{page_id}`.",
                 manifest.id
             )));
         }
@@ -132,12 +169,6 @@ impl AppCore {
             )));
         }
         let file = plugin.directory.join(entry);
-        if !file.is_file() {
-            return Err(OperationError::unavailable(format!(
-                "Plugin `{}` UI is not built (missing `{entry}`).",
-                manifest.id
-            )));
-        }
         let asset_root = file
             .parent()
             .map(std::path::Path::to_path_buf)
@@ -146,13 +177,14 @@ impl AppCore {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| "index.html".to_owned());
-        Ok(PluginUiTarget {
+        Ok(PluginUiAssets {
             id: manifest.id.clone(),
             name: manifest.name.clone(),
             directory: plugin.directory.clone(),
             asset_root,
+            entry: entry.to_owned(),
             entry_file,
-            page_id: page_id.to_owned(),
+            page_ids: ui.pages.iter().map(|page| page.id.clone()).collect(),
         })
     }
 
@@ -657,6 +689,27 @@ mod tests {
             "unavailable"
         );
         cleanup(&root);
+    }
+
+    #[test]
+    fn ui_assets_resolve_without_selecting_a_page() {
+        let (core, root) = core_with_webview_plugin();
+        let assets = core.plugin_ui_assets("webui").expect("ui assets");
+        assert_eq!(assets.asset_root, root.join("webui/ui/dist"));
+        assert_eq!(assets.entry_file, "index.html");
+        assert_eq!(assets.page_ids, vec!["main".to_owned()]);
+        // The shared asset server rejects declarative plugins before
+        // touching the filesystem.
+        let (legacy, legacy_root) = core_with_two_plugins();
+        assert_eq!(
+            legacy
+                .plugin_ui_assets("plugina")
+                .expect_err("declarative must fail")
+                .code(),
+            "unavailable"
+        );
+        cleanup(&root);
+        cleanup(&legacy_root);
     }
 
     #[test]

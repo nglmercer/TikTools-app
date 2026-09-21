@@ -4443,6 +4443,7 @@ dependencies = [
  "tiktools-control-api",
  "tiktools-core",
  "tiktools-plugin-api",
+ "tiktools-plugin-loader",
  "tokio",
  "tracing",
  "tracing-subscriber",

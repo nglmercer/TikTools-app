@@ -176,6 +176,7 @@ export const spanish: Record<TranslationKey, string> = {
   pluginInstallPackage: 'Instalar .plugin…',
   pluginInstallPickerTitle: 'Selecciona un plugin de TikTools',
   pluginOpenUi: 'Abrir vista del plugin',
+  pluginOpenSeparate: 'Abrir en ventana separada',
   pluginCloseUi: 'Cerrar vista del plugin',
   pluginOpenUiHint: 'Este plugin muestra su propia vista en una ventana separada.',
   pluginDesktopUiOnly: 'Esta vista del plugin se abre en la app de escritorio de TikTools.',

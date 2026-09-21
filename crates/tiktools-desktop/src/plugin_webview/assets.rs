@@ -1,14 +1,22 @@
 //! Asset serving for isolated plugin WebViews.
 //!
-//! Each plugin page opens in its own native window whose WebView loads
-//! from `tiktools-plugin://app/{plugin-id}/{asset}`. The server below is
-//! constructed per window and bound to one plugin id plus the resolved
-//! asset root (the entry file's own directory), so a compromised plugin
-//! page can read neither other plugins' files nor its own manifest,
-//! settings, or backend.
+//! Plugin pages load from `tiktools-plugin://app/{plugin-id}/{asset}`,
+//! both inline (sandboxed frames in the main window's plugin tabs) and in
+//! separate native pop-out windows. Two servers share the file-serving
+//! core below:
+//!
+//! - [`PluginAssetServer`] is constructed per pop-out window and bound to
+//!   one plugin id plus its resolved asset root (the entry file's own
+//!   directory).
+//! - [`SharedPluginAssetServer`] serves the main window's inline frames
+//!   and resolves the owner plugin per request through the core.
+//!
+//! Either way a plugin page can read neither other plugins' files nor its
+//! own manifest, settings, or backend.
 
 use std::{borrow::Cow, fs, sync::Arc};
 
+use tiktools_core::AppCore;
 use wry::http::{header::CONTENT_TYPE, Request, Response, StatusCode};
 
 use crate::webview::{content_type, error_response, requested_path};
@@ -20,24 +28,34 @@ pub const PLUGIN_ASSET_HOST: &str = "app";
 /// `http://{scheme}.{rest}`.
 pub const WINDOWS_PLUGIN_HOST: &str = "tiktools-plugin.app";
 
-/// Strict plugin-page policy: no network, no frames, no plugins. Page
+/// Strict plugin-page policy: no network, no subframes, no plugins. Page
 /// scripts and styles load from the served assets only; audio previews may
 /// stream from loopback (the plugin's local server); everything else the
-/// page needs travels through the restricted broker IPC.
+/// page needs travels through the restricted broker IPC. Embedding is
+/// limited to the TikTools host itself (packaged origin plus loopback dev
+/// servers), so a foreign page cannot frame a plugin UI and impersonate
+/// its host to harvest typed secrets.
 pub const PLUGIN_CONTENT_SECURITY_POLICY: &str = concat!(
     "default-src 'none'; ",
     "base-uri 'none'; ",
     "object-src 'none'; ",
-    "frame-ancestors 'none'; ",
+    "frame-ancestors tiktools://app http://127.0.0.1:* http://localhost:*; ",
     "frame-src 'none'; ",
     "form-action 'none'; ",
-    "script-src 'self'; ",
-    "style-src 'self' 'unsafe-inline'; ",
-    "img-src 'self' data:; ",
-    "font-src 'self' data:; ",
+    // NOTE: resource directives use explicit `tiktools-plugin:` scheme
+    // sources instead of `'self'` on purpose. Inline plugin frames are
+    // sandboxed without `allow-same-origin`, so their documents carry an
+    // opaque origin, and strict CSP engines (WebKitGTK in the desktop
+    // shell) never match `'self'` against an opaque origin. Scheme
+    // sources match regardless of origin handling, so they behave
+    // identically in every engine, framed or top-level.
+    "script-src tiktools-plugin:; ",
+    "style-src tiktools-plugin: 'unsafe-inline'; ",
+    "img-src tiktools-plugin: data:; ",
+    "font-src tiktools-plugin: data:; ",
     // Note: no `http://[::1]:*` — Chromium rejects an IPv6 loopback with a
     // wildcard port as an invalid CSP source and ignores it.
-    "media-src 'self' blob: http://localhost:* http://127.0.0.1:*; ",
+    "media-src tiktools-plugin: blob: http://localhost:* http://127.0.0.1:*; ",
     "connect-src 'none'"
 );
 
@@ -53,15 +71,36 @@ pub fn allows_navigation(plugin_id: &str, raw_url: &str) -> bool {
     let Ok(url) = url::Url::parse(raw_url) else {
         return false;
     };
-    let same_host = (url.scheme() == PLUGIN_ASSET_SCHEME
-        && url.host_str() == Some(PLUGIN_ASSET_HOST))
-        || (url.scheme() == "http" && url.host_str() == Some(WINDOWS_PLUGIN_HOST));
-    if !same_host || !url.username().is_empty() || url.password().is_some() {
+    if !is_plugin_origin(&url) {
         return false;
     }
     url.path_segments()
         .and_then(|mut segments| segments.next())
         .is_some_and(|segment| segment == plugin_id)
+}
+
+/// Navigation policy for the main window's inline plugin frames: any
+/// well-formed plugin asset URL. The shape check is deliberately
+/// syntactic (installation is enforced per request by the asset server):
+/// a top-level navigation to a non-installed plugin's URL renders an
+/// error page, and a framed document without a host-bound broker is inert.
+pub fn allows_plugin_navigation(raw_url: &str) -> bool {
+    let Ok(url) = url::Url::parse(raw_url) else {
+        return false;
+    };
+    if !is_plugin_origin(&url) {
+        return false;
+    }
+    url.path_segments()
+        .and_then(|mut segments| segments.next())
+        .is_some_and(super::is_valid_ui_id)
+}
+
+fn is_plugin_origin(url: &url::Url) -> bool {
+    let same_host = (url.scheme() == PLUGIN_ASSET_SCHEME
+        && url.host_str() == Some(PLUGIN_ASSET_HOST))
+        || (url.scheme() == "http" && url.host_str() == Some(WINDOWS_PLUGIN_HOST));
+    same_host && url.username().is_empty() && url.password().is_none()
 }
 
 /// Serves one plugin's built UI assets. The `plugin_id` is the window's
@@ -83,41 +122,94 @@ impl PluginAssetServer {
             Ok(path) => path,
             Err((status, message)) => return error_response(status, message),
         };
-        let root = match fs::canonicalize(self.root.as_path()) {
-            Ok(root) => root,
-            Err(error) => {
-                return error_response(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
-            }
-        };
-        let candidate = root.join(&path);
-        let canonical = match fs::canonicalize(&candidate) {
-            Ok(path) => path,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return error_response(StatusCode::NOT_FOUND, "asset not found".to_owned());
-            }
-            Err(error) => {
-                return error_response(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
-            }
-        };
-        if !canonical.starts_with(&root) || !canonical.is_file() {
-            return error_response(
-                StatusCode::FORBIDDEN,
-                "asset path escapes plugin UI root".to_owned(),
-            );
-        }
-        let bytes = match fs::read(&canonical) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                return error_response(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
-            }
-        };
-        Response::builder()
-            .status(StatusCode::OK)
-            .header(CONTENT_TYPE, content_type(&canonical))
-            .header("content-security-policy", PLUGIN_CONTENT_SECURITY_POLICY)
-            .body(Cow::Owned(bytes))
-            .expect("asset response builder should accept static headers")
+        serve_asset_file(self.root.as_path(), &path)
     }
+}
+
+/// Serves every installed plugin's UI assets to the main window's inline
+/// frames. The owner segment resolves per request through the core, so
+/// only discovered webview-mode plugins with confined entries serve
+/// anything; each response is still confined to that plugin's own entry
+/// directory with the strict plugin CSP.
+#[derive(Clone)]
+pub struct SharedPluginAssetServer {
+    core: Arc<AppCore>,
+}
+
+impl SharedPluginAssetServer {
+    pub fn new(core: Arc<AppCore>) -> Self {
+        Self { core }
+    }
+
+    pub fn respond(&self, request: Request<Vec<u8>>) -> Response<Cow<'static, [u8]>> {
+        let mut segments = request
+            .uri()
+            .path()
+            .split('/')
+            .filter(|segment| !segment.is_empty());
+        let owner = segments.next().unwrap_or_default();
+        if !super::is_valid_ui_id(owner) {
+            return error_response(StatusCode::BAD_REQUEST, "invalid plugin id".to_owned());
+        }
+        let assets = match self.core.plugin_ui_assets(owner) {
+            Ok(assets) => assets,
+            Err(error) if error.code() == "not_found" => {
+                return error_response(StatusCode::NOT_FOUND, "plugin UI not found".to_owned());
+            }
+            Err(_) => {
+                return error_response(StatusCode::FORBIDDEN, "plugin UI unavailable".to_owned());
+            }
+        };
+        let rest: Vec<&str> = segments.collect();
+        let path = match requested_path(&rest.join("/")) {
+            Ok(path) => path,
+            Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
+        };
+        serve_asset_file(&assets.asset_root, &path)
+    }
+}
+
+/// Serves one validated relative path from a confined root: canonicalize,
+/// containment check, strict plugin CSP. Shared by the per-window and
+/// main-window servers.
+fn serve_asset_file(
+    root: &std::path::Path,
+    path: &std::path::Path,
+) -> Response<Cow<'static, [u8]>> {
+    let root = match fs::canonicalize(root) {
+        Ok(root) => root,
+        Err(error) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
+        }
+    };
+    let candidate = root.join(path);
+    let canonical = match fs::canonicalize(&candidate) {
+        Ok(path) => path,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return error_response(StatusCode::NOT_FOUND, "asset not found".to_owned());
+        }
+        Err(error) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
+        }
+    };
+    if !canonical.starts_with(&root) || !canonical.is_file() {
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "asset path escapes plugin UI root".to_owned(),
+        );
+    }
+    let bytes = match fs::read(&canonical) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
+        }
+    };
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(CONTENT_TYPE, content_type(&canonical))
+        .header("content-security-policy", PLUGIN_CONTENT_SECURITY_POLICY)
+        .body(Cow::Owned(bytes))
+        .expect("asset response builder should accept static headers")
 }
 
 /// Splits `/{plugin-id}/{asset}`: the owner segment must match the bound
@@ -227,6 +319,129 @@ mod tests {
             Some(PLUGIN_CONTENT_SECURITY_POLICY)
         );
         assert!(PLUGIN_CONTENT_SECURITY_POLICY.contains("connect-src 'none'"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn plugin_csp_uses_scheme_sources_not_self() {
+        // Regression test: inline plugin frames are sandboxed, so their
+        // documents carry an opaque origin and strict CSP engines never
+        // match `'self'` against it (all subresources 403 in the shell).
+        // Resource directives must spell the plugin scheme explicitly.
+        for directive in [
+            "script-src",
+            "style-src",
+            "img-src",
+            "font-src",
+            "media-src",
+        ] {
+            let body = PLUGIN_CONTENT_SECURITY_POLICY
+                .split("; ")
+                .find_map(|part| part.strip_prefix(directive))
+                .unwrap_or_else(|| panic!("{directive} missing from plugin CSP"));
+            assert!(
+                body.contains("tiktools-plugin:"),
+                "{directive} must allow the plugin scheme"
+            );
+            assert!(
+                !body.contains("'self'"),
+                "{directive} must not rely on 'self' (opaque origin in frames)"
+            );
+        }
+    }
+
+    #[test]
+    fn main_window_navigation_accepts_any_well_formed_plugin_url() {
+        assert!(allows_plugin_navigation(
+            "tiktools-plugin://app/sonicboom.server/index.html#page=tts"
+        ));
+        assert!(allows_plugin_navigation(
+            "http://tiktools-plugin.app/other.plugin/assets/app.js"
+        ));
+        // Id-shaped but uninstalled owners pass the syntactic nav check
+        // and 404 at serve time (covered by the shared server test).
+        assert!(allows_plugin_navigation("tiktools-plugin://app/index.html"));
+        assert!(!allows_plugin_navigation("tiktools-plugin://app/"));
+        // Percent-encoded traversal stays inside the owner segment, which
+        // is never a valid id.
+        assert!(!allows_plugin_navigation(
+            "tiktools-plugin://app/..%2Fwebui/index.html"
+        ));
+        assert!(!allows_plugin_navigation("tiktools://app/index.html"));
+        assert!(!allows_plugin_navigation("not a url"));
+    }
+
+    struct NullEmitter;
+    impl tiktools_core::HostEmitter for NullEmitter {
+        fn emit(&self, _message: tiktools_core::ipc::messages::HostMessage) {}
+    }
+
+    fn webview_core(root: &std::path::Path) -> Arc<AppCore> {
+        use tiktools_plugin_loader::{PluginManager, PluginRoot, PluginSource};
+        let dir = root.join("webui");
+        fs::create_dir_all(dir.join("ui/dist")).unwrap();
+        fs::write(
+            dir.join("plugin.json"),
+            r#"{"schemaVersion": 3, "id": "webui", "name": "webui", "version": "1.0.0", "runtime": "declarative", "capabilities": [], "permissions": [], "actionTypes": [], "ui": {"apiVersion": 1, "mode": "webview", "entry": "ui/dist/index.html", "pages": [{"id": "main", "title": {"default": "Main"}}]}}"#,
+        )
+        .unwrap();
+        fs::write(dir.join("ui/dist/index.html"), "<html></html>").unwrap();
+        // A decoy outside the entry directory that must never serve.
+        fs::write(dir.join("plugin-secret.txt"), "secret").unwrap();
+        let manager = PluginManager::new(vec![PluginRoot {
+            path: root.to_path_buf(),
+            source: PluginSource::Development,
+        }]);
+        manager.scan().expect("test scan");
+        let mut core = AppCore::new(Arc::new(NullEmitter));
+        core.plugins = Arc::new(manager);
+        Arc::new(core)
+    }
+
+    fn get(server: &SharedPluginAssetServer, uri: &str) -> wry::http::Response<Cow<'static, [u8]>> {
+        server.respond(Request::builder().uri(uri).body(Vec::new()).unwrap())
+    }
+
+    #[test]
+    fn shared_server_confines_each_plugin_to_its_entry_dir() {
+        let root = env::temp_dir().join(format!(
+            "tiktools-shared-assets-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let server = SharedPluginAssetServer::new(webview_core(&root));
+        // Installed webview plugin serves with the strict CSP.
+        let response = get(&server, "/webui/index.html");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get("content-security-policy")
+                .and_then(|value| value.to_str().ok()),
+            Some(PLUGIN_CONTENT_SECURITY_POLICY)
+        );
+        // Unknown plugins 404; malformed ids 400 — before any IO.
+        assert_eq!(
+            get(&server, "/missing/index.html").status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            get(&server, "/../index.html").status(),
+            StatusCode::BAD_REQUEST
+        );
+        // The entry's siblings are unreachable: traversal is rejected and
+        // the manifest-adjacent decoy is outside the served root.
+        assert_eq!(
+            get(&server, "/webui/%2e%2e/plugin-secret.txt").status(),
+            StatusCode::BAD_REQUEST
+        );
+        assert_eq!(
+            get(&server, "/webui/../../plugin.json").status(),
+            StatusCode::BAD_REQUEST
+        );
         let _ = fs::remove_dir_all(root);
     }
 }

@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import {
   BROKER_API_VERSION,
   PluginWebviewHost,
+  pluginUiUrl,
   type BrokerBackend,
   type BrokerEvent,
   type BrokerOkResponse,
@@ -157,4 +158,32 @@ test('subscriptions gate event pushes by topic', async () => {
   host.pushEvent('plugin.event', {});
   expect(posted).toHaveLength(4);
   host.dispose();
+});
+
+test('frame URLs stay on the plugin scheme with a test override', () => {
+  const scope = globalThis as Record<string, unknown>;
+  const previous = scope['window'];
+  try {
+    // Plain browser without the desktop shell: no servable URL.
+    scope['window'] = {};
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts')).toBe(null);
+    // Desktop shell: custom scheme, entry file only, page in the hash.
+    scope['window'] = { ipc: { postMessage: () => undefined } };
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts')).toBe(
+      'tiktools-plugin://app/sonicboom.server/index.html#page=tts',
+    );
+    // Test override wins over the desktop default.
+    (scope['window'] as Record<string, unknown>)['__TIKTOOLS_PLUGIN_UI_BASE__'] =
+      '/__plugin-fixture/';
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts')).toBe(
+      '/__plugin-fixture/sonicboom.server/index.html#page=tts',
+    );
+    // Entries that escape the ui document shape never produce a URL.
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/app.js', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui\\dist\\index.html', 'tts')).toBe(null);
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', '  ')).toBe(null);
+  } finally {
+    if (previous === undefined) delete scope['window'];
+    else scope['window'] = previous;
+  }
 });

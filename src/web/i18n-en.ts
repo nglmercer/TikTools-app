@@ -172,6 +172,7 @@ export const english = {
   pluginInstallPackage: 'Install .plugin…',
   pluginInstallPickerTitle: 'Select a TikTools plugin',
   pluginOpenUi: 'Open plugin view',
+  pluginOpenSeparate: 'Open in separate window',
   pluginCloseUi: 'Close plugin view',
   pluginOpenUiHint: 'This plugin renders its own view in a separate window.',
   pluginDesktopUiOnly: 'This plugin view opens in the TikTools desktop app.',

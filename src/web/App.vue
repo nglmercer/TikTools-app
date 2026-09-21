@@ -50,6 +50,11 @@ const activePluginUi = computed(() => {
   if (!page) return undefined;
   return controller.pluginUis.value.find((entry) => entry.pluginId === page.pluginId);
 });
+const activePluginBackend = computed(() => {
+  const page = activePluginPage.value;
+  if (!page) return undefined;
+  return controller.createPluginBackend(page.pluginId);
+});
 </script>
 <template>
   <div class="app-shell">
@@ -229,6 +234,8 @@ const activePluginUi = computed(() => {
         :provision-state="app.pluginProvision[activePluginPage.pluginId]"
         :on-provision-token="app.handleProvisionPluginToken"
         :ui="activePluginUi"
+        :backend="activePluginBackend?.backend"
+        :subscribe-topic="activePluginBackend?.subscribeTopic"
       />
     </div>
   </div>

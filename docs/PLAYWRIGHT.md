@@ -64,10 +64,15 @@ recorded in `state.legacyMessages` for assertions.
 
 Fixtures: `tests/e2e/fixtures/states.ts` (deterministic app states:
 empty, connected creator, SonicBoom connected/disconnected, legacy
-TTS-status/list/form/connection pages, webview launcher page,
-action/option failures, locales/themes) and
+TTS-status/list/form/connection pages, webview page,
+action/option failures, locales/themes),
 `tests/e2e/fixtures/plugins.ts` (descriptors, settings, voice/output
-options, typed webview UI descriptor).
+options, typed webview UI descriptor), and
+`tests/e2e/fixtures/plugin-frame.ts` (a minimal protocol-speaking
+plugin document served through a route at the
+`__TIKTOOLS_PLUGIN_UI_BASE__` override — real Chromium has no
+`tiktools-plugin://` scheme — exercising the production frame, shim,
+and control client end to end).
 
 ## Specs (main suite)
 
@@ -75,7 +80,7 @@ options, typed webview UI descriptor).
 |------|----------|
 | `navigation.spec.ts` | boot, named nav, dynamic plugin tab, removal fallback |
 | `plugin-pages.spec.ts` | declarative form save, dynamic list + refresh, text page, option-source error |
-| `plugin-webview.spec.ts` | legacy TTS section degrades to a note; launcher posts open/close host messages |
+| `plugin-webview.spec.ts` | legacy TTS section degrades to a note; inline frame round-trips settings/actions/events; pop-out posts the host message |
 | `connections.spec.ts` | empty state, probe success/failure, settings stay editable |
 | `accessibility.spec.ts` | named nav + `aria-current`, launcher keyboard reachability, `status` errors |
 | `screenshots.spec.ts` | semantic assertions + deterministic baselines |
