@@ -3,10 +3,8 @@ use std::{str::FromStr, sync::Arc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tiktools_core::{
-    control::{AutomationKind, ScriptAnalysisResult},
-    AppCore,
-};
+pub use tiktools_core::control::ScriptAnalysisResult;
+use tiktools_core::{control::AutomationKind, AppCore};
 
 use crate::{error::ApiError, modules::Empty, router::ControlRouter};
 

@@ -3,12 +3,10 @@ use std::{collections::BTreeMap, sync::Arc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tiktools_core::{
-    control::{
-        PluginActionOutcome, PluginConnectionResult, PluginInstallResult, PluginProvisionResult,
-    },
-    AppCore,
+pub use tiktools_core::control::{
+    PluginActionOutcome, PluginConnectionResult, PluginInstallResult, PluginProvisionResult,
 };
+use tiktools_core::AppCore;
 
 use crate::{
     error::ApiError,

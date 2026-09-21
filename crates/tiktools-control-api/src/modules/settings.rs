@@ -3,7 +3,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tiktools_core::{control::PluginSettingsResult, AppCore};
+pub use tiktools_core::control::PluginSettingsResult;
+use tiktools_core::AppCore;
 
 use crate::{error::ApiError, router::ControlRouter};
 

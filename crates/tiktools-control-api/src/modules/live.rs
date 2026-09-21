@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tiktools_core::{control::LiveStatus, AppCore};
+pub use tiktools_core::control::LiveStatus;
+use tiktools_core::AppCore;
 
 use crate::{error::ApiError, modules::Empty, router::ControlRouter};
 

@@ -1,0 +1,13 @@
+[package]
+name = "tiktools-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Typed Rust SDK over the TikTools control API (direct + IPC)"
+
+[dependencies]
+tiktools-control-api = { path = "../tiktools-control-api" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

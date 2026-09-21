@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/tiktools-control-api",
+    "crates/tiktools-client",
     "crates/tiktools-cli",
     "crates/tiktools-desktop",
     "crates/tiktools-core",

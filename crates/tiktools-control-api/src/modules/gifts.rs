@@ -3,7 +3,8 @@ use std::sync::Arc;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tiktools_core::{control::GiftDebugResult, AppCore};
+pub use tiktools_core::control::GiftDebugResult;
+use tiktools_core::AppCore;
 
 use crate::{error::ApiError, modules::Empty, router::ControlRouter};
 

@@ -267,6 +267,37 @@ impl ControlClient {
     }
 }
 
+/// Bridges a direct domain subscription into the shared
+/// [`ControlEvent`] broadcast shape. Reliable lag surfaces as
+/// [`ControlEvent::Gap`] (the caller must resync); lossy lag only
+/// skipped feed and stays silent. The forwarder exits once the bus
+/// closes or no receivers remain.
+pub fn bridge_subscription(
+    mut subscription: tiktools_core::events::DomainSubscription,
+) -> tokio::sync::broadcast::Receiver<ControlEvent> {
+    let (events, receiver) = tokio::sync::broadcast::channel(EVENT_CHANNEL_CAPACITY);
+    tokio::spawn(async move {
+        use tiktools_core::events::DomainRecvError;
+        loop {
+            match subscription.recv().await {
+                Ok(event) => {
+                    if events.send(ControlEvent::Domain(event)).is_err() {
+                        break;
+                    }
+                }
+                Err(DomainRecvError::ReliableLagged(lost)) => {
+                    if events.send(ControlEvent::Gap { lost }).is_err() {
+                        break;
+                    }
+                }
+                Err(DomainRecvError::LossyLagged(_)) => {}
+                Err(DomainRecvError::Closed) => break,
+            }
+        }
+    });
+    receiver
+}
+
 async fn reader_task(
     mut reader: BufReader<tokio::io::ReadHalf<ClientStream>>,
     pending: PendingMap,

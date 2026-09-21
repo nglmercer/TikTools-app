@@ -53,19 +53,27 @@ pub struct ControlApi {
 impl ControlApi {
     pub fn new(core: Arc<AppCore>) -> Self {
         let mut router = ControlRouter::new();
-        modules::system::register(&mut router);
-        modules::plugins::register(&mut router);
-        modules::settings::register(&mut router);
-        modules::live::register(&mut router);
-        modules::points::register(&mut router);
-        modules::automation::register(&mut router);
-        modules::processors::register(&mut router);
-        modules::media::register(&mut router);
-        modules::app::register(&mut router);
-        modules::creators::register(&mut router);
-        modules::analytics::register(&mut router);
-        modules::gifts::register(&mut router);
-        modules::workflows::register(&mut router);
+        Self::register_all(&mut router);
+        Self { core, router }
+    }
+
+    /// Registers every domain module plus `rpc.*` discovery into `router`.
+    /// This is the single source of truth for the control surface: `new`
+    /// builds hosts from it and out-of-tree parity tests enumerate it.
+    pub fn register_all(router: &mut ControlRouter) {
+        modules::system::register(router);
+        modules::plugins::register(router);
+        modules::settings::register(router);
+        modules::live::register(router);
+        modules::points::register(router);
+        modules::automation::register(router);
+        modules::processors::register(router);
+        modules::media::register(router);
+        modules::app::register(router);
+        modules::creators::register(router);
+        modules::analytics::register(router);
+        modules::gifts::register(router);
+        modules::workflows::register(router);
         // Agent-facing risk metadata: destructive ops delete or reset
         // persisted state, so agents should confirm before calling them.
         for name in [
@@ -80,11 +88,10 @@ impl ControlApi {
             router.set_flags(name, true, false);
         }
         let registry = std::sync::Arc::new(std::sync::RwLock::new(MethodRegistry::default()));
-        modules::rpc::register(&mut router, std::sync::Arc::clone(&registry));
+        modules::rpc::register(router, std::sync::Arc::clone(&registry));
         // Snapshot after every module (including rpc.*) registered so
         // discovery lists the discovery methods themselves.
-        *registry.write().expect("method registry poisoned") = MethodRegistry::snapshot(&router);
-        Self { core, router }
+        *registry.write().expect("method registry poisoned") = MethodRegistry::snapshot(router);
     }
 
     pub fn core(&self) -> &Arc<AppCore> {
@@ -157,6 +164,13 @@ impl ControlApi {
     /// notification via [`event_notification`].
     pub fn subscribe(&self) -> tiktools_core::events::DomainSubscription {
         self.core.events.subscribe_domain()
+    }
+
+    /// Subscribes to the domain event bus through the shared
+    /// [`ControlEvent`] broadcast shape, so direct (in-process) and
+    /// connected (IPC) subscribers consume one stream type.
+    pub fn subscribe_broadcast(&self) -> tokio::sync::broadcast::Receiver<ControlEvent> {
+        crate::client::bridge_subscription(self.subscribe())
     }
 }
 

@@ -4364,6 +4364,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tiktools-client"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tiktools-control-api",
+ "tokio",
+]
+
+[[package]]
 name = "tiktools-control-api"
 version = "0.2.0"
 dependencies = [
