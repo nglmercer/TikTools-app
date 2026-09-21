@@ -16,3 +16,6 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 *.sqlite
+test-results/
+playwright-report/
+playwright/.cache/
