@@ -20,6 +20,8 @@ export {
   shouldOpenTemplate,
 } from './autocomplete/gates.ts';
 export { iconForSuggestion } from './autocomplete/icons.ts';
+export { groupForTemplatePath, TEMPLATE_GROUP_ORDER } from './autocomplete/groups.ts';
+export type { TemplateGroupName } from './autocomplete/groups.ts';
 export {
   clampActiveIndex,
   isExplicitInvokeKey,
@@ -40,15 +42,12 @@ export {
   filterOptionRows,
   filterPresetRows,
   filterTemplateRows,
-  groupForTemplatePath,
   groupTemplateRows,
-  TEMPLATE_GROUP_ORDER,
   toPresetSections,
 } from './autocomplete/rows.ts';
 export type {
   AutocompleteLabels,
   PresetItem,
-  TemplateGroupName,
 } from './autocomplete/rows.ts';
 export { createAutocompleteController } from './autocomplete/state-machine.ts';
 export type {

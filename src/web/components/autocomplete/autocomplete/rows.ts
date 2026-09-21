@@ -3,29 +3,12 @@ import { t, type Locale } from '../../../i18n.ts';
 import { filterSuggestions, type AutocompleteItem } from '../autocomplete.ts';
 import type { SuggestionItem, SuggestionRow, SuggestionScope, SuggestionSection } from '../types.ts';
 import { filterByScope } from './gates.ts';
+import { groupForTemplatePath, TEMPLATE_GROUP_ORDER, type TemplateGroupName } from './groups.ts';
 import { iconForSuggestion } from './icons.ts';
 
 /* ------------------------------------------------------------------ */
 /* Row building: filter → rows → sections.                             */
 /* ------------------------------------------------------------------ */
-
-export type TemplateGroupName = 'User' | 'Message' | 'Text Intelligence';
-
-/** Section order for grouped template rows (S11). */
-export const TEMPLATE_GROUP_ORDER: readonly TemplateGroupName[] = ['User', 'Message', 'Text Intelligence'];
-
-/**
- * Group one template path. Identity paths → User, Text Intelligence
- * views → Text Intelligence, everything else → Message.
- */
-export function groupForTemplatePath(path: string): TemplateGroupName {
-  const normalized = path.trim().toLowerCase();
-  if (normalized === 'event.user' || normalized.startsWith('event.user.') || normalized.startsWith('event.intel.user.')) {
-    return 'User';
-  }
-  if (normalized === 'event.intel' || normalized.startsWith('event.intel.')) return 'Text Intelligence';
-  return 'Message';
-}
 
 /** Localized group/section labels. Callers may override every label. */
 export type AutocompleteLabels = {

@@ -1,6 +1,6 @@
 import type { IconName } from '../../icons/icon-registry.ts';
 import type { AutocompleteItem } from '../autocomplete.ts';
-import { groupForTemplatePath } from './rows.ts';
+import { groupForTemplatePath } from './groups.ts';
 
 /* ------------------------------------------------------------------ */
 /* Semantic icons (S12): IconName only, never arbitrary SVG.            */
