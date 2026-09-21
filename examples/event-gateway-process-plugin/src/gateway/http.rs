@@ -15,7 +15,7 @@ use tokio::sync::broadcast;
 
 const MAX_HTTP_HEADER_BYTES: usize = 16 * 1024;
 
-pub(crate) type HttpRequest = (String, String, HashMap<String, String>);
+pub(crate) type HttpRequest = (String, String, HashMap<String, String>, http::Version);
 
 pub(crate) async fn read_http_request(
     stream: &mut BufStream<TcpStream>,
@@ -57,12 +57,16 @@ pub(crate) fn parse_http_request(bytes: &[u8]) -> io::Result<HttpRequest> {
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing HTTP target"))?;
     let version = request_parts.next().unwrap_or_default();
-    if version != "HTTP/1.1" && version != "HTTP/1.0" {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "unsupported HTTP version",
-        ));
-    }
+    let version = match version {
+        "HTTP/1.1" => http::Version::HTTP_11,
+        "HTTP/1.0" => http::Version::HTTP_10,
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unsupported HTTP version",
+            ));
+        }
+    };
     let mut headers = HashMap::new();
     for line in lines {
         let Some((name, value)) = line.split_once(':') else {
@@ -70,7 +74,12 @@ pub(crate) fn parse_http_request(bytes: &[u8]) -> io::Result<HttpRequest> {
         };
         headers.insert(name.trim().to_ascii_lowercase(), value.trim().to_owned());
     }
-    Ok((method.to_ascii_uppercase(), target.to_owned(), headers))
+    Ok((
+        method.to_ascii_uppercase(),
+        target.to_owned(),
+        headers,
+        version,
+    ))
 }
 
 pub(crate) async fn write_http_response(
@@ -125,20 +134,37 @@ pub(crate) async fn stream_events(
             _ = state.clients_shutdown.notified() => break,
             event = receiver.recv() => match event {
                 Ok(event) if matches_topics(&topics, &event.topic) => {
-                    write_ndjson(&mut stream, &event).await?;
+                    if let Err(error) = write_ndjson(&mut stream, &event).await {
+                        send_error_frame(&mut stream, "event write failed").await;
+                        return Err(error);
+                    }
                 }
                 Ok(_) => {}
                 Err(broadcast::error::RecvError::Lagged(lost)) => {
                     let gap = DomainEventEnvelope::new("event.gap", json!({"lost": lost, "resync": true}));
                     if matches_topics(&topics, &gap.topic) {
-                        write_ndjson(&mut stream, &gap).await?;
+                        if let Err(error) = write_ndjson(&mut stream, &gap).await {
+                            send_error_frame(&mut stream, "event write failed").await;
+                            return Err(error);
+                        }
                     }
                 }
-                Err(broadcast::error::RecvError::Closed) => break,
+                Err(broadcast::error::RecvError::Closed) => {
+                    send_error_frame(&mut stream, "event channel closed").await;
+                    break;
+                }
             },
         }
     }
     Ok(())
+}
+
+/// Best-effort terminal `event.error` frame. Write failures mean the
+/// socket is usually already gone, so send errors are ignored: the
+/// frame exists for the cases where the stream is still half-open.
+async fn send_error_frame<W: tokio::io::AsyncWrite + Unpin>(writer: &mut W, reason: &str) {
+    let error = DomainEventEnvelope::new("event.error", json!({"reason": reason}));
+    let _ = write_ndjson(writer, &error).await;
 }
 
 async fn write_ndjson<W: tokio::io::AsyncWrite + Unpin>(

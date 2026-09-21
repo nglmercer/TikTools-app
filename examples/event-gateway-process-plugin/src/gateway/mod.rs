@@ -17,18 +17,10 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 use tiktools_plugin_sdk::{DomainEventEnvelope, Plugin, PluginContext, PluginError, PluginResult};
 
+#[derive(Default)]
 pub struct EventGatewayPlugin {
     state: Option<Arc<GatewayState>>,
     server_thread: Option<JoinHandle<()>>,
-}
-
-impl Default for EventGatewayPlugin {
-    fn default() -> Self {
-        Self {
-            state: None,
-            server_thread: None,
-        }
-    }
 }
 
 impl Plugin for EventGatewayPlugin {

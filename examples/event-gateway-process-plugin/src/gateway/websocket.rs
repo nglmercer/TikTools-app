@@ -1,14 +1,12 @@
 //! WebSocket sessions, control messages, and event streaming.
 
-use super::auth::authorization_token;
+use super::auth::{authorization_token, tokens_equal};
 use super::config::GatewayConfig;
 use super::http::{cors_headers, write_http_response};
 use super::state::GatewayState;
 use super::topics::matches_topics;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
@@ -25,13 +23,12 @@ const MAX_WEBSOCKET_MESSAGE_BYTES: usize = 1024 * 1024;
 
 const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
 
-const WEBSOCKET_GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-
 pub(crate) async fn websocket_connection(
     mut stream: BufStream<TcpStream>,
     state: Arc<GatewayState>,
     headers: HashMap<String, String>,
     origin: Option<&str>,
+    version: http::Version,
 ) -> io::Result<()> {
     if headers
         .get("upgrade")
@@ -48,7 +45,7 @@ pub(crate) async fn websocket_connection(
         )
         .await;
     }
-    let Some(key) = headers.get("sec-websocket-key") else {
+    if !headers.contains_key("sec-websocket-key") {
         return write_http_response(
             &mut stream,
             400,
@@ -59,19 +56,45 @@ pub(crate) async fn websocket_connection(
             &state.config,
         )
         .await;
+    }
+    let response = match handshake_response(&headers, version) {
+        Ok(response) => response,
+        Err(error) => {
+            eprintln!("event-gateway rejecting WebSocket handshake: {error}");
+            return write_http_response(
+                &mut stream,
+                400,
+                "Bad Request",
+                "text/plain; charset=utf-8",
+                b"invalid WebSocket handshake\n",
+                origin,
+                &state.config,
+            )
+            .await;
+        }
     };
-    let accept = websocket_accept_key(key);
-    let cors = cors_headers(origin, &state.config);
-    let handshake = format!(
-        "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n{cors}\r\n"
+    // The 101 response carries the library-computed status and headers
+    // (Connection, Upgrade, Sec-WebSocket-Accept) plus our CORS headers.
+    let mut handshake = format!(
+        "HTTP/1.1 {} {}\r\n",
+        response.status().as_u16(),
+        response
+            .status()
+            .canonical_reason()
+            .unwrap_or("Switching Protocols")
     );
+    for (name, value) in response.headers() {
+        handshake.push_str(&format!("{}: {}\r\n", name, value.to_str().unwrap_or("")));
+    }
+    handshake.push_str(&cors_headers(origin, &state.config));
+    handshake.push_str("\r\n");
     stream.write_all(handshake.as_bytes()).await?;
     stream.flush().await?;
 
     let mut websocket = WebSocketStream::from_raw_socket(stream, Role::Server, None).await;
     let mut receiver = state.events.subscribe();
     let mut authenticated =
-        authorization_token(&headers).is_some_and(|token| token == state.config.token);
+        authorization_token(&headers).is_some_and(|token| tokens_equal(token, &state.config.token));
     let mut topics = if authenticated {
         vec!["*".to_owned()]
     } else {
@@ -207,7 +230,7 @@ where
                 .get("token")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            if token != config.token {
+            if !tokens_equal(token, &config.token) {
                 let _ = websocket
                     .send(Message::Text(
                         json!({"type": "error", "error": "authentication failed"})
@@ -229,23 +252,20 @@ where
         }
         Some("subscribe") if *authenticated => {
             let Some(values) = value.get("topics").and_then(Value::as_array) else {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "topics must be an array",
-                ));
+                send_control_error(websocket, "topics must be an array").await?;
+                return Ok(true);
             };
             let mut next = Vec::new();
             for value in values {
-                let topic = value.as_str().ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::InvalidData, "topic must be a string")
-                })?;
+                let Some(topic) = value.as_str() else {
+                    send_control_error(websocket, "topic must be a string").await?;
+                    return Ok(true);
+                };
                 if !tiktools_plugin_sdk::tiktools_plugin_api::manifest::is_valid_event_subscription(
                     topic,
                 ) {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "invalid topic subscription",
-                    ));
+                    send_control_error(websocket, "invalid topic subscription").await?;
+                    return Ok(true);
                 }
                 next.push(topic.to_owned());
             }
@@ -280,6 +300,17 @@ where
     }
 }
 
+async fn send_control_error<S>(websocket: &mut WebSocketStream<S>, message: &str) -> io::Result<()>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    let text = json!({"type": "error", "error": message}).to_string();
+    websocket
+        .send(Message::Text(text.into()))
+        .await
+        .map_err(io::Error::other)
+}
+
 async fn send_websocket_json<S>(
     websocket: &mut WebSocketStream<S>,
     value: &DomainEventEnvelope,
@@ -294,9 +325,31 @@ where
         .map_err(io::Error::other)
 }
 
-pub(crate) fn websocket_accept_key(key: &str) -> String {
-    let mut hasher = Sha1::new();
-    hasher.update(key.as_bytes());
-    hasher.update(WEBSOCKET_GUID.as_bytes());
-    BASE64.encode(hasher.finalize())
+/// Builds the 101 Switching Protocols response through tungstenite's
+/// server handshake. HTTP version, method, Connection/Upgrade headers,
+/// Sec-WebSocket-Version, key validity, and the accept-key calculation
+/// are all owned by the library; only routing-relevant pre-checks and
+/// CORS headers stay here.
+pub(crate) fn handshake_response(
+    headers: &HashMap<String, String>,
+    version: http::Version,
+) -> Result<http::Response<()>, String> {
+    let mut builder = http::Request::builder()
+        .method(http::Method::GET)
+        .uri("/ws")
+        .version(version);
+    for (name, value) in headers {
+        let (Ok(name), Ok(value)) = (
+            name.parse::<http::header::HeaderName>(),
+            value.parse::<http::header::HeaderValue>(),
+        ) else {
+            continue;
+        };
+        builder = builder.header(name, value);
+    }
+    let request = builder
+        .body(())
+        .map_err(|error| format!("invalid WebSocket handshake: {error}"))?;
+    tokio_tungstenite::tungstenite::handshake::server::create_response(&request)
+        .map_err(|error| format!("invalid WebSocket handshake: {error}"))
 }

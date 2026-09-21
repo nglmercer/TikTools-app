@@ -10,7 +10,16 @@ use std::sync::mpsc as std_mpsc;
 use std::sync::Arc;
 use tokio::io::BufStream;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::task::JoinSet;
+use tokio::task::JoinHandle;
+
+/// A client that never finishes its request headers holds its socket
+/// only for this long before the connection is dropped.
+const HEADER_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Finished connection tasks are reaped on this cadence (and after
+/// every accept) so the handle list stays proportional to the live
+/// connection count instead of total connections served.
+const RECONCILE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
 
 pub(crate) async fn run_server(
     state: Arc<GatewayState>,
@@ -32,19 +41,27 @@ pub(crate) async fn run_server(
         state.config.bind, state.config.port
     );
 
-    let mut connections = JoinSet::new();
+    let mut connections: Vec<JoinHandle<()>> = Vec::new();
+    let mut reconcile = tokio::time::interval(RECONCILE_INTERVAL);
     loop {
         tokio::select! {
             biased;
             _ = state.server_shutdown.notified() => break,
+            _ = reconcile.tick() => reconcile_connections(&mut connections),
             accepted = listener.accept() => match accepted {
                 Ok((stream, _address)) => {
+                    reconcile_connections(&mut connections);
+                    let Ok(permit) = Arc::clone(&state.connection_permits).try_acquire_owned() else {
+                        eprintln!("event-gateway connection limit reached; dropping connection");
+                        continue;
+                    };
                     let state = Arc::clone(&state);
-                    connections.spawn(async move {
+                    connections.push(tokio::spawn(async move {
+                        let _permit = permit;
                         if let Err(error) = handle_connection(stream, state).await {
                             eprintln!("event-gateway connection failed: {error}");
                         }
-                    });
+                    }));
                 }
                 Err(error) => eprintln!("event-gateway accept failed: {error}"),
             },
@@ -54,22 +71,32 @@ pub(crate) async fn run_server(
     // A client may still be blocked before its HTTP headers arrive. Abort
     // every connection after broadcasting shutdown so plugin shutdown never
     // waits indefinitely on an idle socket.
-    connections.shutdown().await;
-    while let Some(result) = connections.join_next().await {
-        if let Err(error) = result {
-            eprintln!("event-gateway connection task failed: {error}");
-        }
+    for handle in &connections {
+        handle.abort();
+    }
+    for handle in connections {
+        let _ = handle.await;
     }
     Ok(())
 }
 
+/// Drops finished connection tasks. Only finished handles are
+/// removed, so no live task is ever detached; per-connection errors
+/// are already logged inside the task, and panics surface through
+/// the default panic hook.
+pub(crate) fn reconcile_connections(connections: &mut Vec<JoinHandle<()>>) {
+    connections.retain(|handle| !handle.is_finished());
+}
+
 async fn handle_connection(stream: TcpStream, state: Arc<GatewayState>) -> io::Result<()> {
     let mut stream = BufStream::new(stream);
-    let request = read_http_request(&mut stream).await?;
+    let request = tokio::time::timeout(HEADER_READ_TIMEOUT, read_http_request(&mut stream))
+        .await
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "HTTP request headers timed out"))??;
     let Some(request) = request else {
         return Ok(());
     };
-    let (method, target, headers) = request;
+    let (method, target, headers, version) = request;
     let (path, query) = target.split_once('?').unwrap_or((&target, ""));
     let origin = headers.get("origin").cloned();
 
@@ -113,7 +140,7 @@ async fn handle_connection(stream: TcpStream, state: Arc<GatewayState>) -> io::R
             .await
         }
         ("GET", "/events") => {
-            if !authorized_http(&headers, query, &state.config) {
+            if !authorized_http(&headers, &state.config) {
                 return write_http_response(
                     &mut stream,
                     401,
@@ -125,10 +152,26 @@ async fn handle_connection(stream: TcpStream, state: Arc<GatewayState>) -> io::R
                 )
                 .await;
             }
-            let topics = query_topics(query);
+            let topics = match query_topics(query) {
+                Ok(topics) => topics,
+                Err(error) => {
+                    return write_http_response(
+                        &mut stream,
+                        400,
+                        "Bad Request",
+                        "text/plain; charset=utf-8",
+                        format!("{error}\n").as_bytes(),
+                        origin.as_deref(),
+                        &state.config,
+                    )
+                    .await;
+                }
+            };
             stream_events(stream, state, topics, origin.as_deref()).await
         }
-        ("GET", "/ws") => websocket_connection(stream, state, headers, origin.as_deref()).await,
+        ("GET", "/ws") => {
+            websocket_connection(stream, state, headers, origin.as_deref(), version).await
+        }
         _ => {
             write_http_response(
                 &mut stream,

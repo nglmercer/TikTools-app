@@ -104,7 +104,7 @@ impl GatewayConfig {
             }
         }
         if config.token.is_empty() {
-            config.token = generated_token();
+            config.token = generated_token()?;
         }
         Ok(config)
     }
@@ -167,6 +167,19 @@ pub(crate) fn persist_generated_token(
     Ok(())
 }
 
-fn generated_token() -> String {
-    format!("ttk-{:016x}{:016x}", fastrand::u64(..), fastrand::u64(..))
+const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
+
+/// Generates a 256-bit gateway token from the OS CSPRNG, hex-encoded as
+/// `ttk_<64 hex>`. Never uses a non-cryptographic RNG for credentials.
+fn generated_token() -> Result<String, String> {
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes)
+        .map_err(|error| format!("could not generate gateway token: {error}"))?;
+    let mut token = String::with_capacity(4 + 64);
+    token.push_str("ttk_");
+    for byte in bytes {
+        token.push(HEX_DIGITS[(byte >> 4) as usize] as char);
+        token.push(HEX_DIGITS[(byte & 15) as usize] as char);
+    }
+    Ok(token)
 }
