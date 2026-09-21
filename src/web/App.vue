@@ -222,6 +222,7 @@ const activePluginSupportsProvisioning: ComputedRef<boolean> = computed(() => {
         :on-get-action-options="app.handleGetActionOptions"
         :on-test-connection="app.handleTestPluginConnection"
         :on-open-media-picker="app.openMediaPicker"
+        :on-execute-action="(actionType, config) => app.executePluginAction(actionType, config, true)"
         :tts-settings="app.ttsSettingsOrDefault(activePluginPage.pluginId)"
         :tts-speaking="app.ttsSpeaking[activePluginPage.pluginId] ?? false"
         :tts-logs="app.ttsLogs[activePluginPage.pluginId] ?? []"

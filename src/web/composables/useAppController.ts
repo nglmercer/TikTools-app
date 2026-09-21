@@ -160,6 +160,8 @@ export function useAppController() {
   });
 
   onUnmounted(() => {
+    // Persist any debounced TTS edits before the bridge goes away.
+    tts.flushAllTtsSettings();
     control.detach();
   });
 
@@ -182,7 +184,60 @@ export function useAppController() {
     activeTab.value = 'plugins';
   };
 
+  // Grouped services (incremental direction: new call sites consume
+  // these namespaces; the flat fields below stay for existing call sites).
+  const navigation = {
+    activeTab,
+    setActiveTab,
+    openPlugins,
+  };
+  const settings = {
+    locale,
+    theme,
+    setLocale,
+    setTheme,
+    handleThemeToggle,
+    handleLocaleToggle,
+  };
+  const pluginUi = {
+    pluginPages: automation.pluginPages,
+    pluginSettings: plugins.pluginSettings,
+    actionOptions: plugins.actionOptions,
+    actionOptionErrors: plugins.actionOptionErrors,
+    actionOptionSelected: plugins.actionOptionSelected,
+    pluginConnections: plugins.pluginConnections,
+    pluginProvision: plugins.pluginProvision,
+    handleGetPluginSettings: plugins.handleGetPluginSettings,
+    handleSavePluginSettings: plugins.handleSavePluginSettings,
+    handleGetActionOptions: plugins.handleGetActionOptions,
+    handleTestPluginConnection: plugins.handleTestPluginConnection,
+    handleProvisionPluginToken: plugins.handleProvisionPluginToken,
+    executePluginAction: plugins.executeAction,
+    openMediaPicker: media.openMediaPicker,
+  };
+  const ttsService = {
+    ttsSettings: tts.ttsSettings,
+    ttsSpeaking: tts.ttsSpeaking,
+    ttsLogs: tts.ttsLogs,
+    ttsSettingsOrDefault: tts.ttsSettingsOrDefault,
+    handleTtsSettingsChange: tts.handleTtsSettingsChange,
+    flushTtsSettings: tts.flushTtsSettings,
+    flushAllTtsSettings: tts.flushAllTtsSettings,
+    handleTtsSpeak: tts.handleTtsSpeak,
+    ttsOutputPending: tts.ttsOutputPending,
+    ttsOutputErrors: tts.ttsOutputErrors,
+    handleTtsOutputSelect: tts.handleTtsOutputSelect,
+  };
+
   return {
+    navigation,
+    settings,
+    pluginUi,
+    ttsService,
+    live,
+    points,
+    automation,
+    plugins,
     activeTab,
     uniqueId: connection.uniqueId,
     cookie: connection.cookie,
@@ -259,11 +314,14 @@ export function useAppController() {
     handleTestPluginConnection: plugins.handleTestPluginConnection,
     pluginProvision: plugins.pluginProvision,
     handleProvisionPluginToken: plugins.handleProvisionPluginToken,
+    executePluginAction: plugins.executeAction,
     ttsSettings: tts.ttsSettings,
     ttsSpeaking: tts.ttsSpeaking,
     ttsLogs: tts.ttsLogs,
     ttsSettingsOrDefault: tts.ttsSettingsOrDefault,
     handleTtsSettingsChange: tts.handleTtsSettingsChange,
+    flushTtsSettings: tts.flushTtsSettings,
+    flushAllTtsSettings: tts.flushAllTtsSettings,
     handleTtsSpeak: tts.handleTtsSpeak,
     actionOptionSelected: plugins.actionOptionSelected,
     ttsOutputPending: tts.ttsOutputPending,
