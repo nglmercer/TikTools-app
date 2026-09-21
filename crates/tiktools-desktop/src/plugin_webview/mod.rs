@@ -44,9 +44,37 @@ pub fn is_valid_ui_id(value: &str) -> bool {
 }
 
 struct PluginUiWindow {
-    window: Window,
+    /// `None` only transiently inside [`PluginUiWindow::disown_destroyed`]:
+    /// map-resident entries always hold the live handle.
+    window: Option<Window>,
     webview: WebView,
     topics: HashSet<String>,
+}
+
+impl Drop for PluginUiWindow {
+    fn drop(&mut self) {
+        // Fields drop first and queue both X destroys unflushed (Winit's
+        // parent destroy on its connection, Wry's container destroy on
+        // GDK's). The round-trip forces the container destroy ahead of the
+        // parent destroy; without it the parent dies first, takes the
+        // container with it, and the failed container destroy lands in
+        // Winit's error slot and panics the next IME focus (see
+        // `platform::sync_gtk_display`). Covers every removal path: close,
+        // CloseRequested, retain-based teardown, and map drop.
+        crate::platform::sync_gtk_display();
+        eprintln!("[tiktools-debug] plugin window dropped (display synced)");
+    }
+}
+
+impl PluginUiWindow {
+    /// Drops a window the server already destroyed (no CloseRequested, e.g.
+    /// an external kill): the dead Winit handle is leaked instead of
+    /// queueing a second destroy for a dead id (which would file the same
+    /// stale BadWindow the sync exists to prevent); the normal Drop then
+    /// still tears down the WebView and syncs.
+    fn disown_destroyed(mut self) {
+        std::mem::forget(self.window.take());
+    }
 }
 
 #[derive(Default)]
@@ -73,7 +101,14 @@ impl PluginUiWindows {
         }
         let key = (plugin_id.to_owned(), page_id.to_owned());
         if let Some(existing) = self.windows.get(&key) {
-            existing.window.focus_window();
+            existing
+                .window
+                .as_ref()
+                .expect("map-resident plugin window holds its handle")
+                .focus_window();
+            eprintln!(
+                "[tiktools-debug] plugin window already open, focused: {plugin_id}/{page_id}"
+            );
             return Ok(false);
         }
         let target = core
@@ -161,11 +196,12 @@ impl PluginUiWindows {
         self.windows.insert(
             key,
             PluginUiWindow {
-                window,
+                window: Some(window),
                 webview,
                 topics: HashSet::new(),
             },
         );
+        eprintln!("[tiktools-debug] plugin window opened: {plugin_id}/{page_id}");
         Ok(true)
     }
 
@@ -180,13 +216,21 @@ impl PluginUiWindows {
                 page = page_id,
                 "closed plugin UI window"
             );
+            eprintln!("[tiktools-debug] plugin window closed: {plugin_id}/{page_id}");
+        } else {
+            eprintln!(
+                "[tiktools-debug] plugin window close ignored (not open): {plugin_id}/{page_id}"
+            );
         }
     }
 
     /// Closes every window owned by one plugin (lifecycle: the plugin was
     /// stopped, disabled, or uninstalled).
     pub fn close_plugin(&mut self, plugin_id: &str) {
+        let before = self.windows.len();
         self.windows.retain(|(owner, _), _| owner != plugin_id);
+        let closed = before - self.windows.len();
+        eprintln!("[tiktools-debug] plugin {plugin_id} torn down, {closed} window(s) closed");
     }
 
     pub fn apply_subscription(
@@ -273,7 +317,12 @@ impl PluginUiWindows {
         let key = self
             .windows
             .iter()
-            .find(|(_, window)| window.window.id() == window_id)
+            .find(|(_, window)| {
+                window
+                    .window
+                    .as_ref()
+                    .is_some_and(|handle| handle.id() == window_id)
+            })
             .map(|(key, _)| key.clone());
         let Some(key) = key else {
             return false;
@@ -281,10 +330,22 @@ impl PluginUiWindows {
         match event {
             WindowEvent::CloseRequested => {
                 tracing::debug!(plugin = %key.0, page = %key.1, "plugin UI window closed");
+                eprintln!(
+                    "[tiktools-debug] plugin window close requested (native): {}/{}",
+                    key.0, key.1
+                );
                 self.windows.remove(&key);
             }
             WindowEvent::Destroyed => {
-                self.windows.remove(&key);
+                // The server destroyed this window without a close
+                // request: disown the dead handle instead of dropping it.
+                eprintln!(
+                    "[tiktools-debug] plugin window destroyed by server: {}/{}",
+                    key.0, key.1
+                );
+                if let Some(entry) = self.windows.remove(&key) {
+                    entry.disown_destroyed();
+                }
             }
             WindowEvent::Resized(size) => {
                 if let Some(window) = self.windows.get(&key) {

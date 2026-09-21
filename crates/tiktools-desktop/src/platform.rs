@@ -124,6 +124,34 @@ pub fn build_webview(builder: WebViewBuilder<'_>, window: &Window) -> wry::Resul
     builder.build_as_child(window)
 }
 
+/// Round-trips the GDK display after a WebView drop on Linux. Call it on
+/// the UI thread, synchronously, between the WebView drop and the return
+/// to the event loop (or the Winit window drop).
+///
+/// Wry builds child WebViews with their own X11 container window, which
+/// `WebView::drop` destroys on GDK's connection, while Winit destroys the
+/// parent window in `Window::drop` on its own connection. The parent
+/// destroy flushes first (still inside Winit's event poll) and recursively
+/// kills the not-yet-destroyed container; the container destroy then fails
+/// with BadWindow on GDK's display, and Winit's process-global Xlib error
+/// hook files that foreign error into Winit's own slot with no display
+/// check. The next `check_errors` (IME focus when focus reverts to the
+/// surviving window) panics with "Failed to focus input context".
+///
+/// The round-trip forces the container destroy to execute while Winit's
+/// parent destroy is still sitting in its unflushed buffer, so the parent
+/// destroy later finds an already-dead child and stays silent. Safe
+/// without GTK (headless tests): the gtk-rs bindings panic when touched
+/// before `gtk::init`, so uninitialized processes skip the round-trip.
+pub fn sync_gtk_display() {
+    #[cfg(target_os = "linux")]
+    if gtk::is_initialized() {
+        if let Some(display) = gtk::gdk::Display::default() {
+            display.sync();
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,5 +171,12 @@ mod tests {
         let deadline = now + std::time::Duration::from_millis(20);
         let wake = next_startup_wake(now, deadline, std::time::Duration::from_millis(50));
         assert_eq!(wake, deadline);
+    }
+
+    #[test]
+    fn gtk_display_sync_is_safe_without_gtk() {
+        // The teardown paths call this unconditionally; headless test runs
+        // never initialize GTK, so this must be a silent no-op there.
+        sync_gtk_display();
     }
 }
