@@ -31,12 +31,14 @@ fn env_lock() -> &'static Mutex<()> {
     LOCK.get_or_init(|| Mutex::new(()))
 }
 
-/// Holds the env lock, points `TIKTOOLS_HOME` at a fresh temp home, and
-/// restores the previous value plus removes the directory on drop.
+/// Holds the env lock, points `TIKTOOLS_HOME` at a fresh temp home with
+/// a unique Windows pipe name, and restores the previous values plus
+/// removes the directory on drop.
 struct HomeGuard {
     _lock: std::sync::MutexGuard<'static, ()>,
     path: PathBuf,
-    previous: Option<std::ffi::OsString>,
+    previous_home: Option<std::ffi::OsString>,
+    previous_ipc: Option<std::ffi::OsString>,
 }
 
 impl HomeGuard {
@@ -44,21 +46,31 @@ impl HomeGuard {
         let lock = env_lock().lock().expect("env lock");
         let path = std::env::temp_dir().join(unique_tag(label));
         std::fs::create_dir_all(&path).expect("create isolated home");
-        let previous = std::env::var_os("TIKTOOLS_HOME");
+        let previous_home = std::env::var_os("TIKTOOLS_HOME");
+        let previous_ipc = std::env::var_os("TIKTOOLS_IPC_NAME");
         std::env::set_var("TIKTOOLS_HOME", &path);
+        std::env::set_var(
+            "TIKTOOLS_IPC_NAME",
+            format!("tiktools-test-{}-{}", std::process::id(), label),
+        );
         Self {
             _lock: lock,
             path,
-            previous,
+            previous_home,
+            previous_ipc,
         }
     }
 }
 
 impl Drop for HomeGuard {
     fn drop(&mut self) {
-        match self.previous.take() {
+        match self.previous_home.take() {
             Some(value) => std::env::set_var("TIKTOOLS_HOME", value),
             None => std::env::remove_var("TIKTOOLS_HOME"),
+        }
+        match self.previous_ipc.take() {
+            Some(value) => std::env::set_var("TIKTOOLS_IPC_NAME", value),
+            None => std::env::remove_var("TIKTOOLS_IPC_NAME"),
         }
         let _ = std::fs::remove_dir_all(&self.path);
     }

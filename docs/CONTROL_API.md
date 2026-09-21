@@ -48,8 +48,9 @@ Limits: 1 MiB per request line, 256 KiB params, 150 s per request.
 ## Discovery
 
 ```bash
-tiktools rpc rpc.discover '{}'
-tiktools rpc rpc.schema '{"method": "plugins.settings.set"}'
+tiktools api discover
+tiktools api schema plugins.settings.set
+tiktools rpc rpc.discover '{}'   # raw JSON-RPC equivalent
 ```
 
 `rpc.discover` returns every method with its description, `sideEffect`
@@ -76,6 +77,12 @@ with `host_unavailable` when no host is running; they never silently start
 a second runtime. `--standalone` opts one command into an isolated
 in-process runtime instead. `tiktools workflow list` manages graph
 workflows; every other method is reachable through `tiktools rpc`.
+
+Every command resolves to one typed `TikToolsClient` SDK call (see
+`docs/AGENT_API.md` for the SDK, the agent-oriented `api`
+discover/schema/call/events/verify surface, agent-safe flags, and secret
+handling). The registry, the typed client, and the agent surface are
+pinned to each other by parity tests and `tiktools api verify`.
 
 ## Headless host
 
