@@ -32,6 +32,7 @@ tracing.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 napi-vm.workspace = true
+arboard = { version = "3", default-features = false }
 rusqlite = { workspace = true, optional = true, features = ["bundled"] }
 reqwest = { workspace = true, optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
