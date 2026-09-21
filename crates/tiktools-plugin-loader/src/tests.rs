@@ -185,6 +185,84 @@ impl PluginInstance for ScriptedInstance {
     }
 }
 
+/// Runtime whose instances panic during shutdown, so the worker thread
+/// dies and the manager's join reports a runtime error.
+struct PanicShutdownRuntime;
+
+struct PanicShutdownInstance {
+    id: String,
+}
+
+impl PluginRuntime for PanicShutdownRuntime {
+    fn kind(&self) -> PluginRuntimeKind {
+        PluginRuntimeKind::Process
+    }
+
+    fn load(
+        &self,
+        manifest: &PluginManifest,
+        _directory: &Path,
+    ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+        Ok(Box::new(PanicShutdownInstance {
+            id: manifest.id.clone(),
+        }))
+    }
+}
+
+impl PluginInstance for PanicShutdownInstance {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn handle_message(&mut self, _request: &[u8]) -> Result<Vec<u8>, PluginLoaderError> {
+        Ok(b"null".to_vec())
+    }
+
+    fn shutdown(&mut self) -> Result<(), PluginLoaderError> {
+        panic!("test shutdown boom");
+    }
+}
+
+/// Runtime whose instances fail shutdown with a typed error (no panic),
+/// covering the worker-error branch of the shutdown path.
+struct ErrShutdownRuntime;
+
+struct ErrShutdownInstance {
+    id: String,
+}
+
+impl PluginRuntime for ErrShutdownRuntime {
+    fn kind(&self) -> PluginRuntimeKind {
+        PluginRuntimeKind::Native
+    }
+
+    fn load(
+        &self,
+        manifest: &PluginManifest,
+        _directory: &Path,
+    ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+        Ok(Box::new(ErrShutdownInstance {
+            id: manifest.id.clone(),
+        }))
+    }
+}
+
+impl PluginInstance for ErrShutdownInstance {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn handle_message(&mut self, _request: &[u8]) -> Result<Vec<u8>, PluginLoaderError> {
+        Ok(b"null".to_vec())
+    }
+
+    fn shutdown(&mut self) -> Result<(), PluginLoaderError> {
+        Err(PluginLoaderError::Runtime(
+            "test shutdown failure".to_owned(),
+        ))
+    }
+}
+
 fn write_plugin_with_runtime(root: &std::path::Path, id: &str, runtime: &str) {
     fs::create_dir_all(root.join(id)).unwrap();
     fs::write(
@@ -588,10 +666,10 @@ fn read_paths_recover_from_poisoned_locks() {
     assert!(manager.is_running("demo"));
     let grace = manager.claim_cold_start_grace("demo", Duration::from_secs(1));
     assert!(grace >= Duration::from_secs(1));
-    // stop_all must not panic on poison: each poisoned stop fails typed
-    // (and is logged) while the instance map stays readable.
+    // stop_all is best-effort: it recovers the poisoned lifecycle lock
+    // and shuts the instance down instead of failing typed.
     manager.stop_all();
-    assert!(manager.is_running("demo"));
+    assert!(!manager.is_running("demo"));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -606,5 +684,87 @@ fn stop_recovers_from_a_poisoned_worker_lock() {
         "poisoned worker lock should recover, got {stopped:?}"
     );
     assert!(!manager.is_running("demo"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn stop_all_recovers_from_a_poisoned_lifecycle_lock() {
+    let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
+    manager.start("demo").unwrap();
+    manager.poison_locks_for_test();
+    // The strict single-stop still reports the poisoned lifecycle typed...
+    let stopped = manager.stop("demo");
+    assert!(
+        matches!(stopped, Err(PluginLoaderError::LockPoisoned(_))),
+        "poisoned stop should fail typed, got {stopped:?}"
+    );
+    assert!(manager.is_running("demo"));
+    // ...while the shutdown path recovers and cleans the instance up.
+    manager.stop_all();
+    assert!(!manager.is_running("demo"));
+    assert!(
+        !manager
+            .get("demo")
+            .map(|plugin| plugin.running)
+            .unwrap_or(true),
+        "shutdown must clear the running flag"
+    );
+    // Shutdown stays idempotent after recovery.
+    manager.stop_all();
+    assert!(!manager.is_running("demo"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn stop_all_recovers_from_a_poisoned_worker_lock() {
+    let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
+    manager.start("demo").unwrap();
+    manager.poison_worker_for_test("demo");
+    manager.stop_all();
+    assert!(
+        !manager.is_running("demo"),
+        "shutdown must clean up a poisoned worker handle"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn one_broken_plugin_does_not_block_sibling_shutdown() {
+    let root = temp_root();
+    write_plugin_with_runtime(&root, "doomed", "process");
+    write_plugin_with_runtime(&root, "flaky", "native");
+    write_plugin_with_runtime(&root, "healthy", "wasm");
+    let mut runtimes = RuntimeRegistry::default();
+    runtimes.register(Arc::new(PanicShutdownRuntime) as Arc<dyn PluginRuntime>);
+    runtimes.register(Arc::new(ErrShutdownRuntime) as Arc<dyn PluginRuntime>);
+    runtimes.register(Arc::new(ScriptedRuntime {
+        kind: PluginRuntimeKind::Wasm,
+        handler: Arc::new(|_| Ok(b"null".to_vec())),
+    }) as Arc<dyn PluginRuntime>);
+    let manager = PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    );
+    manager.scan().unwrap();
+    manager.start("doomed").unwrap();
+    manager.start("flaky").unwrap();
+    manager.start("healthy").unwrap();
+    // The panicking worker and the failing shutdown are logged, and every
+    // instance — including the healthy sibling — is still removed.
+    manager.stop_all();
+    assert!(!manager.is_running("doomed"));
+    assert!(!manager.is_running("flaky"));
+    assert!(!manager.is_running("healthy"));
+    // The healthy sibling restarts and answers afterwards.
+    manager.start("healthy").unwrap();
+    let answer = manager.call("healthy", &serde_json::json!({"type": "poll"}));
+    assert!(
+        answer.is_ok(),
+        "healthy sibling should answer, got {answer:?}"
+    );
+    manager.stop_all();
     let _ = fs::remove_dir_all(root);
 }

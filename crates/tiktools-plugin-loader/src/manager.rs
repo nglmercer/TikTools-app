@@ -74,6 +74,26 @@ struct PluginRegistry {
 /// Runtime plugin manager. Discovery is deterministic: later roots override
 /// earlier roots by plugin id, so development overrides can replace built-ins
 /// without a compiled registration list.
+///
+/// Lock-poison policy, per primitive (mixed behavior is deliberate; each
+/// site below names the rule it follows):
+///
+/// - `registry`: reads recover (`list`, `get`); the full rebuild in `scan`
+///   is strict (a torn rebuild must not publish a partial registry), while
+///   `set_running` recovers (it runs past the irreversible boundary — the
+///   worker is already spawned or removed — so it must not fail midway).
+/// - `instances`: reads recover where a stale snapshot is safe (`list`,
+///   `is_running`, `claim_cold_start_grace`, `stop_all` enumeration);
+///   `start`'s existence check and `call`'s lookup are strict (acting on a
+///   torn map could double-start or misroute); mutation recovers during
+///   cleanup/retirement (`remove_instance`, `remove_failed_worker`) and in
+///   `start` after the worker thread is already spawned.
+/// - `lifecycle`: normal mutations are strict (`start`, `stop` hold it
+///   fail-closed so a torn transition fails typed); shutdown
+///   (`stop_for_shutdown`) and failure retirement (`remove_failed_worker`)
+///   recover so one poisoned transition cannot wedge cleanup forever.
+/// - `worker` mutex: cleanup/stop recovers (`finish_stop` takes the handle
+///   after the instance is already out of the map).
 pub struct PluginManager {
     roots: Vec<PluginRoot>,
     registry: RwLock<PluginRegistry>,
@@ -254,6 +274,34 @@ impl PluginManager {
                 .map_err(|_| lock_poisoned("plugin lifecycle"))?;
             self.remove_instance(id)
         };
+        self.finish_stop(id, instance)
+    }
+
+    /// Best-effort stop used only by shutdown paths. Unlike [`Self::stop`],
+    /// a poisoned lifecycle lock is recovered (clearing the flag) instead
+    /// of failing typed, so one torn transition can never wedge shutdown
+    /// forever. Worker failures are logged and the instance is always
+    /// removed with its running state cleared.
+    fn stop_for_shutdown(&self, id: &str) {
+        let instance = {
+            let _lifecycle = recover_mutex(&self.lifecycle, "plugin lifecycle");
+            self.remove_instance(id)
+        };
+        if let Err(error) = self.finish_stop(id, instance) {
+            tracing::warn!(id = %id, %error, "plugin shutdown failed");
+        }
+    }
+
+    /// Shuts down an already-removed instance: asks the worker to stop,
+    /// takes its handle (recovering a poisoned worker lock, since the
+    /// instance is already out of the map), joins it, and clears the
+    /// running flag. Shared by the strict [`Self::stop`] and the
+    /// best-effort shutdown path.
+    fn finish_stop(
+        &self,
+        id: &str,
+        instance: Option<Arc<RunningInstance>>,
+    ) -> Result<(), PluginLoaderError> {
         let Some(instance) = instance else {
             self.set_running(id, false);
             return Ok(());
@@ -279,9 +327,7 @@ impl PluginManager {
             .cloned()
             .collect();
         for id in ids {
-            if let Err(error) = self.stop(&id) {
-                tracing::warn!(id = %id, %error, "plugin shutdown failed");
-            }
+            self.stop_for_shutdown(&id);
         }
     }
 
