@@ -519,3 +519,92 @@ fn worker_panic_isolates_the_plugin_without_hanging_siblings() {
     manager.stop_all();
     let _ = fs::remove_dir_all(root);
 }
+
+fn lock_poisoned(result: &Result<Vec<DiscoveredPlugin>, PluginLoaderError>) -> bool {
+    matches!(result, Err(PluginLoaderError::LockPoisoned(_)))
+}
+
+#[test]
+fn scan_reports_poisoned_locks_as_a_typed_error() {
+    let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
+    manager.poison_locks_for_test();
+    let scanned = manager.scan();
+    assert!(
+        lock_poisoned(&scanned),
+        "poisoned scan should fail typed, got {scanned:?}"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn start_reports_poisoned_locks_as_a_typed_error() {
+    let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
+    manager.poison_locks_for_test();
+    let started = manager.start("demo");
+    assert!(
+        matches!(started, Err(PluginLoaderError::LockPoisoned(_))),
+        "poisoned start should fail typed, got {started:?}"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn stop_reports_a_poisoned_lifecycle_lock_as_a_typed_error() {
+    let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
+    manager.start("demo").unwrap();
+    manager.poison_locks_for_test();
+    let stopped = manager.stop("demo");
+    assert!(
+        matches!(stopped, Err(PluginLoaderError::LockPoisoned(_))),
+        "poisoned stop should fail typed, got {stopped:?}"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn call_reports_poisoned_locks_as_a_typed_error() {
+    let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
+    manager.start("demo").unwrap();
+    manager.poison_locks_for_test();
+    let called = manager.call_with_timeout(
+        "demo",
+        &serde_json::json!({"type": "poll"}),
+        Duration::from_secs(5),
+    );
+    assert!(
+        matches!(called, Err(PluginLoaderError::LockPoisoned(_))),
+        "poisoned call should fail typed, got {called:?}"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn read_paths_recover_from_poisoned_locks() {
+    let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
+    manager.start("demo").unwrap();
+    manager.poison_locks_for_test();
+    assert_eq!(manager.list().len(), 1);
+    assert!(manager.get("demo").is_some());
+    assert!(manager.is_running("demo"));
+    let grace = manager.claim_cold_start_grace("demo", Duration::from_secs(1));
+    assert!(grace >= Duration::from_secs(1));
+    // stop_all must not panic on poison: each poisoned stop fails typed
+    // (and is logged) while the instance map stays readable.
+    manager.stop_all();
+    assert!(manager.is_running("demo"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn stop_recovers_from_a_poisoned_worker_lock() {
+    let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
+    manager.start("demo").unwrap();
+    manager.poison_worker_for_test("demo");
+    let stopped = manager.stop("demo");
+    assert!(
+        stopped.is_ok(),
+        "poisoned worker lock should recover, got {stopped:?}"
+    );
+    assert!(!manager.is_running("demo"));
+    let _ = fs::remove_dir_all(root);
+}

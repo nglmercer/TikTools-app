@@ -121,7 +121,8 @@ impl From<tiktools_plugin_loader::PluginLoaderError> for OperationError {
             }
             tiktools_plugin_loader::PluginLoaderError::Manifest(_)
             | tiktools_plugin_loader::PluginLoaderError::InvalidDirectory(_)
-            | tiktools_plugin_loader::PluginLoaderError::Runtime(_) => {
+            | tiktools_plugin_loader::PluginLoaderError::Runtime(_)
+            | tiktools_plugin_loader::PluginLoaderError::LockPoisoned(_) => {
                 Self::internal(error.to_string())
             }
         }

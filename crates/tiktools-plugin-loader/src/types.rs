@@ -40,6 +40,8 @@ pub enum PluginLoaderError {
     NotFound(String),
     #[error("plugin call timed out: {0}")]
     Timeout(String),
+    #[error("plugin lock poisoned: {0}")]
+    LockPoisoned(String),
 }
 
 pub trait PluginInstance: Send {

@@ -10,7 +10,10 @@ use std::{
 };
 
 use serde_json::Value;
-use tiktools_plugin_api::PluginRuntimeKind;
+use tiktools_plugin_api::{
+    sync::{mutex_or_recover, read_or_recover, write_or_recover},
+    PluginRuntimeKind,
+};
 
 use crate::{
     discovery::{read_discovered_plugin, MAX_DIRECTORY_ENTRIES},
@@ -25,6 +28,19 @@ use crate::{
 /// ~1ms against a 250ms deadline). Without grace the host kills every cold
 /// child before it can warm up, so the plugin can never recover.
 const PROCESS_FIRST_CALL_GRACE: Duration = Duration::from_secs(10);
+
+/// Maps a poisoned lock to a typed loader error. The poisoning is logged
+/// with the shared lock-recovery target so poisoned failures stay visible
+/// in telemetry instead of crashing the host.
+fn lock_poisoned(lock: &'static str) -> PluginLoaderError {
+    tracing::warn!(
+        target: tiktools_plugin_api::sync::LOCK_RECOVERY_TARGET,
+        lock = lock,
+        "plugin lock poisoned; failing operation"
+    );
+    PluginLoaderError::LockPoisoned(lock.to_owned())
+}
+
 #[derive(Default)]
 pub struct RuntimeRegistry {
     runtimes: BTreeMap<PluginRuntimeKind, Arc<dyn PluginRuntime>>,
@@ -133,7 +149,7 @@ impl PluginManager {
         let running_ids = self
             .instances
             .read()
-            .expect("plugin instances poisoned")
+            .map_err(|_| lock_poisoned("plugin instances"))?
             .keys()
             .cloned()
             .collect::<std::collections::BTreeSet<_>>();
@@ -147,7 +163,10 @@ impl PluginManager {
                 plugin
             })
             .collect();
-        let mut registry = self.registry.write().expect("plugin registry poisoned");
+        let mut registry = self
+            .registry
+            .write()
+            .map_err(|_| lock_poisoned("plugin registry"))?;
         registry.entries = result
             .iter()
             .cloned()
@@ -157,9 +176,7 @@ impl PluginManager {
     }
 
     pub fn list(&self) -> Vec<DiscoveredPlugin> {
-        self.registry
-            .read()
-            .expect("plugin registry poisoned")
+        read_or_recover(&self.registry, "plugin registry")
             .entries
             .values()
             .cloned()
@@ -167,27 +184,25 @@ impl PluginManager {
     }
 
     pub fn get(&self, id: &str) -> Option<DiscoveredPlugin> {
-        self.registry
-            .read()
-            .expect("plugin registry poisoned")
+        read_or_recover(&self.registry, "plugin registry")
             .entries
             .get(id)
             .cloned()
     }
 
     pub fn is_running(&self, id: &str) -> bool {
-        self.instances
-            .read()
-            .expect("plugin instances poisoned")
-            .contains_key(id)
+        read_or_recover(&self.instances, "plugin instances").contains_key(id)
     }
 
     pub fn start(&self, id: &str) -> Result<(), PluginLoaderError> {
-        let _lifecycle = self.lifecycle.lock().expect("plugin lifecycle poisoned");
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| lock_poisoned("plugin lifecycle"))?;
         if self
             .instances
             .read()
-            .expect("plugin instances poisoned")
+            .map_err(|_| lock_poisoned("plugin instances"))?
             .contains_key(id)
         {
             return Ok(());
@@ -215,26 +230,28 @@ impl PluginManager {
             .map_err(|error| {
                 PluginLoaderError::Runtime(format!("could not start plugin worker: {error}"))
             })?;
-        self.instances
-            .write()
-            .expect("plugin instances poisoned")
-            .insert(
-                id.to_owned(),
-                Arc::new(RunningInstance {
-                    token,
-                    kind: plugin.manifest.runtime,
-                    cold: AtomicBool::new(true),
-                    tx,
-                    worker: Mutex::new(Some(worker)),
-                }),
-            );
+        // The worker thread is already spawned here, so a poisoned map
+        // recovers instead of failing midway through the mutation.
+        write_or_recover(&self.instances, "plugin instances").insert(
+            id.to_owned(),
+            Arc::new(RunningInstance {
+                token,
+                kind: plugin.manifest.runtime,
+                cold: AtomicBool::new(true),
+                tx,
+                worker: Mutex::new(Some(worker)),
+            }),
+        );
         self.set_running(id, true);
         Ok(())
     }
 
     pub fn stop(&self, id: &str) -> Result<(), PluginLoaderError> {
         let instance = {
-            let _lifecycle = self.lifecycle.lock().expect("plugin lifecycle poisoned");
+            let _lifecycle = self
+                .lifecycle
+                .lock()
+                .map_err(|_| lock_poisoned("plugin lifecycle"))?;
             self.remove_instance(id)
         };
         let Some(instance) = instance else {
@@ -242,11 +259,9 @@ impl PluginManager {
             return Ok(());
         };
         let _ = instance.tx.send(WorkerMsg::Shutdown);
-        let worker = instance
-            .worker
-            .lock()
-            .expect("plugin worker poisoned")
-            .take();
+        // The instance is already removed from the map here, so a
+        // poisoned worker lock recovers instead of failing the stop.
+        let worker = mutex_or_recover(&instance.worker, "plugin worker").take();
         let result = match worker {
             Some(worker) => worker
                 .join()
@@ -259,10 +274,7 @@ impl PluginManager {
     }
 
     pub fn stop_all(&self) {
-        let ids: Vec<String> = self
-            .instances
-            .read()
-            .expect("plugin instances poisoned")
+        let ids: Vec<String> = read_or_recover(&self.instances, "plugin instances")
             .keys()
             .cloned()
             .collect();
@@ -288,10 +300,7 @@ impl PluginManager {
     /// in [`Self::call_with_deadline`] then finds the grace already consumed,
     /// so concurrent first calls never double-extend it.
     pub fn claim_cold_start_grace(&self, id: &str, timeout: Duration) -> Duration {
-        let cold_process = self
-            .instances
-            .read()
-            .expect("plugin instances poisoned")
+        let cold_process = read_or_recover(&self.instances, "plugin instances")
             .get(id)
             .filter(|instance| instance.kind == PluginRuntimeKind::Process)
             .is_some_and(|instance| instance.cold.swap(false, Ordering::AcqRel));
@@ -342,7 +351,7 @@ impl PluginManager {
         let instance = self
             .instances
             .read()
-            .expect("plugin instances poisoned")
+            .map_err(|_| lock_poisoned("plugin instances"))?
             .get(id)
             .cloned()
             .ok_or_else(|| PluginLoaderError::NotFound(id.to_owned()))?;
@@ -419,10 +428,7 @@ impl PluginManager {
     }
 
     fn set_running(&self, id: &str, running: bool) {
-        if let Some(plugin) = self
-            .registry
-            .write()
-            .expect("plugin registry poisoned")
+        if let Some(plugin) = write_or_recover(&self.registry, "plugin registry")
             .entries
             .get_mut(id)
         {
@@ -431,10 +437,7 @@ impl PluginManager {
     }
 
     fn remove_instance(&self, id: &str) -> Option<Arc<RunningInstance>> {
-        self.instances
-            .write()
-            .expect("plugin instances poisoned")
-            .remove(id)
+        write_or_recover(&self.instances, "plugin instances").remove(id)
     }
 
     /// Retires the instance generation identified by `token`; a newer start
@@ -442,8 +445,8 @@ impl PluginManager {
     /// stuck plugin cannot block the hot path that observed the failure.
     fn remove_failed_worker(&self, id: &str, token: u64) {
         let removed = {
-            let _lifecycle = self.lifecycle.lock().expect("plugin lifecycle poisoned");
-            let mut instances = self.instances.write().expect("plugin instances poisoned");
+            let _lifecycle = mutex_or_recover(&self.lifecycle, "plugin lifecycle");
+            let mut instances = write_or_recover(&self.instances, "plugin instances");
             if instances
                 .get(id)
                 .is_some_and(|current| current.token == token)
@@ -457,5 +460,40 @@ impl PluginManager {
             let _ = instance.tx.send(WorkerMsg::Shutdown);
             self.set_running(id, false);
         }
+    }
+}
+
+#[cfg(test)]
+impl PluginManager {
+    /// Poisons one running instance's worker lock so tests can exercise
+    /// the stop-path recovery. Test-only; production code never calls this.
+    pub(crate) fn poison_worker_for_test(&self, id: &str) {
+        if let Ok(instances) = self.instances.read() {
+            if let Some(instance) = instances.get(id) {
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let _guard = instance.worker.lock().unwrap();
+                    panic!("test poison");
+                }));
+            }
+        }
+    }
+
+    /// Poisons the registry, instance, lifecycle, and worker locks so
+    /// tests can exercise every poison path. Test-only.
+    pub(crate) fn poison_locks_for_test(&self) {
+        if let Ok(instances) = self.instances.read() {
+            for instance in instances.values() {
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let _guard = instance.worker.lock().unwrap();
+                    panic!("test poison");
+                }));
+            }
+        }
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _registry = self.registry.write().unwrap();
+            let _instances = self.instances.write().unwrap();
+            let _lifecycle = self.lifecycle.lock().unwrap();
+            panic!("test poison");
+        }));
     }
 }
