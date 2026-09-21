@@ -87,6 +87,53 @@ window.ipc.postMessage → Wry → IpcRouter → AppCore → WebView
 Invalid or oversized messages are rejected by the Rust parser and logged at
 debug/warn level.
 
+## Plugin pop-out shows a broker error
+
+The separate window loads the same bundle as the inline tab but talks to
+the host through the injected `window.tiktools` surface instead of
+`postMessage`. A generic `broker error` there means the page answered
+its own request: the usual cause is a missing injection (the init script
+never installed `window.tiktools`), which newer clients report
+explicitly as `native plugin broker is unavailable`.
+
+Diagnose with debug logging:
+
+```bash
+RUST_LOG=tiktools=debug bun run start
+```
+
+Expected for a healthy pop-out:
+
+```text
+plugin window opened transport="native"
+```
+
+plus no `plugin broker rejected native request` lines. In DevTools
+(debug build, F12), `window.__tiktools_transport__` reads `'native'` on
+success or `'unavailable'` when the transport is missing. Note that an
+audio-devices HTTP failure (`/api/audio/devices` unreachable) is a
+backend connectivity issue, not a broker failure: the UI renders it as
+an error card and stays usable.
+
+## Closing a plugin window crashes the app (Linux/X11)
+
+Fixed by explicit teardown ordering: the child WebView must drop before
+the parent window, with a GDK display sync between them. If a close
+crash regresses, capture the panic/X11 error with a backtrace:
+
+```bash
+RUST_BACKTRACE=1 RUST_LOG=tiktools=debug bun run start
+```
+
+and look for `BadWindow`, `Failed to focus input context`, or a panic
+in window teardown. The `TIKTOOLS_TEST_NATIVE_WINDOWS=1` native smoke
+test (`plugin_webview::smoke`) replays open/close cycles plus a broker
+round-trip against the real Wry stack; run it with a display available:
+
+```bash
+TIKTOOLS_TEST_NATIVE_WINDOWS=1 cargo test -p tiktools-desktop --locked smoke
+```
+
 ## TikTok connection errors
 
 The native client needs a valid creator handle and a network path to TikTok.

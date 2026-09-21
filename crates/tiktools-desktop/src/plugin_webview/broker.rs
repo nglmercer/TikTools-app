@@ -455,6 +455,73 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn raw_native_ipc_cannot_escape_the_broker_allowlist() {
+        // The pop-out window's raw `window.ipc` transport reaches ONLY
+        // this broker (see the `with_ipc_handler` wiring in `open`), so
+        // arbitrary posts from page JavaScript are still confined to the
+        // allowlist and the bound plugin.
+        let broker = broker_for("owner");
+        // Main-API method names smuggled through the raw transport are
+        // unknown methods here — never routed to the control API.
+        for method in [
+            "plugins.settings.get",
+            "plugins.settings.set",
+            "plugins.action.execute",
+            "plugins.uninstall",
+            "app.state.get",
+            "ipc",
+            "eval",
+            "settings.get ", // trailing space: exact match only
+        ] {
+            let (raw, effect) = broker
+                .handle(&request("1", method, serde_json::json!({})))
+                .await;
+            assert!(effect.is_none(), "{method}");
+            let response: Value = serde_json::from_str(&raw).unwrap();
+            assert_eq!(response["ok"], false, "{method}");
+            assert_eq!(response["id"], "1", "{method}");
+        }
+        // Allowlisted methods still validate their arguments.
+        for (method, params) in [
+            ("actions.execute", serde_json::json!({})),
+            ("actions.execute", serde_json::json!({"action": ""})),
+            ("options.get", serde_json::json!({})),
+            ("settings.set", serde_json::json!({"values": [1, 2]})),
+            (
+                "events.subscribe",
+                serde_json::json!({"topics": ["live.event"]}),
+            ),
+        ] {
+            let (raw, effect) = broker.handle(&request("2", method, params)).await;
+            assert!(effect.is_none(), "{method}");
+            let response: Value = serde_json::from_str(&raw).unwrap();
+            assert_eq!(response["ok"], false, "{method}");
+        }
+        // Non-object params never reach a method.
+        let (raw, _) = broker
+            .handle(&request("3", "host.locale", serde_json::json!([1])))
+            .await;
+        let response: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(response["ok"], false);
+        // A matching pluginId is accepted shape-wise but the call stays
+        // scoped to the bound plugin (this core has no plugins, so the
+        // downstream lookup fails naming the bound id — never another).
+        let (raw, _) = broker
+            .handle(&request(
+                "4",
+                "settings.get",
+                serde_json::json!({ "pluginId": "owner" }),
+            ))
+            .await;
+        let response: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(response["ok"], false);
+        assert!(response["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("owner"));
+    }
+
+    #[tokio::test]
     async fn settings_calls_scope_to_the_bound_plugin() {
         let broker = broker_for("missing.plugin");
         let (raw, _) = broker

@@ -289,7 +289,7 @@ impl DesktopApp {
             }
         }
         self.flush_host_messages();
-        eprintln!("[tiktools-debug] main window created, waiting for frontend-ready");
+        tracing::debug!("main window created, waiting for frontend-ready");
         Ok(())
     }
 
@@ -348,7 +348,7 @@ impl DesktopApp {
         if self.shutting_down {
             return;
         }
-        eprintln!("[tiktools-debug] shutdown started");
+        tracing::debug!("shutdown started");
         self.shutting_down = true;
         self.startup_state = StartupState::ShuttingDown;
         self.startup_deadline = None;
@@ -368,7 +368,7 @@ impl DesktopApp {
         // `platform::sync_gtk_display`); the parent handle drops normally.
         platform::sync_gtk_display();
         self.window.take();
-        eprintln!("[tiktools-debug] shutdown complete, exiting");
+        tracing::debug!("shutdown complete, exiting");
         event_loop.exit();
     }
 
@@ -392,8 +392,7 @@ impl DesktopApp {
             tracing::debug!(state = ?self.startup_state, "ignoring frontend-ready outside WebView startup");
             return;
         }
-        tracing::debug!("frontend-ready IPC received");
-        eprintln!("[tiktools-debug] frontend ready, main window shown");
+        tracing::debug!("frontend-ready IPC received, main window shown");
         self.startup_state = StartupState::Ready;
         self.startup_deadline = None;
         // Plugin polling is owned by host startup (see `DesktopApp::new`),
@@ -429,7 +428,6 @@ impl DesktopApp {
         let reason = reason.into();
         self.startup_state = StartupState::Failed;
         self.startup_deadline = None;
-        eprintln!("[tiktools-debug] startup failed: {reason}");
         tracing::error!(%reason, "TikTools frontend did not become ready");
         crate::show_startup_failure(&reason, &self.log_path);
         event_loop.exit();
@@ -456,7 +454,10 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        if self.plugin_ui.on_window_event(window_id, &event) {
+        if self
+            .plugin_ui
+            .on_window_event(&self.proxy, window_id, &event)
+        {
             return;
         }
         if self
@@ -470,11 +471,9 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
             WindowEvent::CloseRequested => {
                 if self.tray.is_some() {
                     tracing::debug!("window close requested; hiding TikTools in the tray");
-                    eprintln!("[tiktools-debug] main close requested: hiding to tray");
                     self.set_window_visible(false);
                 } else {
                     tracing::debug!("window close requested without a tray; shutting down");
-                    eprintln!("[tiktools-debug] main close requested (no tray): shutting down");
                     self.shutdown(event_loop);
                 }
             }
@@ -482,7 +481,6 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
             WindowEvent::Resized(size) => self.resize_webview(size),
             WindowEvent::Destroyed => {
                 tracing::debug!(tray = self.tray.is_some(), "window was destroyed");
-                eprintln!("[tiktools-debug] main window destroyed by server");
                 self.webview.take();
                 platform::sync_gtk_display();
                 // The server already destroyed this window: dropping the
@@ -529,7 +527,6 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
                 if self.window.is_none() {
                     if let Err(error) = self.create_window(event_loop) {
                         tracing::error!(%error, "could not recreate TikTools window from tray");
-                        eprintln!("[tiktools-debug] main window recreate failed: {error}");
                         return;
                     }
                     // A failed transport recreates with a fresh page: drop
@@ -564,9 +561,6 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
                     &page_id,
                 ) {
                     tracing::warn!(%error, plugin = %plugin_id, page = %page_id, "could not open plugin UI");
-                    eprintln!(
-                        "[tiktools-debug] plugin window open failed: {plugin_id}/{page_id}: {error}"
-                    );
                 }
             }
             DesktopEvent::Command(DesktopCommand::ClosePluginUi { plugin_id, page_id }) => {

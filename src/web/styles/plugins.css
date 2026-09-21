@@ -845,10 +845,39 @@
   margin: 4px 0;
 }
 
+/* ---- inline webview tab: the iframe fills the tab area below the
+   topbar, and the plugin document scrolls internally (its own #app is
+   the single content scroller). No fixed heights anywhere: every level
+   of the chain is flex with min-height: 0 so resizes propagate. */
+.plg--webview {
+  flex: 1;
+  min-height: 0;
+}
+.plg-scroll--webview {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.plg-stack--webview {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
 .plg-frame {
   display: block;
+  flex: 1 1 auto;
   width: 100%;
-  min-height: 480px;
+  min-width: 0;
+  /* Floor, not sizing: flex:1 above governs the height whenever the
+     chain resolves. This only stops the frame from collapsing to an
+     unusable slit if an ancestor ever breaks the flex chain; the plugin
+     document scrolls internally, so content stays reachable regardless. */
+  min-height: 200px;
   border: 1px solid var(--line, var(--plg-line));
   border-radius: 10px;
   background: var(--panel-solid, var(--plg-bg));

@@ -2,17 +2,25 @@
 //!
 //! A webview-mode plugin page opens in its own native window, served from
 //! the plugin's built UI directory over `tiktools-plugin://` with a strict
-//! CSP (see [`assets`]). Page scripts never see the privileged IPC bridge:
-//! an initialization script captures `window.ipc`, installs the narrow
-//! `window.tiktools` surface, and deletes `window.ipc` before page code
-//! runs. All broker calls (see [`broker`]) are ownership-scoped to the
-//! window's bound plugin id.
+//! CSP (see [`assets`]). An initialization script installs the narrow
+//! `window.tiktools` surface on top of Wry's `window.ipc` transport before
+//! page code runs; the transport itself is left untouched (on WebKitGTK it
+//! is a non-configurable property installed before init scripts, so it
+//! cannot be deleted). The security boundary is the Rust handler behind
+//! that transport: this window's `window.ipc` reaches only the restricted
+//! [`broker::PluginUiBroker`], never the main window's full IPC router.
+//! All broker calls (see [`broker`]) are ownership-scoped to the window's
+//! bound plugin id.
 //!
 //! The manager owns every plugin window; the main-window lifecycle routes
-//! window events here and issues open/close/respond commands.
+//! window events here and issues open/close/respond commands. Teardown is
+//! explicit and ordered (child WebView, then display sync, then parent
+//! window); see [`PluginUiWindow::teardown`].
 
 pub mod assets;
 pub mod broker;
+#[cfg(test)]
+mod smoke;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -43,37 +51,136 @@ pub fn is_valid_ui_id(value: &str) -> bool {
         })
 }
 
+/// Lifecycle of one native plugin window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PluginWindowState {
+    /// Live: events, resizes, and broker responses flow normally.
+    Open,
+    /// `CloseRequested` was received: a deferred `ClosePluginUi` command
+    /// will tear the entry down outside the window-event handler. Resizes
+    /// and broker responses are ignored meanwhile; a racing `Destroyed`
+    /// takes the disown path instead. A second close is never queued.
+    Closing,
+}
+
+impl PluginWindowState {
+    /// `CloseRequested` transition: `Open -> Closing` returns true (the
+    /// caller must post the deferred teardown command); `Closing` returns
+    /// false (a teardown is already queued).
+    fn begin_close(&mut self) -> bool {
+        if *self == PluginWindowState::Closing {
+            return false;
+        }
+        *self = PluginWindowState::Closing;
+        true
+    }
+}
+
+/// One ordered teardown step. [`teardown_plan`] pins the destruction
+/// sequence as data so tests assert it without a display server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TeardownStep {
+    DropWebView,
+    SyncDisplay,
+    DropWindow,
+    ForgetWindow,
+}
+
+/// Destruction order for one plugin window: the child WebView dies first,
+/// then (on Linux) the GDK round-trip flushes its container destroy while
+/// the parent destroy is still buffered, and only then is the parent
+/// window handle destroyed. When the server already destroyed the parent
+/// (`Destroyed` without `CloseRequested`), the dead handle is forgotten
+/// instead of destroyed twice.
+fn teardown_plan(externally_destroyed: bool) -> [TeardownStep; 3] {
+    if externally_destroyed {
+        [
+            TeardownStep::DropWebView,
+            TeardownStep::SyncDisplay,
+            TeardownStep::ForgetWindow,
+        ]
+    } else {
+        [
+            TeardownStep::DropWebView,
+            TeardownStep::SyncDisplay,
+            TeardownStep::DropWindow,
+        ]
+    }
+}
+
 struct PluginUiWindow {
-    /// `None` only transiently inside [`PluginUiWindow::disown_destroyed`]:
-    /// map-resident entries always hold the live handle.
+    /// `None` only after [`PluginUiWindow::teardown`] has taken a handle:
+    /// map-resident entries always hold both live handles.
+    webview: Option<WebView>,
     window: Option<Window>,
-    webview: WebView,
     topics: HashSet<String>,
+    state: PluginWindowState,
 }
 
 impl Drop for PluginUiWindow {
     fn drop(&mut self) {
-        // Fields drop first and queue both X destroys unflushed (Winit's
-        // parent destroy on its connection, Wry's container destroy on
-        // GDK's). The round-trip forces the container destroy ahead of the
-        // parent destroy; without it the parent dies first, takes the
-        // container with it, and the failed container destroy lands in
-        // Winit's error slot and panics the next IME focus (see
-        // `platform::sync_gtk_display`). Covers every removal path: close,
-        // CloseRequested, retain-based teardown, and map drop.
-        crate::platform::sync_gtk_display();
-        eprintln!("[tiktools-debug] plugin window dropped (display synced)");
+        // `Drop::drop` runs BEFORE field destructors (fields then drop in
+        // declaration order), so every handle is taken explicitly in
+        // `teardown` instead of relying on field order. Covers every
+        // removal path: close, deferred CloseRequested, retain-based
+        // teardown, and map drop.
+        self.teardown();
     }
 }
 
 impl PluginUiWindow {
+    fn handle(&self) -> &Window {
+        self.window
+            .as_ref()
+            .expect("map-resident plugin window holds its handle")
+    }
+
+    fn view(&self) -> &WebView {
+        self.webview
+            .as_ref()
+            .expect("map-resident plugin window holds its WebView")
+    }
+
+    /// Explicit ordered teardown: child WebView, then display sync, then
+    /// parent window. Safe to run twice (second run finds `None`s).
+    fn teardown(&mut self) {
+        for step in teardown_plan(false) {
+            self.execute(step);
+        }
+    }
+
     /// Drops a window the server already destroyed (no CloseRequested, e.g.
-    /// an external kill): the dead Winit handle is leaked instead of
+    /// an external kill): the dead parent handle is forgotten instead of
     /// queueing a second destroy for a dead id (which would file the same
-    /// stale BadWindow the sync exists to prevent); the normal Drop then
-    /// still tears down the WebView and syncs.
+    /// stale BadWindow the sync exists to prevent). `self` then drops with
+    /// both handles taken, so the normal `Drop` is a no-op: no double
+    /// destroy, and no leak on the normal close path.
     fn disown_destroyed(mut self) {
-        std::mem::forget(self.window.take());
+        for step in teardown_plan(true) {
+            self.execute(step);
+        }
+    }
+
+    fn execute(&mut self, step: TeardownStep) {
+        match step {
+            TeardownStep::DropWebView => {
+                if let Some(webview) = self.webview.take() {
+                    drop(webview);
+                }
+            }
+            // Must run AFTER the WebView drop and BEFORE the parent
+            // window drop: it forces the container destroy ahead of the
+            // parent destroy (see `platform::sync_gtk_display`).
+            TeardownStep::SyncDisplay => crate::platform::sync_gtk_display(),
+            TeardownStep::DropWindow => {
+                if let Some(window) = self.window.take() {
+                    drop(window);
+                }
+            }
+            TeardownStep::ForgetWindow => {
+                std::mem::forget(self.window.take());
+            }
+        }
     }
 }
 
@@ -101,15 +208,21 @@ impl PluginUiWindows {
         }
         let key = (plugin_id.to_owned(), page_id.to_owned());
         if let Some(existing) = self.windows.get(&key) {
-            existing
-                .window
-                .as_ref()
-                .expect("map-resident plugin window holds its handle")
-                .focus_window();
-            eprintln!(
-                "[tiktools-debug] plugin window already open, focused: {plugin_id}/{page_id}"
-            );
-            return Ok(false);
+            if existing.state == PluginWindowState::Closing {
+                // A deferred teardown is still queued: finish it now so the
+                // fresh window never shares a map entry with the dying one.
+                // The queued `ClosePluginUi` then finds nothing and is a
+                // harmless no-op.
+                self.windows.remove(&key);
+            } else {
+                existing.handle().focus_window();
+                tracing::debug!(
+                    plugin = plugin_id,
+                    page = page_id,
+                    "plugin window already open, focused"
+                );
+                return Ok(false);
+            }
         }
         let target = core
             .plugin_ui_target(plugin_id, page_id)
@@ -119,6 +232,7 @@ impl PluginUiWindows {
                 Window::default_attributes()
                     .with_title(format!("TikTools — {}", target.name))
                     .with_inner_size(winit::dpi::LogicalSize::new(960_u32, 720_u32))
+                    .with_min_inner_size(winit::dpi::LogicalSize::new(640_u32, 480_u32))
                     .with_resizable(true)
                     .with_visible(true),
             )
@@ -157,6 +271,23 @@ impl PluginUiWindows {
                 let page_id = ipc_page.clone();
                 ipc_runtime.spawn(async move {
                     let (response, effect) = broker.handle(&raw).await;
+                    // Rejections are host-side diagnostics (a page that
+                    // only sees `broker error` cannot tell a bad method
+                    // from a dead window): log them with owner context.
+                    // Responses are small host-generated envelopes.
+                    if let Ok(value) = serde_json::from_str::<Value>(&response) {
+                        if value.get("ok") == Some(&Value::Bool(false)) {
+                            tracing::debug!(
+                                plugin = %plugin_id,
+                                page = %page_id,
+                                error = %value
+                                    .get("error")
+                                    .and_then(|error| error.as_str())
+                                    .unwrap_or("broker error"),
+                                "plugin broker rejected native request"
+                            );
+                        }
+                    }
                     let _ = proxy.send_event(DesktopEvent::Command(
                         DesktopCommand::PluginUiRespond {
                             plugin_id: plugin_id.clone(),
@@ -196,15 +327,25 @@ impl PluginUiWindows {
         self.windows.insert(
             key,
             PluginUiWindow {
+                webview: Some(webview),
                 window: Some(window),
-                webview,
                 topics: HashSet::new(),
+                state: PluginWindowState::Open,
             },
         );
-        eprintln!("[tiktools-debug] plugin window opened: {plugin_id}/{page_id}");
+        tracing::debug!(
+            plugin = plugin_id,
+            page = page_id,
+            transport = "native",
+            "plugin window opened"
+        );
         Ok(true)
     }
 
+    /// Tears one window down through the ordered teardown (`Drop`). Runs
+    /// outside window-event dispatch (deferred `CloseRequested`, explicit
+    /// close requests, teardown topics). Closing a missing window is a
+    /// harmless no-op, so a queued close can never double-destroy.
     pub fn close(&mut self, plugin_id: &str, page_id: &str) {
         if self
             .windows
@@ -216,10 +357,11 @@ impl PluginUiWindows {
                 page = page_id,
                 "closed plugin UI window"
             );
-            eprintln!("[tiktools-debug] plugin window closed: {plugin_id}/{page_id}");
         } else {
-            eprintln!(
-                "[tiktools-debug] plugin window close ignored (not open): {plugin_id}/{page_id}"
+            tracing::debug!(
+                plugin = plugin_id,
+                page = page_id,
+                "plugin window close ignored (not open)"
             );
         }
     }
@@ -230,7 +372,13 @@ impl PluginUiWindows {
         let before = self.windows.len();
         self.windows.retain(|(owner, _), _| owner != plugin_id);
         let closed = before - self.windows.len();
-        eprintln!("[tiktools-debug] plugin {plugin_id} torn down, {closed} window(s) closed");
+        if closed > 0 {
+            tracing::debug!(
+                plugin = plugin_id,
+                closed,
+                "plugin torn down, windows closed"
+            );
+        }
     }
 
     pub fn apply_subscription(
@@ -257,11 +405,15 @@ impl PluginUiWindows {
         }
     }
 
-    /// Delivers one broker response to the calling window.
+    /// Delivers one broker response to the calling window. Late
+    /// responses for closed (or closing) windows are ignored safely: the
+    /// entry is gone or skipped, so nothing ever evaluates script on a
+    /// dead WebView.
     pub fn respond(&self, plugin_id: &str, page_id: &str, response: &str) {
         let Some(window) = self
             .windows
             .get(&(plugin_id.to_owned(), page_id.to_owned()))
+            .filter(|entry| entry.state == PluginWindowState::Open)
         else {
             return;
         };
@@ -270,7 +422,7 @@ impl PluginUiWindows {
         let script = format!(
             "if (typeof window.__tiktools_broker_push__ === 'function') {{ window.__tiktools_broker_push__({response}); }}"
         );
-        if let Err(error) = window.webview.evaluate_script(&script) {
+        if let Err(error) = window.view().evaluate_script(&script) {
             tracing::debug!(%error, plugin = plugin_id, "could not deliver broker response");
         }
     }
@@ -284,13 +436,16 @@ impl PluginUiWindows {
         })
         .to_string();
         for ((owner, _), window) in &self.windows {
-            if owner != plugin_id || !window.topics.contains(topic) {
+            if owner != plugin_id
+                || window.state != PluginWindowState::Open
+                || !window.topics.contains(topic)
+            {
                 continue;
             }
             let script = format!(
                 "if (typeof window.__tiktools_broker_push__ === 'function') {{ window.__tiktools_broker_push__({envelope}); }}"
             );
-            if let Err(error) = window.webview.evaluate_script(&script) {
+            if let Err(error) = window.view().evaluate_script(&script) {
                 tracing::debug!(%error, plugin = plugin_id, "could not push plugin event");
             }
         }
@@ -313,7 +468,16 @@ impl PluginUiWindows {
 
     /// Routes a window event to plugin windows. Returns true when a plugin
     /// window consumed it.
-    pub fn on_window_event(&mut self, window_id: WindowId, event: &WindowEvent) -> bool {
+    ///
+    /// `CloseRequested` never destroys handles re-entrantly: the entry is
+    /// marked `Closing`, hidden for immediate feedback, and torn down by a
+    /// deferred `ClosePluginUi` command outside window-event dispatch.
+    pub fn on_window_event(
+        &mut self,
+        proxy: &EventLoopProxy<DesktopEvent>,
+        window_id: WindowId,
+        event: &WindowEvent,
+    ) -> bool {
         let key = self
             .windows
             .iter()
@@ -329,31 +493,51 @@ impl PluginUiWindows {
         };
         match event {
             WindowEvent::CloseRequested => {
-                tracing::debug!(plugin = %key.0, page = %key.1, "plugin UI window closed");
-                eprintln!(
-                    "[tiktools-debug] plugin window close requested (native): {}/{}",
-                    key.0, key.1
+                let Some(entry) = self.windows.get_mut(&key) else {
+                    return true;
+                };
+                if !entry.state.begin_close() {
+                    // Duplicate request while a teardown is already queued.
+                    return true;
+                }
+                entry.handle().set_visible(false);
+                tracing::debug!(
+                    plugin = %key.0,
+                    page = %key.1,
+                    "plugin UI window close requested; teardown deferred"
                 );
-                self.windows.remove(&key);
+                let _ = proxy.send_event(DesktopEvent::Command(DesktopCommand::ClosePluginUi {
+                    plugin_id: key.0.clone(),
+                    page_id: key.1.clone(),
+                }));
             }
             WindowEvent::Destroyed => {
                 // The server destroyed this window without a close
                 // request: disown the dead handle instead of dropping it.
-                eprintln!(
-                    "[tiktools-debug] plugin window destroyed by server: {}/{}",
-                    key.0, key.1
+                // A queued `ClosePluginUi` for the same entry then finds
+                // nothing and is a harmless no-op: no double destroy.
+                tracing::debug!(
+                    plugin = %key.0,
+                    page = %key.1,
+                    "plugin window destroyed by server"
                 );
                 if let Some(entry) = self.windows.remove(&key) {
                     entry.disown_destroyed();
                 }
             }
             WindowEvent::Resized(size) => {
-                if let Some(window) = self.windows.get(&key) {
+                // Closing windows ignore resizes: their WebView is about
+                // to be torn down by the deferred close.
+                if let Some(window) = self
+                    .windows
+                    .get(&key)
+                    .filter(|entry| entry.state == PluginWindowState::Open)
+                {
                     let bounds = Rect {
                         position: WryPhysicalPosition::new(0, 0).into(),
                         size: WryPhysicalSize::new(size.width.max(1), size.height.max(1)).into(),
                     };
-                    if let Err(error) = window.webview.set_bounds(bounds) {
+                    if let Err(error) = window.view().set_bounds(bounds) {
                         tracing::debug!(%error, "could not resize plugin WebView");
                     }
                 }
@@ -389,16 +573,22 @@ fn parse_host_notification(message: &str) -> Option<(String, String, Value)> {
     Some((plugin_id, topic.to_owned(), data))
 }
 
-/// Runs before any page script: captures the privileged bridge, installs
-/// the narrow `window.tiktools` surface, then removes `window.ipc` so page
-/// code (including a compromised bundle) can only reach the broker.
+/// Runs before any page script: installs the narrow `window.tiktools`
+/// surface on top of Wry's `window.ipc` transport. The transport itself
+/// is deliberately left untouched: on WebKitGTK it is installed (via
+/// `Object.defineProperty`, non-writable and non-configurable) *before*
+/// initialization scripts run, so deleting or overwriting it throws in
+/// strict mode and aborts the whole script — leaving `window.tiktools`
+/// uninstalled. The security boundary is not the absence of the
+/// transport but the Rust handler behind it: this window's `window.ipc`
+/// reaches only [`broker::PluginUiBroker`], never the main router.
 const INIT_SCRIPT: &str = r#"(function () {
   'use strict';
-  var ipc = (window.ipc && typeof window.ipc.postMessage === 'function') ? window.ipc : null;
-  try { delete window.ipc; } catch (eraseError) { window.ipc = undefined; }
   if (window.tiktools !== undefined) return;
+  var ipc = (window.ipc && typeof window.ipc.postMessage === 'function') ? window.ipc : null;
   function unavailable() { return Promise.reject(new Error('plugin host is unavailable')); }
   if (!ipc) {
+    window.__tiktools_transport__ = 'unavailable';
     window.tiktools = {
       settings: { get: unavailable, set: unavailable },
       actions: { execute: unavailable },
@@ -408,6 +598,7 @@ const INIT_SCRIPT: &str = r#"(function () {
     };
     return;
   }
+  window.__tiktools_transport__ = 'native';
   var sequence = 0;
   var pending = new Map();
   var listeners = new Map();
@@ -547,11 +738,88 @@ mod tests {
 
     #[test]
     fn init_script_installs_the_narrow_surface_only() {
-        assert!(INIT_SCRIPT.contains("delete window.ipc"));
+        // The transport is read but never deleted or overwritten: on
+        // WebKitGTK `window.ipc` is a non-configurable property installed
+        // before init scripts, so touching it throws in strict mode and
+        // aborts the whole script (leaving `window.tiktools` missing).
+        assert!(!INIT_SCRIPT.contains("delete window.ipc"));
+        assert!(!INIT_SCRIPT.contains("window.ipc = "));
+        assert!(!INIT_SCRIPT.contains("window.ipc= "));
+        assert!(INIT_SCRIPT.contains("window.ipc && typeof window.ipc.postMessage"));
         assert!(INIT_SCRIPT.contains("window.tiktools = {"));
         assert!(INIT_SCRIPT.contains("apiVersion: 1"));
         assert!(INIT_SCRIPT.contains("__tiktools_broker_push__"));
-        // The page must never regain the raw bridge through the shim.
-        assert!(!INIT_SCRIPT.contains("window.ipc = ipc"));
+        // Transport diagnostics for native debugging (see also the Rust
+        // `transport = "native"` open log and broker rejection logs).
+        assert!(INIT_SCRIPT.contains("__tiktools_transport__"));
+        assert!(INIT_SCRIPT.contains("'native'"));
+        assert!(INIT_SCRIPT.contains("'unavailable'"));
+    }
+
+    #[test]
+    fn teardown_plan_destroys_the_child_before_the_parent() {
+        // Pure pin of the destruction order: the child WebView dies
+        // first, the display sync flushes its destroy, and only then is
+        // the parent window handle destroyed. This orders the Rust calls;
+        // it cannot prove the X11/GTK behavior, which the native smoke
+        // test (`smoke::native_open_close_cycles`) exercises for real.
+        assert_eq!(
+            teardown_plan(false),
+            [
+                TeardownStep::DropWebView,
+                TeardownStep::SyncDisplay,
+                TeardownStep::DropWindow,
+            ]
+        );
+        // A server-destroyed parent is forgotten, never destroyed twice —
+        // but the WebView still drops first with the same sync.
+        assert_eq!(
+            teardown_plan(true),
+            [
+                TeardownStep::DropWebView,
+                TeardownStep::SyncDisplay,
+                TeardownStep::ForgetWindow,
+            ]
+        );
+    }
+
+    #[test]
+    fn close_requests_queue_exactly_one_teardown() {
+        let mut state = PluginWindowState::Open;
+        assert!(state.begin_close());
+        assert_eq!(state, PluginWindowState::Closing);
+        // A duplicate request while closing queues nothing.
+        assert!(!state.begin_close());
+        assert_eq!(state, PluginWindowState::Closing);
+    }
+
+    #[test]
+    fn manager_close_paths_are_harmless_without_windows() {
+        let mut windows = PluginUiWindows::default();
+        // Double closes, missing windows, and late broker traffic never
+        // panic, recreate entries, or evaluate script anywhere.
+        windows.close("ghost.plugin", "main");
+        windows.close("ghost.plugin", "main");
+        windows.close_plugin("ghost.plugin");
+        windows.close_plugin("ghost.plugin");
+        windows.respond("ghost.plugin", "main", r#"{"ok":true}"#);
+        windows.apply_subscription(
+            "ghost.plugin",
+            "main",
+            crate::event::PluginUiSubscription::Subscribe(vec!["plugin.event".to_owned()]),
+        );
+        windows.deliver_event("ghost.plugin", "plugin.event", &Value::Null);
+        windows.forward_host_message(
+            &serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "event",
+                "params": {
+                    "topic": "plugin.stopped",
+                    "data": {"pluginId": "ghost.plugin"},
+                },
+            })
+            .to_string(),
+        );
+        assert!(windows.windows.is_empty());
     }
 }

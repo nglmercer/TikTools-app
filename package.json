@@ -17,7 +17,7 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:update": "playwright test --update-snapshots",
     "test:e2e:install": "playwright install chromium",
-    "test:plugins": "bun test plugins/sonicboom/shared plugins/sonicboom/backend",
+    "test:plugins": "bun test plugins/sonicboom/shared plugins/sonicboom/backend plugins/sonicboom/ui/src",
     "build:sonicboom-ui": "vite build --config plugins/sonicboom/ui/vite.config.ts",
     "build:sonicboom-backend": "bun run scripts/build-sonicboom-backend.ts",
     "typecheck:sonicboom-ui": "vue-tsc --noEmit -p plugins/sonicboom/ui/tsconfig.json",

@@ -13,6 +13,8 @@
  */
 import { expect, test } from '@playwright/test';
 
+import type { Page } from '@playwright/test';
+
 import {
   assertNoUnhandledCalls,
   installFakeHost,
@@ -87,6 +89,92 @@ test('inline tab renders the real compiled SonicBoom bundle', async ({ page }) =
   await expect(frame.getByLabel('Audio output').first()).toBeVisible({ timeout: 10_000 });
   await expect(frame.getByRole('button', { name: 'Play' })).toBeVisible();
 
+  // The iframe fills the tab area instead of a fixed-height box.
+  const frameBox = await page.locator('.plg-frame').boundingBox();
+  expect(frameBox?.height).toBeGreaterThan(500);
+
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
 });
+
+test.describe('responsive plugin layout', () => {
+  test.use({ viewport: { width: 800, height: 520 } });
+
+  test('small viewport keeps bottom controls reachable via internal scroll', async ({
+    page,
+  }) => {
+    await expectScrollableInlineUi(page);
+  });
+
+  test('very short viewport still reaches every control', async ({ page }) => {
+    // 400px tall: far less than the plugin content. The frame keeps a
+    // usable height and the plugin scroller exposes every control.
+    await page.setViewportSize({ width: 800, height: 400 });
+    await expectScrollableInlineUi(page, { minFrameHeight: 180 });
+  });
+});
+
+async function expectScrollableInlineUi(
+  page: Page,
+  options: { minFrameHeight?: number } = {},
+): Promise<void> {
+  const consoleCapture = await installFakeHost(page, webviewPageState());
+  await installPluginUiOverride(page);
+  await routeCompiledPluginUi(page);
+  await page.goto('/');
+
+  const tab = page.getByRole('button', { name: 'Text to Speech' });
+  await expect(tab).toBeVisible();
+  await tab.click();
+  await expect(page.getByRole('heading', { name: 'Text to Speech' }).first()).toBeVisible();
+
+  const frame = page.frameLocator('.plg-frame');
+  await expect(frame.getByLabel('Default voice')).toBeVisible({ timeout: 20_000 });
+
+  // The plugin document is the single content scroller: at these sizes
+  // the content overflows and must scroll instead of clipping.
+  const metrics = await frame.locator('#app').evaluate((el) => {
+    const box = el as HTMLElement;
+    const style = getComputedStyle(box);
+    return {
+      scrollHeight: box.scrollHeight,
+      clientHeight: box.clientHeight,
+      scrollWidth: box.scrollWidth,
+      clientWidth: box.clientWidth,
+      overflowY: style.overflowY,
+      boxSizing: style.boxSizing,
+    };
+  });
+  expect(metrics.overflowY).toBe('auto');
+  expect(metrics.boxSizing).toBe('border-box');
+  expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight);
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+
+  // Bottom controls are reachable by scrolling inside the frame.
+  const play = frame.getByRole('button', { name: 'Play' });
+  await play.scrollIntoViewIfNeeded();
+  await expect(play).toBeVisible();
+
+  // The full scroll range is traversable: scrolling to the very bottom
+  // lands at the maximum (no clipped strip swallows the end of the
+  // content, which border-box + internal scroll guarantee together).
+  await frame.locator('#app').evaluate((el) => {
+    const box = el as HTMLElement;
+    box.scrollTop = box.scrollHeight;
+  });
+  const bottom = await frame.locator('#app').evaluate((el) => {
+    const box = el as HTMLElement;
+    return { top: box.scrollTop, max: box.scrollHeight - box.clientHeight };
+  });
+  expect(bottom.max).toBeGreaterThan(0);
+  expect(bottom.top).toBeGreaterThanOrEqual(bottom.max - 2);
+
+  // The iframe keeps a usable height and still fills the tab area.
+  const frameBox = await page.locator('.plg-frame').boundingBox();
+  const scrollBox = await page.locator('.plg-scroll--webview').boundingBox();
+  expect(frameBox?.height).toBeGreaterThan(options.minFrameHeight ?? 0);
+  expect(Math.abs((frameBox?.height ?? 0) - (scrollBox?.height ?? 0))).toBeLessThan(40);
+
+  await assertNoUnhandledCalls(page);
+  consoleCapture.assertClean();
+}

@@ -1,16 +1,21 @@
 /**
  * Restricted broker client for the SonicBoom plugin UI.
  *
- * The plugin UI NEVER receives the host's privileged `window.ipc` bridge.
- * It talks to the host through `window.tiktools` only:
+ * The plugin UI NEVER touches the main window's privileged bridge. It
+ * reaches the host through `window.tiktools` or the parent frame only:
  *
  * - Inside the desktop child WebView, the host injects `window.tiktools`
- *   natively (the initialization script captures and deletes `window.ipc`
- *   before page scripts run). Plugin identity is captured by the native
- *   host — JavaScript never supplies a `pluginId`.
+ *   natively (the initialization script installs it on top of that
+ *   window's own `window.ipc` transport, which the Rust side wires to the
+ *   restricted plugin broker — never to the main router). Plugin identity
+ *   is captured by the native host — JavaScript never supplies a
+ *   `pluginId`.
  * - Inside a development/CI iframe (opaque origin via `sandbox`), the same
  *   calls travel over `postMessage` using the versioned envelope below,
  *   and the parent shim fills in the plugin identity it mounted.
+ * - Anywhere else (a top-level page with no native injection), there is no
+ *   host to talk to: calls fail explicitly instead of posting messages to
+ *   the page itself.
  *
  * Allowed operations (anything else fails closed):
  * `settings.get`, `settings.set`, `actions.execute`, `options.get`,
@@ -107,14 +112,22 @@ function nativeApi(): NativeTikTools | undefined {
   return candidate;
 }
 
+/** Where broker calls travel. `unavailable` means a top-level page with
+ * no native injection: there is no host, so calls fail explicitly. */
+export type BrokerTransport = 'native' | 'iframe' | 'unavailable';
+
 /**
- * Broker client used by the plugin UI. Prefers the native injection and
- * falls back to the versioned `postMessage` transport (development
- * iframe). Responses are correlated by request id; unknown envelopes and
- * version mismatches are dropped.
+ * Broker client used by the plugin UI. Prefers the native injection, uses
+ * the versioned `postMessage` transport when embedded in a frame
+ * (development iframe), and fails explicitly on a top-level page with no
+ * native host — posting to `window.parent` there would message the page
+ * itself and surface as a generic `broker error`. Responses are
+ * correlated by request id; unknown envelopes and version mismatches are
+ * dropped.
  */
 export class PluginBroker {
   private readonly native: NativeTikTools | undefined;
+  private readonly embedded: boolean;
   private sequence = 0;
   private readonly pending = new Map<
     string,
@@ -127,7 +140,8 @@ export class PluginBroker {
 
   constructor() {
     this.native = nativeApi();
-    if (!this.native) window.addEventListener('message', this.onMessage);
+    this.embedded = window.parent !== window;
+    if (this.transport() === 'iframe') window.addEventListener('message', this.onMessage);
   }
 
   dispose(): void {
@@ -139,6 +153,12 @@ export class PluginBroker {
 
   usesNativeTransport(): boolean {
     return this.native !== undefined;
+  }
+
+  transport(): BrokerTransport {
+    if (this.native) return 'native';
+    if (this.embedded) return 'iframe';
+    return 'unavailable';
   }
 
   private handleMessage(data: unknown): void {
@@ -164,6 +184,12 @@ export class PluginBroker {
 
   private post(method: BrokerMethod, params: Record<string, unknown>): Promise<unknown> {
     if (this.native) return this.callNative(method, params);
+    if (!this.embedded) {
+      // Top-level page with no native host (broken injection, plain
+      // browser): never post to `window.parent`, which is the page
+      // itself — fail with a diagnosable error instead.
+      return Promise.reject(new Error('native plugin broker is unavailable'));
+    }
     this.sequence += 1;
     const id = `broker-${this.sequence}`;
     const request: BrokerRequest = { apiVersion: BROKER_API_VERSION, id, method, params };
@@ -242,7 +268,8 @@ export class PluginBroker {
   /**
    * Subscribes to host-pushed plugin events (speech state, backend logs).
    * The native transport registers directly; the postMessage transport
-   * notifies the parent and routes pushed events to local listeners.
+   * notifies the parent and routes pushed events to local listeners. With
+   * no host at all, subscribing is a no-op returning a no-op unsubscribe.
    */
   subscribe(event: string, listener: (data: unknown) => void): Unsubscribe {
     if (this.native) {
@@ -250,6 +277,7 @@ export class PluginBroker {
         if (name === event) listener(data);
       });
     }
+    if (!this.embedded) return () => undefined;
     let watchers = this.listeners.get(event);
     if (!watchers) {
       watchers = new Set();

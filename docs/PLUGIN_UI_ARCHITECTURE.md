@@ -65,12 +65,24 @@ Main TikTools WebView (trusted) ──► Control API ──► AppCore
 Plugin frame/window (restricted) ──► PluginUiBroker ──► AppCore
 ```
 
-Pop-out windows get an initialization script that captures `window.ipc`,
-installs the narrow `window.tiktools` surface, and deletes `window.ipc`
-before page scripts run; inline frames use the `postMessage` transport
-with a host shim bound to the frame's `contentWindow`. Plugin JS is
-never imported into the main Vue runtime. Shadow DOM is not a security
-boundary and is never used as one.
+Pop-out windows get an initialization script that installs the narrow
+`window.tiktools` surface on top of that window's own `window.ipc`
+transport before page scripts run; inline frames use the `postMessage`
+transport with a host shim bound to the frame's `contentWindow`. The
+plugin window's transport is deliberately left in place (on WebKitGTK
+Wry installs it as a non-configurable property before init scripts, so
+deleting it aborts the script): the security boundary is the Rust
+handler behind it. That handler is the restricted `PluginUiBroker` —
+never the main window's full IPC router — so raw `window.ipc` posts
+from a pop-out page are still confined to the broker allowlist and the
+bound plugin id. Plugin JS is never imported into the main Vue runtime.
+Shadow DOM is not a security boundary and is never used as one.
+
+The plugin client picks its transport explicitly: native `window.tiktools`
+when injected, `postMessage` when embedded in a frame, and an explicit
+`native plugin broker is unavailable` failure on a top-level page with no
+host (it never posts to `window.parent` there, which would message the
+page itself and surface as a generic `broker error`).
 
 ## Broker protocol
 
@@ -186,6 +198,28 @@ baselines in `tests/e2e/screenshots.spec.ts-snapshots/`.
 Plugin windows never outlive their runtime: `plugin.stopped` (covers
 disable) and `plugin.uninstalled` notifications close every window the
 plugin owns. Shutdown drops the window manager with the app.
+
+Native teardown is explicit and ordered: the child WebView drops first,
+then (on Linux) a GDK display sync flushes its container destroy, and
+only then does the parent window handle drop. (`Drop::drop` runs before
+field destructors, so the order comes from explicit `Option::take`
+calls, never from struct field order.) `CloseRequested` never destroys
+handles re-entrantly: the entry is marked closing and torn down by a
+deferred command outside window-event dispatch, so duplicate closes are
+harmless. When the server already destroyed the parent (`Destroyed`
+without `CloseRequested`), the dead handle is forgotten instead of
+destroyed twice; the normal close path releases everything.
+
+## Layout contract
+
+The host tab gives the inline iframe the full area below the topbar
+through a flex chain (`plg--webview` → `plg-scroll--webview` →
+`plg-stack--webview` → `plg-frame`, all flex with `min-height: 0`, no
+fixed heights). The plugin document is the single content scroller: its
+`html`/`body` lock to the viewport while `#app` fills it and scrolls
+vertically. The same stylesheet serves the inline iframe and the native
+pop-out; long configuration screens scroll instead of clipping, and the
+host never measures the frame DOM (the sandbox forbids it).
 
 ## Security properties
 

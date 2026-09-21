@@ -46,7 +46,7 @@ export const PluginInlinePage = defineVueComponent<PluginInlinePageProps>(
       const locale: Locale = props.locale;
       const frameSrc = src.value;
       return (
-        <div class="plg">
+        <div class="plg plg--webview">
           <div class="plg-topbar">
             <div class="plg-topbar__text">
               <h2 class="plg-topbar__title">{i18nText(locale, props.title)}</h2>
@@ -60,8 +60,8 @@ export const PluginInlinePage = defineVueComponent<PluginInlinePageProps>(
               </div>
             )}
           </div>
-          <div class="plg-scroll">
-            <div class="plg-stack">
+          <div class="plg-scroll plg-scroll--webview">
+            <div class="plg-stack plg-stack--webview">
               {frameSrc ? (
                 <PluginFrame
                   locale={locale}

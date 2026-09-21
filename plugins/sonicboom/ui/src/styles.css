@@ -11,7 +11,6 @@
 @import './styles/plugins.css';
 @import './styles/tts.css';
 
-#app {
-  min-height: 100vh;
-  padding: 16px;
-}
+/* NOTE: #app layout (viewport fill + internal vertical scroll) lives in
+   base.css. Do not reintroduce min-height: 100vh here: combined with a
+   locked html/body it clips content instead of scrolling it. */

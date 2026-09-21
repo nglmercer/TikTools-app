@@ -26,8 +26,10 @@ const SETTINGS_DEBOUNCE_MS = 200;
  * SonicBoom plugin UI root. Owns the broker client, TTS settings, voice /
  * output option state, speech dispatch, and logs. This component runs in
  * the isolated plugin WebView (desktop) or a sandboxed opaque-origin
- * iframe (development): it can reach the host only through `PluginBroker`,
- * never through `window.ipc`, the DOM parent, or dynamic imports.
+ * iframe (development): it can reach the host only through `PluginBroker`
+ * (the native `window.tiktools` surface or the `postMessage` frame
+ * transport), never through the main window's privileged bridge, the DOM
+ * parent, or dynamic imports.
  */
 export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => {
   const broker = new PluginBroker();
