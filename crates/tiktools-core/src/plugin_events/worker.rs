@@ -8,20 +8,19 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tiktools_plugin_api::DomainEventEnvelope;
 use tokio::sync::mpsc;
-use tokio::sync::Notify;
 
 pub(crate) async fn run_plugin_queue(
     core: Arc<AppCore>,
     plugin_id: String,
     mut receiver: mpsc::Receiver<QueuedPluginEvent>,
-    shutdown: Arc<Notify>,
+    shutdown: tokio_util::sync::CancellationToken,
     pending_reliable_gaps: Arc<AtomicU64>,
 ) {
     let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&core.plugins));
     loop {
         let queued = tokio::select! {
             biased;
-            _ = shutdown.notified() => break,
+            () = shutdown.cancelled() => break,
             queued = receiver.recv() => match queued {
                 Some(queued) => queued,
                 None => break,
@@ -47,6 +46,11 @@ pub(crate) async fn run_plugin_queue(
                 // will simply drain it when it is explicitly restarted.
                 pending_reliable_gaps.fetch_add(lost, Ordering::Relaxed);
             }
+        }
+        // A cancelled shutdown token does not preempt an in-flight delivery,
+        // but no new delivery starts after cancellation is observed.
+        if shutdown.is_cancelled() {
+            break;
         }
         let _ = deliver_event(&core, &invoker, &plugin_id, queued.envelope, queued.lossy).await;
     }

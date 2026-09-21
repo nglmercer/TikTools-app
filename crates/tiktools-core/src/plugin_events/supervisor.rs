@@ -1,7 +1,7 @@
 //! Event-bus subscription, worker registry, and dispatch fan-out.
 
-use super::eligibility::eligible_for_event;
-use super::queue::{PluginQueue, QueuedPluginEvent, PLUGIN_EVENT_QUEUE_CAPACITY};
+use super::eligibility::{eligible_for_delivery, eligible_for_event};
+use super::queue::{QueuedPluginEvent, WorkerHandle, PLUGIN_EVENT_QUEUE_CAPACITY};
 use super::worker::run_plugin_queue;
 use crate::events::{DomainEvent, DomainRecvError};
 use crate::{now_millis, AppCore};
@@ -11,22 +11,22 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tiktools_plugin_api::DomainEventEnvelope;
 use tokio::sync::mpsc;
-use tokio::sync::Notify;
+use tokio_util::sync::CancellationToken;
 
 pub(crate) async fn run_observer(
     core: Arc<AppCore>,
-    shutdown: Arc<Notify>,
+    shutdown: CancellationToken,
     mut subscription: crate::events::DomainSubscription,
 ) {
-    let mut queues: BTreeMap<String, PluginQueue> = BTreeMap::new();
-    let mut workers = tokio::task::JoinSet::new();
+    let mut workers: BTreeMap<String, WorkerHandle> = BTreeMap::new();
+    let mut tasks = tokio::task::JoinSet::new();
 
     loop {
         tokio::select! {
             biased;
-            _ = shutdown.notified() => break,
+            () = shutdown.cancelled() => break,
             received = subscription.recv() => match received {
-                Ok(event) => dispatch_event(&core, event, &mut queues, &mut workers, &shutdown),
+                Ok(event) => dispatch_event(&core, event, &mut workers, &mut tasks, &shutdown),
                 Err(DomainRecvError::ReliableLagged(lost)) => {
                     // The observer itself missed authoritative events. Keep
                     // the host health signal consistent with IPC/WebView and
@@ -40,8 +40,8 @@ pub(crate) async fn run_observer(
                         ),
                         false,
                         true,
-                        &mut queues,
                         &mut workers,
+                        &mut tasks,
                         &shutdown,
                     );
                 }
@@ -53,10 +53,14 @@ pub(crate) async fn run_observer(
         }
     }
 
-    // Dropping every sender closes the worker queues. Workers also observe
-    // shutdown directly so a queue full of events cannot delay clean exit.
-    drop(queues);
-    while let Some(result) = workers.join_next().await {
+    // Cancelling first wakes every worker even if a queue is full; dropping
+    // the senders then lets already-exiting workers finish draining.
+    shutdown.cancel();
+    for handle in workers.values() {
+        handle.token.cancel();
+    }
+    drop(workers);
+    while let Some(result) = tasks.join_next().await {
         if let Err(error) = result {
             tracing::debug!(%error, "plugin event observer worker stopped during shutdown");
         }
@@ -67,9 +71,9 @@ pub(crate) async fn run_observer(
 fn dispatch_event(
     core: &Arc<AppCore>,
     event: DomainEvent,
-    queues: &mut BTreeMap<String, PluginQueue>,
-    workers: &mut tokio::task::JoinSet<()>,
-    shutdown: &Arc<Notify>,
+    workers: &mut BTreeMap<String, WorkerHandle>,
+    tasks: &mut tokio::task::JoinSet<()>,
+    shutdown: &CancellationToken,
 ) {
     let lossy = event.is_lossy();
     let envelope = DomainEventEnvelope::new(
@@ -79,7 +83,7 @@ fn dispatch_event(
             .and_then(|value| value.get("data").cloned())
             .unwrap_or(Value::Null),
     );
-    dispatch_envelope(core, envelope, lossy, false, queues, workers, shutdown);
+    dispatch_envelope(core, envelope, lossy, false, workers, tasks, shutdown);
 }
 
 fn dispatch_envelope(
@@ -87,34 +91,35 @@ fn dispatch_envelope(
     envelope: DomainEventEnvelope,
     lossy: bool,
     force_all_subscribers: bool,
-    queues: &mut BTreeMap<String, PluginQueue>,
-    workers: &mut tokio::task::JoinSet<()>,
-    shutdown: &Arc<Notify>,
+    workers: &mut BTreeMap<String, WorkerHandle>,
+    tasks: &mut tokio::task::JoinSet<()>,
+    shutdown: &CancellationToken,
 ) {
     let plugins = core.plugins.list();
-    for plugin in plugins {
-        if !eligible_for_event(core, &plugin, &envelope.topic, force_all_subscribers) {
+    for plugin in &plugins {
+        if !eligible_for_event(core, plugin, &envelope.topic, force_all_subscribers) {
             continue;
         }
         let plugin_id = plugin.manifest.id.clone();
-        let queue = queues.entry(plugin_id.clone()).or_insert_with(|| {
+        let handle = workers.entry(plugin_id.clone()).or_insert_with(|| {
             let (sender, receiver) = mpsc::channel(PLUGIN_EVENT_QUEUE_CAPACITY);
             let pending_reliable_gaps = Arc::new(AtomicU64::new(0));
+            let token = shutdown.child_token();
             let core = Arc::clone(core);
-            let shutdown = Arc::clone(shutdown);
-            workers.spawn(run_plugin_queue(
+            tasks.spawn(run_plugin_queue(
                 core,
                 plugin_id.clone(),
                 receiver,
-                shutdown,
+                token.clone(),
                 Arc::clone(&pending_reliable_gaps),
             ));
-            PluginQueue {
+            WorkerHandle {
                 sender,
+                token,
                 pending_reliable_gaps,
             }
         });
-        let result = queue.sender.try_send(QueuedPluginEvent {
+        let result = handle.sender.try_send(QueuedPluginEvent {
             envelope: envelope.clone(),
             lossy,
         });
@@ -126,7 +131,7 @@ fn dispatch_envelope(
                     // host-wide gap just as other reliable transports do.
                     if !lossy && envelope.topic != "event.gap" {
                         core.record_event_gap();
-                        queue.pending_reliable_gaps.fetch_add(1, Ordering::Relaxed);
+                        handle.pending_reliable_gaps.fetch_add(1, Ordering::Relaxed);
                     }
                     core.record_plugin_drops(&plugin_id, 1);
                     tracing::warn!(
@@ -137,10 +142,34 @@ fn dispatch_envelope(
                     );
                 }
                 mpsc::error::TrySendError::Closed(_) => {
-                    queues.remove(&plugin_id);
+                    if let Some(handle) = workers.remove(&plugin_id) {
+                        handle.token.cancel();
+                    }
                     tracing::debug!(plugin = %plugin_id, "plugin event queue worker is closed");
                 }
             }
         }
     }
+    reconcile_workers(core, &plugins, workers);
+}
+
+/// Drops workers whose plugin can no longer receive events (uninstalled,
+/// disabled, stopped, or unsubscribed) so repeated lifecycle churn cannot
+/// leak worker tasks or queues. Never starts or restarts plugins.
+pub(crate) fn reconcile_workers(
+    core: &AppCore,
+    plugins: &[tiktools_plugin_loader::DiscoveredPlugin],
+    workers: &mut BTreeMap<String, WorkerHandle>,
+) {
+    workers.retain(|plugin_id, handle| {
+        let alive = plugins
+            .iter()
+            .find(|plugin| plugin.manifest.id == *plugin_id)
+            .is_some_and(|plugin| eligible_for_delivery(core, plugin));
+        if !alive {
+            handle.token.cancel();
+            tracing::debug!(plugin = %plugin_id, "plugin event worker pruned");
+        }
+        alive
+    });
 }

@@ -146,7 +146,7 @@ pub struct AppCore {
     plugin_poll_shutdown: Arc<Notify>,
     plugin_poll_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     plugin_event_observer_started: AtomicBool,
-    plugin_event_observer_shutdown: Arc<Notify>,
+    plugin_event_observer_shutdown: tokio_util::sync::CancellationToken,
     plugin_event_observer_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     plugin_install_lock: Mutex<()>,
     shutdown_started: AtomicBool,
@@ -279,7 +279,7 @@ impl AppCore {
             plugin_poll_shutdown: Arc::new(Notify::new()),
             plugin_poll_task: Mutex::new(None),
             plugin_event_observer_started: AtomicBool::new(false),
-            plugin_event_observer_shutdown: Arc::new(Notify::new()),
+            plugin_event_observer_shutdown: tokio_util::sync::CancellationToken::new(),
             plugin_event_observer_task: Mutex::new(None),
             plugin_install_lock: Mutex::new(()),
             shutdown_started: AtomicBool::new(false),
@@ -487,10 +487,10 @@ impl AppCore {
         // when shutdown begins; `notify_waiters` alone would be lost before
         // the task reaches its select point.
         self.plugin_poll_shutdown.notify_one();
-        // `notify_one` queues a permit if the observer task has not reached
-        // its select yet; `notify_waiters` alone could be lost during startup.
-        // The observer drops its queues on exit, which wakes all workers.
-        self.plugin_event_observer_shutdown.notify_one();
+        // Persistent cancellation: every supervisor and worker observes
+        // shutdown no matter when it reaches its select point, and no
+        // worker can steal the supervisor's wakeup.
+        self.plugin_event_observer_shutdown.cancel();
         self.events
             .publish_domain(crate::events::DomainEvent::Shutdown);
         self.publish_disconnected_event().await;

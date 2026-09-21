@@ -15,8 +15,12 @@ pub(crate) struct QueuedPluginEvent {
     pub(crate) lossy: bool,
 }
 
-pub(crate) struct PluginQueue {
+/// Supervisor-owned handle for one plugin delivery worker.
+pub(crate) struct WorkerHandle {
     pub(crate) sender: mpsc::Sender<QueuedPluginEvent>,
+    /// Child of the observer shutdown token. Cancelled when the worker is
+    /// pruned (plugin gone) or when the observer shuts down.
+    pub(crate) token: tokio_util::sync::CancellationToken,
     /// Reliable events shed at the queue boundary are summarized and sent as
     /// one stable gap envelope when the worker next gets capacity.
     pub(crate) pending_reliable_gaps: Arc<AtomicU64>,

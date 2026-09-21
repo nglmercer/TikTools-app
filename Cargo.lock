@@ -4397,6 +4397,7 @@ dependencies = [
  "tiktools-tiktok",
  "tokio",
  "tokio-tungstenite 0.30.0",
+ "tokio-util",
  "tracing",
  "ttl-live-events",
  "ttl-live-proto",

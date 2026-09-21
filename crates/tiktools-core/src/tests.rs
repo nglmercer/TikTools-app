@@ -923,16 +923,22 @@ impl PluginInstance for FakeInstance {
     }
 }
 
-fn fake_hotkey_manager(state: Arc<FakePluginState>) -> (PluginManager, PathBuf) {
+fn fake_hotkey_manager(state: Arc<FakePluginState>, ids: &[&str]) -> (PluginManager, PathBuf) {
     let suffix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock before epoch")
         .as_nanos();
     let root = std::env::temp_dir().join(format!("tiktools-fake-plugins-{suffix}"));
-    let directory = root.join("hotkeys");
-    std::fs::create_dir_all(&directory).unwrap();
-    std::fs::write(directory.join("plugin.json"), FAKE_HOTKEY_MANIFEST).unwrap();
-    std::fs::write(directory.join("fake-entry"), b"fake").unwrap();
+    for id in ids {
+        let directory = root.join(id);
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(
+            directory.join("plugin.json"),
+            FAKE_HOTKEY_MANIFEST.replacen("\"hotkeys\"", &format!("\"{id}\""), 1),
+        )
+        .unwrap();
+        std::fs::write(directory.join("fake-entry"), b"fake").unwrap();
+    }
     let mut registry = RuntimeRegistry::new();
     registry.register(Arc::new(FakeRuntime { state }));
     let manager = PluginManager::with_runtimes(
@@ -943,18 +949,25 @@ fn fake_hotkey_manager(state: Arc<FakePluginState>) -> (PluginManager, PathBuf) 
         registry,
     );
     manager.scan().expect("fake plugin should scan");
-    assert!(manager
-        .get("hotkeys")
-        .is_some_and(|plugin| plugin.available));
+    for id in ids {
+        assert!(manager.get(id).is_some_and(|plugin| plugin.available));
+    }
     (manager, root)
 }
 
 fn core_with_fake_hotkeys(
     state: Arc<FakePluginState>,
 ) -> (Arc<AppCore>, Arc<RecordingEmitter>, PathBuf) {
+    core_with_fake_plugins(state, &["hotkeys"])
+}
+
+fn core_with_fake_plugins(
+    state: Arc<FakePluginState>,
+    ids: &[&str],
+) -> (Arc<AppCore>, Arc<RecordingEmitter>, PathBuf) {
     let emitter = Arc::new(RecordingEmitter::default());
     let mut core = AppCore::new(emitter.clone());
-    let (manager, root) = fake_hotkey_manager(Arc::clone(&state));
+    let (manager, root) = fake_hotkey_manager(Arc::clone(&state), ids);
     core.plugins = Arc::new(manager);
     (Arc::new(core), emitter, root)
 }
@@ -1325,6 +1338,150 @@ async fn generic_event_observer_ignores_disabled_and_stopped_plugins() {
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     assert!(state.event_calls.lock().unwrap().is_empty());
     core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+async fn wait_for_event_calls(state: &FakePluginState, count: usize) {
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            if state.event_calls.lock().unwrap().len() >= count {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("timed out waiting for plugin event deliveries");
+}
+
+fn points_changed(unique_id: &str) -> crate::events::DomainEvent {
+    crate::events::DomainEvent::PointsChanged {
+        unique_id: unique_id.to_owned(),
+        delta: 1.0,
+        total_points: 2.0,
+        level: 1,
+    }
+}
+
+#[tokio::test]
+async fn observer_shutdown_with_no_workers_completes() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.spawn_plugin_event_observer(&tokio::runtime::Handle::current());
+    core.events.publish_domain(points_changed("nobody"));
+    tokio::time::timeout(std::time::Duration::from_secs(10), core.shutdown())
+        .await
+        .expect("shutdown with no workers must not hang");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn observer_shutdown_with_one_worker_completes() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.plugins.start("hotkeys").expect("fake plugin starts");
+    core.spawn_plugin_event_observer(&tokio::runtime::Handle::current());
+    core.events.publish_domain(points_changed("solo"));
+    wait_for_event_calls(&state, 1).await;
+    tokio::time::timeout(std::time::Duration::from_secs(10), core.shutdown())
+        .await
+        .expect("shutdown with one worker must not hang");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn observer_shutdown_with_multiple_workers_completes() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys", "echo", "relay"]);
+    for id in ["hotkeys", "echo", "relay"] {
+        core.plugins.start(id).expect("fake plugin starts");
+    }
+    core.spawn_plugin_event_observer(&tokio::runtime::Handle::current());
+    core.events.publish_domain(points_changed("crowd"));
+    // One delivery per worker proves three workers exist; cancellation is
+    // persistent so no worker can steal the supervisor's wakeup.
+    wait_for_event_calls(&state, 3).await;
+    tokio::time::timeout(std::time::Duration::from_secs(10), core.shutdown())
+        .await
+        .expect("shutdown with multiple workers must not hang");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn observer_shutdown_cancelled_before_first_select_completes() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.plugins.start("hotkeys").expect("fake plugin starts");
+    core.spawn_plugin_event_observer(&tokio::runtime::Handle::current());
+    // No yield between spawn and shutdown: cancellation must be observed
+    // even if the supervisor never reached its select point.
+    tokio::time::timeout(std::time::Duration::from_secs(10), core.shutdown())
+        .await
+        .expect("shutdown during observer startup must not hang");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn observer_shutdown_during_slow_delivery_completes() {
+    let state = Arc::new(FakePluginState::default());
+    state
+        .event_delay_ms
+        .store(30_000, std::sync::atomic::Ordering::SeqCst);
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.plugins.start("hotkeys").expect("fake plugin starts");
+    core.spawn_plugin_event_observer(&tokio::runtime::Handle::current());
+    core.events.publish_domain(points_changed("slow"));
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    // In-flight delivery is bounded by the delivery timeout; shutdown must
+    // complete instead of hanging behind the stuck plugin call.
+    tokio::time::timeout(std::time::Duration::from_secs(20), core.shutdown())
+        .await
+        .expect("shutdown during slow delivery must not hang");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn observer_shutdown_with_queued_events_completes() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.plugins.start("hotkeys").expect("fake plugin starts");
+    core.spawn_plugin_event_observer(&tokio::runtime::Handle::current());
+    for index in 0..200 {
+        core.events
+            .publish_domain(points_changed(&format!("burst-{index}")));
+    }
+    // Shutdown must preempt the backlog, not drain hundreds of events.
+    tokio::time::timeout(std::time::Duration::from_secs(10), core.shutdown())
+        .await
+        .expect("shutdown with queued events must not hang");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn observer_prunes_workers_for_stopped_plugins_and_respawns() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.plugins.start("hotkeys").expect("fake plugin starts");
+    core.spawn_plugin_event_observer(&tokio::runtime::Handle::current());
+    core.events.publish_domain(points_changed("first"));
+    wait_for_event_calls(&state, 1).await;
+
+    core.plugins.stop("hotkeys").expect("fake plugin stops");
+    core.events.publish_domain(points_changed("stopped"));
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    assert_eq!(
+        state.event_calls.lock().unwrap().len(),
+        1,
+        "stopped plugin must receive no further events"
+    );
+
+    core.plugins.start("hotkeys").expect("fake plugin restarts");
+    core.events.publish_domain(points_changed("again"));
+    wait_for_event_calls(&state, 2).await;
+
+    tokio::time::timeout(std::time::Duration::from_secs(10), core.shutdown())
+        .await
+        .expect("shutdown after prune/respawn must not hang");
     let _ = std::fs::remove_dir_all(root);
 }
 

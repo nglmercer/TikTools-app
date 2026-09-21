@@ -29,7 +29,7 @@ impl AppCore {
             return;
         }
         let core = Arc::clone(self);
-        let shutdown = Arc::clone(&self.plugin_event_observer_shutdown);
+        let shutdown = self.plugin_event_observer_shutdown.clone();
         // Subscribe before spawning so an event published immediately after
         // this method returns cannot race the observer's first poll.
         let subscription = self.events.subscribe_domain();
