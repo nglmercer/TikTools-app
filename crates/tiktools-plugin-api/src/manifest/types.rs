@@ -88,7 +88,10 @@ impl PluginTrust {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// No structural equality: the typed `ui` fragment carries float bounds and
+/// free-form JSON configs for which bit-equality is meaningless. Callers
+/// compare identity (`id`) or individual fields instead.
+#[derive(Debug, Clone, Serialize)]
 pub struct PluginManifest {
     pub schema_version: u32,
     pub id: String,
@@ -142,6 +145,10 @@ pub struct PluginManifest {
     /// Declarative configuration pages (schema v3 only), validated at merge
     /// like `templates`.
     pub pages: Vec<Value>,
+    /// Typed plugin UI manifest (schema v3 only): declarative page bodies
+    /// or a webview entry. Parsed and validated at discovery, unlike the
+    /// raw `pages` compatibility input converted by the host frontend.
+    pub ui: Option<crate::ui::PluginUiManifest>,
 }
 impl fmt::Display for PluginRuntimeKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

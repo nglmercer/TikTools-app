@@ -17,7 +17,10 @@ pub mod manifest;
 pub mod nodes;
 pub mod validation;
 
-pub use manifest::{PluginUiManifest, PluginUiManifestPage, PluginUiMode, PLUGIN_UI_VERSION};
+pub use manifest::{
+    parse_ui_manifest, PluginUiManifest, PluginUiManifestPage, PluginUiMode, MAX_UI_PAGES,
+    PLUGIN_UI_VERSION,
+};
 pub use nodes::{LocalizedText, PluginUiAction, PluginUiNode, PluginUiNodeType, SelectOption};
 pub use validation::{
     validate_ui_node, validate_ui_page, UiValidationError, MAX_UI_CHILDREN, MAX_UI_DEPTH,

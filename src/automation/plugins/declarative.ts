@@ -7,6 +7,10 @@ import type {
   PluginTemplateDescriptor,
 } from '../behavior/types.ts';
 import type { JsonObject, JsonValue } from '../types.ts';
+// Leaf imports only (see behavior/types.ts): these modules never import
+// automation, so the legacy snapshot merge cannot cycle.
+import type { PluginUiDescriptor } from '../../plugin-ui/contracts.ts';
+import { normalizeUiDescriptor } from '../../plugin-ui/normalize.ts';
 
 /** Prefix for host-resolved plugin option sources. */
 export const OPTION_SOURCE_PREFIX = 'plugin-action-options:';
@@ -314,6 +318,25 @@ export function mergePluginPages(stamped: readonly unknown[] | undefined): Plugi
     const key = pluginNavId(descriptor.pluginId, descriptor.id);
     if (seen.has(key)) continue;
     seen.add(key);
+    merged.push(descriptor);
+  }
+  return merged;
+}
+
+/**
+ * Merges host-stamped typed `ui` descriptors. Entries were validated at
+ * discovery; the frontend re-validates at merge so corrupt snapshots fail
+ * closed instead of rendering partial UI.
+ */
+export function mergePluginUis(stamped: readonly unknown[] | undefined): PluginUiDescriptor[] {
+  if (!stamped) return [];
+  const seen = new Set<string>();
+  const merged: PluginUiDescriptor[] = [];
+  for (const entry of stamped) {
+    const descriptor = normalizeUiDescriptor(entry as JsonValue);
+    if (!descriptor) continue;
+    if (seen.has(descriptor.pluginId)) continue;
+    seen.add(descriptor.pluginId);
     merged.push(descriptor);
   }
   return merged;

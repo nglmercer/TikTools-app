@@ -1,4 +1,7 @@
 import type { AutomationEventType, JsonObject } from '../types.ts';
+// Leaf import only: contracts.ts never imports automation, so this cannot
+// cycle (never import the plugin-ui barrel from automation).
+import type { PluginUiDescriptor } from '../../plugin-ui/contracts.ts';
 
 /** Canonical localized-text contract lives in shared; re-exported for compatibility. */
 import type { Localized, TranslationCatalog } from '../../shared/localized.ts';
@@ -222,6 +225,8 @@ export interface BehaviorSnapshot {
   pluginTemplates?: PluginTemplateDescriptor[];
   /** Plugin-contributed configuration pages, stamped by the host; absent on old hosts. */
   pluginPages?: PluginPageDescriptor[];
+  /** Typed `ui` descriptors, stamped by the host; absent on old hosts. */
+  pluginUis?: PluginUiDescriptor[];
   /** Host and loaded plugin translations, keyed by locale and i18key. */
   translations: TranslationCatalog;
 }

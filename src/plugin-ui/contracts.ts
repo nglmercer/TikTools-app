@@ -215,6 +215,42 @@ export interface PluginUiPage {
 }
 
 /**
+ * Plugin UI rendering mode for a `ui` manifest descriptor. Declarative
+ * pages render in the trusted host frontend; webview pages load isolated
+ * compiled assets. Mirrors `PluginUiMode` (Rust is canonical).
+ */
+export type PluginUiMode = 'declarative' | 'webview';
+
+export const PLUGIN_UI_MODES: readonly PluginUiMode[] = ['declarative', 'webview'];
+
+/** Maximum pages per `ui` manifest. Mirrors `MAX_UI_PAGES`. */
+export const MAX_UI_PAGES = 16;
+
+/** One page entry in a stamped `ui` descriptor. */
+export interface PluginUiDescriptorPage {
+  id: string;
+  title: Localized;
+  icon?: string;
+  /** Declarative page body. Required in `declarative` mode, absent in `webview`. */
+  body?: PluginUiNode;
+}
+
+/**
+ * Host-stamped `ui` descriptor (`pluginUis` snapshot entries). Rust parses
+ * and validates the manifest fragment at discovery; the frontend
+ * re-validates at render time, so unknown modes, unsafe entries, and
+ * mode/body mismatches fail closed on both sides.
+ */
+export interface PluginUiDescriptor {
+  pluginId: string;
+  apiVersion: number;
+  mode: PluginUiMode;
+  /** Webview entry asset (e.g. `ui/dist/index.html`). Declarative omits it. */
+  entry?: string;
+  pages: PluginUiDescriptorPage[];
+}
+
+/**
  * Explicit TTS domain contribution. Auto-TTS, speech dispatch, and voice
  * policy key off contributions — never off walking UI sections. Schema-v3
  * `"kind": "tts"` sections generate one contribution plus a `tts-settings`

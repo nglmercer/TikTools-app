@@ -94,6 +94,10 @@ fn is_valid_binding(raw: &str) -> bool {
     }
 }
 
+pub(crate) fn validate_localized_text(value: &LocalizedText) -> Result<(), UiValidationError> {
+    validate_localized(value)
+}
+
 fn validate_localized(value: &LocalizedText) -> Result<(), UiValidationError> {
     if value.default.trim().is_empty() || value.default.len() > MAX_UI_TEXT {
         return Err(UiValidationError::InvalidLocalizedText);

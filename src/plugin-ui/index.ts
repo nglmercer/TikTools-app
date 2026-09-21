@@ -6,7 +6,9 @@
  */
 
 export {
+  MAX_UI_PAGES,
   PLUGIN_UI_ACTION_TYPES,
+  PLUGIN_UI_MODES,
   PLUGIN_UI_NODE_TYPES,
   PLUGIN_UI_VERSION,
   type CheckboxNode,
@@ -23,6 +25,9 @@ export {
   type ConnectionNode,
   type FormNode,
   type ListNode,
+  type PluginUiDescriptor,
+  type PluginUiDescriptorPage,
+  type PluginUiMode,
   type RangeNode,
   type SelectNode,
   type SeparatorNode,
@@ -41,5 +46,6 @@ export {
   collectOptionSources,
   normalizeNode,
   normalizePage,
+  normalizeUiDescriptor,
 } from './normalize.ts';
 export { adaptLegacyPage, legacyTtsContributions, type AdaptedLegacyPage } from './legacy-v3-adapter.ts';

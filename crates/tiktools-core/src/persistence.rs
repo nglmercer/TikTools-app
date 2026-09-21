@@ -64,6 +64,7 @@ impl AppCore {
             std::collections::BTreeMap::new();
         let mut plugin_templates = Vec::new();
         let mut plugin_pages = Vec::new();
+        let mut plugin_uis = Vec::new();
         let mut plugins = Vec::new();
         let persisted_plugins = object
             .get("plugins")
@@ -190,6 +191,28 @@ impl AppCore {
                     );
                     plugin_pages.push(Value::Object(stamped));
                 }
+                // Typed `ui` descriptors were validated at discovery; the
+                // stamp only adds host-owned identity. Serialization of the
+                // validated struct cannot fail, but a failure must never
+                // break the whole snapshot.
+                if let Some(ui) = &plugin.manifest.ui {
+                    match serde_json::to_value(ui) {
+                        Ok(Value::Object(mut stamped)) => {
+                            stamped.insert(
+                                "pluginId".to_owned(),
+                                Value::String(plugin.manifest.id.clone()),
+                            );
+                            stamped.insert(
+                                "source".to_owned(),
+                                json!({"kind": "plugin", "pluginId": plugin.manifest.id}),
+                            );
+                            plugin_uis.push(Value::Object(stamped));
+                        }
+                        _ => {
+                            tracing::warn!(plugin = %plugin.manifest.id, "plugin ui is invalid; skipped");
+                        }
+                    }
+                }
             }
 
             for descriptor in &plugin.manifest.action_types {
@@ -235,6 +258,7 @@ impl AppCore {
         object.insert("plugins".to_owned(), Value::Array(plugins));
         object.insert("pluginTemplates".to_owned(), Value::Array(plugin_templates));
         object.insert("pluginPages".to_owned(), Value::Array(plugin_pages));
+        object.insert("pluginUis".to_owned(), Value::Array(plugin_uis));
         object.insert("translations".to_owned(), builtin_translations());
     }
 

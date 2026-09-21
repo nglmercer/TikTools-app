@@ -5,6 +5,7 @@ import {
   isConnectionOnlyPage,
   mergePluginPages,
   mergePluginTemplates,
+  mergePluginUis,
   normalizeOptionsFrom,
   optionSourceId,
   parseOptionSourceId,
@@ -116,6 +117,21 @@ test('page descriptors enforce the fixed widget set', () => {
     toPluginPageDescriptor({ ...valid, sections: [{ kind: 'tts', voicesFrom: 'plugin-action-options:a.b:c' }] }),
   ).toBeUndefined();
   expect(mergePluginPages([valid, { ...valid }, 'nope'])).toHaveLength(1);
+});
+
+test('mergePluginUis drops invalid descriptors and dedupes by plugin', () => {
+  const text = { default: 'Text to Speech', i18key: '' };
+  const valid = {
+    pluginId: 'sonicboom.server',
+    apiVersion: 1,
+    mode: 'webview',
+    entry: 'ui/dist/index.html',
+    pages: [{ id: 'tts', title: text }],
+  };
+  expect(mergePluginUis(undefined)).toEqual([]);
+  const merged = mergePluginUis([valid, valid, { mode: 'nope' }, null]);
+  expect(merged).toHaveLength(1);
+  expect(merged[0]?.pluginId).toBe('sonicboom.server');
 });
 
 test('connection-only pages are owned by the Connections tab', () => {

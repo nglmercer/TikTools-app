@@ -205,6 +205,7 @@ export function useAppController() {
   };
   const pluginUi = {
     pluginPages: automation.pluginPages,
+    pluginUis: automation.pluginUis,
     pluginSettings: plugins.pluginSettings,
     actionOptions: plugins.actionOptions,
     actionOptionErrors: plugins.actionOptionErrors,
@@ -274,6 +275,7 @@ export function useAppController() {
     actionOptionErrors: plugins.actionOptionErrors,
     pluginConnections: plugins.pluginConnections,
     pluginPages: automation.pluginPages,
+    pluginUis: automation.pluginUis,
     pluginProgress: plugins.pluginProgress,
     dismissPluginProgress: plugins.dismissPluginProgress,
     autoScroll: live.autoScroll,

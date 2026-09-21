@@ -9,7 +9,7 @@ import type {
   PluginPageDescriptor,
 } from '../../automation/behavior/types.ts';
 import { setPluginEventTypes } from '../../automation/event-registry.ts';
-import { mergePluginPages } from '../../automation/plugins/declarative.ts';
+import { mergePluginPages, mergePluginUis } from '../../automation/plugins/declarative.ts';
 import type { HotkeyStatusData } from '../../shared/messages.ts';
 import type { ControlClient } from '../platform/control-client.ts';
 import { ControlCallError, errorMessage } from '../platform/control-client.ts';
@@ -47,6 +47,9 @@ export function useAutomation(control: ControlClient) {
   const pluginPages: ComputedRef<PluginPageDescriptor[]> = computed(() =>
     mergePluginPages(behavior.value.pluginPages),
   );
+
+  /** Typed `ui` descriptors from the behavior snapshot, re-validated. */
+  const pluginUis = computed(() => mergePluginUis(behavior.value.pluginUis));
 
   const clearBehaviorError = (): void => {
     behaviorError.value = '';
@@ -225,6 +228,7 @@ export function useAutomation(control: ControlClient) {
     hotkeyStatus,
     lastHotkeyEvent,
     pluginPages,
+    pluginUis,
     clearBehaviorError,
     handleSaveAction,
     handleDeleteAction,

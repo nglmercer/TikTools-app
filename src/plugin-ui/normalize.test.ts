@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import type { JsonValue } from '../shared/json.ts';
-import { collectOptionSources, normalizeNode, normalizePage } from './normalize.ts';
+import { collectOptionSources, normalizeNode, normalizePage, normalizeUiDescriptor } from './normalize.ts';
 
 const text = { default: 'Hello', i18key: '' };
 
@@ -58,6 +58,110 @@ test('rejects unknown node types, bad bindings, and over-deep trees', () => {
   let deep: JsonValue = { type: 'text', text };
   for (let i = 0; i < 12; i += 1) deep = { type: 'stack', children: [deep] };
   expect(normalizeNode(deep)).toBeUndefined();
+});
+
+test('normalizes declarative and webview ui descriptors (Rust parity)', () => {
+  const declarative = normalizeUiDescriptor({
+    pluginId: 'sonicboom.server',
+    apiVersion: 1,
+    mode: 'declarative',
+    pages: [
+      {
+        id: 'main',
+        title: text,
+        body: {
+          type: 'stack',
+          children: [{ type: 'text', text }],
+        },
+      },
+    ],
+  });
+  expect(declarative?.mode).toBe('declarative');
+  expect(declarative?.pages).toHaveLength(1);
+  expect(declarative?.pages[0]?.body?.type).toBe('stack');
+
+  const webview = normalizeUiDescriptor({
+    pluginId: 'sonicboom.server',
+    apiVersion: 1,
+    mode: 'webview',
+    entry: 'ui/dist/index.html',
+    pages: [{ id: 'tts', title: text, icon: 'voice' }],
+  });
+  expect(webview?.mode).toBe('webview');
+  expect(webview?.entry).toBe('ui/dist/index.html');
+});
+
+test('rejects ui descriptor mismatches, bad versions, and unsafe entries', () => {
+  const base = {
+    pluginId: 'sonicboom.server',
+    apiVersion: 1,
+    mode: 'declarative',
+    pages: [
+      { id: 'main', title: text, body: { type: 'separator' } },
+    ],
+  };
+  // Declarative page without a body.
+  expect(
+    normalizeUiDescriptor({ ...base, pages: [{ id: 'main', title: text }] }),
+  ).toBeUndefined();
+  // Declarative manifest with an entry.
+  expect(normalizeUiDescriptor({ ...base, entry: 'ui/dist/index.html' })).toBeUndefined();
+  // Webview page carrying a body.
+  expect(
+    normalizeUiDescriptor({
+      pluginId: 'sonicboom.server',
+      apiVersion: 1,
+      mode: 'webview',
+      entry: 'ui/dist/index.html',
+      pages: [{ id: 'tts', title: text, body: { type: 'separator' } }],
+    }),
+  ).toBeUndefined();
+  // Webview manifest without an entry.
+  expect(
+    normalizeUiDescriptor({
+      pluginId: 'sonicboom.server',
+      apiVersion: 1,
+      mode: 'webview',
+      pages: [{ id: 'tts', title: text }],
+    }),
+  ).toBeUndefined();
+  // Wrong contract version, unknown mode, bad page id, empty pages.
+  expect(normalizeUiDescriptor({ ...base, apiVersion: 2 })).toBeUndefined();
+  expect(normalizeUiDescriptor({ ...base, mode: 'hologram' })).toBeUndefined();
+  expect(
+    normalizeUiDescriptor({
+      ...base,
+      pages: [{ id: 'Main!', title: text, body: { type: 'separator' } }],
+    }),
+  ).toBeUndefined();
+  expect(normalizeUiDescriptor({ ...base, pages: [] })).toBeUndefined();
+  // Unknown node type inside a body fails closed.
+  expect(
+    normalizeUiDescriptor({
+      ...base,
+      pages: [{ id: 'main', title: text, body: { type: 'obs-scene' } }],
+    }),
+  ).toBeUndefined();
+  // Unsafe webview entries fail closed (same list as the Rust test).
+  for (const entry of [
+    '../escape.html',
+    '/absolute.html',
+    'ui/../plugin.json',
+    'assets/index.html',
+    'ui/dist/bundle.js',
+    'ui\\dist\\index.html',
+    '',
+  ]) {
+    expect(
+      normalizeUiDescriptor({
+        pluginId: 'sonicboom.server',
+        apiVersion: 1,
+        mode: 'webview',
+        entry,
+        pages: [{ id: 'tts', title: text }],
+      }),
+    ).toBeUndefined();
+  }
 });
 
 test('collects option sources from lists, selects, and refresh buttons', () => {

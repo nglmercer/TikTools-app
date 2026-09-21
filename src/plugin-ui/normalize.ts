@@ -13,7 +13,13 @@ import type { JsonObject, JsonValue } from '../shared/json.ts';
 import { normalizeAction } from './actions.ts';
 import { parseBinding } from './bindings.ts';
 import {
+  MAX_UI_PAGES,
+  PLUGIN_UI_MODES,
   PLUGIN_UI_NODE_TYPES,
+  PLUGIN_UI_VERSION,
+  type PluginUiDescriptor,
+  type PluginUiDescriptorPage,
+  type PluginUiMode,
   type PluginUiNode,
   type PluginUiPage,
 } from './contracts.ts';
@@ -256,6 +262,81 @@ export function normalizePage(value: JsonValue): PluginUiPage | undefined {
   const page: PluginUiPage = { id: value.id, pluginId: value.pluginId, title, body };
   if (typeof value.icon === 'string') page.icon = value.icon;
   return page;
+}
+
+const PLUGIN_ID_PATTERN = /^[a-z][a-z0-9._-]{1,127}$/;
+
+/** Mirrors `is_valid_plugin_id` (Rust is canonical). */
+function isValidPageId(value: string): boolean {
+  return PLUGIN_ID_PATTERN.test(value);
+}
+
+/**
+ * Mirrors `is_valid_ui_entry` (Rust is canonical): webview entries stay
+ * inside the plugin's `ui/` asset directory — relative, no `..`, no
+ * absolute paths, HTML only.
+ */
+function isValidUiEntry(entry: string): boolean {
+  if (entry.length === 0 || entry.length > 256) return false;
+  if (!entry.startsWith('ui/') || !entry.endsWith('.html')) return false;
+  if (entry.includes('\\') || entry.includes('\0')) return false;
+  if (entry.startsWith('/') || entry.includes(':/')) return false;
+  const parts = entry.split('/');
+  return parts.length > 0 && parts.every((part) => part.length > 0 && part !== '..');
+}
+
+/**
+ * Normalizes one stamped `ui` descriptor (re-validation at render time).
+ * Unknown modes, unsafe entries, and mode/body mismatches fail closed.
+ */
+export function normalizeUiDescriptor(value: JsonValue): PluginUiDescriptor | undefined {
+  if (!isRecord(value)) return undefined;
+  if (typeof value.pluginId !== 'string' || !value.pluginId || value.pluginId.length > 128) {
+    return undefined;
+  }
+  if (value.apiVersion !== PLUGIN_UI_VERSION) return undefined;
+  const mode: PluginUiMode =
+    value.mode === undefined ? 'declarative' : (value.mode as PluginUiMode);
+  if (!(PLUGIN_UI_MODES as readonly string[]).includes(mode)) return undefined;
+  if (!Array.isArray(value.pages) || value.pages.length === 0 || value.pages.length > MAX_UI_PAGES) {
+    return undefined;
+  }
+  const entry = value.entry;
+  if (mode === 'declarative' && entry !== undefined) return undefined;
+  if (mode === 'webview' && (typeof entry !== 'string' || !isValidUiEntry(entry))) {
+    return undefined;
+  }
+  const pages: PluginUiDescriptorPage[] = [];
+  for (const raw of value.pages) {
+    if (!isRecord(raw)) return undefined;
+    if (typeof raw.id !== 'string' || !isValidPageId(raw.id)) return undefined;
+    const title = readLocalized(raw.title);
+    if (!title) return undefined;
+    if (raw.icon !== undefined) {
+      if (typeof raw.icon !== 'string' || !raw.icon.trim() || raw.icon.length > 64) {
+        return undefined;
+      }
+    }
+    const page: PluginUiDescriptorPage = { id: raw.id, title };
+    if (typeof raw.icon === 'string') page.icon = raw.icon;
+    if (mode === 'declarative') {
+      if (raw.body === undefined) return undefined;
+      const body = normalizeNode(raw.body, 0);
+      if (!body) return undefined;
+      page.body = body;
+    } else if (raw.body !== undefined) {
+      return undefined;
+    }
+    pages.push(page);
+  }
+  const descriptor: PluginUiDescriptor = {
+    pluginId: value.pluginId,
+    apiVersion: PLUGIN_UI_VERSION,
+    mode,
+    pages,
+  };
+  if (typeof entry === 'string') descriptor.entry = entry;
+  return descriptor;
 }
 
 /**

@@ -154,6 +154,17 @@ impl PluginManifest {
         } else {
             Vec::new()
         };
+        // The typed `ui` fragment follows the same v3-only rule as the
+        // other integration blocks: validated at discovery on v3,
+        // ignored otherwise.
+        let ui = if is_v3 {
+            object
+                .get("ui")
+                .map(crate::ui::parse_ui_manifest)
+                .transpose()?
+        } else {
+            None
+        };
 
         Ok(Self {
             schema_version,
@@ -181,6 +192,7 @@ impl PluginManifest {
             http,
             templates,
             pages,
+            ui,
         })
     }
 
