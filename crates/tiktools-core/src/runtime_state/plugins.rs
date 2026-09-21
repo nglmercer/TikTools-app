@@ -15,10 +15,7 @@ impl AppCore {
         // Activation is an in-memory snapshot refreshed on every state write,
         // so readiness checks never hit SQLite on hot paths. Plugins without
         // a persisted row default to installed and enabled.
-        self.plugin_state
-            .activation
-            .read()
-            .expect("plugin activation lock poisoned")
+        read_or_recover(&self.plugin_state.activation, "plugin activation")
             .get(id)
             .is_none_or(|state| state.installed && state.enabled)
     }
@@ -26,38 +23,24 @@ impl AppCore {
     /// Records an install/enable write in the activation snapshot. Callers
     /// must persist first; this only moves the snapshot the hot path reads.
     pub(crate) fn set_plugin_activation(&self, id: &str, installed: bool, enabled: bool) {
-        self.plugin_state
-            .activation
-            .write()
-            .expect("plugin activation lock poisoned")
+        write_or_recover(&self.plugin_state.activation, "plugin activation")
             .insert(id.to_owned(), PluginActivation { installed, enabled });
     }
 
     #[cfg(feature = "plugin-install")]
     pub(crate) fn clear_plugin_activation(&self, id: &str) {
-        self.plugin_state
-            .activation
-            .write()
-            .expect("plugin activation lock poisoned")
-            .remove(id);
+        write_or_recover(&self.plugin_state.activation, "plugin activation").remove(id);
     }
 
     pub(crate) fn plugin_retry_allowed(&self, id: &str) -> bool {
-        self.plugin_state
-            .health
-            .lock()
-            .expect("plugin health lock poisoned")
+        mutex_or_recover(&self.plugin_state.health, "plugin health")
             .get(id)
             .and_then(|health| health.next_retry_at)
             .is_none_or(|next_retry_at| std::time::Instant::now() >= next_retry_at)
     }
 
     pub(crate) fn record_plugin_failure(&self, id: &str, error: String) {
-        let mut health = self
-            .plugin_state
-            .health
-            .lock()
-            .expect("plugin health lock poisoned");
+        let mut health = mutex_or_recover(&self.plugin_state.health, "plugin health");
         let entry = health.entry(id.to_owned()).or_insert(PluginHealth {
             consecutive_failures: 0,
             next_retry_at: None,
@@ -78,11 +61,7 @@ impl AppCore {
     }
 
     pub(crate) fn record_plugin_success(&self, id: &str) {
-        let was_unhealthy = self
-            .plugin_state
-            .health
-            .lock()
-            .expect("plugin health lock poisoned")
+        let was_unhealthy = mutex_or_recover(&self.plugin_state.health, "plugin health")
             .remove(id)
             .is_some_and(|health| health.consecutive_failures > 0);
         if was_unhealthy {
@@ -118,10 +97,6 @@ impl AppCore {
                 }
             }
         });
-        *self
-            .plugin_state
-            .poll_task
-            .lock()
-            .expect("plugin poll task lock poisoned") = Some(task);
+        *mutex_or_recover(&self.plugin_state.poll_task, "plugin poll task") = Some(task);
     }
 }

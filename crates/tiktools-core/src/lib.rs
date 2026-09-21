@@ -321,11 +321,7 @@ impl AppCore {
         tiktools_plugin_loader::InstalledPluginPackage,
         tiktools_plugin_loader::PluginLoaderError,
     > {
-        let _install_lock = self
-            .plugin_state
-            .install_lock
-            .lock()
-            .expect("plugin install lock poisoned");
+        let _install_lock = mutex_or_recover(&self.plugin_state.install_lock, "plugin install");
         let paths = self.db.paths();
         let installer = tiktools_plugin_loader::PluginInstaller {
             plugin_directory: paths.plugins.clone(),
@@ -365,11 +361,7 @@ impl AppCore {
         &self,
         id: &str,
     ) -> Result<(), tiktools_plugin_loader::PluginLoaderError> {
-        let _install_lock = self
-            .plugin_state
-            .install_lock
-            .lock()
-            .expect("plugin install lock poisoned");
+        let _install_lock = mutex_or_recover(&self.plugin_state.install_lock, "plugin install");
         let plugin = self
             .plugins
             .get(id)
@@ -442,21 +434,15 @@ impl AppCore {
             .publish_domain(crate::events::DomainEvent::Shutdown);
         self.publish_disconnected_event().await;
         self.live.disconnect().await;
-        let task = self
-            .plugin_state
-            .poll_task
-            .lock()
-            .expect("plugin poll task lock poisoned")
-            .take();
+        let task = mutex_or_recover(&self.plugin_state.poll_task, "plugin poll task").take();
         if let Some(task) = task {
             let _ = task.await;
         }
-        let observer_task = self
-            .plugin_state
-            .observer_task
-            .lock()
-            .expect("plugin event observer task lock poisoned")
-            .take();
+        let observer_task = mutex_or_recover(
+            &self.plugin_state.observer_task,
+            "plugin event observer task",
+        )
+        .take();
         if let Some(task) = observer_task {
             let _ = task.await;
         }

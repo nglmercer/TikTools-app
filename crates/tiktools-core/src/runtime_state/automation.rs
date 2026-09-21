@@ -12,16 +12,10 @@ impl AppCore {
     }
 
     pub(crate) fn remember_automation_event(&self, event: &serde_json::Value) {
-        *self
-            .automation_state
-            .last_event
-            .write()
-            .expect("automation event lock poisoned") = Some(event.clone());
-        *self
-            .automation_state
-            .last_event_at
-            .write()
-            .expect("automation timestamp lock poisoned") = Some(now_millis());
+        *write_or_recover(&self.automation_state.last_event, "automation event") =
+            Some(event.clone());
+        *write_or_recover(&self.automation_state.last_event_at, "automation timestamp") =
+            Some(now_millis());
         if let Some(event_type) = event.get("type").and_then(Value::as_str) {
             // Any `<namespace>.status` plugin event carries listener health:
             // publish it on the generic status topic. The legacy
@@ -63,28 +57,19 @@ impl AppCore {
         {
             self.emit(HostMessage::AutomationContext {
                 event: Some(event.clone()),
-                captured_at: *self
-                    .automation_state
-                    .last_event_at
-                    .read()
-                    .expect("automation timestamp lock poisoned"),
+                captured_at: *read_or_recover(
+                    &self.automation_state.last_event_at,
+                    "automation timestamp",
+                ),
             });
         }
     }
 
     /// Last automation event observed, for context panels and test previews.
     pub fn automation_context(&self) -> (Option<Value>, Option<u64>) {
-        let event = self
-            .automation_state
-            .last_event
-            .read()
-            .expect("automation event lock poisoned")
-            .clone();
-        let captured_at = *self
-            .automation_state
-            .last_event_at
-            .read()
-            .expect("automation timestamp lock poisoned");
+        let event = read_or_recover(&self.automation_state.last_event, "automation event").clone();
+        let captured_at =
+            *read_or_recover(&self.automation_state.last_event_at, "automation timestamp");
         (event, captured_at)
     }
 }

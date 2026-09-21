@@ -45,11 +45,7 @@ impl AppCore {
             return;
         }
         let source = fresh_poll_context(
-            &self
-                .automation_state
-                .last_event
-                .read()
-                .expect("automation event lock poisoned")
+            &read_or_recover(&self.automation_state.last_event, "automation event")
                 .clone()
                 .unwrap_or_else(|| json!({})),
         );
