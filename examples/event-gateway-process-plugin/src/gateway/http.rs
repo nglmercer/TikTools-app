@@ -1,5 +1,6 @@
 //! HTTP request parsing, responses, and NDJSON event streaming.
 
+use super::auth::origin_allowed;
 use super::config::GatewayConfig;
 use super::state::GatewayState;
 use super::topics::matches_topics;
@@ -102,12 +103,11 @@ pub(crate) async fn write_http_response(
 }
 
 pub(crate) fn cors_headers(origin: Option<&str>, config: &GatewayConfig) -> String {
-    let Some(origin) = origin.filter(|origin| {
-        config
-            .allowed_origins
-            .iter()
-            .any(|allowed| allowed == origin)
-    }) else {
+    // The echo allowlist is exactly the request allowlist (configured
+    // origins plus the gateway's own loopback origins): an origin the
+    // server rejects never receives CORS headers, and no wildcard is
+    // ever emitted for these authenticated APIs.
+    let Some(origin) = origin.filter(|_| origin_allowed(origin, config)) else {
         return String::new();
     };
     format!(
