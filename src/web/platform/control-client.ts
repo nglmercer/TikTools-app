@@ -57,6 +57,9 @@ const DEFAULT_TIMEOUT_MS = 150_000;
  */
 const MAX_WEBVIEW_REQUEST_BYTES = 1024 * 1024;
 
+/** Shared encoder for the request size check: `TextEncoder` is stateless. */
+const textEncoder = new TextEncoder();
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -221,7 +224,7 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
         }
         // Fail fast before postMessage: the host enforces the same byte
         // limit, and a rejected-here call never occupies a pending slot.
-        if (new TextEncoder().encode(payload).length > MAX_WEBVIEW_REQUEST_BYTES) {
+        if (textEncoder.encode(payload).length > MAX_WEBVIEW_REQUEST_BYTES) {
           const error = new ControlCallError(
             'too_large',
             `request ${method} exceeds the ${MAX_WEBVIEW_REQUEST_BYTES}-byte limit`,

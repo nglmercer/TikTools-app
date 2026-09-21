@@ -207,8 +207,14 @@ export function filterPresetRows(
   limit = 8,
 ): SuggestionRow[] {
   const pool = presets.map(toPresetSuggestion);
+  // URL -> id index built once: the per-row `find` was O(n) per result.
+  // First preset wins on duplicate URLs, matching the old `find` lookup.
+  const idByUrl = new Map<string, string>();
+  for (const preset of presets) {
+    if (!idByUrl.has(preset.url)) idByUrl.set(preset.url, preset.id);
+  }
   return filterSuggestions(pool, query, limit).map((entry) => ({
-    key: `preset:${presets.find((preset) => preset.url === entry.item.value)?.id ?? entry.item.value}`,
+    key: `preset:${idByUrl.get(entry.item.value) ?? entry.item.value}`,
     item: { ...entry.item, icon: 'globe' as IconName, badge: 'PRESET' },
     ranges: entry.matchRanges,
   }));
@@ -497,8 +503,7 @@ export function createAutocompleteController(options: AutocompleteControllerOpti
     }
     if (mode === 'preset') {
       const queryText = value.trim();
-      const all = filterPresetRows(options.presets ?? [], '', presetLimit);
-      const rows = queryText.length === 0 ? all : filterPresetRows(options.presets ?? [], queryText, presetLimit);
+      const rows = filterPresetRows(options.presets ?? [], queryText, presetLimit);
       if (!shouldOpenPreset({ focused, explicitInvoke: explicit, query: queryText, matchCount: rows.length })) {
         return { mode, open: false, sections: [], rowCount: 0, activeIndex: 0, query: queryText, templateQuery };
       }

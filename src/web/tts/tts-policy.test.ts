@@ -265,4 +265,22 @@ describe('TtsDeduper', () => {
     expect(deduper.claim(fingerprint, 2500)).toBe(true);
     expect(ttsFingerprint('alice', 'hello')).toBe(fingerprint);
   });
+
+  test('evicts the oldest entry when over capacity', () => {
+    const deduper = new TtsDeduper({ windowMs: 10_000, maxEntries: 2 });
+    expect(deduper.claim('a', 100)).toBe(true);
+    expect(deduper.claim('b', 200)).toBe(true);
+    expect(deduper.claim('c', 300)).toBe(true);
+    expect(deduper.claim('c', 400)).toBe(false);
+    expect(deduper.claim('a', 500)).toBe(true);
+  });
+
+  test('eviction breaks timestamp ties by insertion order', () => {
+    const deduper = new TtsDeduper({ windowMs: 10_000, maxEntries: 2 });
+    expect(deduper.claim('a', 100)).toBe(true);
+    expect(deduper.claim('b', 100)).toBe(true);
+    expect(deduper.claim('c', 100)).toBe(true);
+    expect(deduper.claim('b', 200)).toBe(false);
+    expect(deduper.claim('a', 300)).toBe(true);
+  });
 });

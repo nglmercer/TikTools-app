@@ -131,7 +131,16 @@ impl PluginRuntime for ProcessPluginRuntime {
                 ));
             }
         };
-        let stderr_thread = Some(drain_stderr(manifest.id.clone(), stderr));
+        let stderr_thread = match drain_stderr(manifest.id.clone(), stderr) {
+            Ok(thread) => Some(thread),
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(PluginLoaderError::Runtime(format!(
+                    "could not spawn plugin stderr worker: {error}"
+                )));
+            }
+        };
         Ok(Box::new(ProcessPluginInstance {
             id: manifest.id.clone(),
             child,
@@ -308,7 +317,7 @@ impl PluginInstance for ProcessPluginInstance {
 
 const MAX_STDERR_LINE_BYTES: usize = 4 * 1024;
 
-fn drain_stderr(id: String, mut stderr: ChildStderr) -> JoinHandle<()> {
+fn drain_stderr(id: String, mut stderr: ChildStderr) -> std::io::Result<JoinHandle<()>> {
     std::thread::Builder::new()
         .name(format!("tiktools-plugin-stderr-{id}"))
         .spawn(move || {
@@ -342,7 +351,6 @@ fn drain_stderr(id: String, mut stderr: ChildStderr) -> JoinHandle<()> {
                 emit_stderr_line(&id, &line, truncated);
             }
         })
-        .expect("plugin stderr worker should be spawnable")
 }
 
 fn emit_stderr_line(id: &str, line: &[u8], truncated: bool) {
@@ -554,5 +562,28 @@ mod tests {
         };
         instance.terminate_child();
         assert!(instance.child.try_wait().unwrap().is_some());
+    }
+
+    #[test]
+    fn stderr_worker_spawns_and_exits_on_eof() {
+        let mut child = if cfg!(windows) {
+            Command::new("cmd")
+                .args(["/C", "exit 0"])
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap()
+        } else {
+            Command::new("sh")
+                .args(["-c", "exit 0"])
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap()
+        };
+        let stderr = child.stderr.take().expect("piped plugin stderr");
+        // `drain_stderr` is fallible: a thread-spawn failure must surface
+        // as `Err` (so `load` can reap the child) instead of panicking.
+        let handle = drain_stderr("test".to_owned(), stderr).expect("stderr worker spawns");
+        let _ = child.wait();
+        handle.join().expect("stderr worker exits on EOF");
     }
 }

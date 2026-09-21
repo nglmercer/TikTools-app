@@ -526,8 +526,17 @@ export class TtsDeduper {
     }
     this.seen.set(fingerprint, now);
     if (this.seen.size > this.maxEntries) {
-      const oldest = [...this.seen.entries()].sort((a, b) => a[1] - b[1])[0];
-      if (oldest) this.seen.delete(oldest[0]);
+      // Allocation-free O(n) minimum scan. Strict `<` keeps the earliest
+      // inserted entry on timestamp ties, matching the old stable sort.
+      let oldestKey: string | undefined;
+      let oldestAt = Infinity;
+      for (const [key, at] of this.seen) {
+        if (at < oldestAt) {
+          oldestAt = at;
+          oldestKey = key;
+        }
+      }
+      if (oldestKey !== undefined) this.seen.delete(oldestKey);
     }
     return true;
   }

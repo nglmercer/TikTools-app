@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { createAutocompleteController, type PresetItem } from './autocomplete-controller.ts';
+import { createAutocompleteController, filterPresetRows, type PresetItem } from './autocomplete-controller.ts';
 import type { SuggestionItem } from './types.ts';
 
 const presets: PresetItem[] = [
@@ -75,4 +75,20 @@ test('explicit invoke with zero matches stays closed', () => {
   expect(controller.snapshot().open).toBe(false);
   controller.invoke();
   expect(controller.snapshot().open).toBe(false);
+});
+
+test('preset rows keep stable preset-id keys on empty and filtered queries', () => {
+  const empty = filterPresetRows(presets, '');
+  expect(empty.map((row) => row.key)).toEqual(['preset:local-node', 'preset:local-py']);
+  const filtered = filterPresetRows(presets, '127');
+  expect(filtered.map((row) => row.key)).toEqual(['preset:local-py']);
+  // Duplicate URLs resolve to the first preset's id (old `find` semantics).
+  const dupes = filterPresetRows(
+    [
+      { id: 'first', label: 'A', url: 'http://dup/' },
+      { id: 'second', label: 'B', url: 'http://dup/' },
+    ],
+    '',
+  );
+  expect(dupes.map((row) => row.key)).toEqual(['preset:first', 'preset:first']);
 });
