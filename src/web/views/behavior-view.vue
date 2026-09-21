@@ -1,26 +1,16 @@
 <script lang="tsx">
 import { computed, ref } from 'vue';
 import { defineVueComponent } from '../vue/component.ts';
-import { IconPencil, IconTrash } from '../components/icons.vue';
-import { Icon } from '../components/icons/index.ts';
-import { Switch } from '../components/ui/Checkbox.vue';
-import { SearchInput } from '../components/ui/TextInput.vue';
-import { Tooltip } from '../components/ui/Tooltip.vue';
 import { ActionEditor } from './behavior/action-editor.vue';
 import { ActionPicker } from './behavior/action-picker.vue';
 import { EventEditor } from './behavior/event-editor.vue';
+import { ActionsTable } from './behavior/ActionsTable.vue';
+import { EventsTable } from './behavior/EventsTable.vue';
+import { HotkeyFloatBadge } from './behavior/HotkeyFloatBadge.vue';
 import {
   availableActionTypes,
   createActionFromType,
-  createEvent,
-  describeAction,
-  describeFilter,
-  originLabel,
   relativeTime,
-  SortControl,
-  SortHeader,
-  triggerLabel,
-  type SortMode,
 } from './behavior/helpers.vue';
 import type {
   BehaviorRun,
@@ -30,8 +20,6 @@ import type {
 } from '../../automation/behavior/types.ts';
 import type { ActionOptionItem, GiftCatalogEntry, HotkeyStatusData, OpenMediaPicker, ViewerRecord } from '../../shared/messages.ts';
 import { t, type Locale } from '../i18n.ts';
-import { useDialogs } from '../composables/useDialogs.ts';
-import { formatHotkeyChord, hotkeyListenerState, summarizeHotkeyStatus } from '../components/ui/hotkey-status.ts';
 import type { LastHotkeyEvent } from '../features/automation.ts';
 
 type BehaviorViewProps = {
@@ -95,11 +83,6 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
   ],
   (props) => {
   const screen = ref<Screen>({ kind: 'list' });
-  const actionQuery = ref('');
-  const eventQuery = ref('');
-  const actionSort = ref<SortMode>('name');
-  const eventSort = ref<SortMode>('name');
-  const dialogs = useDialogs();
 
   const lastRunByAction = computed(() => {
     const map = new Map<string, BehaviorRun>();
@@ -119,43 +102,6 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
   const testRuns = props.testRuns;
   const error = props.error;
   const currentScreen = screen.value;
-  const hotkeySummary = props.hotkeyStatus ? summarizeHotkeyStatus(props.hotkeyStatus) : null;
-  // Listener status while the plugin is installed, collapsed into a floating
-  // badge; the tooltip carries the full headline, diagnostics, and last event.
-  const hotkeyPanel = (() => {
-    const plugin = snapshot.plugins.find((entry) => entry.descriptor.id === 'hotkeys');
-    if (!plugin?.installed) return null;
-    if (!plugin.enabled) {
-      return {
-        tone: 'idle' as const,
-        headline: t(locale, 'hotkeyStateDisabled'),
-        lines: [] as string[],
-        lastEvent: null as string | null,
-      };
-    }
-    const state = hotkeyListenerState(props.hotkeyStatus);
-    const headline = state === 'active'
-      ? `${t(locale, 'hotkeyStateActive')} · ${(hotkeySummary?.lines ?? []).find((line) => line.includes('via')) ?? hotkeySummary?.headline ?? ''}`
-      : state === 'starting' || state === 'unknown'
-        ? t(locale, 'hotkeyStateStarting')
-        : state === 'permission'
-          ? t(locale, 'hotkeyStatePermission')
-          : state === 'failed'
-            ? t(locale, 'hotkeyStateFailed')
-            : t(locale, 'hotkeyStateUnsupported');
-    const tone = state === 'active' ? 'ok' as const : (state === 'permission' || state === 'failed') ? 'err' as const : 'idle' as const;
-    const summary = hotkeySummary;
-    const lines = summary && (summary.needsAttention || state !== 'active')
-      ? summary.lines.filter((line) => line !== summary.headline)
-      : [];
-    const last = props.lastHotkeyEvent;
-    const lastEvent = last
-      ? `${t(locale, 'hotkeyLastEvent')}: ${formatHotkeyChord(last.key, last.modifiers)} · ${relativeTime(last.at, locale)}`
-      : state === 'active' || state === 'starting' || state === 'unknown'
-        ? t(locale, 'hotkeyStateNoEvents')
-        : null;
-    return { tone, headline, lines, lastEvent };
-  })();
 
   if (currentScreen.kind === 'picker') {
     return (
@@ -226,303 +172,40 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     );
   }
 
-  const sortRows = <T extends { name: string; enabled: boolean }>(rows: T[], sort: SortMode): T[] =>
-    [...rows].sort((left, right) => {
-      if (sort === 'enabled' || sort === 'disabled') {
-        const delta = Number(right.enabled) - Number(left.enabled);
-        if (delta !== 0) return sort === 'enabled' ? delta : -delta;
-        return left.name.localeCompare(right.name);
-      }
-      const byName = left.name.localeCompare(right.name);
-      return sort === 'name-desc' ? -byName : byName;
-    });
-
-  const visibleActions = snapshot.actions.filter((action) =>
-    !actionQuery.value.trim() || action.name.toLowerCase().includes(actionQuery.value.trim().toLowerCase()));
-  const visibleEvents = snapshot.events.filter((event) =>
-    !eventQuery.value.trim()
-    || event.name.toLowerCase().includes(eventQuery.value.trim().toLowerCase())
-    || event.trigger.includes(eventQuery.value.trim().toLowerCase()));
-  const sortedActions = sortRows(visibleActions, actionSort.value);
-  const sortedEvents = sortRows(visibleEvents, eventSort.value);
-
-  const hotkeyTip = hotkeyPanel
-    ? [t(locale, 'hotkeyStatusTitle'), hotkeyPanel.headline, ...hotkeyPanel.lines, hotkeyPanel.lastEvent]
-      .filter((part): part is string => typeof part === 'string' && part.length > 0)
-      .join(' — ')
-    : '';
-
   return (
     <div class="plg plg--behavior">
       {error && <div class="plg-stack"><div class="plg-alert">{error}</div></div>}
 
-      {hotkeyPanel && (
-        <span class="plg-hotkey-float">
-          <Tooltip text={hotkeyTip} position="left">
-            <span class="plg-hotkey-float__body" role="img" aria-label={hotkeyTip}>
-              <Icon name="keyboard" size={15} />
-              <span
-                class={`plg-dot${hotkeyPanel.tone === 'err' ? ' is-err' : hotkeyPanel.tone === 'ok' ? ' is-ok' : ''}`}
-                aria-hidden="true"
-              />
-            </span>
-          </Tooltip>
-        </span>
-      )}
+      <HotkeyFloatBadge
+        locale={locale}
+        plugins={snapshot.plugins}
+        hotkeyStatus={props.hotkeyStatus}
+        lastHotkeyEvent={props.lastHotkeyEvent}
+      />
 
       <div class="plg-body">
         <div class="plg-scroll">
-          <div class="plg-section">
-            <div class="plg-section__head">
-              <div class="plg-section__title">
-                <Tooltip text={t(locale, 'behavior.copy.actions')} position="right">
-                  <span class="plg-section__icon" aria-hidden="true">
-                    <Icon name="bolt" size={16} />
-                  </span>
-                </Tooltip>
-                <h3>{t(locale, 'behavior.copy.actions')}</h3>
-                <span class="plg-section__count">{snapshot.actions.length}</span>
-              </div>
-              <div class="plg-section__tools">
-                <SearchInput
-                  name="actionQuery"
-                  value={actionQuery.value}
-                  onValueChange={(next) => { actionQuery.value = next; }}
-                  placeholder={t(locale, 'behavior.copy.searchAction')}
-                />
-                <span class="plg-section__sort">
-                  <SortControl locale={locale} value={actionSort.value} onChange={(value) => { actionSort.value = value; }} />
-                </span>
-                <Tooltip text={t(locale, 'behavior.copy.newAction')} position="left">
-                  <button type="button" class="plg-btn plg-btn--primary plg-btn--sm plg-section__new" onClick={() => { screen.value = { kind: 'picker' }; }}>
-                    <Icon name="plus" size={14} />
-                    <span>{t(locale, 'behavior.copy.newAction')}</span>
-                  </button>
-                </Tooltip>
-              </div>
-            </div>
-
-            <div class="plg-table plg-table--actions">
-              <div class="plg-table__head">
-                <SortHeader
-                  label={t(locale, 'behavior.copy.colActive')}
-                  sort={actionSort.value}
-                  onSort={(value) => { actionSort.value = value; }}
-                  by="enabled"
-                />
-                <SortHeader label={t(locale, 'behavior.copy.colName')} sort={actionSort.value} onSort={(value) => { actionSort.value = value; }} by="name" />
-                <span>{t(locale, 'behavior.copy.colOrigin')}</span>
-                <span>{t(locale, 'behavior.copy.colDoes')}</span>
-                <span>{t(locale, 'behavior.copy.colLast')}</span>
-                <span />
-              </div>
-
-              {sortedActions.map((action) => {
-                const type = snapshot.actionTypes.find((entry) => entry.id === action.typeId);
-                const lastRun = lastRunByAction.value.get(action.id);
-                const failing = lastRun?.status === 'error';
-                const usable = !type || type.source.kind === 'builtin' || availableTypes.value.has(action.typeId);
-                return (
-                  <div
-                    class={`plg-table__row${action.enabled ? '' : ' is-off'}${failing && action.enabled ? ' has-error' : ''}`}
-                    key={action.id}
-                  >
-                    <Switch
-                      checked={action.enabled}
-                      onCheckedChange={() => props.onSetActionEnabled(action.id, !action.enabled)}
-                      ariaLabel={action.name}
-                    />
-                    <button
-                      type="button"
-                      class="plg-table__link"
-                      onClick={() => { screen.value = { kind: 'action', action, isNew: false }; }}
-                    >
-                      {action.name}
-                    </button>
-                    <span class="plg-table__meta">
-                      <span class="plg-table__origin">
-                        {type ? originLabel(type, locale, t(locale, 'behavior.copy.builtIn')) : '—'}
-                        {!usable && ` · ${t(locale, 'behavior.copy.pluginMissing')}`}
-                      </span>
-                      <span class="plg-pill plg-pill--mono">{type?.tag ?? '—'}</span>
-                    </span>
-                    <span class="plg-table__detail">{describeAction(action)}</span>
-                    <span class={`plg-table__status${!action.enabled ? '' : failing ? ' is-err' : lastRun ? ' is-ok' : ''}`}>
-                      <span class={`plg-dot${!action.enabled ? '' : failing ? ' is-err' : lastRun ? ' is-ok' : ''}`} />
-                      {!action.enabled
-                        ? t(locale, 'behavior.copy.paused')
-                        : lastRun
-                          ? `${lastRun.error ?? lastRun.summary} · ${relativeTime(lastRun.at, locale)}`
-                          : t(locale, 'behavior.copy.noRuns')}
-                    </span>
-                    <span class="plg-table__actions">
-                      <Tooltip text={t(locale, 'behavior.copy.edit')} position="left">
-                        <button
-                          type="button"
-                          class="plg-iconbtn"
-                          aria-label={t(locale, 'behavior.copy.edit')}
-                          onClick={() => { screen.value = { kind: 'action', action, isNew: false }; }}
-                        >
-                          <IconPencil />
-                        </button>
-                      </Tooltip>
-                      <Tooltip text={t(locale, 'behavior.copy.remove')} position="left">
-                        <button
-                          type="button"
-                          class="plg-iconbtn is-danger"
-                          aria-label={t(locale, 'behavior.copy.remove')}
-                          onClick={async () => {
-                            const confirmed = await dialogs.confirm(t(locale, 'behavior.copy.confirmDeleteAction'), {
-                              title: t(locale, 'behavior.copy.remove'),
-                              confirmLabel: t(locale, 'behavior.copy.remove'),
-                              cancelLabel: t(locale, 'cancel'),
-                              danger: true,
-                            });
-                            if (confirmed) props.onDeleteAction(action.id);
-                          }}
-                        >
-                          <IconTrash />
-                        </button>
-                      </Tooltip>
-                    </span>
-                  </div>
-                );
-              })}
-
-              {visibleActions.length === 0 && (
-                <div class="plg-empty">
-                  <span class="plg-empty__desc">{t(locale, 'behavior.copy.noActions')}</span>
-                  <button type="button" class="plg-btn plg-btn--primary" onClick={() => { screen.value = { kind: 'picker' }; }}>
-                    <Icon name="plus" size={14} />
-                    <span>{t(locale, 'behavior.copy.newAction')}</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div class="plg-section">
-            <div class="plg-section__head">
-              <div class="plg-section__title">
-                <Tooltip text={t(locale, 'behavior.copy.events')} position="right">
-                  <span class="plg-section__icon" aria-hidden="true">
-                    <Icon name="radio" size={16} />
-                  </span>
-                </Tooltip>
-                <h3>{t(locale, 'behavior.copy.events')}</h3>
-                <span class="plg-section__count">{snapshot.events.length}</span>
-              </div>
-              <div class="plg-section__tools">
-                <SearchInput
-                  name="eventQuery"
-                  value={eventQuery.value}
-                  onValueChange={(next) => { eventQuery.value = next; }}
-                  placeholder={t(locale, 'behavior.copy.searchEvent')}
-                />
-                <span class="plg-section__sort">
-                  <SortControl locale={locale} value={eventSort.value} onChange={(value) => { eventSort.value = value; }} />
-                </span>
-                <Tooltip text={t(locale, 'behavior.copy.newEvent')} position="left">
-                  <button
-                    type="button"
-                    class="plg-btn plg-btn--primary plg-btn--sm plg-section__new"
-                    onClick={() => { screen.value = { kind: 'event', event: createEvent(locale), isNew: true }; }}
-                  >
-                    <Icon name="plus" size={14} />
-                    <span>{t(locale, 'behavior.copy.newEvent')}</span>
-                  </button>
-                </Tooltip>
-              </div>
-            </div>
-
-            <div class="plg-table plg-table--events">
-              <div class="plg-table__head">
-                <SortHeader label={t(locale, 'behavior.copy.colActive')} sort={eventSort.value} onSort={(value) => { eventSort.value = value; }} by="enabled" />
-                <SortHeader label={t(locale, 'behavior.copy.colName')} sort={eventSort.value} onSort={(value) => { eventSort.value = value; }} by="name" />
-                <span>{t(locale, 'behavior.copy.colTrigger')}</span>
-                <span>{t(locale, 'behavior.copy.colFilters')}</span>
-                <span>{t(locale, 'behavior.copy.colActions')}</span>
-                <span />
-              </div>
-
-              {sortedEvents.map((event) => (
-                <div class={`plg-table__row${event.enabled ? '' : ' is-off'}`} key={event.id}>
-                  <Switch
-                    checked={event.enabled}
-                    onCheckedChange={() => props.onSetEventEnabled(event.id, !event.enabled)}
-                    ariaLabel={event.name}
-                  />
-                  <button
-                    type="button"
-                    class="plg-table__link"
-                    onClick={() => { screen.value = { kind: 'event', event, isNew: false }; }}
-                  >
-                    {event.name}
-                  </button>
-                  <span class="plg-table__origin">{triggerLabel(event.trigger, snapshot.eventTypes ?? [], locale)}</span>
-                  <span class="plg-table__chips">
-                    {event.filters.length === 0 && <span class="plg-pill">{t(locale, 'behavior.copy.always')}</span>}
-                    {event.filters.map((filter, index) => (
-                      <span class="plg-pill plg-pill--mono" key={`${filter.path}-${index}`}>
-                        {describeFilter(filter, locale, event.trigger)}
-                      </span>
-                    ))}
-                  </span>
-                  <span class="plg-table__chips">
-                    {event.actionIds.map((id) => (
-                      <span class="plg-pill plg-pill--accent" key={id}>
-                        {snapshot.actions.find((action) => action.id === id)?.name ?? id}
-                      </span>
-                    ))}
-                  </span>
-                  <span class="plg-table__actions">
-                    <Tooltip text={t(locale, 'behavior.copy.edit')} position="left">
-                      <button
-                        type="button"
-                        class="plg-iconbtn"
-                        aria-label={t(locale, 'behavior.copy.edit')}
-                        onClick={() => { screen.value = { kind: 'event', event, isNew: false }; }}
-                      >
-                        <IconPencil />
-                      </button>
-                    </Tooltip>
-                    <Tooltip text={t(locale, 'behavior.copy.remove')} position="left">
-                      <button
-                        type="button"
-                        class="plg-iconbtn is-danger"
-                        aria-label={t(locale, 'behavior.copy.remove')}
-                        onClick={async () => {
-                          const confirmed = await dialogs.confirm(t(locale, 'behavior.copy.confirmDeleteEvent'), {
-                            title: t(locale, 'behavior.copy.remove'),
-                            confirmLabel: t(locale, 'behavior.copy.remove'),
-                            cancelLabel: t(locale, 'cancel'),
-                            danger: true,
-                          });
-                          if (confirmed) props.onDeleteEvent(event.id);
-                        }}
-                      >
-                        <IconTrash />
-                      </button>
-                    </Tooltip>
-                  </span>
-                </div>
-              ))}
-
-              {visibleEvents.length === 0 && (
-                <div class="plg-empty">
-                  <span class="plg-empty__desc">{t(locale, 'behavior.copy.noEvents')}</span>
-                  <button
-                    type="button"
-                    class="plg-btn plg-btn--primary"
-                    onClick={() => { screen.value = { kind: 'event', event: createEvent(locale), isNew: true }; }}
-                  >
-                    <Icon name="plus" size={14} />
-                    <span>{t(locale, 'behavior.copy.newEvent')}</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+          <ActionsTable
+            locale={locale}
+            actions={snapshot.actions}
+            actionTypes={snapshot.actionTypes}
+            availableTypes={availableTypes.value}
+            lastRunByAction={lastRunByAction.value}
+            onSetEnabled={props.onSetActionEnabled}
+            onDelete={props.onDeleteAction}
+            onEdit={(action) => { screen.value = { kind: 'action', action, isNew: false }; }}
+            onNew={() => { screen.value = { kind: 'picker' }; }}
+          />
+          <EventsTable
+            locale={locale}
+            events={snapshot.events}
+            actions={snapshot.actions}
+            eventTypes={snapshot.eventTypes ?? []}
+            onSetEnabled={props.onSetEventEnabled}
+            onDelete={props.onDeleteEvent}
+            onEdit={(event) => { screen.value = { kind: 'event', event, isNew: false }; }}
+            onNew={(event) => { screen.value = { kind: 'event', event, isNew: true }; }}
+          />
         </div>
 
         <aside class="plg-body__aside">

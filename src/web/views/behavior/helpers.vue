@@ -198,6 +198,19 @@ export function SortControl({
   );
 }
 
+/** Sorts named behavior rows (actions/events) by a {@link SortMode}. Enabled-first and disabled-first fall back to name order. */
+export function sortBehaviorRows<T extends { name: string; enabled: boolean }>(rows: T[], sort: SortMode): T[] {
+  return [...rows].sort((left, right) => {
+    if (sort === 'enabled' || sort === 'disabled') {
+      const delta = Number(right.enabled) - Number(left.enabled);
+      if (delta !== 0) return sort === 'enabled' ? delta : -delta;
+      return left.name.localeCompare(right.name);
+    }
+    const byName = left.name.localeCompare(right.name);
+    return sort === 'name-desc' ? -byName : byName;
+  });
+}
+
 export function SortGlyph({ direction }: { direction: 'up' | 'down' | 'dot' | 'dot-off' }) {
   return (
     <SvgIcon size={13}>
