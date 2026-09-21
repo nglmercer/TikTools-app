@@ -1,5 +1,5 @@
 <script lang="tsx">
-import { Icon, readIconName, type IconName } from '../icons/index.ts';
+import { Icon, readIconName } from '../icons/index.ts';
 import { IconSelect, type IconSelectOption } from './IconSelect.vue';
 import { InfoTip } from './InfoTip.vue';
 import { MediaField } from './MediaField.vue';
@@ -26,6 +26,7 @@ import { isSecretField } from '../../../automation/plugins/declarative.ts';
 import type { OpenMediaPicker } from '../../../shared/messages.ts';
 import { defineVueComponent } from '../../vue/component.ts';
 import { localized, toDisplayValue, resolveSelectDisplayValue, formatJson, type FieldOption } from './schema-form-helpers.ts';
+import { resolveFieldOptions } from './schema-field-options.ts';
 import { KeyValueEditor } from './KeyValueEditor.vue';
 
 export type SchemaFieldProps = {
@@ -300,17 +301,7 @@ function renderSchemaField({ locale, name, schema, hint, value, onChange, templa
     );
   }
 
-  const schemaOptions = Array.isArray(schema.enum) ? schema.enum.filter((entry): entry is string => typeof entry === 'string').map((value) => ({ value, label: value })) : [];
-  const hintedEntries: Array<{ value: string; label: string; hint?: string; icon?: IconName }> = Array.isArray(hint?.options)
-    ? hint.options.filter((entry): entry is JsonObject => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)).map((entry) => ({
-      value: typeof entry.value === 'string' ? entry.value : '',
-      label: localized(entry.label, locale) || (typeof entry.value === 'string' ? entry.value : ''),
-      hint: localized(entry.hint, locale) || undefined,
-      icon: readIconName(entry.icon),
-    }))
-    : [];
-  const dynamicOptions = Array.isArray(fieldOptions) ? fieldOptions.filter((entry) => entry && typeof entry.value === 'string') : [];
-  const options = schemaOptions.length > 0 ? schemaOptions : dynamicOptions.length > 0 ? dynamicOptions : hintedEntries;
+  const { options, source } = resolveFieldOptions(schema, hint, fieldOptions, locale);
   if (options.length > 0) {
     // Defaults are applied deliberately at the settings/form state boundary
     // (`withSchemaDefaults`, plus the host overlay), not here. This render
@@ -323,13 +314,13 @@ function renderSchemaField({ locale, name, schema, hint, value, onChange, templa
     // Dynamic (optionsFrom) lists and icon-carrying hinted lists render as an
     // IconSelect; static lists use the native Select. Native <option> cannot
     // draw SVGs, which is why icon lists need the custom control.
-    const isDynamic = options === dynamicOptions;
-    const useIcons = isDynamic || (options === hintedEntries && hintedEntries.some((entry) => entry.icon !== undefined));
+    const isDynamic = source === 'dynamic';
+    const useIcons = isDynamic || (source === 'hinted' && options.some((entry) => entry.icon !== undefined));
     const iconOptions: IconSelectOption[] | undefined = !useIcons
       ? undefined
       : isDynamic
-        ? dynamicOptions.map((entry) => ({ value: entry.value, label: entry.label }))
-        : hintedEntries.map((entry) => ({
+        ? options.map((entry) => ({ value: entry.value, label: entry.label }))
+        : options.map((entry) => ({
           value: entry.value,
           label: entry.label,
           hint: entry.hint,

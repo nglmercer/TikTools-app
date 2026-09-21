@@ -1,12 +1,8 @@
 <script lang="tsx">
-import { computed, ref, watch } from 'vue';
-import { defineVueComponent } from '../../vue/component.ts';
-
 import type {
   AutomationEvent,
   AutomationEventType,
   AutomationScriptAnalysis,
-  AutomationScriptCompletion,
   JsonObject,
   JsonValue,
   NodeDefinition,
@@ -18,15 +14,16 @@ import { Select } from '../ui/Select.vue';
 import { TemplateField } from '../ui/fields/TemplateField.vue';
 import { getTemplateSuggestions, type TemplateSuggestionScope } from './template-suggestions.ts';
 import { HttpRequestEditor } from '../http/index.ts';
-import { AutocompletePopover } from '../autocomplete/AutocompletePopover.vue';
 import { WORKFLOW_EVENT_CHOICES } from './WorkflowWizardModal.vue';
 import { asNumber, asString } from './graph.ts';
 import { i18nText, t, type Locale } from '../../i18n.ts';
 import { SchemaForm } from '../ui/SchemaForm.vue';
 import { MediaField } from '../ui/MediaField.vue';
 import type { OpenMediaPicker } from '../../../shared/messages.ts';
+import { ScriptConfigForm } from './config/ScriptConfigForm.vue';
+import { formatValue, isJsonObject, parseValue } from './config/config-value.ts';
 
-type NodeConfigFormProps = {
+export type NodeConfigFormProps = {
   locale: Locale;
   node: WorkflowNode;
   definition?: NodeDefinition;
@@ -178,189 +175,11 @@ export function NodeConfigForm({ locale, node, definition, analysis, eventType, 
   }
 }
 
-const ScriptConfigForm = defineVueComponent<NodeConfigFormProps>(
-  ['locale', 'node', 'analysis', 'eventType', 'lastEvent', 'onChange', 'onAnalyzeScript', 'onOpenMediaPicker'],
-  (props) => {
-  const source = computed(() => asString(props.node.config.source));
-  const cursor = ref(source.value.length);
-  const completionIndex = ref(0);
-  const completionOpen = ref(true);
-  const textareaRef = ref<HTMLTextAreaElement | null>(null);
-  const completionAnchorRef = ref<HTMLDivElement | null>(null);
-  const completionKey = computed(() => props.analysis?.completions.map((completion) => `${completion.label}:${completion.detail ?? ''}`).join('|') ?? '');
-  const visibleCompletions = computed(() => props.analysis?.completions.slice(0, 12) ?? []);
-
-  watch(() => [props.node.id, source.value], () => { cursor.value = source.value.length; });
-  watch(completionKey, () => {
-    completionIndex.value = 0;
-    completionOpen.value = visibleCompletions.value.length > 0;
-  });
-
-  const change = (nextSource: string, nextCursor: number): void => {
-    cursor.value = nextCursor;
-    props.onChange({ ...props.node.config, source: nextSource });
-    props.onAnalyzeScript(props.node.id, nextSource, nextCursor, props.eventType);
-  };
-
-  const applyCompletion = (completion: AutomationScriptCompletion): void => {
-    const textarea = textareaRef.value;
-    const offset = textarea?.selectionStart ?? cursor.value;
-    const before = source.value.slice(0, offset);
-    const match = before.match(/[A-Za-z0-9_$]*$/);
-    const start = offset - (match?.[0]?.length ?? 0);
-    const nextSource = `${source.value.slice(0, start)}${completion.label}${source.value.slice(offset)}`;
-    const nextOffset = start + completion.label.length;
-    change(nextSource, nextOffset);
-    completionOpen.value = false;
-    requestAnimationFrame(() => {
-      textareaRef.value?.focus();
-      textareaRef.value?.setSelectionRange(nextOffset, nextOffset);
-    });
-  };
-
-  const handleCompletionKeydown = (event: KeyboardEvent): void => {
-    const completions = visibleCompletions.value;
-    if (!completionOpen.value || completions.length === 0) return;
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      completionIndex.value = (completionIndex.value + 1) % completions.length;
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      completionIndex.value = (completionIndex.value - 1 + completions.length) % completions.length;
-    } else if (event.key === 'Tab' || event.key === 'Enter') {
-      event.preventDefault();
-      const selected = completions[completionIndex.value];
-      if (selected) applyCompletion(selected);
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      completionOpen.value = false;
-    }
-  };
-
-  return () => (
-    <div class="node-editor-form-stack">
-      <div class="node-editor-script-context">
-        <span>{t(props.locale, 'scriptEditor')}</span>
-        <small>{props.lastEvent ? `${t(props.locale, 'lastEventContext')}: ${props.lastEvent.type}` : t(props.locale, 'noLastEventContext')}</small>
-      </div>
-      <div class={`plg-float ${source.value.trim().length > 0 ? 'is-filled' : ''}`}>
-        <div class="plg-float__control plg-float__control--textarea">
-          <div ref={completionAnchorRef} class="node-editor-script-editor" style={{ flex: 1, display: 'flex' }}>
-            <textarea
-              ref={textareaRef}
-              class="node-editor-form-textarea node-editor-form-textarea--code"
-              style={{ border: 'none', background: 'transparent', flex: 1 }}
-              value={source.value}
-              rows={12}
-              spellcheck={false}
-              placeholder=" "
-              aria-label={t(props.locale, 'scriptEditor')}
-              onFocus={() => { completionOpen.value = true; }}
-              onKeydown={handleCompletionKeydown}
-              onInput={(event) => {
-                const target = event.currentTarget as HTMLTextAreaElement;
-                change(target.value, target.selectionStart ?? target.value.length);
-              }}
-              onKeyup={(event) => {
-                if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Tab' || event.key === 'Enter' || event.key === 'Escape') return;
-                const target = event.currentTarget as HTMLTextAreaElement;
-                cursor.value = target.selectionStart ?? source.value.length;
-                props.onAnalyzeScript(props.node.id, source.value, target.selectionStart ?? source.value.length, props.eventType);
-              }}
-              onClick={(event) => {
-                const target = event.currentTarget as HTMLTextAreaElement;
-                cursor.value = target.selectionStart ?? source.value.length;
-                props.onAnalyzeScript(props.node.id, source.value, target.selectionStart ?? source.value.length, props.eventType);
-              }}
-            />
-            <AutocompletePopover anchor={completionAnchorRef.value} open={completionOpen.value && visibleCompletions.value.length > 0} updateKey={cursor.value}>
-              <div class="node-editor-code-completions" role="listbox">
-                {visibleCompletions.value.map((completion, index) => (
-                  <button
-                    key={`${completion.kind}:${completion.label}`}
-                    type="button"
-                    role="option"
-                    tabindex={-1}
-                    aria-selected={index === completionIndex.value}
-                    class={index === completionIndex.value ? 'is-selected' : ''}
-                    title={completion.documentation ?? completion.detail ?? completion.label}
-                    onPointerdown={(event) => event.preventDefault()}
-                    onMousedown={(event) => event.preventDefault()}
-                    onMouseenter={() => { completionIndex.value = index; }}
-                    onClick={() => applyCompletion(completion)}
-                  >
-                    <strong>{completion.label}</strong>
-                    <span>{completion.detail ?? completion.kind}</span>
-                    {completion.valueSource === 'live-event' && completion.value !== undefined ? <code>{formatEditorValue(completion.value)}</code> : null}
-                  </button>
-                ))}
-                <small>↑ ↓ {t(props.locale, 'navigate')} · Tab {t(props.locale, 'insertAction')}</small>
-              </div>
-            </AutocompletePopover>
-          </div>
-          <label class="plg-float__label">
-            {t(props.locale, 'scriptEditor')}
-          </label>
-        </div>
-      </div>
-      {props.analysis?.diagnostics.length ? (
-        <div class="node-editor-diagnostics" role="status">
-          {props.analysis.diagnostics.map((diagnostic, index) => <div key={`${diagnostic.line}:${diagnostic.column}:${index}`} class="node-editor-diagnostic"><span>{diagnostic.line}:{diagnostic.column}</span> {diagnostic.message}</div>)}
-        </div>
-      ) : null}
-      {props.analysis?.hover ? (
-        <div class="node-editor-hover-card" role="status">
-          <strong>{props.analysis.hover.detail}</strong>
-          <span>{props.analysis.hover.documentation}</span>
-          {props.analysis.hover.valueSource === 'live-event' && props.analysis.hover.value !== undefined
-            ? props.analysis.hover.path === 'event.data'
-              ? <pre>{formatEditorValue(props.analysis.hover.value, true)}</pre>
-              : <code>{formatEditorValue(props.analysis.hover.value)}</code>
-            : null}
-        </div>
-      ) : null}
-    </div>
-  );
-  },
-);
-
 function GenericConfigForm({ locale, node, definition, onChange, onOpenMediaPicker }: { locale: Locale; node: WorkflowNode; definition?: NodeDefinition; onChange: (config: JsonObject) => void; onOpenMediaPicker?: OpenMediaPicker }) {
   if (!definition || !isJsonObject(definition.configSchema)) return <GenericConfigFormNoForm locale={locale} />;
   const properties = definition.configSchema.properties;
   if (!properties || typeof properties !== 'object' || Array.isArray(properties) || Object.keys(properties).length === 0) return <GenericConfigFormNoForm locale={locale} />;
   return <SchemaForm locale={locale} schema={definition.configSchema} value={node.config} onChange={onChange} onOpenMediaPicker={onOpenMediaPicker} />;
-}
-
-function formatValue(value: JsonValue | undefined): string {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'object') return '';
-  return String(value);
-}
-
-function formatEditorValue(value: JsonValue, pretty = false): string {
-  if (typeof value === 'string') return JSON.stringify(value);
-  if (value === null) return 'null';
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  try {
-    const serialized = JSON.stringify(value, pretty ? null : undefined, pretty ? 2 : undefined) ?? String(value);
-    if (pretty) return serialized.length > 8_000 ? `${serialized.slice(0, 7_997)}...` : serialized;
-    return serialized.length > 140 ? `${serialized.slice(0, 137)}...` : serialized;
-  } catch {
-    return String(value);
-  }
-}
-
-function parseValue(value: string): JsonValue {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-  const number = Number(trimmed);
-  return Number.isFinite(number) && trimmed !== '' ? number : value;
-}
-
-function isJsonObject(value: JsonValue | undefined): value is JsonObject {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function GenericConfigFormNoForm({ locale }: { locale: Locale }) {
