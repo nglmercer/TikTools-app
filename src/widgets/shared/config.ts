@@ -42,8 +42,13 @@ export const DEFAULT_GIFT_VISIBLE_MS = 5000;
 export const DEFAULT_GIFT_COMBO_TIMEOUT_MS = 3000;
 export const DEFAULT_GIFT_MINIMUM_DIAMONDS = 0;
 
+/**
+ * Widget-scoped WebSocket endpoint. `/ws/widgets` honors only the widget
+ * credential and only widget topics; the full `/ws` surface stays
+ * exclusive to external gateway clients.
+ */
 export function gatewayWsUrl(host: string, port: number): string {
-  return `ws://${host}:${port}/ws`;
+  return `ws://${host}:${port}/ws/widgets`;
 }
 
 export function gatewayHealthUrl(host: string, port: number): string {

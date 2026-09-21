@@ -49,7 +49,6 @@ export function createWidgetRuntime(options: WidgetRuntimeOptions): WidgetRuntim
     hasToken: token !== null,
     status: client.currentStatus,
     start: () => {
-      credentials.rememberFragmentToken();
       if (!credentials.token) {
         log.warn('starting without a gateway token; alerts resume once credentials exist');
         return;

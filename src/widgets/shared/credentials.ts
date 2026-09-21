@@ -1,94 +1,40 @@
-/**
- * Isolated gateway credential handling. Widgets read the token from the URL
- * fragment (`#token=...`), an injected page global, or loopback-only local
- * storage — never from the query string, which leaks into server logs.
- *
- * This is the interim mechanism until TikTools issues scoped widget
- * credentials; all reads flow through this provider so that swap stays local.
- */
-
 import { DEFAULT_GATEWAY_HOST, DEFAULT_GATEWAY_PORT } from './config.ts';
 
-export interface CredentialInputs {
-  /** Raw `location.hash`, including the leading `#`. */
+export interface CredentialInput {
+  /** Location hash such as `#token=ttw_…&host=127.0.0.1&port=17452`. */
   hash?: string;
-  /** Pre-injected token (TikTools preview pages). */
-  injectedToken?: unknown;
-  /** Optional storage for a previously saved token (dev convenience). */
-  storage?: Pick<Storage, 'getItem' | 'setItem'> | null;
 }
 
-const STORAGE_KEY = 'tiktools.gateway.token';
-
-function readFragmentParams(hash: string | undefined): URLSearchParams {
-  if (!hash) return new URLSearchParams();
-  return new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
-}
-
-function readPort(params: URLSearchParams): number | undefined {
-  const raw = params.get('port');
-  if (raw === null || raw.trim() === '') return undefined;
-  const port = Number.parseInt(raw, 10);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) return undefined;
-  return port;
-}
-
+/**
+ * Gateway credential lookup: URL fragment -> memory -> WebSocket auth.
+ *
+ * OBS persists the Browser Source URL itself, so the widget never writes
+ * the credential anywhere else: no localStorage, no cookies, no query
+ * parameters. The token authenticates one WebSocket handshake and then
+ * lives only in this provider's memory.
+ */
 export class CredentialProvider {
   private readonly params: URLSearchParams;
-  private readonly injectedToken: string | null;
-  private readonly storage: Pick<Storage, 'getItem' | 'setItem'> | null;
 
-  constructor(inputs: CredentialInputs = {}) {
-    this.params = readFragmentParams(inputs.hash);
-    this.injectedToken =
-      typeof inputs.injectedToken === 'string' && inputs.injectedToken.trim() !== ''
-        ? inputs.injectedToken
-        : null;
-    this.storage = inputs.storage ?? null;
+  constructor(input: CredentialInput = {}) {
+    this.params = new URLSearchParams((input.hash ?? '').replace(/^#/, ''));
   }
 
-  static fromWindow(): CredentialProvider {
-    if (typeof window === 'undefined') return new CredentialProvider();
-    const injected = (window as unknown as Record<string, unknown>)['__TIKTOOLS_GATEWAY_TOKEN__'];
-    let storage: Storage | null;
-    try {
-      storage = window.localStorage ?? null;
-    } catch {
-      storage = null;
-    }
-    return new CredentialProvider({ hash: window.location.hash, injectedToken: injected, storage });
-  }
-
+  /** Widget credential from `#token=…`, or null when absent. */
   get token(): string | null {
-    const fragment = this.params.get('token')?.trim();
-    if (fragment) return fragment;
-    if (this.injectedToken) return this.injectedToken;
-    try {
-      const stored = this.storage?.getItem(STORAGE_KEY)?.trim();
-      if (stored) return stored;
-    } catch {
-      // Storage may be unavailable (opaque origin); fall through.
-    }
-    return null;
+    const token = this.params.get('token');
+    return token && token.trim() !== '' ? token : null;
   }
 
   get host(): string {
-    const host = this.params.get('host')?.trim();
-    return host ? host : DEFAULT_GATEWAY_HOST;
+    const host = this.params.get('host');
+    return host && host.trim() !== '' ? host : DEFAULT_GATEWAY_HOST;
   }
 
   get port(): number {
-    return readPort(this.params) ?? DEFAULT_GATEWAY_PORT;
-  }
-
-  /** Persists a fragment-supplied token for page reloads (best effort). */
-  rememberFragmentToken(): void {
-    const fragment = this.params.get('token')?.trim();
-    if (!fragment || !this.storage) return;
-    try {
-      this.storage.setItem(STORAGE_KEY, fragment);
-    } catch {
-      // Ignore: storage is a convenience, not a requirement.
-    }
+    const parsed = Number.parseInt(this.params.get('port') ?? '', 10);
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535
+      ? parsed
+      : DEFAULT_GATEWAY_PORT;
   }
 }

@@ -11,8 +11,8 @@ import { CredentialProvider } from './credentials.ts';
 
 describe('credential provider', () => {
   test('reads token, host, and port from the URL fragment', () => {
-    const provider = new CredentialProvider({ hash: '#token=ttk_abc&host=127.0.0.1&port=18000' });
-    expect(provider.token).toBe('ttk_abc');
+    const provider = new CredentialProvider({ hash: '#token=ttw_abc&host=127.0.0.1&port=18000' });
+    expect(provider.token).toBe('ttw_abc');
     expect(provider.host).toBe('127.0.0.1');
     expect(provider.port).toBe(18000);
   });
@@ -25,30 +25,15 @@ describe('credential provider', () => {
     expect(new CredentialProvider({ hash: '#port=99999' }).port).toBe(DEFAULT_GATEWAY_PORT);
   });
 
-  test('prefers fragment over injected and stored tokens', () => {
-    const storage = new Map<string, string>([['tiktools.gateway.token', 'ttk_stored']]);
-    const provider = new CredentialProvider({
-      hash: '#token=ttk_fragment',
-      injectedToken: 'ttk_injected',
-      storage: { getItem: (key) => storage.get(key) ?? null, setItem: (k, v) => void storage.set(k, v) },
-    });
-    expect(provider.token).toBe('ttk_fragment');
-  });
-
-  test('uses injected then stored tokens when the fragment is empty', () => {
-    const storage = new Map<string, string>([['tiktools.gateway.token', 'ttk_stored']]);
-    const shim = { getItem: (key: string) => storage.get(key) ?? null, setItem: (k: string, v: string) => void storage.set(k, v) };
-    expect(new CredentialProvider({ injectedToken: 'ttk_injected', storage: shim }).token).toBe(
-      'ttk_injected',
-    );
-    expect(new CredentialProvider({ storage: shim }).token).toBe('ttk_stored');
-  });
-
-  test('rememberFragmentToken persists for reloads', () => {
-    const storage = new Map<string, string>();
-    const shim = { getItem: (key: string) => storage.get(key) ?? null, setItem: (k: string, v: string) => void storage.set(k, v) };
-    new CredentialProvider({ hash: '#token=ttk_new', storage: shim }).rememberFragmentToken();
-    expect(storage.get('tiktools.gateway.token')).toBe('ttk_new');
+  test('reads credentials only from the fragment, never from storage', () => {
+    // No storage or injection inputs exist: an empty fragment means no
+    // credential, even if a previous page load saw one. OBS persists the
+    // Browser Source URL itself.
+    expect(new CredentialProvider({}).token).toBeNull();
+    expect(new CredentialProvider({ hash: '' }).token).toBeNull();
+    const provider = new CredentialProvider({ hash: '#token=ttw_fragment' });
+    expect(provider.token).toBe('ttw_fragment');
+    expect('rememberFragmentToken' in provider).toBe(false);
   });
 });
 
