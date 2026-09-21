@@ -13,6 +13,7 @@ import type {
   PluginSettingValues,
 } from '../../shared/messages.ts';
 import type { PluginSettingsState } from '../types.ts';
+import { toSettingValues } from '../../shared/settings-values.ts';
 import { Button } from './ui/Button.vue';
 import { Modal, ModalActions } from './ui/Modal.vue';
 import { SchemaForm } from './ui/SchemaForm.vue';
@@ -71,14 +72,6 @@ export const PluginConnectionModal = defineVueComponent<PluginConnectionModalPro
       testing.value = false;
     }
   });
-
-  const toSettingValues = (value: JsonObject): PluginSettingValues => {
-    const clean: PluginSettingValues = {};
-    for (const [key, entry] of Object.entries(value)) {
-      if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') clean[key] = entry;
-    }
-    return clean;
-  };
 
   return () => {
   const locale = props.locale;

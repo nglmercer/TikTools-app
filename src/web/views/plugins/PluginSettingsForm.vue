@@ -5,6 +5,7 @@ import { defineVueComponent } from '../../vue/component.ts';
 import type { PluginStatus } from '../../../automation/behavior/types.ts';
 import type { JsonObject } from '../../../automation/types.ts';
 import type { ActionOptionItem, OpenMediaPicker, PluginSettingValues } from '../../../shared/messages.ts';
+import { toSettingValues } from '../../../shared/settings-values.ts';
 import type { PluginSettingsState } from '../../types.ts';
 import { optionFields } from '../../../automation/plugins/declarative.ts';
 import { SchemaForm } from '../../components/ui/SchemaForm.vue';
@@ -88,14 +89,6 @@ export const PluginSettingsForm = defineVueComponent<PluginSettingsFormProps>(
   };
   },
 );
-
-function toSettingValues(value: JsonObject): PluginSettingValues {
-  const clean: PluginSettingValues = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') clean[key] = entry;
-  }
-  return clean;
-}
 
 export default PluginSettingsForm;
 </script>

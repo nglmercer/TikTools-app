@@ -18,7 +18,7 @@
     "test:e2e:update": "playwright test --update-snapshots",
     "lint": "eslint src scripts vite.config.ts --max-warnings=0",
     "typecheck": "vue-tsc --noEmit",
-    "test": "bun test src/web src/automation src/plugin-ui",
+    "test": "bun test src/web src/automation src/plugin-ui src/shared",
     "contracts:generate": "bun run scripts/generate-contracts.ts",
     "contracts:check": "bun run scripts/generate-contracts.ts --check",
     "deps:check": "bun run scripts/check-tiktok-signer-revision.ts",

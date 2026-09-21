@@ -31,6 +31,7 @@ import type {
   PluginSettingValues,
 } from '../../shared/messages.ts';
 import type { PluginSettingsState } from '../types.ts';
+import { toSettingValues } from '../../shared/settings-values.ts';
 import { SchemaForm } from './ui/SchemaForm.vue';
 import { ProvisionTokenModal } from './ProvisionTokenModal.vue';
 import { t, type Locale } from '../i18n.ts';
@@ -55,14 +56,6 @@ type PluginConnectionCardProps = {
 };
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-
-function toSettingValues(value: JsonObject): PluginSettingValues {
-  const clean: PluginSettingValues = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') clean[key] = entry;
-  }
-  return clean;
-}
 
 /**
  * Host-owned connection card shared by the plugin page (`connection`

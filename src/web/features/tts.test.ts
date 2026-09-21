@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { computed, ref } from 'vue';
 
-import type { ActionOptionItem } from '../../shared/messages.ts';
+import type { ActionOptionItem, PluginSettingValues } from '../../shared/messages.ts';
 import { defaultTtsSettings } from '../tts/tts-policy.ts';
 import type { ControlClient } from '../platform/control-client.ts';
 import type { PluginActionOutcome } from './plugins.ts';
@@ -26,8 +26,7 @@ function setup() {
   const pluginPages = computed(() => []);
   const refreshed: string[] = [];
   let resolveExecution!: (outcome: PluginActionOutcome) => void;
-  const executed: Array<{ actionType: string; config: Record<string, string | number | boolean> }> =
-    [];
+  const executed: Array<{ actionType: string; config: PluginSettingValues }> = [];
   const tts = useTts(stubControl(), actionOptions, pluginPages, {
     executeAction: (actionType, config, live) => {
       executed.push({ actionType, config });

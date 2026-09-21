@@ -13,6 +13,7 @@ import {
   type PluginUiAction,
   type PluginUiNode,
 } from '../../plugin-ui/index.ts';
+import { readSettingsPath, writeSettingsPath } from '../../shared/settings-values.ts';
 import { withSchemaDefaults } from '../components/plugin-connection-logic.ts';
 import { PluginConnectionCard } from '../components/plugin-connection-card.vue';
 import { SchemaForm } from '../components/ui/SchemaForm.vue';
@@ -25,27 +26,7 @@ type PluginNodeProps = {
   nodeKey: string;
 };
 
-function readSettingsPath(values: JsonObject | undefined, segments: string[]): unknown {
-  let current: unknown = values;
-  for (const segment of segments) {
-    if (!current || typeof current !== 'object' || Array.isArray(current)) return undefined;
-    current = (current as JsonObject)[segment];
-  }
-  return current;
-}
 
-function writeSettingsPath(values: JsonObject, segments: string[], value: unknown): JsonObject {
-  if (segments.length === 0) return values;
-  const [head, ...rest] = segments as [string, ...string[]];
-  const existing = values[head];
-  const child: JsonObject =
-    existing && typeof existing === 'object' && !Array.isArray(existing)
-      ? (existing as JsonObject)
-      : {};
-  const next: JsonObject = { ...values };
-  next[head] = rest.length === 0 ? (value as JsonObject[string]) : writeSettingsPath(child, rest, value);
-  return next;
-}
 
 /**
  * Generic recursive renderer for the declarative plugin UI contract.

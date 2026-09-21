@@ -35,7 +35,7 @@ type PluginPageViewProps = {
   onGetActionOptions: (source: string, refresh?: boolean) => void;
   onTestConnection: (id: string) => void;
   onOpenMediaPicker?: OpenMediaPicker;
-  onExecuteAction?: (actionType: string, config: Record<string, string | number | boolean>) => void;
+  onExecuteAction?: (actionType: string, config: PluginSettingValues) => void;
   ttsSettings?: TtsSettings;
   ttsSpeaking?: boolean;
   ttsLogs?: TtsLogEntry[];

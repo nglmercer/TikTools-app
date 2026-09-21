@@ -33,7 +33,7 @@ export interface PluginUiOptionsApi {
 }
 
 export interface PluginUiActionsApi {
-  execute(actionType: string, config: Record<string, string | number | boolean>): void;
+  execute(actionType: string, config: PluginSettingValues): void;
 }
 
 export interface PluginUiConnectionApi {
@@ -90,12 +90,5 @@ export interface PluginUiContext {
   };
 }
 
-export function toSettingValues(value: JsonObject): PluginSettingValues {
-  const clean: PluginSettingValues = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === 'string' || typeof entry === 'number' || typeof entry === 'boolean') {
-      clean[key] = entry;
-    }
-  }
-  return clean;
-}
+/** Canonical settings-value conversion (re-exported for context consumers). */
+export { toSettingValues } from '../../shared/settings-values.ts';

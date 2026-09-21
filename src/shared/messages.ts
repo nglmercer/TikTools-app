@@ -11,8 +11,10 @@ import type {
   NodeDefinition,
   WorkflowGraph,
 } from '../automation/types.ts';
+import type { JsonValue } from './json.ts';
 
-export type PluginSettingValues = Record<string, string | number | boolean>;
+/** Full-JSON settings values: nested objects and arrays round-trip untouched. */
+export type PluginSettingValues = Record<string, JsonValue>;
 
 export type MediaKind = 'audio' | 'video' | 'image' | 'other';
 export type MediaPickerMode = 'file' | 'directory';
@@ -174,7 +176,7 @@ export type PageMessage =
   | { type: 'get-plugin-settings'; id: string }
   | { type: 'save-plugin-settings'; id: string; values: PluginSettingValues }
   | { type: 'get-action-options'; source: string }
-  | { type: 'execute-plugin-action'; actionType: string; config: Record<string, string | number | boolean> }
+  | { type: 'execute-plugin-action'; actionType: string; config: PluginSettingValues }
   | { type: 'test-plugin-connection'; id: string }
   | { type: 'provision-plugin-token'; id: string; username: string; password: string }
   | { type: 'test-processor'; pluginId: string; processorId: string; event: AutomationEvent }

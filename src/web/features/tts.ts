@@ -2,7 +2,7 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue';
 
 import type { PluginPageDescriptor } from '../../automation/behavior/types.ts';
 import { legacyTtsContributions, type TtsContribution } from '../../plugin-ui/index.ts';
-import type { ActionOptionItem } from '../../shared/messages.ts';
+import type { ActionOptionItem, PluginSettingValues } from '../../shared/messages.ts';
 import type { ControlClient } from '../platform/control-client.ts';
 import { errorMessage } from '../platform/control-client.ts';
 import {
@@ -23,7 +23,7 @@ import type { PluginActionOutcome } from './plugins.ts';
 export interface TtsCallbacks {
   executeAction: (
     actionType: string,
-    config: Record<string, string | number | boolean>,
+    config: PluginSettingValues,
     live: boolean,
   ) => Promise<PluginActionOutcome>;
   refreshOptions: (source: string) => void;
