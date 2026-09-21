@@ -12,6 +12,7 @@ pub mod media;
 pub mod protocol;
 pub mod sync;
 pub mod text;
+pub mod ui;
 
 pub use abi::{PluginBuffer, PluginInit, PluginStatus, TikToolsPluginApi};
 pub use capabilities::{CapabilityId, CapabilitySet, PermissionSet};
