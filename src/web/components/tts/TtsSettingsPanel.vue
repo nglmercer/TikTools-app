@@ -1,5 +1,4 @@
 <script lang="tsx">
-import { ref, watch } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import type { ActionOptionItem } from '../../../shared/messages.ts';
 import { t, type Locale } from '../../i18n.ts';
@@ -7,12 +6,15 @@ import {
   TTS_LIMITS,
   TTS_SPEED_PITCH_UNSUPPORTED,
   clampNumber,
-  normalizeHandle,
   type TtsCommentMode,
   type TtsLogEntry,
   type TtsSettings,
 } from '../../tts/tts-policy.ts';
-import { outputOptions, outputsCardState } from './tts-outputs.ts';
+import { voiceOptions } from './tts-voice-options.ts';
+import { TtsAllowedUsers } from './TtsAllowedUsers.vue';
+import { TtsOutputsCard } from './TtsOutputsCard.vue';
+import { TtsSpecialUsers } from './TtsSpecialUsers.vue';
+import { TtsVoiceTester } from './TtsVoiceTester.vue';
 
 type TtsSettingsPanelProps = {
   locale: Locale;
@@ -40,14 +42,6 @@ type TtsSettingsPanelProps = {
   onRefreshOutputs?: () => void;
 };
 
-function voiceOptions(voices: ActionOptionItem[], current: string): Array<{ value: string; label: string }> {
-  const options = voices.map((voice) => ({ value: voice.value, label: voice.label || voice.value }));
-  if (current && !options.some((option) => option.value === current)) {
-    options.unshift({ value: current, label: current });
-  }
-  return options;
-}
-
 /**
  * Host-owned TTS settings panel for `tts` plugin page sections. Renders
  * only host controls over manifest-declared voice sources; no
@@ -56,21 +50,11 @@ function voiceOptions(voices: ActionOptionItem[], current: string): Array<{ valu
 export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
   ['locale', 'settings', 'voices', 'voicesError', 'speaking', 'logs', 'onSettingsChange', 'onRefreshVoices', 'onSpeak', 'outputsSupported', 'outputs', 'outputsSelected', 'outputsError', 'outputsPending', 'outputError', 'onSelectOutput', 'onRefreshOutputs'],
   (props) => {
-    const testerText = ref('Hello TikTok, this is a voice test.');
-    const testerVoice = ref(props.settings.defaultVoice);
-    const newSpecialHandle = ref('');
-    const newAllowedHandle = ref('');
-    let testerVoiceTouched = false;
-
-    watch(() => props.settings.defaultVoice, (voice) => {
-      if (!testerVoiceTouched) testerVoice.value = voice;
-    });
-
     const update = (patch: Partial<TtsSettings>): void => {
       props.onSettingsChange({ ...props.settings, ...patch });
     };
 
-    const updateNumber = (key: 'defaultSpeed' | 'defaultPitch' | 'volume' | 'pointsCost' | 'minTeamLevel' | 'topGifterCount', raw: string): void => {
+    const updateNumber = (key: 'defaultSpeed' | 'defaultPitch' | 'volume' | 'pointsCost', raw: string): void => {
       const value = Number(raw);
       if (!Number.isFinite(value)) return;
       switch (key) {
@@ -86,160 +70,31 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
         case 'pointsCost':
           update({ pointsCost: Math.round(clampNumber(value, TTS_LIMITS.minPointsCost, TTS_LIMITS.maxPointsCost, 0)) });
           break;
-        case 'minTeamLevel':
-          update({ minTeamLevel: Math.round(clampNumber(value, TTS_LIMITS.minTeamLevel, TTS_LIMITS.maxTeamLevel, 0)) });
-          break;
-        case 'topGifterCount':
-          update({ topGifterCount: Math.round(clampNumber(value, TTS_LIMITS.minTopGifterCount, TTS_LIMITS.maxTopGifterCount, 10)) });
-          break;
       }
-    };
-
-    const addSpecialUser = (): void => {
-      const handle = normalizeHandle(newSpecialHandle.value);
-      if (!handle || props.settings.specialUsers.some((entry) => entry.handle === handle)) return;
-      update({
-        specialUsers: [
-          ...props.settings.specialUsers,
-          { handle, allowed: true, voice: '', speed: 1, pitch: 1 },
-        ].slice(0, TTS_LIMITS.maxSpecialUsers),
-      });
-      newSpecialHandle.value = '';
-    };
-
-    const patchSpecialUser = (handle: string, patch: Partial<{ allowed: boolean; voice: string; speed: number; pitch: number }>): void => {
-      update({
-        specialUsers: props.settings.specialUsers.map((entry) =>
-          entry.handle === handle ? { ...entry, ...patch } : entry,
-        ),
-      });
-    };
-
-    const removeSpecialUser = (handle: string): void => {
-      update({ specialUsers: props.settings.specialUsers.filter((entry) => entry.handle !== handle) });
-    };
-
-    const addAllowedUser = (): void => {
-      const handle = normalizeHandle(newAllowedHandle.value);
-      if (!handle || props.settings.allowedUsers.includes(handle)) return;
-      update({ allowedUsers: [...props.settings.allowedUsers, handle].slice(0, TTS_LIMITS.maxAllowedUsers) });
-      newAllowedHandle.value = '';
-    };
-
-    const removeAllowedUser = (handle: string): void => {
-      update({ allowedUsers: props.settings.allowedUsers.filter((entry) => entry !== handle) });
     };
 
     const setCommentMode = (mode: TtsCommentMode): void => {
       update({ commentMode: mode });
     };
 
-    const speak = (): void => {
-      const text = testerText.value.trim();
-      if (!text || props.speaking) return;
-      props.onSpeak(text, testerVoice.value.trim());
-    };
-
-    const formatTime = (at: number): string => {
-      try {
-        return new Date(at).toLocaleTimeString();
-      } catch {
-        return '';
-      }
-    };
-
-    /**
-     * Server-side audio output selector. The select always shows server
-     * state: the live selection while a switch is in flight, else the
-     * server-reported active output. Failures never persist locally — the
-     * selector falls back to the last confirmed server value.
-     */
-    const renderOutputsCard = () => {
-      const locale = props.locale;
-      const state = outputsCardState({
-        supported: props.outputsSupported,
-        outputs: props.outputs,
-        outputsError: props.outputsError,
-      });
-      if (state.kind === 'hidden') return null;
-      const refresh = () => props.onRefreshOutputs?.();
-      const refreshRow = (
-        <div class="tts-row">
-          <button type="button" class="plg-btn plg-btn--sm" onClick={refresh}>
-            {t(locale, 'ttsRefreshOutputs')}
-          </button>
-        </div>
-      );
-      if (state.kind === 'loading') {
-        return (
-          <section class="tts-card">
-            <h4 class="tts-card__title">{t(locale, 'ttsAudioOutput')}</h4>
-            <span class="plg-group-note">{t(locale, 'ttsAudioOutputsLoading')}</span>
-          </section>
-        );
-      }
-      if (state.kind === 'unavailable') {
-        return (
-          <section class="tts-card">
-            <h4 class="tts-card__title">{t(locale, 'ttsAudioOutput')}</h4>
-            <div class="plg-alert" role="status">
-              {state.unsupported ? t(locale, 'ttsAudioOutputsNoPlayback') : t(locale, 'ttsAudioOutputsUnavailable')}
-            </div>
-            {!state.unsupported && props.outputsError && (
-              <p class="tts-hint">{props.outputsError}</p>
-            )}
-            {refreshRow}
-          </section>
-        );
-      }
-      if (state.kind === 'empty') {
-        return (
-          <section class="tts-card">
-            <h4 class="tts-card__title">{t(locale, 'ttsAudioOutput')}</h4>
-            <span class="plg-group-note">{t(locale, 'ttsAudioOutputsEmpty')}</span>
-            {refreshRow}
-          </section>
-        );
-      }
-      const current = props.outputsPending || props.outputsSelected || '';
-      const rows = outputOptions(props.outputs ?? [], current);
-      const switching = !!props.outputsPending;
-      return (
-        <section class="tts-card">
-          <h4 class="tts-card__title">{t(locale, 'ttsAudioOutput')}</h4>
-          {props.outputError && <div class="plg-alert" role="status">{props.outputError}</div>}
-          <div class="tts-row tts-row--stack">
-            <label class="tts-label" for="tts-audio-output">{t(locale, 'ttsAudioOutput')}</label>
-            <select
-              id="tts-audio-output"
-              class="tts-select"
-              value={current}
-              disabled={switching}
-              onChange={(event) => props.onSelectOutput?.((event.currentTarget as HTMLSelectElement).value)}
-            >
-              {current === '' && <option value="">{t(locale, 'ttsAudioOutputChoose')}</option>}
-              {rows.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-          {switching
-            ? <p class="tts-hint">{t(locale, 'ttsAudioOutputSwitching')}</p>
-            : <p class="tts-hint">{t(locale, 'ttsAudioOutputHint')}</p>}
-          {refreshRow}
-        </section>
-      );
-    };
-
     return () => {
       const settings = props.settings;
       const voiceList = voiceOptions(props.voices, settings.defaultVoice);
-      const testerVoices = voiceOptions(props.voices, testerVoice.value);
 
       return (
         <div>
           <div class="tts-grid tts-grid--top">
-            {renderOutputsCard()}
+            <TtsOutputsCard
+              locale={props.locale}
+              outputsSupported={props.outputsSupported}
+              outputs={props.outputs}
+              outputsError={props.outputsError}
+              outputsSelected={props.outputsSelected}
+              outputsPending={props.outputsPending}
+              outputError={props.outputError}
+              onSelectOutput={props.onSelectOutput}
+              onRefreshOutputs={props.onRefreshOutputs}
+            />
             <section class="tts-card">
               <h4 class="tts-card__title">General Settings</h4>
               <label class="tts-check">
@@ -336,91 +191,11 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
               </div>
             </section>
 
-            <section class="tts-card">
-              <h4 class="tts-card__title">Allowed Users</h4>
-              <label class="tts-check">
-                <input type="checkbox" checked={settings.allowAllUsers} onChange={(event) => update({ allowAllUsers: (event.currentTarget as HTMLInputElement).checked })} />
-                All users
-              </label>
-              <label class="tts-check">
-                <input type="checkbox" checked={settings.allowFollowers} onChange={(event) => update({ allowFollowers: (event.currentTarget as HTMLInputElement).checked })} />
-                Followers
-              </label>
-              <label class="tts-check">
-                <input type="checkbox" checked={settings.allowSubscribers} onChange={(event) => update({ allowSubscribers: (event.currentTarget as HTMLInputElement).checked })} />
-                Subscribers
-              </label>
-              <label class="tts-check">
-                <input type="checkbox" checked={settings.allowModerators} onChange={(event) => update({ allowModerators: (event.currentTarget as HTMLInputElement).checked })} />
-                Moderators
-              </label>
-              <label class="tts-check">
-                <input type="checkbox" checked={settings.allowTeamMembers} onChange={(event) => update({ allowTeamMembers: (event.currentTarget as HTMLInputElement).checked })} />
-                Team members
-              </label>
-              <div class="tts-row tts-row--stack">
-                <label class="tts-label" for="tts-team-level">Minimum team level</label>
-                <input
-                  id="tts-team-level"
-                  class="tts-input"
-                  type="number"
-                  min={TTS_LIMITS.minTeamLevel}
-                  max={TTS_LIMITS.maxTeamLevel}
-                  value={settings.minTeamLevel}
-                  disabled={!settings.allowTeamMembers}
-                  onInput={(event) => updateNumber('minTeamLevel', (event.currentTarget as HTMLInputElement).value)}
-                />
-              </div>
-              <label class="tts-check">
-                <input type="checkbox" checked={settings.allowTopGifters} onChange={(event) => update({ allowTopGifters: (event.currentTarget as HTMLInputElement).checked })} />
-                Top gifters
-              </label>
-              <div class="tts-row tts-row--stack">
-                <label class="tts-label" for="tts-top-n">Top N</label>
-                <input
-                  id="tts-top-n"
-                  class="tts-input"
-                  type="number"
-                  min={TTS_LIMITS.minTopGifterCount}
-                  max={TTS_LIMITS.maxTopGifterCount}
-                  value={settings.topGifterCount}
-                  disabled={!settings.allowTopGifters}
-                  onInput={(event) => updateNumber('topGifterCount', (event.currentTarget as HTMLInputElement).value)}
-                />
-              </div>
-              <p class="tts-hint">{t(props.locale, 'ttsRolesNote')}</p>
-              <label class="tts-check">
-                <input type="checkbox" checked={settings.allowListedUsers} onChange={(event) => update({ allowListedUsers: (event.currentTarget as HTMLInputElement).checked })} />
-                Allowed users list
-              </label>
-              <div class="tts-add-row">
-                <input
-                  class="tts-input"
-                  type="text"
-                  placeholder="@handle"
-                  value={newAllowedHandle.value}
-                  onInput={(event) => { newAllowedHandle.value = (event.currentTarget as HTMLInputElement).value; }}
-                  onKeydown={(event) => { if ((event as KeyboardEvent).key === 'Enter') addAllowedUser(); }}
-                />
-                <button type="button" class="plg-btn plg-btn--sm" onClick={addAllowedUser}>Add</button>
-              </div>
-              {settings.allowedUsers.length > 0 && (
-                <div class="tts-table-wrap">
-                  <table class="tts-table">
-                    <tbody>
-                      {settings.allowedUsers.map((handle) => (
-                        <tr key={handle}>
-                          <td>@{handle}</td>
-                          <td style="width: 64px; text-align: right;">
-                            <button type="button" class="plg-btn plg-btn--sm plg-btn--danger" onClick={() => removeAllowedUser(handle)}>Remove</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+            <TtsAllowedUsers
+              locale={props.locale}
+              settings={settings}
+              onSettingsChange={props.onSettingsChange}
+            />
 
             <section class="tts-card">
               <h4 class="tts-card__title">Comment Types</h4>
@@ -487,156 +262,23 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
           </div>
 
           <div class="tts-grid tts-grid--bottom">
-            <section class="tts-card">
-              <h4 class="tts-card__title">Special Users</h4>
-              <p class="tts-hint">{t(props.locale, 'ttsSpecialUsersNote')}</p>
-              <div class="tts-add-row">
-                <input
-                  class="tts-input"
-                  type="text"
-                  placeholder="@handle"
-                  value={newSpecialHandle.value}
-                  onInput={(event) => { newSpecialHandle.value = (event.currentTarget as HTMLInputElement).value; }}
-                  onKeydown={(event) => { if ((event as KeyboardEvent).key === 'Enter') addSpecialUser(); }}
-                />
-                <button type="button" class="plg-btn plg-btn--sm" onClick={addSpecialUser}>Add</button>
-              </div>
-              {settings.specialUsers.length === 0 ? (
-                <span class="plg-group-note">No special users yet.</span>
-              ) : (
-                <div class="tts-table-wrap">
-                  <table class="tts-table">
-                    <thead>
-                      <tr>
-                        <th>Handle</th>
-                        <th>Allowed</th>
-                        <th>Voice</th>
-                        <th>Speed</th>
-                        <th>Pitch</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {settings.specialUsers.map((entry) => (
-                        <tr key={entry.handle}>
-                          <td>@{entry.handle}</td>
-                          <td>
-                            <input
-                              type="checkbox"
-                              checked={entry.allowed}
-                              onChange={(event) => patchSpecialUser(entry.handle, { allowed: (event.currentTarget as HTMLInputElement).checked })}
-                            />
-                          </td>
-                          <td>
-                            <select
-                              class="tts-select"
-                              value={entry.voice}
-                              onChange={(event) => patchSpecialUser(entry.handle, { voice: (event.currentTarget as HTMLSelectElement).value })}
-                            >
-                              <option value="">Default</option>
-                              {voiceList.map((option) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              class="tts-input"
-                              style="width: 72px;"
-                              type="number"
-                              min={TTS_LIMITS.minSpeed}
-                              max={TTS_LIMITS.maxSpeed}
-                              step="0.05"
-                              value={entry.speed}
-                              disabled={TTS_SPEED_PITCH_UNSUPPORTED}
-                              onInput={(event) => {
-                                const value = Number((event.currentTarget as HTMLInputElement).value);
-                                if (Number.isFinite(value)) patchSpecialUser(entry.handle, { speed: clampNumber(value, TTS_LIMITS.minSpeed, TTS_LIMITS.maxSpeed, 1) });
-                              }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              class="tts-input"
-                              style="width: 72px;"
-                              type="number"
-                              min={TTS_LIMITS.minPitch}
-                              max={TTS_LIMITS.maxPitch}
-                              step="0.05"
-                              value={entry.pitch}
-                              disabled={TTS_SPEED_PITCH_UNSUPPORTED}
-                              onInput={(event) => {
-                                const value = Number((event.currentTarget as HTMLInputElement).value);
-                                if (Number.isFinite(value)) patchSpecialUser(entry.handle, { pitch: clampNumber(value, TTS_LIMITS.minPitch, TTS_LIMITS.maxPitch, 1) });
-                              }}
-                            />
-                          </td>
-                          <td style="text-align: right;">
-                            <button type="button" class="plg-btn plg-btn--sm plg-btn--danger" onClick={() => removeSpecialUser(entry.handle)}>Remove</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+            <TtsSpecialUsers
+              locale={props.locale}
+              settings={settings}
+              voices={props.voices}
+              onSettingsChange={props.onSettingsChange}
+            />
 
-            <section class="tts-card">
-              <h4 class="tts-card__title">Voice Tester</h4>
-              {props.voicesError && <div class="plg-alert" role="status">{props.voicesError}</div>}
-              <div class="tts-row tts-row--stack">
-                <label class="tts-label" for="tts-tester-voice">Voice</label>
-                <select
-                  id="tts-tester-voice"
-                  class="tts-select"
-                  value={testerVoice.value}
-                  onChange={(event) => { testerVoiceTouched = true; testerVoice.value = (event.currentTarget as HTMLSelectElement).value; }}
-                >
-                  <option value="">Auto (default voice)</option>
-                  {testerVoices.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div class="tts-row tts-row--stack">
-                <label class="tts-label" for="tts-tester-text">Text</label>
-                <textarea
-                  id="tts-tester-text"
-                  class="tts-textarea"
-                  value={testerText.value}
-                  maxlength={TTS_LIMITS.maxCommentLength}
-                  onInput={(event) => { testerText.value = (event.currentTarget as HTMLTextAreaElement).value; }}
-                />
-              </div>
-              <div class="tts-row">
-                <button
-                  type="button"
-                  class="plg-btn plg-btn--primary plg-btn--sm"
-                  disabled={props.speaking || !testerText.value.trim()}
-                  onClick={speak}
-                >
-                  {props.speaking ? 'Speaking…' : 'Play'}
-                </button>
-                <button type="button" class="plg-btn plg-btn--sm" onClick={props.onRefreshVoices}>
-                  Refresh voices
-                </button>
-                <span class="tts-pill">{props.voices.length} voices</span>
-              </div>
-              <p class="tts-hint">{t(props.locale, 'ttsAuthNote')}</p>
-              <h4 class="tts-card__title">TTS logs</h4>
-              {props.logs.length === 0 ? (
-                <span class="plg-group-note">Nothing spoken yet.</span>
-              ) : (
-                <div class="tts-log" role="log">
-                  {props.logs.map((entry) => (
-                    <span key={entry.id} class={entry.ok ? 'tts-log__line--ok' : 'tts-log__line--err'}>
-                      [{formatTime(entry.at)}] [{entry.source}] {entry.ok ? 'ok' : 'error'} {entry.voice ? `voice=${entry.voice} ` : ''}{entry.summary}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </section>
+            <TtsVoiceTester
+              locale={props.locale}
+              voices={props.voices}
+              voicesError={props.voicesError}
+              speaking={props.speaking}
+              logs={props.logs}
+              defaultVoice={settings.defaultVoice}
+              onSpeak={props.onSpeak}
+              onRefreshVoices={props.onRefreshVoices}
+            />
           </div>
         </div>
       );
