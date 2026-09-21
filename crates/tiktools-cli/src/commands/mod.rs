@@ -66,6 +66,7 @@ pub struct Output {
     pub value: Value,
     pub json: Option<bool>,
     pub written: bool,
+    pub exit: i32,
 }
 
 impl Output {
@@ -75,11 +76,19 @@ impl Output {
             value,
             json: None,
             written: false,
+            exit: 0,
         }
     }
 
     pub fn json_override(mut self, json: Option<bool>) -> Self {
         self.json = json;
+        self
+    }
+
+    /// Overrides the success exit code (verification reports failure
+    /// through the report while still printing it).
+    pub fn exit_code(mut self, exit: i32) -> Self {
+        self.exit = exit;
         self
     }
 
@@ -91,6 +100,7 @@ impl Output {
             value: Value::Null,
             json: None,
             written: true,
+            exit: 0,
         }
     }
 }

@@ -44,6 +44,7 @@ commands:
     | call <method> [params-json] [--timeout SEC] [--dry-run] [--confirm]
     |      [--redact|--secrets-visible] [--explain] [--format json|human]
     | events [--topics t,...] [--timeout SEC] [--max-events N]
+    | verify [--coverage|--smoke] [--sandbox] [--timeout SEC]
   rpc <method> [params-json]
   rpc --stdio [--events]        NDJSON request/response loop on stdio
   host --stdio [--events]       headless host on stdio (streams events with --events)
@@ -123,6 +124,18 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
             return exit;
         }
     };
+    // Sandbox verification forces an isolated throwaway runtime even
+    // without --standalone, so CI and agents can verify safely anywhere.
+    if commands::api::is_sandbox_verify(&args) {
+        let _sandbox = match client::SandboxHome::create() {
+            Ok(sandbox) => sandbox,
+            Err(error) => {
+                eprintln!("tiktools: could not create sandbox: {error}");
+                return 3;
+            }
+        };
+        return execute_and_print(&client::direct_client(), plan, json_mode).await;
+    }
     let resolved = match client::resolve_client(standalone).await {
         Ok(resolved) => resolved,
         Err(error) => {
@@ -130,7 +143,15 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
             return 3;
         }
     };
-    match commands::execute_plan(&resolved, plan).await {
+    execute_and_print(&resolved, plan, json_mode).await
+}
+
+async fn execute_and_print(
+    resolved: &tiktools_client::TikToolsClient,
+    plan: commands::Plan,
+    json_mode: bool,
+) -> i32 {
+    match commands::execute_plan(resolved, plan).await {
         Ok(outcome) => {
             if !outcome.written {
                 let json_mode = outcome.json.unwrap_or(json_mode);
@@ -143,7 +164,7 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
                     output::print_human(&outcome.command, outcome.value);
                 }
             }
-            0
+            outcome.exit
         }
         Err(error) => {
             let exit = client::exit_code_for(&error);

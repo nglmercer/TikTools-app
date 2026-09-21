@@ -167,6 +167,47 @@ pub fn print_human(command: &str, result: Value) {
         "api-call" => {
             print_json(&result);
         }
+        "api-verify" => {
+            if let Some(coverage) = result.get("coverage") {
+                let live = coverage.get("live").and_then(Value::as_u64).unwrap_or(0);
+                if coverage.get("ok").and_then(Value::as_bool) == Some(true) {
+                    println!("coverage: ok ({live} methods, host == client)");
+                } else {
+                    let compiled = coverage
+                        .get("compiled")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0);
+                    println!("coverage: MISMATCH (live {live}, compiled {compiled})");
+                    print_names("host-only", coverage.get("missing"));
+                    print_names("client-only", coverage.get("extra"));
+                }
+            }
+            if let Some(smoke) = result.get("smoke") {
+                let passed = smoke.get("passed").and_then(Value::as_u64).unwrap_or(0);
+                let failed = smoke.get("failed").and_then(Value::as_u64).unwrap_or(0);
+                println!("smoke: {passed} passed, {failed} failed");
+                if let Some(results) = smoke.get("results").and_then(Value::as_array) {
+                    for entry in results {
+                        let method = entry.get("method").and_then(Value::as_str).unwrap_or("?");
+                        if entry.get("ok").and_then(Value::as_bool) == Some(true) {
+                            println!("  ok {method}");
+                        } else {
+                            let code = entry.get("code").and_then(Value::as_str).unwrap_or("error");
+                            let message = entry
+                                .get("message")
+                                .and_then(Value::as_str)
+                                .unwrap_or("request failed");
+                            println!("  FAIL {method} [{code}] {message}");
+                        }
+                    }
+                }
+            }
+            if result.get("ok").and_then(Value::as_bool) == Some(true) {
+                println!("verify: ok");
+            } else {
+                println!("verify: FAILED");
+            }
+        }
         "workflow" => {
             if let Some(workflows) = result.get("workflows").and_then(Value::as_array) {
                 if workflows.is_empty() {
@@ -192,7 +233,17 @@ pub fn print_human(command: &str, result: Value) {
     }
 }
 
-pub fn print_json(value: &Value) {
+pub fn print_names(label: &str, names: Option<&Value>) {
+    let names: Vec<&str> = names
+        .and_then(Value::as_array)
+        .map(|names| names.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    if !names.is_empty() {
+        println!("  {label}: {}", names.join(", "));
+    }
+}
+
+fn print_json(value: &Value) {
     println!(
         "{}",
         serde_json::to_string_pretty(value).unwrap_or_default()

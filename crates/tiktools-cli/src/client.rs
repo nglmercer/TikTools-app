@@ -24,9 +24,44 @@ pub fn headless_api() -> ControlApi {
 
 pub async fn resolve_client(standalone: bool) -> Result<TikToolsClient, ClientError> {
     if standalone {
-        Ok(TikToolsClient::direct(Arc::new(headless_api())))
+        Ok(direct_client())
     } else {
         TikToolsClient::connect().await
+    }
+}
+
+/// In-process client over [`headless_api`]. Uses the real data
+/// directories unless a [`SandboxHome`] guard redirected `TIKTOOLS_HOME`.
+pub fn direct_client() -> TikToolsClient {
+    TikToolsClient::direct(Arc::new(headless_api()))
+}
+
+/// Throwaway `TIKTOOLS_HOME` for `api verify --sandbox`: the runtime
+/// under verification gets fresh databases and no plugins, and the
+/// directory is removed when the guard drops. One command per process,
+/// so a process-wide variable is safe.
+pub struct SandboxHome {
+    path: std::path::PathBuf,
+}
+
+impl SandboxHome {
+    pub fn create() -> std::io::Result<Self> {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        let path =
+            std::env::temp_dir().join(format!("tiktools-verify-{}-{unique}", std::process::id()));
+        std::fs::create_dir_all(&path)?;
+        std::env::set_var("TIKTOOLS_HOME", &path);
+        Ok(Self { path })
+    }
+}
+
+impl Drop for SandboxHome {
+    fn drop(&mut self) {
+        std::env::remove_var("TIKTOOLS_HOME");
+        let _ = std::fs::remove_dir_all(&self.path);
     }
 }
 
