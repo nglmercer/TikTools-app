@@ -195,6 +195,8 @@ Session cookies stay in memory and must never be committed or logged.
 - [Contributing](CONTRIBUTING.md)
 - [Automations](docs/AUTOMATIONS.md)
 - [Plugins](docs/PLUGINS.md)
+- [Plugin UI architecture](docs/PLUGIN_UI_ARCHITECTURE.md)
+- [Playwright E2E](docs/PLAYWRIGHT.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [User Guide](docs/USER_GUIDE.md)
 - [UI Kit Usage](docs/UI_KIT_USAGE.md)

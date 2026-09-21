@@ -189,6 +189,13 @@ settings caches (`plugin_processors::state`) keep one processor's failures
 from affecting its siblings; stable projection into `event.intel`
 (`plugin_processors::merge`) is a pure function of ordered outcomes.
 
+Plugin configuration UI is a separate declarative system: plugins describe
+UI as data and the host renders trusted components — no SSR, no per-plugin
+servers, no plugin script in the main WebView. See
+[Plugin UI architecture](PLUGIN_UI_ARCHITECTURE.md). Browser-level
+verification runs in Chromium against a fake `window.ipc` host; see
+[Playwright E2E](PLAYWRIGHT.md).
+
 ## Platform code
 
 Winit/Wry platform details are isolated under

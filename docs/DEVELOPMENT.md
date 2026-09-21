@@ -57,6 +57,18 @@ bun run serve:web
 TIKTOOLS_DEV_URL=http://localhost:3000 cargo run -p tiktools-desktop --locked
 ```
 
+Browser-level E2E runs the same Vite app in Chromium against a fake
+`window.ipc` host (never the Wry shell):
+
+```bash
+bun run test:e2e            # headless suite
+bun run test:e2e:ui         # interactive debugging
+bun run test:e2e:update     # regenerate screenshot baselines (inspect diffs!)
+```
+
+See [Playwright E2E](PLAYWRIGHT.md) for the fake-host contract, stability
+rules, and how to add specs.
+
 Release builds use the custom `tiktools://app` protocol:
 
 ```bash

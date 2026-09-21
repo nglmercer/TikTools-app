@@ -264,6 +264,14 @@ debounce, confirmed by the host settings echo (`Saving…` / `Saved` /
 `Error saving`); a passing probe collapses the card to a compact summary
 with **Test again** and **Edit settings**.
 
+Schema-v3 pages keep working unchanged: the host adapts each section kind
+to the generic declarative UI contract (`src/plugin-ui/`) at render time —
+`text`/`form`/`connection`/`list` become generic nodes, and `tts` becomes
+a host-rendered panel plus an explicit TTS contribution. See
+[Plugin UI architecture](PLUGIN_UI_ARCHITECTURE.md) for the node set,
+bindings, action allowlist, and the future isolated-WebView mode for
+fully custom plugin UI.
+
 ## Settings defaults
 
 Scalar `default` entries in `settings.schema.properties` apply to every

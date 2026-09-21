@@ -162,6 +162,10 @@ Keep action identifiers stable. Protocol and ABI versions are independent:
 
 The host rejects incompatible versions before loading a native library.
 
+Plugin configuration pages use the same trust model: manifests describe UI
+as data and the host renders it — never plugin HTML, JS, or components in
+the main WebView. See [Plugin UI architecture](PLUGIN_UI_ARCHITECTURE.md).
+
 ## Card display: icon, tags, and descriptions
 
 The Plugins view renders each package as a card with an icon tile, tag chips,
