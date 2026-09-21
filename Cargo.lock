@@ -4357,7 +4357,9 @@ dependencies = [
 name = "tiktools-cli"
 version = "0.2.0"
 dependencies = [
+ "serde",
  "serde_json",
+ "tiktools-client",
  "tiktools-control-api",
  "tiktools-core",
  "tokio",

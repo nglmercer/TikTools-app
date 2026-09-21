@@ -3,11 +3,11 @@ use std::sync::Arc;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tiktools_core::AppCore;
 pub use tiktools_core::{
     ipc::messages::{PartialPointsConfig, PointsConfig},
     services::PointAward,
 };
-use tiktools_core::AppCore;
 
 use crate::{
     error::ApiError,

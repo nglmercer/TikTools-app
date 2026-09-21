@@ -3,10 +3,8 @@ use std::sync::Arc;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tiktools_core::AppCore;
-pub use tiktools_plugin_api::{
-    AudioPlaybackResult, MediaKind, MediaPickerMode, MediaSelection,
-};
 use tiktools_plugin_api::MediaPickerOptions;
+pub use tiktools_plugin_api::{AudioPlaybackResult, MediaKind, MediaPickerMode, MediaSelection};
 
 use crate::{error::ApiError, router::ControlRouter};
 

@@ -11,7 +11,9 @@ name = "tiktools"
 path = "src/main.rs"
 
 [dependencies]
+tiktools-client = { path = "../tiktools-client" }
 tiktools-control-api = { path = "../tiktools-control-api", features = ["native-tiktok", "http"] }
 tiktools-core = { path = "../tiktools-core" }
+serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

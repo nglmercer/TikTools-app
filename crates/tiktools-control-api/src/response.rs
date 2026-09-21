@@ -48,14 +48,4 @@ impl RpcResponse {
     pub fn is_ok(&self) -> bool {
         self.error.is_none()
     }
-
-    /// The success payload, if the call succeeded.
-    pub fn result(&self) -> Option<&Value> {
-        self.result.as_ref()
-    }
-
-    /// The RPC error body, if the call failed.
-    pub fn error_body(&self) -> Option<&RpcErrorBody> {
-        self.error.as_ref()
-    }
 }

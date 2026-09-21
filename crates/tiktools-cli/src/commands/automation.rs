@@ -1,0 +1,178 @@
+//! `automation` commands.
+
+use serde_json::Value;
+use tiktools_client::{ClientError, TikToolsClient};
+use tiktools_control_api::modules::automation::{
+    AutomationCreateParams, AutomationGetParams, AutomationListParams, AutomationTestParams,
+    AutomationUpdateParams,
+};
+
+use super::args::{flag_value, parse_json_value, positional, required_record, split_first};
+use super::{result_value, CommandError};
+
+pub enum Command {
+    List {
+        kind: String,
+    },
+    Context,
+    Get {
+        id: String,
+        kind: String,
+    },
+    Create {
+        kind: String,
+        record: Value,
+    },
+    Update {
+        id: String,
+        kind: String,
+        record: Value,
+    },
+    Delete {
+        id: String,
+        kind: String,
+    },
+    Enable {
+        id: String,
+        kind: String,
+    },
+    Disable {
+        id: String,
+        kind: String,
+    },
+    Test {
+        id: Option<String>,
+        record: Option<Value>,
+        kind: String,
+        trigger: Option<String>,
+    },
+}
+
+pub fn parse(args: &[String]) -> Result<Command, CommandError> {
+    let (verb, rest) = split_first(args, "automation <verb> ...")?;
+    let kind = || flag_value(rest, "--kind").unwrap_or_else(|| "event".to_owned());
+    match verb {
+        "list" => Ok(Command::List {
+            kind: flag_value(rest, "--kind").unwrap_or_else(|| "all".to_owned()),
+        }),
+        "context" => Ok(Command::Context),
+        "get" => Ok(Command::Get {
+            id: positional(rest, 0, "automation get <id> [--kind k]")?,
+            kind: kind(),
+        }),
+        "create" => Ok(Command::Create {
+            kind: kind(),
+            record: required_record(rest, "automation create --record json [--kind k]")?,
+        }),
+        "update" => Ok(Command::Update {
+            id: positional(rest, 0, "automation update <id> --record json [--kind k]")?,
+            kind: kind(),
+            record: required_record(rest, "automation update <id> --record json [--kind k]")?,
+        }),
+        "delete" => Ok(Command::Delete {
+            id: positional(rest, 0, "automation delete <id> [--kind k]")?,
+            kind: kind(),
+        }),
+        "enable" => Ok(Command::Enable {
+            id: positional(rest, 0, "automation enable <id> [--kind k]")?,
+            kind: kind(),
+        }),
+        "disable" => Ok(Command::Disable {
+            id: positional(rest, 0, "automation disable <id> [--kind k]")?,
+            kind: kind(),
+        }),
+        "test" => {
+            let id = flag_value(rest, "--id");
+            let record = flag_value(rest, "--record")
+                .map(|raw| parse_json_value(&raw))
+                .transpose()?;
+            if id.is_none() && record.is_none() {
+                return Err("automation test needs --id <id> or --record json"
+                    .to_owned()
+                    .into());
+            }
+            Ok(Command::Test {
+                id,
+                record,
+                kind: kind(),
+                trigger: flag_value(rest, "--trigger"),
+            })
+        }
+        other => Err(format!("unknown automation verb `{other}`").into()),
+    }
+}
+
+pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value, ClientError> {
+    match command {
+        Command::List { kind } => result_value(
+            client
+                .automation_list(AutomationListParams { kind: Some(kind) })
+                .await?,
+        ),
+        Command::Context => result_value(client.automation_context().await?),
+        Command::Get { id, kind } => result_value(
+            client
+                .automation_get(AutomationGetParams {
+                    id,
+                    kind: Some(kind),
+                })
+                .await?,
+        ),
+        Command::Create { kind, record } => result_value(
+            client
+                .automation_create(AutomationCreateParams {
+                    kind: Some(kind),
+                    record,
+                })
+                .await?,
+        ),
+        Command::Update { id, kind, record } => result_value(
+            client
+                .automation_update(AutomationUpdateParams {
+                    id,
+                    kind: Some(kind),
+                    record,
+                })
+                .await?,
+        ),
+        Command::Delete { id, kind } => result_value(
+            client
+                .automation_delete(AutomationGetParams {
+                    id,
+                    kind: Some(kind),
+                })
+                .await?,
+        ),
+        Command::Enable { id, kind } => result_value(
+            client
+                .automation_enable(AutomationGetParams {
+                    id,
+                    kind: Some(kind),
+                })
+                .await?,
+        ),
+        Command::Disable { id, kind } => result_value(
+            client
+                .automation_disable(AutomationGetParams {
+                    id,
+                    kind: Some(kind),
+                })
+                .await?,
+        ),
+        Command::Test {
+            id,
+            record,
+            kind,
+            trigger,
+        } => result_value(
+            client
+                .automation_test(AutomationTestParams {
+                    id,
+                    record,
+                    kind: Some(kind),
+                    trigger,
+                })
+                .await?,
+        ),
+    }
+}

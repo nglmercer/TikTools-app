@@ -137,8 +137,8 @@ where
     let response = api
         .execute(RpcRequest::new(RpcId::Number(id), method, params))
         .await;
-    if let Some(error) = response.error_body() {
-        return Err(ClientError::new(error.code.clone(), error.message.clone()));
+    if let Some(error) = response.error {
+        return Err(ClientError::new(error.code, error.message));
     }
-    Ok(response.result().cloned().unwrap_or(Value::Null))
+    Ok(response.result.unwrap_or(Value::Null))
 }
