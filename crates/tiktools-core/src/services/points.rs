@@ -4,6 +4,7 @@ use serde_json::{Map, Value};
 
 use crate::db::DatabaseManager;
 use crate::ipc::messages::{PartialPointsConfig, PointsConfig};
+use tiktools_plugin_api::sync::{read_or_recover, write_or_recover};
 
 pub struct PointsService {
     config: RwLock<PointsConfig>,
@@ -95,7 +96,7 @@ impl PointsService {
     }
 
     pub fn config(&self) -> PointsConfig {
-        self.config.read().expect("points config poisoned").clone()
+        read_or_recover(&self.config, "points config").clone()
     }
 
     pub fn award_points(
@@ -121,7 +122,7 @@ impl PointsService {
             _ => 0.0,
         };
 
-        let mut viewers = self.viewers.write().expect("points viewers poisoned");
+        let mut viewers = write_or_recover(&self.viewers, "points viewers");
         let existing_index = viewers.iter().position(|viewer| {
             viewer.get("uniqueId").and_then(Value::as_str) == Some(unique_id.as_str())
         });
@@ -209,7 +210,7 @@ impl PointsService {
 
     pub fn update_config(&self, update: PartialPointsConfig) -> PointsConfig {
         let updated = {
-            let mut config = self.config.write().expect("points config poisoned");
+            let mut config = write_or_recover(&self.config, "points config");
             update.apply(&mut config);
             config.normalize();
             config.clone()
@@ -225,9 +226,7 @@ impl PointsService {
 
     pub fn leaderboard(&self, limit: Option<i64>) -> Vec<Value> {
         let limit = limit.unwrap_or(100).clamp(0, 1_000) as usize;
-        self.viewers
-            .read()
-            .expect("points viewers poisoned")
+        read_or_recover(&self.viewers, "points viewers")
             .iter()
             .take(limit)
             .cloned()
@@ -242,7 +241,7 @@ impl PointsService {
                 tracing::warn!(%error, "could not persist points reset");
             }
         }
-        let mut viewers = self.viewers.write().expect("points viewers poisoned");
+        let mut viewers = write_or_recover(&self.viewers, "points viewers");
         if let Some(unique_id) = unique_id.as_deref() {
             if let Some(viewer) = viewers
                 .iter_mut()
@@ -269,7 +268,7 @@ impl PointsService {
             return None;
         }
         let award = {
-            let mut viewers = self.viewers.write().expect("points viewers poisoned");
+            let mut viewers = write_or_recover(&self.viewers, "points viewers");
             let viewer = viewers.iter_mut().find(|viewer| {
                 viewer.get("uniqueId").and_then(Value::as_str) == Some(unique_id.as_str())
             })?;

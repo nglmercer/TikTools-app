@@ -7,6 +7,7 @@ use std::{
 };
 
 use serde_json::Value;
+use tiktools_plugin_api::sync::{mutex_or_recover, read_or_recover, write_or_recover};
 
 use super::ScriptService;
 
@@ -45,68 +46,40 @@ impl AutomationService {
     pub fn replace_snapshot(&self, snapshot: &Value) {
         let actions = records_by_id(snapshot.get("actions"));
         let events = records_by_id(snapshot.get("events"));
-        *self.actions.write().expect("automation actions poisoned") = actions;
-        *self.events.write().expect("automation events poisoned") = events;
+        *write_or_recover(&self.actions, "automation actions") = actions;
+        *write_or_recover(&self.events, "automation events") = events;
         let (trigger_owners, enabled_plugins) = plugin_trigger_ownership(snapshot);
-        *self
-            .trigger_owners
-            .write()
-            .expect("automation trigger owners poisoned") = trigger_owners;
-        *self
-            .enabled_plugins
-            .write()
-            .expect("automation enabled plugins poisoned") = enabled_plugins;
+        *write_or_recover(&self.trigger_owners, "automation trigger owners") = trigger_owners;
+        *write_or_recover(&self.enabled_plugins, "automation enabled plugins") = enabled_plugins;
     }
 
     pub fn upsert_action(&self, action: Value) {
         if let Some(id) = action.get("id").and_then(Value::as_str) {
-            self.actions
-                .write()
-                .expect("automation actions poisoned")
-                .insert(id.to_owned(), action);
+            write_or_recover(&self.actions, "automation actions").insert(id.to_owned(), action);
         }
     }
 
     pub fn remove_action(&self, id: &str) {
-        self.actions
-            .write()
-            .expect("automation actions poisoned")
-            .remove(id);
+        write_or_recover(&self.actions, "automation actions").remove(id);
     }
 
     pub fn upsert_event(&self, event: Value) {
         if let Some(id) = event.get("id").and_then(Value::as_str) {
-            self.events
-                .write()
-                .expect("automation events poisoned")
-                .insert(id.to_owned(), event);
+            write_or_recover(&self.events, "automation events").insert(id.to_owned(), event);
         }
     }
 
     pub fn remove_event(&self, id: &str) {
-        self.events
-            .write()
-            .expect("automation events poisoned")
-            .remove(id);
-        self.cooldowns
-            .lock()
-            .expect("automation cooldowns poisoned")
+        write_or_recover(&self.events, "automation events").remove(id);
+        mutex_or_recover(&self.cooldowns, "automation cooldowns")
             .retain(|key, _| !key.starts_with(&format!("{id}:")));
     }
 
     pub fn matching_events(&self, event: &Value) -> Vec<Value> {
         let event_type = event.get("type").and_then(Value::as_str);
-        let trigger_owners = self
-            .trigger_owners
-            .read()
-            .expect("automation trigger owners poisoned");
-        let enabled_plugins = self
-            .enabled_plugins
-            .read()
-            .expect("automation enabled plugins poisoned");
-        self.events
-            .read()
-            .expect("automation events poisoned")
+        let trigger_owners = read_or_recover(&self.trigger_owners, "automation trigger owners");
+        let enabled_plugins = read_or_recover(&self.enabled_plugins, "automation enabled plugins");
+        read_or_recover(&self.events, "automation events")
             .values()
             .filter(|record| {
                 record.get("enabled").and_then(Value::as_bool) == Some(true)
@@ -150,10 +123,7 @@ impl AutomationService {
                 .to_owned()
         };
         let key = format!("{id}:{scope}");
-        let mut cooldowns = self
-            .cooldowns
-            .lock()
-            .expect("automation cooldowns poisoned");
+        let mut cooldowns = mutex_or_recover(&self.cooldowns, "automation cooldowns");
         cooldowns.retain(|_, previous| now.saturating_sub(*previous) <= MAX_COOLDOWN_MS);
         if cooldowns
             .get(&key)
@@ -173,7 +143,7 @@ impl AutomationService {
             .flatten()
             .filter_map(Value::as_str)
             .collect::<Vec<_>>();
-        let actions = self.actions.read().expect("automation actions poisoned");
+        let actions = read_or_recover(&self.actions, "automation actions");
         let mut selected = ids
             .into_iter()
             .filter_map(|id| actions.get(id))
@@ -197,18 +167,18 @@ impl AutomationService {
     }
 
     pub fn record_run(&self, run: Value) -> Vec<Value> {
-        let mut runs = self.runs.lock().expect("automation runs poisoned");
+        let mut runs = mutex_or_recover(&self.runs, "automation runs");
         runs.insert(0, run);
         runs.truncate(60);
         runs.clone()
     }
 
     pub fn recent_runs(&self) -> Vec<Value> {
-        self.runs.lock().expect("automation runs poisoned").clone()
+        mutex_or_recover(&self.runs, "automation runs").clone()
     }
 
     pub fn clear_runs(&self) {
-        self.runs.lock().expect("automation runs poisoned").clear();
+        mutex_or_recover(&self.runs, "automation runs").clear();
     }
 
     pub fn emit_depth(&self, event: &Value) -> u64 {
@@ -217,10 +187,7 @@ impl AutomationService {
             .and_then(Value::as_str)
             .is_some_and(|event_type| {
                 event_type == "plugin.emit"
-                    || self
-                        .trigger_owners
-                        .read()
-                        .expect("automation trigger owners poisoned")
+                    || read_or_recover(&self.trigger_owners, "automation trigger owners")
                         .contains_key(event_type)
             });
         if !tracked {
