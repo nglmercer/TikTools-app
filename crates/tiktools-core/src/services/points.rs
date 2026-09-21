@@ -75,6 +75,9 @@ impl PointsService {
         let service = Self::default();
         #[cfg(feature = "persistence")]
         {
+            // These locks were just created by `Self::default()` above and
+            // are still thread-local to this constructor, so poisoning is
+            // impossible: expect pins that invariant.
             if let Ok(mut config) = database.load_points_config() {
                 config.normalize();
                 *service.config.write().expect("points config poisoned") = config;

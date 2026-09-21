@@ -90,7 +90,9 @@ impl ControlApi {
         let registry = std::sync::Arc::new(std::sync::RwLock::new(MethodRegistry::default()));
         modules::rpc::register(router, std::sync::Arc::clone(&registry));
         // Snapshot after every module (including rpc.*) registered so
-        // discovery lists the discovery methods themselves.
+        // discovery lists the discovery methods themselves. The lock is
+        // local to this call and no registered handler can run while the
+        // router is mutably borrowed, so poisoning is impossible here.
         *registry.write().expect("method registry poisoned") = MethodRegistry::snapshot(router);
     }
 

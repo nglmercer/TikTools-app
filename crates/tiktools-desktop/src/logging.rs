@@ -64,6 +64,8 @@ struct LogGuard {
 
 impl Write for LogGuard {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        // Fail-closed on purpose: poison recovery logs via tracing, which
+        // would reenter this writer; dropping one log write is safer.
         let mut state = self
             .state
             .lock()
@@ -72,6 +74,8 @@ impl Write for LogGuard {
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        // Fail-closed like `write` above: never recover through tracing
+        // from inside the log writer itself.
         let mut state = self
             .state
             .lock()
