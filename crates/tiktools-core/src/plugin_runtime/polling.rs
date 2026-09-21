@@ -10,7 +10,8 @@ impl AppCore {
             .shutdown_started
             .load(std::sync::atomic::Ordering::Acquire)
             || self
-                .plugin_poll_started
+                .plugin_state
+                .poll_started
                 .swap(true, std::sync::atomic::Ordering::AcqRel)
         {
             return;
@@ -18,7 +19,7 @@ impl AppCore {
         self.start_enabled_event_subscribers();
         self.spawn_plugin_event_observer(runtime);
         let core = Arc::clone(self);
-        let shutdown = Arc::clone(&self.plugin_poll_shutdown);
+        let shutdown = Arc::clone(&self.plugin_state.poll_shutdown);
         tracing::info!("plugin event poll started");
         let task = runtime.spawn(async move {
             let mut ticker = tokio::time::interval(PLUGIN_POLL_INTERVAL);
@@ -31,7 +32,8 @@ impl AppCore {
             }
         });
         *self
-            .plugin_poll_task
+            .plugin_state
+            .poll_task
             .lock()
             .expect("plugin poll task lock poisoned") = Some(task);
     }
@@ -79,7 +81,8 @@ impl AppCore {
         }
         let source = fresh_poll_context(
             &self
-                .last_automation_event
+                .automation_state
+                .last_event
                 .read()
                 .expect("automation event lock poisoned")
                 .clone()

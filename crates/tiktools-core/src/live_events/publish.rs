@@ -43,7 +43,7 @@ impl AppCore {
             .get("type")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("unknown");
-        let Ok(permit) = Arc::clone(&self.automation_slots).try_acquire_owned() else {
+        let Ok(permit) = Arc::clone(&self.automation_state.slots).try_acquire_owned() else {
             tracing::warn!(
                 event_type,
                 "automation concurrency limit reached; dropping automation work only (domain event already delivered)"
@@ -62,11 +62,13 @@ impl AppCore {
     }
     pub(crate) fn remember_automation_event(&self, event: &serde_json::Value) {
         *self
-            .last_automation_event
+            .automation_state
+            .last_event
             .write()
             .expect("automation event lock poisoned") = Some(event.clone());
         *self
-            .last_automation_event_at
+            .automation_state
+            .last_event_at
             .write()
             .expect("automation timestamp lock poisoned") = Some(now_millis());
         if let Some(event_type) = event.get("type").and_then(Value::as_str) {
@@ -93,11 +95,13 @@ impl AppCore {
         // control/UI events.
         let now = now_millis();
         let last = self
-            .last_automation_context_emit_at
+            .automation_state
+            .last_context_emit_at
             .load(std::sync::atomic::Ordering::Acquire);
         if (last == 0 || now.saturating_sub(last) >= 100)
             && self
-                .last_automation_context_emit_at
+                .automation_state
+                .last_context_emit_at
                 .compare_exchange(
                     last,
                     now,
@@ -109,7 +113,8 @@ impl AppCore {
             self.emit(HostMessage::AutomationContext {
                 event: Some(event.clone()),
                 captured_at: *self
-                    .last_automation_event_at
+                    .automation_state
+                    .last_event_at
                     .read()
                     .expect("automation timestamp lock poisoned"),
             });

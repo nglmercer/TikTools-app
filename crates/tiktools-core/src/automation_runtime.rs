@@ -11,7 +11,8 @@ impl AppCore {
         trigger: Option<&str>,
     ) -> Value {
         let event = self
-            .last_automation_event
+            .automation_state
+            .last_event
             .read()
             .expect("automation event lock poisoned")
             .clone()
@@ -26,7 +27,8 @@ impl AppCore {
             .and_then(Value::as_str)
             .unwrap_or("tiktok.chat");
         let event = self
-            .last_automation_event
+            .automation_state
+            .last_event
             .read()
             .expect("automation event lock poisoned")
             .clone()

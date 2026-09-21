@@ -50,7 +50,8 @@ impl AppCore {
         // Activation is an in-memory snapshot refreshed on every state write,
         // so readiness checks never hit SQLite on hot paths. Plugins without
         // a persisted row default to installed and enabled.
-        self.plugin_activation
+        self.plugin_state
+            .activation
             .read()
             .expect("plugin activation lock poisoned")
             .get(id)
@@ -60,7 +61,8 @@ impl AppCore {
     /// Records an install/enable write in the activation snapshot. Callers
     /// must persist first; this only moves the snapshot the hot path reads.
     pub(crate) fn set_plugin_activation(&self, id: &str, installed: bool, enabled: bool) {
-        self.plugin_activation
+        self.plugin_state
+            .activation
             .write()
             .expect("plugin activation lock poisoned")
             .insert(id.to_owned(), PluginActivation { installed, enabled });
@@ -68,14 +70,16 @@ impl AppCore {
 
     #[cfg(feature = "plugin-install")]
     pub(crate) fn clear_plugin_activation(&self, id: &str) {
-        self.plugin_activation
+        self.plugin_state
+            .activation
             .write()
             .expect("plugin activation lock poisoned")
             .remove(id);
     }
 
     pub(crate) fn plugin_retry_allowed(&self, id: &str) -> bool {
-        self.plugin_health
+        self.plugin_state
+            .health
             .lock()
             .expect("plugin health lock poisoned")
             .get(id)
@@ -85,7 +89,8 @@ impl AppCore {
 
     pub(crate) fn record_plugin_failure(&self, id: &str, error: String) {
         let mut health = self
-            .plugin_health
+            .plugin_state
+            .health
             .lock()
             .expect("plugin health lock poisoned");
         let entry = health.entry(id.to_owned()).or_insert(PluginHealth {
@@ -109,7 +114,8 @@ impl AppCore {
 
     pub(crate) fn record_plugin_success(&self, id: &str) {
         let was_unhealthy = self
-            .plugin_health
+            .plugin_state
+            .health
             .lock()
             .expect("plugin health lock poisoned")
             .remove(id)

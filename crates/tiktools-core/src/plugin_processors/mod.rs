@@ -63,13 +63,15 @@ impl AppCore {
             self.plugin_ready(id)
         });
         *self
-            .processor_index
+            .processor_state
+            .index
             .write()
             .expect("processor index lock poisoned") = index;
     }
 
     pub(crate) fn eligible_processors(&self, event_type: &str) -> Vec<EligibleProcessor> {
-        self.processor_index
+        self.processor_state
+            .index
             .read()
             .expect("processor index lock poisoned")
             .eligible_for(event_type)
@@ -89,9 +91,9 @@ impl AppCore {
         let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&self.plugins));
         let outcomes = execute_processors(
             &invoker,
-            &self.processor_health,
-            &self.processor_metrics,
-            &self.processor_slots,
+            &self.processor_state.health,
+            &self.processor_state.metrics,
+            &self.processor_state.slots,
             |id| self.processor_settings_for(id),
             eligible,
             &event,
@@ -104,7 +106,7 @@ impl AppCore {
     /// only after a UI save bumped the revision; corrupt or missing files
     /// degrade to null so the plugin falls back to its defaults.
     pub(crate) fn processor_settings_for(&self, plugin_id: &str) -> Value {
-        self.processor_settings.settings_for(plugin_id, || {
+        self.processor_state.settings.settings_for(plugin_id, || {
             self.plugins
                 .get(plugin_id)
                 .and_then(|plugin| {
@@ -118,7 +120,7 @@ impl AppCore {
     }
 
     pub(crate) fn bump_processor_settings_revision(&self, plugin_id: &str) {
-        self.processor_settings.bump_revision(plugin_id);
+        self.processor_state.settings.bump_revision(plugin_id);
     }
 
     pub(crate) async fn test_processor(
@@ -131,8 +133,8 @@ impl AppCore {
         run_single_processor(
             &invoker,
             &self.capabilities,
-            &self.processor_health,
-            &self.processor_metrics,
+            &self.processor_state.health,
+            &self.processor_state.metrics,
             |id| self.plugin_ready(id),
             |id| self.processor_settings_for(id),
             plugin_id,
@@ -147,8 +149,8 @@ impl AppCore {
             &self.plugins,
             &self.capabilities,
             |id| self.plugin_ready(id),
-            &self.processor_health,
-            &self.processor_metrics,
+            &self.processor_state.health,
+            &self.processor_state.metrics,
         )
     }
 }

@@ -23,13 +23,14 @@ impl AppCore {
     /// plugin poller so future hosts can opt into either lifecycle component.
     pub fn spawn_plugin_event_observer(self: &Arc<Self>, runtime: &tokio::runtime::Handle) {
         if self
-            .plugin_event_observer_started
+            .plugin_state
+            .observer_started
             .swap(true, std::sync::atomic::Ordering::AcqRel)
         {
             return;
         }
         let core = Arc::clone(self);
-        let shutdown = self.plugin_event_observer_shutdown.clone();
+        let shutdown = self.plugin_state.observer_shutdown.clone();
         // Subscribe before spawning so an event published immediately after
         // this method returns cannot race the observer's first poll.
         let subscription = self.events.subscribe_domain();
@@ -38,7 +39,8 @@ impl AppCore {
             run_observer(core, shutdown, subscription).await;
         });
         *self
-            .plugin_event_observer_task
+            .plugin_state
+            .observer_task
             .lock()
             .expect("plugin event observer task lock poisoned") = Some(task);
     }

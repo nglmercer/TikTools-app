@@ -30,11 +30,16 @@ impl AppCore {
     /// instead of silently losing CLI/agent connectivity while the GUI
     /// looks healthy. `None` clears the degraded state after a retry.
     pub fn set_ipc_error(&self, message: Option<String>) {
-        *self.ipc_error.write().expect("ipc error lock poisoned") = message;
+        *self
+            .transport_state
+            .ipc_error
+            .write()
+            .expect("ipc error lock poisoned") = message;
     }
 
     pub fn ipc_error(&self) -> Option<String> {
-        self.ipc_error
+        self.transport_state
+            .ipc_error
             .read()
             .expect("ipc error lock poisoned")
             .clone()
@@ -45,13 +50,15 @@ impl AppCore {
     /// while RPCs fail. `None` clears the degraded state after recovery.
     pub fn set_webview_error(&self, message: Option<String>) {
         *self
+            .transport_state
             .webview_error
             .write()
             .expect("webview error lock poisoned") = message;
     }
 
     pub fn webview_error(&self) -> Option<String> {
-        self.webview_error
+        self.transport_state
+            .webview_error
             .read()
             .expect("webview error lock poisoned")
             .clone()
@@ -62,16 +69,22 @@ impl AppCore {
     /// notification; this cumulative counter plus timestamp lets
     /// `system.health` tell agents their local state may be stale.
     pub fn record_event_gap(&self) {
-        self.event_gaps.fetch_add(1, Ordering::Relaxed);
-        self.last_event_gap_at
+        self.transport_state
+            .event_gaps
+            .fetch_add(1, Ordering::Relaxed);
+        self.transport_state
+            .last_event_gap_at
             .store(now_millis(), Ordering::Relaxed);
     }
 
     /// Cumulative reliable gaps plus the most recent gap timestamp
     /// (`None` when no gap was recorded since boot/acknowledge).
     pub fn event_gap_stats(&self) -> (u64, Option<u64>) {
-        let gaps = self.event_gaps.load(Ordering::Relaxed);
-        let at = self.last_event_gap_at.load(Ordering::Relaxed);
+        let gaps = self.transport_state.event_gaps.load(Ordering::Relaxed);
+        let at = self
+            .transport_state
+            .last_event_gap_at
+            .load(Ordering::Relaxed);
         (gaps, if at == 0 { None } else { Some(at) })
     }
 
@@ -80,8 +93,10 @@ impl AppCore {
     /// resync completed; clearing early hides staleness from agents that
     /// have not refreshed yet.
     pub fn acknowledge_event_gaps(&self) {
-        self.event_gaps.store(0, Ordering::Relaxed);
-        self.last_event_gap_at.store(0, Ordering::Relaxed);
+        self.transport_state.event_gaps.store(0, Ordering::Relaxed);
+        self.transport_state
+            .last_event_gap_at
+            .store(0, Ordering::Relaxed);
     }
 
     // ------------------------------------------------------------------

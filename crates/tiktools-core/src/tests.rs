@@ -557,7 +557,8 @@ async fn saturated_automation_slots_do_not_drop_domain_events() {
     let mut permits = Vec::new();
     for _ in 0..32 {
         permits.push(
-            core.automation_slots
+            core.automation_state
+                .slots
                 .clone()
                 .try_acquire_owned()
                 .expect("slot available"),
@@ -1249,13 +1250,15 @@ async fn plugin_poll_starts_without_any_webview() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter));
     assert!(!core
-        .plugin_poll_started
+        .plugin_state
+        .poll_started
         .load(std::sync::atomic::Ordering::Acquire));
     let handle = tokio::runtime::Handle::current();
     core.spawn_plugin_event_poll(&handle);
     core.spawn_plugin_event_poll(&handle);
     assert!(core
-        .plugin_poll_started
+        .plugin_state
+        .poll_started
         .load(std::sync::atomic::Ordering::Acquire));
     // A tick with zero candidates is a clean no-op.
     core.poll_plugin_events().await;

@@ -362,12 +362,14 @@ impl AppCore {
     /// Last automation event observed, for context panels and test previews.
     pub fn automation_context(&self) -> (Option<Value>, Option<u64>) {
         let event = self
-            .last_automation_event
+            .automation_state
+            .last_event
             .read()
             .expect("automation event lock poisoned")
             .clone();
         let captured_at = *self
-            .last_automation_event_at
+            .automation_state
+            .last_event_at
             .read()
             .expect("automation timestamp lock poisoned");
         (event, captured_at)

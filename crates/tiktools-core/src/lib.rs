@@ -25,6 +25,7 @@ mod plugin_intents;
 mod plugin_invoker;
 mod plugin_processors;
 mod plugin_runtime;
+mod runtime_state;
 #[cfg(test)]
 mod tests;
 
@@ -44,9 +45,6 @@ use tiktools_plugin_api::{
     AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions, MediaSelection,
 };
 use tiktools_plugin_loader::{plugin_roots, PluginManager};
-use tokio::sync::Notify;
-#[cfg(feature = "native-tiktok")]
-use tokio::sync::Semaphore;
 
 #[cfg(feature = "native-tiktok")]
 use tiktools_tiktok::{events::TikToolsEvent as NativeLiveEvent, ClientEvent, ConnectRequest};
@@ -64,6 +62,9 @@ use crate::{
     events::EventBus,
     ipc::messages::{HostMessage, PageMessage},
     paths::AppPaths,
+    runtime_state::{
+        AutomationRuntimeState, PluginRuntimeState, ProcessorRuntimeState, TransportHealthState,
+    },
     services::{
         builtin_action_types, builtin_node_catalog, builtin_translations,
         media_selection_from_path_with_kind, option_sources::OptionSourceService,
@@ -98,23 +99,14 @@ pub struct AppCore {
     pub app_state: Arc<AppStateService>,
     pub events: EventBus,
     emitter: Arc<dyn HostEmitter>,
-    last_automation_event: RwLock<Option<serde_json::Value>>,
-    last_automation_event_at: RwLock<Option<u64>>,
-    last_automation_context_emit_at: AtomicU64,
+    pub(crate) automation_state: AutomationRuntimeState,
     #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
     last_analytics_emit_at: AtomicU64,
-    automation_sequence: AtomicU64,
     /// Monotonic revision of the persisted hotkey behavior projection. The
     /// plugin poll consumes this asynchronously so UI writes never wait for
     /// a process-plugin round trip.
     hotkey_sync_revision: AtomicU64,
     hotkey_synced_revision: AtomicU64,
-    /// Bounds native-live automation work. Events arriving while all slots
-    /// are occupied are intentionally dropped; live delivery must remain
-    /// responsive and disposable events must not create an unbounded task
-    /// backlog.
-    #[cfg(feature = "native-tiktok")]
-    pub(crate) automation_slots: Arc<Semaphore>,
     last_leaderboard_emit_at: AtomicU64,
     #[cfg(feature = "http")]
     http_client: Option<reqwest::Client>,
@@ -126,39 +118,14 @@ pub struct AppCore {
     #[cfg(feature = "native-tiktok")]
     live_pump_started: AtomicBool,
     option_sources: OptionSourceService,
-    plugin_health: Mutex<BTreeMap<String, PluginHealth>>,
-    plugin_activation: RwLock<BTreeMap<String, crate::plugin_runtime::PluginActivation>>,
-    processor_health: Mutex<BTreeMap<crate::plugin_processors::ProcessorKey, PluginHealth>>,
-    processor_metrics: Mutex<
-        BTreeMap<
-            crate::plugin_processors::ProcessorKey,
-            crate::plugin_processors::ProcessorMetrics,
-        >,
-    >,
-    processor_settings: crate::plugin_processors::ProcessorSettingsStore,
-    processor_index: RwLock<crate::plugin_processors::ContributionIndex>,
-    processor_slots: Arc<tokio::sync::Semaphore>,
+    pub(crate) plugin_state: PluginRuntimeState,
+    pub(crate) processor_state: ProcessorRuntimeState,
     pub(crate) plugin_last_events:
         Mutex<BTreeMap<String, crate::plugin_diagnostics::PluginLastEvent>>,
     pub(crate) plugin_event_drops: Mutex<BTreeMap<String, u64>>,
     pub(crate) hotkey_sync_state: Mutex<crate::plugin_diagnostics::HotkeySyncState>,
-    plugin_poll_started: AtomicBool,
-    plugin_poll_shutdown: Arc<Notify>,
-    plugin_poll_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
-    plugin_event_observer_started: AtomicBool,
-    plugin_event_observer_shutdown: tokio_util::sync::CancellationToken,
-    plugin_event_observer_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
-    plugin_install_lock: Mutex<()>,
     shutdown_started: AtomicBool,
-    ipc_error: RwLock<Option<String>>,
-    webview_error: RwLock<Option<String>>,
-    /// Cumulative reliable-lane event gaps observed by any transport
-    /// (IPC connections, WebView forwarder). Reported through
-    /// `system.health`; see `record_event_gap`.
-    event_gaps: AtomicU64,
-    /// `now_millis()` of the most recent reliable gap, or 0 when no gap
-    /// has been recorded since boot/acknowledge.
-    last_event_gap_at: AtomicU64,
+    pub(crate) transport_state: TransportHealthState,
 }
 
 impl AppCore {
@@ -242,16 +209,11 @@ impl AppCore {
             app_state: Arc::new(AppStateService::default()),
             events: EventBus::new(256),
             emitter,
-            last_automation_event: RwLock::new(None),
-            last_automation_event_at: RwLock::new(None),
-            last_automation_context_emit_at: AtomicU64::new(0),
+            automation_state: AutomationRuntimeState::default(),
             #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
             last_analytics_emit_at: AtomicU64::new(0),
-            automation_sequence: AtomicU64::new(0),
             hotkey_sync_revision: AtomicU64::new(1),
             hotkey_synced_revision: AtomicU64::new(0),
-            #[cfg(feature = "native-tiktok")]
-            automation_slots: Arc::new(Semaphore::new(32)),
             last_leaderboard_emit_at: AtomicU64::new(0),
             #[cfg(feature = "http")]
             http_client,
@@ -263,30 +225,16 @@ impl AppCore {
             #[cfg(feature = "native-tiktok")]
             live_pump_started: AtomicBool::new(false),
             option_sources: OptionSourceService::new(),
-            plugin_health: Mutex::new(BTreeMap::new()),
-            plugin_activation: RwLock::new(plugin_activation),
-            processor_health: Mutex::new(BTreeMap::new()),
-            processor_metrics: Mutex::new(BTreeMap::new()),
-            processor_settings: crate::plugin_processors::ProcessorSettingsStore::default(),
-            processor_index: RwLock::new(crate::plugin_processors::ContributionIndex::default()),
-            processor_slots: Arc::new(tokio::sync::Semaphore::new(
-                crate::plugin_processors::MAX_TOTAL_PROCESSOR_SLOTS,
-            )),
+            plugin_state: PluginRuntimeState {
+                activation: RwLock::new(plugin_activation),
+                ..Default::default()
+            },
+            processor_state: ProcessorRuntimeState::default(),
             plugin_last_events: Mutex::new(BTreeMap::new()),
             plugin_event_drops: Mutex::new(BTreeMap::new()),
             hotkey_sync_state: Mutex::new(crate::plugin_diagnostics::HotkeySyncState::default()),
-            plugin_poll_started: AtomicBool::new(false),
-            plugin_poll_shutdown: Arc::new(Notify::new()),
-            plugin_poll_task: Mutex::new(None),
-            plugin_event_observer_started: AtomicBool::new(false),
-            plugin_event_observer_shutdown: tokio_util::sync::CancellationToken::new(),
-            plugin_event_observer_task: Mutex::new(None),
-            plugin_install_lock: Mutex::new(()),
             shutdown_started: AtomicBool::new(false),
-            ipc_error: RwLock::new(None),
-            webview_error: RwLock::new(None),
-            event_gaps: AtomicU64::new(0),
-            last_event_gap_at: AtomicU64::new(0),
+            transport_state: TransportHealthState::default(),
         };
         #[cfg(feature = "http")]
         if let Some(message) = core.http_client_error.clone() {
@@ -373,7 +321,8 @@ impl AppCore {
         tiktools_plugin_loader::PluginLoaderError,
     > {
         let _install_lock = self
-            .plugin_install_lock
+            .plugin_state
+            .install_lock
             .lock()
             .expect("plugin install lock poisoned");
         let paths = self.db.paths();
@@ -416,7 +365,8 @@ impl AppCore {
         id: &str,
     ) -> Result<(), tiktools_plugin_loader::PluginLoaderError> {
         let _install_lock = self
-            .plugin_install_lock
+            .plugin_state
+            .install_lock
             .lock()
             .expect("plugin install lock poisoned");
         let plugin = self
@@ -476,7 +426,10 @@ impl AppCore {
     }
 
     pub(crate) fn next_sequence(&self) -> u64 {
-        self.automation_sequence.fetch_add(1, Ordering::AcqRel) + 1
+        self.automation_state
+            .sequence
+            .fetch_add(1, Ordering::AcqRel)
+            + 1
     }
 
     pub async fn shutdown(self: &Arc<Self>) {
@@ -486,17 +439,18 @@ impl AppCore {
         // Keep a notification queued if the polling task is in a plugin call
         // when shutdown begins; `notify_waiters` alone would be lost before
         // the task reaches its select point.
-        self.plugin_poll_shutdown.notify_one();
+        self.plugin_state.poll_shutdown.notify_one();
         // Persistent cancellation: every supervisor and worker observes
         // shutdown no matter when it reaches its select point, and no
         // worker can steal the supervisor's wakeup.
-        self.plugin_event_observer_shutdown.cancel();
+        self.plugin_state.observer_shutdown.cancel();
         self.events
             .publish_domain(crate::events::DomainEvent::Shutdown);
         self.publish_disconnected_event().await;
         self.live.disconnect().await;
         let task = self
-            .plugin_poll_task
+            .plugin_state
+            .poll_task
             .lock()
             .expect("plugin poll task lock poisoned")
             .take();
@@ -504,7 +458,8 @@ impl AppCore {
             let _ = task.await;
         }
         let observer_task = self
-            .plugin_event_observer_task
+            .plugin_state
+            .observer_task
             .lock()
             .expect("plugin event observer task lock poisoned")
             .take();
