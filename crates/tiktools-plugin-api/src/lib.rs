@@ -10,6 +10,7 @@ pub mod intel;
 pub mod manifest;
 pub mod media;
 pub mod protocol;
+pub mod sync;
 pub mod text;
 
 pub use abi::{PluginBuffer, PluginInit, PluginStatus, TikToolsPluginApi};
