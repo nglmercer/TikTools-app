@@ -30,17 +30,10 @@ impl AppCore {
         #[cfg(not(feature = "native-tiktok"))]
         let native = false;
         #[cfg(feature = "persistence")]
-        let context = self
-            .connection_context
-            .read()
-            .expect("connection context lock poisoned")
-            .clone();
+        let context = read_or_recover(&self.connection_context, "connection context").clone();
         #[cfg(not(feature = "persistence"))]
-        let context: Option<LiveContext> = self
-            .connection_context
-            .read()
-            .expect("connection context lock poisoned")
-            .clone();
+        let context: Option<LiveContext> =
+            read_or_recover(&self.connection_context, "connection context").clone();
         LiveStatus {
             connected,
             unique_id: context.as_ref().map(|context| context.unique_id.clone()),

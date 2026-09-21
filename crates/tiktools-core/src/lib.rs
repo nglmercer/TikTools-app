@@ -30,6 +30,7 @@ mod runtime_state;
 mod tests;
 
 pub(crate) use helpers::*;
+pub(crate) use tiktools_plugin_api::sync::{mutex_or_recover, read_or_recover, write_or_recover};
 
 use std::{
     collections::BTreeMap,

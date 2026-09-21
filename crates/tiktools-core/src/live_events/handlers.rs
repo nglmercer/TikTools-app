@@ -49,10 +49,7 @@ impl AppCore {
             room_id: info.room_id.clone(),
             connection_id: format!("connection-{sequence}"),
         };
-        *self
-            .connection_context
-            .write()
-            .expect("connection context lock poisoned") = Some(context.clone());
+        *write_or_recover(&self.connection_context, "connection context") = Some(context.clone());
 
         #[cfg(feature = "persistence")]
         self.write_live_session(&info.unique_id, Some(info.room_id.as_str()), true);

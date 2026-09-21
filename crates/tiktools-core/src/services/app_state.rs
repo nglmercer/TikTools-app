@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, sync::RwLock};
 
+use tiktools_plugin_api::sync::{read_or_recover, write_or_recover};
+
 #[derive(Default)]
 pub struct AppStateService {
     values: RwLock<BTreeMap<String, String>>,
@@ -7,7 +9,7 @@ pub struct AppStateService {
 
 impl AppStateService {
     pub fn read(&self, keys: Option<&[String]>) -> BTreeMap<String, String> {
-        let values = self.values.read().expect("app state poisoned");
+        let values = read_or_recover(&self.values, "app state");
         match keys {
             Some(keys) if !keys.is_empty() => keys
                 .iter()
@@ -18,9 +20,6 @@ impl AppStateService {
     }
 
     pub fn set(&self, key: String, value: String) {
-        self.values
-            .write()
-            .expect("app state poisoned")
-            .insert(key, value);
+        write_or_recover(&self.values, "app state").insert(key, value);
     }
 }

@@ -49,17 +49,14 @@ impl AppCore {
                 }
             }
         }
-        self.plugin_last_events
-            .lock()
-            .expect("plugin last-event lock poisoned")
-            .insert(
-                plugin_id.to_owned(),
-                PluginLastEvent {
-                    event_type,
-                    at: now_millis(),
-                    detail,
-                },
-            );
+        mutex_or_recover(&self.plugin_last_events, "plugin last-event").insert(
+            plugin_id.to_owned(),
+            PluginLastEvent {
+                event_type,
+                at: now_millis(),
+                detail,
+            },
+        );
     }
 
     /// Adds host-side plugin event drops for one plugin. Every drop is also
@@ -69,18 +66,13 @@ impl AppCore {
         if dropped == 0 {
             return;
         }
-        *self
-            .plugin_event_drops
-            .lock()
-            .expect("plugin drop lock poisoned")
+        *mutex_or_recover(&self.plugin_event_drops, "plugin drops")
             .entry(plugin_id.to_owned())
             .or_default() += dropped;
     }
 
     pub(crate) fn plugin_drop_total(&self) -> u64 {
-        self.plugin_event_drops
-            .lock()
-            .expect("plugin drop lock poisoned")
+        mutex_or_recover(&self.plugin_event_drops, "plugin drops")
             .values()
             .sum()
     }
@@ -88,21 +80,9 @@ impl AppCore {
     /// Read-only diagnostics snapshot for the `plugins.diagnostics` RPC:
     /// per-plugin last event, host-side drops, and hotkey sync state.
     pub fn plugin_diagnostics(&self) -> Value {
-        let last_events = self
-            .plugin_last_events
-            .lock()
-            .expect("plugin last-event lock poisoned")
-            .clone();
-        let drops = self
-            .plugin_event_drops
-            .lock()
-            .expect("plugin drop lock poisoned")
-            .clone();
-        let sync = self
-            .hotkey_sync_state
-            .lock()
-            .expect("hotkey sync lock poisoned")
-            .clone();
+        let last_events = mutex_or_recover(&self.plugin_last_events, "plugin last-event").clone();
+        let drops = mutex_or_recover(&self.plugin_event_drops, "plugin drops").clone();
+        let sync = mutex_or_recover(&self.hotkey_sync_state, "hotkey sync").clone();
         let desired = self.hotkey_sync_revision.load(Ordering::Acquire);
         let applied = self.hotkey_synced_revision.load(Ordering::Acquire);
         let mut plugins: Vec<Value> = self

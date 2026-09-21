@@ -62,10 +62,7 @@ impl AppCore {
                 self.hotkey_synced_revision
                     .store(revision, Ordering::Release);
                 self.record_plugin_success(HOTKEY_PLUGIN_ID);
-                *self
-                    .hotkey_sync_state
-                    .lock()
-                    .expect("hotkey sync lock poisoned") =
+                *mutex_or_recover(&self.hotkey_sync_state, "hotkey sync") =
                     crate::plugin_diagnostics::HotkeySyncState {
                         last_config: Some(config),
                         last_error: None,
@@ -80,10 +77,8 @@ impl AppCore {
             }
             Err(error) => {
                 self.record_plugin_failure(HOTKEY_PLUGIN_ID, error.clone());
-                self.hotkey_sync_state
-                    .lock()
-                    .expect("hotkey sync lock poisoned")
-                    .last_error = Some(error.clone());
+                mutex_or_recover(&self.hotkey_sync_state, "hotkey sync").last_error =
+                    Some(error.clone());
                 tracing::warn!(
                     plugin = HOTKEY_PLUGIN_ID,
                     revision,

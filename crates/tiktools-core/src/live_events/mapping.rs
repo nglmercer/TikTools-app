@@ -128,11 +128,7 @@ impl AppCore {
         &self,
         event: &NativeLiveEvent,
     ) -> Option<serde_json::Value> {
-        let context = self
-            .connection_context
-            .read()
-            .expect("connection context lock poisoned")
-            .clone()?;
+        let context = read_or_recover(&self.connection_context, "connection context").clone()?;
         let (event_type, data, user) = match &event.base {
             tiktools_tiktok::events::CanonicalLiveEvent::Chat(chat) => (
                 "tiktok.chat",
@@ -230,11 +226,7 @@ impl AppCore {
         data: serde_json::Value,
         user: Option<serde_json::Value>,
     ) -> serde_json::Value {
-        let context = self
-            .connection_context
-            .read()
-            .expect("connection context lock poisoned")
-            .clone();
+        let context = read_or_recover(&self.connection_context, "connection context").clone();
         match context {
             Some(context) => {
                 self.make_automation_event_with_context(event_type, data, user, &context)
