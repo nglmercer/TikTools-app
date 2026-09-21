@@ -280,7 +280,11 @@ export function useTts(
     }
   };
 
-  const persistSettingsNow = (pluginId: string, clean: TtsSettings, revision: number): void => {
+  const persistSettingsNow = (
+    pluginId: string,
+    clean: TtsSettings,
+    revision: number,
+  ): Promise<void> => {
     const previous = persistChain.get(pluginId) ?? Promise.resolve();
     const next = previous
       .then(() =>
@@ -303,23 +307,33 @@ export function useTts(
     void next.then(() => {
       if (persistChain.get(pluginId) === next) persistChain.delete(pluginId);
     });
+    return next;
   };
 
-  /** Flush one plugin's debounced write immediately (teardown/page change). */
-  const flushTtsSettings = (pluginId: string): void => {
+  /**
+   * Flush one plugin's debounced write immediately (teardown/page change).
+   * Resolves when the queued write settles so callers can persist before
+   * transport shutdown.
+   */
+  const flushTtsSettings = (pluginId: string): Promise<void> => {
     const entry = pendingPersist.get(pluginId);
-    if (!entry) return;
+    if (!entry) return Promise.resolve();
     if (entry.timer !== undefined) {
       cancelFn(entry.timer);
       entry.timer = undefined;
     }
     pendingPersist.delete(pluginId);
-    persistSettingsNow(pluginId, entry.latest, entry.revision);
+    return persistSettingsNow(pluginId, entry.latest, entry.revision);
   };
 
-  /** Flush every pending debounced write (component/app teardown). */
-  const flushAllTtsSettings = (): void => {
-    for (const pluginId of [...pendingPersist.keys()]) flushTtsSettings(pluginId);
+  /**
+   * Flush every pending debounced write (component/app teardown). Awaits
+   * every queued write so the final values reach the host even when
+   * teardown follows a change immediately.
+   */
+  const flushAllTtsSettings = (): Promise<void> => {
+    const pending = [...pendingPersist.keys()].map((pluginId) => flushTtsSettings(pluginId));
+    return Promise.all(pending).then(() => undefined);
   };
 
   const handleTtsSettingsChange = (pluginId: string, next: TtsSettings): void => {

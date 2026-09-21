@@ -160,9 +160,13 @@ export function useAppController() {
   });
 
   onUnmounted(() => {
-    // Persist any debounced TTS edits before the bridge goes away.
-    tts.flushAllTtsSettings();
-    control.detach();
+    // Persist debounced TTS edits before the bridge goes away. Detach is
+    // deferred until the flush settles (capped so a hung host cannot leak
+    // the transport); previously detach ran first and could drop the write.
+    void Promise.race([
+      tts.flushAllTtsSettings(),
+      new Promise((resolve) => setTimeout(resolve, 500)),
+    ]).finally(() => control.detach());
   });
 
   const setActiveTab = (value: AppTab): void => {

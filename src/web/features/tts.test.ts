@@ -326,9 +326,68 @@ test('flush persists pending settings immediately with final state', async () =>
   expect(calls[0]?.key).toBe('tts.settings:plugin-a');
   expect(calls[0]?.value).toContain('0.77');
   // Flushing again without new edits writes nothing.
-  tts.flushAllTtsSettings();
+  await tts.flushAllTtsSettings();
   await flush();
   expect(calls).toHaveLength(1);
+});
+
+test('teardown flush delivers the final value even when teardown is immediate', async () => {
+  const delivered: Array<{ key: string; value: string }> = [];
+  let releaseWrite!: () => void;
+  const writeGate = new Promise<void>((resolve) => {
+    releaseWrite = resolve;
+  });
+  const control: ControlClient = {
+    attach: () => {},
+    detach: () => {},
+    call: (async <T,>(method: string, params?: Record<string, unknown>) => {
+      if (method === 'app.state.set') {
+        // Slow host: the RPC only completes when the test releases it,
+        // simulating teardown racing an in-flight write.
+        await writeGate;
+        delivered.push({ key: String(params?.key ?? ''), value: String(params?.value ?? '') });
+        return undefined as T;
+      }
+      return { state: {} } as T;
+    }) as ControlClient['call'],
+    onTopic: () => () => {},
+    onPush: () => () => {},
+    onTransportError: () => () => {},
+    onGap: () => () => {},
+  };
+  const tts = useTts(
+    control,
+    ref<Record<string, ActionOptionItem[]>>({}),
+    computed(() => []),
+    {
+      executeAction: async (actionType) => speechOutcome(actionType),
+      refreshOptions: () => {},
+      adjustPoints: () => {},
+      leaderboardPointsFor: () => undefined,
+    },
+    { debounceMs: 10_000 },
+  );
+  const base = defaultTtsSettings();
+  // Change, then immediately tear down: the debounced timer (10s) never
+  // fires, so only the awaited flush can deliver the value.
+  tts.handleTtsSettingsChange('plugin-a', { ...base, volume: 0.42 });
+  tts.handleTtsSettingsChange('plugin-b', { ...base, volume: 0.84 });
+  const tornDown = tts.flushAllTtsSettings();
+  let settled = false;
+  void tornDown.then(() => {
+    settled = true;
+  });
+  await flush();
+  // Still gated: the flush promise must not resolve before the host write.
+  expect(settled).toBe(false);
+  expect(delivered).toHaveLength(0);
+  releaseWrite();
+  await tornDown;
+  expect(settled).toBe(true);
+  expect(delivered).toHaveLength(2);
+  const byKey = new Map(delivered.map((entry) => [entry.key, entry.value]));
+  expect(byKey.get('tts.settings:plugin-a')).toContain('0.42');
+  expect(byKey.get('tts.settings:plugin-b')).toContain('0.84');
 });
 
 test('output switch ignores empty devices and concurrent switches', () => {
