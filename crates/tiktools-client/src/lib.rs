@@ -25,9 +25,11 @@ pub mod processors;
 pub mod rpc;
 pub mod settings;
 pub mod system;
+pub mod validate;
 pub mod workflows;
 
 pub use tiktools_control_api::{ClientError, ControlApi, ControlClient, ControlEvent, MethodMeta};
+pub use validate::validate_params;
 
 use std::sync::{
     atomic::{AtomicI64, Ordering},

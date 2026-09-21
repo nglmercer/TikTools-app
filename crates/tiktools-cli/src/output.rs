@@ -110,6 +110,63 @@ pub fn print_human(command: &str, result: Value) {
             }
             print_json(&result);
         }
+        "api-discover" => {
+            if let Some(methods) = result.get("methods").and_then(Value::as_array) {
+                for method in methods {
+                    let name = method.get("name").and_then(Value::as_str).unwrap_or("?");
+                    let description = method
+                        .get("description")
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
+                    let mut flags = Vec::new();
+                    if method.get("sideEffect").and_then(Value::as_bool) == Some(true) {
+                        flags.push("writes");
+                    }
+                    if method.get("destructive").and_then(Value::as_bool) == Some(true) {
+                        flags.push("destructive");
+                    }
+                    if method.get("requiresDesktop").and_then(Value::as_bool) == Some(true) {
+                        flags.push("desktop-only");
+                    }
+                    if flags.is_empty() {
+                        println!("{name} - {description}");
+                    } else {
+                        println!("{name} - {description} [{}]", flags.join(", "));
+                    }
+                }
+                return;
+            }
+            print_json(&result);
+        }
+        "api-schema" => {
+            let name = result.get("name").and_then(Value::as_str).unwrap_or("?");
+            let description = result
+                .get("description")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let mut flags = Vec::new();
+            if result.get("sideEffect").and_then(Value::as_bool) == Some(true) {
+                flags.push("writes");
+            }
+            if result.get("destructive").and_then(Value::as_bool) == Some(true) {
+                flags.push("destructive");
+            }
+            if result.get("requiresDesktop").and_then(Value::as_bool) == Some(true) {
+                flags.push("desktop-only");
+            }
+            if flags.is_empty() {
+                println!("{name} - {description}");
+            } else {
+                println!("{name} - {description} [{}]", flags.join(", "));
+            }
+            println!("params:");
+            print_json(result.get("paramsSchema").unwrap_or(&Value::Null));
+            println!("result:");
+            print_json(result.get("resultSchema").unwrap_or(&Value::Null));
+        }
+        "api-call" => {
+            print_json(&result);
+        }
         "workflow" => {
             if let Some(workflows) = result.get("workflows").and_then(Value::as_array) {
                 if workflows.is_empty() {
@@ -140,4 +197,105 @@ pub fn print_json(value: &Value) {
         "{}",
         serde_json::to_string_pretty(value).unwrap_or_default()
     );
+}
+
+/// Placeholder for redacted secrets. Matches the host's
+/// `SECRET_SETTING_PLACEHOLDER` so CLI-redacted and host-redacted output
+/// look identical.
+pub const REDACTED: &str = "••••••••";
+
+/// JSON keys treated as secrets, normalized (lowercase, `-`/`_` removed):
+/// `sessionCookie`, `SESSION_COOKIE`, `api-key`, and `apiKey` all match.
+const SECRET_FIELDS: &[&str] = &[
+    "password",
+    "passwd",
+    "secret",
+    "token",
+    "sessioncookie",
+    "cookie",
+    "authorization",
+    "apikey",
+    "apitoken",
+    "accesstoken",
+    "refreshtoken",
+    "clientsecret",
+    "privatekey",
+    "credentials",
+];
+
+fn is_secret_key(key: &str) -> bool {
+    let normalized: String = key
+        .to_ascii_lowercase()
+        .chars()
+        .filter(|character| *character != '_' && *character != '-')
+        .collect();
+    SECRET_FIELDS.contains(&normalized.as_str())
+}
+
+/// Recursively replaces every secret value with [`REDACTED`]. Objects,
+/// arrays, and nested values are all walked; non-string secrets (numbers,
+/// nested objects) are replaced wholesale.
+pub fn redact_secrets(value: Value) -> Value {
+    match value {
+        Value::Object(object) => Value::Object(
+            object
+                .into_iter()
+                .map(|(key, val)| {
+                    if is_secret_key(&key) {
+                        (key, Value::String(REDACTED.to_owned()))
+                    } else {
+                        (key, redact_secrets(val))
+                    }
+                })
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.into_iter().map(redact_secrets).collect()),
+        scalar => scalar,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn redacts_top_level_and_nested_secrets() {
+        let value = json!({
+            "uniqueId": "someone",
+            "sessionCookie": "sessions-stay-secret",
+            "nested": {"password": "hunter2", "level": 3},
+            "tokens": [{"apiToken": "abc"}, {"kind": "x"}],
+        });
+        let redacted = redact_secrets(value);
+        assert_eq!(redacted["uniqueId"], "someone");
+        assert_eq!(redacted["sessionCookie"], REDACTED);
+        assert_eq!(redacted["nested"]["password"], REDACTED);
+        assert_eq!(redacted["nested"]["level"], 3);
+        assert_eq!(redacted["tokens"][0]["apiToken"], REDACTED);
+        assert_eq!(redacted["tokens"][1]["kind"], "x");
+    }
+
+    #[test]
+    fn secret_matching_ignores_case_and_separators() {
+        let value = json!({
+            "SESSION_COOKIE": "a",
+            "Api-Key": "b",
+            "accesstoken": "c",
+            "nickname": "not-a-secret",
+        });
+        let redacted = redact_secrets(value);
+        assert_eq!(redacted["SESSION_COOKIE"], REDACTED);
+        assert_eq!(redacted["Api-Key"], REDACTED);
+        assert_eq!(redacted["accesstoken"], REDACTED);
+        assert_eq!(redacted["nickname"], "not-a-secret");
+    }
+
+    #[test]
+    fn replaces_non_string_secrets_wholesale() {
+        let value = json!({"credentials": {"user": "u", "pass": "p"}, "count": 2});
+        let redacted = redact_secrets(value);
+        assert_eq!(redacted["credentials"], REDACTED);
+        assert_eq!(redacted["count"], 2);
+    }
 }

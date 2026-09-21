@@ -26,8 +26,7 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
         "connect" => {
             let unique_id = flag_value(rest, "--unique-id")
                 .ok_or_else(|| "live connect needs --unique-id <id>".to_owned())?;
-            let session_cookie = flag_value(rest, "--session-cookie")
-                .ok_or_else(|| "live connect needs --session-cookie <cookie>".to_owned())?;
+            let session_cookie = session_cookie(rest, "live connect")?;
             Ok(Command::Connect {
                 unique_id,
                 session_cookie,
@@ -35,14 +34,28 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
             })
         }
         "pick" => {
-            let session_cookie = flag_value(rest, "--session-cookie")
-                .ok_or_else(|| "live pick needs --session-cookie <cookie>".to_owned())?;
+            let session_cookie = session_cookie(rest, "live pick")?;
             Ok(Command::Pick { session_cookie })
         }
         "disconnect" => Ok(Command::Disconnect),
         "status" => Ok(Command::Status),
         other => Err(format!("unknown live verb `{other}`").into()),
     }
+}
+
+/// Session cookie from `--session-cookie` or `TIKTOOLS_SESSION_COOKIE`;
+/// the flag wins when both are set. The cookie value never appears in
+/// usage text or diagnostics.
+fn session_cookie(args: &[String], usage: &str) -> Result<String, CommandError> {
+    flag_value(args, "--session-cookie")
+        .or_else(|| {
+            std::env::var("TIKTOOLS_SESSION_COOKIE")
+                .ok()
+                .filter(|value| !value.trim().is_empty())
+        })
+        .ok_or_else(|| {
+            format!("{usage} needs --session-cookie <cookie> (or TIKTOOLS_SESSION_COOKIE)").into()
+        })
 }
 
 pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value, ClientError> {

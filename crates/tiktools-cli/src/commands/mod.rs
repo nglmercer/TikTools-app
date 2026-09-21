@@ -6,6 +6,7 @@
 //! through [`TikToolsClient`]. The only untyped path is the raw
 //! `rpc <method>` passthrough, which has no typed method by definition.
 
+pub mod api;
 pub mod args;
 pub mod automation;
 pub mod live;
@@ -53,12 +54,59 @@ pub enum Plan {
     Workflows(workflows::Command),
     Media(media::Command),
     System(system::Command),
+    Api(api::Command),
     Rpc { method: String, params: Value },
 }
 
-/// Parses argv into a plan plus the head command (for human output).
-/// Never touches the network or the host.
-pub fn parse_command(args: &[String]) -> Result<(String, Plan), CommandError> {
+/// Display-ready execution result: the render key for human output, the
+/// value to print, an optional per-command `--format` override, and
+/// whether the command already streamed its own output.
+pub struct Output {
+    pub command: String,
+    pub value: Value,
+    pub json: Option<bool>,
+    pub written: bool,
+}
+
+impl Output {
+    pub fn new(command: &str, value: Value) -> Self {
+        Self {
+            command: command.to_owned(),
+            value,
+            json: None,
+            written: false,
+        }
+    }
+
+    pub fn json_override(mut self, json: Option<bool>) -> Self {
+        self.json = json;
+        self
+    }
+
+    /// Streaming commands (`api events`) print as they go; the dispatcher
+    /// must not print anything afterwards.
+    pub fn written() -> Self {
+        Self {
+            command: String::new(),
+            value: Value::Null,
+            json: None,
+            written: true,
+        }
+    }
+}
+
+/// Redacts secrets from agent-facing output unless `--secrets-visible`
+/// opts out.
+pub fn redact_output(value: Value, secrets_visible: bool) -> Value {
+    if secrets_visible {
+        value
+    } else {
+        crate::output::redact_secrets(value)
+    }
+}
+
+/// Parses argv into a plan. Never touches the network or the host.
+pub fn parse_command(args: &[String]) -> Result<Plan, CommandError> {
     let head = args[0].as_str();
     let rest = &args[1..];
     let plan = match head {
@@ -70,27 +118,50 @@ pub fn parse_command(args: &[String]) -> Result<(String, Plan), CommandError> {
         "workflow" => Plan::Workflows(workflows::parse(rest)?),
         "media" => Plan::Media(media::parse(rest)?),
         "system" => Plan::System(system::parse(rest)?),
+        "api" => Plan::Api(api::parse(rest)?),
         "rpc" => raw::parse_rpc(rest)?,
         // `serve_plan` handles every `host` form before parsing commands;
         // reaching here means host was misrouted, so report its usage.
         "host" => return Err("host --stdio [--events] | host --ipc".to_owned().into()),
         other => return Err(format!("unknown command `{other}`").into()),
     };
-    Ok((head.to_owned(), plan))
+    Ok(plan)
 }
 
 /// Executes a parsed plan through one typed client call.
-pub async fn execute_plan(client: &TikToolsClient, plan: Plan) -> Result<Value, ClientError> {
+pub async fn execute_plan(client: &TikToolsClient, plan: Plan) -> Result<Output, ClientError> {
     match plan {
-        Plan::Plugins(command) => plugins::execute(client, command).await,
-        Plan::Processors(command) => processors::execute(client, command).await,
-        Plan::Live(command) => live::execute(client, command).await,
-        Plan::Points(command) => points::execute(client, command).await,
-        Plan::Automation(command) => automation::execute(client, command).await,
-        Plan::Workflows(command) => workflows::execute(client, command).await,
-        Plan::Media(command) => media::execute(client, command).await,
-        Plan::System(command) => system::execute(client, command).await,
-        Plan::Rpc { method, params } => client.call_value(&method, params).await,
+        Plan::Plugins(command) => Ok(Output::new(
+            "plugin",
+            plugins::execute(client, command).await?,
+        )),
+        Plan::Processors(command) => Ok(Output::new(
+            "processor",
+            processors::execute(client, command).await?,
+        )),
+        Plan::Live(command) => Ok(Output::new("live", live::execute(client, command).await?)),
+        Plan::Points(command) => Ok(Output::new(
+            "points",
+            points::execute(client, command).await?,
+        )),
+        Plan::Automation(command) => Ok(Output::new(
+            "automation",
+            automation::execute(client, command).await?,
+        )),
+        Plan::Workflows(command) => Ok(Output::new(
+            "workflow",
+            workflows::execute(client, command).await?,
+        )),
+        Plan::Media(command) => Ok(Output::new("media", media::execute(client, command).await?)),
+        Plan::System(command) => Ok(Output::new(
+            "system",
+            system::execute(client, command).await?,
+        )),
+        Plan::Api(command) => api::execute(client, command).await,
+        Plan::Rpc { method, params } => Ok(Output::new(
+            "rpc",
+            client.call_value(&method, params).await?,
+        )),
     }
 }
 

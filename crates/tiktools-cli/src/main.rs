@@ -39,6 +39,11 @@ commands:
   media validate <path> [--kind audio|video|image|other]
       | play <path> [--kind k] [--volume 0..1]
   system info | health | snapshot | doctor
+  api discover [--format json|human]
+    | schema <method> [--format json|human]
+    | call <method> [params-json] [--timeout SEC] [--dry-run] [--confirm]
+    |      [--redact|--secrets-visible] [--explain] [--format json|human]
+    | events [--topics t,...] [--timeout SEC] [--max-events N]
   rpc <method> [params-json]
   rpc --stdio [--events]        NDJSON request/response loop on stdio
   host --stdio [--events]       headless host on stdio (streams events with --events)
@@ -50,6 +55,11 @@ second runtime. --standalone runs the command against an isolated
 in-process runtime instead. json values may use @path to read from a file.
 --json prints the raw result object to stdout; without it, lists print one
 line per item.
+live connect/pick read the session cookie from --session-cookie or the
+TIKTOOLS_SESSION_COOKIE environment variable (the flag wins); the value
+never appears in diagnostics. api call redacts secrets from its output
+unless --secrets-visible is passed, and refuses destructive methods
+without --confirm.
 ";
 
 fn main() {
@@ -101,7 +111,7 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
         }
     }
     // Parse before connecting: usage errors never depend on host state.
-    let (command, plan) = match commands::parse_command(&args) {
+    let plan = match commands::parse_command(&args) {
         Ok(parsed) => parsed,
         Err(commands::CommandError::Usage(message)) => {
             eprintln!("tiktools: {message}\n\n{USAGE}");
@@ -121,11 +131,17 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
         }
     };
     match commands::execute_plan(&resolved, plan).await {
-        Ok(result) => {
-            if json_mode {
-                println!("{}", serde_json::to_string(&result).unwrap_or_default());
-            } else {
-                output::print_human(&command, result);
+        Ok(outcome) => {
+            if !outcome.written {
+                let json_mode = outcome.json.unwrap_or(json_mode);
+                if json_mode {
+                    println!(
+                        "{}",
+                        serde_json::to_string(&outcome.value).unwrap_or_default()
+                    );
+                } else {
+                    output::print_human(&outcome.command, outcome.value);
+                }
             }
             0
         }
