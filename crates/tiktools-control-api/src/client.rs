@@ -19,6 +19,7 @@ use std::{
 
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
+use tiktools_plugin_api::sync::mutex_or_recover;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf};
 
 use crate::{transport, MAX_REQUEST_BYTES, REQUEST_TIMEOUT};
@@ -132,6 +133,18 @@ impl AsyncWrite for ClientStream {
 type PendingMap =
     Arc<Mutex<HashMap<i64, tokio::sync::oneshot::Sender<Result<Value, ClientError>>>>>;
 
+/// Maps a poisoned pending-call map to a typed client error. The
+/// poisoning is logged with the shared lock-recovery target so the
+/// failure stays visible in telemetry instead of crashing the caller.
+fn pending_poisoned() -> ClientError {
+    tracing::warn!(
+        target: tiktools_plugin_api::sync::LOCK_RECOVERY_TARGET,
+        lock = "control client pending",
+        "control client pending lock poisoned; failing call"
+    );
+    ClientError::transport("control client pending lock poisoned")
+}
+
 /// One item on the client's event stream: either an authoritative domain
 /// event or an explicit reliable-gap signal. A gap means the host skipped
 /// authoritative events this client never saw (`lost` counts them): the
@@ -235,7 +248,7 @@ impl ControlClient {
         }
         let (sender, receiver) = tokio::sync::oneshot::channel();
         {
-            let mut pending = self.pending.lock().expect("client pending lock poisoned");
+            let mut pending = self.pending.lock().map_err(|_| pending_poisoned())?;
             pending.insert(id, sender);
         }
         let write_outcome = async {
@@ -251,16 +264,18 @@ impl ControlClient {
         }
         .await;
         if let Err(error) = write_outcome {
-            let mut pending = self.pending.lock().expect("client pending lock poisoned");
-            pending.remove(&id);
+            // Already failing: recover so the poison never masks the
+            // original write error.
+            mutex_or_recover(&self.pending, "control client pending").remove(&id);
             return Err(error);
         }
         match tokio::time::timeout(REQUEST_TIMEOUT, receiver).await {
             Ok(Ok(outcome)) => outcome,
             Ok(Err(_)) => Err(ClientError::transport("host closed the connection")),
             Err(_) => {
-                let mut pending = self.pending.lock().expect("client pending lock poisoned");
-                pending.remove(&id);
+                // Already failing: recover so the poison never masks the
+                // original timeout.
+                mutex_or_recover(&self.pending, "control client pending").remove(&id);
                 Err(ClientError::new("timeout", "request timed out"))
             }
         }
@@ -321,7 +336,7 @@ async fn reader_task(
     // The host went away: fail every still-pending call so concurrent
     // waiters never hang until their timeout.
     let senders = {
-        let mut pending = pending.lock().expect("client pending lock poisoned");
+        let mut pending = mutex_or_recover(&pending, "control client pending");
         std::mem::take(&mut *pending)
     };
     for (_, sender) in senders {
@@ -388,7 +403,7 @@ fn handle_client_line(
     }
     let response_id = value.get("id").and_then(Value::as_i64).unwrap_or(-1);
     let sender = {
-        let mut pending = pending.lock().expect("client pending lock poisoned");
+        let mut pending = mutex_or_recover(pending, "control client pending");
         pending.remove(&response_id)
     };
     let Some(sender) = sender else {
@@ -502,6 +517,13 @@ mod client_line_tests {
         receiver
     }
 
+    fn poison(pending: &PendingMap) {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = pending.lock().unwrap();
+            panic!("test poison");
+        }));
+    }
+
     #[tokio::test]
     async fn malformed_response_fails_pending_call_without_timeout() {
         let (pending, events) = harness();
@@ -594,5 +616,55 @@ mod client_line_tests {
             subscriber.try_recv().expect("post-gap event fans out"),
             ControlEvent::Domain(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn response_still_resolves_when_the_pending_map_is_poisoned() {
+        let (pending, events) = harness();
+        let receiver = listen(&pending, 11);
+        poison(&pending);
+        handle_client_line(
+            r#"{"jsonrpc":"2.0","id":11,"result":{"ok":true}}"#,
+            &pending,
+            &events,
+        );
+        let outcome = tokio::time::timeout(Duration::from_secs(5), receiver)
+            .await
+            .expect("resolves promptly")
+            .expect("sender alive")
+            .expect("valid response resolves");
+        assert_eq!(outcome, serde_json::json!({"ok": true}));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn poisoned_pending_map_fails_new_calls_with_a_typed_error() {
+        let (ours, _peer) = tokio::net::UnixStream::pair().expect("test socket pair");
+        let client = ControlClient::from_stream(ClientStream::Unix(ours));
+        poison(&client.pending);
+        let outcome: Result<Value, ClientError> = client
+            .call_value("system.ping", serde_json::json!({}))
+            .await;
+        let error = outcome.expect_err("poisoned pending map must fail the call");
+        assert_eq!(error.code, "transport");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn closed_stream_drains_poisoned_pending_calls() {
+        let (pending, events) = harness();
+        let receiver = listen(&pending, 3);
+        poison(&pending);
+        let (ours, peer) = tokio::net::UnixStream::pair().expect("test socket pair");
+        let (read, write) = tokio::io::split(ClientStream::Unix(ours));
+        drop(peer);
+        drop(write);
+        reader_task(BufReader::new(read), pending, events).await;
+        let outcome = tokio::time::timeout(Duration::from_secs(5), receiver)
+            .await
+            .expect("drain resolves")
+            .expect("sender alive");
+        let error = outcome.expect_err("closed host must fail pending calls");
+        assert_eq!(error.code, "transport");
     }
 }
