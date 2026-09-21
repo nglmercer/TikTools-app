@@ -20,7 +20,7 @@ mod ipc_handlers;
 mod live_events;
 mod persistence;
 mod plugin_diagnostics;
-mod plugin_event_observer;
+mod plugin_events;
 mod plugin_intents;
 mod plugin_invoker;
 mod plugin_processors;
