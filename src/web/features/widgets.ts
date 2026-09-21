@@ -1,87 +1,153 @@
 /**
- * Widgets settings helpers: read the Event Gateway plugin settings, derive
- * the loopback OBS URLs (the token travels in the URL fragment, never in the
- * query string), and best-effort probe gateway health.
+ * Widgets host bridge: the WebView never handles raw gateway secrets.
+ *
+ * Plugin settings arrive redacted, so this module never reads the OBS
+ * credential from settings state and never probes the gateway over
+ * fetch (browser origins/CORS differ per shell). All credential and
+ * reachability questions go to the host (`widgets.status`,
+ * `widgets.copyObsUrl`); the UI only renders the returned state and a
+ * redacted URL placeholder.
  */
 
-import type { PluginStatus } from '../../automation/behavior/types.ts';
-import type { JsonObject } from '../../automation/types.ts';
+import { ref } from 'vue';
+
+import type { ControlClient } from '../platform/control-client.ts';
+import { errorMessage } from '../platform/control-client.ts';
 
 export const GATEWAY_PLUGIN_ID = 'tiktools.event-gateway';
 export const GATEWAY_DEFAULT_HOST = '127.0.0.1';
 export const GATEWAY_DEFAULT_PORT = 17452;
 
+/** Redacted marker shown in place of the real URL credential. */
+export const REDACTED_TOKEN = '••••••••';
+
 export type WidgetKind = 'follow' | 'gift';
 
-export interface GatewayWidgetConfig {
-  host: string;
+export type WidgetsHostState =
+  | 'missing'
+  | 'disabled'
+  | 'stopped'
+  | 'starting'
+  | 'credential-unavailable'
+  | 'assets-missing'
+  | 'unreachable'
+  | 'ready';
+
+export interface WidgetsStatus {
+  state: WidgetsHostState;
   port: number;
-  token: string | null;
+  error: string | null;
 }
 
-export function parseGatewayWidgetConfig(values: JsonObject | undefined): GatewayWidgetConfig {
-  let port = GATEWAY_DEFAULT_PORT;
-  const rawPort = values?.['port'];
-  if (typeof rawPort === 'number' && Number.isInteger(rawPort) && rawPort >= 1 && rawPort <= 65535) {
-    port = rawPort;
+export interface WidgetsCopyFeedback {
+  widget: WidgetKind;
+  ok: boolean;
+  message: string;
+}
+
+const WIDGET_STATES: readonly WidgetsHostState[] = [
+  'missing',
+  'disabled',
+  'stopped',
+  'starting',
+  'credential-unavailable',
+  'assets-missing',
+  'unreachable',
+  'ready',
+];
+
+/** Display-only OBS URL: the credential slot always shows bullets. */
+export function buildRedactedObsUrl(port: number, widget: WidgetKind): string {
+  return `http://${GATEWAY_DEFAULT_HOST}:${port}/widgets/${widget}/#token=${REDACTED_TOKEN}`;
+}
+
+/** Tokenless demo preview: the widget plays one synthetic alert locally. */
+export function buildWidgetPreviewUrl(port: number, widget: WidgetKind): string {
+  const demo = widget === 'follow' ? 'follow' : 'combo';
+  return `http://${GATEWAY_DEFAULT_HOST}:${port}/widgets/${widget}/#demo=${demo}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Defensively parses a `widgets.status` result; garbage becomes `unreachable`. */
+export function parseWidgetsStatus(value: unknown): WidgetsStatus {
+  if (!isRecord(value)) {
+    return { state: 'unreachable', port: GATEWAY_DEFAULT_PORT, error: null };
   }
-  const rawToken = values?.['token'];
-  const token = typeof rawToken === 'string' && rawToken.trim() !== '' ? rawToken : null;
-  return { host: GATEWAY_DEFAULT_HOST, port, token };
+  const state = WIDGET_STATES.includes(value['state'] as WidgetsHostState)
+    ? (value['state'] as WidgetsHostState)
+    : 'unreachable';
+  const port =
+    typeof value['port'] === 'number' &&
+    Number.isInteger(value['port']) &&
+    (value['port'] as number) >= 1 &&
+    (value['port'] as number) <= 65535
+      ? (value['port'] as number)
+      : GATEWAY_DEFAULT_PORT;
+  const error =
+    typeof value['error'] === 'string' && (value['error'] as string).trim() !== ''
+      ? (value['error'] as string)
+      : null;
+  return { state, port, error };
 }
 
-export function buildWidgetObsUrl(config: GatewayWidgetConfig, widget: WidgetKind): string {
-  const base = `http://${config.host}:${config.port}/widgets/${widget}/`;
-  if (!config.token) return base;
-  return `${base}#token=${encodeURIComponent(config.token)}`;
-}
+export function useWidgets(control: ControlClient) {
+  const status = ref<WidgetsStatus | null>(null);
+  const statusError = ref<string | null>(null);
+  const refreshing = ref(false);
+  const lastCopy = ref<WidgetsCopyFeedback | null>(null);
 
-export function gatewayPluginStatus(plugins: PluginStatus[]): PluginStatus | undefined {
-  return plugins.find((plugin) => plugin.descriptor.id === GATEWAY_PLUGIN_ID);
-}
+  const refreshStatus = (onDone?: (next: WidgetsStatus | null) => void): void => {
+    refreshing.value = true;
+    void control
+      .call<WidgetsStatus>('widgets.status', {})
+      .then((result) => {
+        status.value = parseWidgetsStatus(result);
+        statusError.value = null;
+        refreshing.value = false;
+        onDone?.(status.value);
+      })
+      .catch((failure: unknown) => {
+        statusError.value = errorMessage(failure);
+        refreshing.value = false;
+        onDone?.(null);
+      });
+  };
 
-export type GatewayHealth = 'unknown' | 'checking' | 'ok' | 'unreachable';
+  const copyObsUrl = (
+    widget: WidgetKind,
+    onDone: (feedback: WidgetsCopyFeedback) => void,
+  ): void => {
+    void control
+      .call<{ ok?: unknown }>('widgets.copyObsUrl', { widget })
+      .then((result) => {
+        const feedback: WidgetsCopyFeedback = {
+          widget,
+          ok: isRecord(result) && result['ok'] === true,
+          message: '',
+        };
+        lastCopy.value = feedback;
+        onDone(feedback);
+      })
+      .catch((failure: unknown) => {
+        const feedback: WidgetsCopyFeedback = {
+          widget,
+          ok: false,
+          message: errorMessage(failure),
+        };
+        lastCopy.value = feedback;
+        onDone(feedback);
+      });
+  };
 
-/**
- * Best-effort `/health` probe. A failure does not mean the gateway is down:
- * the page origin may simply not be in the gateway's allowed-origins list,
- * in which case the gateway answers 403 to browsers by design.
- */
-export async function probeGatewayHealth(
-  host: string,
-  port: number,
-  timeoutMs = 3000,
-): Promise<Exclude<GatewayHealth, 'unknown' | 'checking'>> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(`http://${host}:${port}/health`, { signal: controller.signal });
-    return response.ok ? 'ok' : 'unreachable';
-  } catch {
-    return 'unreachable';
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-export async function copyTextToClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    // Clipboard API needs a secure context; fall back to execCommand.
-  }
-  try {
-    const area = document.createElement('textarea');
-    area.value = text;
-    area.style.position = 'fixed';
-    area.style.opacity = '0';
-    document.body.appendChild(area);
-    area.select();
-    const copied = document.execCommand('copy');
-    area.remove();
-    return copied;
-  } catch {
-    return false;
-  }
+  return {
+    status,
+    statusError,
+    refreshing,
+    lastCopy,
+    refreshStatus,
+    copyObsUrl,
+  };
 }

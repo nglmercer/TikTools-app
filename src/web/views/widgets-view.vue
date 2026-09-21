@@ -1,33 +1,34 @@
 <script lang="tsx">
-import { computed, onMounted, ref, watch } from 'vue';
-import type { PluginStatus } from '../../automation/behavior/types.ts';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { IconCheck, IconCopy, IconFollow, IconGift, IconRefresh } from '../components/icons.vue';
 import { Button } from '../components/ui/Button.vue';
 import { Card } from '../components/ui/Card.vue';
 import { Page, PageHeader } from '../components/ui/Page.vue';
 import { TextInput } from '../components/ui/TextInput.vue';
 import {
-  buildWidgetObsUrl,
-  copyTextToClipboard,
-  GATEWAY_PLUGIN_ID,
-  gatewayPluginStatus,
-  parseGatewayWidgetConfig,
-  probeGatewayHealth,
-  type GatewayHealth,
+  buildRedactedObsUrl,
+  buildWidgetPreviewUrl,
+  GATEWAY_DEFAULT_PORT,
   type WidgetKind,
+  type WidgetsCopyFeedback,
+  type WidgetsHostState,
+  type WidgetsStatus,
 } from '../features/widgets.ts';
 import { t, type Locale } from '../i18n.ts';
-import type { PluginSettingsState } from '../types.ts';
 import { defineVueComponent } from '../vue/component.ts';
 
 type WidgetsViewProps = {
   locale: Locale;
-  plugins: PluginStatus[];
-  settings: Record<string, PluginSettingsState | undefined>;
-  onGetSettings: (id: string) => void;
+  status: WidgetsStatus | null;
+  statusError: string | null;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onCopy: (widget: WidgetKind, onDone: (feedback: WidgetsCopyFeedback) => void) => void;
 };
 
-type GatewayState = 'missing' | 'disabled' | 'stopped' | 'running';
+/** Bounded re-probe while the gateway reports `starting`. */
+const STARTING_RETRIES = 5;
+const STARTING_RETRY_MS = 2000;
 
 function renderWidgetCard(args: {
   locale: Locale;
@@ -36,10 +37,11 @@ function renderWidgetCard(args: {
   description: string;
   icon: typeof IconGift;
   obsUrl: string;
-  hasToken: boolean;
+  copyReady: boolean;
   previewUrl: string;
   previewKey: number;
   copied: boolean;
+  copyError: string | null;
   onCopy: () => void;
   onReplay: () => void;
 }) {
@@ -61,12 +63,13 @@ function renderWidgetCard(args: {
           size="md"
           icon={args.copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
           onClick={args.onCopy}
+          disabled={!args.copyReady}
         >
           {args.copied ? t(locale, 'widgetsCopied') : t(locale, 'widgetsCopyUrl')}
         </Button>
       </div>
-      {!args.hasToken ? <p class="widgets-hint">{t(locale, 'widgetsNeedToken')}</p> : null}
-      <p class="widgets-token-note">{t(locale, 'widgetsTokenNote')}</p>
+      {args.copyError ? <p class="widgets-hint">{args.copyError}</p> : null}
+      <p class="widgets-token-note">{t(locale, 'widgetsRedactedNote')}</p>
       <div class="widgets-field-label">{t(locale, 'widgetsPreview')}</div>
       <div class="widgets-preview-frame">
         <iframe
@@ -86,88 +89,117 @@ function renderWidgetCard(args: {
 }
 
 /**
- * Widgets: OBS Browser Source URLs for the Follow and Gift alerts. URLs are
- * derived from the Event Gateway plugin settings (port + token) so users
- * never type them by hand. Previews run the widget in local demo mode, which
- * needs no gateway connection.
+ * Widgets: OBS Browser Source URLs for the Follow and Gift alerts. State
+ * and copying are host-driven (`widgets.status`, `widgets.copyObsUrl`):
+ * the page only renders the host state and a redacted URL placeholder,
+ * never the real credential. Previews run the widget in local demo mode,
+ * which needs no gateway connection.
  */
 export const WidgetsView = defineVueComponent<WidgetsViewProps>(
-  ['locale', 'plugins', 'settings', 'onGetSettings'],
+  ['locale', 'status', 'statusError', 'refreshing', 'onRefresh', 'onCopy'],
   (props) => {
-    const health = ref<GatewayHealth>('unknown');
-    const copied = ref<WidgetKind | null>(null);
     const previewNonce = ref(0);
+    const copiedWidget = ref<WidgetKind | null>(null);
+    const copyError = ref<{ widget: WidgetKind; message: string } | null>(null);
+    const startingAttempts = ref(0);
     let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const gateway = computed(() => gatewayPluginStatus(props.plugins));
-    const config = computed(() => parseGatewayWidgetConfig(props.settings[GATEWAY_PLUGIN_ID]?.values));
+    const port = computed(() => props.status?.port ?? GATEWAY_DEFAULT_PORT);
+    const state = computed<WidgetsHostState | null>(() => props.status?.state ?? null);
 
-    const gatewayState = computed<GatewayState>(() => {
-      const status = gateway.value;
-      if (!status || !status.installed) return 'missing';
-      if (!status.enabled || !status.available) return 'disabled';
-      if (status.running === false) return 'stopped';
-      return 'running';
-    });
-
-    const refresh = (): void => {
-      props.onGetSettings(GATEWAY_PLUGIN_ID);
-    };
-
-    const probe = async (): Promise<void> => {
-      health.value = 'checking';
-      health.value = await probeGatewayHealth(config.value.host, config.value.port);
+    const clearRetry = (): void => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = undefined;
+      }
     };
 
     onMounted(() => {
-      if (!props.settings[GATEWAY_PLUGIN_ID]) refresh();
+      props.onRefresh();
+    });
+
+    onUnmounted(() => {
+      clearRetry();
+      if (copiedTimer) clearTimeout(copiedTimer);
     });
 
     watch(
-      () => props.settings[GATEWAY_PLUGIN_ID],
-      (state) => {
-        if (state) void probe();
+      () => props.status,
+      (next) => {
+        clearRetry();
+        if (next?.state === 'starting' && startingAttempts.value < STARTING_RETRIES) {
+          startingAttempts.value += 1;
+          retryTimer = setTimeout(() => {
+            props.onRefresh();
+          }, STARTING_RETRY_MS);
+        }
       },
       { immediate: true },
     );
 
-    const copyUrl = (widget: WidgetKind): void => {
-      const url = buildWidgetObsUrl(config.value, widget);
-      void copyTextToClipboard(url).then((ok) => {
-        if (!ok) return;
-        copied.value = widget;
+    const copyWidget = (widget: WidgetKind): void => {
+      copyError.value = null;
+      props.onCopy(widget, (feedback) => {
         if (copiedTimer) clearTimeout(copiedTimer);
-        copiedTimer = setTimeout(() => {
-          copied.value = null;
-        }, 2000);
+        if (feedback.ok) {
+          copiedWidget.value = widget;
+          copiedTimer = setTimeout(() => {
+            copiedWidget.value = null;
+          }, 2000);
+        } else {
+          copiedWidget.value = null;
+          copyError.value = { widget, message: feedback.message };
+        }
       });
     };
 
-    const statusText = computed(() => {
-      const state = gatewayState.value;
-      if (state === 'missing') return t(props.locale, 'widgetsStatusMissing');
-      if (state === 'disabled') return t(props.locale, 'widgetsStatusDisabled');
-      if (state === 'stopped') return t(props.locale, 'widgetsStatusStopped');
-      return t(props.locale, 'widgetsStatusRunning', { port: config.value.port });
-    });
+    const manualRefresh = (): void => {
+      startingAttempts.value = 0;
+      props.onRefresh();
+    };
 
-    const healthText = computed(() => {
-      const current = health.value;
-      if (current === 'ok') return t(props.locale, 'widgetsHealthOk');
-      if (current === 'checking') return t(props.locale, 'widgetsHealthChecking');
-      if (current === 'unreachable') return t(props.locale, 'widgetsHealthUnreachable');
-      return t(props.locale, 'widgetsHealthUnknown');
+    const statusText = computed(() => {
+      switch (state.value) {
+        case 'missing':
+          return t(props.locale, 'widgetsStateMissing');
+        case 'disabled':
+          return t(props.locale, 'widgetsStateDisabled');
+        case 'stopped':
+          return t(props.locale, 'widgetsStateStopped');
+        case 'starting':
+          return t(props.locale, 'widgetsStateStarting');
+        case 'credential-unavailable':
+          return t(props.locale, 'widgetsStateCredentialUnavailable');
+        case 'assets-missing':
+          return t(props.locale, 'widgetsStateAssetsMissing');
+        case 'unreachable':
+          return t(props.locale, 'widgetsStateUnreachable');
+        case 'ready':
+          return t(props.locale, 'widgetsStateReady', { port: port.value });
+        default:
+          return t(props.locale, 'widgetsStateUnknown');
+      }
     });
 
     return () => {
       const locale = props.locale;
-      const followUrl = buildWidgetObsUrl(config.value, 'follow');
-      const giftUrl = buildWidgetObsUrl(config.value, 'gift');
-      // Previews use tokenless demo mode: the widget plays one synthetic
-      // alert locally instead of connecting to the gateway.
-      const followPreview = `http://${config.value.host}:${config.value.port}/widgets/follow/#demo=follow`;
-      const giftPreview = `http://${config.value.host}:${config.value.port}/widgets/gift/#demo=combo`;
-      const healthy = gatewayState.value === 'running' && health.value === 'ok';
+      const current = state.value;
+      const followUrl = buildRedactedObsUrl(port.value, 'follow');
+      const giftUrl = buildRedactedObsUrl(port.value, 'gift');
+      const followPreview = buildWidgetPreviewUrl(port.value, 'follow');
+      const giftPreview = buildWidgetPreviewUrl(port.value, 'gift');
+      const healthy = current === 'ready';
+      // Copy needs a stored credential; the host reports that through
+      // every state except the ones that prove it missing.
+      const copyReady =
+        current !== null &&
+        current !== 'missing' &&
+        current !== 'credential-unavailable' &&
+        !props.refreshing;
+      const hint = props.statusError ?? props.status?.error ?? null;
+      const copyErrorFor = (widget: WidgetKind): string | null =>
+        copyError.value?.widget === widget ? copyError.value.message : null;
       return (
         <Page width="wide">
           <PageHeader
@@ -175,7 +207,12 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
             subtitle={t(locale, 'widgetsSubtitle')}
             icon={<IconGift />}
             action={
-              <Button variant="soft" size="md" icon={<IconRefresh size={14} />} onClick={refresh}>
+              <Button
+                variant="soft"
+                size="md"
+                icon={<IconRefresh size={14} />}
+                onClick={manualRefresh}
+              >
                 {t(locale, 'widgetsRefresh')}
               </Button>
             }
@@ -183,13 +220,11 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
           <Card title={t(locale, 'widgetsGateway')} icon={<IconGift />}>
             <div class="widgets-status-row">
               <span class={`ui-badge ${healthy ? 'ui-badge--cyan' : ''}`}>{statusText.value}</span>
-              <span class="widgets-health">
-                {t(locale, 'widgetsHealth')}: {healthText.value}
-              </span>
+              {props.refreshing ? (
+                <span class="widgets-health">{t(locale, 'widgetsStateChecking')}</span>
+              ) : null}
             </div>
-            {health.value === 'unreachable' ? (
-              <p class="widgets-hint">{t(locale, 'widgetsHealthHint')}</p>
-            ) : null}
+            {hint ? <p class="widgets-hint">{hint}</p> : null}
           </Card>
           <div class="ui-cols-2">
             {renderWidgetCard({
@@ -199,11 +234,12 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
               description: t(locale, 'widgetsFollowDescription'),
               icon: IconFollow,
               obsUrl: followUrl,
-              hasToken: config.value.token !== null,
+              copyReady,
               previewUrl: followPreview,
               previewKey: previewNonce.value,
-              copied: copied.value === 'follow',
-              onCopy: () => copyUrl('follow'),
+              copied: copiedWidget.value === 'follow',
+              copyError: copyErrorFor('follow'),
+              onCopy: () => copyWidget('follow'),
               onReplay: () => {
                 previewNonce.value += 1;
               },
@@ -215,11 +251,12 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
               description: t(locale, 'widgetsGiftDescription'),
               icon: IconGift,
               obsUrl: giftUrl,
-              hasToken: config.value.token !== null,
+              copyReady,
               previewUrl: giftPreview,
               previewKey: previewNonce.value,
-              copied: copied.value === 'gift',
-              onCopy: () => copyUrl('gift'),
+              copied: copiedWidget.value === 'gift',
+              copyError: copyErrorFor('gift'),
+              onCopy: () => copyWidget('gift'),
               onReplay: () => {
                 previewNonce.value += 1;
               },

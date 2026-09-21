@@ -209,9 +209,11 @@ const activePluginBackend = computed(() => {
       <WidgetsView
         v-else-if="app.activeTab === 'widgets'"
         :locale="app.locale"
-        :plugins="app.behavior.plugins"
-        :settings="app.pluginSettings"
-        :on-get-settings="app.handleGetPluginSettings"
+        :status="app.widgetsStatus"
+        :status-error="app.widgetsStatusError"
+        :refreshing="app.widgetsRefreshing"
+        :on-refresh="app.refreshWidgetsStatus"
+        :on-copy="app.copyWidgetObsUrl"
       />
 
       <SettingsView

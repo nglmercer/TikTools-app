@@ -1,76 +1,145 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { PluginStatus } from '../../automation/behavior/types.ts';
+import type { ControlClient } from '../platform/control-client.ts';
+import { ControlCallError } from '../platform/control-client.ts';
 import {
-  buildWidgetObsUrl,
+  buildRedactedObsUrl,
+  buildWidgetPreviewUrl,
   GATEWAY_DEFAULT_PORT,
-  gatewayPluginStatus,
-  GATEWAY_PLUGIN_ID,
-  parseGatewayWidgetConfig,
+  parseWidgetsStatus,
+  REDACTED_TOKEN,
+  useWidgets,
+  type WidgetsCopyFeedback,
 } from './widgets.ts';
 
-function pluginStatus(id: string, overrides: Partial<PluginStatus> = {}): PluginStatus {
-  return {
-    descriptor: {
-      id,
-      name: { default: id, i18key: `${id}.name` },
-      version: '1.0.0',
-      description: { default: '', i18key: `${id}.description` },
-      dependency: { default: '', i18key: `${id}.dependency` },
-      permissions: [],
-      actionTypeIds: [],
-      eventTypeIds: [],
-    },
-    installed: true,
-    enabled: true,
-    available: true,
-    ...overrides,
+function fakeControl(
+  handler: (method: string) => Promise<unknown>,
+): { client: ControlClient; calls: Array<{ method: string; params: unknown }> } {
+  const calls: Array<{ method: string; params: unknown }> = [];
+  const client: ControlClient = {
+    attach: () => {},
+    detach: () => {},
+    call: ((method: string, params?: unknown) => {
+      calls.push({ method, params });
+      return handler(method);
+    }) as ControlClient['call'],
+    onTopic: () => () => {},
+    onPush: () => () => {},
+    onTransportError: () => () => {},
+    onGap: () => () => {},
   };
+  return { client, calls };
 }
 
-describe('widgets settings', () => {
-  test('parses gateway config with loopback defaults', () => {
-    expect(parseGatewayWidgetConfig(undefined)).toEqual({
-      host: '127.0.0.1',
-      port: GATEWAY_DEFAULT_PORT,
-      token: null,
+function flush(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe('widgets URL builders', () => {
+  test('redacted OBS URL never carries credential material', () => {
+    expect(buildRedactedObsUrl(17452, 'follow')).toBe(
+      `http://127.0.0.1:17452/widgets/follow/#token=${REDACTED_TOKEN}`,
+    );
+    expect(buildRedactedObsUrl(19999, 'gift')).toBe(
+      'http://127.0.0.1:19999/widgets/gift/#token=••••••••',
+    );
+    expect(buildRedactedObsUrl(17452, 'follow')).not.toContain('?token=');
+  });
+
+  test('preview URLs stay in tokenless demo mode', () => {
+    expect(buildWidgetPreviewUrl(17452, 'follow')).toBe(
+      'http://127.0.0.1:17452/widgets/follow/#demo=follow',
+    );
+    expect(buildWidgetPreviewUrl(17452, 'gift')).toBe(
+      'http://127.0.0.1:17452/widgets/gift/#demo=combo',
+    );
+  });
+});
+
+describe('parseWidgetsStatus', () => {
+  test('passes valid host payloads through', () => {
+    expect(parseWidgetsStatus({ state: 'ready', port: 19999, error: null })).toEqual({
+      state: 'ready',
+      port: 19999,
+      error: null,
     });
-    expect(parseGatewayWidgetConfig({ port: 18000, token: 'ttk_abc' })).toEqual({
-      host: '127.0.0.1',
-      port: 18000,
-      token: 'ttk_abc',
+    expect(parseWidgetsStatus({ state: 'starting', port: 17452, error: 'retry' })).toEqual({
+      state: 'starting',
+      port: 17452,
+      error: 'retry',
     });
   });
 
-  test('rejects invalid ports and blank tokens', () => {
-    expect(parseGatewayWidgetConfig({ port: 99999, token: '  ' })).toEqual({
-      host: '127.0.0.1',
+  test('coerces garbage into unreachable with safe defaults', () => {
+    expect(parseWidgetsStatus(null)).toEqual({
+      state: 'unreachable',
       port: GATEWAY_DEFAULT_PORT,
-      token: null,
+      error: null,
     });
-    expect(parseGatewayWidgetConfig({ port: '17452' })).toEqual({
-      host: '127.0.0.1',
+    expect(parseWidgetsStatus({ state: 'melted', port: 0, error: '  ' })).toEqual({
+      state: 'unreachable',
       port: GATEWAY_DEFAULT_PORT,
-      token: null,
+      error: null,
+    });
+    expect(parseWidgetsStatus({ state: 'ready', port: 99999 })).toEqual({
+      state: 'ready',
+      port: GATEWAY_DEFAULT_PORT,
+      error: null,
     });
   });
+});
 
-  test('builds OBS urls with the token in the fragment', () => {
-    const config = parseGatewayWidgetConfig({ port: 17452, token: 'ttk_abc' });
-    expect(buildWidgetObsUrl(config, 'follow')).toBe(
-      'http://127.0.0.1:17452/widgets/follow/#token=ttk_abc',
+describe('useWidgets host bridge', () => {
+  test('refreshStatus stores host state and clears errors', async () => {
+    const { client, calls } = fakeControl(() =>
+      Promise.resolve({ state: 'ready', port: 19999, error: null }),
     );
-    expect(buildWidgetObsUrl(config, 'gift')).toBe(
-      'http://127.0.0.1:17452/widgets/gift/#token=ttk_abc',
-    );
-    expect(buildWidgetObsUrl({ host: '127.0.0.1', port: 17452, token: null }, 'follow')).toBe(
-      'http://127.0.0.1:17452/widgets/follow/',
-    );
+    const widgets = useWidgets(client);
+    widgets.refreshStatus();
+    expect(widgets.refreshing.value).toBe(true);
+    await flush();
+    expect(calls).toEqual([{ method: 'widgets.status', params: {} }]);
+    expect(widgets.refreshing.value).toBe(false);
+    expect(widgets.status.value).toEqual({ state: 'ready', port: 19999, error: null });
+    expect(widgets.statusError.value).toBeNull();
   });
 
-  test('finds the gateway plugin status by id', () => {
-    const gateway = pluginStatus(GATEWAY_PLUGIN_ID);
-    expect(gatewayPluginStatus([pluginStatus('other'), gateway])).toBe(gateway);
-    expect(gatewayPluginStatus([pluginStatus('other')])).toBeUndefined();
+  test('refreshStatus failure surfaces a message and keeps last state', async () => {
+    const { client } = fakeControl(() => Promise.reject(new ControlCallError('x', 'boom')));
+    const widgets = useWidgets(client);
+    widgets.refreshStatus();
+    await flush();
+    expect(widgets.refreshing.value).toBe(false);
+    expect(widgets.status.value).toBeNull();
+    expect(widgets.statusError.value).toBe('boom');
+  });
+
+  test('copyObsUrl delegates the URL to the host clipboard op', async () => {
+    const { client, calls } = fakeControl(() => Promise.resolve({ ok: true }));
+    const widgets = useWidgets(client);
+    const seen: WidgetsCopyFeedback[] = [];
+    widgets.copyObsUrl('gift', (next) => {
+      seen.push(next);
+    });
+    await flush();
+    expect(calls).toEqual([{ method: 'widgets.copyObsUrl', params: { widget: 'gift' } }]);
+    expect(seen).toEqual([{ widget: 'gift', ok: true, message: '' }]);
+    expect(widgets.lastCopy.value).toEqual({ widget: 'gift', ok: true, message: '' });
+  });
+
+  test('copyObsUrl failure reports the host message without token material', async () => {
+    const { client } = fakeControl(() =>
+      Promise.reject(new ControlCallError('unavailable', 'no widget credential is stored')),
+    );
+    const widgets = useWidgets(client);
+    const seen: WidgetsCopyFeedback[] = [];
+    widgets.copyObsUrl('follow', (next) => {
+      seen.push(next);
+    });
+    await flush();
+    expect(seen).toEqual([
+      { widget: 'follow', ok: false, message: 'no widget credential is stored' },
+    ]);
+    expect([widgets.lastCopy.value]).toEqual(seen);
   });
 });
