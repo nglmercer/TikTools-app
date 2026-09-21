@@ -5,7 +5,6 @@ import {
   installFakeHost,
 } from './fixtures/tiktools-host.ts';
 import {
-  actionFailureState,
   connectedCreatorState,
   connectionPageState,
   emptyState,
@@ -14,6 +13,7 @@ import {
   sonicboomConnectedState,
   sonicboomDisconnectedState,
   ttsPageState,
+  webviewPageState,
 } from './fixtures/states.ts';
 
 /**
@@ -90,42 +90,24 @@ test('plugin dynamic list', async ({ page }) => {
   consoleCapture.assertClean();
 });
 
-test('TTS settings page', async ({ page }) => {
+test('legacy plugin panel note', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, ttsPageState());
   await page.goto('/');
   await freezeClock(page);
   await page.getByRole('button', { name: 'Text to Speech' }).click();
-  await expect(page.getByLabel('Default voice')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Play' })).toBeEnabled();
-  await expect(page).toHaveScreenshot('plugin-tts.png', { fullPage: true });
+  await expect(page.getByText('This panel moved to the plugin view.')).toBeVisible();
+  await expect(page).toHaveScreenshot('plugin-legacy-note.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
 });
 
-test('TTS output selector', async ({ page }) => {
-  const consoleCapture = await installFakeHost(page, ttsPageState());
+test('plugin webview launcher', async ({ page }) => {
+  const consoleCapture = await installFakeHost(page, webviewPageState());
   await page.goto('/');
   await freezeClock(page);
   await page.getByRole('button', { name: 'Text to Speech' }).click();
-  await expect(page.getByLabel('Audio output').first()).toBeVisible();
-  await expect(page.getByLabel('Audio output').first()).toHaveValue('Speakers');
-  await expect(page).toHaveScreenshot('plugin-tts-output.png', { fullPage: true });
-  await assertNoUnhandledCalls(page);
-  consoleCapture.assertClean();
-});
-
-test('TTS error state', async ({ page }) => {
-  const consoleCapture = await installFakeHost(page, actionFailureState());
-  await page.goto('/');
-  await freezeClock(page);
-  await page.getByRole('button', { name: 'Text to Speech' }).click();
-  await page.getByLabel('Text', { exact: true }).fill('this will fail');
-  await page.getByRole('button', { name: 'Play' }).click();
-  await expect(page.getByRole('log')).toContainText('voice not found', { timeout: 5_000 });
-  await expect(page).toHaveScreenshot('plugin-tts-error.png', {
-    fullPage: true,
-    mask: [page.getByRole('log')],
-  });
+  await expect(page.getByRole('button', { name: 'Open plugin view' })).toBeVisible();
+  await expect(page).toHaveScreenshot('plugin-webview.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
 });
@@ -163,25 +145,24 @@ test('plugin connection success', async ({ page }) => {
   consoleCapture.assertClean();
 });
 
-test('light theme TTS page', async ({ page }) => {
-  const consoleCapture = await installFakeHost(page, ttsPageState(), { theme: 'light' });
+test('light theme webview launcher', async ({ page }) => {
+  const consoleCapture = await installFakeHost(page, webviewPageState(), { theme: 'light' });
   await page.goto('/');
   await freezeClock(page);
   await page.getByRole('button', { name: 'Text to Speech' }).click();
-  await expect(page.getByLabel('Default voice')).toBeVisible();
-  await expect(page).toHaveScreenshot('plugin-tts-light.png', { fullPage: true });
+  await expect(page.getByRole('button', { name: 'Open plugin view' })).toBeVisible();
+  await expect(page).toHaveScreenshot('plugin-webview-light.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
 });
 
-test('Spanish locale TTS page', async ({ page }) => {
-  const consoleCapture = await installFakeHost(page, ttsPageState(), { locale: 'es' });
+test('Spanish locale webview launcher', async ({ page }) => {
+  const consoleCapture = await installFakeHost(page, webviewPageState(), { locale: 'es' });
   await page.goto('/');
   await freezeClock(page);
   await page.getByRole('button', { name: 'Text to Speech' }).click();
-  await expect(page.getByLabel('Voz predeterminada')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Reproducir' })).toBeEnabled();
-  await expect(page).toHaveScreenshot('plugin-tts-es.png', { fullPage: true });
+  await expect(page.getByRole('button', { name: 'Abrir vista del plugin' })).toBeVisible();
+  await expect(page).toHaveScreenshot('plugin-webview-es.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
 });

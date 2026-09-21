@@ -228,15 +228,6 @@ export function normalizeNode(value: JsonValue, depth = 0): PluginUiNode | undef
       if (label) node.label = label;
       return node;
     }
-    case 'tts-settings': {
-      if (typeof value.contribution !== 'string' || !value.contribution.trim()) return undefined;
-      if (value.contribution.length > 64) return undefined;
-      const node: PluginUiNode = { type: 'tts-settings', contribution: value.contribution.trim() };
-      if (key) node.key = key;
-      if (title) node.title = title;
-      if (label) node.label = label;
-      return node;
-    }
     default:
       return undefined;
   }

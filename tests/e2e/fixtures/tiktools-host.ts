@@ -48,6 +48,8 @@ export interface E2EHostState {
   calls: Array<{ method: string; params: Record<string, unknown> }>;
   /** Calls with no fake handler — must stay empty. */
   unhandled: string[];
+  /** Legacy `type:` messages (plugin-ui-open/close), in order. */
+  legacyMessages: Array<Record<string, unknown>>;
   frontendReady: boolean;
 }
 
@@ -95,6 +97,7 @@ export function baseHostState(overrides: Partial<E2EHostState> = {}): E2EHostSta
     actionDelayMs: 0,
     calls: [],
     unhandled: [],
+    legacyMessages: [],
     frontendReady: false,
     ...overrides,
   };
@@ -208,6 +211,12 @@ const INIT_SCRIPT = `
       }
       if (message && message.type === 'frontend-ready') {
         state.frontendReady = true;
+        return;
+      }
+      // Legacy page messages (plugin UI open/close) are recorded for
+      // assertions; the real desktop host acts on them natively.
+      if (message && typeof message.type === 'string' && message.jsonrpc === undefined) {
+        state.legacyMessages.push(message);
         return;
       }
       if (!message || message.jsonrpc !== '2.0' || message.method === undefined) return;

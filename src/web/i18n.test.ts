@@ -19,23 +19,13 @@ describe('key/value i18n metadata', () => {
     expect(t('en', 'test.count', { count: 2 })).toBe('2 item');
   });
 
-  test('tts audio output strings exist in english and spanish', () => {
+  test('plugin-owned strings do not leak into the host dictionaries', () => {
     setPluginTranslations({});
-    const keys = [
-      'ttsAudioOutput',
-      'ttsAudioOutputChoose',
-      'ttsAudioOutputsLoading',
-      'ttsAudioOutputsUnavailable',
-      'ttsAudioOutputsNoPlayback',
-      'ttsAudioOutputsEmpty',
-      'ttsAudioOutputSwitching',
-      'ttsAudioOutputHint',
-      'ttsRefreshOutputs',
-    ];
-    for (const key of keys) {
-      expect(t('en', key)).not.toBe(key);
-      expect(t('es', key)).not.toBe(key);
+    // Audio/speech copy lives in the plugin package now; the host
+    // dictionaries must not carry it (missing keys echo the key).
+    for (const key of ['ttsAudioOutput', 'ttsLogs', 'ttsVoiceTester']) {
+      expect(t('en', key)).toBe(key);
+      expect(t('es', key)).toBe(key);
     }
-    expect(t('es', 'ttsAudioOutput')).not.toBe(t('en', 'ttsAudioOutput'));
   });
 });

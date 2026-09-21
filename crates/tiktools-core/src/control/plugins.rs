@@ -26,6 +26,37 @@ pub struct PluginInstallResult {
     pub replaced: bool,
 }
 
+/// Resolved isolated-UI target: which plugin page to open and which
+/// directory the desktop asset server may serve it from.
+#[derive(Debug, Clone)]
+pub struct PluginUiTarget {
+    pub id: String,
+    pub name: String,
+    pub directory: std::path::PathBuf,
+    pub asset_root: std::path::PathBuf,
+    pub entry_file: String,
+    pub page_id: String,
+}
+
+/// Mirrors the discovery-time `is_valid_ui_entry` rule so a tampered
+/// manifest can never widen the servable directory at open time.
+fn is_confined_ui_entry(entry: &str) -> bool {
+    if entry.len() > 256 || !entry.starts_with("ui/") || !entry.ends_with(".html") {
+        return false;
+    }
+    if entry.contains('\\') {
+        return false;
+    }
+    let path = std::path::Path::new(entry);
+    !path.is_absolute()
+        && path.components().all(|component| {
+            matches!(
+                component,
+                std::path::Component::Normal(_) | std::path::Component::CurDir
+            )
+        })
+}
+
 impl AppCore {
     // ------------------------------------------------------------------
     // Plugins.
@@ -57,6 +88,72 @@ impl AppCore {
                     || plugin.get("id").and_then(Value::as_str) == Some(id.as_str())
             })
             .ok_or_else(|| OperationError::not_found(format!("Plugin `{id}` is not installed.")))
+    }
+
+    /// Resolves the isolated-UI target for a webview-mode plugin page.
+    /// Fails when the plugin is missing, has no webview UI, the page is
+    /// unknown, or the built entry asset is absent. The entry path is
+    /// re-validated here (defense in depth: discovery already checked it)
+    /// and the asset root is confined to the entry's own directory, so the
+    /// desktop asset server can only serve built UI files — never the
+    /// plugin manifest, settings, or backend.
+    pub fn plugin_ui_target(
+        &self,
+        id: &str,
+        page_id: &str,
+    ) -> Result<PluginUiTarget, OperationError> {
+        let plugin = self.require_discovered(id)?;
+        let manifest = &plugin.manifest;
+        let ui = manifest.ui.as_ref().ok_or_else(|| {
+            OperationError::unavailable(format!("Plugin `{}` has no custom UI.", manifest.id))
+        })?;
+        if ui.mode != tiktools_plugin_api::ui::PluginUiMode::Webview {
+            return Err(OperationError::unavailable(format!(
+                "Plugin `{}` uses declarative UI; no isolated webview.",
+                manifest.id
+            )));
+        }
+        if !ui.pages.iter().any(|page| page.id == page_id) {
+            return Err(OperationError::not_found(format!(
+                "Plugin `{}` has no UI page `{page_id}`.",
+                manifest.id
+            )));
+        }
+        let entry = ui.entry.as_deref().ok_or_else(|| {
+            OperationError::unavailable(format!(
+                "Plugin `{}` webview UI has no entry asset.",
+                manifest.id
+            ))
+        })?;
+        if !is_confined_ui_entry(entry) {
+            return Err(OperationError::invalid(format!(
+                "Plugin `{}` UI entry `{entry}` escapes the ui/ asset directory.",
+                manifest.id
+            )));
+        }
+        let file = plugin.directory.join(entry);
+        if !file.is_file() {
+            return Err(OperationError::unavailable(format!(
+                "Plugin `{}` UI is not built (missing `{entry}`).",
+                manifest.id
+            )));
+        }
+        let asset_root = file
+            .parent()
+            .map(std::path::Path::to_path_buf)
+            .unwrap_or_else(|| plugin.directory.clone());
+        let entry_file = file
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "index.html".to_owned());
+        Ok(PluginUiTarget {
+            id: manifest.id.clone(),
+            name: manifest.name.clone(),
+            directory: plugin.directory.clone(),
+            asset_root,
+            entry_file,
+            page_id: page_id.to_owned(),
+        })
     }
 
     pub(crate) fn require_discovered(
@@ -230,8 +327,7 @@ impl AppCore {
                 "option source must be 1..=256 characters",
             ));
         }
-        let Some((action_type, _)) =
-            crate::services::option_sources::parse_option_source(source)
+        let Some((action_type, _)) = crate::services::option_sources::parse_option_source(source)
         else {
             return Err(OperationError::invalid(format!(
                 "Unknown option source `{source}`."
@@ -504,5 +600,83 @@ mod tests {
             .expect_err("undeclared options must fail resolution");
         assert_ne!(error.code(), "forbidden");
         cleanup(&root);
+    }
+
+    fn webview_manifest(id: &str) -> String {
+        format!(
+            r#"{{"schemaVersion": 3, "id": "{id}", "name": "{id}", "version": "1.0.0", "runtime": "declarative", "capabilities": [], "permissions": [], "actionTypes": [], "ui": {{"apiVersion": 1, "mode": "webview", "entry": "ui/dist/index.html", "pages": [{{"id": "main", "title": {{"default": "Main"}}}}]}}}}"#
+        )
+    }
+
+    fn core_with_webview_plugin() -> (Arc<AppCore>, std::path::PathBuf) {
+        static COUNTER: AtomicU64 = AtomicU64::new(1000);
+        let root = std::env::temp_dir().join(format!(
+            "tiktools-uitarget-test-{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::SeqCst)
+        ));
+        let dir = root.join("webui");
+        std::fs::create_dir_all(dir.join("ui/dist")).expect("test ui dir");
+        std::fs::write(dir.join("plugin.json"), webview_manifest("webui")).expect("manifest");
+        std::fs::write(dir.join("ui/dist/index.html"), "<html></html>").expect("entry");
+        let manager = PluginManager::new(vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }]);
+        manager.scan().expect("test scan");
+        let mut core = AppCore::new(Arc::new(NullEmitter));
+        core.plugins = Arc::new(manager);
+        (Arc::new(core), root)
+    }
+
+    #[test]
+    fn ui_target_resolves_entry_and_confines_asset_root() {
+        let (core, root) = core_with_webview_plugin();
+        let target = core.plugin_ui_target("webui", "main").expect("ui target");
+        assert_eq!(target.id, "webui");
+        assert_eq!(target.asset_root, root.join("webui/ui/dist"));
+        // Unknown page and unknown plugin fail; nothing resolves.
+        assert_eq!(
+            core.plugin_ui_target("webui", "nope")
+                .expect_err("unknown page must fail")
+                .code(),
+            "not_found"
+        );
+        assert_eq!(
+            core.plugin_ui_target("missing", "main")
+                .expect_err("unknown plugin must fail")
+                .code(),
+            "not_found"
+        );
+        // An unbuilt UI (entry asset absent) is unavailable, not servable.
+        std::fs::remove_file(root.join("webui/ui/dist/index.html")).expect("remove entry");
+        assert_eq!(
+            core.plugin_ui_target("webui", "main")
+                .expect_err("missing entry must fail")
+                .code(),
+            "unavailable"
+        );
+        cleanup(&root);
+    }
+
+    #[test]
+    fn ui_target_rejects_declarative_plugins() {
+        let (core, root) = core_with_two_plugins();
+        let error = core
+            .plugin_ui_target("plugina", "main")
+            .expect_err("declarative plugin must fail");
+        assert_eq!(error.code(), "unavailable");
+        cleanup(&root);
+    }
+
+    #[test]
+    fn confined_ui_entry_blocks_escape() {
+        assert!(is_confined_ui_entry("ui/dist/index.html"));
+        assert!(!is_confined_ui_entry("../plugin.json"));
+        assert!(!is_confined_ui_entry("ui/../../secret.html"));
+        assert!(!is_confined_ui_entry("/etc/ui.html"));
+        assert!(!is_confined_ui_entry("ui/dist/app.js"));
+        assert!(!is_confined_ui_entry("ui\\dist\\index.html"));
+        assert!(!is_confined_ui_entry("assets/index.html"));
     }
 }

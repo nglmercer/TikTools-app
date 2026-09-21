@@ -34,8 +34,6 @@ export {
   type StackNode,
   type StatusNode,
   type TextNode,
-  type TtsContribution,
-  type TtsSettingsNode,
 } from './contracts.ts';
 export { parseBinding, settingsPathSegments } from './bindings.ts';
 export { normalizeAction } from './actions.ts';
@@ -48,4 +46,4 @@ export {
   normalizePage,
   normalizeUiDescriptor,
 } from './normalize.ts';
-export { adaptLegacyPage, legacyTtsContributions, type AdaptedLegacyPage } from './legacy-v3-adapter.ts';
+export { adaptLegacyPage } from './legacy-v3-adapter.ts';

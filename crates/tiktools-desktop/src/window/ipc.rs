@@ -103,6 +103,7 @@ pub(crate) async fn handle_webview_ipc_message(
             let response = control.execute_value(&value).await;
             emit_rpc_response(proxy, &response);
         }
+        InboundRoute::Legacy(value) if try_plugin_ui_command(&value, proxy).is_some() => {}
         InboundRoute::Legacy(value) => {
             if let Err(error) = router.dispatch_value(&value).await {
                 tracing::warn!(%error, "invalid WebView IPC message");
@@ -122,6 +123,42 @@ pub(crate) async fn handle_webview_ipc_message(
             tracing::warn!("invalid legacy WebView message");
         }
     }
+}
+
+/// Desktop-level plugin UI commands from the main frontend
+/// (`{"type":"plugin-ui-open","pluginId","pageId"}` and the `-close`
+/// twin). These open native windows, so the desktop layer owns them —
+/// they never reach the control plane or the legacy page router.
+/// Returns `Some(())` when the value was a plugin UI command.
+fn try_plugin_ui_command(
+    value: &serde_json::Value,
+    proxy: &EventLoopProxy<DesktopEvent>,
+) -> Option<()> {
+    let command = value.get("type")?.as_str()?;
+    if command != "plugin-ui-open" && command != "plugin-ui-close" {
+        return None;
+    }
+    let plugin_id = value.get("pluginId")?.as_str()?;
+    let page_id = value.get("pageId")?.as_str()?;
+    if !crate::plugin_webview::is_valid_ui_id(plugin_id)
+        || !crate::plugin_webview::is_valid_ui_id(page_id)
+    {
+        tracing::warn!("ignoring plugin UI command with invalid ids");
+        return Some(());
+    }
+    let command = if command == "plugin-ui-open" {
+        DesktopCommand::OpenPluginUi {
+            plugin_id: plugin_id.to_owned(),
+            page_id: page_id.to_owned(),
+        }
+    } else {
+        DesktopCommand::ClosePluginUi {
+            plugin_id: plugin_id.to_owned(),
+            page_id: page_id.to_owned(),
+        }
+    };
+    let _ = proxy.send_event(DesktopEvent::Command(command));
+    Some(())
 }
 
 /// Inbound dispatch while the transport is failed: control calls are
@@ -184,6 +221,9 @@ impl DesktopApp {
     /// bounded in the lossy lane. A tripped reliable safety policy fails
     /// the transport loudly instead of growing memory without bound.
     pub(crate) fn emit_to_webview(&mut self, message: String) {
+        // Plugin-scoped domain events fan out to subscribed plugin
+        // windows; anything else is ignored by the forwarder.
+        self.plugin_ui.forward_host_message(&message);
         self.pending_host_messages.push(message);
         if self.pending_host_messages.take_transport_failure() {
             self.fail_webview_transport();

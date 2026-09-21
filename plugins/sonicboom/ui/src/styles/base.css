@@ -1,0 +1,89 @@
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Keep native scrollbars compact and consistent across the WebView. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+html, body, #app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--bg);
+  background-image: 
+    radial-gradient(circle at 10% 10%, rgba(254, 44, 85, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 90% 90%, rgba(37, 244, 238, 0.07) 0%, transparent 45%);
+  background-attachment: fixed;
+  color: var(--text);
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Keep editing affordances visible in every desktop WebView. Some system
+   WebViews otherwise fall back to an automatic cursor/caret for transparent
+   controls, which makes focused fields look non-interactive. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea {
+  cursor: text;
+  caret-color: var(--text);
+}
+
+select {
+  cursor: pointer;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  color: var(--text-disabled);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--line-focus) !important;
+  outline-offset: 1px;
+}
+
+/* Keep a visible focus ring even in WebViews that do not apply
+   :focus-visible for mouse-activated form controls. */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--line-focus) !important;
+  outline-offset: 1px;
+}

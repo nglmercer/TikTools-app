@@ -1,0 +1,15 @@
+[package]
+name = "sonicboom-backend"
+version = "1.0.0"
+edition = "2021"
+publish = false
+description = "SonicBoom TTS plugin backend: chat observer, speech policy, and server playback"
+
+[[bin]]
+name = "sonicboom-backend"
+path = "src/main.rs"
+
+[dependencies]
+serde_json.workspace = true
+tiktools-plugin-sdk = { path = "../../../crates/tiktools-plugin-sdk" }
+reqwest = { workspace = true, features = ["blocking"] }

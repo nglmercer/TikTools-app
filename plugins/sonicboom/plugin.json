@@ -1,0 +1,359 @@
+{
+  "schemaVersion": 3,
+  "id": "sonicboom.server",
+  "name": "SonicBoom Server",
+  "version": "1.0.0",
+  "description": "Speak chat and events through a local or remote SonicBoom TTS server. The plugin owns its backend policy and isolated UI; the host enforces capabilities and ownership.",
+  "longDescription": "Speak chat and events through a local or remote SonicBoom TTS server over plain HTTP. The plugin backend owns TTS policy and the isolated UI; the host interprets HTTP actions and enforces capabilities.\n\n- Voices and audio outputs load live from the server\n- Loopback needs no token; anything beyond it needs one",
+  "icon": "voice",
+  "tags": [
+    "tts",
+    "voice",
+    "chat",
+    "server"
+  ],
+  "runtime": "process",
+  "capabilities": [
+    "http.request",
+    "events.subscribe",
+    "points.write"
+  ],
+  "permissions": [
+    "network.bind"
+  ],
+  "http": {
+    "baseUrl": "{{ settings.serverUrl }}",
+    "timeoutMs": 10000,
+    "auth": {
+      "type": "bearer",
+      "tokenSetting": "apiToken"
+    },
+    "health": {
+      "path": "/ready",
+      "timeoutMs": 5000
+    },
+    "tokenProvisioning": {
+      "strategy": "admin-form"
+    }
+  },
+  "actionTypes": [
+    {
+      "id": "sonicboom.server.speak",
+      "version": 1,
+      "title": {
+        "default": "Speak with SonicBoom",
+        "i18key": "sonicboom.server.speak.title"
+      },
+      "description": {
+        "default": "Send text to the SonicBoom server for speech synthesis.",
+        "i18key": "sonicboom.server.speak.description"
+      },
+      "tag": "tts",
+      "requiredCapabilities": [
+        "http.request"
+      ],
+      "fields": [
+        {
+          "key": "text",
+          "label": {
+            "default": "Text",
+            "i18key": "sonicboom.server.speak.text.label"
+          },
+          "kind": "textarea",
+          "value": "{{ event.data.comment }}",
+          "template": true,
+          "placeholder": "{{ event.data.comment }}",
+          "hint": {
+            "default": "Spoken text. Event placeholders render before sending.",
+            "i18key": "sonicboom.server.speak.text.hint"
+          }
+        },
+        {
+          "key": "voice",
+          "label": {
+            "default": "Voice",
+            "i18key": "sonicboom.server.speak.voice.label"
+          },
+          "kind": "select",
+          "value": "",
+          "optionsFrom": "plugin-action-options:sonicboom.server.speak:voice",
+          "hint": {
+            "default": "Voices load live from the server. Empty keeps the server default.",
+            "i18key": "sonicboom.server.speak.voice.hint"
+          }
+        },
+        {
+          "key": "language",
+          "label": {
+            "default": "Language",
+            "i18key": "sonicboom.server.speak.language.label"
+          },
+          "kind": "text",
+          "value": "en",
+          "placeholder": "en"
+        },
+        {
+          "key": "playNow",
+          "label": {
+            "default": "Interrupt and play now",
+            "i18key": "sonicboom.server.speak.playNow.label"
+          },
+          "kind": "boolean",
+          "value": "false",
+          "advanced": true
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "path": "/api/tts/play?voice={{ config.voice }}&lang={{ config.language }}&play_now={{ config.playNow }}",
+        "headers": {
+          "Content-Type": "text/plain"
+        },
+        "body": "{{ config.text }}",
+        "timeoutMs": 15000
+      },
+      "optionSources": {
+        "voice": {
+          "path": "/v1/voices",
+          "timeoutMs": 8000
+        }
+      }
+    },
+    {
+      "id": "sonicboom.server.set-output-device",
+      "version": 1,
+      "title": {
+        "default": "Set SonicBoom audio output",
+        "i18key": "sonicboom.server.set-output-device.title"
+      },
+      "description": {
+        "default": "Switch the audio output device used by the SonicBoom server for playback.",
+        "i18key": "sonicboom.server.set-output-device.description"
+      },
+      "tag": "tts",
+      "requiredCapabilities": [
+        "http.request"
+      ],
+      "fields": [
+        {
+          "key": "device",
+          "label": {
+            "default": "Audio output",
+            "i18key": "sonicboom.server.set-output-device.device.label"
+          },
+          "kind": "select",
+          "value": "default",
+          "optionsFrom": "plugin-action-options:sonicboom.server.set-output-device:device",
+          "hint": {
+            "default": "Outputs load live from the server. System Default always plays through the server's default device.",
+            "i18key": "sonicboom.server.set-output-device.device.hint"
+          }
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "path": "/api/audio/output",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"device\":\"{{ config.device }}\"}",
+        "timeoutMs": 10000
+      },
+      "optionSources": {
+        "device": {
+          "path": "/api/audio/devices",
+          "itemsPath": "devices",
+          "valuePath": "id",
+          "labelPath": "name",
+          "timeoutMs": 8000
+        }
+      }
+    }
+  ],
+  "settings": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "serverUrl": {
+          "type": "string",
+          "format": "uri",
+          "title": "Server URL",
+          "description": "Base URL of the SonicBoom server.",
+          "default": "http://localhost:17842"
+        },
+        "apiToken": {
+          "type": "string",
+          "title": "API token",
+          "description": "API token from the SonicBoom admin panel (Tokens page), sent as a Bearer credential. This is not the admin password. Required when the server runs with SONICBOOM_AUTH_REQUIRED=true (the default), even on this machine. Use Get API token below to mint one with your admin login instead of copying it by hand.",
+          "secret": true
+        },
+        "defaultVoice": {
+          "type": "string",
+          "title": "Default voice",
+          "description": "Preferred voice for new actions and templates."
+        },
+        "defaultLanguage": {
+          "type": "string",
+          "title": "Default language",
+          "description": "Language code sent with speech requests.",
+          "default": "en",
+          "enum": [
+            "en",
+            "es"
+          ]
+        }
+      }
+    },
+    "uiHints": {
+      "fields": {
+        "serverUrl": {
+          "placeholder": "http://localhost:17842"
+        },
+        "apiToken": {
+          "secret": true
+        },
+        "defaultVoice": {
+          "optionsFrom": "plugin-action-options:sonicboom.server.speak:voice",
+          "advanced": true
+        },
+        "defaultLanguage": {
+          "advanced": true
+        }
+      }
+    }
+  },
+  "templates": [
+    {
+      "id": "chat-tts",
+      "title": {
+        "default": "Chat to TTS (SonicBoom)",
+        "i18key": "sonicboom.server.template.chat-tts.title"
+      },
+      "description": {
+        "default": "Speak incoming chat through the SonicBoom server.",
+        "i18key": "sonicboom.server.template.chat-tts.description"
+      },
+      "icon": "voice",
+      "eventType": "tiktok.chat",
+      "requiredNodeTypes": [
+        "trigger.event",
+        "action.http"
+      ],
+      "category": "Voice",
+      "params": {
+        "type": "object",
+        "properties": {
+          "serverUrl": {
+            "type": "string",
+            "title": "Server URL",
+            "default": "http://localhost:17842"
+          },
+          "voice": {
+            "type": "string",
+            "title": "Voice",
+            "default": "M1"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language",
+            "default": "en"
+          },
+          "playNow": {
+            "type": "boolean",
+            "title": "Interrupt and play now",
+            "default": false
+          }
+        }
+      },
+      "workflow": {
+        "nodes": [
+          {
+            "type": "trigger.event",
+            "config": {
+              "eventType": "tiktok.chat"
+            }
+          },
+          {
+            "type": "action.http",
+            "config": {
+              "method": "POST",
+              "url": "{{ params.serverUrl }}/api/tts/play?voice={{ params.voice }}&lang={{ params.language }}&play_now={{ params.playNow }}",
+              "headers": {
+                "Content-Type": "text/plain"
+              },
+              "body": "{{ event.data.comment }}",
+              "bodyMode": "text",
+              "timeoutMs": 10000,
+              "responseType": "json",
+              "allowPrivateNetwork": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "pages": [
+    {
+      "id": "connection",
+      "title": {
+        "default": "Connection",
+        "i18key": "sonicboom.server.page.connection.title"
+      },
+      "icon": "radio",
+      "sections": [
+        {
+          "kind": "text",
+          "text": {
+            "default": "Point TikTools at a SonicBoom server, then test the connection before building automations.",
+            "i18key": "sonicboom.server.page.connection.intro"
+          }
+        },
+        {
+          "kind": "connection"
+        }
+      ]
+    },
+    {
+      "id": "tts",
+      "title": {
+        "default": "TTS",
+        "i18key": "sonicboom.server.page.tts.title"
+      },
+      "icon": "voice",
+      "sections": [
+        {
+          "kind": "text",
+          "text": {
+            "default": "Choose the voice and server-side audio output used for SonicBoom playback. Audio outputs are discovered from the connected SonicBoom server.",
+            "i18key": "sonicboom.server.page.tts.intro"
+          }
+        },
+        {
+          "kind": "tts",
+          "actionType": "sonicboom.server.speak",
+          "voicesFrom": "plugin-action-options:sonicboom.server.speak:voice",
+          "outputsFrom": "plugin-action-options:sonicboom.server.set-output-device:device"
+        }
+      ]
+    }
+  ],
+  "entry": "backend/dist/sonicboom-backend",
+  "eventSubscriptions": [
+    "live.ui-event"
+  ],
+  "ui": {
+    "apiVersion": 1,
+    "mode": "webview",
+    "entry": "ui/dist/index.html",
+    "pages": [
+      {
+        "id": "tts",
+        "title": {
+          "default": "Text to Speech",
+          "i18key": ""
+        },
+        "icon": "voice"
+      }
+    ]
+  }
+}

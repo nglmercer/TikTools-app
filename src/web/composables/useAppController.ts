@@ -11,7 +11,6 @@ import { useMedia } from '../features/media.ts';
 import { usePlugins } from '../features/plugins.ts';
 import { usePoints } from '../features/points.ts';
 import { useProcessors } from '../features/processors.ts';
-import { useTts } from '../features/tts.ts';
 import { createControlClient } from '../platform/control-client.ts';
 import {
   applyTheme,
@@ -90,16 +89,9 @@ export function useAppController() {
   });
   const processors = useProcessors(control);
   const media = useMedia(control);
-  const tts = useTts(control, plugins.actionOptions, automation.pluginPages, {
-    executeAction: (pluginId, actionType, config, live) =>
-      plugins.executeAction(pluginId, actionType, config, live),
-    refreshOptions: (pluginId, source) => plugins.handleGetActionOptions(source, true, pluginId),
-    adjustPoints: (uniqueId, delta) => points.handleAdjustPoints(uniqueId, delta),
-    leaderboardPointsFor: (handle) => points.leaderboardPointsFor(handle),
-  });
+  // Speech is plugin-owned now: the TTS plugin backend subscribes to chat
+  // events and speaks them. The main frontend renders chat only.
   const live = useLive(control, {
-    onChat: (author, text, pointsValue, isSubscriber) =>
-      tts.runAutoTts(author, text, pointsValue, isSubscriber),
     systemAuthor: () => translate('system'),
   });
 
@@ -153,20 +145,13 @@ export function useAppController() {
     void automation.refresh();
     void live.refresh();
     void processors.refresh();
-    void tts.refresh();
 
     // Keep the saved username in the connect form, but wait for an explicit
     // user action before starting network work on a cold launch.
   });
 
   onUnmounted(() => {
-    // Persist debounced TTS edits before the bridge goes away. Detach is
-    // deferred until the flush settles (capped so a hung host cannot leak
-    // the transport); previously detach ran first and could drop the write.
-    void Promise.race([
-      tts.flushAllTtsSettings(),
-      new Promise((resolve) => setTimeout(resolve, 500)),
-    ]).finally(() => control.detach());
+    control.detach();
   });
 
   const setActiveTab = (value: AppTab): void => {
@@ -220,25 +205,10 @@ export function useAppController() {
     executePluginAction: plugins.executeAction,
     openMediaPicker: media.openMediaPicker,
   };
-  const ttsService = {
-    ttsSettings: tts.ttsSettings,
-    ttsSpeaking: tts.ttsSpeaking,
-    ttsLogs: tts.ttsLogs,
-    ttsSettingsOrDefault: tts.ttsSettingsOrDefault,
-    handleTtsSettingsChange: tts.handleTtsSettingsChange,
-    flushTtsSettings: tts.flushTtsSettings,
-    flushAllTtsSettings: tts.flushAllTtsSettings,
-    handleTtsSpeak: tts.handleTtsSpeak,
-    ttsOutputPending: tts.ttsOutputPending,
-    ttsOutputErrors: tts.ttsOutputErrors,
-    handleTtsOutputSelect: tts.handleTtsOutputSelect,
-  };
-
   return {
     navigation,
     settings,
     pluginUi,
-    ttsService,
     live,
     points,
     automation,
@@ -321,18 +291,7 @@ export function useAppController() {
     pluginProvision: plugins.pluginProvision,
     handleProvisionPluginToken: plugins.handleProvisionPluginToken,
     executePluginAction: plugins.executeAction,
-    ttsSettings: tts.ttsSettings,
-    ttsSpeaking: tts.ttsSpeaking,
-    ttsLogs: tts.ttsLogs,
-    ttsSettingsOrDefault: tts.ttsSettingsOrDefault,
-    handleTtsSettingsChange: tts.handleTtsSettingsChange,
-    flushTtsSettings: tts.flushTtsSettings,
-    flushAllTtsSettings: tts.flushAllTtsSettings,
-    handleTtsSpeak: tts.handleTtsSpeak,
     actionOptionSelected: plugins.actionOptionSelected,
-    ttsOutputPending: tts.ttsOutputPending,
-    ttsOutputErrors: tts.ttsOutputErrors,
-    handleTtsOutputSelect: tts.handleTtsOutputSelect,
     analyticsSummary: analytics.analyticsSummary,
     handleGetAnalyticsRange: analytics.handleGetAnalyticsRange,
     pluginInstallState: plugins.pluginInstallState,

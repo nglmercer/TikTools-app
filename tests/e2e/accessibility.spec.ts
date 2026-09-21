@@ -4,7 +4,7 @@ import {
   assertNoUnhandledCalls,
   installFakeHost,
 } from './fixtures/tiktools-host.ts';
-import { optionFailureState, ttsPageState } from './fixtures/states.ts';
+import { optionFailureState, ttsPageState, webviewPageState } from './fixtures/states.ts';
 
 test('navigation exposes named buttons and the active tab marker', async ({ page }) => {
   const consoleCapture = await installFakeHost(page, ttsPageState());
@@ -32,20 +32,19 @@ test('navigation exposes named buttons and the active tab marker', async ({ page
   consoleCapture.assertClean();
 });
 
-test('TTS inputs are labeled and keyboard reachable', async ({ page }) => {
-  const consoleCapture = await installFakeHost(page, ttsPageState());
+test('plugin view launcher is labeled and keyboard reachable', async ({ page }) => {
+  const consoleCapture = await installFakeHost(page, webviewPageState());
   await page.goto('/');
   await page.getByRole('button', { name: 'Text to Speech' }).click();
 
-  await expect(page.getByLabel('Default voice')).toBeVisible();
-  await expect(page.getByLabel('Volume')).toBeVisible();
-  await expect(page.getByLabel('Voice', { exact: true })).toBeVisible();
-  await expect(page.getByLabel('Text', { exact: true })).toBeVisible();
+  const open = page.getByRole('button', { name: 'Open plugin view' });
+  await expect(open).toBeVisible();
 
-  // Keyboard: tab reaches an interactive control and focus stays visible.
-  await page.keyboard.press('Tab');
-  const focused = page.locator(':focus');
-  await expect(focused).toBeVisible();
+  // Keyboard: the launcher button is reachable and operable by keyboard.
+  await open.focus();
+  await expect(open).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Close plugin view' })).toBeVisible();
 
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();

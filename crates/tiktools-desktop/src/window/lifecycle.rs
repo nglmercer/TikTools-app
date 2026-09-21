@@ -135,6 +135,7 @@ impl DesktopApp {
             webview_failed: Arc::new(AtomicBool::new(false)),
             reload_pending: false,
             log_path,
+            plugin_ui: crate::plugin_webview::PluginUiWindows::default(),
         }
     }
 
@@ -435,6 +436,9 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
         window_id: WindowId,
         event: WindowEvent,
     ) {
+        if self.plugin_ui.on_window_event(window_id, &event) {
+            return;
+        }
         if self
             .window
             .as_ref()
@@ -514,6 +518,40 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
             DesktopEvent::Command(DesktopCommand::Quit) => self.shutdown(event_loop),
             DesktopEvent::Command(DesktopCommand::ShutdownComplete) => {
                 self.finalize_shutdown(event_loop)
+            }
+            DesktopEvent::Command(DesktopCommand::OpenPluginUi { plugin_id, page_id }) => {
+                if self.shutting_down {
+                    return;
+                }
+                if let Err(error) = self.plugin_ui.open(
+                    event_loop,
+                    &self.core,
+                    &self.control,
+                    &self.runtime,
+                    &self.proxy,
+                    &plugin_id,
+                    &page_id,
+                ) {
+                    tracing::warn!(%error, plugin = %plugin_id, page = %page_id, "could not open plugin UI");
+                }
+            }
+            DesktopEvent::Command(DesktopCommand::ClosePluginUi { plugin_id, page_id }) => {
+                self.plugin_ui.close(&plugin_id, &page_id);
+            }
+            DesktopEvent::Command(DesktopCommand::PluginUiRespond {
+                plugin_id,
+                page_id,
+                response,
+            }) => {
+                self.plugin_ui.respond(&plugin_id, &page_id, &response);
+            }
+            DesktopEvent::Command(DesktopCommand::PluginUiSubscribe {
+                plugin_id,
+                page_id,
+                effect,
+            }) => {
+                self.plugin_ui
+                    .apply_subscription(&plugin_id, &page_id, effect);
             }
         }
     }

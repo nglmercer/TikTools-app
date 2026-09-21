@@ -15,6 +15,46 @@ pub enum DesktopCommand {
     ShutdownComplete,
     IpcFailed(String),
     FlushWebviewBatch,
+    OpenPluginUi {
+        plugin_id: String,
+        page_id: String,
+    },
+    ClosePluginUi {
+        plugin_id: String,
+        page_id: String,
+    },
+    PluginUiRespond {
+        plugin_id: String,
+        page_id: String,
+        response: String,
+    },
+    PluginUiSubscribe {
+        plugin_id: String,
+        page_id: String,
+        effect: PluginUiSubscription,
+    },
+}
+
+/// Window-manager side of a broker subscription effect (mirrors
+/// `plugin_webview::broker::SubscriptionEffect` without coupling the event
+/// enum to the broker module's internals).
+#[derive(Debug, Clone)]
+pub enum PluginUiSubscription {
+    Subscribe(Vec<String>),
+    Unsubscribe(Vec<String>),
+}
+
+impl From<crate::plugin_webview::broker::SubscriptionEffect> for PluginUiSubscription {
+    fn from(effect: crate::plugin_webview::broker::SubscriptionEffect) -> Self {
+        match effect {
+            crate::plugin_webview::broker::SubscriptionEffect::Subscribe(topics) => {
+                Self::Subscribe(topics)
+            }
+            crate::plugin_webview::broker::SubscriptionEffect::Unsubscribe(topics) => {
+                Self::Unsubscribe(topics)
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

@@ -1,10 +1,9 @@
 //! Generic declarative UI nodes and actions.
 //!
-//! The node set is the smallest that reproduces the current plugin screens
-//! (text, form, connection, list, TTS) plus the reusable primitives new
-//! plugins need (select, range, checkbox, button, status). Domain panels
-//! such as TTS resolve to host-owned renderers; they are addressed by a
-//! contribution id, never by embedded markup or script.
+//! The node set stays domain-free: reusable primitives (text, form,
+//! connection, list, select, range, checkbox, button, status) composed by
+//! manifests. Domain panels live in isolated plugin views, never as
+//! grammar nodes.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -41,7 +40,6 @@ pub enum PluginUiNodeType {
     Status,
     Separator,
     Connection,
-    TtsSettings,
 }
 
 /// Allowlisted UI action descriptor. There is deliberately no generic
@@ -111,6 +109,4 @@ pub struct PluginUiNode {
     pub variant: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tone: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub contribution: Option<String>,
 }

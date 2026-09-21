@@ -1,0 +1,85 @@
+:root {
+  color-scheme: dark;
+  --bg: #090a0f;
+  --bg-subtle: #0f111a;
+  --panel: rgba(18, 21, 32, 0.82);
+  --panel-solid: #121520;
+  --panel-elevated: rgba(24, 28, 42, 0.88);
+  --line: rgba(255, 255, 255, 0.11);
+  --line-focus: rgba(37, 244, 238, 0.5);
+  
+  --text: #f5f7fc;
+  --text-secondary: #a4adc0;
+  --text-muted: #7b8499;
+  --text-disabled: #596174;
+  
+  --tt-pink: #fe2c55;
+  --tt-cyan: #25f4ee;
+  --tt-purple: #9d4edd;
+  --tt-yellow: #ffb703;
+  --tt-green: #06d6a0;
+  --tt-danger: #ef476f;
+  
+  --brand-gradient: linear-gradient(135deg, #fe2c55 0%, #a855f7 50%, #25f4ee 100%);
+  --gift-gradient: linear-gradient(135deg, rgba(254, 44, 85, 0.18), rgba(157, 78, 221, 0.22));
+  --gift-border: rgba(254, 44, 85, 0.45);
+  
+  --card-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.55), 0 4px 12px -2px rgba(0, 0, 0, 0.35);
+  --glow-pink: 0 0 20px rgba(254, 44, 85, 0.25);
+  --glow-cyan: 0 0 20px rgba(37, 244, 238, 0.25);
+  
+  --input-bg: rgba(11, 13, 20, 0.75);
+  --scrollbar: #242938;
+  --scrollbar-hover: #373e52;
+  --tooltip-bg: rgba(15, 18, 28, 0.95);
+  --tooltip-color: #ffffff;
+  --tooltip-border: rgba(255, 255, 255, 0.14);
+
+  /* ---- stacking layers (single source of truth) ---- */
+  --z-base: 0;
+  --z-sticky: 20;
+  --z-nav: 100;
+  --z-dropdown: 600;
+  --z-popover: 800;
+  --z-tooltip: 1200;
+  --z-modal: 1600;
+  --z-toast: 1800;
+  --z-autocomplete: 2000;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f1f5f9;
+  --bg-subtle: #e2e8f0;
+  --panel: rgba(255, 255, 255, 0.98);
+  --panel-solid: #ffffff;
+  --panel-elevated: #ffffff;
+  --line: rgba(15, 23, 42, 0.11);
+  --line-focus: rgba(14, 165, 233, 0.5);
+  
+  --text: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-disabled: #94a3b8;
+  
+  --tt-pink: #be123c;
+  --tt-cyan: #0e7490;
+  --tt-purple: #7c3aed;
+  --tt-yellow: #92400e;
+  --tt-green: #047857;
+  --tt-danger: #991b1b;
+  
+  --gift-gradient: linear-gradient(135deg, rgba(190, 18, 60, 0.09), rgba(124, 58, 237, 0.08));
+  --gift-border: rgba(190, 18, 60, 0.22);
+  
+  --card-shadow: 0 10px 30px -6px rgba(15, 23, 42, 0.10), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+  --glow-pink: 0 0 16px rgba(190, 18, 60, 0.12);
+  --glow-cyan: 0 0 16px rgba(14, 116, 144, 0.12);
+  
+  --input-bg: #ffffff;
+  --scrollbar: #cbd5e1;
+  --scrollbar-hover: #94a3b8;
+  --tooltip-bg: rgba(15, 23, 42, 0.96);
+  --tooltip-color: #ffffff;
+  --tooltip-border: rgba(255, 255, 255, 0.18);
+}

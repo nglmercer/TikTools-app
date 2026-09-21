@@ -44,6 +44,7 @@ pub struct DesktopApp {
     /// recovers the failed transport (see `frontend_ready`).
     reload_pending: bool,
     log_path: PathBuf,
+    plugin_ui: crate::plugin_webview::PluginUiWindows,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

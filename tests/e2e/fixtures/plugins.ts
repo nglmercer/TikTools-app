@@ -70,6 +70,21 @@ export function sonicboomTtsPage() {
   };
 }
 
+/**
+ * Typed `ui` descriptor for a webview-mode page, as stamped by the host
+ * snapshot (`pluginUis`). The nav tab still comes from the legacy page
+ * entry; the descriptor switches the view to the isolated launcher.
+ */
+export function sonicboomWebviewUi() {
+  return {
+    pluginId: SONICBOOM_ID,
+    apiVersion: 1,
+    mode: 'webview',
+    entry: 'ui/dist/index.html',
+    pages: [{ id: 'tts', title: text('Text to Speech'), icon: 'voice' }],
+  };
+}
+
 export function listPage() {
   return {
     id: 'voices',

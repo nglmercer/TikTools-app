@@ -14,28 +14,21 @@ import { Icon } from '../icons/Icon.vue';
 import { IconArrowDown, IconChevronLeft } from '../icons/index.ts';
 import { presentationForEvent } from '../icons/event-icons.ts';
 import { Button } from '../ui/Button.vue';
-import { Checkbox } from '../ui/Checkbox.vue';
 import { FormField } from '../ui/FormField.vue';
 import { MediaField } from '../ui/MediaField.vue';
 import { Modal, ModalActions } from '../ui/Modal.vue';
 import { SchemaForm } from '../ui/SchemaForm.vue';
 import { NumberInput } from '../ui/NumberInput.vue';
-import { PasswordInput } from '../ui/PasswordInput.vue';
 import { SearchInput, TextInput } from '../ui/TextInput.vue';
-import { Select } from '../ui/Select.vue';
 import { i18nText, t, type Locale } from '../../i18n.ts';
 import {
-  CHAT_TTS_DEFAULTS,
-  CHAT_TTS_LOCAL_PRESET,
   filterWorkflowTemplates,
   friendlyNodeType,
   isHttpUrl,
   missingTemplateNodes,
   NODE_TYPES,
-  toChatTtsOptions,
   WORKFLOW_TEMPLATES,
   workflowTemplateAvailable,
-  type ChatTtsTemplateOptions,
   type WorkflowTemplate,
 } from './workflow-templates.ts';
 import {
@@ -60,8 +53,6 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
   const selectedId = ref<string | null>(null);
   const name = ref('');
   const error = ref('');
-  const tts = ref<ChatTtsTemplateOptions>({ ...CHAT_TTS_DEFAULTS });
-  const ttsPreset = ref<'local' | 'custom'>('local');
   const webhookUrl = ref('https://');
   const filePath = ref('');
   const delta = ref<number | null>(1);
@@ -97,8 +88,6 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
     selectedId.value = template.id;
     name.value = i18nText(props.locale, template.title);
     error.value = '';
-    tts.value = { ...CHAT_TTS_DEFAULTS };
-    ttsPreset.value = 'local';
     webhookUrl.value = 'https://';
     filePath.value = '';
     delta.value = 1;
@@ -114,8 +103,6 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
   const templateOptions = (template: WorkflowTemplate): JsonObject => {
     if (pluginDescriptorById.value.has(template.id)) return { ...pluginParams.value };
     switch (template.id) {
-      case 'chat-tts':
-        return { ...toChatTtsOptions({ ...tts.value }) };
       case 'chat-webhook':
       case 'gift-webhook':
         return { url: webhookUrl.value.trim() };
@@ -132,12 +119,6 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
   const validateTemplate = (template: WorkflowTemplate): string => {
     if (!name.value.trim()) return t(props.locale, 'workflowNameRequired');
     switch (template.id) {
-      case 'chat-tts': {
-        const options = toChatTtsOptions({ ...tts.value });
-        if (!isHttpUrl(options.serverUrl)) return t(props.locale, 'invalidUrl');
-        if (!options.voice || !options.language) return t(props.locale, 'dialogRequired');
-        return '';
-      }
       case 'chat-webhook':
       case 'gift-webhook':
         return isHttpUrl(webhookUrl.value) ? '' : t(props.locale, 'invalidUrl');
@@ -269,22 +250,6 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
             />
           </FormField>
 
-          {template.id === 'chat-tts' && (
-            <ChatTtsOptionsForm
-              locale={locale}
-              options={tts.value}
-              preset={ttsPreset.value}
-              onPresetChange={(preset) => {
-                ttsPreset.value = preset;
-                if (preset === 'local') tts.value = { ...tts.value, serverUrl: CHAT_TTS_LOCAL_PRESET };
-              }}
-              onChange={(next) => {
-                tts.value = next;
-                ttsPreset.value = next.serverUrl.trim() === CHAT_TTS_LOCAL_PRESET ? 'local' : 'custom';
-              }}
-            />
-          )}
-
           {(template.id === 'chat-webhook' || template.id === 'gift-webhook') && (
             <FormField label={t(locale, 'webhookUrl')} required>
               <TextInput
@@ -340,90 +305,6 @@ export const WorkflowTemplateModal = defineVueComponent<WorkflowTemplateModalPro
   };
   },
 );
-
-function ChatTtsOptionsForm({
-  locale,
-  options,
-  preset,
-  onPresetChange,
-  onChange,
-}: {
-  locale: Locale;
-  options: ChatTtsTemplateOptions;
-  preset: 'local' | 'custom';
-  onPresetChange: (preset: 'local' | 'custom') => void;
-  onChange: (options: ChatTtsTemplateOptions) => void;
-}) {
-  const patch = (delta: Partial<ChatTtsTemplateOptions>): void => onChange({ ...options, ...delta });
-  return (
-    <div class="template-options">
-      <Select
-        label={t(locale, 'serverUrl')}
-        value={preset}
-        options={[
-          { value: 'local', label: t(locale, 'ttsPresetLocal') },
-          { value: 'custom', label: t(locale, 'ttsPresetCustom') },
-        ]}
-        onValueChange={(next) => onPresetChange(next === 'custom' ? 'custom' : 'local')}
-        name="tts-preset"
-      />
-      <FormField label={t(locale, 'serverUrl')} required>
-        <TextInput
-          value={options.serverUrl}
-          onValueChange={(next) => patch({ serverUrl: next })}
-          placeholder="http://localhost:17842"
-          name="tts-server"
-          spellCheck={false}
-          required
-        />
-      </FormField>
-      <FormField label={t(locale, 'apiToken')} hint={t(locale, 'apiTokenStored')}>
-        <PasswordInput
-          value={options.apiToken}
-          onValueChange={(next) => patch({ apiToken: next })}
-          name="tts-token"
-          autoComplete="off"
-          clearable
-          locale={locale}
-        />
-      </FormField>
-      <div class="template-row">
-        <FormField label={t(locale, 'nodeVoice')} required>
-          <TextInput
-            value={options.voice}
-            onValueChange={(next) => patch({ voice: next })}
-            name="tts-voice"
-            required
-          />
-        </FormField>
-        <FormField label={t(locale, 'nodeLanguage')} required>
-          <TextInput
-            value={options.language}
-            onValueChange={(next) => patch({ language: next })}
-            name="tts-language"
-            required
-          />
-        </FormField>
-      </div>
-      <Checkbox
-        checked={options.playNow}
-        onCheckedChange={(next) => patch({ playNow: next })}
-        label={t(locale, 'playNow')}
-        name="tts-play-now"
-      />
-      <Select
-        label={t(locale, 'textSource')}
-        value={options.textSource}
-        options={[
-          { value: 'raw', label: t(locale, 'rawChat') },
-          { value: 'textintel', label: t(locale, 'textIntelligence') },
-        ]}
-        onValueChange={(next) => patch({ textSource: next === 'textintel' ? 'textintel' : 'raw' })}
-        name="tts-text-source"
-      />
-    </div>
-  );
-}
 
 export default WorkflowTemplateModal;
 </script>

@@ -208,7 +208,10 @@ pub fn register(router: &mut ControlRouter) {
                     core.plugin_action_options_scoped(requesting, &params.source, params.refresh)
                         .await
                 }
-                None => core.plugin_action_options(&params.source, params.refresh).await,
+                None => {
+                    core.plugin_action_options(&params.source, params.refresh)
+                        .await
+                }
             };
             outcome
                 .map(|(options, selected)| PluginOptionsResult {

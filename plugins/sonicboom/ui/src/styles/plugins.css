@@ -1,0 +1,754 @@
+/* ==========================================================================
+   PLUGINS — flat surface: borders and one accent, no shadows or gradients.
+   Tokens come from the app palette so light theme keeps working.
+   ========================================================================== */
+
+/* --plg-* tokens live on :root (not only under .plg) so shared pieces like
+   PluginConnectionCard and .plg-dot render identically inside AND outside
+   .plg views. The Connections tab, for example, is a Page/Card — not wrapped
+   in .plg — so vars scoped to .plg alone resolved to nothing there and the
+   buttons fell back to transparent plain-text look. */
+:root {
+  --plg-surface: var(--panel-solid);
+  --plg-field: var(--input-bg);
+  --plg-line: var(--line);
+  --plg-line-strong: rgba(255, 255, 255, 0.16);
+  --plg-text: var(--text);
+  --plg-muted: var(--text-secondary);
+  --plg-dim: var(--text-muted);
+  --plg-accent: var(--tt-pink);
+  --plg-ok: var(--tt-green);
+  --plg-err: var(--tt-danger);
+  --plg-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+:root[data-theme="light"] { --plg-line-strong: rgba(15, 23, 42, 0.22); }
+
+.plg {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--plg-text);
+}
+
+/* ---- shared primitives ---- */
+.plg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--plg-line-strong);
+  border-radius: 8px;
+  background: var(--plg-field);
+  color: var(--plg-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.plg-btn:hover:not(:disabled) { border-color: var(--plg-accent); }
+.plg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.plg-btn--primary { background: var(--plg-accent); border-color: var(--plg-accent); color: #fff; }
+.plg-btn--ghost { background: transparent; border-color: transparent; color: var(--plg-muted); }
+.plg-btn--danger { background: transparent; border-color: rgba(239, 71, 111, 0.4); color: var(--plg-err); }
+.plg-btn--sm { height: 36px; padding: 0 12px; font-size: 12px; }
+.plg-btn--icon { width: 36px; height: 36px; padding: 0; flex-shrink: 0; }
+.plg-btn--block { width: 100%; }
+.plg-btn { white-space: nowrap; }
+
+/* Icon-only control: the label lives in the tooltip, so nothing can overflow. */
+.plg-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--plg-dim);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.plg-iconbtn:hover { transform: none; color: var(--plg-text); border-color: var(--plg-line-strong); }
+.plg-iconbtn:active { transform: none; }
+.plg-iconbtn.is-danger:hover { color: var(--plg-err); border-color: rgba(239, 71, 111, 0.4); }
+.plg-iconbtn:focus-visible { outline: 2px solid var(--plg-accent); outline-offset: 1px; }
+.plg-btn:hover { transform: none; }
+.plg-btn:active { transform: none; }
+
+.plg-field { display: flex; flex-direction: column; gap: 6px; }
+.plg-label { font-size: 12px; font-weight: 600; color: var(--plg-muted); }
+.plg-label span { color: var(--plg-dim); font-weight: 400; }
+/* Text inputs render through the shared field system (fields.css); only the
+   switch below keeps plugin-specific control styling. */
+
+.plg-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.plg-chip {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--plg-line-strong);
+  border-radius: 17px;
+  background: transparent;
+  color: var(--plg-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.plg-chip.is-active { border-color: var(--plg-accent); color: var(--plg-accent); background: rgba(254, 44, 85, 0.12); }
+.plg-chip:hover { transform: none; }
+
+.plg-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--plg-line); overflow-x: auto; }
+.plg-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 42px;
+  padding: 0 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--plg-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.plg-tab.is-active { color: var(--plg-text); border-bottom-color: var(--plg-accent); }
+.plg-tab:hover { transform: none; }
+.plg-tab__count {
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--plg-field);
+  border: 1px solid var(--plg-line);
+  color: var(--plg-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+.plg-tab.is-active .plg-tab__count {
+  background: var(--plg-accent);
+  border-color: var(--plg-accent);
+  color: #fff;
+}
+
+/* ---- browse bar: tabs left, search right ---- */
+.plg-browsebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--plg-line);
+  flex-shrink: 0;
+}
+.plg-browsebar .plg-tabs { flex: 1; min-width: 0; border-bottom: none; }
+.plg-browsebar .plg-tab { height: 46px; }
+.plg-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  width: 240px;
+  flex-shrink: 0;
+  padding: 0 10px;
+  border: 1px solid var(--plg-line);
+  border-radius: 8px;
+  background: var(--plg-field);
+  color: var(--plg-dim);
+}
+.plg-search:focus-within { border-color: var(--plg-accent); color: var(--plg-muted); }
+.plg-search__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--plg-text);
+  font-size: 12.5px;
+}
+.plg-search__input::placeholder { color: var(--plg-dim); }
+/* Native search cancel would double the custom clear button. */
+.plg-search__input::-webkit-search-cancel-button { display: none; }
+.plg-search__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--plg-dim);
+  cursor: pointer;
+}
+.plg-search__clear:hover { color: var(--plg-text); }
+@media (max-width: 720px) {
+  .plg-browsebar { flex-wrap: wrap; padding-bottom: 8px; }
+  .plg-search { flex: 1 1 100%; width: auto; }
+}
+
+/* ---- markdown-lite: host-rendered plugin copy (never raw HTML) ---- */
+.plg-md__p { margin: 0 0 8px; }
+.plg-md__p:last-child { margin-bottom: 0; }
+.plg-md__list { margin: 0 0 8px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.plg-md__list:last-child { margin-bottom: 0; }
+.plg-md__code {
+  padding: 1px 5px;
+  border: 1px solid var(--plg-line);
+  border-radius: 5px;
+  background: var(--plg-field);
+  font-family: var(--plg-mono);
+  font-size: 0.92em;
+  white-space: nowrap;
+}
+.plg-md__link { color: var(--plg-accent); text-decoration: none; }
+.plg-md__link:hover { text-decoration: underline; }
+
+.plg-tag {
+  padding: 2px 7px;
+  border: 1px solid var(--plg-line-strong);
+  border-radius: 6px;
+  color: var(--plg-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.plg-tag--mono { font-family: var(--plg-mono); }
+
+.plg-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.plg-switch__track {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border: 1px solid var(--plg-line-strong);
+  border-radius: 10px;
+  background: var(--plg-field);
+}
+.plg-switch__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--plg-dim);
+  transition: transform 0.15s, background 0.15s;
+}
+.plg-switch.is-on .plg-switch__track { border-color: var(--plg-accent); background: rgba(254, 44, 85, 0.22); }
+.plg-switch.is-on .plg-switch__thumb { background: var(--plg-accent); transform: translateX(14px); }
+.plg-switch:hover { transform: none; }
+.plg-switch--field { position: relative; }
+.plg-switch--field .plg-switch__input {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
+  opacity: 0; cursor: pointer;
+}
+.plg-switch--field .plg-switch__input:focus,
+.plg-switch--field .plg-switch__input:focus-visible { outline: 2px solid var(--plg-accent) !important; outline-offset: 2px; }
+.plg-switch--field .plg-switch__input:checked + .plg-switch__track { border-color: var(--plg-accent); background: rgba(254, 44, 85, 0.22); }
+.plg-switch--field .plg-switch__input:checked + .plg-switch__track .plg-switch__thumb { background: var(--plg-accent); transform: translateX(14px); }
+
+.plg-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--plg-dim); flex-shrink: 0; }
+.plg-dot.is-ok { background: var(--plg-ok); }
+.plg-dot.is-err { background: var(--plg-err); }
+
+.plg-mono { font-family: var(--plg-mono); font-size: 11.5px; color: var(--plg-muted); }
+.plg-note { margin: 0; font-size: 11.5px; line-height: 1.5; color: var(--plg-dim); }
+.plg-section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--plg-dim); }
+
+/* ---- screen chrome ---- */
+.plg-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--plg-line);
+  flex-shrink: 0;
+}
+.plg-topbar__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--plg-accent) 32%, transparent);
+  background: color-mix(in srgb, var(--plg-accent) 13%, transparent);
+  color: var(--plg-accent);
+}
+.plg-topbar__text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.plg-topbar__title { margin: 0; font-size: 18px; font-weight: 700; }
+.plg-topbar__subtitle { font-size: 12px; color: var(--plg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The subtitle sits inside a tooltip trigger: it keeps ellipsis via flex shrink. */
+.plg-topbar__text .ui-tooltip-trigger { min-width: 0; }
+.plg-topbar__text .ui-tooltip-trigger .plg-topbar__subtitle { flex: 1; min-width: 0; }
+.plg-topbar { flex-wrap: wrap; }
+.plg-topbar__actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
+
+.plg-toolbar { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; flex-shrink: 0; }
+.plg-scroll { flex: 1; min-height: 0; overflow: auto; }
+/* Below 1180px the body stacks and scrolls as one column; at desktop width
+   the media query below turns it into two independently scrolling columns. */
+.plg-body { flex: 1; min-height: 0; overflow-y: auto; }
+.plg-stack { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 16px; }
+/* Screens without a topbar (Behavior list) keep content off the top edge. */
+.plg > .plg-stack:first-child,
+.plg > .plg-body:first-child { padding-top: 12px; }
+.plg-form { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+.plg-group { display: flex; flex-direction: column; gap: 10px; }
+.plg-inline { display: flex; flex-wrap: wrap; gap: 8px; }
+.plg-inline > * { flex: 1 1 200px; min-width: 0; }
+
+/* ---- plugin row ---- */
+.plg-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--plg-line);
+  border-radius: 10px;
+  background: var(--plg-surface);
+  text-align: left;
+  cursor: pointer;
+}
+.plg-row:hover { border-color: var(--plg-line-strong); }
+.plg-row.is-off { opacity: 0.6; }
+.plg-row.has-error { border-color: rgba(239, 71, 111, 0.4); }
+.plg-row__open { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 0; border: none; background: transparent; padding: 0; text-align: left; cursor: pointer; color: inherit; }
+.plg-row__open:hover { transform: none; }
+.plg-row__head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.plg-row__name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plg-row__detail { font-family: var(--plg-mono); font-size: 11.5px; color: var(--plg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plg-row__status { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--plg-muted); }
+.plg-row__status.is-ok { color: var(--plg-ok); }
+.plg-row__status.is-err { color: var(--plg-err); }
+
+/* ---- runs ---- */
+.plg-runs { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 16px; }
+.plg-run {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--plg-line);
+  border-radius: 8px;
+  background: var(--plg-field);
+}
+.plg-run__text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.plg-run__name { font-size: 11.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plg-run__detail { font-family: var(--plg-mono); font-size: 11px; color: var(--plg-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plg-run__time { font-size: 11px; color: var(--plg-dim); flex-shrink: 0; }
+
+/* ---- gallery ---- */
+.plg-modal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+.plg-modal__card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1040px;
+  max-height: 100%;
+  border: 1px solid var(--plg-line-strong);
+  background: var(--plg-surface);
+  overflow: hidden;
+}
+.plg-modal__body { display: flex; flex: 1; min-height: 0; }
+.plg-modal__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--plg-line);
+  flex-shrink: 0;
+}
+.plg-modal__foot-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+
+.plg-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  border: 1px solid var(--plg-line);
+  border-radius: 10px;
+  background: var(--plg-surface);
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+}
+.plg-card.is-active { border-color: var(--plg-accent); }
+.plg-card:hover { transform: none; }
+.plg-card__thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  background: var(--plg-field);
+  border-bottom: 1px solid var(--plg-line);
+  font-family: var(--plg-mono);
+  font-size: 12px;
+  color: var(--plg-muted);
+}
+.plg-card__body { display: flex; flex-direction: column; gap: 6px; padding: 12px; }
+.plg-card__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.plg-card__title { font-size: 14px; font-weight: 600; }
+.plg-card__desc { font-size: 12px; line-height: 1.5; color: var(--plg-muted); }
+
+.plg-detail {
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  width: 320px;
+  flex-shrink: 0;
+  padding: 16px;
+  border-left: 1px solid var(--plg-line);
+  overflow: auto;
+}
+
+/* ---- editor side panel ---- */
+.plg-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+.plg-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--plg-line);
+  border-radius: 10px;
+  background: var(--plg-surface);
+}
+.plg-panel--ok { border-color: rgba(6, 214, 160, 0.4); }
+.plg-panel--err { border-color: rgba(239, 71, 111, 0.4); }
+.plg--behavior { position: relative; }
+/* Floating listener badge: the old full-width status panel collapsed to a
+   translucent dot-badge; hovering reveals the full status as a tooltip. */
+.plg-hotkey-float { position: absolute; right: 16px; bottom: 16px; z-index: 5; }
+.plg-hotkey-float > .ui-tooltip-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--plg-line-strong);
+  border-radius: 50%;
+  background: var(--plg-surface);
+  color: var(--plg-muted);
+  opacity: 0.65;
+  transition: opacity 0.15s;
+  cursor: default;
+}
+.plg-hotkey-float > .ui-tooltip-trigger:hover { opacity: 1; }
+.plg-hotkey-float__body { display: inline-flex; }
+.plg-hotkey-float .plg-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  box-shadow: 0 0 0 2px var(--plg-surface);
+}
+@media (prefers-reduced-motion: reduce) {
+  .plg-hotkey-float > .ui-tooltip-trigger { transition: none; }
+}
+.plg-kv { display: flex; gap: 8px; font-family: var(--plg-mono); font-size: 11.5px; }
+.plg-kv__key { width: 72px; flex-shrink: 0; color: var(--plg-dim); }
+.plg-kv__value { color: var(--plg-muted); word-break: break-all; }
+.plg-console {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 90px;
+  padding: 10px;
+  border: 1px solid var(--plg-line);
+  border-radius: 8px;
+  background: var(--plg-field);
+  font-family: var(--plg-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--plg-muted);
+  overflow: auto;
+}
+.plg-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px 16px; text-align: center; }
+.plg-empty__title { font-size: 13px; font-weight: 600; }
+.plg-empty__desc { font-size: 12px; line-height: 1.5; color: var(--plg-muted); max-width: 320px; }
+.plg-alert {
+  padding: 10px 12px;
+  border: 1px solid rgba(239, 71, 111, 0.4);
+  border-radius: 8px;
+  color: var(--plg-err);
+  font-size: 12px;
+}
+.plg-alert--ok {
+  border-color: color-mix(in srgb, var(--plg-ok) 45%, transparent);
+  color: var(--plg-ok);
+}
+/* ---- server entry (Connections tab): one bordered card, header + body share
+   the same padding so the status line aligns with the server name ---- */
+.srv-server {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-elevated);
+  overflow: hidden;
+}
+.srv-server__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 14px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.srv-server > .ui-tooltip-trigger {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+.srv-server__head:hover { background: color-mix(in srgb, var(--panel) 42%, transparent); }
+.srv-server__head:hover .srv-server__chevron,
+.srv-server__head:focus-visible .srv-server__chevron { color: var(--text); }
+.srv-server__head:focus-visible { outline: 2px solid var(--plg-accent); outline-offset: -2px; }
+/* Collapsed entries hide the divider so it never doubles the card edge. */
+.srv-server:not(.is-open) .srv-server__head { border-bottom-color: transparent; }
+.srv-server:not(.is-open) .srv-server__body { display: none; }
+.srv-server__icon { display: inline-flex; color: var(--tt-cyan); flex-shrink: 0; }
+.srv-server__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+.srv-server__detail {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--plg-err);
+  opacity: 0.85;
+}
+.srv-server__chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--plg-dim);
+  transition: transform 0.15s;
+}
+.srv-server.is-open .srv-server__chevron { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .srv-server__head,
+  .srv-server__chevron { transition: none; }
+}
+/* ---- connection card: one centered column, no side rails ---- */
+.plg-connect {
+  display: flex;
+  justify-content: center;
+  padding: 4px 16px 24px;
+}
+/* Inline (Connections tab server list): borderless body inside .srv-server —
+   the outer server card already draws the border, so the inner card must not
+   add a second padded box (that double box caused the "indented status"
+   look). */
+.plg-connect--inline {
+  justify-content: stretch;
+  padding: 0;
+}
+.plg-connect--inline .plg-connect__card {
+  max-width: none;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 12px 14px 14px;
+  gap: 10px;
+}
+.plg-connect__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 720px;
+  padding: 20px;
+  border: 1px solid var(--plg-line-strong);
+  border-radius: 12px;
+  background: var(--plg-surface);
+}
+.plg-connect__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.plg-connect__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--plg-text);
+}
+.plg-connect__url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--plg-muted);
+}
+.plg-connect__save {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--plg-dim);
+  white-space: nowrap;
+}
+.plg-connect__save.is-ok { color: var(--plg-ok); }
+.plg-connect__save.is-err { color: var(--plg-err); }
+.plg-connect__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+}
+/* Minimalist key/value rows: compact label column, plain text values that
+   wrap instead of pushing to the far edge or truncating with ellipsis. */
+.plg-connect__row {
+  display: grid;
+  grid-template-columns: minmax(110px, 150px) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12.5px;
+}
+@media (max-width: 480px) {
+  .plg-connect__row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+.plg-connect__row dt {
+  margin: 0;
+  color: var(--plg-dim);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+.plg-connect__row dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--plg-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.plg-connect__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 2px;
+}
+/* Legacy .plg-btn inside connection actions keeps a visible surface when it
+   is used (new markup uses the generic `btn` system from buttons.css, which
+   needs no override). */
+.plg-connect__actions .plg-btn--sm {
+  border-color: var(--plg-line-strong);
+  background: var(--panel-elevated);
+}
+.plg-connect__actions .plg-btn--block,
+.plg-connect__actions .btn-block { flex: 1 1 100%; }
+.plg-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plg-list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.plg-list__label {
+  font-size: 12.5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plg-kv-row { display: flex; gap: 8px; align-items: center; }
+/* The key field sits inside a tooltip trigger: the trigger carries the flex
+   basis. The value column (.plg-kv-row__value) flexes in behavior.css. */
+.plg-kv-row > .ui-tooltip-trigger:has(> .field) { flex: 0 0 34%; min-width: 0; }
+.plg-kv-row .ui-tooltip-trigger > .field { width: 100%; }
+
+/* ---- desktop: the same screens with a second column ---- */
+/* The aside only appears once the main column can still hold a table. */
+@media (min-width: 1180px) {
+  .plg-form { display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-items: start; gap: 20px; }
+  .plg-form__main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .plg-side { padding: 0; }
+  .plg-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; flex: 1; min-height: 0; overflow: visible; }
+  .plg-body > .plg-scroll { min-height: 0; }
+  .plg-body__aside { border-left: 1px solid var(--plg-line); overflow: auto; }
+}
+
+@media (min-width: 900px) {
+  .plg-toolbar { flex-direction: row; align-items: center; justify-content: space-between; }
+  .plg-detail { display: flex; }
+  .plg-modal { align-items: center; padding: 24px; }
+  .plg-modal__card { max-height: 720px; border-radius: 12px; }
+  .plg-btn { height: 36px; }
+  .plg-btn--icon { width: 36px; }
+}

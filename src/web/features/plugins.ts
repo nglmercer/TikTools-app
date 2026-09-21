@@ -108,7 +108,7 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
     }
   };
 
-  /** Runs one plugin action immediately (TTS speech, output switches). RPC
+  /** Runs one plugin action immediately (test runs, device switches). RPC
    * failures synthesize the same outcome shape the host would have sent.
    * The requesting plugin id is always sent so the host verifies the
    * action owner matches (generic UI never executes another plugin's

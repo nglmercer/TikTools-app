@@ -31,7 +31,6 @@ test('normalizes a nested declarative page', () => {
         { type: 'list', optionsFrom: 'plugin-action-options:a:b' },
         { type: 'separator' },
         { type: 'connection' },
-        { type: 'tts-settings', contribution: 'main' },
         { type: 'form', title: text },
         { type: 'status', text, tone: 'ok' },
         { type: 'card', children: [{ type: 'text', text }] },
@@ -40,11 +39,13 @@ test('normalizes a nested declarative page', () => {
   });
   expect(page?.id).toBe('tts');
   expect(page?.body.type).toBe('stack');
-  if (page?.body.type === 'stack') expect(page.body.children).toHaveLength(12);
+  if (page?.body.type === 'stack') expect(page.body.children).toHaveLength(11);
 });
 
 test('rejects unknown node types, bad bindings, and over-deep trees', () => {
   expect(normalizeNode({ type: 'obs-scene' } as unknown as JsonValue)).toBeUndefined();
+  // Domain nodes are not part of the generic grammar.
+  expect(normalizeNode({ type: 'tts-settings' } as unknown as JsonValue)).toBeUndefined();
   expect(normalizeNode({ type: 'text' })).toBeUndefined();
   expect(normalizeNode({ type: 'select', bind: 'eval(x)' })).toBeUndefined();
   expect(normalizeNode({ type: 'range', bind: 'settings.v', min: 5, max: 1 })).toBeUndefined();

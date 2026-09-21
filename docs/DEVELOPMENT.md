@@ -69,6 +69,16 @@ bun run test:e2e:update     # regenerate screenshot baselines (inspect diffs!)
 See [Playwright E2E](PLAYWRIGHT.md) for the fake-host contract, stability
 rules, and how to add specs.
 
+The SonicBoom plugin ships its own UI and backend builds plus a
+standalone browser suite (see [Plugin UI architecture](PLUGIN_UI_ARCHITECTURE.md)):
+
+```bash
+bun run build:sonicboom-ui       # isolated UI → plugins/sonicboom/ui/dist/
+bun run build:sonicboom-backend  # chat observer → plugins/sonicboom/backend/dist/
+bun run test:sonicboom-ui        # UI suite + host/plugin interop (build UI first)
+bun run test:plugins             # plugin shared-logic unit tests
+```
+
 Release builds use the custom `tiktools://app` protocol:
 
 ```bash

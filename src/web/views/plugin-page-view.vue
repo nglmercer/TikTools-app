@@ -1,22 +1,22 @@
 <script lang="tsx">
-import { computed, onMounted, provide, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { defineVueComponent } from '../vue/component.ts';
 
 import type { PluginPageDescriptor } from '../../automation/behavior/types.ts';
 import type { JsonObject } from '../../automation/types.ts';
 import type { PluginConnectionState } from '../../automation/plugins/declarative.ts';
 import { adaptLegacyPage } from '../../plugin-ui/index.ts';
+import type { PluginUiDescriptor } from '../../plugin-ui/contracts.ts';
 import type {
   ActionOptionItem,
   OpenMediaPicker,
   PluginSettingValues,
 } from '../../shared/messages.ts';
 import type { PluginSettingsState } from '../types.ts';
-import { TtsSettingsNode, TtsNodeStateKey } from '../components/tts/TtsSettingsNode.vue';
 import type { Locale } from '../i18n.ts';
-import type { TtsLogEntry, TtsSettings } from '../tts/tts-policy.ts';
 import type { PluginUiContext } from '../plugin-ui/PluginUiContext.ts';
 import { PluginPage } from '../plugin-ui/PluginPage.vue';
+import { PluginWebviewPage } from '../plugin-ui/PluginWebviewPage.vue';
 
 type PluginPageViewProps = {
   locale: Locale;
@@ -27,23 +27,17 @@ type PluginPageViewProps = {
   actionOptions: Record<string, ActionOptionItem[]>;
   actionOptionErrors: Record<string, string>;
   actionOptionSelected: Record<string, string>;
-  ttsOutputPending?: string;
-  ttsOutputError?: string;
-  onTtsOutputSelect?: (pluginId: string, actionType: string, field: string, device: string, source: string) => void;
   onGetSettings: (id: string) => void;
   onSaveSettings: (id: string, values: PluginSettingValues) => void;
   onGetActionOptions: (source: string, refresh?: boolean, pluginId?: string) => void;
   onTestConnection: (id: string) => void;
   onOpenMediaPicker?: OpenMediaPicker;
   onExecuteAction?: (actionType: string, config: PluginSettingValues) => void;
-  ttsSettings?: TtsSettings;
-  ttsSpeaking?: boolean;
-  ttsLogs?: TtsLogEntry[];
-  onTtsSettingsChange?: (pluginId: string, next: TtsSettings) => void;
-  onTtsSpeak?: (pluginId: string, actionType: string, text: string, voice: string) => void;
   supportsProvisioning?: boolean;
   provisionState?: { working: boolean; ok: boolean; message: string };
   onProvisionToken?: (id: string, username: string, password: string) => void;
+  /** Host-stamped `ui` descriptor for this plugin, when the snapshot carries one. */
+  ui?: PluginUiDescriptor;
 };
 
 /**
@@ -51,14 +45,13 @@ type PluginPageViewProps = {
  *
  * The v3 descriptor is adapted once to the generic declarative contract
  * and rendered through the domain-free `<PluginPage>` + `<PluginNode>`
- * registry. The old per-kind switch (text/form/connection/list/tts) is
- * gone: generic nodes render via the registry, and the `tts-settings`
- * node resolves through the host-injected `customNodes` entry bound to
- * the TTS domain panel below. No other call site changes: props and
- * visuals are preserved.
+ * registry. No domain state flows through this wrapper: plugin-specific
+ * panels (audio, speech, …) live in the plugin's isolated view, and the
+ * legacy `tts` section kind degrades to a neutral status note in the
+ * adapter.
  */
 export const PluginPageView = defineVueComponent<PluginPageViewProps>(
-  ['locale', 'page', 'pluginName', 'settingsState', 'connection', 'actionOptions', 'actionOptionErrors', 'actionOptionSelected', 'ttsOutputPending', 'ttsOutputError', 'onTtsOutputSelect', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onTestConnection', 'onOpenMediaPicker', 'onExecuteAction', 'ttsSettings', 'ttsSpeaking', 'ttsLogs', 'onTtsSettingsChange', 'onTtsSpeak', 'supportsProvisioning', 'provisionState', 'onProvisionToken'],
+  ['locale', 'page', 'pluginName', 'settingsState', 'connection', 'actionOptions', 'actionOptionErrors', 'actionOptionSelected', 'onGetSettings', 'onSaveSettings', 'onGetActionOptions', 'onTestConnection', 'onOpenMediaPicker', 'onExecuteAction', 'supportsProvisioning', 'provisionState', 'onProvisionToken', 'ui'],
   (props) => {
   const adapted = computed(() => adaptLegacyPage(props.page));
   const localState = ref<Record<string, string | number | boolean>>({});
@@ -104,9 +97,7 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
         localState.value = { ...localState.value, [name]: value };
       },
     },
-    customNodes: {
-      'tts-settings': TtsSettingsNode,
-    },
+    customNodes: {},
     formDrafts: {
       get: (key) => drafts.value[key],
       set: (key, value) => {
@@ -119,46 +110,29 @@ export const PluginPageView = defineVueComponent<PluginPageViewProps>(
     },
   }));
 
-  // TTS option sources live on the generated contributions (not on the
-  // generic `tts-settings` node), so the wrapper fetches them alongside
-  // the generic page fetch. Form dynamic-field sources are fetched by the
-  // generic page itself.
-  const requestTtsSources = (): void => {
-    for (const contribution of adapted.value.tts) {
-      props.onGetActionOptions(contribution.voicesFrom, false, props.page.pluginId);
-      if (contribution.outputsFrom) {
-        props.onGetActionOptions(contribution.outputsFrom, false, props.page.pluginId);
-      }
-    }
-  };
-
-  onMounted(requestTtsSources);
-  watch(() => props.page, requestTtsSources);
-
-  provide(TtsNodeStateKey, {
-    settingsFor: (pluginId) => (pluginId === props.page.pluginId ? props.ttsSettings : undefined),
-    speakingFor: (pluginId) =>
-      pluginId === props.page.pluginId ? (props.ttsSpeaking ?? false) : false,
-    logsFor: (pluginId) => (pluginId === props.page.pluginId ? (props.ttsLogs ?? []) : []),
-    voicesFor: (contributionId) => {
-      const contribution = adapted.value.tts.find((entry) => entry.id === contributionId);
-      return {
-        source: contribution?.voicesFrom ?? '',
-        actionType: contribution?.actionType ?? '',
-        outputsSource: contribution?.outputsFrom,
-      };
-    },
-    onSettingsChange: (pluginId, next) => props.onTtsSettingsChange?.(pluginId, next),
-    onSpeak: (pluginId, actionType, text, voice) =>
-      props.onTtsSpeak?.(pluginId, actionType, text, voice),
-    onOutputSelect: props.onTtsOutputSelect,
-    outputPendingFor: (pluginId) =>
-      pluginId === props.page.pluginId ? props.ttsOutputPending : undefined,
-    outputErrorFor: (pluginId) =>
-      pluginId === props.page.pluginId ? props.ttsOutputError : undefined,
+  // Webview-mode pages never render through the declarative renderer:
+  // the plugin's compiled UI loads isolated (native window on desktop).
+  const webviewPage = computed(() => {
+    const ui = props.ui;
+    if (!ui || ui.mode !== 'webview' || ui.pluginId !== props.page.pluginId) return undefined;
+    return ui.pages.find((entry) => entry.id === props.page.id);
   });
 
-  return () => <PluginPage page={adapted.value.page} context={context.value} />;
+  return () => {
+    const webview = webviewPage.value;
+    if (webview) {
+      return (
+        <PluginWebviewPage
+          locale={props.locale}
+          pluginId={props.page.pluginId}
+          pluginName={props.pluginName}
+          pageId={webview.id}
+          title={webview.title}
+        />
+      );
+    }
+    return <PluginPage page={adapted.value} context={context.value} />;
+  };
   },
 );
 

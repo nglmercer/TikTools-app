@@ -654,3 +654,22 @@ fn rejects_oversized_long_description() {
         Err(ManifestError::InvalidField("longDescription"))
     ));
 }
+
+#[test]
+fn parses_the_migrated_sonicboom_package_manifest() {
+    // Pins the real isolated package to the parser: typed `ui` fragment,
+    // legacy `pages` compatibility input, declarative HTTP actions, and
+    // the process backend entry must all ingest together.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../plugins/sonicboom/plugin.json");
+    let input = std::fs::read_to_string(&root).expect("package manifest");
+    let manifest = PluginManifest::from_json_str(&input).expect("valid manifest");
+    assert_eq!(manifest.id, "sonicboom.server");
+    let ui = manifest.ui.as_ref().expect("ui fragment");
+    assert_eq!(ui.mode, crate::ui::PluginUiMode::Webview);
+    assert_eq!(ui.entry.as_deref(), Some("ui/dist/index.html"));
+    assert_eq!(ui.pages.len(), 1);
+    assert_eq!(ui.pages[0].id, "tts");
+    assert!(!manifest.pages.is_empty(), "legacy pages kept");
+    assert!(!manifest.action_types.is_empty(), "http actions kept");
+}

@@ -33,9 +33,8 @@ type PluginNodeProps = {
  *
  * Every node type maps through the registry below — there is no
  * domain-specific switch over plugin kinds, and this module never imports
- * TTS (or any other domain) UI. Domain node types (`tts-settings`, …)
- * resolve through `context.customNodes`, which the composition root binds
- * to host-owned components. Manifest data is rendered as text and form
+ * domain UI. Custom node types resolve through `context.customNodes`,
+ * which the composition root binds to host-owned components. Manifest data is rendered as text and form
  * controls only: no v-html, no innerHTML, no eval, no dynamic components
  * resolved from manifest strings.
  */
@@ -266,15 +265,15 @@ export const PluginNode = defineVueComponent<PluginNodeProps>(
       const current = bindingValue(node.bind);
       const id = `plg-${props.nodeKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
       return (
-        <div class="tts-row tts-row--stack">
+        <div class="plg-ctl">
           {label && (
-            <label class="tts-label" for={id}>
+            <label class="plg-ctl-label" for={id}>
               {label}
             </label>
           )}
           <select
             id={id}
-            class="tts-select"
+            class="plg-ctl-select"
             value={typeof current === 'string' ? current : ''}
             onChange={(event) =>
               writeBinding(node.bind, (event.currentTarget as HTMLSelectElement).value)
@@ -299,15 +298,15 @@ export const PluginNode = defineVueComponent<PluginNodeProps>(
       const numeric = typeof current === 'number' ? current : (node.min ?? 0);
       const id = `plg-${props.nodeKey.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
       return (
-        <div class="tts-row tts-row--stack">
+        <div class="plg-ctl">
           {label && (
-            <label class="tts-label" for={id}>
-              {label} <span class="tts-value">{numeric}</span>
+            <label class="plg-ctl-label" for={id}>
+              {label} <span class="plg-ctl-value">{numeric}</span>
             </label>
           )}
           <input
             id={id}
-            class="tts-range"
+            class="plg-ctl-range"
             type="range"
             min={node.min ?? 0}
             max={node.max ?? 1}
@@ -328,7 +327,7 @@ export const PluginNode = defineVueComponent<PluginNodeProps>(
       const label = node.label ? i18nText(locale, node.label) : '';
       const current = bindingValue(node.bind);
       return (
-        <label class="tts-check">
+        <label class="plg-ctl-check">
           <input
             type="checkbox"
             checked={current === true}
@@ -421,8 +420,8 @@ export const PluginNode = defineVueComponent<PluginNodeProps>(
         const locale: Locale = props.context.locale;
         const title = node.title ? i18nText(locale, node.title) : '';
         return (
-          <section class="tts-card">
-            {title && <h4 class="tts-card__title">{title}</h4>}
+          <section class="plg-panel">
+            {title && <h4 class="plg-panel__title">{title}</h4>}
             {node.children.map((child, index) => (
               <PluginNode
                 key={index}
@@ -440,9 +439,9 @@ export const PluginNode = defineVueComponent<PluginNodeProps>(
       const node = props.node;
       const render = renderers[node.type];
       if (render) return render(props.nodeKey) as never;
-      // Domain nodes (tts-settings, …): host-injected renderers only. An
-      // unregistered domain node renders a neutral note — never a crash,
-      // never manifest-resolved code.
+      // Custom node types: host-injected renderers only. An unregistered
+      // node renders a neutral note — never a crash, never
+      // manifest-resolved code.
       const Custom = props.context.customNodes[node.type];
       if (!Custom) {
         return (

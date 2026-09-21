@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Strict CSP for the isolated plugin document. The bundle is fully
+      local: no remote scripts, styles, images, or connections. All host
+      communication flows through the broker (native injection or
+      postMessage to the parent frame), never fetch/XHR. Mirrors the
+      desktop asset-server header except `frame-ancestors`, which is
+      header-only (browsers ignore it in a meta element) — the served
+      header carries it.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; base-uri 'none'; object-src 'none'; form-action 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self' blob: http://localhost:* http://127.0.0.1:*; connect-src 'none'"
+    />
+    <title>SonicBoom</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

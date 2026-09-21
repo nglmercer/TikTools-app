@@ -10,6 +10,7 @@ members = [
     "crates/tiktools-plugin-macros",
     "crates/tiktools-plugin-loader",
     "crates/tiktools-tiktok",
+    "plugins/sonicboom/backend",
 ]
 exclude = [
     "examples/audio-process-plugin",

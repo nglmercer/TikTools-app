@@ -40,8 +40,7 @@ export type PluginUiNodeType =
   | 'list'
   | 'status'
   | 'separator'
-  | 'connection'
-  | 'tts-settings';
+  | 'connection';
 
 export const PLUGIN_UI_NODE_TYPES: readonly PluginUiNodeType[] = [
   'stack',
@@ -56,7 +55,6 @@ export const PLUGIN_UI_NODE_TYPES: readonly PluginUiNodeType[] = [
   'status',
   'separator',
   'connection',
-  'tts-settings',
 ];
 
 /**
@@ -180,16 +178,6 @@ export interface ConnectionNode extends PluginUiNodeBase {
   type: 'connection';
 }
 
-/**
- * Host-rendered TTS panel bound to a TTS contribution id. The generic
- * renderer never imports TTS UI: the host injects the concrete renderer
- * for this node type (see `PluginUiContext.customNodes`).
- */
-export interface TtsSettingsNode extends PluginUiNodeBase {
-  type: 'tts-settings';
-  contribution: string;
-}
-
 export type PluginUiNode =
   | StackNode
   | CardNode
@@ -202,8 +190,7 @@ export type PluginUiNode =
   | ListNode
   | StatusNode
   | SeparatorNode
-  | ConnectionNode
-  | TtsSettingsNode;
+  | ConnectionNode;
 
 /** One normalized plugin UI page: header plus a generic node body. */
 export interface PluginUiPage {
@@ -250,21 +237,4 @@ export interface PluginUiDescriptor {
   pages: PluginUiDescriptorPage[];
 }
 
-/**
- * Explicit TTS domain contribution. Auto-TTS, speech dispatch, and voice
- * policy key off contributions — never off walking UI sections. Schema-v3
- * `"kind": "tts"` sections generate one contribution plus a `tts-settings`
- * node during adaptation; future manifests may declare contributions
- * directly without any TTS UI section.
- */
-export interface TtsContribution {
-  /** Stable within the plugin (`main` for single-TTS plugins). */
-  id: string;
-  pluginId: string;
-  /** Plugin action type executed for speech. */
-  actionType: string;
-  /** Normalized option source id feeding voice selectors. */
-  voicesFrom: string;
-  /** Optional normalized source id feeding the output selector. */
-  outputsFrom?: string;
-}
+

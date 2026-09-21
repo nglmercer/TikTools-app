@@ -36,8 +36,8 @@ type PluginConnectionModalProps = {
 };
 
 /**
- * Generic connection dialog for HTTP-integrated plugins (SonicBoom and any
- * future declarative server). Edits the plugin's own settings through the
+ * Generic connection dialog for HTTP-integrated plugins. Edits the
+ * plugin's own settings through the
  * host-owned form renderer and probes its declared health endpoint. Tokens
  * render masked and round-trip as placeholders, exactly like settings.
  */

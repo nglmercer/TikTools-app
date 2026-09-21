@@ -7,7 +7,7 @@ import type {
 import type { I18nText } from '../../../automation/behavior/types.ts';
 import type { IconName } from '../icons/index.ts';
 import { appendNodeToGraph, createWorkflowGraph, createWorkflowNode } from './graph.ts';
-import { buildHttpHeaders, getHeader, normalizeBaseUrl } from '../http/http-request.ts';
+import { buildHttpHeaders, getHeader } from '../http/http-request.ts';
 
 /** Well-known node types referenced by built-in templates. */
 export const NODE_TYPES = {
@@ -75,65 +75,9 @@ function readName(options: JsonObject, fallback: string): string {
   return typeof name === 'string' && name.trim().length > 0 ? name.trim() : fallback;
 }
 
-function readStringOption(options: JsonObject, key: string, fallback: string): string {
-  const value = options[key];
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
-}
-
 function readOptionalString(options: JsonObject, key: string): string {
   const value = options[key];
   return typeof value === 'string' ? value.trim() : '';
-}
-
-function readBooleanOption(options: JsonObject, key: string, fallback: boolean): boolean {
-  const value = options[key];
-  return typeof value === 'boolean' ? value : fallback;
-}
-
-function readNumberOption(options: JsonObject, key: string, fallback: number): number {
-  const value = options[key];
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-/* ------------------------------------------------------------------ */
-/* Chat → TTS (SonicBoom over the generic HTTP action)                 */
-/* ------------------------------------------------------------------ */
-
-export type ChatTtsTextSource = 'raw' | 'textintel';
-
-export type ChatTtsTemplateOptions = {
-  serverUrl: string;
-  apiToken: string;
-  voice: string;
-  language: string;
-  playNow: boolean;
-  textSource: ChatTtsTextSource;
-};
-
-export const CHAT_TTS_LOCAL_PRESET = 'http://localhost:17842';
-
-export const CHAT_TTS_DEFAULTS: ChatTtsTemplateOptions = {
-  serverUrl: CHAT_TTS_LOCAL_PRESET,
-  apiToken: '',
-  voice: 'M1',
-  language: 'en',
-  playNow: false,
-  textSource: 'raw',
-};
-
-export const CHAT_TTS_RAW_BODY = '{{ event.data.comment }}';
-export const CHAT_TTS_TEXTINTEL_BODY = '{{ event.intel.comment.tts.text }}';
-
-export function toChatTtsOptions(options: JsonObject): ChatTtsTemplateOptions {
-  const textSource = options.textSource === 'textintel' ? 'textintel' : 'raw';
-  return {
-    serverUrl: readStringOption(options, 'serverUrl', CHAT_TTS_DEFAULTS.serverUrl),
-    apiToken: readOptionalString(options, 'apiToken'),
-    voice: readStringOption(options, 'voice', CHAT_TTS_DEFAULTS.voice),
-    language: readStringOption(options, 'language', CHAT_TTS_DEFAULTS.language),
-    playNow: readBooleanOption(options, 'playNow', CHAT_TTS_DEFAULTS.playNow),
-    textSource,
-  };
 }
 
 export function isHttpUrl(value: string): boolean {
@@ -145,46 +89,9 @@ export function isHttpUrl(value: string): boolean {
   }
 }
 
-/** `POST {server}/api/tts/play?voice=…&lang=…` built with URLSearchParams. */
-export function buildChatTtsUrl(serverUrl: string, voice: string, language: string, playNow: boolean): string {
-  const base = normalizeBaseUrl(serverUrl);
-  if (!isHttpUrl(base)) throw new Error(`Invalid TTS server URL: ${serverUrl}`);
-  const endpoint = new URL('/api/tts/play', base);
-  endpoint.searchParams.set('voice', voice);
-  endpoint.searchParams.set('lang', language);
-  if (playNow) endpoint.searchParams.set('play_now', 'true');
-  return endpoint.toString();
-}
-
-/** Local-network access is enabled only for the explicit local preset. */
-export function isChatTtsLocalPreset(serverUrl: string): boolean {
-  return normalizeBaseUrl(serverUrl).toLowerCase() === normalizeBaseUrl(CHAT_TTS_LOCAL_PRESET).toLowerCase();
-}
-
-export function buildChatTtsConfig(options: ChatTtsTemplateOptions): JsonObject {
-  return {
-    method: 'POST',
-    url: buildChatTtsUrl(options.serverUrl, options.voice, options.language, options.playNow),
-    headers: buildHttpHeaders(undefined, {
-      'Content-Type': 'text/plain',
-      Authorization: options.apiToken ? `Bearer ${options.apiToken}` : undefined,
-    }),
-    body: options.textSource === 'textintel' ? CHAT_TTS_TEXTINTEL_BODY : CHAT_TTS_RAW_BODY,
-    bodyMode: 'text',
-    timeoutMs: 10000,
-    responseType: 'json',
-    allowPrivateNetwork: isChatTtsLocalPreset(options.serverUrl),
-  };
-}
-
-function buildChatTts(context: WorkflowTemplateBuildContext, options: JsonObject): WorkflowGraph {
-  return buildTriggeredActionWorkflow(
-    readName(options, 'Chat to TTS'),
-    'tiktok.chat',
-    NODE_TYPES.http,
-    buildChatTtsConfig(toChatTtsOptions(options)),
-    context.definitions,
-  );
+function readNumberOption(options: JsonObject, key: string, fallback: number): number {
+  const value = options[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
 /* ------------------------------------------------------------------ */
@@ -290,16 +197,6 @@ function text(defaultText: string, i18key: string): I18nText {
 }
 
 export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
-  {
-    id: 'chat-tts',
-    title: text('Chat to TTS', 'templateChatTts'),
-    description: text('Speak incoming chat using a TTS server.', 'templateChatTtsDesc'),
-    icon: 'voice',
-    eventType: 'tiktok.chat',
-    requiredNodeTypes: [NODE_TYPES.triggerEvent, NODE_TYPES.http],
-    category: 'Voice',
-    build: buildChatTts,
-  },
   {
     id: 'chat-webhook',
     title: text('Chat to webhook', 'templateChatWebhook'),

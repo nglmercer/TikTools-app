@@ -1,0 +1,418 @@
+/* ==========================================================================
+   FIELDS — shared field system (FieldShell + InputGroup + Text/Password/
+   Number/Search/Select/Template fields). One bordered box per field, one
+   label-above-input system per page. Floating labels are not supported.
+   ========================================================================== */
+
+:root {
+  --field-height-sm: 34px;
+  --field-height-md: 46px;
+  --field-height-lg: 52px;
+  --field-radius: 9px;
+  --field-radius-pill: 999px;
+  --field-padding-x: 12px;
+  --field-border: var(--line);
+  --field-border-focus: var(--line-focus);
+  --field-bg: var(--input-bg);
+
+  /* Gap tokens: label -> box -> message, and field -> field in a section. */
+  --field-gap-label: 6px;
+  --field-gap-message: 4px;
+  --field-stack-gap: 12px;
+}
+
+/* ---- Shell: label above, one box, one message line ---- */
+.field {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+/* Section stack for back-to-back fields; parents may use their own gap. */
+.field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-stack-gap);
+  min-width: 0;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: var(--field-gap-label);
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-label__req {
+  color: var(--tt-pink);
+  margin-left: 2px;
+}
+
+.field.is-invalid .field-label {
+  color: var(--tt-danger);
+}
+
+.field-message {
+  margin-top: var(--field-gap-message);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.field-message--error {
+  color: var(--tt-danger);
+  font-weight: 600;
+}
+
+.field-message--hint {
+  color: var(--text-muted);
+}
+
+/* ---- The one bordered box. InputGroup inside owns layout, never a border. */
+.field__box {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
+  border-radius: var(--field-radius);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.field--sm .field__box { height: var(--field-height-sm); }
+.field--md .field__box { height: var(--field-height-md); }
+.field--lg .field__box { height: var(--field-height-lg); }
+
+.field--search .field__box { border-radius: var(--field-radius-pill); }
+
+.field:not(.is-disabled):not(.is-invalid) .field__box:hover {
+  border-color: var(--text-muted);
+}
+
+.field__box:focus-within {
+  border-color: var(--field-border-focus);
+  box-shadow: 0 0 0 3px rgba(37, 244, 238, 0.13);
+}
+
+.field__box:active {
+  border-color: var(--field-border-focus);
+}
+
+:root[data-theme="light"] .field__box:focus-within {
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.16);
+}
+
+.field.is-invalid .field__box {
+  border-color: rgba(239, 71, 111, 0.45);
+}
+
+.field.is-invalid .field__box:focus-within {
+  box-shadow: 0 0 0 3px rgba(239, 71, 111, 0.12);
+}
+
+:root[data-theme="light"] .field.is-invalid .field__box {
+  border-color: rgba(153, 27, 27, 0.5);
+}
+
+.field.is-disabled {
+  opacity: 0.55;
+}
+
+.field.is-disabled .field__box {
+  pointer-events: none;
+}
+
+/* ---- InputGroup row: leading / prefix / control / clear / suffix / trailing */
+.field-group {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.field-group__leading,
+.field-group__trailing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--text-muted);
+}
+
+.field-group__leading { margin-left: 10px; }
+.field-group__trailing { margin-right: 10px; }
+
+.field-group__prefix {
+  flex: none;
+  margin-left: var(--field-padding-x);
+  color: var(--tt-pink);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.field-group__suffix {
+  flex: none;
+  margin-right: var(--field-padding-x);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Tighten input padding when an adornment already provides the gutter. */
+.field-group:has(> .field-group__leading) > .field-input,
+.field-group:has(> .field-group__prefix) > .field-input {
+  padding-left: 6px;
+}
+
+.field-group:has(> .field-group__trailing) > .field-input,
+.field-group:has(> .field-group__suffix) > .field-input,
+.field-group:has(> .field-clear) > .field-input {
+  padding-right: 6px;
+}
+
+.field-group__trailing:has(> .field-steppers) {
+  margin-right: 0;
+  align-self: stretch;
+}
+
+/* ---- Native control reset: real input/select, no second chrome ---- */
+.field-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 0 var(--field-padding-x);
+}
+
+.field-input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.field-input:disabled {
+  cursor: not-allowed;
+}
+
+.field-input--select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: 6px;
+}
+
+/* Native <option> popups are OS-rendered: explicit theme colors or the dark
+   popup keeps a light background with unreadable near-white text. */
+.field-input--select option {
+  background-color: var(--panel-solid);
+  color: var(--text);
+}
+
+.field-input--number {
+  text-align: left;
+}
+
+.field-input--number::-webkit-inner-spin-button,
+.field-input--number::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.field-input--number {
+  -moz-appearance: textfield;
+}
+
+/* ---- In-box buttons: clear, show/hide, steppers ---- */
+.field-clear {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.field-clear:hover {
+  color: var(--text);
+  background: rgba(127, 127, 127, 0.16);
+}
+
+.field-clear:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 1px;
+}
+
+.field-toggle {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--field-border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.field-toggle:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--field-border-focus);
+}
+
+.field-toggle:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: 2px;
+}
+
+.field-toggle:disabled {
+  cursor: not-allowed;
+}
+
+.field-steppers {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  border-left: 1px solid var(--field-border);
+}
+
+.field-steppers .field-stepper {
+  flex: 1;
+  width: 26px;
+  min-height: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.field-steppers .field-stepper + .field-stepper {
+  border-top: 1px solid var(--field-border);
+}
+
+.field-steppers .field-stepper:hover:not(:disabled) {
+  color: var(--text);
+  background: rgba(127, 127, 127, 0.12);
+}
+
+.field-steppers .field-stepper:focus-visible {
+  outline: 2px solid var(--field-border-focus);
+  outline-offset: -2px;
+}
+
+.field-steppers .field-stepper:disabled {
+  cursor: not-allowed;
+}
+
+.field-stepper--up svg {
+  transform: rotate(180deg);
+}
+
+/* ---- TemplateField: single-line shares the box; multiline grows ---- */
+.field-template {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.field-template--multiline .field__box {
+  height: auto;
+  min-height: var(--field-height-md);
+}
+
+.field-input--textarea {
+  height: auto;
+  min-height: 92px;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* Mono variant for key/path inputs (header names, …). */
+.field--mono .field-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+/* ---- Dense-container bridges (mirror the ui.css kit bridges) ---- */
+.plg-cond__cell--value > .field,
+.plg-cond__option-value > .field,
+.ui-picker__manual-row > .field {
+  flex: 1;
+  min-width: 0;
+}
+
+.plg-cond__row > .field {
+  grid-column: 1 / -1;
+}
+
+.ui-setting-row__controls > .field {
+  width: 132px;
+  flex: none;
+}
+
+.ui-pagination .field {
+  width: auto;
+  min-width: 88px;
+}
+
+.ui-pagination .field .field__box {
+  height: 28px;
+}
+
+.plg-toolbar .field--search {
+  width: 100%;
+  max-width: 280px;
+}
+
+.ui-picker__tools .field--search {
+  width: 100%;
+  max-width: none;
+}
+
+@media (max-width: 640px) {
+  .plg-toolbar .field--search {
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field__box,
+  .field-clear,
+  .field-toggle,
+  .field-steppers .field-stepper {
+    transition: none;
+  }
+}

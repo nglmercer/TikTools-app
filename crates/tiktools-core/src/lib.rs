@@ -144,6 +144,14 @@ impl AppCore {
         if let Err(error) = paths.ensure_directories() {
             tracing::warn!(%error, "could not create all Rust host directories");
         }
+        // Process-plugin children inherit only an explicit env contract;
+        // export the resolved plugin-data root (unless the operator set
+        // one) so backends read the same `<root>/<id>/settings.json` the
+        // host serves. Without this the loader default (`<package>/.data`)
+        // and the host default diverge and backends silently miss settings.
+        if std::env::var_os("TIKTOOLS_PLUGIN_DATA_DIR").is_none() {
+            std::env::set_var("TIKTOOLS_PLUGIN_DATA_DIR", paths.plugin_data.as_os_str());
+        }
 
         let roots = plugin_roots(
             paths.builtin_plugins.clone(),

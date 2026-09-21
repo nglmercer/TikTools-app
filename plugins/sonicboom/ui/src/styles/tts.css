@@ -1,0 +1,218 @@
+/* TTS settings panel: host-owned grid inside plugin pages. */
+
+.tts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 4px 16px 16px;
+}
+
+@media (min-width: 1100px) {
+  .tts-grid--top {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .tts-grid--bottom {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 700px) and (max-width: 1099px) {
+  .tts-grid--top {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tts-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-solid);
+}
+
+.tts-card__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tts-row--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.tts-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.tts-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.tts-input,
+.tts-select {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 13px;
+  min-width: 0;
+  width: 100%;
+}
+
+.tts-input:disabled,
+.tts-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tts-textarea {
+  min-height: 76px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 13px;
+  resize: vertical;
+  width: 100%;
+}
+
+.tts-range {
+  width: 100%;
+  accent-color: var(--tt-pink);
+}
+
+.tts-range:disabled {
+  opacity: 0.5;
+}
+
+.tts-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.tts-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--tt-pink);
+  flex-shrink: 0;
+}
+
+.tts-check--disabled {
+  opacity: 0.6;
+}
+
+.tts-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.tts-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.tts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.tts-table th,
+.tts-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tts-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.tts-table tr:last-child td {
+  border-bottom: none;
+}
+
+.tts-table .tts-input,
+.tts-table .tts-select {
+  height: 32px;
+  font-size: 12px;
+}
+
+.tts-log {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  min-height: 90px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--input-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  overflow: auto;
+}
+
+.tts-log__line--err {
+  color: var(--tt-danger);
+}
+
+.tts-log__line--ok {
+  color: var(--tt-green);
+}
+
+.tts-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tts-add-row .tts-input {
+  flex: 1;
+}
+
+.tts-pill {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}

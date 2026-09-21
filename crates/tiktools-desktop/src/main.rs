@@ -9,6 +9,7 @@ mod icon;
 mod logging;
 mod media;
 mod platform;
+mod plugin_webview;
 mod single_instance;
 mod tray;
 mod webview;

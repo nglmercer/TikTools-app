@@ -272,7 +272,7 @@ fn is_loopback_url(url: &Url) -> bool {
             .unwrap_or(false)
 }
 
-fn requested_path(raw: &str) -> Result<PathBuf, String> {
+pub(crate) fn requested_path(raw: &str) -> Result<PathBuf, String> {
     let decoded = percent_decode_str(raw)
         .decode_utf8()
         .map_err(|_| "asset URL is not valid UTF-8".to_owned())?;
@@ -297,7 +297,7 @@ fn requested_path(raw: &str) -> Result<PathBuf, String> {
     Ok(path.to_owned())
 }
 
-fn content_type(path: &Path) -> &'static str {
+pub(crate) fn content_type(path: &Path) -> &'static str {
     match path
         .extension()
         .and_then(|extension| extension.to_str())
@@ -318,7 +318,7 @@ fn content_type(path: &Path) -> &'static str {
     }
 }
 
-fn error_response(status: StatusCode, message: String) -> Response<Cow<'static, [u8]>> {
+pub(crate) fn error_response(status: StatusCode, message: String) -> Response<Cow<'static, [u8]>> {
     Response::builder()
         .status(status)
         .header(CONTENT_TYPE, "text/plain; charset=utf-8")

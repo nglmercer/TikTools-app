@@ -213,13 +213,17 @@ mod tests {
     fn rejects_mode_mismatches_and_bad_versions() {
         // Declarative page without a body.
         let mut bad = declarative_fixture();
-        bad["pages"][0].as_object_mut().expect("page").remove("body");
+        bad["pages"][0]
+            .as_object_mut()
+            .expect("page")
+            .remove("body");
         assert!(parse_ui_manifest(&bad).is_err());
         // Declarative manifest with an entry.
         let mut bad = declarative_fixture();
-        bad.as_object_mut()
-            .expect("manifest")
-            .insert("entry".to_string(), Value::String("ui/dist/index.html".to_string()));
+        bad.as_object_mut().expect("manifest").insert(
+            "entry".to_string(),
+            Value::String("ui/dist/index.html".to_string()),
+        );
         assert!(parse_ui_manifest(&bad).is_err());
         // Webview page carrying a body.
         let mut bad = webview_fixture();

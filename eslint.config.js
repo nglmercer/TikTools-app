@@ -37,6 +37,20 @@ export default tseslint.config(
     },
   },
   {
+    files: ['plugins/sonicboom/ui/src/**/*.{ts,tsx,vue}', 'plugins/sonicboom/ui/tests/**/*.ts'],
+    languageOptions: {
+      globals: globals.browser,
+    },
+  },
+  {
+    files: ['plugins/sonicboom/ui/playwright.config.ts', 'plugins/sonicboom/ui/vite.config.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
     files: ['scripts/**/*.{js,mjs,cjs,ts,tsx,jsx}', 'vite.config.ts'],
     languageOptions: {
       globals: {

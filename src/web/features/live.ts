@@ -6,7 +6,8 @@ import { errorMessage } from '../platform/control-client.ts';
 import type { DisplayEvent, EventFilter, TopViewerPayload } from '../types.ts';
 
 export interface LiveCallbacks {
-  onChat: (
+  /** Optional chat observer (auto-speech left the main frontend). */
+  onChat?: (
     author: string,
     text: string,
     points: number | undefined,
@@ -56,7 +57,7 @@ export function useLive(control: ControlClient, callbacks: LiveCallbacks) {
     ].slice(-300);
     if (!autoScroll.value) unreadCount.value += 1;
     if (event.kind === 'chat' && event.text) {
-      callbacks.onChat(event.author, event.text, event.points, event.isSubscriber);
+      callbacks.onChat?.(event.author, event.text, event.points, event.isSubscriber);
     }
   });
   control.onTopic<{ viewers: number; totalUsers: number; topViewers: TopViewerPayload[] }>(

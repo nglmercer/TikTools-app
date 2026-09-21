@@ -1,10 +1,23 @@
 # Plugin UI architecture
 
-TikTools renders plugin configuration UI with a host-owned declarative
-system: **plugins describe UI as data; the TikTools frontend renders
-trusted components.** The main WebView holds the privileged IPC bridge
-(`window.ipc`), so arbitrary plugin JavaScript, HTML, Vue/React
-components, and document CSS never execute there.
+TikTools owns the secure host and generic APIs. Plugins own
+plugin-specific behavior and UI. Simple UI is declarative; complex UI is
+compiled separately and loaded in an isolated WebView. Nothing
+plugin-specific is bundled into the main frontend.
+
+```text
+TikTools core/web
+├── generic navigation
+├── generic plugin host (declarative renderer + webview launcher)
+├── generic settings/actions/options broker
+└── NO plugin-specific components
+
+plugins/sonicboom/
+├── plugin.json          (manifest: actions, settings, pages, ui, entry)
+├── backend/             (Rust process plugin: chat observer + speech)
+├── shared/tts/          (speech policy shared by UI previews)
+└── ui/                  (standalone Vite app → ui/dist/, isolated)
+```
 
 ## Layers
 
@@ -15,13 +28,13 @@ plugin.json
 typed manifest (crates/tiktools-plugin-api/src/ui/)
     │ host validation at discovery
     ▼
-Plugin UI descriptor
-    │ legacy schema-v3 → generic adapter (src/plugin-ui/)
-    ▼
-generic Vue renderer (src/web/plugin-ui/)
-    │  PluginPage → PluginNode registry → host components
-    ▼
-settings bindings / option sources / plugin actions / host services
+snapshot: pluginPages (legacy nav) + pluginUis (typed descriptors)
+    │
+    ├─► declarative UI ──► generic Vue renderer (src/web/plugin-ui/)
+    │                       PluginPage → PluginNode registry → host components
+    │
+    └─► webview UI ──► isolated window (desktop) / sandboxed frame (web)
+                        compiled plugin assets + restricted broker
 ```
 
 Canonical contract: `crates/tiktools-plugin-api/src/ui/` (Rust types +
@@ -33,74 +46,84 @@ tests on both sides (`ui::validation::tests`, `src/plugin-ui/*.test.ts`).
 
 **Mode A — Declarative UI (default).** A plugin declares a `body` tree of
 generic nodes. The host validates and renders it with its own components.
+Works with no custom WebView anywhere; this is the fallback every plugin
+gets for simple configuration.
 
-```json
-{
-  "uiVersion": 1,
-  "pages": [
-    {
-      "id": "tts",
-      "title": { "default": "Text to Speech" },
-      "icon": "voice",
-      "body": {
-        "type": "stack",
-        "children": [
-          {
-            "type": "select",
-            "label": { "default": "Default voice" },
-            "bind": "settings.defaultVoice",
-            "optionsFrom": "plugin-action-options:sonicboom.server.speak:voice"
-          },
-          {
-            "type": "range",
-            "label": { "default": "Volume" },
-            "bind": "settings.volume",
-            "min": 0,
-            "max": 1,
-            "step": 0.01
-          }
-        ]
-      }
-    }
-  ]
-}
-```
-
-**Mode B — Isolated custom WebUI (future/advanced).** For plugins that
-genuinely need arbitrary UI (waveform editors, node editors, mixers).
-Custom UI runs in a **separate isolated WebView**, never in the main
-privileged document, through a restricted `PluginUiBroker`:
+**Mode B — Isolated custom WebView.** For plugins that genuinely need
+arbitrary UI. The plugin UI is compiled separately (`ui/dist/`) and loads
+in its own native window on desktop, served from
+`tiktools-plugin://app/<plugin-id>/…` with a strict CSP (no network, no
+frames). On web it loads in a `sandbox="allow-scripts"` iframe at an
+opaque origin. Either way the document never sees the privileged bridge:
 
 ```text
 Main TikTools WebView (trusted) ──► Control API ──► AppCore
 Plugin custom WebView (restricted) ──► PluginUiBroker ──► AppCore
 ```
 
-The broker exposes only scoped operations (`settings.get/set`,
-`actions.execute`, `options.get`, `events.subscribe`) with plugin
-identity, capability checks, permission checks, and an operation
-allowlist. Custom WebViews never receive raw `window.ipc`,
-`ControlApi.call()`, `AppCore` references, filesystem/database handles,
-or Wry handles. Shadow DOM is not a security boundary and is never used
-as one. Mode B is not implemented yet: `crates/tiktools-plugin-api/src/ui/manifest.rs`
-types the manifest fragment (`PluginUiManifest`) so manifests can grow
-toward it without breaking.
+An initialization script captures `window.ipc`, installs the narrow
+`window.tiktools` surface, and deletes `window.ipc` before page scripts
+run. Shadow DOM is not a security boundary and is never used as one.
+
+## Broker protocol
+
+Three sides share one versioned envelope — `{apiVersion: 1, id,
+method, params}` → `{apiVersion: 1, id, ok, result|error}`, events as
+`{apiVersion: 1, event, data}` — pinned by interop tests, never by
+shared imports (the plugin package must stay buildable on its own):
+
+- Plugin client: `plugins/sonicboom/ui/src/broker.ts`
+- Native broker: `crates/tiktools-desktop/src/plugin_webview/broker.rs`
+- Web host shim: `src/web/plugin-ui/plugin-webview-host.ts`
+
+Allowlisted methods: `settings.get`, `settings.set`,
+`actions.execute`, `options.get`, `events.subscribe`,
+`events.unsubscribe`, `host.locale`, `host.theme`. Anything else fails
+closed. The broker binds one plugin id per window/frame and injects it
+into every downstream call (`plugins.*` scoped operations); a
+client-supplied `pluginId` that disagrees is rejected, so a plugin page
+can only read its own settings/options and execute its own actions.
+Broker action execution is always live (test buttons take real effect).
+
+Crossing notes: `postMessage` payloads must be plain JSON — Vue
+reactive Proxies are rejected by structured clone, so the plugin client
+deep-declones every request before posting. Web asset hosts must serve
+plugin assets with `Access-Control-Allow-Origin` (opaque-origin frames
+are CORS-checked); the desktop custom protocol is exempt by
+construction.
+
+## Backend (process plugin)
+
+Speech is plugin-owned: `plugins/sonicboom/backend/` is a standalone
+Rust binary speaking the framed process protocol
+(`tiktools-plugin-sdk`). It observes `live.ui-event` chat, applies the
+speech policy (comment triggers, user eligibility, affordability,
+replay dedup — a faithful port of `shared/tts/`), and POSTs eligible
+lines to the configured SonicBoom server. Settings come from the same
+host `settings.json` the UI edits through the broker; the host exports
+the resolved `TIKTOOLS_PLUGIN_DATA_DIR` so backends always find it.
+
+The declarative `speak` / `set-output-device` actions and the
+voice/output option sources run in the host through the automation HTTP
+engine — no process call, no foreign code. Host-mediated effects stay
+out of backend reach by design: affordability is checked against
+delivered point totals, but charging has no host call and is not
+performed (documented limitation).
 
 ## Node set (uiVersion 1)
 
 Closed and generic: `stack`, `card`, `text`, `form`, `select`, `range`,
-`checkbox`, `button`, `list`, `status`, `separator`, `connection`,
-`tts-settings`. New domains compose these primitives — the renderer
-registry (`PluginNode.vue`) never gains per-domain section kinds.
-`tts-settings` is a host-rendered panel addressed by contribution id;
-the generic renderer resolves it through host-injected `customNodes`
-and never imports TTS UI itself.
+`checkbox`, `button`, `list`, `status`, `separator`, `connection`. New
+domains compose these primitives — the renderer registry
+(`PluginNode.vue`) never gains per-domain section kinds. There is no
+TTS node type in the grammar (Rust or TypeScript).
 
 ## Bindings
 
 Intentionally limited — no expressions, no `eval`, no `new Function`:
 
-- `settings.<dotted-path>` — plugin settings values (read/write).
+- `settings.<dotted-path>` — plugin settings values (read/write,
+  full-JSON values with nesting).
 - `local.<name>` — page-local ephemeral state (never persisted).
 - `source.<field>` — read-only selected value of the option source whose
   field segment matches (e.g. `source.voice`).
@@ -114,20 +137,11 @@ fail closed.
 `open-media-picker`. There is no generic arbitrary-RPC action;
 capability checks remain host-side.
 
-## TTS contributions
-
-Auto-TTS, speech dispatch, and voice policy key off explicit
-`TtsContribution` records (`{ id, pluginId, actionType, voicesFrom,
-outputsFrom? }`), never off walking UI sections. Schema-v3
-`"kind": "tts"` sections generate one contribution plus a
-`tts-settings` node in `legacy-v3-adapter.ts` — the only place that walk
-exists. Future hosts may serve contributions directly via
-`plugins.ui.describe` with a `plugin.ui.changed` event; `useTts` already
-accepts explicit contributions that override the adapter-derived ones.
-
 ## Backward compatibility
 
-Existing schema-v3 manifests (including SonicBoom) work unchanged:
+Existing schema-v3 manifests work unchanged. The legacy `"kind": "tts"`
+section degrades to a neutral status note (`This panel moved to the
+plugin view.`) — domain panels left the main frontend:
 
 | v3 `kind`  | generic nodes                                  |
 |------------|-----------------------------------------------|
@@ -135,21 +149,43 @@ Existing schema-v3 manifests (including SonicBoom) work unchanged:
 | `form`     | `form` (same schema/uiHints fallback)         |
 | `connection` | `connection`                                |
 | `list`     | `list` (+ built-in refresh button)            |
-| `tts`      | `tts-settings` + generated `TtsContribution`  |
+| `tts`      | `status` placeholder                          |
 
 `PluginPageView.vue` is the thin compatibility wrapper: it adapts the v3
 descriptor once and renders the generic `<PluginPage>` with a single
-`PluginUiContext` (locale, settings, options, actions, connection,
-media, provisioning, local state, form drafts, custom nodes). Visuals
-are preserved exactly — verified by the Playwright baselines in
+`<PluginUiContext>`. When the snapshot's typed `ui` descriptor selects
+webview mode for the open page, the view renders the isolated launcher
+instead (`PluginWebviewPage.vue`), which asks the desktop host to open
+the native window. Visuals are verified by the Playwright baselines in
 `tests/e2e/screenshots.spec.ts-snapshots/`.
+
+## Lifecycle
+
+Plugin windows never outlive their runtime: `plugin.stopped` (covers
+disable) and `plugin.uninstalled` notifications close every window the
+plugin owns. Shutdown drops the window manager with the app.
 
 ## Security properties
 
 - No `v-html`, no `innerHTML` for plugin content, no `eval`/`new Function`.
+- No plugin JS in the main WebView (verified: the main bundle carries
+  no TTS/plugin markers; the UI suite builds the plugin separately).
 - Manifest text renders as text and form controls only.
-- Plugin paths canonicalized; navigation restricted; secrets redacted.
-- Capability validation stays host-side; process plugins get no native handles.
+- Plugin paths canonicalized; navigation restricted to the owning
+  plugin origin; secrets redacted; entry confined to `ui/`.
+- Capability validation stays host-side; process plugins get no native
+  handles; broker methods are an allowlist with ownership injection.
 - UI actions are allowlisted data, never executable plugin code.
 - Every new plugin UI feature needs a negative test proving a plugin
   cannot exceed its declared scope.
+
+## Known gaps
+
+- Windows process-plugin entries: the loader resolves the manifest
+  `entry` literally; the dev stager and release packager rewrite the
+  entry with the `.exe` suffix on Windows (repo-wide convention).
+- The packaged main-frontend CSP still lists `http://[::1]:*`, which
+  Chromium rejects as an invalid CSP source (ignored). The plugin CSP
+  omits it.
+- Process backends cannot charge points (no host call); the SonicBoom
+  observer checks affordability without deducting.

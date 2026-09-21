@@ -752,3 +752,104 @@
   .plg-btn { height: 36px; }
   .plg-btn--icon { width: 36px; }
 }
+
+/* ---- generic declarative-node controls (select/range/checkbox/panel) ---- */
+/* The generic renderer styles its primitives here; no node may depend on
+   domain stylesheets. Variables fall back to the app theme tokens. */
+.plg-ctl {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+}
+
+.plg-ctl-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, var(--plg-muted));
+}
+
+.plg-ctl-select {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line, var(--plg-line));
+  border-radius: 8px;
+  background: var(--input-bg, var(--plg-bg));
+  color: var(--text, var(--plg-text));
+  font-size: 13px;
+  min-width: 0;
+  width: 100%;
+}
+
+.plg-ctl-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.plg-ctl-range {
+  width: 100%;
+  accent-color: var(--tt-pink, var(--plg-accent));
+}
+
+.plg-ctl-range:disabled {
+  opacity: 0.5;
+}
+
+.plg-ctl-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text, var(--plg-text));
+  cursor: pointer;
+  min-width: 0;
+}
+
+.plg-ctl-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--tt-pink, var(--plg-accent));
+  flex-shrink: 0;
+}
+
+.plg-ctl-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--text-secondary, var(--plg-muted));
+}
+
+.plg-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line, var(--plg-line));
+  border-radius: 10px;
+  background: var(--panel-solid, var(--plg-bg));
+}
+
+.plg-panel__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted, var(--plg-muted));
+}
+
+.plg-separator {
+  border: none;
+  border-top: 1px solid var(--line, var(--plg-line));
+  margin: 4px 0;
+}
+
+.plg-frame {
+  display: block;
+  width: 100%;
+  min-height: 480px;
+  border: 1px solid var(--line, var(--plg-line));
+  border-radius: 10px;
+  background: var(--panel-solid, var(--plg-bg));
+}

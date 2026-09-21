@@ -269,22 +269,6 @@ pub fn validate_ui_node(node: &PluginUiNode, depth: usize) -> Result<(), UiValid
             validate_option_source(source)
         }
         PluginUiNodeType::Separator | PluginUiNodeType::Connection => Ok(()),
-        PluginUiNodeType::TtsSettings => {
-            let contribution =
-                node.contribution
-                    .as_deref()
-                    .ok_or(UiValidationError::MissingField(
-                        "contribution",
-                        node.node_type,
-                    ))?;
-            if contribution.trim().is_empty() || contribution.len() > 64 {
-                return Err(UiValidationError::MissingField(
-                    "contribution",
-                    node.node_type,
-                ));
-            }
-            Ok(())
-        }
     }
 }
 
@@ -395,7 +379,6 @@ mod tests {
             action: None,
             variant: None,
             tone: None,
-            contribution: None,
         }
     }
 
@@ -427,10 +410,6 @@ mod tests {
                         source: "plugin-action-options:a:b".to_string(),
                     }),
                     ..node(PluginUiNodeType::Button)
-                },
-                PluginUiNode {
-                    contribution: Some("main".to_string()),
-                    ..node(PluginUiNodeType::TtsSettings)
                 },
             ]),
             ..node(PluginUiNodeType::Stack)

@@ -18,6 +18,7 @@ import {
   sonicboomSettings,
   sonicboomStatus,
   sonicboomTtsPage,
+  sonicboomWebviewUi,
   textPage,
   voiceOptions,
 } from './plugins.ts';
@@ -28,7 +29,10 @@ export function emptyState(): E2EHostState {
   return baseHostState();
 }
 
-function withSonicboom(pages: Array<Record<string, unknown>>): E2EHostState {
+function withSonicboom(
+  pages: Array<Record<string, unknown>>,
+  uis: Array<Record<string, unknown>> = [],
+): E2EHostState {
   return baseHostState({
     automationSnapshot: {
       actions: [],
@@ -38,6 +42,7 @@ function withSonicboom(pages: Array<Record<string, unknown>>): E2EHostState {
       eventTypes: [],
       pluginTemplates: [],
       pluginPages: pages,
+      pluginUis: uis,
       translations: {},
     },
     pluginSettings: { [SONICBOOM_ID]: sonicboomSettings() },
@@ -65,6 +70,11 @@ export function sonicboomDisconnectedState(): E2EHostState {
 
 export function ttsPageState(): E2EHostState {
   return withSonicboom([sonicboomTtsPage()]);
+}
+
+/** Webview-mode TTS page: legacy nav entry plus the typed UI descriptor. */
+export function webviewPageState(): E2EHostState {
+  return withSonicboom([sonicboomTtsPage()], [sonicboomWebviewUi()]);
 }
 
 export function listPageState(): E2EHostState {

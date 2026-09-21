@@ -79,7 +79,7 @@ export interface PluginUiContext {
   media: PluginUiMediaApi;
   provisioning: PluginUiProvisioningApi;
   local: PluginUiLocalState;
-  /** Host-injected renderers for domain node types (`tts-settings`, …). */
+  /** Host-injected renderers for custom node types (never manifest-resolved). */
   customNodes: Record<string, Component>;
   /** Per-node form drafts, keyed by `nodeKey`. */
   formDrafts: {

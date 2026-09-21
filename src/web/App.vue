@@ -45,6 +45,11 @@ const activePluginSupportsProvisioning: ComputedRef<boolean> = computed(() => {
   const plugin = plugins.find((entry) => entry.descriptor.id === page.pluginId);
   return plugin?.descriptor.supportsTokenProvisioning ?? false;
 });
+const activePluginUi = computed(() => {
+  const page = activePluginPage.value;
+  if (!page) return undefined;
+  return controller.pluginUis.value.find((entry) => entry.pluginId === page.pluginId);
+});
 </script>
 <template>
   <div class="app-shell">
@@ -214,23 +219,16 @@ const activePluginSupportsProvisioning: ComputedRef<boolean> = computed(() => {
         :action-options="app.actionOptions"
         :action-option-errors="app.actionOptionErrors"
         :action-option-selected="app.actionOptionSelected"
-        :tts-output-pending="app.ttsOutputPending[activePluginPage.pluginId]"
-        :tts-output-error="app.ttsOutputErrors[activePluginPage.pluginId]"
-        :on-tts-output-select="app.handleTtsOutputSelect"
         :on-get-settings="app.handleGetPluginSettings"
         :on-save-settings="app.handleSavePluginSettings"
         :on-get-action-options="app.handleGetActionOptions"
         :on-test-connection="app.handleTestPluginConnection"
         :on-open-media-picker="app.openMediaPicker"
         :on-execute-action="(actionType, config) => app.executePluginAction(activePluginPage?.pluginId ?? '', actionType, config, true)"
-        :tts-settings="app.ttsSettingsOrDefault(activePluginPage.pluginId)"
-        :tts-speaking="app.ttsSpeaking[activePluginPage.pluginId] ?? false"
-        :tts-logs="app.ttsLogs[activePluginPage.pluginId] ?? []"
-        :on-tts-settings-change="app.handleTtsSettingsChange"
-        :on-tts-speak="app.handleTtsSpeak"
         :supports-provisioning="activePluginSupportsProvisioning"
         :provision-state="app.pluginProvision[activePluginPage.pluginId]"
         :on-provision-token="app.handleProvisionPluginToken"
+        :ui="activePluginUi"
       />
     </div>
   </div>
