@@ -49,26 +49,27 @@ export const TtsVoiceTester = defineVueComponent<TtsVoiceTesterProps>(
 
   return () => {
   const testerVoices = voiceOptions(props.voices, testerVoice.value);
+  const locale = props.locale;
   return (
     <section class="tts-card">
-      <h4 class="tts-card__title">Voice Tester</h4>
+      <h4 class="tts-card__title">{t(locale, 'ttsVoiceTester')}</h4>
       {props.voicesError && <div class="plg-alert" role="status">{props.voicesError}</div>}
       <div class="tts-row tts-row--stack">
-        <label class="tts-label" for="tts-tester-voice">Voice</label>
+        <label class="tts-label" for="tts-tester-voice">{t(locale, 'ttsVoice')}</label>
         <select
           id="tts-tester-voice"
           class="tts-select"
           value={testerVoice.value}
           onChange={(event) => { testerVoiceTouched = true; testerVoice.value = (event.currentTarget as HTMLSelectElement).value; }}
         >
-          <option value="">Auto (default voice)</option>
+          <option value="">{t(locale, 'ttsAutoDefaultVoice')}</option>
           {testerVoices.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </select>
       </div>
       <div class="tts-row tts-row--stack">
-        <label class="tts-label" for="tts-tester-text">Text</label>
+        <label class="tts-label" for="tts-tester-text">{t(locale, 'ttsText')}</label>
         <textarea
           id="tts-tester-text"
           class="tts-textarea"
@@ -84,17 +85,17 @@ export const TtsVoiceTester = defineVueComponent<TtsVoiceTesterProps>(
           disabled={props.speaking || !testerText.value.trim()}
           onClick={speak}
         >
-          {props.speaking ? 'Speaking…' : 'Play'}
+          {props.speaking ? t(locale, 'ttsSpeaking') : t(locale, 'ttsPlay')}
         </button>
         <button type="button" class="plg-btn plg-btn--sm" onClick={props.onRefreshVoices}>
-          Refresh voices
+          {t(locale, 'ttsRefreshVoices')}
         </button>
-        <span class="tts-pill">{props.voices.length} voices</span>
+        <span class="tts-pill">{t(locale, 'ttsVoicesCount', { count: props.voices.length })}</span>
       </div>
-      <p class="tts-hint">{t(props.locale, 'ttsAuthNote')}</p>
-      <h4 class="tts-card__title">TTS logs</h4>
+      <p class="tts-hint">{t(locale, 'ttsAuthNote')}</p>
+      <h4 class="tts-card__title">{t(locale, 'ttsLogs')}</h4>
       {props.logs.length === 0 ? (
-        <span class="plg-group-note">Nothing spoken yet.</span>
+        <span class="plg-group-note">{t(locale, 'ttsNothingSpoken')}</span>
       ) : (
         <div class="tts-log" role="log">
           {props.logs.map((entry) => (

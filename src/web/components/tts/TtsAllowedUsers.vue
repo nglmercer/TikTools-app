@@ -52,31 +52,32 @@ export const TtsAllowedUsers = defineVueComponent<TtsAllowedUsersProps>(
 
   return () => {
   const settings = props.settings;
+  const locale = props.locale;
   return (
     <section class="tts-card">
-      <h4 class="tts-card__title">Allowed Users</h4>
+      <h4 class="tts-card__title">{t(locale, 'ttsAllowedUsers')}</h4>
       <label class="tts-check">
         <input type="checkbox" checked={settings.allowAllUsers} onChange={(event) => update({ allowAllUsers: (event.currentTarget as HTMLInputElement).checked })} />
-        All users
+        {t(locale, 'ttsAllUsers')}
       </label>
       <label class="tts-check">
         <input type="checkbox" checked={settings.allowFollowers} onChange={(event) => update({ allowFollowers: (event.currentTarget as HTMLInputElement).checked })} />
-        Followers
+        {t(locale, 'ttsFollowers')}
       </label>
       <label class="tts-check">
         <input type="checkbox" checked={settings.allowSubscribers} onChange={(event) => update({ allowSubscribers: (event.currentTarget as HTMLInputElement).checked })} />
-        Subscribers
+        {t(locale, 'ttsSubscribers')}
       </label>
       <label class="tts-check">
         <input type="checkbox" checked={settings.allowModerators} onChange={(event) => update({ allowModerators: (event.currentTarget as HTMLInputElement).checked })} />
-        Moderators
+        {t(locale, 'ttsModerators')}
       </label>
       <label class="tts-check">
         <input type="checkbox" checked={settings.allowTeamMembers} onChange={(event) => update({ allowTeamMembers: (event.currentTarget as HTMLInputElement).checked })} />
-        Team members
+        {t(locale, 'ttsTeamMembers')}
       </label>
       <div class="tts-row tts-row--stack">
-        <label class="tts-label" for="tts-team-level">Minimum team level</label>
+        <label class="tts-label" for="tts-team-level">{t(locale, 'ttsMinTeamLevel')}</label>
         <input
           id="tts-team-level"
           class="tts-input"
@@ -90,10 +91,10 @@ export const TtsAllowedUsers = defineVueComponent<TtsAllowedUsersProps>(
       </div>
       <label class="tts-check">
         <input type="checkbox" checked={settings.allowTopGifters} onChange={(event) => update({ allowTopGifters: (event.currentTarget as HTMLInputElement).checked })} />
-        Top gifters
+        {t(locale, 'ttsTopGifters')}
       </label>
       <div class="tts-row tts-row--stack">
-        <label class="tts-label" for="tts-top-n">Top N</label>
+        <label class="tts-label" for="tts-top-n">{t(locale, 'ttsTopN')}</label>
         <input
           id="tts-top-n"
           class="tts-input"
@@ -105,10 +106,10 @@ export const TtsAllowedUsers = defineVueComponent<TtsAllowedUsersProps>(
           onInput={(event) => updateNumber('topGifterCount', (event.currentTarget as HTMLInputElement).value)}
         />
       </div>
-      <p class="tts-hint">{t(props.locale, 'ttsRolesNote')}</p>
+      <p class="tts-hint">{t(locale, 'ttsRolesNote')}</p>
       <label class="tts-check">
         <input type="checkbox" checked={settings.allowListedUsers} onChange={(event) => update({ allowListedUsers: (event.currentTarget as HTMLInputElement).checked })} />
-        Allowed users list
+        {t(locale, 'ttsAllowedUsersList')}
       </label>
       <div class="tts-add-row">
         <input
@@ -119,7 +120,7 @@ export const TtsAllowedUsers = defineVueComponent<TtsAllowedUsersProps>(
           onInput={(event) => { newAllowedHandle.value = (event.currentTarget as HTMLInputElement).value; }}
           onKeydown={(event) => { if ((event as KeyboardEvent).key === 'Enter') addAllowedUser(); }}
         />
-        <button type="button" class="plg-btn plg-btn--sm" onClick={addAllowedUser}>Add</button>
+        <button type="button" class="plg-btn plg-btn--sm" onClick={addAllowedUser}>{t(locale, 'ttsAdd')}</button>
       </div>
       {settings.allowedUsers.length > 0 && (
         <div class="tts-table-wrap">
@@ -129,7 +130,7 @@ export const TtsAllowedUsers = defineVueComponent<TtsAllowedUsersProps>(
                 <tr key={handle}>
                   <td>@{handle}</td>
                   <td style="width: 64px; text-align: right;">
-                    <button type="button" class="plg-btn plg-btn--sm plg-btn--danger" onClick={() => removeAllowedUser(handle)}>Remove</button>
+                    <button type="button" class="plg-btn plg-btn--sm plg-btn--danger" onClick={() => removeAllowedUser(handle)}>{t(locale, 'ttsRemove')}</button>
                   </td>
                 </tr>
               ))}

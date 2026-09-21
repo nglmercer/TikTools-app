@@ -56,11 +56,12 @@ export const TtsSpecialUsers = defineVueComponent<TtsSpecialUsersProps>(
 
   return () => {
   const settings = props.settings;
+  const locale = props.locale;
   const voiceList = voiceOptions(props.voices, settings.defaultVoice);
   return (
     <section class="tts-card">
-      <h4 class="tts-card__title">Special Users</h4>
-      <p class="tts-hint">{t(props.locale, 'ttsSpecialUsersNote')}</p>
+      <h4 class="tts-card__title">{t(locale, 'ttsSpecialUsers')}</h4>
+      <p class="tts-hint">{t(locale, 'ttsSpecialUsersNote')}</p>
       <div class="tts-add-row">
         <input
           class="tts-input"
@@ -70,20 +71,20 @@ export const TtsSpecialUsers = defineVueComponent<TtsSpecialUsersProps>(
           onInput={(event) => { newSpecialHandle.value = (event.currentTarget as HTMLInputElement).value; }}
           onKeydown={(event) => { if ((event as KeyboardEvent).key === 'Enter') addSpecialUser(); }}
         />
-        <button type="button" class="plg-btn plg-btn--sm" onClick={addSpecialUser}>Add</button>
+        <button type="button" class="plg-btn plg-btn--sm" onClick={addSpecialUser}>{t(locale, 'ttsAdd')}</button>
       </div>
       {settings.specialUsers.length === 0 ? (
-        <span class="plg-group-note">No special users yet.</span>
+        <span class="plg-group-note">{t(locale, 'ttsNoSpecialUsers')}</span>
       ) : (
         <div class="tts-table-wrap">
           <table class="tts-table">
             <thead>
               <tr>
-                <th>Handle</th>
-                <th>Allowed</th>
-                <th>Voice</th>
-                <th>Speed</th>
-                <th>Pitch</th>
+                <th>{t(locale, 'ttsHandle')}</th>
+                <th>{t(locale, 'ttsAllowed')}</th>
+                <th>{t(locale, 'ttsVoice')}</th>
+                <th>{t(locale, 'ttsSpeed')}</th>
+                <th>{t(locale, 'ttsPitch')}</th>
                 <th></th>
               </tr>
             </thead>
@@ -104,7 +105,7 @@ export const TtsSpecialUsers = defineVueComponent<TtsSpecialUsersProps>(
                       value={entry.voice}
                       onChange={(event) => patchSpecialUser(entry.handle, { voice: (event.currentTarget as HTMLSelectElement).value })}
                     >
-                      <option value="">Default</option>
+                      <option value="">{t(locale, 'ttsDefault')}</option>
                       {voiceList.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
@@ -143,7 +144,7 @@ export const TtsSpecialUsers = defineVueComponent<TtsSpecialUsersProps>(
                     />
                   </td>
                   <td style="text-align: right;">
-                    <button type="button" class="plg-btn plg-btn--sm plg-btn--danger" onClick={() => removeSpecialUser(entry.handle)}>Remove</button>
+                    <button type="button" class="plg-btn plg-btn--sm plg-btn--danger" onClick={() => removeSpecialUser(entry.handle)}>{t(locale, 'ttsRemove')}</button>
                   </td>
                 </tr>
               ))}

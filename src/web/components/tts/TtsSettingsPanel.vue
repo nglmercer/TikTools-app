@@ -79,13 +79,14 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
 
     return () => {
       const settings = props.settings;
+      const locale = props.locale;
       const voiceList = voiceOptions(props.voices, settings.defaultVoice);
 
       return (
         <div>
           <div class="tts-grid tts-grid--top">
             <TtsOutputsCard
-              locale={props.locale}
+              locale={locale}
               outputsSupported={props.outputsSupported}
               outputs={props.outputs}
               outputsError={props.outputsError}
@@ -96,17 +97,17 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
               onRefreshOutputs={props.onRefreshOutputs}
             />
             <section class="tts-card">
-              <h4 class="tts-card__title">General Settings</h4>
+              <h4 class="tts-card__title">{t(locale, 'ttsGeneralSettings')}</h4>
               <label class="tts-check">
                 <input
                   type="checkbox"
                   checked={settings.enabled}
                   onChange={(event) => update({ enabled: (event.currentTarget as HTMLInputElement).checked })}
                 />
-                Enabled
+                {t(locale, 'ttsEnabled')}
               </label>
               <div class="tts-row tts-row--stack">
-                <label class="tts-label" for="tts-language">Language</label>
+                <label class="tts-label" for="tts-language">{t(locale, 'ttsLanguage')}</label>
                 <input
                   id="tts-language"
                   class="tts-input"
@@ -118,14 +119,14 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                 />
               </div>
               <div class="tts-row tts-row--stack">
-                <label class="tts-label" for="tts-default-voice">Default voice</label>
+                <label class="tts-label" for="tts-default-voice">{t(locale, 'ttsDefaultVoice')}</label>
                 <select
                   id="tts-default-voice"
                   class="tts-select"
                   value={settings.defaultVoice}
                   onChange={(event) => update({ defaultVoice: (event.currentTarget as HTMLSelectElement).value })}
                 >
-                  <option value="">Auto (first available)</option>
+                  <option value="">{t(locale, 'ttsAutoFirstAvailable')}</option>
                   {voiceList.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
@@ -137,11 +138,11 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                   checked={settings.randomVoice}
                   onChange={(event) => update({ randomVoice: (event.currentTarget as HTMLInputElement).checked })}
                 />
-                Random voice
+                {t(locale, 'ttsRandomVoice')}
               </label>
               <div class="tts-row tts-row--stack">
                 <label class="tts-label" for="tts-speed">
-                  Default speed <span class="tts-value">{settings.defaultSpeed.toFixed(2)}×</span>
+                  {t(locale, 'ttsDefaultSpeed')} <span class="tts-value">{settings.defaultSpeed.toFixed(2)}×</span>
                 </label>
                 <input
                   id="tts-speed"
@@ -157,7 +158,7 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
               </div>
               <div class="tts-row tts-row--stack">
                 <label class="tts-label" for="tts-pitch">
-                  Default pitch <span class="tts-value">{settings.defaultPitch.toFixed(2)}×</span>
+                  {t(locale, 'ttsDefaultPitch')} <span class="tts-value">{settings.defaultPitch.toFixed(2)}×</span>
                 </label>
                 <input
                   id="tts-pitch"
@@ -172,11 +173,11 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                 />
               </div>
               {TTS_SPEED_PITCH_UNSUPPORTED && (
-                <p class="tts-hint">{t(props.locale, 'ttsSpeedPitchNote')}</p>
+                <p class="tts-hint">{t(locale, 'ttsSpeedPitchNote')}</p>
               )}
               <div class="tts-row tts-row--stack">
                 <label class="tts-label" for="tts-volume">
-                  Volume <span class="tts-value">{Math.round(settings.volume * 100)}%</span>
+                  {t(locale, 'ttsVolume')} <span class="tts-value">{Math.round(settings.volume * 100)}%</span>
                 </label>
                 <input
                   id="tts-volume"
@@ -192,31 +193,31 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
             </section>
 
             <TtsAllowedUsers
-              locale={props.locale}
+              locale={locale}
               settings={settings}
               onSettingsChange={props.onSettingsChange}
             />
 
             <section class="tts-card">
-              <h4 class="tts-card__title">Comment Types</h4>
+              <h4 class="tts-card__title">{t(locale, 'ttsCommentTypes')}</h4>
               <label class="tts-check">
                 <input type="radio" name="tts-comment-mode" checked={settings.commentMode === 'any'} onChange={() => setCommentMode('any')} />
-                Any comment
+                {t(locale, 'ttsAnyComment')}
               </label>
               <label class="tts-check">
                 <input type="radio" name="tts-comment-mode" checked={settings.commentMode === 'dot'} onChange={() => setCommentMode('dot')} />
-                Starts with `.`
+                {t(locale, 'ttsStartsWithDot')}
               </label>
               <label class="tts-check">
                 <input type="radio" name="tts-comment-mode" checked={settings.commentMode === 'slash'} onChange={() => setCommentMode('slash')} />
-                Starts with `/`
+                {t(locale, 'ttsStartsWithSlash')}
               </label>
               <label class="tts-check">
                 <input type="radio" name="tts-comment-mode" checked={settings.commentMode === 'command'} onChange={() => setCommentMode('command')} />
-                Starts with custom command
+                {t(locale, 'ttsStartsWithCommand')}
               </label>
               <div class="tts-row tts-row--stack">
-                <label class="tts-label" for="tts-command">Command</label>
+                <label class="tts-label" for="tts-command">{t(locale, 'ttsCommand')}</label>
                 <input
                   id="tts-command"
                   class="tts-input"
@@ -230,22 +231,22 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
               </div>
               <label class="tts-check">
                 <input type="checkbox" checked={settings.stripCommand} onChange={(event) => update({ stripCommand: (event.currentTarget as HTMLInputElement).checked })} />
-                Strip command prefix before speaking
+                {t(locale, 'ttsStripCommand')}
               </label>
             </section>
 
             <section class="tts-card">
-              <h4 class="tts-card__title">Charge Points</h4>
+              <h4 class="tts-card__title">{t(locale, 'ttsChargePoints')}</h4>
               <label class="tts-check">
                 <input type="radio" name="tts-points-mode" checked={!settings.chargePoints} onChange={() => update({ chargePoints: false })} />
-                Free
+                {t(locale, 'ttsFree')}
               </label>
               <label class="tts-check">
                 <input type="radio" name="tts-points-mode" checked={settings.chargePoints} onChange={() => update({ chargePoints: true })} />
-                Charge points per message
+                {t(locale, 'ttsChargePerMessage')}
               </label>
               <div class="tts-row tts-row--stack">
-                <label class="tts-label" for="tts-points-cost">Points cost</label>
+                <label class="tts-label" for="tts-points-cost">{t(locale, 'ttsPointsCost')}</label>
                 <input
                   id="tts-points-cost"
                   class="tts-input"
@@ -257,20 +258,20 @@ export const TtsSettingsPanel = defineVueComponent<TtsSettingsPanelProps>(
                   onInput={(event) => updateNumber('pointsCost', (event.currentTarget as HTMLInputElement).value)}
                 />
               </div>
-              <p class="tts-hint">{t(props.locale, 'ttsCostNote')}</p>
+              <p class="tts-hint">{t(locale, 'ttsCostNote')}</p>
             </section>
           </div>
 
           <div class="tts-grid tts-grid--bottom">
             <TtsSpecialUsers
-              locale={props.locale}
+              locale={locale}
               settings={settings}
               voices={props.voices}
               onSettingsChange={props.onSettingsChange}
             />
 
             <TtsVoiceTester
-              locale={props.locale}
+              locale={locale}
               voices={props.voices}
               voicesError={props.voicesError}
               speaking={props.speaking}
