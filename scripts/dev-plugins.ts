@@ -1,5 +1,6 @@
 import { chmod, cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
+import { ensureGatewayWidgetsStaged } from './lib/gateway-widgets.ts';
 import { detectHostTarget } from './lib/plugin-targets.ts';
 
 export const repositoryRoot = resolve(import.meta.dir, '..');
@@ -86,6 +87,11 @@ async function stageExample(exampleDirectory: string): Promise<boolean> {
 
   console.log(`Building development plugin ${id}...`);
   run('node', [cargoWrapper, 'build', '--manifest-path', cargoManifestPath]);
+  if (id === 'tiktools.event-gateway') {
+    // Widget bundles are mandatory gateway content: a fresh clone must
+    // stage them with no manual sync step.
+    await ensureGatewayWidgetsStaged(repositoryRoot);
+  }
 
   // Development builds are host-only, but resolve the executable suffix
   // through the same shared target helper so dev and release naming agree.

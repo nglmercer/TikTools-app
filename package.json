@@ -30,7 +30,7 @@
     "test:widgets-e2e": "playwright test --config src/widgets/playwright.config.ts",
     "lint": "eslint src scripts vite.config.ts --max-warnings=0",
     "typecheck": "vue-tsc --noEmit",
-    "test": "bun test src/web src/automation src/plugin-ui src/shared src/widgets",
+    "test": "bun test src/web src/automation src/plugin-ui src/shared src/widgets scripts",
     "contracts:generate": "bun run scripts/generate-contracts.ts",
     "contracts:check": "bun run scripts/generate-contracts.ts --check",
     "deps:check": "bun run scripts/check-tiktok-signer-revision.ts",
