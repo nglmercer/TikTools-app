@@ -26,7 +26,7 @@
 
     // Some stricter flags (disabled by default)
     "noUnusedLocals": true,
-    "noUnusedParameters": false,
+    "noUnusedParameters": true,
     "noPropertyAccessFromIndexSignature": false
   },
   "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"]
