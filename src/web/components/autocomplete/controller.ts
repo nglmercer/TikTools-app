@@ -1,4 +1,5 @@
 import type { AutocompleteItem } from './types.ts';
+import { moveActiveIndex } from './autocomplete/keyboard.ts';
 
 /** Converts legacy/foreign list entries into the one autocomplete shape. */
 export function normalizeAutocompleteItem(value: unknown): AutocompleteItem {
@@ -27,11 +28,10 @@ export function normalizeAutocompleteItems(values: unknown[]): AutocompleteItem[
   return result;
 }
 
-/** Shared selection state transition for Arrow navigation. */
-export function moveAutocompleteSelection(index: number, delta: number, length: number): number {
-  if (length <= 0) return 0;
-  return (index + delta + length) % length;
-}
+/** Shared selection state transition for Arrow navigation.
+ * @deprecated Use `moveActiveIndex` from `./autocomplete/keyboard.ts` instead (identical behavior).
+ */
+export const moveAutocompleteSelection = moveActiveIndex;
 
 /** Merges registry, live, schema, and caller-provided sources in priority order. */
 export function resolveAutocompleteSources(...sources: Array<AutocompleteItem[] | undefined>): AutocompleteItem[] {
