@@ -6,6 +6,7 @@
 //! the emitter path, never on this bus.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio::sync::broadcast;
 
 /// Domain event observed identically by every control client.
@@ -136,6 +137,42 @@ impl DomainEvent {
             Self::AnalyticsUpdated { .. } => "analytics.updated",
             Self::Shutdown => "shutdown",
         }
+    }
+}
+
+/// Stable conversion failure when a [`DomainEvent`] cannot be serialized
+/// into its transport-neutral envelope. This indicates an invariant
+/// violation (every variant must serialize); callers must log it and,
+/// for reliable events, record a gap instead of delivering `null` data.
+#[derive(Debug, thiserror::Error)]
+pub enum EventEnvelopeError {
+    #[error("domain event failed to serialize: {0}")]
+    Serialization(String),
+    #[error("serialized domain event is missing its data payload")]
+    MissingData,
+}
+
+impl DomainEvent {
+    /// Converts this event into its transport-neutral envelope
+    /// (`{ topic, data }`), preserving the exact wire shape every client
+    /// already receives. Never substitutes `null` on failure.
+    pub fn to_envelope(
+        &self,
+    ) -> Result<tiktools_plugin_api::DomainEventEnvelope, EventEnvelopeError> {
+        let value = serde_json::to_value(self)
+            .map_err(|error| EventEnvelopeError::Serialization(error.to_string()))?;
+        let data = match (value.get("data").cloned(), self) {
+            (Some(data), _) => data,
+            // Adjacently-tagged unit variants serialize as `{"topic": ...}`
+            // with no content payload; their envelope data is null by
+            // definition, matching what subscribers already receive.
+            (None, Self::LiveDisconnected | Self::Shutdown) => Value::Null,
+            (None, _) => return Err(EventEnvelopeError::MissingData),
+        };
+        Ok(tiktools_plugin_api::DomainEventEnvelope::new(
+            self.topic(),
+            data,
+        ))
     }
 }
 
@@ -328,6 +365,247 @@ impl DomainSubscription {
             Err(TryRecvError::Empty) | Err(TryRecvError::Closed) => Err(DomainTryRecvError::Empty),
             Err(TryRecvError::Lagged(skipped)) => Err(DomainTryRecvError::LossyLagged(skipped)),
             Ok(event) => Ok(event),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One representative value per variant plus its stable topic and a
+    /// data-shape assertion. Adding a variant without extending this table
+    /// fails the count assertion in the conversion test below.
+    fn all_variant_cases() -> Vec<(DomainEvent, &'static str, fn(&Value))> {
+        vec![
+            (
+                DomainEvent::PluginInstalled {
+                    plugin_id: "demo".to_owned(),
+                },
+                "plugin.installed",
+                |data| assert_eq!(data["pluginId"], "demo"),
+            ),
+            (
+                DomainEvent::PluginUninstalled {
+                    plugin_id: "demo".to_owned(),
+                },
+                "plugin.uninstalled",
+                |data| assert_eq!(data["pluginId"], "demo"),
+            ),
+            (
+                DomainEvent::PluginStarted {
+                    plugin_id: "demo".to_owned(),
+                },
+                "plugin.started",
+                |data| assert_eq!(data["pluginId"], "demo"),
+            ),
+            (
+                DomainEvent::PluginStopped {
+                    plugin_id: "demo".to_owned(),
+                },
+                "plugin.stopped",
+                |data| assert_eq!(data["pluginId"], "demo"),
+            ),
+            (
+                DomainEvent::PluginProgress {
+                    plugin_id: "demo".to_owned(),
+                    state: "running".to_owned(),
+                    progress: Some(0.5),
+                    message: "half".to_owned(),
+                },
+                "plugin.progress",
+                |data| {
+                    assert_eq!(data["pluginId"], "demo");
+                    assert_eq!(data["progress"], 0.5);
+                },
+            ),
+            (
+                DomainEvent::PluginSettingsChanged {
+                    plugin_id: "demo".to_owned(),
+                },
+                "plugin.settings-changed",
+                |data| assert_eq!(data["pluginId"], "demo"),
+            ),
+            (
+                DomainEvent::PluginEvent {
+                    plugin_id: "demo".to_owned(),
+                    event_type: "hotkey.pressed".to_owned(),
+                    event: serde_json::json!({"key": "k"}),
+                },
+                "plugin.event",
+                |data| {
+                    assert_eq!(data["eventType"], "hotkey.pressed");
+                    assert_eq!(data["event"]["key"], "k");
+                },
+            ),
+            (
+                DomainEvent::PluginStatus {
+                    plugin_id: "demo".to_owned(),
+                    status: serde_json::json!({"state": "active"}),
+                },
+                "plugin.status",
+                |data| assert_eq!(data["status"]["state"], "active"),
+            ),
+            (
+                DomainEvent::AutomationRunCompleted {
+                    run: serde_json::json!({"id": "r1"}),
+                },
+                "automation.run.completed",
+                |data| assert_eq!(data["run"]["id"], "r1"),
+            ),
+            (
+                DomainEvent::AutomationRunsChanged {
+                    runs: vec![serde_json::json!({"id": "r1"})],
+                },
+                "automation.runs.changed",
+                |data| assert_eq!(data["runs"][0]["id"], "r1"),
+            ),
+            (
+                DomainEvent::LiveConnected {
+                    unique_id: Some("viewer".to_owned()),
+                    room_id: None,
+                },
+                "live.connected",
+                |data| assert_eq!(data["uniqueId"], "viewer"),
+            ),
+            (DomainEvent::LiveDisconnected, "live.disconnected", |data| {
+                assert!(data.is_null(), "unit variants carry null data")
+            }),
+            (
+                DomainEvent::LiveEvent {
+                    event_type: "chat".to_owned(),
+                    event: serde_json::json!({}),
+                },
+                "live.event",
+                |data| assert_eq!(data["eventType"], "chat"),
+            ),
+            (
+                DomainEvent::LiveUiEvent {
+                    event: serde_json::json!({"kind": "chat"}),
+                },
+                "live.ui-event",
+                |data| assert_eq!(data["event"]["kind"], "chat"),
+            ),
+            (
+                DomainEvent::RoomStats {
+                    viewers: 7,
+                    total_users: 9,
+                    top_viewers: vec![],
+                },
+                "room.stats",
+                |data| {
+                    assert_eq!(data["viewers"], 7);
+                    assert_eq!(data["totalUsers"], 9);
+                },
+            ),
+            (
+                DomainEvent::GiftsCatalog {
+                    gifts: vec![serde_json::json!({"id": 1})],
+                },
+                "gifts.catalog",
+                |data| assert_eq!(data["gifts"][0]["id"], 1),
+            ),
+            (
+                DomainEvent::LiveReconnecting {
+                    attempt: 2,
+                    delay_ms: 500,
+                },
+                "live.reconnecting",
+                |data| {
+                    assert_eq!(data["attempt"], 2);
+                    assert_eq!(data["delayMs"], 500);
+                },
+            ),
+            (
+                DomainEvent::LiveError {
+                    phase: "connect".to_owned(),
+                    message: "boom".to_owned(),
+                },
+                "live.error",
+                |data| {
+                    assert_eq!(data["phase"], "connect");
+                    assert_eq!(data["message"], "boom");
+                },
+            ),
+            (
+                DomainEvent::PointsChanged {
+                    unique_id: "viewer".to_owned(),
+                    delta: 2.0,
+                    total_points: 4.0,
+                    level: 1,
+                },
+                "points.changed",
+                |data| {
+                    assert_eq!(data["uniqueId"], "viewer");
+                    assert_eq!(data["level"], 1);
+                },
+            ),
+            (
+                DomainEvent::WorkflowChanged {
+                    kind: "graph".to_owned(),
+                    id: "w1".to_owned(),
+                    change: "saved".to_owned(),
+                },
+                "workflow.changed",
+                |data| {
+                    assert_eq!(data["id"], "w1");
+                    assert_eq!(data["change"], "saved");
+                },
+            ),
+            (
+                DomainEvent::CreatorChanged { unique_id: None },
+                "creator.changed",
+                |data| assert!(data.get("uniqueId").is_some()),
+            ),
+            (
+                DomainEvent::AnalyticsUpdated {
+                    creator_unique_id: "creator".to_owned(),
+                },
+                "analytics.updated",
+                |data| assert_eq!(data["creatorUniqueId"], "creator"),
+            ),
+            (DomainEvent::Shutdown, "shutdown", |data| {
+                assert!(data.is_null(), "unit variants carry null data")
+            }),
+        ]
+    }
+
+    #[test]
+    fn every_variant_converts_to_a_stable_envelope() {
+        let cases = all_variant_cases();
+        assert_eq!(
+            cases.len(),
+            23,
+            "a DomainEvent variant is missing test coverage"
+        );
+        for (event, topic, check_data) in &cases {
+            assert_eq!(event.topic(), *topic);
+            let envelope = event
+                .to_envelope()
+                .unwrap_or_else(|error| panic!("{topic} must convert: {error}"));
+            assert_eq!(envelope.topic, *topic);
+            check_data(&envelope.data);
+            // The envelope preserves the exact historical wire shape: the
+            // same data every transport already extracted from the event.
+            let serialized = serde_json::to_value(event).expect("variant must serialize");
+            match serialized.get("data") {
+                Some(expected) => assert_eq!(&envelope.data, expected),
+                None => assert!(envelope.data.is_null()),
+            }
+            // The envelope itself round-trips through the plugin boundary.
+            let round_trip: tiktools_plugin_api::DomainEventEnvelope = serde_json::from_value(
+                serde_json::to_value(&envelope).expect("envelope serializes"),
+            )
+            .expect("envelope deserializes");
+            assert_eq!(round_trip, envelope);
+        }
+    }
+
+    #[test]
+    fn topic_matches_serialized_tag_for_every_variant() {
+        for (event, topic, _) in all_variant_cases() {
+            let serialized = serde_json::to_value(&event).expect("variant must serialize");
+            assert_eq!(serialized.get("topic").and_then(Value::as_str), Some(topic));
         }
     }
 }

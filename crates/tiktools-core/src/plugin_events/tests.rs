@@ -57,10 +57,7 @@ fn stable_domain_payload_does_not_expose_the_internal_enum() {
         total_points: 4.0,
         level: 1,
     };
-    let envelope = DomainEventEnvelope::new(
-        event.topic(),
-        serde_json::to_value(&event).unwrap()["data"].clone(),
-    );
+    let envelope = event.to_envelope().expect("variant must convert");
     assert_eq!(envelope.topic, "points.changed");
     assert_eq!(envelope.data["uniqueId"], "viewer");
     assert!(serde_json::to_value(envelope)

@@ -163,11 +163,27 @@ impl ControlApi {
 /// Maps one domain event onto the JSON-RPC notification envelope:
 /// `{ jsonrpc, method: "event", params: { topic, data } }`.
 pub fn event_notification(event: &tiktools_core::events::DomainEvent) -> Value {
-    serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": "event",
-        "params": serde_json::to_value(event).unwrap_or(Value::Null),
-    })
+    // The notification params carry the event's own `{topic, data}` serde
+    // form (unit variants serialize without a `data` key); only a
+    // conversion failure substitutes the explicit error marker below.
+    match serde_json::to_value(event) {
+        Ok(params) => serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "event",
+            "params": params,
+        }),
+        Err(error) => {
+            tracing::error!(topic = event.topic(), %error, "domain event failed envelope conversion");
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "event",
+                "params": {
+                    "topic": event.topic(),
+                    "data": { "error": "event_serialization_failed" },
+                },
+            })
+        }
+    }
 }
 
 /// Maps a reliable-lane lag onto the JSON-RPC gap notification envelope:

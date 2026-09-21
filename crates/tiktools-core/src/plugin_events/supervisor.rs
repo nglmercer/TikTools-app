@@ -5,7 +5,7 @@ use super::queue::{QueuedPluginEvent, WorkerHandle, PLUGIN_EVENT_QUEUE_CAPACITY}
 use super::worker::run_plugin_queue;
 use crate::events::{DomainEvent, DomainRecvError};
 use crate::{now_millis, AppCore};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -76,13 +76,19 @@ fn dispatch_event(
     shutdown: &CancellationToken,
 ) {
     let lossy = event.is_lossy();
-    let envelope = DomainEventEnvelope::new(
-        event.topic(),
-        serde_json::to_value(&event)
-            .ok()
-            .and_then(|value| value.get("data").cloned())
-            .unwrap_or(Value::Null),
-    );
+    let envelope = match event.to_envelope() {
+        Ok(envelope) => envelope,
+        Err(error) => {
+            // Invariant violation: drop the event loudly instead of
+            // delivering fabricated `null` data. Reliable drops also
+            // record a gap so subscribers refresh authoritative state.
+            tracing::error!(topic = event.topic(), %error, "domain event failed envelope conversion");
+            if !lossy {
+                core.record_event_gap();
+            }
+            return;
+        }
+    };
     dispatch_envelope(core, envelope, lossy, false, workers, tasks, shutdown);
 }
 
