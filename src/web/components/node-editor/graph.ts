@@ -1,4 +1,5 @@
 import type {
+  AutomationEventType,
   JsonObject,
   JsonValue,
   NodeDefinition,
@@ -135,6 +136,34 @@ export function normalizeWorkflowGraph(graph: WorkflowGraph, definitions: NodeDe
     return edge.kind === 'flow' || compatiblePorts(sourcePort, targetPort);
   }).map((edge) => ({ ...edge }));
   return { ...graph, nodes, edges };
+}
+
+/** Deep-clones the mutable graph containers so drafts never alias prop state. */
+export function cloneGraph(graph: WorkflowGraph): WorkflowGraph {
+  return {
+    ...graph,
+    nodes: graph.nodes.map((node) => ({ ...node, position: { ...node.position }, config: { ...node.config } })),
+    edges: graph.edges.map((edge) => ({ ...edge })),
+  };
+}
+
+/** Structural draft comparison for dirty tracking. */
+export function graphsEqual(left: WorkflowGraph, right: WorkflowGraph): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/** Clones a stored or draft graph into an editable, catalog-normalized draft. */
+export function prepareGraph(graph: WorkflowGraph, definitions: NodeDefinition[]): WorkflowGraph {
+  const cloned = cloneGraph(graph);
+  return definitions.length > 0 ? normalizeWorkflowGraph(cloned, definitions) : cloned;
+}
+
+/** Reads the trigger event type selected in a graph, if any. */
+export function eventTypeForGraph(graph: WorkflowGraph | null): AutomationEventType | undefined {
+  const trigger = graph?.nodes.find((node) => node.type === 'trigger.event');
+  const eventType = trigger?.config.eventType;
+  if (typeof eventType !== 'string') return undefined;
+  return eventType as AutomationEventType;
 }
 
 export function firstFlowInput(definition: NodeDefinition): PortDefinition | undefined {
