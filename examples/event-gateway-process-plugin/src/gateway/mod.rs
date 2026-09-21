@@ -7,6 +7,7 @@ mod state;
 mod tests;
 mod topics;
 mod websocket;
+mod widgets;
 
 use self::config::{load_config, persist_generated_token};
 use self::server::run_server;

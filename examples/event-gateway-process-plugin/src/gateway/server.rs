@@ -172,6 +172,9 @@ async fn handle_connection(stream: TcpStream, state: Arc<GatewayState>) -> io::R
         ("GET", "/ws") => {
             websocket_connection(stream, state, headers, origin.as_deref(), version).await
         }
+        ("GET", path) if super::widgets::is_widget_route(path) => {
+            super::widgets::serve_widget_request(&mut stream, state, path, origin.as_deref()).await
+        }
         _ => {
             write_http_response(
                 &mut stream,

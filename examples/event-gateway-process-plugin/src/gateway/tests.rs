@@ -124,6 +124,108 @@ fn match_all_and_exact_topics() {
 }
 
 #[test]
+fn widget_routes_cover_index_and_assets() {
+    use super::widgets::{is_widget_index, is_widget_route};
+    assert!(is_widget_route("/widgets"));
+    assert!(is_widget_route("/widgets/"));
+    assert!(is_widget_route("/widgets/follow/"));
+    assert!(is_widget_route("/widgets/gift/index.html"));
+    assert!(!is_widget_route("/widgets-follow/"));
+    assert!(!is_widget_route("/health"));
+    assert!(is_widget_index("/widgets"));
+    assert!(is_widget_index("/widgets/"));
+    assert!(!is_widget_index("/widgets/follow/"));
+}
+
+#[test]
+fn widget_segments_map_names_to_index_and_reject_traversal() {
+    use super::widgets::widget_asset_segments;
+    assert_eq!(
+        widget_asset_segments("/widgets/follow/"),
+        Some(vec!["follow".to_owned(), "index.html".to_owned()])
+    );
+    assert_eq!(
+        widget_asset_segments("/widgets/gift"),
+        Some(vec!["gift".to_owned(), "index.html".to_owned()])
+    );
+    assert_eq!(
+        widget_asset_segments("/widgets/follow/assets/app.js"),
+        Some(vec![
+            "follow".to_owned(),
+            "assets".to_owned(),
+            "app.js".to_owned()
+        ])
+    );
+    assert_eq!(widget_asset_segments("/widgets/"), None);
+    assert_eq!(widget_asset_segments("/widgets"), None);
+    assert_eq!(widget_asset_segments("/widgets/other/"), None);
+    assert_eq!(widget_asset_segments("/widgets/../secret"), None);
+    assert_eq!(widget_asset_segments("/widgets/follow/../../secret"), None);
+    assert_eq!(widget_asset_segments("/widgets/%2e%2e/secret"), None);
+    assert_eq!(widget_asset_segments("/widgets/follow%2f..%2fsecret"), None);
+    assert_eq!(widget_asset_segments("/widgets/follow\\..\\secret"), None);
+    assert_eq!(widget_asset_segments("/widgets/%"), None);
+    assert_eq!(widget_asset_segments("/widgets/%zz"), None);
+}
+
+#[test]
+fn widget_content_types_cover_built_assets() {
+    use super::widgets::widget_content_type;
+    assert_eq!(
+        widget_content_type("index.html"),
+        "text/html; charset=utf-8"
+    );
+    assert_eq!(
+        widget_content_type("app.js"),
+        "text/javascript; charset=utf-8"
+    );
+    assert_eq!(
+        widget_content_type("app.mjs"),
+        "text/javascript; charset=utf-8"
+    );
+    assert_eq!(widget_content_type("app.css"), "text/css; charset=utf-8");
+    assert_eq!(widget_content_type("icon.svg"), "image/svg+xml");
+    assert_eq!(widget_content_type("font.woff2"), "font/woff2");
+    assert_eq!(widget_content_type("APP.CSS"), "text/css; charset=utf-8");
+    assert_eq!(
+        widget_content_type("no-extension"),
+        "application/octet-stream"
+    );
+}
+
+#[test]
+fn widgets_root_prefers_explicit_existing_dir() {
+    use super::widgets::widgets_root;
+    let dir = std::env::temp_dir().join(format!("tiktools-widgets-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let config = GatewayConfig {
+        widgets_dir: Some(dir.clone()),
+        ..GatewayConfig::default()
+    };
+    assert_eq!(widgets_root(&config), Some(dir.clone()));
+    let config = GatewayConfig {
+        widgets_dir: Some(dir.join("missing")),
+        ..GatewayConfig::default()
+    };
+    assert_eq!(widgets_root(&config), None);
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn widgets_dir_setting_parses_and_validates() {
+    let config = GatewayConfig::from_settings(&json!({"widgetsDir": "/tmp/widgets"})).unwrap();
+    assert_eq!(
+        config.widgets_dir,
+        Some(std::path::PathBuf::from("/tmp/widgets"))
+    );
+    let config = GatewayConfig::from_settings(&json!({})).unwrap();
+    assert_eq!(config.widgets_dir, None);
+    let config = GatewayConfig::from_settings(&json!({"widgetsDir": ""})).unwrap();
+    assert_eq!(config.widgets_dir, None);
+    assert!(GatewayConfig::from_settings(&json!({"widgetsDir": 42})).is_err());
+}
+
+#[test]
 fn token_comparison_covers_equal_and_unequal() {
     assert!(tokens_equal("ttk_secret", "ttk_secret"));
     assert!(!tokens_equal("ttk_secret", "ttk_secreu"));

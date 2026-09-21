@@ -10,6 +10,7 @@ import {
   IconBarChart,
   IconChat,
   IconCoins,
+  IconGift,
   IconRadio,
   IconSettings,
   IconSparkles,
@@ -38,6 +39,7 @@ const builtinTabs = computed<NavigationTab[]>(() => [
   { id: 'connect', tooltip: t(props.locale, 'tabConnect'), icon: IconRadio },
   { id: 'behavior', tooltip: t(props.locale, 'tabBehavior'), icon: IconSparkles },
   { id: 'plugins', tooltip: t(props.locale, 'tabPlugins'), icon: IconPlugins },
+  { id: 'widgets', tooltip: t(props.locale, 'tabWidgets'), icon: IconGift },
   { id: 'settings', tooltip: t(props.locale, 'tabSettings'), icon: IconSettings },
 ]);
 

@@ -11,6 +11,7 @@ import { PluginPageView } from './views/plugin-page-view.vue';
 import { PluginsView } from './views/plugins-view.vue';
 import { PointsView } from './views/points-view.vue';
 import { SettingsView } from './views/settings-view.vue';
+import { WidgetsView } from './views/widgets-view.vue';
 import NavigationRail from './components/nav-rail.vue';
 import TopNav from './components/top-nav.vue';
 import PluginProgressNotification from './components/plugin-progress-notification.vue';
@@ -203,6 +204,14 @@ const activePluginBackend = computed(() => {
         :on-open-media-picker="app.openMediaPicker"
         :on-provision-token="app.handleProvisionPluginToken"
         :on-open-plugins="app.openPlugins"
+      />
+
+      <WidgetsView
+        v-else-if="app.activeTab === 'widgets'"
+        :locale="app.locale"
+        :plugins="app.behavior.plugins"
+        :settings="app.pluginSettings"
+        :on-get-settings="app.handleGetPluginSettings"
       />
 
       <SettingsView

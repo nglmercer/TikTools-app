@@ -69,6 +69,14 @@ plugins are trusted in-process code; process plugins provide crash isolation,
 while WASM provides a sandbox boundary whose WASI and host capabilities are
 explicitly selected by TikTools.
 
+### Widgets
+
+Widgets are OBS Browser Source alerts for follows and gifts. They render the same canonical live events the dashboard shows; they never connect to TikTok directly.
+
+Each widget card shows the OBS URL built from the Event Gateway settings (host, port, and access token), a copy button, and a live preview. Paste the copied URL into OBS as a Browser Source (transparent background is already handled). The token travels in the URL fragment (`#token=…`), which browsers never send to the server — do not move it into the query string.
+
+Previews play one synthetic alert locally and need no live connection. If the gateway status shows as unreachable from this page, the gateway may be stopped or this page's origin may not be in its allowed-origins list; the OBS URLs still work once the gateway runs.
+
 ### Settings
 
 Settings controls the interface language and dark/light theme. Preferences are saved in WebView local storage.

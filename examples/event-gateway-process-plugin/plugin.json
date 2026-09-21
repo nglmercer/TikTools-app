@@ -41,6 +41,11 @@
           "title": "Access token",
           "secret": true,
           "description": "Generated on first start. Use it in the WebSocket auth message or an HTTP Bearer token."
+        },
+        "widgetsDir": {
+          "type": "string",
+          "title": "Widget assets directory",
+          "description": "Optional override for the /widgets/ static asset root. Defaults to widgets/ or dist/widgets/ beside the gateway executable."
         }
       }
     },

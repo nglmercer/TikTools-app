@@ -21,6 +21,7 @@ pub struct GatewayConfig {
     pub bind: IpAddr,
     pub allowed_origins: Vec<String>,
     pub token: String,
+    pub widgets_dir: Option<PathBuf>,
 }
 
 impl Default for GatewayConfig {
@@ -30,6 +31,7 @@ impl Default for GatewayConfig {
             bind: DEFAULT_BIND.parse().expect("default gateway bind is valid"),
             allowed_origins: vec![DEFAULT_ORIGIN.to_owned()],
             token: String::new(),
+            widgets_dir: None,
         }
     }
 }
@@ -101,6 +103,20 @@ impl GatewayConfig {
                     return Err("token is too long".to_owned());
                 }
                 config.token = token.to_owned();
+            }
+        }
+        if let Some(dir) = object.get("widgetsDir") {
+            // Missing, null, or blank means "probe beside the executable";
+            // only a mistyped non-empty value is a startup error.
+            if dir.is_null() {
+                // Explicit null: keep the default probing behavior.
+            } else if let Some(dir) = dir.as_str().map(str::trim).filter(|dir| !dir.is_empty()) {
+                if dir.len() > 4096 {
+                    return Err("widgetsDir is too long".to_owned());
+                }
+                config.widgets_dir = Some(PathBuf::from(dir));
+            } else if dir.as_str().is_none() {
+                return Err("widgetsDir must be a directory path".to_owned());
             }
         }
         if config.token.is_empty() {
