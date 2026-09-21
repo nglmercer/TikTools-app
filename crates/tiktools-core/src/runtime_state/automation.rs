@@ -12,9 +12,9 @@ impl AppCore {
     }
 
     pub(crate) fn remember_automation_event(&self, event: &serde_json::Value) {
-        *write_or_recover(&self.automation_state.last_event, "automation event") =
+        *recover_rwlock_write(&self.automation_state.last_event, "automation event") =
             Some(event.clone());
-        *write_or_recover(&self.automation_state.last_event_at, "automation timestamp") =
+        *recover_rwlock_write(&self.automation_state.last_event_at, "automation timestamp") =
             Some(now_millis());
         if let Some(event_type) = event.get("type").and_then(Value::as_str) {
             // Any `<namespace>.status` plugin event carries listener health:
@@ -57,7 +57,7 @@ impl AppCore {
         {
             self.emit(HostMessage::AutomationContext {
                 event: Some(event.clone()),
-                captured_at: *read_or_recover(
+                captured_at: *recover_rwlock_read(
                     &self.automation_state.last_event_at,
                     "automation timestamp",
                 ),
@@ -67,9 +67,10 @@ impl AppCore {
 
     /// Last automation event observed, for context panels and test previews.
     pub fn automation_context(&self) -> (Option<Value>, Option<u64>) {
-        let event = read_or_recover(&self.automation_state.last_event, "automation event").clone();
+        let event =
+            recover_rwlock_read(&self.automation_state.last_event, "automation event").clone();
         let captured_at =
-            *read_or_recover(&self.automation_state.last_event_at, "automation timestamp");
+            *recover_rwlock_read(&self.automation_state.last_event_at, "automation timestamp");
         (event, captured_at)
     }
 }

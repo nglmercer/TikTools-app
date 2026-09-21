@@ -30,7 +30,9 @@ mod runtime_state;
 mod tests;
 
 pub(crate) use helpers::*;
-pub(crate) use tiktools_plugin_api::sync::{mutex_or_recover, read_or_recover, write_or_recover};
+pub(crate) use tiktools_plugin_api::sync::{
+    recover_mutex, recover_rwlock_read, recover_rwlock_write,
+};
 
 use std::{
     collections::BTreeMap,
@@ -321,7 +323,7 @@ impl AppCore {
         tiktools_plugin_loader::InstalledPluginPackage,
         tiktools_plugin_loader::PluginLoaderError,
     > {
-        let _install_lock = mutex_or_recover(&self.plugin_state.install_lock, "plugin install");
+        let _install_lock = recover_mutex(&self.plugin_state.install_lock, "plugin install");
         let paths = self.db.paths();
         let installer = tiktools_plugin_loader::PluginInstaller {
             plugin_directory: paths.plugins.clone(),
@@ -361,7 +363,7 @@ impl AppCore {
         &self,
         id: &str,
     ) -> Result<(), tiktools_plugin_loader::PluginLoaderError> {
-        let _install_lock = mutex_or_recover(&self.plugin_state.install_lock, "plugin install");
+        let _install_lock = recover_mutex(&self.plugin_state.install_lock, "plugin install");
         let plugin = self
             .plugins
             .get(id)
@@ -434,11 +436,11 @@ impl AppCore {
             .publish_domain(crate::events::DomainEvent::Shutdown);
         self.publish_disconnected_event().await;
         self.live.disconnect().await;
-        let task = mutex_or_recover(&self.plugin_state.poll_task, "plugin poll task").take();
+        let task = recover_mutex(&self.plugin_state.poll_task, "plugin poll task").take();
         if let Some(task) = task {
             let _ = task.await;
         }
-        let observer_task = mutex_or_recover(
+        let observer_task = recover_mutex(
             &self.plugin_state.observer_task,
             "plugin event observer task",
         )

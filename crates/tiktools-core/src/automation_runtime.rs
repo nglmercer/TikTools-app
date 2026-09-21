@@ -10,7 +10,7 @@ impl AppCore {
         action: &Value,
         trigger: Option<&str>,
     ) -> Value {
-        let event = read_or_recover(&self.automation_state.last_event, "automation event")
+        let event = recover_rwlock_read(&self.automation_state.last_event, "automation event")
             .clone()
             .unwrap_or_else(|| sample_automation_event(trigger.unwrap_or("tiktok.chat")));
         self.execute_action(action, &event, None, true).await
@@ -22,7 +22,7 @@ impl AppCore {
             .get("trigger")
             .and_then(Value::as_str)
             .unwrap_or("tiktok.chat");
-        let event = read_or_recover(&self.automation_state.last_event, "automation event")
+        let event = recover_rwlock_read(&self.automation_state.last_event, "automation event")
             .clone()
             .filter(|event| event.get("type").and_then(Value::as_str) == Some(trigger))
             .unwrap_or_else(|| {

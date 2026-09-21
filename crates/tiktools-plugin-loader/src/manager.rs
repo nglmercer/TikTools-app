@@ -11,7 +11,7 @@ use std::{
 
 use serde_json::Value;
 use tiktools_plugin_api::{
-    sync::{mutex_or_recover, read_or_recover, write_or_recover},
+    sync::{recover_mutex, recover_rwlock_read, recover_rwlock_write},
     PluginRuntimeKind,
 };
 
@@ -176,7 +176,7 @@ impl PluginManager {
     }
 
     pub fn list(&self) -> Vec<DiscoveredPlugin> {
-        read_or_recover(&self.registry, "plugin registry")
+        recover_rwlock_read(&self.registry, "plugin registry")
             .entries
             .values()
             .cloned()
@@ -184,14 +184,14 @@ impl PluginManager {
     }
 
     pub fn get(&self, id: &str) -> Option<DiscoveredPlugin> {
-        read_or_recover(&self.registry, "plugin registry")
+        recover_rwlock_read(&self.registry, "plugin registry")
             .entries
             .get(id)
             .cloned()
     }
 
     pub fn is_running(&self, id: &str) -> bool {
-        read_or_recover(&self.instances, "plugin instances").contains_key(id)
+        recover_rwlock_read(&self.instances, "plugin instances").contains_key(id)
     }
 
     pub fn start(&self, id: &str) -> Result<(), PluginLoaderError> {
@@ -232,7 +232,7 @@ impl PluginManager {
             })?;
         // The worker thread is already spawned here, so a poisoned map
         // recovers instead of failing midway through the mutation.
-        write_or_recover(&self.instances, "plugin instances").insert(
+        recover_rwlock_write(&self.instances, "plugin instances").insert(
             id.to_owned(),
             Arc::new(RunningInstance {
                 token,
@@ -261,7 +261,7 @@ impl PluginManager {
         let _ = instance.tx.send(WorkerMsg::Shutdown);
         // The instance is already removed from the map here, so a
         // poisoned worker lock recovers instead of failing the stop.
-        let worker = mutex_or_recover(&instance.worker, "plugin worker").take();
+        let worker = recover_mutex(&instance.worker, "plugin worker").take();
         let result = match worker {
             Some(worker) => worker
                 .join()
@@ -274,7 +274,7 @@ impl PluginManager {
     }
 
     pub fn stop_all(&self) {
-        let ids: Vec<String> = read_or_recover(&self.instances, "plugin instances")
+        let ids: Vec<String> = recover_rwlock_read(&self.instances, "plugin instances")
             .keys()
             .cloned()
             .collect();
@@ -300,7 +300,7 @@ impl PluginManager {
     /// in [`Self::call_with_deadline`] then finds the grace already consumed,
     /// so concurrent first calls never double-extend it.
     pub fn claim_cold_start_grace(&self, id: &str, timeout: Duration) -> Duration {
-        let cold_process = read_or_recover(&self.instances, "plugin instances")
+        let cold_process = recover_rwlock_read(&self.instances, "plugin instances")
             .get(id)
             .filter(|instance| instance.kind == PluginRuntimeKind::Process)
             .is_some_and(|instance| instance.cold.swap(false, Ordering::AcqRel));
@@ -428,7 +428,7 @@ impl PluginManager {
     }
 
     fn set_running(&self, id: &str, running: bool) {
-        if let Some(plugin) = write_or_recover(&self.registry, "plugin registry")
+        if let Some(plugin) = recover_rwlock_write(&self.registry, "plugin registry")
             .entries
             .get_mut(id)
         {
@@ -437,7 +437,7 @@ impl PluginManager {
     }
 
     fn remove_instance(&self, id: &str) -> Option<Arc<RunningInstance>> {
-        write_or_recover(&self.instances, "plugin instances").remove(id)
+        recover_rwlock_write(&self.instances, "plugin instances").remove(id)
     }
 
     /// Retires the instance generation identified by `token`; a newer start
@@ -445,8 +445,8 @@ impl PluginManager {
     /// stuck plugin cannot block the hot path that observed the failure.
     fn remove_failed_worker(&self, id: &str, token: u64) {
         let removed = {
-            let _lifecycle = mutex_or_recover(&self.lifecycle, "plugin lifecycle");
-            let mut instances = write_or_recover(&self.instances, "plugin instances");
+            let _lifecycle = recover_mutex(&self.lifecycle, "plugin lifecycle");
+            let mut instances = recover_rwlock_write(&self.instances, "plugin instances");
             if instances
                 .get(id)
                 .is_some_and(|current| current.token == token)

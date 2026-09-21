@@ -14,7 +14,7 @@ use std::{
 };
 
 use serde_json::{json, Value};
-use tiktools_plugin_api::sync::mutex_or_recover;
+use tiktools_plugin_api::sync::recover_mutex;
 
 /// Source-id prefix for plugin dynamic options. The remainder is
 /// `<actionType>:<field>`; action type ids never contain a colon, so the
@@ -56,7 +56,7 @@ impl OptionSourceService {
     }
 
     pub fn cached(&self, source: &str) -> Option<(Vec<Value>, Option<String>)> {
-        let mut cache = mutex_or_recover(&self.cache, "option cache");
+        let mut cache = recover_mutex(&self.cache, "option cache");
         let entry = cache.get(source)?;
         if entry.fetched_at.elapsed() > OPTION_SOURCE_TTL {
             cache.remove(source);
@@ -66,7 +66,7 @@ impl OptionSourceService {
     }
 
     pub fn store(&self, source: &str, options: Vec<Value>, selected: Option<String>) {
-        mutex_or_recover(&self.cache, "option cache").insert(
+        recover_mutex(&self.cache, "option cache").insert(
             source.to_owned(),
             CachedOptions {
                 fetched_at: Instant::now(),
@@ -77,14 +77,14 @@ impl OptionSourceService {
     }
 
     pub fn clear(&self) {
-        mutex_or_recover(&self.cache, "option cache").clear();
+        recover_mutex(&self.cache, "option cache").clear();
     }
 
     /// Drops one cached option list. Explicit refresh after a
     /// state-changing action calls this so the next read re-fetches instead
     /// of serving the pre-mutation selection until the TTL expires.
     pub fn invalidate(&self, source: &str) {
-        mutex_or_recover(&self.cache, "option cache").remove(source);
+        recover_mutex(&self.cache, "option cache").remove(source);
     }
 
     /// Drops every cached option list owned by one action type (all fields).
@@ -92,7 +92,7 @@ impl OptionSourceService {
     /// so its own option sources are never served stale afterwards. Other
     /// actions keep their cached entries.
     pub fn invalidate_action(&self, action_type: &str) {
-        let owned: Vec<String> = mutex_or_recover(&self.cache, "option cache")
+        let owned: Vec<String> = recover_mutex(&self.cache, "option cache")
             .keys()
             .filter(|source| {
                 parse_option_source(source)

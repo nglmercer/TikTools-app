@@ -45,7 +45,7 @@ impl AppCore {
             return;
         }
         let source = fresh_poll_context(
-            &read_or_recover(&self.automation_state.last_event, "automation event")
+            &recover_rwlock_read(&self.automation_state.last_event, "automation event")
                 .clone()
                 .unwrap_or_else(|| json!({})),
         );

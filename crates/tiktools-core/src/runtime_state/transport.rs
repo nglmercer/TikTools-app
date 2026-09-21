@@ -8,22 +8,22 @@ impl AppCore {
     /// instead of silently losing CLI/agent connectivity while the GUI
     /// looks healthy. `None` clears the degraded state after a retry.
     pub fn set_ipc_error(&self, message: Option<String>) {
-        *write_or_recover(&self.transport_state.ipc_error, "ipc error") = message;
+        *recover_rwlock_write(&self.transport_state.ipc_error, "ipc error") = message;
     }
 
     pub fn ipc_error(&self) -> Option<String> {
-        read_or_recover(&self.transport_state.ipc_error, "ipc error").clone()
+        recover_rwlock_read(&self.transport_state.ipc_error, "ipc error").clone()
     }
 
     /// Records a broken WebView transport (reliable outbox overflow) so
     /// `system.health` reports degraded instead of silently losing the UI
     /// while RPCs fail. `None` clears the degraded state after recovery.
     pub fn set_webview_error(&self, message: Option<String>) {
-        *write_or_recover(&self.transport_state.webview_error, "webview error") = message;
+        *recover_rwlock_write(&self.transport_state.webview_error, "webview error") = message;
     }
 
     pub fn webview_error(&self) -> Option<String> {
-        read_or_recover(&self.transport_state.webview_error, "webview error").clone()
+        recover_rwlock_read(&self.transport_state.webview_error, "webview error").clone()
     }
 
     /// Records one reliable-lane event gap observed by a transport. The

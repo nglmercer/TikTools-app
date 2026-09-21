@@ -19,7 +19,7 @@ use std::{
 
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
-use tiktools_plugin_api::sync::mutex_or_recover;
+use tiktools_plugin_api::sync::recover_mutex;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf};
 
 use crate::{transport, MAX_REQUEST_BYTES, REQUEST_TIMEOUT};
@@ -266,7 +266,7 @@ impl ControlClient {
         if let Err(error) = write_outcome {
             // Already failing: recover so the poison never masks the
             // original write error.
-            mutex_or_recover(&self.pending, "control client pending").remove(&id);
+            recover_mutex(&self.pending, "control client pending").remove(&id);
             return Err(error);
         }
         match tokio::time::timeout(REQUEST_TIMEOUT, receiver).await {
@@ -275,7 +275,7 @@ impl ControlClient {
             Err(_) => {
                 // Already failing: recover so the poison never masks the
                 // original timeout.
-                mutex_or_recover(&self.pending, "control client pending").remove(&id);
+                recover_mutex(&self.pending, "control client pending").remove(&id);
                 Err(ClientError::new("timeout", "request timed out"))
             }
         }
@@ -336,7 +336,7 @@ async fn reader_task(
     // The host went away: fail every still-pending call so concurrent
     // waiters never hang until their timeout.
     let senders = {
-        let mut pending = mutex_or_recover(&pending, "control client pending");
+        let mut pending = recover_mutex(&pending, "control client pending");
         std::mem::take(&mut *pending)
     };
     for (_, sender) in senders {
@@ -403,7 +403,7 @@ fn handle_client_line(
     }
     let response_id = value.get("id").and_then(Value::as_i64).unwrap_or(-1);
     let sender = {
-        let mut pending = mutex_or_recover(pending, "control client pending");
+        let mut pending = recover_mutex(pending, "control client pending");
         pending.remove(&response_id)
     };
     let Some(sender) = sender else {
@@ -634,6 +634,33 @@ mod client_line_tests {
             .expect("sender alive")
             .expect("valid response resolves");
         assert_eq!(outcome, serde_json::json!({"ok": true}));
+    }
+
+    #[tokio::test]
+    async fn recovery_clears_poison_so_later_pending_state_is_normal() {
+        let (pending, events) = harness();
+        let receiver = listen(&pending, 11);
+        poison(&pending);
+        handle_client_line(
+            r#"{"jsonrpc":"2.0","id":11,"result":{"ok":true}}"#,
+            &pending,
+            &events,
+        );
+        let outcome = tokio::time::timeout(Duration::from_secs(5), receiver)
+            .await
+            .expect("resolves promptly")
+            .expect("sender alive")
+            .expect("valid response resolves");
+        assert_eq!(outcome, serde_json::json!({"ok": true}));
+        // The response path recovers, so the sticky flag is cleared: later
+        // acquisitions behave normally instead of re-reporting poison, and
+        // no pending sender leaks.
+        assert!(!pending.is_poisoned());
+        assert!(pending.lock().is_ok());
+        assert!(pending
+            .lock()
+            .expect("cleared lock stays usable")
+            .is_empty());
     }
 
     #[cfg(unix)]

@@ -37,7 +37,7 @@ impl AppCore {
     // including the WebView, funnels through them.
     #[cfg(feature = "persistence")]
     pub(crate) fn current_creator_unique_id(&self) -> Option<String> {
-        read_or_recover(&self.connection_context, "connection context")
+        recover_rwlock_read(&self.connection_context, "connection context")
             .as_ref()
             .map(|context| context.unique_id.clone())
     }

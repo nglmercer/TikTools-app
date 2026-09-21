@@ -10,7 +10,7 @@ use std::{
 };
 
 use super::{ProcessorError, ProcessorKey, TimedEnrichment};
-use crate::{mutex_or_recover, now_millis, plugin_backoff_seconds, PluginHealth};
+use crate::{now_millis, plugin_backoff_seconds, recover_mutex, PluginHealth};
 use serde_json::Value;
 
 #[derive(Debug, Clone, Default)]
@@ -67,7 +67,7 @@ impl ProcessorSettingsStore {
     /// lock so disk reads never block concurrent enrichment.
     pub(crate) fn settings_for(&self, plugin_id: &str, load: impl FnOnce() -> Value) -> Value {
         let revision = {
-            let cache = mutex_or_recover(&self.cache, "processor settings");
+            let cache = recover_mutex(&self.cache, "processor settings");
             match cache.get(plugin_id) {
                 Some(entry) if entry.loaded_revision == entry.current_revision => {
                     return entry.settings.clone();
@@ -77,7 +77,7 @@ impl ProcessorSettingsStore {
             }
         };
         let settings = load();
-        let mut cache = mutex_or_recover(&self.cache, "processor settings");
+        let mut cache = recover_mutex(&self.cache, "processor settings");
         let entry = cache.entry(plugin_id.to_owned()).or_default();
         entry.settings = settings.clone();
         entry.loaded_revision = revision;
@@ -85,7 +85,7 @@ impl ProcessorSettingsStore {
     }
 
     pub(crate) fn bump_revision(&self, plugin_id: &str) {
-        let mut cache = mutex_or_recover(&self.cache, "processor settings");
+        let mut cache = recover_mutex(&self.cache, "processor settings");
         let entry = cache.entry(plugin_id.to_owned()).or_default();
         entry.current_revision = entry.current_revision.saturating_add(1);
     }
@@ -95,7 +95,7 @@ pub(crate) fn processor_retry_allowed(
     health: &Mutex<BTreeMap<ProcessorKey, PluginHealth>>,
     key: &ProcessorKey,
 ) -> bool {
-    mutex_or_recover(health, "processor health")
+    recover_mutex(health, "processor health")
         .get(key)
         .and_then(|health| health.next_retry_at)
         .is_none_or(|next_retry_at| Instant::now() >= next_retry_at)
@@ -106,7 +106,7 @@ pub(crate) fn record_processor_failure(
     key: &ProcessorKey,
     error: String,
 ) {
-    let mut health = mutex_or_recover(health, "processor health");
+    let mut health = recover_mutex(health, "processor health");
     let entry = health.entry(key.clone()).or_insert(PluginHealth {
         consecutive_failures: 0,
         next_retry_at: None,
@@ -130,7 +130,7 @@ pub(crate) fn record_processor_success(
     health: &Mutex<BTreeMap<ProcessorKey, PluginHealth>>,
     key: &ProcessorKey,
 ) {
-    let was_unhealthy = mutex_or_recover(health, "processor health")
+    let was_unhealthy = recover_mutex(health, "processor health")
         .remove(key)
         .is_some_and(|health| health.consecutive_failures > 0);
     if was_unhealthy {
@@ -148,7 +148,7 @@ pub(crate) fn record_processor_metrics(
     outcome: &Result<TimedEnrichment, ProcessorError>,
     duration_ms: u64,
 ) {
-    let mut metrics = mutex_or_recover(metrics, "processor metrics");
+    let mut metrics = recover_mutex(metrics, "processor metrics");
     let entry = metrics.entry(key.clone()).or_default();
     entry.calls = entry.calls.saturating_add(1);
     match outcome {

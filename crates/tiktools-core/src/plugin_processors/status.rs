@@ -3,7 +3,7 @@
 use std::{collections::BTreeMap, sync::Mutex, time::Instant};
 
 use super::{declared_processors, ProcessorKey, ProcessorMetrics};
-use crate::{mutex_or_recover, services::CapabilityBroker, PluginHealth};
+use crate::{recover_mutex, services::CapabilityBroker, PluginHealth};
 use serde_json::{json, Value};
 use tiktools_plugin_loader::PluginManager;
 
@@ -15,8 +15,8 @@ pub(crate) fn processor_status_entries(
     health: &Mutex<BTreeMap<ProcessorKey, PluginHealth>>,
     metrics: &Mutex<BTreeMap<ProcessorKey, ProcessorMetrics>>,
 ) -> Value {
-    let health = mutex_or_recover(health, "processor health");
-    let metrics = mutex_or_recover(metrics, "processor metrics");
+    let health = recover_mutex(health, "processor health");
+    let metrics = recover_mutex(metrics, "processor metrics");
     let mut entries = Vec::new();
     for plugin in plugins.list() {
         let plugin_id = plugin.manifest.id.clone();

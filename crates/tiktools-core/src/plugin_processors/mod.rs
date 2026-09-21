@@ -62,11 +62,11 @@ impl AppCore {
         let index = ContributionIndex::build(&self.plugins, &self.capabilities, |id| {
             self.plugin_ready(id)
         });
-        *write_or_recover(&self.processor_state.index, "processor index") = index;
+        *recover_rwlock_write(&self.processor_state.index, "processor index") = index;
     }
 
     pub(crate) fn eligible_processors(&self, event_type: &str) -> Vec<EligibleProcessor> {
-        read_or_recover(&self.processor_state.index, "processor index").eligible_for(event_type)
+        recover_rwlock_read(&self.processor_state.index, "processor index").eligible_for(event_type)
     }
 
     /// Runs the pre-filter enrichment pipeline over one canonical automation

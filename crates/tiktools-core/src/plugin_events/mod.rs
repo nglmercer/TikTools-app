@@ -16,7 +16,7 @@ mod worker;
 use std::sync::Arc;
 use supervisor::run_observer;
 
-use crate::{mutex_or_recover, AppCore};
+use crate::{recover_mutex, AppCore};
 
 impl AppCore {
     /// Starts the generic host-side observer once. This is separate from the
@@ -38,7 +38,7 @@ impl AppCore {
         let task = runtime.spawn(async move {
             run_observer(core, shutdown, subscription).await;
         });
-        *mutex_or_recover(
+        *recover_mutex(
             &self.plugin_state.observer_task,
             "plugin event observer task",
         ) = Some(task);
