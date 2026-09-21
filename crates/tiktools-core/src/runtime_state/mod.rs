@@ -20,6 +20,10 @@
 //! ownership, as do connection/session state, diagnostics projections, and
 //! shutdown flags (see the `AppCore` field docs).
 
+mod automation;
+mod plugins;
+mod transport;
+
 use std::{
     collections::BTreeMap,
     sync::{

@@ -425,13 +425,6 @@ impl AppCore {
         Ok(())
     }
 
-    pub(crate) fn next_sequence(&self) -> u64 {
-        self.automation_state
-            .sequence
-            .fetch_add(1, Ordering::AcqRel)
-            + 1
-    }
-
     pub async fn shutdown(self: &Arc<Self>) {
         if self.shutdown_started.swap(true, Ordering::AcqRel) {
             return;

@@ -3,41 +3,6 @@
 use crate::*;
 
 impl AppCore {
-    /// Starts the background poll that lets plugins publish spontaneous
-    /// events (hotkeys, timers, watchers).
-    pub fn spawn_plugin_event_poll(self: &Arc<Self>, runtime: &tokio::runtime::Handle) {
-        if self
-            .shutdown_started
-            .load(std::sync::atomic::Ordering::Acquire)
-            || self
-                .plugin_state
-                .poll_started
-                .swap(true, std::sync::atomic::Ordering::AcqRel)
-        {
-            return;
-        }
-        self.start_enabled_event_subscribers();
-        self.spawn_plugin_event_observer(runtime);
-        let core = Arc::clone(self);
-        let shutdown = Arc::clone(&self.plugin_state.poll_shutdown);
-        tracing::info!("plugin event poll started");
-        let task = runtime.spawn(async move {
-            let mut ticker = tokio::time::interval(PLUGIN_POLL_INTERVAL);
-            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            loop {
-                tokio::select! {
-                    _ = shutdown.notified() => break,
-                    _ = ticker.tick() => core.poll_plugin_events().await,
-                }
-            }
-        });
-        *self
-            .plugin_state
-            .poll_task
-            .lock()
-            .expect("plugin poll task lock poisoned") = Some(task);
-    }
-
     pub(crate) async fn poll_plugin_events(self: &Arc<Self>) {
         self.sync_hotkey_bindings().await;
         let candidates: Vec<(String, Vec<String>)> = self

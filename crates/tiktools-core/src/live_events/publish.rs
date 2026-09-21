@@ -60,66 +60,6 @@ impl AppCore {
             drop(permit);
         });
     }
-    pub(crate) fn remember_automation_event(&self, event: &serde_json::Value) {
-        *self
-            .automation_state
-            .last_event
-            .write()
-            .expect("automation event lock poisoned") = Some(event.clone());
-        *self
-            .automation_state
-            .last_event_at
-            .write()
-            .expect("automation timestamp lock poisoned") = Some(now_millis());
-        if let Some(event_type) = event.get("type").and_then(Value::as_str) {
-            // Any `<namespace>.status` plugin event carries listener health:
-            // publish it on the generic status topic. The legacy
-            // `hotkey-status` push stays as a compatibility path.
-            if event_type.ends_with(".status") {
-                if let Some(plugin_id) = plugin_owner(event) {
-                    self.events
-                        .publish_domain(crate::events::DomainEvent::PluginStatus {
-                            plugin_id,
-                            status: event.get("data").cloned().unwrap_or_else(|| json!({})),
-                        });
-                }
-            }
-            if event_type == "hotkey.status" {
-                self.emit(HostMessage::HotkeyStatus {
-                    status: event.get("data").cloned().unwrap_or_else(|| json!({})),
-                });
-            }
-        }
-        // DomainEvent delivery happens up front in `publish_live_domain_event`
-        // (before automation slots), never here, so saturation cannot drop
-        // control/UI events.
-        let now = now_millis();
-        let last = self
-            .automation_state
-            .last_context_emit_at
-            .load(std::sync::atomic::Ordering::Acquire);
-        if (last == 0 || now.saturating_sub(last) >= 100)
-            && self
-                .automation_state
-                .last_context_emit_at
-                .compare_exchange(
-                    last,
-                    now,
-                    std::sync::atomic::Ordering::AcqRel,
-                    std::sync::atomic::Ordering::Acquire,
-                )
-                .is_ok()
-        {
-            self.emit(HostMessage::AutomationContext {
-                event: Some(event.clone()),
-                captured_at: *self
-                    .automation_state
-                    .last_event_at
-                    .read()
-                    .expect("automation timestamp lock poisoned"),
-            });
-        }
-    }
     pub(crate) async fn publish_disconnected_event(self: &Arc<Self>) {
         let context = self
             .connection_context
