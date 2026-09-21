@@ -11,7 +11,9 @@ import {
   normalizeHandle,
   parseTtsSettings,
   sanitizeTtsSettings,
+  serializeTtsSettings,
   ttsFingerprint,
+  ttsSettingsKey,
   TtsDeduper,
   type TtsSettings,
 } from './tts-policy.ts';
@@ -64,6 +66,28 @@ describe('sanitizeTtsSettings', () => {
     expect(parseTtsSettings(undefined).enabled).toBe(false);
     expect(parseTtsSettings('not-json').enabled).toBe(false);
     expect(parseTtsSettings('{"enabled":true}').enabled).toBe(true);
+  });
+});
+
+describe('settings persistence', () => {
+  test('serialize/parse round-trips sanitized settings', () => {
+    const dirty = {
+      ...defaultTtsSettings(),
+      enabled: true,
+      volume: 9,
+      language: 'es',
+      allowedUsers: ['@Alice', 'alice'],
+      specialUsers: [{ handle: '@Cara', allowed: true, voice: 'F1', speed: 1, pitch: 1 }],
+    };
+    const clean = sanitizeTtsSettings(dirty);
+    expect(parseTtsSettings(serializeTtsSettings(dirty))).toEqual(clean);
+    expect(parseTtsSettings(serializeTtsSettings(dirty)).volume).toBe(1);
+    expect(parseTtsSettings(serializeTtsSettings(dirty)).allowedUsers).toEqual(['alice']);
+  });
+
+  test('settings keys are namespaced per plugin', () => {
+    expect(ttsSettingsKey('my-plugin')).toBe('tts.settings:my-plugin');
+    expect(ttsSettingsKey('a')).not.toBe(ttsSettingsKey('b'));
   });
 });
 
