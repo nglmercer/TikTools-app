@@ -9,6 +9,10 @@ justified** — every candidate is far from pressure at realistic load.
 
 - Linux x86_64, 12 CPUs; bun 1.4.0; cargo 1.97.1 (via
   `node scripts/cargo-with-linker.mjs`); branch `remake`.
+- Toolchain note: measurements were captured with bun 1.4.0 while the
+  repo pins bun 1.4.1 (`packageManager`). Numbers were NOT re-captured
+  and are left unchanged; a patch-version bump does not affect the
+  no-pressure conclusions below.
 - No `crates/*/benches` harness exists, so Rust numbers come from the
   existing unit-test suites (real code paths) plus engine-level proxies
   (`bun:sqlite` for SQLite statements, `cat` over pipes for frame RTT);
