@@ -1,6 +1,12 @@
 <script lang="tsx">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { IconChat, IconCheck, IconCopy, IconFollow, IconGift, IconRefresh, IconShare, IconStar } from '../components/icons.vue';
+import {
+  IconCheck,
+  IconCopy,
+  IconEdit,
+  IconRefresh,
+} from '../components/icons.vue';
+import widgetsOverlayGraphic from '../assets/widgets-overlay.svg';
 import { Button } from '../components/ui/Button.vue';
 import { Card, EmptyState } from '../components/ui/Card.vue';
 import { Page, PageHeader } from '../components/ui/Page.vue';
@@ -27,89 +33,165 @@ type WidgetsViewProps = {
   onCopy: (widget: WidgetKind, onDone: (feedback: WidgetsCopyFeedback) => void) => void;
 };
 
+type WidgetDefinition = {
+  kind: WidgetKind;
+  tabLabel: string;
+  title: string;
+  description: string;
+};
+
 /** Bounded re-probe while the gateway reports `starting`. */
 const STARTING_RETRIES = 5;
 const STARTING_RETRY_MS = 2000;
 
-function renderWidgetCard(args: {
+function renderWidgetTab(args: {
+  definition: WidgetDefinition;
+  selected: boolean;
+  onSelect: (widget: WidgetKind) => void;
+}) {
+  const { definition } = args;
+  return (
+    <button
+      id={`widgets-tab-${definition.kind}`}
+      type="button"
+      role="tab"
+      aria-selected={args.selected}
+      aria-controls="widgets-detail-panel"
+      class={`widgets-tab ${args.selected ? 'is-active' : ''}`}
+      onClick={() => args.onSelect(definition.kind)}
+    >
+      <span>{definition.tabLabel}</span>
+    </button>
+  );
+}
+
+function renderWidgetPanel(args: {
   locale: Locale;
-  widget: WidgetKind;
-  title: string;
-  description: string;
-  icon: typeof IconGift;
+  definition: WidgetDefinition;
   obsUrl: string;
-  copyReady: boolean;
   previewReady: boolean;
   previewUrl: string;
   previewKey: number;
+  copyReady: boolean;
   copied: boolean;
   copyError: string | null;
+  healthy: boolean;
+  statusText: string;
+  refreshing: boolean;
   onCopy: () => void;
+  onRefresh: () => void;
   onReplay: () => void;
 }) {
-  const { locale } = args;
+  const { locale, definition } = args;
   return (
-    <Card title={args.title} icon={<args.icon />}>
-      <p class="widgets-description">{args.description}</p>
-      <div class="widgets-field-label">{t(locale, 'widgetsObsUrl')}</div>
-      <div class="widgets-url-row">
-        <TextInput
-          value={args.obsUrl}
-          onValueChange={() => {}}
-          readonly
-          spellCheck={false}
-          autoComplete="off"
-        />
-        <Button
-          variant="soft"
-          size="md"
-          icon={args.copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
-          onClick={args.onCopy}
-          disabled={!args.copyReady}
-        >
-          {args.copied ? t(locale, 'widgetsCopied') : t(locale, 'widgetsCopyUrl')}
-        </Button>
-      </div>
-      {args.copyError ? <p class="widgets-hint">{args.copyError}</p> : null}
-      <p class="widgets-token-note">{t(locale, 'widgetsRedactedNote')}</p>
-      <div class="widgets-field-label">{t(locale, 'widgetsPreview')}</div>
-      {args.previewReady ? (
-        <>
+    <section
+      id="widgets-detail-panel"
+      class="widgets-detail-panel"
+      role="tabpanel"
+      aria-labelledby={`widgets-tab-${definition.kind}`}
+    >
+      <Card
+        className="widgets-detail-card"
+        title={definition.title}
+        action={
+          <div class="widgets-panel-status">
+            <span class={`widgets-status-badge ${args.healthy ? 'is-active' : 'is-muted'}`}>
+              <span class="widgets-status-badge__dot" aria-hidden="true" />
+              {args.healthy ? t(locale, 'widgetsActive') : args.statusText}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<IconRefresh size={14} />}
+              iconOnly
+              tooltip={t(locale, 'widgetsRefresh')}
+              loading={args.refreshing}
+              onClick={args.onRefresh}
+            />
+          </div>
+        }
+      >
+        <p class="widgets-description">{definition.description}</p>
+
+        <div class="widgets-field-label">{t(locale, 'widgetsObsUrl')}</div>
+        <div class="widgets-url-row">
+          <TextInput
+            value={args.obsUrl}
+            onValueChange={() => {}}
+            readonly
+            size="sm"
+            spellCheck={false}
+            autoComplete="off"
+          />
+          <Button
+            variant="soft"
+            size="md"
+            icon={args.copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+            onClick={args.onCopy}
+            disabled={!args.copyReady}
+          >
+            {args.copied ? t(locale, 'widgetsCopied') : t(locale, 'widgetsCopyUrlShort')}
+          </Button>
+        </div>
+        {args.copyError ? <p class="widgets-hint">{args.copyError}</p> : null}
+        <p class="widgets-token-note">{t(locale, 'widgetsRedactedNote')}</p>
+
+        <div class="widgets-field-label">{t(locale, 'widgetsPreview')}</div>
+        {args.previewReady ? (
           <div class="widgets-preview-frame">
             <iframe
-              key={`${args.widget}-${args.previewKey}`}
+              key={`${definition.kind}-${args.previewKey}`}
               src={args.previewUrl}
-              title={args.title}
+              title={definition.title}
               sandbox="allow-scripts"
             />
           </div>
-          <div class="widgets-preview-actions">
-            <Button variant="ghost" size="sm" icon={<IconRefresh size={14} />} onClick={args.onReplay}>
-              {t(locale, 'widgetsReplay')}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <EmptyState
-          title={t(locale, 'widgetsPreviewUnavailable')}
-          description={t(locale, 'widgetsPreviewUnavailableHint')}
-        />
-      )}
-    </Card>
+        ) : (
+          <EmptyState
+            title={t(locale, 'widgetsPreviewUnavailable')}
+            description={t(locale, 'widgetsPreviewUnavailableHint')}
+          />
+        )}
+
+        <div class="widgets-preview-actions">
+          <button
+            class="widgets-edit-design"
+            type="button"
+            disabled
+            title={t(locale, 'widgetsEditDesignHint')}
+            aria-label={`${t(locale, 'widgetsEditDesign')}: ${t(locale, 'widgetsEditDesignHint')}`}
+          >
+            <IconEdit size={17} />
+            <span>{t(locale, 'widgetsEditDesign')}</span>
+            <span class="widgets-edit-design__arrow" aria-hidden="true">›</span>
+          </button>
+          <Button
+            variant="ghost"
+            size="lg"
+            icon={<IconRefresh size={17} />}
+            block
+            onClick={args.onReplay}
+          >
+            {t(locale, 'widgetsReplay')}
+          </Button>
+        </div>
+      </Card>
+    </section>
   );
 }
 
 /**
- * Widgets: OBS Browser Source URLs for the Follow and Gift alerts. State
- * and copying are host-driven (`widgets.status`, `widgets.copyObsUrl`):
- * the page only renders the host state and a redacted URL placeholder,
- * never the real credential. Previews run the widget in local demo mode,
- * which needs no gateway connection.
+ * Widgets: one focused detail panel at a time. State and copying are
+ * host-driven (`widgets.status`, `widgets.copyObsUrl`): the page only renders
+ * the host state and a redacted URL placeholder, never the real credential.
+ * Previews run the widget in local demo mode, which needs no gateway
+ * connection.
  */
 export const WidgetsView = defineVueComponent<WidgetsViewProps>(
   ['locale', 'status', 'statusError', 'refreshing', 'onRefresh', 'onCopy'],
   (props) => {
     const previewNonce = ref(0);
+    const selectedKind = ref<WidgetKind>('follow');
     const copiedWidget = ref<WidgetKind | null>(null);
     const copyError = ref<{ widget: WidgetKind; message: string } | null>(null);
     const startingAttempts = ref(0);
@@ -165,6 +247,11 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
       });
     };
 
+    const selectWidget = (widget: WidgetKind): void => {
+      selectedKind.value = widget;
+      copyError.value = null;
+    };
+
     const manualRefresh = (): void => {
       startingAttempts.value = 0;
       props.onRefresh();
@@ -196,19 +283,9 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
     return () => {
       const locale = props.locale;
       const current = state.value;
-      const followUrl = buildRedactedObsUrl(port.value, 'follow');
-      const giftUrl = buildRedactedObsUrl(port.value, 'gift');
-      const chatUrl = buildRedactedObsUrl(port.value, 'chat');
-      const shareUrl = buildRedactedObsUrl(port.value, 'share');
-      const subscribeUrl = buildRedactedObsUrl(port.value, 'subscribe');
-      const followPreview = buildWidgetPreviewUrl(port.value, 'follow');
-      const giftPreview = buildWidgetPreviewUrl(port.value, 'gift');
-      const chatPreview = buildWidgetPreviewUrl(port.value, 'chat');
-      const sharePreview = buildWidgetPreviewUrl(port.value, 'share');
-      const subscribePreview = buildWidgetPreviewUrl(port.value, 'subscribe');
       const healthy = current === 'ready';
-      // Copy needs a stored credential; the host reports that through
-      // every state except the ones that prove it missing.
+      // Copy needs a stored credential; the host reports that through every
+      // state except the ones that prove it missing.
       const copyReady =
         current !== null &&
         current !== 'missing' &&
@@ -216,126 +293,82 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
         !props.refreshing;
       const previewReady = canPreviewWidgets(current);
       const hint = props.statusError ?? props.status?.error ?? null;
+      const definitions: WidgetDefinition[] = [
+        {
+          kind: 'follow',
+          tabLabel: t(locale, 'widgetsFollowTab'),
+          title: t(locale, 'widgetsFollowTitle'),
+          description: t(locale, 'widgetsFollowDescription'),
+        },
+        {
+          kind: 'gift',
+          tabLabel: t(locale, 'widgetsGiftTab'),
+          title: t(locale, 'widgetsGiftTitle'),
+          description: t(locale, 'widgetsGiftDescription'),
+        },
+        {
+          kind: 'chat',
+          tabLabel: t(locale, 'widgetsChatTab'),
+          title: t(locale, 'widgetsChatTitle'),
+          description: t(locale, 'widgetsChatDescription'),
+        },
+        {
+          kind: 'share',
+          tabLabel: t(locale, 'widgetsShareTab'),
+          title: t(locale, 'widgetsShareTitle'),
+          description: t(locale, 'widgetsShareDescription'),
+        },
+        {
+          kind: 'subscribe',
+          tabLabel: t(locale, 'widgetsSubscribeTab'),
+          title: t(locale, 'widgetsSubscribeTitle'),
+          description: t(locale, 'widgetsSubscribeDescription'),
+        },
+      ];
+      const selected = definitions.find((definition) => definition.kind === selectedKind.value) ?? definitions[0];
+      if (!selected) return null;
       const copyErrorFor = (widget: WidgetKind): string | null =>
         copyError.value?.widget === widget ? copyError.value.message : null;
+
       return (
-        <Page width="wide">
+        <Page width="wide" className="widgets-page">
           <PageHeader
             title={t(locale, 'tabWidgets')}
             subtitle={t(locale, 'widgetsSubtitle')}
-            icon={<IconGift />}
-            action={
-              <Button
-                variant="soft"
-                size="md"
-                icon={<IconRefresh size={14} />}
-                onClick={manualRefresh}
-              >
-                {t(locale, 'widgetsRefresh')}
-              </Button>
-            }
+            icon={<img class="widgets-overlay-mark" src={widgetsOverlayGraphic} alt="" aria-hidden="true" />}
           />
-          <Card title={t(locale, 'widgetsGateway')} icon={<IconGift />}>
-            <div class="widgets-status-row">
-              <span class={`ui-badge ${healthy ? 'ui-badge--cyan' : ''}`}>{statusText.value}</span>
-              {props.refreshing ? (
-                <span class="widgets-health">{t(locale, 'widgetsStateChecking')}</span>
-              ) : null}
-            </div>
-            {hint ? <p class="widgets-hint">{hint}</p> : null}
-          </Card>
-          <div class="ui-cols-2">
-            {renderWidgetCard({
-              locale,
-              widget: 'follow',
-              title: t(locale, 'widgetsFollowTitle'),
-              description: t(locale, 'widgetsFollowDescription'),
-              icon: IconFollow,
-              obsUrl: followUrl,
-              copyReady,
-              previewReady,
-              previewUrl: followPreview,
-              previewKey: previewNonce.value,
-              copied: copiedWidget.value === 'follow',
-              copyError: copyErrorFor('follow'),
-              onCopy: () => copyWidget('follow'),
-              onReplay: () => {
-                previewNonce.value += 1;
-              },
-            })}
-            {renderWidgetCard({
-              locale,
-              widget: 'gift',
-              title: t(locale, 'widgetsGiftTitle'),
-              description: t(locale, 'widgetsGiftDescription'),
-              icon: IconGift,
-              obsUrl: giftUrl,
-              copyReady,
-              previewReady,
-              previewUrl: giftPreview,
-              previewKey: previewNonce.value,
-              copied: copiedWidget.value === 'gift',
-              copyError: copyErrorFor('gift'),
-              onCopy: () => copyWidget('gift'),
-              onReplay: () => {
-                previewNonce.value += 1;
-              },
-            })}
-            {renderWidgetCard({
-              locale,
-              widget: 'chat',
-              title: t(locale, 'widgetsChatTitle'),
-              description: t(locale, 'widgetsChatDescription'),
-              icon: IconChat,
-              obsUrl: chatUrl,
-              copyReady,
-              previewReady,
-              previewUrl: chatPreview,
-              previewKey: previewNonce.value,
-              copied: copiedWidget.value === 'chat',
-              copyError: copyErrorFor('chat'),
-              onCopy: () => copyWidget('chat'),
-              onReplay: () => {
-                previewNonce.value += 1;
-              },
-            })}
-            {renderWidgetCard({
-              locale,
-              widget: 'share',
-              title: t(locale, 'widgetsShareTitle'),
-              description: t(locale, 'widgetsShareDescription'),
-              icon: IconShare,
-              obsUrl: shareUrl,
-              copyReady,
-              previewReady,
-              previewUrl: sharePreview,
-              previewKey: previewNonce.value,
-              copied: copiedWidget.value === 'share',
-              copyError: copyErrorFor('share'),
-              onCopy: () => copyWidget('share'),
-              onReplay: () => {
-                previewNonce.value += 1;
-              },
-            })}
-            {renderWidgetCard({
-              locale,
-              widget: 'subscribe',
-              title: t(locale, 'widgetsSubscribeTitle'),
-              description: t(locale, 'widgetsSubscribeDescription'),
-              icon: IconStar,
-              obsUrl: subscribeUrl,
-              copyReady,
-              previewReady,
-              previewUrl: subscribePreview,
-              previewKey: previewNonce.value,
-              copied: copiedWidget.value === 'subscribe',
-              copyError: copyErrorFor('subscribe'),
-              onCopy: () => copyWidget('subscribe'),
-              onReplay: () => {
-                previewNonce.value += 1;
-              },
-            })}
-          </div>
+
+          <nav class="widgets-tabs" role="tablist" aria-label={t(locale, 'tabWidgets')}>
+            {definitions.map((definition) =>
+              renderWidgetTab({
+                definition,
+                selected: selected.kind === definition.kind,
+                onSelect: selectWidget,
+              }),
+            )}
+          </nav>
+
+          {hint ? <p class="widgets-gateway-hint">{hint}</p> : null}
+
+          {renderWidgetPanel({
+            locale,
+            definition: selected,
+            obsUrl: buildRedactedObsUrl(port.value, selected.kind),
+            previewReady,
+            previewUrl: buildWidgetPreviewUrl(port.value, selected.kind),
+            previewKey: previewNonce.value,
+            copyReady,
+            copied: copiedWidget.value === selected.kind,
+            copyError: copyErrorFor(selected.kind),
+            healthy,
+            statusText: statusText.value,
+            refreshing: props.refreshing,
+            onCopy: () => copyWidget(selected.kind),
+            onRefresh: manualRefresh,
+            onReplay: () => {
+              previewNonce.value += 1;
+            },
+          })}
         </Page>
       );
     };

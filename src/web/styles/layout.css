@@ -179,6 +179,12 @@
   transition: all 0.15s ease;
 }
 
+.nav-tab-btn__image {
+  display: block;
+  width: 21px;
+  height: 21px;
+}
+
 .nav-tab-btn:hover {
   background: var(--panel-elevated);
   color: var(--text);
