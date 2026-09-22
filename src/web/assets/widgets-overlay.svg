@@ -1,20 +1,49 @@
-<svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+<svg
+  width="28"
+  height="28"
+  viewBox="0 0 28 28"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-labelledby="title desc"
+>
   <title id="title">Overlay</title>
-  <desc id="desc">A layered browser overlay card</desc>
+  <desc id="desc">Two layered rounded panels</desc>
+
   <defs>
-    <linearGradient id="overlay-stroke" x1="3" y1="3" x2="25" y2="25" gradientUnits="userSpaceOnUse">
+    <linearGradient
+      id="overlay-gradient"
+      x1="5"
+      y1="5"
+      x2="23"
+      y2="23"
+      gradientUnits="userSpaceOnUse"
+    >
       <stop stop-color="#25F4EE" />
       <stop offset="1" stop-color="#7B61FF" />
     </linearGradient>
-    <linearGradient id="overlay-fill" x1="5" y1="5" x2="23" y2="23" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#25F4EE" stop-opacity="0.18" />
-      <stop offset="1" stop-color="#7B61FF" stop-opacity="0.08" />
-    </linearGradient>
   </defs>
-  <rect x="3.5" y="4.5" width="21" height="18" rx="3.5" fill="url(#overlay-fill)" stroke="url(#overlay-stroke)" />
-  <path d="M3.5 9.5H24.5" stroke="url(#overlay-stroke)" stroke-linecap="round" />
-  <path d="M7 14H16.5M7 18H13" stroke="#B5C2D9" stroke-width="1.5" stroke-linecap="round" />
-  <path d="M19 14.5V18.5M17 16.5H21" stroke="#25F4EE" stroke-width="1.5" stroke-linecap="round" />
-  <circle cx="7" cy="7" r="1" fill="#25F4EE" />
-  <circle cx="10" cy="7" r="1" fill="#7B61FF" />
+
+  <!-- Back layer -->
+  <rect
+    x="5"
+    y="5"
+    width="14"
+    height="12"
+    rx="3"
+    stroke="#71809A"
+    stroke-width="1.6"
+  />
+
+  <!-- Front overlay -->
+  <rect
+    x="9"
+    y="10"
+    width="14"
+    height="12"
+    rx="3"
+    fill="rgba(37,244,238,0.06)"
+    stroke="url(#overlay-gradient)"
+    stroke-width="1.8"
+  />
 </svg>

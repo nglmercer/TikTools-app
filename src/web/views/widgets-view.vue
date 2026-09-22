@@ -10,6 +10,8 @@ import widgetsOverlayGraphic from '../assets/widgets-overlay.svg';
 import { Button } from '../components/ui/Button.vue';
 import { Card } from '../components/ui/Card.vue';
 import WidgetHost from '../../widgets/sdk/WidgetHost.vue';
+import WidgetStyleEditor from '../components/WidgetStyleEditor.vue';
+import type { WidgetStyle } from '../../widgets/sdk/template.ts';
 import { widgetTemplates } from '../../widgets/sdk/templates.ts';
 import { Page, PageHeader } from '../components/ui/Page.vue';
 import { TextInput } from '../components/ui/TextInput.vue';
@@ -25,6 +27,11 @@ import { t, type Locale } from '../i18n.ts';
 import { defineVueComponent } from '../vue/component.ts';
 
 type WidgetsViewProps = {
+  designs: Partial<Record<WidgetKind, WidgetStyle>>;
+  designsLoading: boolean;
+  designsError: string | null;
+  onLoadDesigns: () => Promise<void>;
+  onSaveDesign: (kind: WidgetKind, design: WidgetStyle) => Promise<void>;
   locale: Locale;
   status: WidgetsStatus | null;
   statusError: string | null;
@@ -66,6 +73,9 @@ function renderWidgetTab(args: {
 }
 
 function renderWidgetPanel(args: {
+  design: WidgetStyle;
+  editDisabled: boolean;
+  onEdit: () => void;
   locale: Locale;
   definition: WidgetDefinition;
   obsUrl: string;
@@ -139,6 +149,7 @@ function renderWidgetPanel(args: {
           <WidgetHost
             template={widgetTemplates[definition.kind]}
             mode="preview"
+            design={args.design}
             replayKey={args.previewKey}
           />
         </div>
@@ -147,7 +158,8 @@ function renderWidgetPanel(args: {
           <button
             class="widgets-edit-design"
             type="button"
-            disabled
+            disabled={args.editDisabled}
+            onClick={args.onEdit}
             title={t(locale, 'widgetsEditDesignHint')}
             aria-label={`${t(locale, 'widgetsEditDesign')}: ${t(locale, 'widgetsEditDesignHint')}`}
           >
@@ -178,9 +190,10 @@ function renderWidgetPanel(args: {
  * connection.
  */
 export const WidgetsView = defineVueComponent<WidgetsViewProps>(
-  ['locale', 'status', 'statusError', 'refreshing', 'onRefresh', 'onCopy'],
+  ['locale', 'status', 'statusError', 'refreshing', 'onRefresh', 'onCopy', 'designs', 'designsLoading', 'designsError', 'onLoadDesigns', 'onSaveDesign'],
   (props) => {
     const previewNonce = ref(0);
+    const editing = ref(false);
     const selectedKind = ref<WidgetKind>('follow');
     const copiedWidget = ref<WidgetKind | null>(null);
     const copyError = ref<{ widget: WidgetKind; message: string } | null>(null);
@@ -200,6 +213,7 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
 
     onMounted(() => {
       props.onRefresh();
+      void props.onLoadDesigns();
     });
 
     onUnmounted(() => {
@@ -338,8 +352,14 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
           </nav>
 
           {hint ? <p class="widgets-gateway-hint">{hint}</p> : null}
+          {props.designsError ? <p role="alert">{props.designsError}<Button onClick={() => { void props.onLoadDesigns(); }}>{t(locale, 'widgetsRefresh')}</Button></p> : null}
+          {editing.value ? <WidgetStyleEditor locale={locale} kind={selected.kind} title={selected.title}
+            design={props.designs[selected.kind] ?? {}} onSave={props.onSaveDesign} onClose={() => { editing.value = false; }} /> : null}
 
           {renderWidgetPanel({
+            design: props.designs[selected.kind] ?? {},
+            editDisabled: props.designsLoading || Boolean(props.designsError),
+            onEdit: () => { editing.value = true; },
             locale,
             definition: selected,
             obsUrl: buildRedactedObsUrl(port.value, selected.kind),

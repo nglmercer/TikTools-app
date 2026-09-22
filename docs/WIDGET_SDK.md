@@ -33,9 +33,13 @@ without restarting playback.
 `WidgetStyle` is a JSON-serializable style contract. `widgetStyleFields`
 provides color/number controls for background, textColor, accent and radius.
 Only six/eight-digit hex colors and finite radii (clamped to 0–48px) are applied.
-Renderers consume the corresponding `--widget-*` CSS variables. A future
-editor can persist this object alongside a template id and behavior settings.
-Persistence, editor UI and delivery of saved designs to OBS are not implemented.
+Renderers consume the corresponding `--widget-*` CSS variables. The desktop
+style editor uses this schema with an isolated draft, live preview, save, cancel
+and reset. Designs are stored through `app.state.set` at `widgets.design.<kind>`.
+The host includes validated saved tokens in the copied OBS URL's `design`
+fragment parameter; credentials still never cross into the WebView. Standalone
+widgets parse that snapshot through `sdk/design.ts`. After saving, users must
+copy the updated URL into OBS; already installed URLs do not update live.
 
 ## Why the previous preview was blank
 

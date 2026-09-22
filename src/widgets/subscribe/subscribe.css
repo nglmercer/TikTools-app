@@ -23,7 +23,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #fe2c55;
+  background: var(--widget-accent, #fe2c55);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -34,7 +34,7 @@
 
 .subscribe-badge.has-avatar {
   background: transparent;
-  border: 2px solid #fe2c55;
+  border: 2px solid var(--widget-accent, #fe2c55);
 }
 
 .subscribe-badge svg {

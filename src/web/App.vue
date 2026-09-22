@@ -214,6 +214,11 @@ const activePluginBackend = computed(() => {
         :refreshing="app.widgetsRefreshing"
         :on-refresh="app.refreshWidgetsStatus"
         :on-copy="app.copyWidgetObsUrl"
+        :designs="app.widgetDesigns"
+        :designs-loading="app.widgetDesignsLoading"
+        :designs-error="app.widgetDesignsError"
+        :on-load-designs="app.loadWidgetDesigns"
+        :on-save-design="app.saveWidgetDesign"
       />
 
       <SettingsView

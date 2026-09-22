@@ -13,7 +13,7 @@ import {
   IconCoins,
   IconRadio,
   IconSettings,
-  IconSparkles,
+  IconEdgeNet,
   IconPlugins,
 } from './icons.vue';
 
@@ -38,7 +38,7 @@ const builtinTabs = computed<NavigationTab[]>(() => [
   { id: 'points', tooltip: t(props.locale, 'tabPoints'), icon: IconCoins },
   { id: 'analytics', tooltip: t(props.locale, 'tabAnalytics'), icon: IconBarChart },
   { id: 'connect', tooltip: t(props.locale, 'tabConnect'), icon: IconRadio },
-  { id: 'behavior', tooltip: t(props.locale, 'tabBehavior'), icon: IconSparkles },
+  { id: 'behavior', tooltip: t(props.locale, 'tabBehavior'), icon: IconEdgeNet },
   { id: 'plugins', tooltip: t(props.locale, 'tabPlugins'), icon: IconPlugins },
   { id: 'widgets', tooltip: t(props.locale, 'tabWidgets'), imageSrc: widgetsOverlayGraphic },
   { id: 'settings', tooltip: t(props.locale, 'tabSettings'), icon: IconSettings },

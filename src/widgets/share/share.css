@@ -23,7 +23,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #22d3ee;
+  background: var(--widget-accent, #22d3ee);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -34,7 +34,7 @@
 
 .share-badge.has-avatar {
   background: transparent;
-  border: 2px solid #22d3ee;
+  border: 2px solid var(--widget-accent, #22d3ee);
 }
 
 .share-badge svg {

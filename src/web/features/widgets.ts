@@ -10,6 +10,8 @@
  */
 
 import { ref } from 'vue';
+import type { WidgetStyle } from '../../widgets/sdk/template.ts';
+import { normalizeDesign, parseDesign } from '../../widgets/sdk/design.ts';
 
 import type { ControlClient } from '../platform/control-client.ts';
 import { errorMessage } from '../platform/control-client.ts';
@@ -103,6 +105,27 @@ export function parseWidgetsStatus(value: unknown): WidgetsStatus {
 }
 
 export function useWidgets(control: ControlClient) {
+  const designs = ref<Partial<Record<WidgetKind, WidgetStyle>>>({});
+  const designsLoading = ref(false);
+  const designsError = ref<string | null>(null);
+  const kinds: WidgetKind[] = ['follow', 'gift', 'chat', 'share', 'subscribe'];
+  const loadDesigns = async (): Promise<void> => {
+    designsLoading.value = true;
+    designsError.value = null;
+    try {
+      const result = await control.call<{ state: Record<string, string> }>('app.state.get', {
+        keys: kinds.map((kind) => `widgets.design.${kind}`),
+      });
+      for (const kind of kinds) designs.value[kind] = parseDesign(result.state[`widgets.design.${kind}`] ?? '{}');
+    } catch (failure) {
+      designsError.value = errorMessage(failure);
+    } finally { designsLoading.value = false; }
+  };
+  const saveDesign = async (kind: WidgetKind, design: WidgetStyle): Promise<void> => {
+    const normalized = normalizeDesign(design);
+    await control.call('app.state.set', { key: `widgets.design.${kind}`, value: JSON.stringify(normalized) });
+    designs.value[kind] = normalized;
+  };
   const status = ref<WidgetsStatus | null>(null);
   const statusError = ref<string | null>(null);
   const refreshing = ref(false);
@@ -152,6 +175,7 @@ export function useWidgets(control: ControlClient) {
   };
 
   return {
+    designs, designsLoading, designsError, loadDesigns, saveDesign,
     status,
     statusError,
     refreshing,

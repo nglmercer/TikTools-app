@@ -145,7 +145,38 @@ export function IconSparkles({ size = 18, strokeWidth = 1.75, className }: IconP
     </SvgIcon>
   );
 }
+export function IconEdgeNet({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+        <defs>
+          <linearGradient id="flow" x1="5" y1="6" x2="23" y2="22">
+            <stop stop-color="#25F4EE"/>
+            <stop offset="1" stop-color="#7B61FF"/>
+          </linearGradient>
+        </defs>
 
+        <circle cx="7" cy="14" r="3" stroke="url(#flow)" stroke-width="1.8"/>
+
+        <path
+          d="M10 14H14C16 14 16 10 18 10H21"
+          stroke="#71809A"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        />
+
+        <path
+          d="M14 14C16 14 16 18 18 18H21"
+          stroke="#71809A"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        />
+
+        <circle cx="22" cy="10" r="2" stroke="url(#flow)" stroke-width="1.6"/>
+        <circle cx="22" cy="18" r="2" stroke="url(#flow)" stroke-width="1.6"/>
+    </SvgIcon>
+
+  )
+}
 export function IconSettings({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>

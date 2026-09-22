@@ -36,6 +36,24 @@ function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+test('designs load from host storage and are only updated after a successful save', async () => {
+  let fail = false;
+  const { client, calls } = fakeControl(async (method) => {
+    if (method === 'app.state.get') return { state: { 'widgets.design.follow': '{"radius":24}', 'widgets.design.chat': 'broken' } };
+    if (fail) throw new Error('storage unavailable');
+    return { ok: true };
+  });
+  const widgets = useWidgets(client);
+  await widgets.loadDesigns();
+  expect(widgets.designs.value.follow).toEqual({ radius: 24 });
+  expect(widgets.designs.value.chat).toEqual({});
+  await widgets.saveDesign('follow', { accent: '#112233', radius: 99 });
+  expect(calls.at(-1)).toEqual({ method: 'app.state.set', params: { key: 'widgets.design.follow', value: '{"accent":"#112233","radius":48}' } });
+  fail = true;
+  await expect(widgets.saveDesign('follow', {})).rejects.toThrow('storage unavailable');
+  expect(widgets.designs.value.follow).toEqual({ accent: '#112233', radius: 48 });
+});
+
 describe('widgets URL builders', () => {
   test('redacted OBS URL never carries credential material', () => {
     expect(buildRedactedObsUrl(17452, 'follow')).toBe(

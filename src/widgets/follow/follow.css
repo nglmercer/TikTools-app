@@ -23,7 +23,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #22c55e;
+  background: var(--widget-accent, #22c55e);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -34,7 +34,7 @@
 
 .follow-badge.has-avatar {
   background: transparent;
-  border: 2px solid #22c55e;
+  border: 2px solid var(--widget-accent, #22c55e);
 }
 
 .follow-badge svg {

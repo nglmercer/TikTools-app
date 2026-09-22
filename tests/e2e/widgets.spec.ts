@@ -2,6 +2,38 @@ import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, installFakeHost } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 
+test('style editor previews, cancels, saves per widget and resets', async ({ page }, testInfo) => {
+  const capture = await installFakeHost(page, emptyState(), { theme: 'dark' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Widgets', exact: true }).click();
+  const edit = page.getByRole('button', { name: /Edit design/ });
+  const dialog = page.getByRole('dialog');
+  await edit.click();
+  await dialog.getByLabel('Accent color').fill('#ff00ff');
+  await expect(dialog.locator('.follow-badge')).toHaveCSS('background-color', 'rgb(255, 0, 255)');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).last().click();
+  await expect(page.locator('.follow-badge')).toHaveCSS('background-color', 'rgb(34, 197, 94)');
+  await edit.click();
+  await dialog.getByLabel('Background').fill('#112233');
+  await dialog.getByLabel('Corner radius').fill('32');
+  await expect(dialog.locator('.follow-card')).toHaveCSS('border-radius', '32px');
+  await expect(dialog.locator('.follow-card')).toHaveCSS('opacity', '1');
+  await page.screenshot({ path: testInfo.outputPath('widget-editor.png') });
+  await dialog.getByRole('button', { name: 'Save design' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.follow-card')).toHaveCSS('background-color', 'rgb(17, 34, 51)');
+  await page.getByRole('tab', { name: 'Gifts', exact: true }).click();
+  await expect(page.locator('.gift-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
+  await page.getByRole('tab', { name: 'Followers', exact: true }).click();
+  await edit.click();
+  await expect(dialog.getByLabel('Background')).toHaveValue('#112233');
+  await dialog.getByRole('button', { name: 'Reset to defaults' }).click();
+  await dialog.getByRole('button', { name: 'Save design' }).click();
+  await expect(page.locator('.follow-card')).toHaveCSS('border-radius', '16px');
+  await assertNoUnhandledCalls(page);
+  capture.assertClean();
+});
+
 test('rapid replay and tab changes never place alert cards side by side', async ({ page }) => {
   await installFakeHost(page, emptyState(), { theme: 'dark' });
   await page.goto('/');

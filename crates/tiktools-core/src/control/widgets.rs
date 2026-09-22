@@ -238,10 +238,16 @@ impl AppCore {
             std::net::IpAddr::V4(_) => GATEWAY_LOOPBACK_V4.to_owned(),
             std::net::IpAddr::V6(addr) => format!("[{addr}]"),
         };
-        let url = format!(
+        let mut url = format!(
             "http://{host}:{port}/widgets/{widget}/#token={}",
             percent_encode_fragment(&credential)
         );
+        let key = format!("widgets.design.{widget}");
+        let state = self.app_state_get(Some(std::slice::from_ref(&key)))?;
+        if let Some(design) = state.get(&key).and_then(|raw| portable_design(raw)) {
+            url.push_str("&design=");
+            url.push_str(&percent_encode_fragment(&design));
+        }
         copy_text_to_clipboard(&url)
             .map_err(|_| OperationError::unavailable("could not access the OS clipboard"))?;
         tracing::debug!(widget, "widgets OBS URL copied to clipboard");
@@ -250,6 +256,29 @@ impl AppCore {
 }
 
 const GATEWAY_LOOPBACK_V4: &str = "127.0.0.1";
+
+/// Copy only known style tokens, never arbitrary application state or CSS.
+fn portable_design(raw: &str) -> Option<String> {
+    let source: serde_json::Value = serde_json::from_str(raw).ok()?;
+    let mut design = serde_json::Map::new();
+    for key in ["background", "textColor", "accent"] {
+        if let Some(color) = source.get(key).and_then(|value| value.as_str()) {
+            if matches!(color.len(), 7 | 9)
+                && color.starts_with('#')
+                && color.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
+            {
+                design.insert(key.to_owned(), serde_json::Value::from(color));
+            }
+        }
+    }
+    if let Some(radius) = source.get("radius").and_then(|value| value.as_f64()) {
+        design.insert(
+            "radius".to_owned(),
+            serde_json::Value::from(radius.clamp(0.0, 48.0)),
+        );
+    }
+    (!design.is_empty()).then(|| serde_json::Value::Object(design).to_string())
+}
 
 /// Fragment-encodes a credential the same way browsers do for `#token=…`
 /// (unreserved marks stay literal, everything else becomes `%XX`).
@@ -353,6 +382,20 @@ fn parse_http_status(bytes: &[u8]) -> Option<u16> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn copied_design_only_contains_portable_style_tokens() {
+        let result = super::portable_design(
+            r##"{"background":"#112233aa","accent":"url(evil)","radius":99,"token":"secret"}"##,
+        )
+        .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({"background": "#112233aa", "radius": 48.0})
+        );
+        assert!(super::portable_design("broken").is_none());
+        assert!(super::portable_design("{}").is_none());
+    }
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;

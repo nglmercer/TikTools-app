@@ -212,8 +212,17 @@
   color: #fff;
   font-size: 14px;
   font-weight: 700;
+  cursor: pointer;
+}
+
+.widgets-edit-design:disabled {
   cursor: not-allowed;
   opacity: 0.62;
+}
+
+.widgets-edit-design:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
 }
 
 .widgets-edit-design__arrow {
