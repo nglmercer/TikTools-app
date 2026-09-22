@@ -144,6 +144,8 @@ export interface WidgetTestApi {
   emitTestFollow: (overrides?: TestFollowOverrides) => void;
   emitTestGift: (overrides?: TestGiftOverrides) => void;
   emitTestGiftCombo: (count: number, overrides?: TestGiftOverrides) => void;
+  /** Current gateway connection status (gateway mode only). */
+  connectionStatus: () => string;
 }
 
 export function mountWidgetTestHook(api: WidgetTestApi): void {

@@ -63,6 +63,7 @@ mountWidgetTestHook({
       runtime.injectTestEnvelope(envelope);
     }
   },
+  connectionStatus: () => runtime.status,
 });
 
 if (demo === 'gift') {

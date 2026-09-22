@@ -27,7 +27,7 @@
     "build:widget:gift": "vite build --config src/widgets/gift/vite.config.ts",
     "build:widgets": "bun run build:widget:follow && bun run build:widget:gift",
     "sync:gateway-widgets": "bun run scripts/sync-gateway-widgets.ts",
-    "test:widgets-e2e": "playwright test --config src/widgets/playwright.config.ts",
+    "test:widgets-e2e": "playwright test --config src/widgets/playwright.config.ts && playwright test --config src/widgets/playwright.gateway.config.ts",
     "lint": "eslint src scripts vite.config.ts --max-warnings=0",
     "typecheck": "vue-tsc --noEmit",
     "test": "bun test src/web src/automation src/plugin-ui src/shared src/widgets scripts",

@@ -25,6 +25,19 @@ describe('credential provider', () => {
     expect(new CredentialProvider({ hash: '#port=99999' }).port).toBe(DEFAULT_GATEWAY_PORT);
   });
 
+  test('connects back to the serving origin unless the fragment overrides it', () => {
+    const page = new CredentialProvider({ defaultHost: '127.0.0.1', defaultPort: 38057 });
+    expect(page.host).toBe('127.0.0.1');
+    expect(page.port).toBe(38057);
+    const override = new CredentialProvider({
+      hash: '#host=10.0.0.9&port=19099',
+      defaultHost: '127.0.0.1',
+      defaultPort: 38057,
+    });
+    expect(override.host).toBe('10.0.0.9');
+    expect(override.port).toBe(19099);
+  });
+
   test('reads credentials only from the fragment, never from storage', () => {
     // No storage or injection inputs exist: an empty fragment means no
     // credential, even if a previous page load saw one. OBS persists the
