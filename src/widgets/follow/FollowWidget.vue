@@ -35,7 +35,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
   >
     <Transition name="follow" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
       <div v-if="props.alert" :key="props.alert.id" class="follow-card" role="alert">
-        <div class="follow-badge" aria-hidden="true">
+        <div :class="['follow-badge', { 'has-avatar': showAvatar }]" aria-hidden="true">
           <img
             v-if="showAvatar"
             class="follow-avatar"

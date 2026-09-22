@@ -27,20 +27,26 @@ body,
   display: flex;
   align-items: center;
   gap: 16px;
-  max-width: min(560px, 92vw);
+  /* Fixed geometry: streak count ticks and gift names never resize or
+   * re-center the card mid-alert. */
+  width: min(500px, 94vw);
+  box-sizing: border-box;
+  min-height: 124px;
   padding: 18px 24px 18px 18px;
-  background: #15151b;
-  border: 1px solid #26262e;
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  background: #16161d;
+  border: 1px solid #2a2a33;
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
 .gift-art {
   flex: none;
-  width: 84px;
-  height: 84px;
-  border-radius: 12px;
+  width: 88px;
+  height: 88px;
+  border-radius: 14px;
   background: #1e1e26;
+  border: 1px solid #2a2a33;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -60,6 +66,7 @@ body,
 }
 
 .gift-body {
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -79,6 +86,8 @@ body,
   align-items: center;
   gap: 10px;
   min-width: 0;
+  /* Avatar or not, the row keeps one height so the card never breathes. */
+  min-height: 34px;
 }
 
 img.gift-avatar {
@@ -88,6 +97,7 @@ img.gift-avatar {
   border-radius: 50%;
   object-fit: cover;
   background: #26262e;
+  box-shadow: 0 0 0 2px #16161d, 0 0 0 4px rgba(245, 197, 24, 0.7);
 }
 
 .gift-name {
@@ -111,6 +121,9 @@ img.gift-avatar {
 
 .gift-count {
   display: inline-block;
+  /* Reserved slot with tabular digits: ×9 → ×99 ticks without jitter. */
+  min-width: 3ch;
+  font-variant-numeric: tabular-nums;
   color: #f5c518;
 }
 
@@ -121,6 +134,10 @@ img.gift-avatar {
 .gift-diamonds {
   font-size: 14px;
   color: #b9b9c4;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @keyframes gift-count-pop {
