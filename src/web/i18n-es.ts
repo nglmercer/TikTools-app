@@ -269,7 +269,7 @@ export const spanish: Record<TranslationKey, string> = {
   widgetsBuilderOpacity: 'Opacidad',
   widgetsBuilderPadding: 'Relleno',
   widgetsBuilderGap: 'Espaciado',
-  widgetsBuilderAlign: 'Alineación',
+  widgetsBuilderAlign: 'Posición del contenido',
   widgetsBuilderAlignLeft: 'Izquierda',
   widgetsBuilderAlignCenter: 'Centro',
   widgetsBuilderAlignRight: 'Derecha',

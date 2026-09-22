@@ -265,7 +265,7 @@ export const english = {
   widgetsBuilderOpacity: 'Opacity',
   widgetsBuilderPadding: 'Padding',
   widgetsBuilderGap: 'Gap',
-  widgetsBuilderAlign: 'Alignment',
+  widgetsBuilderAlign: 'Content position',
   widgetsBuilderAlignLeft: 'Left',
   widgetsBuilderAlignCenter: 'Center',
   widgetsBuilderAlignRight: 'Right',

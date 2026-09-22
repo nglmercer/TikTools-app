@@ -15,6 +15,7 @@
 .chat-message {
   display: flex;
   align-items: flex-start;
+  justify-content: var(--widget-align-items, flex-start);
   gap: 10px;
   padding: var(--widget-padding, 10px 14px);
   background: var(--widget-background, rgba(22, 22, 29, 0.86));
@@ -49,7 +50,7 @@
 
 .chat-content {
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
   display: flex;
   flex-direction: column;
   gap: 1px;

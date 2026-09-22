@@ -107,10 +107,10 @@ function initials(): string {
 </template>
 
 <style scoped>
-.widget-layer-stack { display: flex; flex-direction: column; gap: 4px; width: 100%; min-width: 0; text-align: var(--widget-align, left); }
-.widget-layer-row { display: flex; align-items: center; gap: var(--widget-gap, 16px); width: 100%; min-width: 0; }
+.widget-layer-stack { display: flex; flex-direction: column; gap: 4px; width: max-content; max-width: 100%; min-width: 0; text-align: var(--widget-align, left); }
+.widget-layer-row { display: flex; align-items: center; gap: var(--widget-gap, 16px); width: max-content; max-width: 100%; min-width: 0; }
 .widget-layer-media-group { display: flex; align-items: center; flex: none; gap: 8px; }
-.widget-layer-text-group { display: flex; flex: 1; flex-direction: column; align-items: var(--widget-align-items, stretch); gap: 2px; min-width: 0; }
+.widget-layer-text-group { display: flex; flex: 0 1 auto; flex-direction: column; align-items: var(--widget-align-items, stretch); gap: 2px; min-width: 0; }
 .widget-layer-text { max-width: 100%; color: var(--widget-textColor, #f5f5f7); font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; white-space: pre-wrap; }
 .widget-layer-text.is-title, .widget-layer-text.is-streakTitle { color: var(--widget-badge-color, var(--widget-accent, #22c55e)); font-size: var(--widget-badge-size, 11px); font-weight: var(--widget-badge-weight, 700); letter-spacing: var(--widget-badge-spacing, 0.14em); text-transform: uppercase; }
 .widget-layer-text.is-name { font-size: 27px; font-weight: 800; }

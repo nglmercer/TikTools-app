@@ -5,6 +5,7 @@
 .follow-card {
   display: flex;
   align-items: center;
+  justify-content: var(--widget-align-items, flex-start);
   gap: var(--widget-gap, 16px);
   /* Fixed geometry: show/hide and name length never resize or re-center
    * the card, so consecutive alerts don't jump around the stage. */
@@ -50,7 +51,7 @@
 }
 
 .follow-body {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
