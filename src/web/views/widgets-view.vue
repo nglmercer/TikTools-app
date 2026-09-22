@@ -1,13 +1,14 @@
 <script lang="tsx">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { IconCheck, IconCopy, IconFollow, IconGift, IconRefresh } from '../components/icons.vue';
+import { IconChat, IconCheck, IconCopy, IconFollow, IconGift, IconRefresh, IconShare, IconStar } from '../components/icons.vue';
 import { Button } from '../components/ui/Button.vue';
-import { Card } from '../components/ui/Card.vue';
+import { Card, EmptyState } from '../components/ui/Card.vue';
 import { Page, PageHeader } from '../components/ui/Page.vue';
 import { TextInput } from '../components/ui/TextInput.vue';
 import {
   buildRedactedObsUrl,
   buildWidgetPreviewUrl,
+  canPreviewWidgets,
   GATEWAY_DEFAULT_PORT,
   type WidgetKind,
   type WidgetsCopyFeedback,
@@ -38,6 +39,7 @@ function renderWidgetCard(args: {
   icon: typeof IconGift;
   obsUrl: string;
   copyReady: boolean;
+  previewReady: boolean;
   previewUrl: string;
   previewKey: number;
   copied: boolean;
@@ -71,19 +73,28 @@ function renderWidgetCard(args: {
       {args.copyError ? <p class="widgets-hint">{args.copyError}</p> : null}
       <p class="widgets-token-note">{t(locale, 'widgetsRedactedNote')}</p>
       <div class="widgets-field-label">{t(locale, 'widgetsPreview')}</div>
-      <div class="widgets-preview-frame">
-        <iframe
-          key={`${args.widget}-${args.previewKey}`}
-          src={args.previewUrl}
-          title={args.title}
-          sandbox="allow-scripts"
+      {args.previewReady ? (
+        <>
+          <div class="widgets-preview-frame">
+            <iframe
+              key={`${args.widget}-${args.previewKey}`}
+              src={args.previewUrl}
+              title={args.title}
+              sandbox="allow-scripts"
+            />
+          </div>
+          <div class="widgets-preview-actions">
+            <Button variant="ghost" size="sm" icon={<IconRefresh size={14} />} onClick={args.onReplay}>
+              {t(locale, 'widgetsReplay')}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <EmptyState
+          title={t(locale, 'widgetsPreviewUnavailable')}
+          description={t(locale, 'widgetsPreviewUnavailableHint')}
         />
-      </div>
-      <div class="widgets-preview-actions">
-        <Button variant="ghost" size="sm" icon={<IconRefresh size={14} />} onClick={args.onReplay}>
-          {t(locale, 'widgetsReplay')}
-        </Button>
-      </div>
+      )}
     </Card>
   );
 }
@@ -187,8 +198,14 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
       const current = state.value;
       const followUrl = buildRedactedObsUrl(port.value, 'follow');
       const giftUrl = buildRedactedObsUrl(port.value, 'gift');
+      const chatUrl = buildRedactedObsUrl(port.value, 'chat');
+      const shareUrl = buildRedactedObsUrl(port.value, 'share');
+      const subscribeUrl = buildRedactedObsUrl(port.value, 'subscribe');
       const followPreview = buildWidgetPreviewUrl(port.value, 'follow');
       const giftPreview = buildWidgetPreviewUrl(port.value, 'gift');
+      const chatPreview = buildWidgetPreviewUrl(port.value, 'chat');
+      const sharePreview = buildWidgetPreviewUrl(port.value, 'share');
+      const subscribePreview = buildWidgetPreviewUrl(port.value, 'subscribe');
       const healthy = current === 'ready';
       // Copy needs a stored credential; the host reports that through
       // every state except the ones that prove it missing.
@@ -197,6 +214,7 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
         current !== 'missing' &&
         current !== 'credential-unavailable' &&
         !props.refreshing;
+      const previewReady = canPreviewWidgets(current);
       const hint = props.statusError ?? props.status?.error ?? null;
       const copyErrorFor = (widget: WidgetKind): string | null =>
         copyError.value?.widget === widget ? copyError.value.message : null;
@@ -235,6 +253,7 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
               icon: IconFollow,
               obsUrl: followUrl,
               copyReady,
+              previewReady,
               previewUrl: followPreview,
               previewKey: previewNonce.value,
               copied: copiedWidget.value === 'follow',
@@ -252,11 +271,66 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
               icon: IconGift,
               obsUrl: giftUrl,
               copyReady,
+              previewReady,
               previewUrl: giftPreview,
               previewKey: previewNonce.value,
               copied: copiedWidget.value === 'gift',
               copyError: copyErrorFor('gift'),
               onCopy: () => copyWidget('gift'),
+              onReplay: () => {
+                previewNonce.value += 1;
+              },
+            })}
+            {renderWidgetCard({
+              locale,
+              widget: 'chat',
+              title: t(locale, 'widgetsChatTitle'),
+              description: t(locale, 'widgetsChatDescription'),
+              icon: IconChat,
+              obsUrl: chatUrl,
+              copyReady,
+              previewReady,
+              previewUrl: chatPreview,
+              previewKey: previewNonce.value,
+              copied: copiedWidget.value === 'chat',
+              copyError: copyErrorFor('chat'),
+              onCopy: () => copyWidget('chat'),
+              onReplay: () => {
+                previewNonce.value += 1;
+              },
+            })}
+            {renderWidgetCard({
+              locale,
+              widget: 'share',
+              title: t(locale, 'widgetsShareTitle'),
+              description: t(locale, 'widgetsShareDescription'),
+              icon: IconShare,
+              obsUrl: shareUrl,
+              copyReady,
+              previewReady,
+              previewUrl: sharePreview,
+              previewKey: previewNonce.value,
+              copied: copiedWidget.value === 'share',
+              copyError: copyErrorFor('share'),
+              onCopy: () => copyWidget('share'),
+              onReplay: () => {
+                previewNonce.value += 1;
+              },
+            })}
+            {renderWidgetCard({
+              locale,
+              widget: 'subscribe',
+              title: t(locale, 'widgetsSubscribeTitle'),
+              description: t(locale, 'widgetsSubscribeDescription'),
+              icon: IconStar,
+              obsUrl: subscribeUrl,
+              copyReady,
+              previewReady,
+              previewUrl: subscribePreview,
+              previewKey: previewNonce.value,
+              copied: copiedWidget.value === 'subscribe',
+              copyError: copyErrorFor('subscribe'),
+              onCopy: () => copyWidget('subscribe'),
               onReplay: () => {
                 previewNonce.value += 1;
               },

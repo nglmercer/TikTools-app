@@ -21,7 +21,7 @@ export const GATEWAY_DEFAULT_PORT = 17452;
 /** Redacted marker shown in place of the real URL credential. */
 export const REDACTED_TOKEN = '••••••••';
 
-export type WidgetKind = 'follow' | 'gift';
+export type WidgetKind = 'follow' | 'gift' | 'chat' | 'share' | 'subscribe';
 
 export type WidgetsHostState =
   | 'missing'
@@ -61,10 +61,19 @@ export function buildRedactedObsUrl(port: number, widget: WidgetKind): string {
   return `http://${GATEWAY_DEFAULT_HOST}:${port}/widgets/${widget}/#token=${REDACTED_TOKEN}`;
 }
 
-/** Tokenless demo preview: the widget plays one synthetic alert locally. */
+/** Tokenless demo preview: the widget plays synthetic content locally. */
 export function buildWidgetPreviewUrl(port: number, widget: WidgetKind): string {
-  const demo = widget === 'follow' ? 'follow' : 'combo';
+  const demo = widget === 'follow' ? 'follow' : widget === 'gift' ? 'combo' : widget;
   return `http://${GATEWAY_DEFAULT_HOST}:${port}/widgets/${widget}/#demo=${demo}`;
+}
+
+/**
+ * Preview iframes load the bundles from the gateway itself: mounting one
+ * against a stopped/missing gateway renders a blank frame, so previews
+ * only mount when the host reports `ready`.
+ */
+export function canPreviewWidgets(state: WidgetsHostState | null): boolean {
+  return state === 'ready';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

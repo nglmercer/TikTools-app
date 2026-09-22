@@ -71,7 +71,7 @@ explicitly selected by TikTools.
 
 ### Widgets
 
-Widgets are OBS Browser Source alerts for follows and gifts. They render the same canonical live events the dashboard shows; they never connect to TikTok directly.
+Widgets are OBS Browser Source overlays for follows, gifts, chat, shares, and subscriptions. They render the same canonical live events the dashboard shows; they never connect to TikTok directly.
 
 Each widget card shows a redacted OBS URL placeholder, a copy button, and a live preview. Copy places the complete URL — with its dedicated widget credential — on the clipboard; paste it into OBS as a Browser Source (transparent background is already handled). The token travels in the URL fragment (`#token=…`), which browsers never send to the server — do not move it into the query string.
 

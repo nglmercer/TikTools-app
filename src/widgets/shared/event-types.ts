@@ -5,11 +5,19 @@
 
 import type {
   AutomationUser,
+  ChatAutomationData,
   GiftAutomationData,
+  MemberAutomationData,
   SocialAutomationData,
 } from '../../automation/contracts/generated/automation-events.ts';
 
-export type { AutomationUser, GiftAutomationData, SocialAutomationData };
+export type {
+  AutomationUser,
+  ChatAutomationData,
+  GiftAutomationData,
+  MemberAutomationData,
+  SocialAutomationData,
+};
 
 /** Stable gateway transport envelope: `{ topic, data }`. */
 export interface DomainEventEnvelope {
@@ -46,6 +54,30 @@ export interface GiftAutomationEvent {
   timestamp: number;
   user?: AutomationUser | null;
   data: GiftAutomationData;
+}
+
+export interface ChatAutomationEvent {
+  id: string;
+  type: 'tiktok.chat';
+  timestamp: number;
+  user?: AutomationUser | null;
+  data: ChatAutomationData;
+}
+
+export interface ShareAutomationEvent {
+  id: string;
+  type: 'tiktok.share';
+  timestamp: number;
+  user?: AutomationUser | null;
+  data: SocialAutomationData;
+}
+
+export interface JoinAutomationEvent {
+  id: string;
+  type: 'tiktok.join';
+  timestamp: number;
+  user?: AutomationUser | null;
+  data: MemberAutomationData;
 }
 
 /** `event.gap` payload: broadcast messages were skipped, do not resync. */

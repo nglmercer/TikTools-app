@@ -1,11 +1,11 @@
-//! Optional static hosting for the OBS alert widgets.
+//! Optional static hosting for the OBS widgets.
 //!
 //! When widget assets are present, the gateway serves them at
-//! `/widgets/follow/` and `/widgets/gift/` so OBS Browser Sources load them
-//! straight from the loopback gateway. Assets carry no secrets (the widget
-//! token travels in the page URL fragment, which browsers never send to the
-//! server), so these routes stay unauthenticated like `/health` — but still
-//! loopback-only behind the standard origin check.
+//! `/widgets/<kind>/` (follow, gift, chat, share, subscribe) so OBS Browser
+//! Sources load them straight from the loopback gateway. Assets carry no
+//! secrets (the widget token travels in the page URL fragment, which
+//! browsers never send to the server), so these routes stay unauthenticated
+//! like `/health` — but still loopback-only behind the standard origin check.
 
 use super::config::GatewayConfig;
 use super::http::write_http_response;
@@ -27,6 +27,9 @@ const WIDGET_INDEX_HTML: &str = r#"<!doctype html>
 <ul>
 <li><a href="/widgets/follow/">Follow Alert</a></li>
 <li><a href="/widgets/gift/">Gift Alert</a></li>
+<li><a href="/widgets/chat/">Chat Overlay</a></li>
+<li><a href="/widgets/share/">Share Alert</a></li>
+<li><a href="/widgets/subscribe/">Subscribe Alert</a></li>
 </ul>
 </body>
 </html>
@@ -41,7 +44,7 @@ pub(crate) fn is_widget_index(path: &str) -> bool {
 }
 
 fn is_widget_name(name: &str) -> bool {
-    matches!(name, "follow" | "gift")
+    matches!(name, "follow" | "gift" | "chat" | "share" | "subscribe")
 }
 
 /// Resolves the widget asset root: an explicit `widgetsDir` setting wins;

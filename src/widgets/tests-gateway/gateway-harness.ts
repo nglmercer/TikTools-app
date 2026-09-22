@@ -3,7 +3,7 @@
  *
  * Unlike the render suite (fake server + page hook), these tests boot the
  * actual `event-gateway` binary in an installed-package layout
- * (`<tmp>/event-gateway` + `<tmp>/dist/widgets/{follow,gift}/`), so default
+ * (`<tmp>/event-gateway` + `<tmp>/dist/widgets/<kind>/`), so default
  * widget discovery, origin checks, and credential auth run exactly as in
  * production. Domain events are injected through the plugin frame protocol
  * on the gateway's stdin, the same channel the host uses.

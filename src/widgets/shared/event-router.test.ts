@@ -2,9 +2,12 @@ import { describe, expect, test } from 'bun:test';
 
 import { routeLiveEvent } from './event-router.ts';
 import {
+  makeTestChatEnvelope,
   makeTestFollowEnvelope,
   makeTestGapEnvelope,
   makeTestGiftEnvelope,
+  makeTestShareEnvelope,
+  makeTestSubscribeEnvelope,
 } from './test-events.ts';
 
 describe('event router', () => {
@@ -21,6 +24,31 @@ describe('event router', () => {
       expect(gift.event.type).toBe('tiktok.gift');
       expect(gift.event.data.streakable).toBe(false);
     }
+  });
+
+  test('routes chat, share, and subscribe envelopes to typed events', () => {
+    const chat = routeLiveEvent(makeTestChatEnvelope({ comment: 'hello' }));
+    expect(chat?.kind).toBe('chat');
+    if (chat?.kind === 'chat') {
+      expect(chat.event.type).toBe('tiktok.chat');
+      expect(chat.event.data.comment).toBe('hello');
+    }
+    const share = routeLiveEvent(makeTestShareEnvelope());
+    expect(share?.kind).toBe('share');
+    if (share?.kind === 'share') {
+      expect(share.event.type).toBe('tiktok.share');
+    }
+    const subscribe = routeLiveEvent(makeTestSubscribeEnvelope());
+    expect(subscribe?.kind).toBe('subscribe');
+    if (subscribe?.kind === 'subscribe') {
+      expect(subscribe.event.type).toBe('tiktok.join');
+      expect(subscribe.event.data.action).toBe(3);
+    }
+  });
+
+  test('plain joins stay unrouted', () => {
+    expect(routeLiveEvent(makeTestSubscribeEnvelope({ action: 1 }))).toBeNull();
+    expect(routeLiveEvent(makeTestSubscribeEnvelope({ action: 0 }))).toBeNull();
   });
 
   test('ignores gaps, unknown types, and malformed frames', () => {

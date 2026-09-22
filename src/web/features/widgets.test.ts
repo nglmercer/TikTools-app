@@ -5,6 +5,7 @@ import { ControlCallError } from '../platform/control-client.ts';
 import {
   buildRedactedObsUrl,
   buildWidgetPreviewUrl,
+  canPreviewWidgets,
   GATEWAY_DEFAULT_PORT,
   parseWidgetsStatus,
   REDACTED_TOKEN,
@@ -53,6 +54,31 @@ describe('widgets URL builders', () => {
     expect(buildWidgetPreviewUrl(17452, 'gift')).toBe(
       'http://127.0.0.1:17452/widgets/gift/#demo=combo',
     );
+    expect(buildWidgetPreviewUrl(17452, 'chat')).toBe(
+      'http://127.0.0.1:17452/widgets/chat/#demo=chat',
+    );
+    expect(buildWidgetPreviewUrl(17452, 'share')).toBe(
+      'http://127.0.0.1:17452/widgets/share/#demo=share',
+    );
+    expect(buildWidgetPreviewUrl(17452, 'subscribe')).toBe(
+      'http://127.0.0.1:17452/widgets/subscribe/#demo=subscribe',
+    );
+  });
+
+  test('previews mount only when the gateway serves them', () => {
+    expect(canPreviewWidgets('ready')).toBe(true);
+    for (const state of [
+      null,
+      'missing',
+      'disabled',
+      'stopped',
+      'starting',
+      'credential-unavailable',
+      'assets-missing',
+      'unreachable',
+    ] as const) {
+      expect(canPreviewWidgets(state)).toBe(false);
+    }
   });
 });
 

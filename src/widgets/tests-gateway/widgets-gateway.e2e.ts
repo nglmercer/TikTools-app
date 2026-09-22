@@ -1,8 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import {
+  makeTestChatEnvelope,
   makeTestFollowEnvelope,
   makeTestGiftCombo,
+  makeTestShareEnvelope,
+  makeTestSubscribeEnvelope,
 } from '../shared/test-events.ts';
 import { readStagedSettings, startGateway, type RunningGateway } from './gateway-harness.ts';
 
@@ -47,7 +50,7 @@ async function waitForStatus(page: Page, status: string): Promise<void> {
 }
 
 test('gateway serves widget bundles from the staged layout', async ({ request }) => {
-  for (const kind of ['follow', 'gift']) {
+  for (const kind of ['follow', 'gift', 'chat', 'share', 'subscribe']) {
     const response = await request.get(`${gateway.baseUrl}/widgets/${kind}/`);
     expect(response.ok()).toBe(true);
     expect(response.headers()['content-type']).toContain('text/html');
@@ -73,6 +76,34 @@ test('follow alert arrives over the real widget transport', async ({ page }) => 
   await expect(card).toBeVisible();
   await expect(card.getByText('Viewer Name')).toBeVisible();
   await expect(card).toBeHidden({ timeout: 8000 });
+});
+
+test('share alert arrives over the real widget transport', async ({ page }) => {
+  await page.goto(`${gateway.baseUrl}/widgets/share/?duration=1500#token=${gateway.widgetToken}`);
+  await waitForStatus(page, 'connected');
+  gateway.sendEvent(makeTestShareEnvelope({ user: { nickname: 'live-sharer' } }));
+  const card = page.locator('.share-card');
+  await expect(card).toBeVisible();
+  await expect(card.getByText('live-sharer')).toBeVisible();
+  await expect(card.getByText('shared the LIVE!')).toBeVisible();
+});
+
+test('subscribe alert arrives over the real widget transport', async ({ page }) => {
+  await page.goto(`${gateway.baseUrl}/widgets/subscribe/?duration=1500#token=${gateway.widgetToken}`);
+  await waitForStatus(page, 'connected');
+  gateway.sendEvent(makeTestSubscribeEnvelope({ user: { nickname: 'live-subscriber' } }));
+  const card = page.locator('.subscribe-card');
+  await expect(card).toBeVisible();
+  await expect(card.getByText('live-subscriber')).toBeVisible();
+  await expect(card.getByText('just subscribed!')).toBeVisible();
+});
+
+test('chat messages arrive over the real widget transport', async ({ page }) => {
+  await page.goto(`${gateway.baseUrl}/widgets/chat/#token=${gateway.widgetToken}`);
+  await waitForStatus(page, 'connected');
+  gateway.sendEvent(makeTestChatEnvelope({ comment: 'transport hello' }));
+  await expect(page.locator('.chat-list').getByText('transport hello')).toBeVisible();
+  await expect(page.locator('.chat-message')).toHaveCount(1);
 });
 
 test('gift combo aggregates over the real widget transport', async ({ page }) => {

@@ -1,0 +1,71 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+import type { SubscribeWidgetSettings } from '../shared/config.ts';
+import type { SubscribeAlert } from '../shared/subscribe-controller.ts';
+import type { GatewayStatus } from '../shared/gateway-client.ts';
+
+type SubscribeWidgetProps = {
+  alert: SubscribeAlert | null;
+  status: GatewayStatus;
+  settings: SubscribeWidgetSettings;
+  debug: boolean;
+};
+
+const props = defineProps<SubscribeWidgetProps>();
+
+const avatarFailed = ref(false);
+
+watch(
+  () => props.alert?.id,
+  () => {
+    avatarFailed.value = false;
+  },
+);
+
+const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.value);
+</script>
+
+<template>
+  <div
+    class="subscribe-stage"
+    :style="{
+      '--subscribe-enter-ms': `${props.settings.enterMs}ms`,
+      '--subscribe-exit-ms': `${props.settings.exitMs}ms`,
+    }"
+  >
+    <Transition name="subscribe" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
+      <div v-if="props.alert" :key="props.alert.id" class="subscribe-card" role="alert">
+        <div :class="['subscribe-badge', { 'has-avatar': showAvatar }]" aria-hidden="true">
+          <img
+            v-if="showAvatar"
+            class="subscribe-avatar"
+            :src="props.alert.avatarUrl as string"
+            :alt="props.alert.displayName"
+            referrerpolicy="no-referrer"
+            @error="avatarFailed = true"
+          />
+          <svg
+            v-else
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+        </div>
+        <div class="subscribe-body">
+          <span class="subscribe-kicker">New subscriber</span>
+          <span class="subscribe-name">{{ props.alert.displayName }}</span>
+          <span v-if="props.settings.showUniqueId && props.alert.uniqueId" class="subscribe-handle">
+            {{ props.alert.uniqueId }}
+          </span>
+          <span class="subscribe-action">just subscribed!</span>
+        </div>
+      </div>
+    </Transition>
+    <div v-if="props.debug" class="widget-debug-status">gateway: {{ props.status }}</div>
+  </div>
+</template>

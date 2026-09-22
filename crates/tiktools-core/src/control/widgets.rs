@@ -16,8 +16,9 @@ use serde::Serialize;
 pub const GATEWAY_PLUGIN_ID: &str = "tiktools.event-gateway";
 pub const GATEWAY_DEFAULT_PORT: u16 = 17_452;
 
-const WIDGET_FOLLOW: &str = "follow";
-const WIDGET_GIFT: &str = "gift";
+/// OBS widget names served by the gateway (`/widgets/<kind>/`). Keep in sync
+/// with the gateway route allowlist and `GATEWAY_WIDGET_KINDS`.
+const VALID_WIDGETS: &[&str] = &["follow", "gift", "chat", "share", "subscribe"];
 
 /// Loopback probe budget per connection phase. The gateway answers from
 /// memory on loopback, so anything slower means it is not there.
@@ -40,7 +41,7 @@ pub enum WidgetsState {
     AssetsMissing,
     /// Reachable socket but no valid gateway HTTP answers.
     Unreachable,
-    /// Credential present, health OK, both widget bundles served.
+    /// Credential present, health OK, every widget bundle served.
     Ready,
 }
 
@@ -216,9 +217,9 @@ impl AppCore {
     /// deliberately not a running gateway — the URL stays valid, so OBS can
     /// hold it while the gateway (re)starts.
     pub fn widgets_copy_obs_url(&self, widget: &str) -> Result<WidgetsCopyResult, OperationError> {
-        if widget != WIDGET_FOLLOW && widget != WIDGET_GIFT {
+        if !VALID_WIDGETS.contains(&widget) {
             return Err(OperationError::invalid(
-                "widget must be \"follow\" or \"gift\"",
+                "widget must be one of: follow, gift, chat, share, subscribe",
             ));
         }
         let plugin = self.require_discovered(GATEWAY_PLUGIN_ID)?;
@@ -281,9 +282,10 @@ async fn probe_gateway(bind: std::net::IpAddr, port: u16) -> ProbeOutcome {
         // Connected, but no valid gateway answer.
         Fetch::Status(_) => return ProbeOutcome::BadGateway,
     }
-    for path in ["/widgets/follow/", "/widgets/gift/"] {
+    for kind in VALID_WIDGETS {
+        let path = format!("/widgets/{kind}/");
         if !matches!(
-            http_get_status(bind, port, path).await,
+            http_get_status(bind, port, &path).await,
             Fetch::Status(Some(200))
         ) {
             return ProbeOutcome::AssetsMissing;
@@ -666,8 +668,8 @@ mod tests {
         // Nothing listening: refused fast (TEST-NET port stays closed).
         let outcome = block_on_current_thread(probe_gateway("127.0.0.1".parse().unwrap(), 9));
         assert_eq!(outcome, ProbeOutcome::NotListening);
-        // Healthy gateway shape: /health plus both bundles answer 200.
-        let port = serve_canned(vec![("/health", 200), ("/widgets/", 200)], 3);
+        // Healthy gateway shape: /health plus every bundle answers 200.
+        let port = serve_canned(vec![("/health", 200), ("/widgets/", 200)], 6);
         let outcome = block_on_current_thread(probe_gateway("127.0.0.1".parse().unwrap(), port));
         assert_eq!(outcome, ProbeOutcome::Ready);
         // Health OK but bundles missing: assets missing, not unreachable.

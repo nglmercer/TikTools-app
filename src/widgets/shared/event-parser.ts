@@ -7,13 +7,18 @@ import { EVENT_GAP_TOPIC, LIVE_EVENT_TOPIC } from './config.ts';
 import type {
   AutomationEventLike,
   AutomationUser,
+  ChatAutomationData,
+  ChatAutomationEvent,
   DomainEventEnvelope,
   EventGapData,
   FollowAutomationEvent,
   GatewayControlMessage,
   GiftAutomationData,
   GiftAutomationEvent,
+  JoinAutomationEvent,
   LiveEventPayload,
+  MemberAutomationData,
+  ShareAutomationEvent,
   SocialAutomationData,
 } from './event-types.ts';
 
@@ -89,6 +94,27 @@ function isSocialAutomationData(value: unknown): value is SocialAutomationData {
   );
 }
 
+function isChatAutomationData(value: unknown): value is ChatAutomationData {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value['comment'] === 'string' &&
+    typeof value['method'] === 'string' &&
+    typeof value['msgId'] === 'string' &&
+    isBoolean(value['isHistory'])
+  );
+}
+
+function isMemberAutomationData(value: unknown): value is MemberAutomationData {
+  if (!isRecord(value)) return false;
+  return (
+    isNumber(value['memberCount']) &&
+    isNumber(value['action']) &&
+    typeof value['method'] === 'string' &&
+    typeof value['msgId'] === 'string' &&
+    isBoolean(value['isHistory'])
+  );
+}
+
 function isGiftAutomationData(value: unknown): value is GiftAutomationData {
   if (!isRecord(value)) return false;
   const icon = value['giftIconUrl'];
@@ -127,6 +153,18 @@ export function isFollowEvent(event: AutomationEventLike): event is FollowAutoma
 
 export function isGiftEvent(event: AutomationEventLike): event is GiftAutomationEvent {
   return event.type === 'tiktok.gift' && isGiftAutomationData(event.data);
+}
+
+export function isChatEvent(event: AutomationEventLike): event is ChatAutomationEvent {
+  return event.type === 'tiktok.chat' && isChatAutomationData(event.data);
+}
+
+export function isShareEvent(event: AutomationEventLike): event is ShareAutomationEvent {
+  return event.type === 'tiktok.share' && isSocialAutomationData(event.data);
+}
+
+export function isJoinEvent(event: AutomationEventLike): event is JoinAutomationEvent {
+  return event.type === 'tiktok.join' && isMemberAutomationData(event.data);
 }
 
 export function isHistoryEvent(event: AutomationEventLike): boolean {

@@ -1,0 +1,159 @@
+/* TikTools Subscribe Alert widget. Transparent OBS stage; the card itself
+ * is the only painted surface. No scrollbars, no selectable chrome. */
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.subscribe-stage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  user-select: none;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.subscribe-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  /* Fixed geometry: show/hide and name length never resize or re-center
+   * the card, so consecutive alerts don't jump around the stage. */
+  width: min(440px, 94vw);
+  box-sizing: border-box;
+  min-height: 126px;
+  padding: 16px 22px 16px 16px;
+  background: #16161d;
+  border: 1px solid #2a2a33;
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.subscribe-badge {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fe2c55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.subscribe-badge.has-avatar {
+  background: transparent;
+  border: 2px solid #fe2c55;
+}
+
+.subscribe-badge svg {
+  width: 28px;
+  height: 28px;
+}
+
+.subscribe-badge img.subscribe-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.subscribe-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.subscribe-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fe2c55;
+}
+
+.subscribe-name {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  color: #f5f5f7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subscribe-handle {
+  font-size: 14px;
+  color: #b9b9c4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subscribe-action {
+  font-size: 14px;
+  color: #e8e8ec;
+}
+
+/* Enter/exit driven by Vue <Transition>; durations come from settings. */
+.subscribe-enter-active {
+  transition:
+    opacity var(--subscribe-enter-ms, 400ms) ease-out,
+    transform var(--subscribe-enter-ms, 400ms) cubic-bezier(0.2, 0.9, 0.25, 1.2);
+}
+
+.subscribe-leave-active {
+  transition:
+    opacity var(--subscribe-exit-ms, 400ms) ease-in,
+    transform var(--subscribe-exit-ms, 400ms) ease-in;
+}
+
+.subscribe-enter-from {
+  opacity: 0;
+  transform: translateY(18px) scale(0.96);
+}
+
+.subscribe-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subscribe-enter-active,
+  .subscribe-leave-active {
+    transition: opacity 120ms linear;
+  }
+
+  .subscribe-enter-from,
+  .subscribe-leave-to {
+    transform: none;
+  }
+}
+
+/* Dev-only connection pill; never rendered in production builds. */
+.widget-debug-status {
+  position: fixed;
+  left: 8px;
+  bottom: 8px;
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  color: #8b8b96;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 6px;
+  padding: 3px 8px;
+  pointer-events: none;
+}

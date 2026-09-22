@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { assertWidgetBundle } from './gateway-widgets.ts';
+import { assertWidgetBundle, GATEWAY_WIDGET_KINDS } from './gateway-widgets.ts';
 
 async function sandbox(): Promise<string> {
   const dir = join(tmpdir(), `tiktools-gateway-widgets-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -12,10 +12,10 @@ async function sandbox(): Promise<string> {
 }
 
 describe('assertWidgetBundle', () => {
-  test('passes when both widget entry pages exist', async () => {
+  test('passes when every widget entry page exists', async () => {
     const dir = await sandbox();
     try {
-      for (const kind of ['follow', 'gift']) {
+      for (const kind of GATEWAY_WIDGET_KINDS) {
         await mkdir(join(dir, kind), { recursive: true });
         await writeFile(join(dir, kind, 'index.html'), '<html></html>');
       }
@@ -35,8 +35,13 @@ describe('assertWidgetBundle', () => {
         (error: unknown) => error as Error,
       );
       expect(failure).not.toBeNull();
-      expect(failure?.message).toContain('gift/index.html');
-      expect(failure?.message).not.toContain('follow/index.html');
+      for (const kind of GATEWAY_WIDGET_KINDS) {
+        if (kind === 'follow') {
+          expect(failure?.message).not.toContain('follow/index.html');
+        } else {
+          expect(failure?.message).toContain(`${kind}/index.html`);
+        }
+      }
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

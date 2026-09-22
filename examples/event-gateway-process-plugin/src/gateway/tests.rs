@@ -131,6 +131,9 @@ fn widget_routes_cover_index_and_assets() {
     assert!(is_widget_route("/widgets/"));
     assert!(is_widget_route("/widgets/follow/"));
     assert!(is_widget_route("/widgets/gift/index.html"));
+    assert!(is_widget_route("/widgets/chat/"));
+    assert!(is_widget_route("/widgets/share/"));
+    assert!(is_widget_route("/widgets/subscribe/"));
     assert!(!is_widget_route("/widgets-follow/"));
     assert!(!is_widget_route("/health"));
     assert!(is_widget_index("/widgets"));
@@ -149,6 +152,13 @@ fn widget_segments_map_names_to_index_and_reject_traversal() {
         widget_asset_segments("/widgets/gift"),
         Some(vec!["gift".to_owned(), "index.html".to_owned()])
     );
+    for kind in ["chat", "share", "subscribe"] {
+        assert_eq!(
+            widget_asset_segments(&format!("/widgets/{kind}/")),
+            Some(vec![kind.to_owned(), "index.html".to_owned()]),
+            "{kind} must resolve"
+        );
+    }
     assert_eq!(
         widget_asset_segments("/widgets/follow/assets/app.js"),
         Some(vec![

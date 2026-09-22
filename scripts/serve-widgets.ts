@@ -39,10 +39,16 @@ function portFromArgs(): number {
 
 const port = portFromArgs();
 
-const followIndex = Bun.file(join(widgetsRoot, 'follow', 'index.html'));
-const giftIndex = Bun.file(join(widgetsRoot, 'gift', 'index.html'));
-if (!(await followIndex.exists()) || !(await giftIndex.exists())) {
-  throw new Error(`Widget assets missing under ${widgetsRoot}. Run \`bun run build:widgets\` first.`);
+const WIDGET_KINDS = ['follow', 'gift', 'chat', 'share', 'subscribe'];
+
+const missing: string[] = [];
+for (const kind of WIDGET_KINDS) {
+  if (!(await Bun.file(join(widgetsRoot, kind, 'index.html')).exists())) {
+    missing.push(`${kind}/index.html`);
+  }
+}
+if (missing.length > 0) {
+  throw new Error(`Widget assets missing under ${widgetsRoot}: ${missing.join(', ')}. Run \`bun run build:widgets\` first.`);
 }
 
 Bun.serve({
@@ -54,7 +60,7 @@ Bun.serve({
       return new Response('method not allowed', { status: 405 });
     }
     const segments = url.pathname.split('/').filter((segment) => segment !== '');
-    if (segments.length === 0 || (segments[0] !== 'follow' && segments[0] !== 'gift')) {
+    if (segments.length === 0 || !WIDGET_KINDS.includes(segments[0] as string)) {
       return new Response('not found', { status: 404 });
     }
     if (segments.some((segment) => segment === '.' || segment === '..' || segment.includes('\\'))) {

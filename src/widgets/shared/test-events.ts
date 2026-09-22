@@ -4,12 +4,15 @@
  * manual previews can inject envelopes without a TikTok connection.
  */
 
-import { EVENT_GAP_TOPIC, LIVE_EVENT_TOPIC } from './config.ts';
+import { EVENT_GAP_TOPIC, LIVE_EVENT_TOPIC, SUBSCRIBE_MEMBER_ACTION } from './config.ts';
 import type {
   AutomationUser,
+  ChatAutomationEvent,
   DomainEventEnvelope,
   FollowAutomationEvent,
   GiftAutomationEvent,
+  JoinAutomationEvent,
+  ShareAutomationEvent,
 } from './event-types.ts';
 
 export const WIDGET_TEST_HOOK = '__tiktoolsWidgetTest';
@@ -101,8 +104,78 @@ export function makeTestGiftEvent(overrides: TestGiftOverrides = {}): GiftAutoma
   };
 }
 
+export interface TestChatOverrides {
+  id?: string;
+  user?: TestUserOverrides | null;
+  comment?: string;
+  isHistory?: boolean;
+}
+
+export function makeTestChatEvent(overrides: TestChatOverrides = {}): ChatAutomationEvent {
+  return {
+    id: overrides.id ?? nextId('tiktok-chat'),
+    type: 'tiktok.chat',
+    timestamp: Date.now(),
+    user: overrides.user === null ? null : makeTestUser(overrides.user),
+    data: {
+      comment: overrides.comment ?? 'Hello from the test chat!',
+      method: 'test',
+      msgId: 'msg-chat',
+      isHistory: overrides.isHistory ?? false,
+    },
+  };
+}
+
+export interface TestShareOverrides {
+  id?: string;
+  user?: TestUserOverrides | null;
+  action?: number;
+  isHistory?: boolean;
+}
+
+export function makeTestShareEvent(overrides: TestShareOverrides = {}): ShareAutomationEvent {
+  return {
+    id: overrides.id ?? nextId('tiktok-share'),
+    type: 'tiktok.share',
+    timestamp: Date.now(),
+    user: overrides.user === null ? null : makeTestUser(overrides.user),
+    data: {
+      action: overrides.action ?? 3,
+      followCount: 0,
+      shareCount: 7,
+      method: 'test',
+      msgId: 'msg-share',
+      isHistory: overrides.isHistory ?? false,
+    },
+  };
+}
+
+export interface TestSubscribeOverrides {
+  id?: string;
+  user?: TestUserOverrides | null;
+  action?: number;
+  memberCount?: number;
+  isHistory?: boolean;
+}
+
+export function makeTestSubscribeEvent(overrides: TestSubscribeOverrides = {}): JoinAutomationEvent {
+  return {
+    id: overrides.id ?? nextId('tiktok-subscribe'),
+    type: 'tiktok.join',
+    timestamp: Date.now(),
+    user: overrides.user === null ? null : makeTestUser(overrides.user),
+    data: {
+      memberCount: overrides.memberCount ?? 128,
+      action: overrides.action ?? SUBSCRIBE_MEMBER_ACTION,
+      method: 'test',
+      msgId: 'msg-subscribe',
+      isHistory: overrides.isHistory ?? false,
+    },
+  };
+}
+
 export function toLiveEnvelope(
-  event: FollowAutomationEvent | GiftAutomationEvent,
+  event: FollowAutomationEvent | GiftAutomationEvent | ChatAutomationEvent | ShareAutomationEvent | JoinAutomationEvent,
 ): DomainEventEnvelope {
   return { topic: LIVE_EVENT_TOPIC, data: { eventType: event.type, event } };
 }
@@ -113,6 +186,18 @@ export function makeTestFollowEnvelope(overrides?: TestFollowOverrides): DomainE
 
 export function makeTestGiftEnvelope(overrides?: TestGiftOverrides): DomainEventEnvelope {
   return toLiveEnvelope(makeTestGiftEvent(overrides));
+}
+
+export function makeTestChatEnvelope(overrides?: TestChatOverrides): DomainEventEnvelope {
+  return toLiveEnvelope(makeTestChatEvent(overrides));
+}
+
+export function makeTestShareEnvelope(overrides?: TestShareOverrides): DomainEventEnvelope {
+  return toLiveEnvelope(makeTestShareEvent(overrides));
+}
+
+export function makeTestSubscribeEnvelope(overrides?: TestSubscribeOverrides): DomainEventEnvelope {
+  return toLiveEnvelope(makeTestSubscribeEvent(overrides));
 }
 
 /** Builds an x1..xn streakable combo sharing one group id. */
@@ -146,6 +231,9 @@ export interface WidgetTestApi {
   emitTestFollow: (overrides?: TestFollowOverrides) => void;
   emitTestGift: (overrides?: TestGiftOverrides) => void;
   emitTestGiftCombo: (count: number, overrides?: TestGiftOverrides) => void;
+  emitTestChat: (overrides?: TestChatOverrides) => void;
+  emitTestShare: (overrides?: TestShareOverrides) => void;
+  emitTestSubscribe: (overrides?: TestSubscribeOverrides) => void;
   /** Current gateway connection status (gateway mode only). */
   connectionStatus: () => string;
 }

@@ -3,6 +3,8 @@ import { expect, test, type Page } from '@playwright/test';
 type WidgetTestHook = {
   emitTestFollow: (overrides?: Record<string, unknown>) => void;
   emitTestGift: (overrides?: Record<string, unknown>) => void;
+  emitTestShare: (overrides?: Record<string, unknown>) => void;
+  emitTestSubscribe: (overrides?: Record<string, unknown>) => void;
 };
 
 async function waitForTestHook(page: Page): Promise<void> {
@@ -50,6 +52,32 @@ test('follow card keeps stable geometry across show/hide and name lengths', asyn
   const nameBox = await card.locator('.follow-name').boundingBox();
   expect(nameBox?.width).toBeLessThanOrEqual(wide.width);
 });
+
+for (const kind of ['share', 'subscribe'] as const) {
+  test(`${kind} card keeps stable geometry across show/hide and name lengths`, async ({ page }) => {
+    await page.goto(`/${kind}/?duration=900`);
+    await waitForTestHook(page);
+    const emit = kind === 'share' ? 'emitTestShare' : 'emitTestSubscribe';
+    const send = (overrides: Record<string, unknown>): Promise<void> =>
+      page.evaluate(
+        ([method, o]) => {
+          (window as unknown as { __tiktoolsWidgetTest: WidgetTestHook }).__tiktoolsWidgetTest[method](o);
+        },
+        [emit, overrides] as const,
+      );
+    const selector = `.${kind}-card`;
+    const card = page.locator(selector);
+    await send({ user: { nickname: 'Al', uniqueId: 'al' } });
+    const narrow = await settledBox(page, selector);
+    await expect(card).toBeHidden({ timeout: 5000 });
+    await send({
+      user: { nickname: 'A Much Longer Display Name Here', uniqueId: 'very_long_unique_id_here' },
+    });
+    const wide = await settledBox(page, selector);
+    expect(wide.width).toBe(narrow.width);
+    expect(wide.height).toBe(narrow.height);
+  });
+}
 
 test('gift card keeps stable geometry while the streak count ticks', async ({ page }) => {
   await page.goto('/gift/?duration=900&comboTimeout=60000');

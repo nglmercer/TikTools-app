@@ -17,6 +17,16 @@ export const DEFAULT_TOPICS: readonly string[] = [LIVE_EVENT_TOPIC];
 
 export const FOLLOW_EVENT_TYPE = 'tiktok.follow';
 export const GIFT_EVENT_TYPE = 'tiktok.gift';
+export const CHAT_EVENT_TYPE = 'tiktok.chat';
+export const SHARE_EVENT_TYPE = 'tiktok.share';
+export const JOIN_EVENT_TYPE = 'tiktok.join';
+
+/**
+ * Proto `MemberMessageAction` for subscriptions: TikTok delivers a new
+ * subscriber as a member event with `action == 3`, which the host forwards
+ * as `tiktok.join`. The subscribe widget keys off this value.
+ */
+export const SUBSCRIBE_MEMBER_ACTION = 3;
 
 /** Reconnect backoff: 500ms doubling to a 10s ceiling. */
 export const RECONNECT_BASE_MS = 500;
@@ -37,6 +47,16 @@ export const DEFAULT_RECENT_IDS_CAPACITY = 1000;
 export const DEFAULT_FOLLOW_VISIBLE_MS = 4000;
 export const DEFAULT_FOLLOW_ENTER_MS = 400;
 export const DEFAULT_FOLLOW_EXIT_MS = 400;
+
+export const DEFAULT_SHARE_VISIBLE_MS = 4000;
+export const DEFAULT_SHARE_ENTER_MS = 400;
+export const DEFAULT_SHARE_EXIT_MS = 400;
+
+export const DEFAULT_SUBSCRIBE_VISIBLE_MS = 5000;
+export const DEFAULT_SUBSCRIBE_ENTER_MS = 400;
+export const DEFAULT_SUBSCRIBE_EXIT_MS = 400;
+
+export const DEFAULT_CHAT_MESSAGE_LIMIT = 30;
 
 export const DEFAULT_GIFT_VISIBLE_MS = 5000;
 export const DEFAULT_GIFT_COMBO_TIMEOUT_MS = 3000;
@@ -93,16 +113,71 @@ export function parseFollowSettings(search: string): FollowWidgetSettings {
 }
 
 /**
- * Preview mode from the URL fragment (`#demo=follow|gift|combo`). The widget
- * injects one synthetic alert locally after mount — no gateway connection is
- * attempted for the demo. Used by the TikTools preview iframes.
+ * Preview mode from the URL fragment (`#demo=follow|gift|combo|chat|share|
+ * subscribe`). The widget injects synthetic content locally after mount — no
+ * gateway connection is attempted for the demo. Used by the TikTools preview
+ * iframes.
  */
-export type WidgetDemoMode = 'follow' | 'gift' | 'combo';
+export type WidgetDemoMode = 'follow' | 'gift' | 'combo' | 'chat' | 'share' | 'subscribe';
 
 export function parseDemoMode(hash: string): WidgetDemoMode | null {
   const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
   const demo = params.get('demo');
-  return demo === 'follow' || demo === 'gift' || demo === 'combo' ? demo : null;
+  return demo === 'follow' ||
+    demo === 'gift' ||
+    demo === 'combo' ||
+    demo === 'chat' ||
+    demo === 'share' ||
+    demo === 'subscribe'
+    ? demo
+    : null;
+}
+
+export interface ShareWidgetSettings {
+  visibleMs: number;
+  enterMs: number;
+  exitMs: number;
+  showUniqueId: boolean;
+}
+
+export function parseShareSettings(search: string): ShareWidgetSettings {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  return {
+    visibleMs: readPositiveInt(params, 'duration', DEFAULT_SHARE_VISIBLE_MS),
+    enterMs: readPositiveInt(params, 'enter', DEFAULT_SHARE_ENTER_MS),
+    exitMs: readPositiveInt(params, 'exit', DEFAULT_SHARE_EXIT_MS),
+    showUniqueId: readBoolean(params, 'handle', true),
+  };
+}
+
+export interface SubscribeWidgetSettings {
+  visibleMs: number;
+  enterMs: number;
+  exitMs: number;
+  showUniqueId: boolean;
+}
+
+export function parseSubscribeSettings(search: string): SubscribeWidgetSettings {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  return {
+    visibleMs: readPositiveInt(params, 'duration', DEFAULT_SUBSCRIBE_VISIBLE_MS),
+    enterMs: readPositiveInt(params, 'enter', DEFAULT_SUBSCRIBE_ENTER_MS),
+    exitMs: readPositiveInt(params, 'exit', DEFAULT_SUBSCRIBE_EXIT_MS),
+    showUniqueId: readBoolean(params, 'handle', true),
+  };
+}
+
+export interface ChatWidgetSettings {
+  limit: number;
+  showAvatars: boolean;
+}
+
+export function parseChatSettings(search: string): ChatWidgetSettings {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+  return {
+    limit: Math.max(1, readPositiveInt(params, 'limit', DEFAULT_CHAT_MESSAGE_LIMIT)),
+    showAvatars: readBoolean(params, 'avatars', true),
+  };
 }
 
 export interface GiftWidgetSettings {

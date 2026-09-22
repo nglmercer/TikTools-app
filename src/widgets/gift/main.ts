@@ -10,12 +10,18 @@ import { parseDemoMode, parseGiftSettings } from '../shared/config.ts';
 import type { GatewayStatus } from '../shared/gateway-client.ts';
 import { GiftController, type GiftAlertView } from '../shared/gift-controller.ts';
 import {
+  makeTestChatEnvelope,
   makeTestFollowEnvelope,
   makeTestGiftCombo,
   makeTestGiftEnvelope,
+  makeTestShareEnvelope,
+  makeTestSubscribeEnvelope,
   mountWidgetTestHook,
+  type TestChatOverrides,
   type TestFollowOverrides,
   type TestGiftOverrides,
+  type TestShareOverrides,
+  type TestSubscribeOverrides,
 } from '../shared/test-events.ts';
 import { createWidgetRuntime } from '../shared/widget-runtime.ts';
 
@@ -63,6 +69,12 @@ mountWidgetTestHook({
       runtime.injectTestEnvelope(envelope);
     }
   },
+  emitTestChat: (overrides?: TestChatOverrides) =>
+    runtime.injectTestEnvelope(makeTestChatEnvelope(overrides)),
+  emitTestShare: (overrides?: TestShareOverrides) =>
+    runtime.injectTestEnvelope(makeTestShareEnvelope(overrides)),
+  emitTestSubscribe: (overrides?: TestSubscribeOverrides) =>
+    runtime.injectTestEnvelope(makeTestSubscribeEnvelope(overrides)),
   connectionStatus: () => runtime.status,
 });
 

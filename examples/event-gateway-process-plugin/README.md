@@ -8,6 +8,9 @@ through `events.subscribe` and exposes it locally:
 - `ws://127.0.0.1:17452/ws` as authenticated JSON WebSocket messages
 - `GET http://127.0.0.1:17452/widgets/follow/` as the Follow Alert OBS page
 - `GET http://127.0.0.1:17452/widgets/gift/` as the Gift Alert OBS page
+- `GET http://127.0.0.1:17452/widgets/chat/` as the Chat Overlay OBS page
+- `GET http://127.0.0.1:17452/widgets/share/` as the Share Alert OBS page
+- `GET http://127.0.0.1:17452/widgets/subscribe/` as the Subscribe Alert OBS page
 
 The plugin owns all transport behavior. TikTools core only sends serialized
 `{ "topic": "...", "data": ... }` envelopes through the plugin protocol.
@@ -35,8 +38,9 @@ gateway; TikTools itself does not open any HTTP or WebSocket listener.
 
 ## Widget pages
 
-`/widgets/follow/` and `/widgets/gift/` serve the OBS alert widgets when
-their assets are present. Build and stage them from the repository root:
+`/widgets/<kind>/` serves the OBS widgets (follow, gift, chat, share,
+subscribe) when their assets are present. Build and stage them from the
+repository root:
 
 ```bash
 bun run build:widgets

@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { ensureGatewayWidgetsStaged } from './lib/gateway-widgets.ts';
+import { GATEWAY_WIDGET_KINDS, ensureGatewayWidgetsStaged } from './lib/gateway-widgets.ts';
 import {
   artifactFileName,
   detectHostTarget,
@@ -299,10 +299,10 @@ async function verifyPackagedManifest(
 }
 
 async function verifyPackagedWidgets(archivePath: string, id: string): Promise<void> {
-  // Never silently ship a gateway whose /widgets/* routes 404: both
-  // staged bundles must be inside the archive we just wrote.
+  // Never silently ship a gateway whose /widgets/* routes 404: every
+  // staged bundle must be inside the archive we just wrote.
   const entries = await readArchiveEntries(archivePath);
-  for (const kind of ['follow', 'gift']) {
+  for (const kind of GATEWAY_WIDGET_KINDS) {
     const entry = `${id}/dist/widgets/${kind}/index.html`;
     if (!entries.includes(entry)) {
       fail(`archive ${archivePath} is missing ${entry}; refusing to ship a gateway without widget assets`);

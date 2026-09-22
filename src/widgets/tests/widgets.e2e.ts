@@ -4,6 +4,9 @@ type WidgetTestHook = {
   emitTestFollow: (overrides?: Record<string, unknown>) => void;
   emitTestGift: (overrides?: Record<string, unknown>) => void;
   emitTestGiftCombo: (count: number, overrides?: Record<string, unknown>) => void;
+  emitTestChat: (overrides?: Record<string, unknown>) => void;
+  emitTestShare: (overrides?: Record<string, unknown>) => void;
+  emitTestSubscribe: (overrides?: Record<string, unknown>) => void;
 };
 
 async function waitForTestHook(page: Page): Promise<void> {
@@ -84,6 +87,91 @@ test('gift combo updates one alert in place, then completes', async ({ page }) =
   // Exactly one card for the whole streak, then it clears.
   await expect(card).toHaveCount(1);
   await expect(card).toBeHidden({ timeout: 5000 });
+});
+
+test('gift alerts replace one card at a time during transitions', async ({ page }) => {
+  await page.goto('/gift/?duration=900');
+  await waitForTestHook(page);
+  const card = page.locator('.gift-card');
+
+  await page.evaluate(() => {
+    const hook = (window as unknown as { __tiktoolsWidgetTest: WidgetTestHook }).__tiktoolsWidgetTest;
+    hook.emitTestGift({ id: 'first-gift', giftName: 'Rose', diamondCount: 1 });
+  });
+  await expect(card.getByText('Rose')).toBeVisible();
+
+  await page.evaluate(() => {
+    const hook = (window as unknown as { __tiktoolsWidgetTest: WidgetTestHook }).__tiktoolsWidgetTest;
+    hook.emitTestGift({ id: 'second-gift', giftName: 'Galaxy', diamondCount: 1 });
+  });
+
+  const maxCards = await page.evaluate(async () => {
+    let max = 0;
+    const deadline = performance.now() + 1000;
+    while (performance.now() < deadline) {
+      max = Math.max(max, document.querySelectorAll('.gift-card').length);
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    }
+    return max;
+  });
+
+  expect(maxCards).toBe(1);
+  await expect(card.getByText('Galaxy')).toBeVisible({ timeout: 5000 });
+});
+
+test('share alert appears with the viewer name, then disappears', async ({ page }) => {
+  await page.goto('/share/?duration=800');
+  await waitForTestHook(page);
+  await page.evaluate(() => {
+    (window as unknown as { __tiktoolsWidgetTest: WidgetTestHook }).__tiktoolsWidgetTest.emitTestShare();
+  });
+  const card = page.locator('.share-card');
+  await expect(card).toBeVisible();
+  await expect(card.getByText('Viewer Name')).toBeVisible();
+  await expect(card.getByText('shared the LIVE!')).toBeVisible();
+  await expect(card).toBeHidden({ timeout: 5000 });
+});
+
+test('subscribe alert appears with the viewer name, then disappears', async ({ page }) => {
+  await page.goto('/subscribe/?duration=800');
+  await waitForTestHook(page);
+  await page.evaluate(() => {
+    (window as unknown as { __tiktoolsWidgetTest: WidgetTestHook }).__tiktoolsWidgetTest.emitTestSubscribe();
+  });
+  const card = page.locator('.subscribe-card');
+  await expect(card).toBeVisible();
+  await expect(card.getByText('Viewer Name')).toBeVisible();
+  await expect(card.getByText('just subscribed!')).toBeVisible();
+  await expect(card).toBeHidden({ timeout: 5000 });
+});
+
+test('subscribe widget ignores plain joins', async ({ page }) => {
+  await page.goto('/subscribe/?duration=800');
+  await waitForTestHook(page);
+  await page.evaluate(() => {
+    (window as unknown as { __tiktoolsWidgetTest: WidgetTestHook }).__tiktoolsWidgetTest.emitTestSubscribe({
+      id: 'join-plain',
+      action: 1,
+    });
+  });
+  await page.waitForTimeout(700);
+  await expect(page.locator('.subscribe-card')).toHaveCount(0);
+});
+
+test('chat overlay lists messages in order and honors the limit', async ({ page }) => {
+  await page.goto('/chat/?limit=2');
+  await waitForTestHook(page);
+  await page.evaluate(() => {
+    const hook = (window as unknown as { __tiktoolsWidgetTest: WidgetTestHook }).__tiktoolsWidgetTest;
+    hook.emitTestChat({ comment: 'first message' });
+    hook.emitTestChat({ comment: 'second message' });
+    hook.emitTestChat({ comment: 'third message' });
+  });
+  const list = page.locator('.chat-list');
+  await expect(list.getByText('third message')).toBeVisible();
+  await expect(page.locator('.chat-message')).toHaveCount(2);
+  await expect(list.getByText('first message')).toHaveCount(0);
+  await expect(list.getByText('Viewer Name').first()).toBeVisible();
 });
 
 test('gift widget falls back when the artwork fails to load', async ({ page }) => {

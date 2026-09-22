@@ -1,13 +1,13 @@
 /**
- * Follow Alert widget entry. Wires the shared runtime (credentials, gateway
- * client, reconnect) to the FollowController and renders alerts with Vue.
+ * Share Alert widget entry. Wires the shared runtime (credentials, gateway
+ * client, reconnect) to the ShareController and renders alerts with Vue.
  */
 
 import { createApp, h, ref } from 'vue';
-import FollowWidget from './FollowWidget.vue';
-import './follow.css';
-import { parseDemoMode, parseFollowSettings } from '../shared/config.ts';
-import { FollowController, type FollowAlert } from '../shared/follow-controller.ts';
+import ShareWidget from './ShareWidget.vue';
+import './share.css';
+import { parseDemoMode, parseShareSettings } from '../shared/config.ts';
+import { ShareController, type ShareAlert } from '../shared/share-controller.ts';
 import type { GatewayStatus } from '../shared/gateway-client.ts';
 import {
   makeTestChatEnvelope,
@@ -25,13 +25,13 @@ import {
 } from '../shared/test-events.ts';
 import { createWidgetRuntime } from '../shared/widget-runtime.ts';
 
-const settings = parseFollowSettings(window.location.search);
+const settings = parseShareSettings(window.location.search);
 const demo = parseDemoMode(window.location.hash);
-const alert = ref<FollowAlert | null>(null);
+const alert = ref<ShareAlert | null>(null);
 const status = ref<GatewayStatus>('idle');
 const debug = Boolean(import.meta.env.DEV);
 
-const controller = new FollowController(
+const controller = new ShareController(
   {
     onShow: (next) => {
       alert.value = next;
@@ -71,14 +71,14 @@ mountWidgetTestHook({
   connectionStatus: () => runtime.status,
 });
 
-if (demo === 'follow') {
-  window.setTimeout(() => runtime.injectTestEnvelope(makeTestFollowEnvelope()), 600);
+if (demo === 'share') {
+  window.setTimeout(() => runtime.injectTestEnvelope(makeTestShareEnvelope()), 600);
 }
 
 createApp({
   setup: () =>
     () =>
-      h(FollowWidget, {
+      h(ShareWidget, {
         alert: alert.value,
         status: status.value,
         settings,
