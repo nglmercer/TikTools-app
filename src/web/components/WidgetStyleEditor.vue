@@ -20,7 +20,7 @@ import WidgetHost from '../../widgets/sdk/WidgetHost.vue';
 import { widgetTemplates, type WidgetKind } from '../../widgets/sdk/templates.ts';
 import { defaultWidgetLayers, updateWidgetLayer } from '../../widgets/sdk/layers.ts';
 import type { WidgetAlign, WidgetAvatarStyle, WidgetBadgeStyle, WidgetEditorControl, WidgetEditorSection, WidgetLayer, WidgetLayerSeed, WidgetStyle, WidgetTemplateToken } from '../../widgets/sdk/template.ts';
-import { orderedTextFields, textDefaults, type TextField } from '../../widgets/sdk/text.ts';
+import { currentSubscribeCopy, orderedTextFields, textDefaults, type TextField } from '../../widgets/sdk/text.ts';
 import { cloneDesign, EditorHistory } from './widgets-editor/history.ts';
 
 type Props = {
@@ -55,7 +55,7 @@ const HEX_PATTERN = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i;
 export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', 'onSave', 'onClose'], (props) => {
   const template = widgetTemplates[props.kind];
   const schema = template.schema;
-  const draft = ref<WidgetStyle>(cloneDesign(props.design));
+  const draft = ref<WidgetStyle>(cloneDesign(props.kind === 'subscribe' ? currentSubscribeCopy(props.design) : props.design));
   const component = ref<BuilderComponent>('layers');
   const selectedLayer = ref<string | null>(null);
   const saving = ref(false);

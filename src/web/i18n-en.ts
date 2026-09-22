@@ -190,7 +190,7 @@ export const english = {
   widgetsShareTitle: 'Share Alert',
   widgetsShareDescription: 'Shows a card every time a viewer shares the LIVE.',
   widgetsSubscribeTitle: 'Subscribe Alert',
-  widgetsSubscribeDescription: 'Shows a card every time a viewer subscribes.',
+  widgetsSubscribeDescription: 'Shows a card when TikTok reports a subscription event.',
   widgetsObsUrl: 'OBS Browser Source URL',
   widgetsCopyUrl: 'Copy OBS URL',
   widgetsCopyUrlShort: 'Copy URL',

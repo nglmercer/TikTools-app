@@ -95,7 +95,7 @@ test('subscribe alert arrives over the real widget transport', async ({ page }) 
   const card = page.locator('.subscribe-card');
   await expect(card).toBeVisible();
   await expect(card.getByText('live-subscriber')).toBeVisible();
-  await expect(card.getByText('just subscribed!')).toBeVisible();
+  await expect(card.getByText('subscribed to the LIVE!')).toBeVisible();
 });
 
 test('chat messages arrive over the real widget transport', async ({ page }) => {

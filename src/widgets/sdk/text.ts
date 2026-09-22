@@ -4,10 +4,39 @@ import type { WidgetStyle } from './template.ts';
 export const textDefaults = {
   follow: { name: '{{name}}', handle: '{{username}}', message: 'just followed!' },
   share: { name: '{{name}}', handle: '{{username}}', message: 'shared the LIVE!' },
-  subscribe: { title: 'New subscriber', name: '{{name}}', handle: '{{username}}', message: 'just subscribed!' },
+  subscribe: { title: 'Subscriber', name: '{{name}}', handle: '{{username}}', message: 'subscribed to the LIVE!' },
   gift: { name: '{{name}}', message: 'sent {{gift}}', count: '×{{count}}', diamonds: '{{diamonds}} diamonds' },
   chat: { name: '{{name}}', message: '{{message}}' },
 } as const;
+
+/** Refresh only the shipped subscription copy in older saved designs. */
+export function currentSubscribeCopy(design: WidgetStyle): WidgetStyle {
+  const replacements: Record<string, string> = {
+    'New subscriber': textDefaults.subscribe.title,
+    'just subscribed!': textDefaults.subscribe.message,
+  };
+  const title = design.text?.title;
+  const message = design.text?.message;
+  const textChanged = (title !== undefined && Object.hasOwn(replacements, title))
+    || (message !== undefined && Object.hasOwn(replacements, message));
+  const layersChanged = design.layers?.some((layer) => layer.kind === 'text'
+    && (layer.field === 'title' || layer.field === 'message')
+    && layer.text !== undefined && Object.hasOwn(replacements, layer.text)) ?? false;
+  if (!textChanged && !layersChanged) return design;
+  return {
+    ...design,
+    ...(textChanged ? { text: {
+      ...design.text,
+      ...(title !== undefined && Object.hasOwn(replacements, title) ? { title: replacements[title] } : {}),
+      ...(message !== undefined && Object.hasOwn(replacements, message) ? { message: replacements[message] } : {}),
+    } } : {}),
+    ...(layersChanged ? { layers: design.layers?.map((layer) => layer.kind === 'text'
+      && (layer.field === 'title' || layer.field === 'message')
+      && layer.text !== undefined && Object.hasOwn(replacements, layer.text)
+      ? { ...layer, text: replacements[layer.text] }
+      : layer) } : {}),
+  };
+}
 export type TextField = 'title' | 'streakTitle' | 'name' | 'handle' | 'message' | 'count' | 'diamonds';
 export const textFields: TextField[] = ['title', 'streakTitle', 'name', 'handle', 'message', 'count', 'diamonds'];
 

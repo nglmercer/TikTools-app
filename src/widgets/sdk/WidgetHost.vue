@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, provide, shallowRef, watch } from 'vue';
-import { widgetDesignKey } from './text.ts';
+import { currentSubscribeCopy, widgetDesignKey } from './text.ts';
 import { createWidgetRuntime, type WidgetRuntime } from '../shared/widget-runtime.ts';
 import type { GatewayStatus } from '../shared/gateway-client.ts';
 import { resolveWidgetDesign, styleVariables, type WidgetStyle, type WidgetTemplate } from './template.ts';
@@ -26,7 +26,8 @@ const generation = shallowRef(0);
 // Every consumer renders the same effective design. The editor and the
 // dashboard may pass partial drafts, while OBS may pass a design from the URL;
 // defaults always come from the template schema first.
-const design = computed(() => resolveWidgetDesign(props.template, props.design));
+const design = computed(() => resolveWidgetDesign(props.template,
+  props.template.id === 'subscribe' ? currentSubscribeCopy(props.design ?? {}) : props.design));
 const variables = computed(() => styleVariables(design.value));
 provide(widgetDesignKey, design);
 let runtime: WidgetRuntime | undefined;

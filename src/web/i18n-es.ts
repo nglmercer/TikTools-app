@@ -194,7 +194,7 @@ export const spanish: Record<TranslationKey, string> = {
   widgetsShareTitle: 'Alerta de compartidos',
   widgetsShareDescription: 'Muestra una tarjeta cada vez que alguien comparte el LIVE.',
   widgetsSubscribeTitle: 'Alerta de suscripciones',
-  widgetsSubscribeDescription: 'Muestra una tarjeta cada vez que alguien se suscribe.',
+  widgetsSubscribeDescription: 'Muestra una tarjeta cuando TikTok informa de una suscripción.',
   widgetsObsUrl: 'URL para fuente de navegador OBS',
   widgetsCopyUrl: 'Copiar URL para OBS',
   widgetsCopyUrlShort: 'Copiar URL',

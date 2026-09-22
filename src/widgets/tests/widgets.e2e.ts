@@ -141,7 +141,7 @@ test('subscribe alert appears with the viewer name, then disappears', async ({ p
   const card = page.locator('.subscribe-card');
   await expect(card).toBeVisible();
   await expect(card.getByText('Viewer Name')).toBeVisible();
-  await expect(card.getByText('just subscribed!')).toBeVisible();
+  await expect(card.getByText('subscribed to the LIVE!')).toBeVisible();
   await expect(card).toBeHidden({ timeout: 5000 });
 });
 
