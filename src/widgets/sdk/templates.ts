@@ -71,6 +71,9 @@ const followSchema = templateSchema('follow', alertDesign('#22c55e'), ['name', '
 const shareSchema = templateSchema('share', alertDesign('#22d3ee'), ['name', 'username']);
 const subscribeSchema = templateSchema('subscribe', alertDesign('#fe2c55'), ['name', 'username']);
 const giftSchema = templateSchema('gift', alertDesign('#f5c518', { padding: 18, width: 500, avatarSize: 34 }), ['name', 'gift', 'count', 'diamonds']);
+const giftPreviewAvatar = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="32" fill="#534735"/><circle cx="32" cy="25" r="11" fill="#ffe7a0"/><path d="M10 62c2-16 10-24 22-24s20 8 22 24" fill="#ffe7a0"/></svg>',
+)}`;
 const chatSchema = templateSchema('chat', alertDesign('#f5f5f7', {
   background: '#16161ddb',
   textColor: '#e8e8ec',
@@ -129,7 +132,7 @@ export const subscribeTemplate = defineWidget({
 export const giftTemplate = defineWidget({
   id: 'gift',
   schema: giftSchema,
-  samples: () => makeTestGiftCombo(5),
+  samples: () => makeTestGiftCombo(5, { user: { avatarUrl: giftPreviewAvatar } }),
   create(search, clock) {
     const settings = parseGiftSettings(search);
     const alert = shallowRef<GiftAlertView | null>(null);

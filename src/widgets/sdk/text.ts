@@ -2,10 +2,10 @@ import { inject, type ComputedRef, type InjectionKey } from 'vue';
 import type { WidgetStyle } from './template.ts';
 
 export const textDefaults = {
-  follow: { title: 'New follower', name: '{{name}}', handle: '{{username}}', message: 'just followed!' },
-  share: { title: 'Shared', name: '{{name}}', handle: '{{username}}', message: 'shared the LIVE!' },
+  follow: { name: '{{name}}', handle: '{{username}}', message: 'just followed!' },
+  share: { name: '{{name}}', handle: '{{username}}', message: 'shared the LIVE!' },
   subscribe: { title: 'New subscriber', name: '{{name}}', handle: '{{username}}', message: 'just subscribed!' },
-  gift: { title: 'Gift received', streakTitle: 'Gift streak', name: '{{name}}', message: 'sent {{gift}}', count: '×{{count}}', diamonds: '{{diamonds}} diamonds' },
+  gift: { name: '{{name}}', message: 'sent {{gift}}', count: '×{{count}}', diamonds: '{{diamonds}} diamonds' },
   chat: { name: '{{name}}', message: '{{message}}' },
 } as const;
 export type TextField = 'title' | 'streakTitle' | 'name' | 'handle' | 'message' | 'count' | 'diamonds';
