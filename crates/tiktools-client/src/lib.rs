@@ -26,6 +26,7 @@ pub mod rpc;
 pub mod settings;
 pub mod system;
 pub mod validate;
+pub mod widgets;
 pub mod workflows;
 
 pub use tiktools_control_api::{ClientError, ControlApi, ControlClient, ControlEvent, MethodMeta};
@@ -120,6 +121,7 @@ impl TikToolsClient {
             rpc::METHODS,
             settings::METHODS,
             system::METHODS,
+            widgets::METHODS,
             workflows::METHODS,
         ]
         .concat()
