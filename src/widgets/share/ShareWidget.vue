@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WidgetStage from '../sdk/WidgetStage.vue';
 import { computed, ref, watch } from 'vue';
 import type { ShareWidgetSettings } from '../shared/config.ts';
 import type { ShareAlert } from '../shared/share-controller.ts';
@@ -26,14 +27,14 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
 </script>
 
 <template>
-  <div
+  <WidgetStage :debug="props.debug" :status="props.status"
     class="share-stage"
     :style="{
       '--share-enter-ms': `${props.settings.enterMs}ms`,
       '--share-exit-ms': `${props.settings.exitMs}ms`,
     }"
   >
-    <Transition name="share" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
+    <Transition name="share" mode="out-in" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
       <div v-if="props.alert" :key="props.alert.id" class="share-card" role="alert">
         <div :class="['share-badge', { 'has-avatar': showAvatar }]" aria-hidden="true">
           <img
@@ -70,6 +71,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
         </div>
       </div>
     </Transition>
-    <div v-if="props.debug" class="widget-debug-status">gateway: {{ props.status }}</div>
-  </div>
+  </WidgetStage>
 </template>
+
+<style scoped src="./share.css"></style>

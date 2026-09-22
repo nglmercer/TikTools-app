@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WidgetStage from '../sdk/WidgetStage.vue';
 import { computed, ref, watch } from 'vue';
 import type { SubscribeWidgetSettings } from '../shared/config.ts';
 import type { SubscribeAlert } from '../shared/subscribe-controller.ts';
@@ -26,14 +27,14 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
 </script>
 
 <template>
-  <div
+  <WidgetStage :debug="props.debug" :status="props.status"
     class="subscribe-stage"
     :style="{
       '--subscribe-enter-ms': `${props.settings.enterMs}ms`,
       '--subscribe-exit-ms': `${props.settings.exitMs}ms`,
     }"
   >
-    <Transition name="subscribe" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
+    <Transition name="subscribe" mode="out-in" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
       <div v-if="props.alert" :key="props.alert.id" class="subscribe-card" role="alert">
         <div :class="['subscribe-badge', { 'has-avatar': showAvatar }]" aria-hidden="true">
           <img
@@ -66,6 +67,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
         </div>
       </div>
     </Transition>
-    <div v-if="props.debug" class="widget-debug-status">gateway: {{ props.status }}</div>
-  </div>
+  </WidgetStage>
 </template>
+
+<style scoped src="./subscribe.css"></style>

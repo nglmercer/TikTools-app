@@ -177,27 +177,14 @@
 }
 
 .widgets-preview-frame {
+  height: 220px;
+  flex: none;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 10px;
   background:
     repeating-conic-gradient(rgba(255, 255, 255, 0.04) 0% 25%, transparent 0% 50%) 0 0 / 22px 22px,
     #101014;
-}
-
-.widgets-preview-frame iframe {
-  display: block;
-  width: 100%;
-  height: 182px;
-  border: 0;
-  background: transparent;
-}
-
-.widgets-detail-card .ui-empty {
-  margin-bottom: 16px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(8, 12, 20, 0.24);
 }
 
 .widgets-preview-actions {

@@ -2,30 +2,9 @@
  * bottom-anchored message list; new messages slide in at the bottom and
  * old ones scroll away. No scrollbars, no selectable chrome. */
 
-html,
-body,
-#app {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  background: transparent;
-}
-
-.chat-stage {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  pointer-events: none;
-  user-select: none;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-}
 
 .chat-list {
-  width: min(520px, 94vw);
+  width: min(520px, 94%);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -38,9 +17,9 @@ body,
   align-items: flex-start;
   gap: 10px;
   padding: 10px 14px;
-  background: rgba(22, 22, 29, 0.86);
+  background: var(--widget-background, rgba(22, 22, 29, 0.86));
   border: 1px solid #2a2a33;
-  border-radius: 12px;
+  border-radius: var(--widget-radius, 12px);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
 }
 
@@ -76,7 +55,7 @@ body,
 .chat-name {
   font-size: 13px;
   font-weight: 800;
-  color: #f5f5f7;
+  color: var(--widget-accent, #f5f5f7);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -85,7 +64,7 @@ body,
 .chat-text {
   font-size: 15px;
   line-height: 1.35;
-  color: #e8e8ec;
+  color: var(--widget-textColor, #e8e8ec);
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -127,15 +106,3 @@ body,
 }
 
 /* Dev-only connection pill; never rendered in production builds. */
-.widget-debug-status {
-  position: fixed;
-  left: 8px;
-  bottom: 8px;
-  font-size: 11px;
-  font-family: ui-monospace, monospace;
-  color: #8b8b96;
-  background: rgba(0, 0, 0, 0.6);
-  border-radius: 6px;
-  padding: 3px 8px;
-  pointer-events: none;
-}

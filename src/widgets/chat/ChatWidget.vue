@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WidgetStage from '../sdk/WidgetStage.vue';
 import { ref } from 'vue';
 import type { ChatWidgetSettings } from '../shared/config.ts';
 import type { ChatMessageView } from '../shared/chat-controller.ts';
@@ -26,7 +27,7 @@ function initialsFor(message: ChatMessageView): string {
 </script>
 
 <template>
-  <div class="chat-stage">
+  <WidgetStage :debug="props.debug" :status="props.status" align="bottom" class="chat-stage">
     <TransitionGroup name="chat" tag="div" class="chat-list" aria-live="polite">
       <div v-for="message in props.messages" :key="message.id" class="chat-message">
         <div class="chat-avatar" aria-hidden="true">
@@ -45,6 +46,7 @@ function initialsFor(message: ChatMessageView): string {
         </div>
       </div>
     </TransitionGroup>
-    <div v-if="props.debug" class="widget-debug-status">gateway: {{ props.status }}</div>
-  </div>
+  </WidgetStage>
 </template>
+
+<style scoped src="./chat.css"></style>

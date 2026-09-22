@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WidgetStage from '../sdk/WidgetStage.vue';
 import { computed, ref, watch } from 'vue';
 import type { GiftWidgetSettings } from '../shared/config.ts';
 import type { GiftAlertView } from '../shared/gift-controller.ts';
@@ -33,7 +34,7 @@ const formattedCount = computed(() => (props.alert ? `×${props.alert.count.toLo
 </script>
 
 <template>
-  <div class="gift-stage">
+  <WidgetStage :debug="props.debug" :status="props.status" class="gift-stage">
     <Transition name="gift" mode="out-in">
       <div v-if="props.alert" :key="props.alert.key" class="gift-card" role="alert">
         <div class="gift-art" aria-hidden="true">
@@ -87,6 +88,7 @@ const formattedCount = computed(() => (props.alert ? `×${props.alert.count.toLo
         </div>
       </div>
     </Transition>
-    <div v-if="props.debug" class="widget-debug-status">gateway: {{ props.status }}</div>
-  </div>
+  </WidgetStage>
 </template>
+
+<style scoped src="./gift.css"></style>

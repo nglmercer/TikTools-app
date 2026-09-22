@@ -8,13 +8,13 @@ import {
 } from '../components/icons.vue';
 import widgetsOverlayGraphic from '../assets/widgets-overlay.svg';
 import { Button } from '../components/ui/Button.vue';
-import { Card, EmptyState } from '../components/ui/Card.vue';
+import { Card } from '../components/ui/Card.vue';
+import WidgetHost from '../../widgets/sdk/WidgetHost.vue';
+import { widgetTemplates } from '../../widgets/sdk/templates.ts';
 import { Page, PageHeader } from '../components/ui/Page.vue';
 import { TextInput } from '../components/ui/TextInput.vue';
 import {
   buildRedactedObsUrl,
-  buildWidgetPreviewUrl,
-  canPreviewWidgets,
   GATEWAY_DEFAULT_PORT,
   type WidgetKind,
   type WidgetsCopyFeedback,
@@ -69,8 +69,6 @@ function renderWidgetPanel(args: {
   locale: Locale;
   definition: WidgetDefinition;
   obsUrl: string;
-  previewReady: boolean;
-  previewUrl: string;
   previewKey: number;
   copyReady: boolean;
   copied: boolean;
@@ -137,21 +135,13 @@ function renderWidgetPanel(args: {
         <p class="widgets-token-note">{t(locale, 'widgetsRedactedNote')}</p>
 
         <div class="widgets-field-label">{t(locale, 'widgetsPreview')}</div>
-        {args.previewReady ? (
-          <div class="widgets-preview-frame">
-            <iframe
-              key={`${definition.kind}-${args.previewKey}`}
-              src={args.previewUrl}
-              title={definition.title}
-              sandbox="allow-scripts"
-            />
-          </div>
-        ) : (
-          <EmptyState
-            title={t(locale, 'widgetsPreviewUnavailable')}
-            description={t(locale, 'widgetsPreviewUnavailableHint')}
+        <div class="widgets-preview-frame" aria-label={t(locale, 'widgetsPreview')}>
+          <WidgetHost
+            template={widgetTemplates[definition.kind]}
+            mode="preview"
+            replayKey={args.previewKey}
           />
-        )}
+        </div>
 
         <div class="widgets-preview-actions">
           <button
@@ -291,7 +281,6 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
         current !== 'missing' &&
         current !== 'credential-unavailable' &&
         !props.refreshing;
-      const previewReady = canPreviewWidgets(current);
       const hint = props.statusError ?? props.status?.error ?? null;
       const definitions: WidgetDefinition[] = [
         {
@@ -354,8 +343,6 @@ export const WidgetsView = defineVueComponent<WidgetsViewProps>(
             locale,
             definition: selected,
             obsUrl: buildRedactedObsUrl(port.value, selected.kind),
-            previewReady,
-            previewUrl: buildWidgetPreviewUrl(port.value, selected.kind),
             previewKey: previewNonce.value,
             copyReady,
             copied: copiedWidget.value === selected.kind,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WidgetStage from '../sdk/WidgetStage.vue';
 import { computed, ref, watch } from 'vue';
 import type { FollowWidgetSettings } from '../shared/config.ts';
 import type { FollowAlert } from '../shared/follow-controller.ts';
@@ -26,7 +27,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
 </script>
 
 <template>
-  <div
+  <WidgetStage :debug="props.debug" :status="props.status"
     class="follow-stage"
     :style="{
       '--follow-enter-ms': `${props.settings.enterMs}ms`,
@@ -69,6 +70,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
         </div>
       </div>
     </Transition>
-    <div v-if="props.debug" class="widget-debug-status">gateway: {{ props.status }}</div>
-  </div>
+  </WidgetStage>
 </template>
+
+<style scoped src="./follow.css"></style>
