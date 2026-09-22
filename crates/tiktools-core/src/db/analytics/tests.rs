@@ -94,6 +94,43 @@ fn record_and_summarize_across_days() {
 }
 
 #[test]
+fn top_viewers_carry_points_avatars() {
+    let db = test_manager();
+    db.ensure_analytics_schema().expect("schema");
+    let day = 1_751_616_000;
+    db.record_analytics_event("creator", &record_chats("alice", 3), day)
+        .expect("record");
+    db.record_analytics_event("creator", &record_chats("bob", 1), day)
+        .expect("record");
+    db.save_viewer(
+        &serde_json::json!({"uniqueId": "alice", "avatarUrl": "https://cdn.example/a.png"}),
+        "chat",
+        1.0,
+    )
+    .expect("viewer");
+
+    let summary = db
+        .analytics_summary("creator", utc_day(day), utc_day(day), 10, 0)
+        .expect("summary");
+    assert_eq!(summary.top_viewers.len(), 2);
+    let alice = summary
+        .top_viewers
+        .iter()
+        .find(|viewer| viewer.unique_id == "alice")
+        .expect("alice row");
+    assert_eq!(
+        alice.avatar_url.as_deref(),
+        Some("https://cdn.example/a.png")
+    );
+    let bob = summary
+        .top_viewers
+        .iter()
+        .find(|viewer| viewer.unique_id == "bob")
+        .expect("bob row");
+    assert!(bob.avatar_url.is_none());
+}
+
+#[test]
 fn sessions_open_close_and_count() {
     let db = test_manager();
     db.ensure_analytics_schema().expect("schema");

@@ -26,6 +26,7 @@ export interface TestUserOverrides {
   uniqueId?: string;
   nickname?: string;
   secUid?: string;
+  avatarUrl?: string | null;
 }
 
 export function makeTestUser(overrides: TestUserOverrides = {}): AutomationUser {
@@ -34,6 +35,7 @@ export function makeTestUser(overrides: TestUserOverrides = {}): AutomationUser 
     uniqueId: overrides.uniqueId ?? 'viewer_name',
     nickname: overrides.nickname ?? 'Viewer Name',
     secUid: overrides.secUid ?? 'sec-test',
+    avatarUrl: overrides.avatarUrl ?? null,
   };
 }
 

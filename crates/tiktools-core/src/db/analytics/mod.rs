@@ -160,6 +160,10 @@ pub struct AnalyticsTopViewer {
     pub shares: i64,
     pub interactions: i64,
     pub last_seen: i64,
+    /// Display-only avatar from the points `viewers` table. Counters never
+    /// depend on it; renderers fall back to initials when it is absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -21,6 +21,7 @@ export interface FollowAlert {
   id: string;
   displayName: string;
   uniqueId: string;
+  avatarUrl: string | null;
 }
 
 export interface FollowControllerHandlers {
@@ -74,6 +75,7 @@ export class FollowController {
       id: event.id,
       displayName: displayNameFor(event.user),
       uniqueId: handleFor(event.user),
+      avatarUrl: event.user?.avatarUrl ?? null,
     };
     const wasIdle = this.current === null && this.queue.size === 0;
     this.queue.enqueue(alert);

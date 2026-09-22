@@ -14,6 +14,7 @@ type GiftWidgetProps = {
 const props = defineProps<GiftWidgetProps>();
 
 const imageFailed = ref(false);
+const avatarFailed = ref(false);
 
 // A new alert key resets the image state; count updates on the same streak
 // must not restart the artwork.
@@ -21,10 +22,12 @@ watch(
   () => props.alert?.key,
   () => {
     imageFailed.value = false;
+    avatarFailed.value = false;
   },
 );
 
 const showArtwork = computed(() => props.settings.showImage && !!props.alert?.giftIconUrl && !imageFailed.value);
+const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.value);
 const formattedDiamonds = computed(() => (props.alert ? props.alert.totalDiamonds.toLocaleString('en-US') : ''));
 const formattedCount = computed(() => (props.alert ? `×${props.alert.count.toLocaleString('en-US')}` : ''));
 </script>
@@ -57,7 +60,17 @@ const formattedCount = computed(() => (props.alert ? `×${props.alert.count.toLo
         </div>
         <div class="gift-body">
           <span class="gift-kicker">{{ props.alert.streaking ? 'Gift streak' : 'Gift received' }}</span>
-          <span class="gift-name">{{ props.alert.displayName }}</span>
+          <span class="gift-sender">
+            <img
+              v-if="showAvatar"
+              class="gift-avatar"
+              :src="props.alert.avatarUrl as string"
+              :alt="props.alert.displayName"
+              referrerpolicy="no-referrer"
+              @error="avatarFailed = true"
+            />
+            <span class="gift-name">{{ props.alert.displayName }}</span>
+          </span>
           <span class="gift-line">
             sent {{ props.alert.giftName }}
             <span

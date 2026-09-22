@@ -45,11 +45,18 @@ body,
   align-items: center;
   justify-content: center;
   color: #0b0f0c;
+  overflow: hidden;
 }
 
 .follow-badge svg {
   width: 26px;
   height: 26px;
+}
+
+.follow-badge img.follow-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .follow-body {

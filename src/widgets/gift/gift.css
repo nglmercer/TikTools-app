@@ -74,6 +74,22 @@ body,
   text-transform: uppercase;
 }
 
+.gift-sender {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+img.gift-avatar {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #26262e;
+}
+
 .gift-name {
   font-size: 26px;
   font-weight: 800;

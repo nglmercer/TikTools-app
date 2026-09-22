@@ -37,6 +37,16 @@ describe('follow controller', () => {
     expect(controller.currentAlert).toBeNull();
   });
 
+  test('carries the sender avatar, null when TikTok sent none', () => {
+    const { fake, shown, controller } = setup();
+    controller.handleEnvelope(
+      makeTestFollowEnvelope({ user: { avatarUrl: 'https://cdn.example/a.png' } }),
+    );
+    controller.handleEnvelope(makeTestFollowEnvelope({ user: { nickname: 'No Avatar' } }));
+    fake.advance(4000);
+    expect(shown.map((alert) => alert.avatarUrl)).toEqual(['https://cdn.example/a.png', null]);
+  });
+
   test('queues bursts and serves them in order', () => {
     const { fake, shown, hidden, controller } = setup();
     controller.handleEnvelope(makeTestFollowEnvelope({ user: { nickname: 'First' } }));

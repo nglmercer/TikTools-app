@@ -1,6 +1,7 @@
 <script lang="tsx">
 import { t, type Locale } from '../i18n.ts';
 import type { TopViewerPayload, ViewerRecord } from '../types.ts';
+import { UserAvatar } from './user-avatar.vue';
 
 type Props = {
   locale: Locale;
@@ -11,10 +12,6 @@ type Props = {
   // Live viewer count from WebcastRoomUserSeqMessage
   liveViewers?: number;
 };
-
-function getInitials(name: string): string {
-  return name.slice(0, 2).toUpperCase();
-}
 
 /**
  * Minimalist contributor list: plain rows with a hairline separator, no
@@ -67,19 +64,13 @@ export function TopViewersRibbon({ locale, topViewers = [], leaderboard = [], li
         return (
           <div key={viewer.key} role="listitem" class={`tt-viewer-row${rankTone}`}>
             <span class="tt-rank-num">{displayRank}</span>
-            {viewer.avatarUrl ? (
-              <img
-                src={viewer.avatarUrl}
-                alt={viewer.uniqueId}
-                class="tt-chip-avatar"
-                loading="lazy"
-                onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
-              />
-            ) : (
-              <span class="tt-chip-avatar fallback" aria-hidden>
-                {getInitials(viewer.uniqueId)}
-              </span>
-            )}
+            <UserAvatar
+              uniqueId={viewer.uniqueId}
+              nickname={viewer.nickname}
+              avatarUrl={viewer.avatarUrl}
+              imgClass="tt-chip-avatar"
+              fallbackClass="tt-chip-avatar fallback"
+            />
             <span class="tt-rank-name" title={viewer.nickname || viewer.uniqueId}>
               {viewer.nickname && viewer.nickname !== viewer.uniqueId ? viewer.nickname : `@${viewer.uniqueId}`}
             </span>

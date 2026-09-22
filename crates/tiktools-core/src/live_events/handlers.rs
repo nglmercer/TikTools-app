@@ -158,11 +158,23 @@ impl AppCore {
                 self.queue_automation_event(event);
             }
             if let tiktools_tiktok::events::CanonicalLiveEvent::RoomUser(room) = &event.base {
+                // Upstream fills both rank lists from the same contributors;
+                // prefer `top_viewers`, fall back to `ranked_viewers`.
+                let ranked = if room.top_viewers.is_empty() {
+                    &room.ranked_viewers
+                } else {
+                    &room.top_viewers
+                };
+                let top_viewers = ranked
+                    .iter()
+                    .take(25)
+                    .map(top_viewer_value)
+                    .collect::<Vec<_>>();
                 self.events
                     .publish_domain(crate::events::DomainEvent::RoomStats {
                         viewers: room.total,
                         total_users: room.total_user,
-                        top_viewers: Vec::new(),
+                        top_viewers,
                     });
                 #[cfg(feature = "persistence")]
                 self.record_analytics_viewers(room.total);

@@ -23,6 +23,7 @@ export interface GiftAlertView {
   key: string;
   displayName: string;
   uniqueId: string;
+  avatarUrl: string | null;
   giftId: string;
   giftName: string;
   count: number;
@@ -123,6 +124,7 @@ export class GiftController {
     const base = {
       displayName: displayNameFor(event.user),
       uniqueId: handleFor(event.user),
+      avatarUrl: event.user?.avatarUrl ?? null,
       giftId: event.data.giftId,
       giftName: event.data.giftName,
       count,
@@ -278,6 +280,7 @@ function comboView(combo: ActiveGiftCombo): GiftAlertView {
     key: combo.key,
     displayName: combo.displayName,
     uniqueId: combo.uniqueId,
+    avatarUrl: combo.avatarUrl,
     giftId: combo.giftId,
     giftName: combo.giftName,
     count: combo.count,

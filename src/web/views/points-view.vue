@@ -14,6 +14,7 @@ import { SplitLayout } from '../components/ui/Page.vue';
 import { DataTable, RowActions, type Column } from '../components/ui/Table.vue';
 import { t, type Locale } from '../i18n.ts';
 import type { ConnectionStatus, PointsConfig, ViewerRecord } from '../types.ts';
+import { UserAvatar } from '../components/user-avatar.vue';
 import { useDialogs } from '../composables/useDialogs.ts';
 
 type PointsViewProps = {
@@ -168,7 +169,14 @@ export const PointsView = defineVueComponent<PointsViewProps>(
       header: t(locale, 'viewer'),
       sortable: true,
       render: (row) => (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <UserAvatar
+            uniqueId={row.uniqueId}
+            nickname={row.nickname}
+            avatarUrl={row.avatarUrl}
+            imgClass="tt-chip-avatar"
+            fallbackClass="tt-chip-avatar fallback"
+          />
           <span style={{ fontWeight: 600 }}>@{row.uniqueId}</span>
           {row.isSubscriber ? (
             <span title="Subscriber" style={{ display: 'inline-flex', color: '#f59e0b' }}>

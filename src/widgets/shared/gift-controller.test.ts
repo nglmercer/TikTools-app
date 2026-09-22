@@ -76,6 +76,22 @@ describe('gift controller', () => {
     expect(hidden).toHaveLength(1);
   });
 
+  test('carries the sender avatar through streaks', () => {
+    const { shown, updated, controller } = setup();
+    for (const envelope of makeTestGiftCombo(2, {
+      user: { avatarUrl: 'https://cdn.example/g.png' },
+      diamondCount: 10,
+    })) {
+      controller.handleEnvelope(envelope);
+    }
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.avatarUrl).toBe('https://cdn.example/g.png');
+    expect(updated[updated.length - 1]).toMatchObject({
+      avatarUrl: 'https://cdn.example/g.png',
+      streaking: false,
+    });
+  });
+
   test('aggregates a streak into one live alert', () => {
     const { fake, shown, updated, hidden, controller } = setup();
     const combo = makeTestGiftCombo(5, { repeatEnd: false, giftName: 'Rose', diamondCount: 1 });
