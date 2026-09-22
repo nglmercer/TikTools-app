@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, provide, shallowRef, watch } from 'vu
 import { widgetDesignKey } from './text.ts';
 import { createWidgetRuntime, type WidgetRuntime } from '../shared/widget-runtime.ts';
 import type { GatewayStatus } from '../shared/gateway-client.ts';
-import { styleVariables, type WidgetStyle, type WidgetTemplate } from './template.ts';
+import { resolveWidgetDesign, styleVariables, type WidgetStyle, type WidgetTemplate } from './template.ts';
 import type { WidgetClock } from '../shared/clock.ts';
 import type { DomainEventEnvelope } from '../shared/event-types.ts';
 import { makeTestFollowEnvelope, makeTestGiftEnvelope, makeTestGiftCombo, makeTestChatEnvelope, makeTestShareEnvelope, makeTestSubscribeEnvelope, mountWidgetTestHook, WIDGET_TEST_HOOK } from '../shared/test-events.ts';
@@ -23,8 +23,12 @@ const previewClock: WidgetClock = { now: () => Date.now(), setTimeout: () => nul
 const instance = shallowRef(props.template.create(props.search, props.mode === 'preview' ? previewClock : undefined));
 const status = shallowRef<GatewayStatus>('idle');
 const generation = shallowRef(0);
-const variables = computed(() => styleVariables(props.design));
-provide(widgetDesignKey, computed(() => props.design ?? {}));
+// Every consumer renders the same effective design. The editor and the
+// dashboard may pass partial drafts, while OBS may pass a design from the URL;
+// defaults always come from the template schema first.
+const design = computed(() => resolveWidgetDesign(props.template, props.design));
+const variables = computed(() => styleVariables(design.value));
+provide(widgetDesignKey, design);
 let runtime: WidgetRuntime | undefined;
 let timers: ReturnType<typeof setTimeout>[] = [];
 let mounted = false;

@@ -10,13 +10,17 @@ deduplication, gift aggregation and the gateway transport.
 
 1. Create a Vue renderer inside the shared WidgetStage, with scoped styles. Do not style html/body/#app;
    the standalone entry owns those. Size relative to the parent, not the viewport.
-2. Use `defineWidget` from `sdk/template.ts`. Supply an id, a `samples()`
-   factory returning fresh domain envelopes, and `create(search, clock)`.
-3. In create, parse settings, allocate local reactive state and create a
+2. Use `defineWidget` from `sdk/template.ts`. Supply an id, a `schema`, a
+   `samples()` factory returning fresh domain envelopes, and `create(search, clock)`.
+3. Define every supported text field, required editor field, token and visual
+   default in the schema. `WidgetHost` resolves `schema.defaultDesign` before
+   rendering, so the dashboard preview, builder preview and OBS bundle share
+   the same starting appearance.
+4. In create, parse settings, allocate local reactive state and create a
    controller. Return that controller and a `render(status, debug)` function.
    The controller must implement handleEnvelope, clear and dispose. Pass the
    supplied clock into timed controllers so previews can hold the sample.
-4. Register the definition in `sdk/templates.ts`, add the desktop tab, and
+5. Register the definition in `sdk/templates.ts`, add the desktop tab, and
    create an OBS main.ts calling `mountWidget(template)`. Add the standalone
    build entry, gateway route allowlist and packaging entry for a new public URL.
 
@@ -30,6 +34,13 @@ settings), design, and replayKey. Increment replayKey to replay. Changes to
 template/search/mode rebuild the controller; design changes apply immediately
 without restarting playback.
 
+Do not create a second preview renderer in the desktop UI. Pass the same
+template and partial design to `WidgetHost`; it merges the partial design with
+the template schema. A field is hidden only when the saved design contains it
+in `hiddenText` or its text override is an empty string. There is no implicit
+editor-only field filter, so a new or reset design looks the same in both
+preview surfaces.
+
 `WidgetStyle` is a JSON-serializable style contract. `widgetStyleFields`
 provides color/number controls for background, textColor, accent and radius.
 Only six/eight-digit hex colors and finite radii (clamped to 0–48px) are applied.
@@ -41,12 +52,15 @@ fragment parameter; credentials still never cross into the WebView. Standalone
 widgets parse that snapshot through `sdk/design.ts`. After saving, users must
 copy the updated URL into OBS; already installed URLs do not update live.
 
-Text overrides live in `design.text` (300 characters per field). Defaults and
-supported lines are declared in `sdk/text.ts`. An empty string hides a line;
-an absent key uses the default. `{{name}}` and `{{username}}` resolve viewer
-data, gifts also expose `{{gift}}`, `{{count}}`, `{{diamonds}}`, and chat exposes
-`{{message}}`. Substitution is single-pass plain text, not HTML or JavaScript;
-unknown placeholders remain literal. Preview and OBS use the same resolver.
+Text overrides live in `design.text` (300 characters per field). The template
+schema owns field order, required fields and supported tokens; default strings
+remain in `sdk/text.ts` so the Vue renderers and editor use one resolver. An
+empty string hides a line, an explicit `hiddenText` entry hides the default
+line, and an absent key uses the default. `{{name}}` and `{{username}}` resolve
+viewer data, gifts also expose `{{gift}}`, `{{count}}`, `{{diamonds}}`, and chat
+exposes `{{message}}`. Substitution is single-pass plain text, not HTML or
+JavaScript; unknown placeholders remain literal. Preview and OBS use the same
+resolver and the same schema defaults.
 
 ## Why the previous preview was blank
 

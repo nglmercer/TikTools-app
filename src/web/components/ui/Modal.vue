@@ -24,6 +24,7 @@ export type ModalProps = {
   description?: string;
   children?: VNodeChild;
   footer?: VNodeChild;
+  headerActions?: VNodeChild;
   size?: ModalSize;
   onClose: () => void;
   closeLabel?: string;
@@ -43,7 +44,7 @@ export const ModalActions = defineVueFunctional<{ children?: VNodeChild }>((prop
  * the editor and the rest of the WebView UI.
  */
 export const Modal = defineVueComponent<ModalProps>(
-  ['title', 'description', 'children', 'footer', 'size', 'onClose', 'closeLabel', 'closeOnBackdrop', 'closeOnEscape', 'className'],
+  ['title', 'description', 'children', 'footer', 'headerActions', 'size', 'onClose', 'closeLabel', 'closeOnBackdrop', 'closeOnEscape', 'className'],
   (props) => {
   const dialogRef = ref<HTMLDivElement | null>(null);
   const ids = createModalIds();
@@ -90,7 +91,7 @@ export const Modal = defineVueComponent<ModalProps>(
   });
 
   return () => {
-    const { title, description, children, footer, size = 'md', onClose, closeLabel = 'Close', closeOnBackdrop = true, className = '' } = props;
+    const { title, description, children, footer, headerActions, size = 'md', onClose, closeLabel = 'Close', closeOnBackdrop = true, className = '' } = props;
     const sizeClass = MODAL_SIZE_CLASS[size];
     return (
     <Teleport to="body">
@@ -113,6 +114,7 @@ export const Modal = defineVueComponent<ModalProps>(
         >
           <header class="ui-modal-card__header">
             <h2 id={ids.titleId} class="ui-modal-card__title">{title}</h2>
+            {headerActions ? <div class="ui-modal-card__header-actions">{headerActions}</div> : null}
             <button
               type="button"
               class="ui-modal__close"

@@ -1,5 +1,5 @@
 import type { IconComponent } from './icon-base.tsx';
-import { IconArrowDown, IconAudio, IconBarChart, IconBolt, IconChat, IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconCloud, IconCode, IconConnected, IconCopy, IconCrown, IconDatabase, IconDice, IconDisconnected, IconDoc, IconDot, IconEdit, IconFlame, IconFollow, IconFormat, IconGift, IconGlobe, IconHeart, IconHttp, IconInfo, IconJoin, IconJson, IconKeyboard, IconLink, IconLock, IconMoon, IconPause, IconPlay, IconPlugins, IconPlus, IconPoints, IconPower, IconRadio, IconRefresh, IconSearch, IconServer, IconSettings, IconShare, IconShield, IconSparkles, IconSpeaker, IconStar, IconStop, IconSun, IconTemplate, IconTerminal, IconTikTok, IconTrash, IconTrophy, IconUnlock, IconUsers, IconVoice, IconVolume, IconWarning, IconWebhook } from './glyphs.tsx';
+import { IconArrowDown, IconAudio, IconBarChart, IconBolt, IconChat, IconCheck, IconChevronLeft, IconChevronRight, IconClose, IconCloud, IconCode, IconConnected, IconCopy, IconCrown, IconDatabase, IconDice, IconDisconnected, IconDoc, IconDot, IconEdit, IconFlame, IconFollow, IconFormat, IconGift, IconGlobe, IconHeart, IconHttp, IconImage, IconInfo, IconJoin, IconJson, IconKeyboard, IconLink, IconLock, IconMoon, IconMore, IconPause, IconPlay, IconPlugins, IconPlus, IconPoints, IconPower, IconRadio, IconRedo, IconRefresh, IconSearch, IconServer, IconSettings, IconShare, IconShield, IconSparkles, IconSpeaker, IconSquare, IconStar, IconStop, IconSun, IconTemplate, IconTerminal, IconTikTok, IconTrash, IconTrophy, IconUndo, IconUnlock, IconUsers, IconVoice, IconVolume, IconWarning, IconWebhook } from './glyphs.tsx';
 
 /**
  * Icon identifiers for data-driven UI (event presentation, templates). The
@@ -81,7 +81,12 @@ export type IconName =
   | 'database'
   | 'shield'
   | 'terminal'
-  | 'doc';
+  | 'doc'
+  | 'undo'
+  | 'redo'
+  | 'more'
+  | 'image'
+  | 'square';
 
 export const ICONS: Record<IconName, IconComponent> = {
   tiktok: IconTikTok,
@@ -159,6 +164,11 @@ export const ICONS: Record<IconName, IconComponent> = {
   shield: IconShield,
   terminal: IconTerminal,
   doc: IconDoc,
+  undo: IconUndo,
+  redo: IconRedo,
+  more: IconMore,
+  image: IconImage,
+  square: IconSquare,
 };
 
 /** Resolve an icon name with a neutral fallback for unknown values. */

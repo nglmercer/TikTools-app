@@ -648,6 +648,52 @@ export function IconDoc({ size = 18, strokeWidth = 1.75, className }: IconProps 
  * - nav `connect` tab = live signal (radio); header/card connect action = plug
  * - nav `analytics` = bar chart; `automation` = sparkles; feed `all` = bolt
  */
+export function IconUndo({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <path d="M3 7v6h6" />
+      <path d="M21 17a9 9 0 0 0-15-6.7L3 13" />
+    </SvgIcon>
+  );
+}
+
+export function IconRedo({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <path d="M21 7v6h-6" />
+      <path d="M3 17a9 9 0 0 1 15-6.7L21 13" />
+    </SvgIcon>
+  );
+}
+
+export function IconMore({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
+      <circle cx="12" cy="5" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="12" cy="19" r="1.6" />
+    </SvgIcon>
+  );
+}
+
+export function IconImage({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="M21 15l-5-5L5 21" />
+    </SvgIcon>
+  );
+}
+
+export function IconSquare({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <rect x="4" y="4" width="16" height="16" rx="3" />
+    </SvgIcon>
+  );
+}
+
 export const IconConnect: IconComponent = IconConnected;
 export const IconDisconnect: IconComponent = IconDisconnected;
 export const IconLive: IconComponent = IconRadio;

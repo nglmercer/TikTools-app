@@ -258,20 +258,23 @@ impl AppCore {
 const GATEWAY_LOOPBACK_V4: &str = "127.0.0.1";
 
 /// Copy only known style tokens, never arbitrary application state or CSS.
+/// Mirrors the WebView `normalizeDesign` bounds so OBS renders exactly what
+/// the builder preview shows.
 fn portable_design(raw: &str) -> Option<String> {
+    const TEXT_FIELDS: [&str; 7] = [
+        "title",
+        "streakTitle",
+        "name",
+        "handle",
+        "message",
+        "count",
+        "diamonds",
+    ];
     let source: serde_json::Value = serde_json::from_str(raw).ok()?;
     let mut design = serde_json::Map::new();
     if let Some(fields) = source.get("text").and_then(|value| value.as_object()) {
         let mut text = serde_json::Map::new();
-        for key in [
-            "title",
-            "streakTitle",
-            "name",
-            "handle",
-            "message",
-            "count",
-            "diamonds",
-        ] {
+        for key in TEXT_FIELDS {
             if let Some(value) = fields.get(key).and_then(|value| value.as_str()) {
                 text.insert(
                     key.to_owned(),
@@ -283,23 +286,113 @@ fn portable_design(raw: &str) -> Option<String> {
             design.insert("text".to_owned(), serde_json::Value::Object(text));
         }
     }
-    for key in ["background", "textColor", "accent"] {
-        if let Some(color) = source.get(key).and_then(|value| value.as_str()) {
-            if matches!(color.len(), 7 | 9)
-                && color.starts_with('#')
-                && color.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
-            {
-                design.insert(key.to_owned(), serde_json::Value::from(color));
+    if let Some(hidden) = source.get("hiddenText").and_then(|value| value.as_array()) {
+        let mut kept: Vec<serde_json::Value> = Vec::new();
+        for field in hidden {
+            let Some(name) = field.as_str() else {
+                continue;
+            };
+            if !TEXT_FIELDS.contains(&name) || kept.iter().any(|kept| kept.as_str() == Some(name)) {
+                continue;
+            }
+            kept.push(serde_json::Value::from(name));
+            if kept.len() >= TEXT_FIELDS.len() {
+                break;
             }
         }
+        if !kept.is_empty() {
+            design.insert("hiddenText".to_owned(), serde_json::Value::Array(kept));
+        }
     }
-    if let Some(radius) = source.get("radius").and_then(|value| value.as_f64()) {
-        design.insert(
-            "radius".to_owned(),
-            serde_json::Value::from(radius.clamp(0.0, 48.0)),
-        );
+    for key in ["background", "textColor", "accent", "borderColor"] {
+        if let Some(color) = portable_color(source.get(key)) {
+            design.insert(key.to_owned(), serde_json::Value::from(color));
+        }
+    }
+    for (key, min, max) in [
+        ("radius", 0.0, 48.0),
+        ("borderWidth", 0.0, 8.0),
+        ("opacity", 0.0, 100.0),
+        ("padding", 0.0, 64.0),
+        ("gap", 0.0, 48.0),
+        ("width", 240.0, 720.0),
+    ] {
+        if let Some(number) = portable_number(source.get(key), min, max) {
+            design.insert(key.to_owned(), serde_json::Value::from(number));
+        }
+    }
+    if let Some(shadow) = source.get("shadow").and_then(|value| value.as_bool()) {
+        design.insert("shadow".to_owned(), serde_json::Value::from(shadow));
+    }
+    if let Some(align) = source.get("align").and_then(|value| value.as_str()) {
+        if matches!(align, "left" | "center" | "right") {
+            design.insert("align".to_owned(), serde_json::Value::from(align));
+        }
+    }
+    if let Some(avatar) = source.get("avatar").and_then(|value| value.as_object()) {
+        let mut kept = serde_json::Map::new();
+        if let Some(visible) = avatar.get("visible").and_then(|value| value.as_bool()) {
+            kept.insert("visible".to_owned(), serde_json::Value::from(visible));
+        }
+        for (key, min, max) in [
+            ("size", 16.0, 160.0),
+            ("radius", 0.0, 80.0),
+            ("borderWidth", 0.0, 8.0),
+        ] {
+            if let Some(number) = portable_number(avatar.get(key), min, max) {
+                kept.insert(key.to_owned(), serde_json::Value::from(number));
+            }
+        }
+        if let Some(color) = portable_color(avatar.get("borderColor")) {
+            kept.insert("borderColor".to_owned(), serde_json::Value::from(color));
+        }
+        if !kept.is_empty() {
+            design.insert("avatar".to_owned(), serde_json::Value::Object(kept));
+        }
+    }
+    if let Some(badge) = source.get("badge").and_then(|value| value.as_object()) {
+        let mut kept = serde_json::Map::new();
+        if let Some(visible) = badge.get("visible").and_then(|value| value.as_bool()) {
+            kept.insert("visible".to_owned(), serde_json::Value::from(visible));
+        }
+        if let Some(color) = portable_color(badge.get("color")) {
+            kept.insert("color".to_owned(), serde_json::Value::from(color));
+        }
+        for (key, min, max) in [("fontSize", 8.0, 32.0), ("letterSpacing", 0.0, 8.0)] {
+            if let Some(number) = portable_number(badge.get(key), min, max) {
+                kept.insert(key.to_owned(), serde_json::Value::from(number));
+            }
+        }
+        if let Some(weight) = badge.get("fontWeight").and_then(|value| value.as_f64()) {
+            let rounded = (weight / 100.0).round() * 100.0;
+            kept.insert(
+                "fontWeight".to_owned(),
+                serde_json::Value::from(rounded.clamp(400.0, 900.0)),
+            );
+        }
+        if !kept.is_empty() {
+            design.insert("badge".to_owned(), serde_json::Value::Object(kept));
+        }
     }
     (!design.is_empty()).then(|| serde_json::Value::Object(design).to_string())
+}
+
+fn portable_color(value: Option<&serde_json::Value>) -> Option<&str> {
+    let color = value.and_then(|value| value.as_str())?;
+    (matches!(color.len(), 7 | 9)
+        && color.starts_with('#')
+        && color.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit))
+    .then_some(color)
+}
+
+fn portable_number(value: Option<&serde_json::Value>, min: f64, max: f64) -> Option<f64> {
+    value.and_then(|value| value.as_f64()).map(|number| {
+        if number.is_finite() {
+            number.clamp(min, max)
+        } else {
+            min
+        }
+    })
 }
 
 /// Fragment-encodes a credential the same way browsers do for `#token=…`
@@ -429,6 +522,33 @@ mod tests {
         );
         assert!(super::portable_design("broken").is_none());
         assert!(super::portable_design("{}").is_none());
+    }
+    #[test]
+    fn copied_design_covers_layout_avatar_badge_and_hidden_text() {
+        let result = super::portable_design(
+            r##"{"hiddenText":["title","name","title","evil"],"borderColor":"#2a2a33","borderWidth":99,"shadow":false,"opacity":80,"padding":24,"gap":12,"align":"center","width":100,"avatar":{"visible":false,"size":64,"radius":12,"borderColor":"#ffffff","borderWidth":3,"evil":1},"badge":{"color":"#00dce8","fontSize":14,"fontWeight":750,"letterSpacing":2},"align2":"drop"}"##,
+        )
+        .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "hiddenText": ["title", "name"],
+                "borderColor": "#2a2a33",
+                "borderWidth": 8.0,
+                "shadow": false,
+                "opacity": 80.0,
+                "padding": 24.0,
+                "gap": 12.0,
+                "align": "center",
+                "width": 240.0,
+                "avatar": {"visible": false, "size": 64.0, "radius": 12.0, "borderColor": "#ffffff", "borderWidth": 3.0},
+                "badge": {"color": "#00dce8", "fontSize": 14.0, "fontWeight": 800.0, "letterSpacing": 2.0},
+            })
+        );
+        assert!(super::portable_design(r#"{"hiddenText":[]}"#).is_none());
+        assert!(super::portable_design(r#"{"hiddenText":"title"}"#).is_none());
+        assert!(super::portable_design(r#"{"align":"diagonal"}"#).is_none());
     }
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};

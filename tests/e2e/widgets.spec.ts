@@ -2,27 +2,41 @@ import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, installFakeHost } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 
-test('text editing interpolates live values, hides empty lines and preserves saved drafts on cancel', async ({ page }, testInfo) => {
+test('text editing uses the same template defaults as the dashboard preview', async ({ page }, testInfo) => {
   await installFakeHost(page, emptyState(), { theme: 'dark' });
   await page.goto('/');
   await page.getByRole('button', { name: 'Widgets', exact: true }).click();
   const edit = page.getByRole('button', { name: /Edit design/ });
   const dialog = page.getByRole('dialog');
   await edit.click();
-  const textToggle = dialog.getByRole('tab', { name: 'Templates', exact: true });
-  const stylesTab = dialog.getByRole('tab', { name: 'Styles', exact: true });
-  await expect(dialog.getByLabel('Heading', { exact: true })).toBeHidden();
+  const contentTab = dialog.getByRole('tab', { name: 'Content', exact: true });
+  const stylesTab = dialog.getByRole('tab', { name: 'Style', exact: true });
+  const layoutTab = dialog.getByRole('tab', { name: 'Layout', exact: true });
+  // The schema drives both previews, so every default template line is
+  // visible when there is no saved hiddenText override.
+  await expect(dialog.getByLabel('Heading', { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Viewer name', { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Username', { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Message', { exact: true })).toBeVisible();
+  await expect(dialog.locator('.follow-kicker')).toBeVisible();
+  await expect(dialog.locator('.follow-name')).toBeVisible();
+  await expect(dialog.locator('.follow-handle')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Badge', exact: true }).click();
+  await expect(dialog.getByLabel('Heading', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Add field', exact: true })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Alert', exact: true }).click();
   await stylesTab.focus();
   await page.keyboard.press('ArrowRight');
-  await expect(textToggle).toBeFocused();
-  await expect(textToggle).toHaveAttribute('aria-selected', 'true');
+  await expect(layoutTab).toBeFocused();
+  await expect(layoutTab).toHaveAttribute('aria-selected', 'true');
   await expect(dialog.locator('details')).toHaveCount(0);
   await expect(dialog.getByLabel('Background', { exact: true })).toBeHidden();
-  for (const label of ['Heading', 'Viewer name', 'Username', 'Message']) {
-    await expect(dialog.getByLabel(label, { exact: true })).toBeVisible();
-  }
+  await contentTab.click();
+  await expect(dialog.getByLabel('Username', { exact: true })).toBeVisible();
   await expect(dialog.locator('.follow-card')).toHaveCSS('opacity', '1');
   await page.screenshot({ path: testInfo.outputPath('templates-tab.png') });
+  await expect(dialog.getByLabel('Heading', { exact: true })).toHaveValue('New follower');
+  await expect(dialog.locator('.follow-kicker')).toHaveText('New follower');
   await dialog.getByLabel('Heading', { exact: true }).fill('Welcome!');
   await dialog.getByLabel('Message', { exact: true }).fill('Thanks {{name}}!');
   await dialog.getByLabel('Username', { exact: true }).fill('');
@@ -30,21 +44,74 @@ test('text editing interpolates live values, hides empty lines and preserves sav
   await expect(dialog.locator('.follow-handle')).toHaveCount(0);
   await stylesTab.click();
   await expect(dialog.getByLabel('Heading', { exact: true })).toBeHidden();
-  await textToggle.click();
+  await contentTab.click();
   await expect(dialog.getByLabel('Heading', { exact: true })).toHaveValue('Welcome!');
-  await dialog.getByRole('button', { name: 'Save design' }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('.follow-kicker')).toHaveText('Welcome!');
   await edit.click();
-  await expect(dialog.getByLabel('Heading', { exact: true })).toBeHidden();
-  await textToggle.click();
+  // Customized and untouched default fields both stay visible on reopen.
+  await expect(dialog.getByLabel('Heading', { exact: true })).toHaveValue('Welcome!');
+  await expect(dialog.getByLabel('Viewer name', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Badge', exact: true }).click();
+  await expect(dialog.getByLabel('Heading', { exact: true })).toHaveValue('Welcome!');
+  await dialog.getByRole('button', { name: 'Alert', exact: true }).click();
   await dialog.getByLabel('Heading', { exact: true }).fill('Discard this');
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).last().click();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.locator('.follow-kicker')).toHaveText('Welcome!');
   await edit.click();
-  await textToggle.click();
-  await dialog.getByRole('button', { name: 'Reset to defaults' }).click();
+  await dialog.getByRole('button', { name: 'Design options', exact: true }).click();
+  await dialog.getByRole('menuitem', { name: 'Reset design' }).click();
   await expect(dialog.locator('.follow-handle')).toHaveCount(1);
+  await expect(dialog.getByLabel('Heading', { exact: true })).toHaveValue('New follower');
+  await expect(dialog.locator('.follow-kicker')).toHaveText('New follower');
   await expect(dialog.getByLabel('Message', { exact: true })).toHaveValue('just followed!');
+  await assertNoUnhandledCalls(page);
+});
+
+test('every template exposes the same default fields in the builder and preview', async ({ page }) => {
+  await installFakeHost(page, emptyState(), { theme: 'dark' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Widgets', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const cases = [
+    { tab: 'Followers', fields: ['Heading', 'Viewer name', 'Username', 'Message'] },
+    { tab: 'Gifts', fields: ['Heading', 'Streak heading', 'Viewer name', 'Message', 'Gift count', 'Diamonds'] },
+    { tab: 'Chat', fields: ['Viewer name', 'Message'] },
+    { tab: 'Shared', fields: ['Heading', 'Viewer name', 'Username', 'Message'] },
+    { tab: 'Subscriptions', fields: ['Heading', 'Viewer name', 'Username', 'Message'] },
+  ];
+  for (const { tab, fields } of cases) {
+    await page.getByRole('tab', { name: tab, exact: true }).click();
+    await page.getByRole('button', { name: /Edit design/ }).click();
+    for (const label of fields) {
+      await expect(dialog.getByLabel(label, { exact: true })).toBeVisible();
+    }
+    await expect(dialog.getByRole('button', { name: 'Add field', exact: true })).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  }
+  await assertNoUnhandledCalls(page);
+});
+
+test('optional gift fields can be removed and restored from the shared template', async ({ page }) => {
+  await installFakeHost(page, emptyState(), { theme: 'dark' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Widgets', exact: true }).click();
+  await page.getByRole('tab', { name: 'Gifts', exact: true }).click();
+  const edit = page.getByRole('button', { name: /Edit design/ });
+  const dialog = page.getByRole('dialog');
+  await edit.click();
+
+  await expect(dialog.getByLabel('Diamonds', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Diamonds: Remove field', exact: true }).click();
+  await expect(dialog.getByLabel('Diamonds', { exact: true })).toHaveCount(0);
+  await expect(dialog.locator('.gift-diamonds')).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Add field', exact: true })).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Add field', exact: true }).click();
+  await dialog.getByRole('menuitem', { name: 'Diamonds', exact: true }).click();
+  await expect(dialog.getByLabel('Diamonds', { exact: true })).toBeVisible();
+  await expect(dialog.locator('.gift-diamonds')).toHaveText('5,000 diamonds');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await assertNoUnhandledCalls(page);
 });
 
@@ -55,26 +122,30 @@ test('style editor previews, cancels, saves per widget and resets', async ({ pag
   const edit = page.getByRole('button', { name: /Edit design/ });
   const dialog = page.getByRole('dialog');
   await edit.click();
-  await dialog.getByLabel('Accent color').fill('#ff00ff');
+  await dialog.getByRole('tab', { name: 'Style', exact: true }).click();
+  await dialog.getByLabel('Accent color', { exact: true }).fill('#ff00ff');
   await expect(dialog.locator('.follow-badge')).toHaveCSS('background-color', 'rgb(255, 0, 255)');
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).last().click();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.locator('.follow-badge')).toHaveCSS('background-color', 'rgb(34, 197, 94)');
   await edit.click();
-  await dialog.getByLabel('Background').fill('#112233');
+  await dialog.getByRole('tab', { name: 'Style', exact: true }).click();
+  await dialog.getByLabel('Background', { exact: true }).fill('#112233');
   await dialog.getByLabel('Corner radius').fill('32');
   await expect(dialog.locator('.follow-card')).toHaveCSS('border-radius', '32px');
   await expect(dialog.locator('.follow-card')).toHaveCSS('opacity', '1');
   await page.screenshot({ path: testInfo.outputPath('widget-editor.png') });
-  await dialog.getByRole('button', { name: 'Save design' }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.follow-card')).toHaveCSS('background-color', 'rgb(17, 34, 51)');
   await page.getByRole('tab', { name: 'Gifts', exact: true }).click();
   await expect(page.locator('.gift-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
   await page.getByRole('tab', { name: 'Followers', exact: true }).click();
   await edit.click();
-  await expect(dialog.getByLabel('Background')).toHaveValue('#112233');
-  await dialog.getByRole('button', { name: 'Reset to defaults' }).click();
-  await dialog.getByRole('button', { name: 'Save design' }).click();
+  await dialog.getByRole('tab', { name: 'Style', exact: true }).click();
+  await expect(dialog.getByLabel('Background', { exact: true })).toHaveValue('#112233');
+  await dialog.getByRole('button', { name: 'Design options', exact: true }).click();
+  await dialog.getByRole('menuitem', { name: 'Reset design' }).click();
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('.follow-card')).toHaveCSS('border-radius', '16px');
   await assertNoUnhandledCalls(page);
   capture.assertClean();

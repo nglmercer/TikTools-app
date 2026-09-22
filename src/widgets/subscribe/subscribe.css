@@ -5,26 +5,27 @@
 .subscribe-card {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--widget-gap, 16px);
   /* Fixed geometry: show/hide and name length never resize or re-center
    * the card, so consecutive alerts don't jump around the stage. */
-  width: min(440px, 94%);
+  width: var(--widget-width, min(440px, 94%));
   box-sizing: border-box;
   min-height: 126px;
-  padding: 16px 22px 16px 16px;
+  padding: var(--widget-padding, 16px 22px 16px 16px);
   background: var(--widget-background, #16161d);
-  border: 1px solid #2a2a33;
+  border: var(--widget-borderWidth, 1px) solid var(--widget-borderColor, #2a2a33);
   border-radius: var(--widget-radius, 16px);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--widget-shadow, 0 16px 48px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4));
+  opacity: var(--widget-opacity, 1);
 }
 
 .subscribe-badge {
   flex: none;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
+  width: var(--widget-avatar-size, 56px);
+  height: var(--widget-avatar-size, 56px);
+  border-radius: var(--widget-avatar-radius, 50%);
   background: var(--widget-accent, #fe2c55);
-  display: flex;
+  display: var(--widget-avatar-display, flex);
   align-items: center;
   justify-content: center;
   color: #ffffff;
@@ -34,12 +35,12 @@
 
 .subscribe-badge.has-avatar {
   background: transparent;
-  border: 2px solid var(--widget-accent, #fe2c55);
+  border: var(--widget-avatar-borderWidth, 2px) solid var(--widget-avatar-borderColor, var(--widget-accent, #fe2c55));
 }
 
 .subscribe-badge svg {
-  width: 28px;
-  height: 28px;
+  width: calc(var(--widget-avatar-size, 56px) / 2);
+  height: calc(var(--widget-avatar-size, 56px) / 2);
 }
 
 .subscribe-badge img.subscribe-avatar {
@@ -54,14 +55,17 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  align-items: var(--widget-align-items, stretch);
+  text-align: var(--widget-align, left);
 }
 
 .subscribe-kicker {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  display: var(--widget-badge-display, inline);
+  font-size: var(--widget-badge-size, 11px);
+  font-weight: var(--widget-badge-weight, 700);
+  letter-spacing: var(--widget-badge-spacing, 0.14em);
   text-transform: uppercase;
-  color: var(--widget-accent, #fe2c55);
+  color: var(--widget-badge-color, var(--widget-accent, #fe2c55));
 }
 
 .subscribe-name {

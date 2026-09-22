@@ -1,5 +1,5 @@
 import { h, shallowRef } from 'vue';
-import { defineWidget } from './template.ts';
+import { defineWidget, type WidgetStyle, type WidgetTemplateSchema, type WidgetTemplateToken } from './template.ts';
 import FollowWidget from '../follow/FollowWidget.vue';
 import { FollowController, type FollowAlert } from '../shared/follow-controller.ts';
 import ShareWidget from '../share/ShareWidget.vue';
@@ -12,9 +12,63 @@ import { GiftController, type GiftAlertView } from '../shared/gift-controller.ts
 import { ChatController, type ChatMessageView } from '../shared/chat-controller.ts';
 import { parseFollowSettings, parseShareSettings, parseSubscribeSettings, parseGiftSettings, parseChatSettings } from '../shared/config.ts';
 import { makeTestFollowEnvelope, makeTestShareEnvelope, makeTestSubscribeEnvelope, makeTestGiftCombo, makeTestChatEnvelope } from '../shared/test-events.ts';
+import { coreTextFields, textDefaults, type TextField } from './text.ts';
+
+function alertDesign(accent: string, options: {
+  background?: string;
+  textColor?: string;
+  radius?: number;
+  padding?: number;
+  gap?: number;
+  width?: number;
+  avatarSize?: number;
+} = {}): WidgetStyle {
+  return {
+    background: options.background ?? '#16161d',
+    textColor: options.textColor ?? '#f5f5f7',
+    accent,
+    radius: options.radius ?? 16,
+    borderColor: '#2a2a33',
+    borderWidth: 1,
+    opacity: 100,
+    padding: options.padding ?? 16,
+    gap: options.gap ?? 16,
+    width: options.width ?? 440,
+    avatar: { size: options.avatarSize ?? 56 },
+    badge: { fontSize: 11, fontWeight: 700, letterSpacing: 1.5 },
+  };
+}
+
+function templateSchema(
+  kind: keyof typeof textDefaults,
+  defaultDesign: WidgetStyle,
+  tokens: readonly WidgetTemplateToken[],
+): WidgetTemplateSchema {
+  return {
+    textFields: Object.keys(textDefaults[kind]) as TextField[],
+    requiredTextFields: coreTextFields[kind],
+    tokens,
+    defaultDesign,
+  };
+}
+
+const followSchema = templateSchema('follow', alertDesign('#22c55e'), ['name', 'username']);
+const shareSchema = templateSchema('share', alertDesign('#22d3ee'), ['name', 'username']);
+const subscribeSchema = templateSchema('subscribe', alertDesign('#fe2c55'), ['name', 'username']);
+const giftSchema = templateSchema('gift', alertDesign('#f5c518', { padding: 18, width: 500, avatarSize: 34 }), ['name', 'gift', 'count', 'diamonds']);
+const chatSchema = templateSchema('chat', alertDesign('#f5f5f7', {
+  background: '#16161ddb',
+  textColor: '#e8e8ec',
+  radius: 12,
+  padding: 12,
+  gap: 8,
+  width: 520,
+  avatarSize: 28,
+}), ['name', 'username', 'message']);
 
 export const followTemplate = defineWidget({
   id: 'follow',
+  schema: followSchema,
   samples: () => [makeTestFollowEnvelope()],
   create(search, clock) {
     const settings = parseFollowSettings(search);
@@ -29,6 +83,7 @@ export const followTemplate = defineWidget({
 
 export const shareTemplate = defineWidget({
   id: 'share',
+  schema: shareSchema,
   samples: () => [makeTestShareEnvelope()],
   create(search, clock) {
     const settings = parseShareSettings(search);
@@ -43,6 +98,7 @@ export const shareTemplate = defineWidget({
 
 export const subscribeTemplate = defineWidget({
   id: 'subscribe',
+  schema: subscribeSchema,
   samples: () => [makeTestSubscribeEnvelope()],
   create(search, clock) {
     const settings = parseSubscribeSettings(search);
@@ -57,6 +113,7 @@ export const subscribeTemplate = defineWidget({
 
 export const giftTemplate = defineWidget({
   id: 'gift',
+  schema: giftSchema,
   samples: () => makeTestGiftCombo(5),
   create(search, clock) {
     const settings = parseGiftSettings(search);
@@ -69,6 +126,7 @@ export const giftTemplate = defineWidget({
 
 export const chatTemplate = defineWidget({
   id: 'chat',
+  schema: chatSchema,
   samples: () => ['Hello everyone!', 'Love this LIVE!', 'Let’s go!'].map((comment) => makeTestChatEnvelope({ comment })),
   create(search) {
     const settings = parseChatSettings(search);
@@ -80,4 +138,3 @@ export const chatTemplate = defineWidget({
 
 export const widgetTemplates = { follow: followTemplate, gift: giftTemplate, chat: chatTemplate, share: shareTemplate, subscribe: subscribeTemplate };
 export type WidgetKind = keyof typeof widgetTemplates;
-

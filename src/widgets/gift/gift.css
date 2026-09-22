@@ -5,17 +5,18 @@
 .gift-card {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--widget-gap, 16px);
   /* Fixed geometry: streak count ticks and gift names never resize or
    * re-center the card mid-alert. */
-  width: min(500px, 94%);
+  width: var(--widget-width, min(500px, 94%));
   box-sizing: border-box;
   min-height: 124px;
-  padding: 18px 24px 18px 18px;
+  padding: var(--widget-padding, 18px 24px 18px 18px);
   background: var(--widget-background, #16161d);
-  border: 1px solid #2a2a33;
+  border: var(--widget-borderWidth, 1px) solid var(--widget-borderColor, #2a2a33);
   border-radius: var(--widget-radius, 16px);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--widget-shadow, 0 16px 48px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4));
+  opacity: var(--widget-opacity, 1);
 }
 
 .gift-art {
@@ -50,13 +51,16 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  align-items: var(--widget-align-items, stretch);
+  text-align: var(--widget-align, left);
 }
 
 .gift-kicker {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--widget-accent, #f5c518);
+  display: var(--widget-badge-display, inline);
+  font-size: var(--widget-badge-size, 11px);
+  font-weight: var(--widget-badge-weight, 700);
+  letter-spacing: var(--widget-badge-spacing, 0.14em);
+  color: var(--widget-badge-color, var(--widget-accent, #f5c518));
   text-transform: uppercase;
 }
 
@@ -71,11 +75,14 @@
 
 img.gift-avatar {
   flex: none;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
+  display: var(--widget-avatar-display, block);
+  width: var(--widget-avatar-size, 34px);
+  height: var(--widget-avatar-size, 34px);
+  border-radius: var(--widget-avatar-radius, 50%);
   object-fit: cover;
   background: #26262e;
+  box-sizing: border-box;
+  border: var(--widget-avatar-borderWidth, 0px) solid var(--widget-avatar-borderColor, transparent);
   box-shadow: 0 0 0 2px #16161d, 0 0 0 4px rgba(245, 197, 24, 0.7);
 }
 
