@@ -34,7 +34,7 @@ const formattedCount = computed(() => (props.alert ? `×${props.alert.count.toLo
 
 <template>
   <div class="gift-stage">
-    <Transition name="gift">
+    <Transition name="gift" mode="out-in">
       <div v-if="props.alert" :key="props.alert.key" class="gift-card" role="alert">
         <div class="gift-art" aria-hidden="true">
           <img

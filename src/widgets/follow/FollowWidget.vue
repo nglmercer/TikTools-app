@@ -33,7 +33,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
       '--follow-exit-ms': `${props.settings.exitMs}ms`,
     }"
   >
-    <Transition name="follow" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
+    <Transition name="follow" mode="out-in" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
       <div v-if="props.alert" :key="props.alert.id" class="follow-card" role="alert">
         <div :class="['follow-badge', { 'has-avatar': showAvatar }]" aria-hidden="true">
           <img
