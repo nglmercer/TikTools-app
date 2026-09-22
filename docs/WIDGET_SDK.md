@@ -41,6 +41,13 @@ fragment parameter; credentials still never cross into the WebView. Standalone
 widgets parse that snapshot through `sdk/design.ts`. After saving, users must
 copy the updated URL into OBS; already installed URLs do not update live.
 
+Text overrides live in `design.text` (300 characters per field). Defaults and
+supported lines are declared in `sdk/text.ts`. An empty string hides a line;
+an absent key uses the default. `{{name}}` and `{{username}}` resolve viewer
+data, gifts also expose `{{gift}}`, `{{count}}`, `{{diamonds}}`, and chat exposes
+`{{message}}`. Substitution is single-pass plain text, not HTML or JavaScript;
+unknown placeholders remain literal. Preview and OBS use the same resolver.
+
 ## Why the previous preview was blank
 
 The desktop embedded gateway HTML with sandbox="allow-scripts". Module requests

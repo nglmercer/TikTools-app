@@ -8,6 +8,7 @@ import { errorMessage } from '../platform/control-client.ts';
 import WidgetHost from '../../widgets/sdk/WidgetHost.vue';
 import { widgetTemplates, type WidgetKind } from '../../widgets/sdk/templates.ts';
 import { widgetStyleFields, type WidgetStyle } from '../../widgets/sdk/template.ts';
+import { textDefaults, type TextField } from '../../widgets/sdk/text.ts';
 
 type Props = {
   locale: Locale;
@@ -19,7 +20,11 @@ type Props = {
 };
 
 export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', 'onSave', 'onClose'], (props) => {
-  const draft = ref<WidgetStyle>({ ...props.design });
+  const draft = ref<WidgetStyle>({ ...props.design, text: { ...props.design.text } });
+  const textLabels = { title: 'widgetsTextTitle', streakTitle: 'widgetsTextStreak', name: 'widgetsTextName', handle: 'widgetsTextHandle', message: 'widgetsTextMessage', count: 'widgetsTextCount', diamonds: 'widgetsTextDiamonds' } as const;
+  const defaultsText: Partial<Record<TextField, string>> = textDefaults[props.kind];
+  const placeholders = props.kind === 'gift' ? '{{name}}, {{gift}}, {{count}}, {{diamonds}}'
+    : props.kind === 'chat' ? '{{name}}, {{username}}, {{message}}' : '{{name}}, {{username}}';
   const saving = ref(false);
   const error = ref('');
   const replay = ref(0);
@@ -54,6 +59,17 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
             <WidgetHost template={widgetTemplates[props.kind]} mode="preview" design={draft.value} replayKey={replay.value} />
           </div>
           <Button variant="ghost" onClick={() => { replay.value++; }}>{t(props.locale, 'widgetsReplay')}</Button>
+          <fieldset class="widget-style-editor__texts" disabled={saving.value}>
+            <legend>{t(props.locale, 'widgetsTextHeading')}</legend>
+            <p class="widget-style-editor__hint">{t(props.locale, 'widgetsTextHint')} <code>{placeholders}</code></p>
+            {(Object.keys(defaultsText) as TextField[]).map((field) => <label class="widget-style-editor__text-field">
+              <span>{t(props.locale, textLabels[field])}</span>
+              <input type="text" maxlength={300} value={draft.value.text?.[field] ?? defaultsText[field]}
+                onInput={(event) => {
+                  draft.value.text = { ...draft.value.text, [field]: (event.target as HTMLInputElement).value };
+                }} />
+            </label>)}
+          </fieldset>
         </div>
         <fieldset class="widget-style-editor__fields" disabled={saving.value}>
           {widgetStyleFields.map((field) => <label class="widget-style-editor__field">
@@ -75,10 +91,16 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
 <style scoped>
 .widget-style-editor { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 24px; }
 .widget-style-editor__preview { height: 300px; }
+.widget-style-editor__texts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; border: 0; padding: 16px 0 0; margin: 16px 0 0; min-width: 0; }
+.widget-style-editor__texts legend { font-weight: 700; }
+.widget-style-editor__hint { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); line-height: 1.5; margin: 0 0 12px; }
+.widget-style-editor__text-field { display: grid; gap: 6px; margin-bottom: 12px; font-size: 13px; }
+.widget-style-editor__text-field input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-solid); color: var(--text); padding: 8px 10px; }
 .widget-style-editor__fields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .widget-style-editor__field { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-bottom: 20px; align-items: center; }
 .widget-style-editor__field output { grid-column: 1 / -1; font-size: 12px; opacity: .7; }
 .widget-style-editor__field input[type="color"] { width: 44px; height: 32px; padding: 2px; background: transparent; border: 1px solid #596070; border-radius: 6px; cursor: pointer; }
 .widget-style-editor__field input[type="range"] { grid-column: 1 / -1; width: 100%; }
 @media (max-width: 700px) { .widget-style-editor { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) { .widget-style-editor__texts { grid-template-columns: minmax(0, 1fr); } }
 </style>

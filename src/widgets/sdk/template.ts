@@ -25,6 +25,7 @@ export function defineWidget(template: WidgetTemplate): WidgetTemplate {
 
 /** JSON-serializable styling contract for an editor; no HTML or scripts. */
 export interface WidgetStyle {
+  text?: Partial<Record<import('./text.ts').TextField, string>>;
   background?: string;
   textColor?: string;
   accent?: string;

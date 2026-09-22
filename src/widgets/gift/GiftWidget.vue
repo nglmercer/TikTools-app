@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
+import { useWidgetText } from '../sdk/text.ts';
+const text = useWidgetText('gift');
 import { computed, ref, watch } from 'vue';
 import type { GiftWidgetSettings } from '../shared/config.ts';
 import type { GiftAlertView } from '../shared/gift-controller.ts';
@@ -29,8 +31,6 @@ watch(
 
 const showArtwork = computed(() => props.settings.showImage && !!props.alert?.giftIconUrl && !imageFailed.value);
 const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.value);
-const formattedDiamonds = computed(() => (props.alert ? props.alert.totalDiamonds.toLocaleString('en-US') : ''));
-const formattedCount = computed(() => (props.alert ? `×${props.alert.count.toLocaleString('en-US')}` : ''));
 </script>
 
 <template>
@@ -60,7 +60,7 @@ const formattedCount = computed(() => (props.alert ? `×${props.alert.count.toLo
           </svg>
         </div>
         <div class="gift-body">
-          <span class="gift-kicker">{{ props.alert.streaking ? 'Gift streak' : 'Gift received' }}</span>
+          <span v-if="text(props.alert.streaking ? 'streakTitle' : 'title', props.alert)" class="gift-kicker">{{ text(props.alert.streaking ? 'streakTitle' : 'title', props.alert) }}</span>
           <span class="gift-sender">
             <img
               v-if="showAvatar"
@@ -70,20 +70,20 @@ const formattedCount = computed(() => (props.alert ? `×${props.alert.count.toLo
               referrerpolicy="no-referrer"
               @error="avatarFailed = true"
             />
-            <span class="gift-name">{{ props.alert.displayName }}</span>
+            <span v-if="text('name', props.alert)" class="gift-name">{{ text('name', props.alert) }}</span>
           </span>
-          <span class="gift-line">
-            sent {{ props.alert.giftName }}
+          <span v-if="text('message', props.alert) || (props.settings.showCount && text('count', props.alert))" class="gift-line">
+            {{ text('message', props.alert) }}
             <span
-              v-if="props.settings.showCount"
+              v-if="props.settings.showCount && text('count', props.alert)"
               :key="props.alert.count"
               class="gift-count gift-count-pop"
             >
-              {{ formattedCount }}
+              {{ text('count', props.alert) }}
             </span>
           </span>
-          <span v-if="props.settings.showDiamonds" class="gift-diamonds">
-            {{ formattedDiamonds }} diamonds
+          <span v-if="props.settings.showDiamonds && text('diamonds', props.alert)" class="gift-diamonds">
+            {{ text('diamonds', props.alert) }}
           </span>
         </div>
       </div>

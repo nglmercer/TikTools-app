@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, provide, shallowRef, watch } from 'vue';
+import { widgetDesignKey } from './text.ts';
 import { createWidgetRuntime, type WidgetRuntime } from '../shared/widget-runtime.ts';
 import type { GatewayStatus } from '../shared/gateway-client.ts';
 import { styleVariables, type WidgetStyle, type WidgetTemplate } from './template.ts';
@@ -23,6 +24,7 @@ const instance = shallowRef(props.template.create(props.search, props.mode === '
 const status = shallowRef<GatewayStatus>('idle');
 const generation = shallowRef(0);
 const variables = computed(() => styleVariables(props.design));
+provide(widgetDesignKey, computed(() => props.design ?? {}));
 let runtime: WidgetRuntime | undefined;
 let timers: ReturnType<typeof setTimeout>[] = [];
 let mounted = false;

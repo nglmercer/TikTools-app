@@ -2,6 +2,31 @@ import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, installFakeHost } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 
+test('text editing interpolates live values, hides empty lines and preserves saved drafts on cancel', async ({ page }) => {
+  await installFakeHost(page, emptyState(), { theme: 'dark' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Widgets', exact: true }).click();
+  const edit = page.getByRole('button', { name: /Edit design/ });
+  const dialog = page.getByRole('dialog');
+  await edit.click();
+  await dialog.getByLabel('Heading', { exact: true }).fill('Welcome!');
+  await dialog.getByLabel('Message', { exact: true }).fill('Thanks {{name}}!');
+  await dialog.getByLabel('Username', { exact: true }).fill('');
+  await expect(dialog.locator('.follow-action')).toHaveText('Thanks Viewer Name!');
+  await expect(dialog.locator('.follow-handle')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Save design' }).click();
+  await expect(page.locator('.follow-kicker')).toHaveText('Welcome!');
+  await edit.click();
+  await dialog.getByLabel('Heading', { exact: true }).fill('Discard this');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).last().click();
+  await expect(page.locator('.follow-kicker')).toHaveText('Welcome!');
+  await edit.click();
+  await dialog.getByRole('button', { name: 'Reset to defaults' }).click();
+  await expect(dialog.locator('.follow-handle')).toHaveCount(1);
+  await expect(dialog.getByLabel('Message', { exact: true })).toHaveValue('just followed!');
+  await assertNoUnhandledCalls(page);
+});
+
 test('style editor previews, cancels, saves per widget and resets', async ({ page }, testInfo) => {
   const capture = await installFakeHost(page, emptyState(), { theme: 'dark' });
   await page.goto('/');

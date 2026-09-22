@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
+import { useWidgetText } from '../sdk/text.ts';
+const text = useWidgetText('chat');
 import { ref } from 'vue';
 import type { ChatWidgetSettings } from '../shared/config.ts';
 import type { ChatMessageView } from '../shared/chat-controller.ts';
@@ -41,8 +43,8 @@ function initialsFor(message: ChatMessageView): string {
           <span v-else>{{ initialsFor(message) }}</span>
         </div>
         <div class="chat-content">
-          <span class="chat-name">{{ message.displayName }}</span>
-          <span class="chat-text">{{ message.text }}</span>
+          <span v-if="text('name', message)" class="chat-name">{{ text('name', message) }}</span>
+          <span v-if="text('message', message)" class="chat-text">{{ text('message', message) }}</span>
         </div>
       </div>
     </TransitionGroup>

@@ -189,12 +189,18 @@ test('gift widget falls back when the artwork fails to load', async ({ page }) =
   await expect(card.getByText('Galaxy')).toBeVisible();
 });
 test('OBS widgets apply the saved design snapshot from the URL fragment', async ({ page }) => {
-  const design = encodeURIComponent(JSON.stringify({ background: '#112233', textColor: '#abcdef', accent: '#ff00ff', radius: 32 }));
+  const design = encodeURIComponent(JSON.stringify({ background: '#112233', textColor: '#abcdef', accent: '#ff00ff', radius: 32,
+    text: { name: 'Hello {{name}}', title: '', streakTitle: '', message: '<b>Thanks {{name}}</b>' },
+  }));
   for (const kind of ['follow', 'gift', 'chat', 'share', 'subscribe']) {
     await page.goto(`/${kind}/#demo=${kind}&design=${design}`);
     const card = page.locator(kind === 'chat' ? '.chat-message' : `.${kind}-card`).first();
     await expect(card).toBeVisible();
     await expect(card).toHaveCSS('background-color', 'rgb(17, 34, 51)');
     await expect(card).toHaveCSS('border-radius', '32px');
+    await expect(card.locator(`.${kind}-name`)).toHaveText('Hello Viewer Name');
+    await expect(card.locator(`.${kind}-kicker`)).toHaveCount(0);
+    await expect(card).toContainText('<b>Thanks Viewer Name</b>');
+    await expect(card.locator('b')).toHaveCount(0);
   }
 });

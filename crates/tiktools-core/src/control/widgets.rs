@@ -261,6 +261,28 @@ const GATEWAY_LOOPBACK_V4: &str = "127.0.0.1";
 fn portable_design(raw: &str) -> Option<String> {
     let source: serde_json::Value = serde_json::from_str(raw).ok()?;
     let mut design = serde_json::Map::new();
+    if let Some(fields) = source.get("text").and_then(|value| value.as_object()) {
+        let mut text = serde_json::Map::new();
+        for key in [
+            "title",
+            "streakTitle",
+            "name",
+            "handle",
+            "message",
+            "count",
+            "diamonds",
+        ] {
+            if let Some(value) = fields.get(key).and_then(|value| value.as_str()) {
+                text.insert(
+                    key.to_owned(),
+                    serde_json::Value::from(value.chars().take(300).collect::<String>()),
+                );
+            }
+        }
+        if !text.is_empty() {
+            design.insert("text".to_owned(), serde_json::Value::Object(text));
+        }
+    }
     for key in ["background", "textColor", "accent"] {
         if let Some(color) = source.get(key).and_then(|value| value.as_str()) {
             if matches!(color.len(), 7 | 9)
@@ -382,6 +404,18 @@ fn parse_http_status(bytes: &[u8]) -> Option<u16> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn copied_design_preserves_text_templates_and_hidden_lines() {
+        let result = super::portable_design(
+            r#"{"text":{"title":"","message":"Thanks {{name}}!","unknown":"drop"}}"#,
+        )
+        .unwrap();
+        let value: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({"text":{"title":"","message":"Thanks {{name}}!"}})
+        );
+    }
     #[test]
     fn copied_design_only_contains_portable_style_tokens() {
         let result = super::portable_design(

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
+import { useWidgetText } from '../sdk/text.ts';
+const text = useWidgetText('subscribe');
 import { computed, ref, watch } from 'vue';
 import type { SubscribeWidgetSettings } from '../shared/config.ts';
 import type { SubscribeAlert } from '../shared/subscribe-controller.ts';
@@ -58,12 +60,12 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
           </svg>
         </div>
         <div class="subscribe-body">
-          <span class="subscribe-kicker">New subscriber</span>
-          <span class="subscribe-name">{{ props.alert.displayName }}</span>
-          <span v-if="props.settings.showUniqueId && props.alert.uniqueId" class="subscribe-handle">
-            {{ props.alert.uniqueId }}
+          <span v-if="text('title', props.alert)" class="subscribe-kicker">{{ text('title', props.alert) }}</span>
+          <span v-if="text('name', props.alert)" class="subscribe-name">{{ text('name', props.alert) }}</span>
+          <span v-if="props.settings.showUniqueId && props.alert.uniqueId && text('handle', props.alert)" class="subscribe-handle">
+            {{ text('handle', props.alert) }}
           </span>
-          <span class="subscribe-action">just subscribed!</span>
+          <span v-if="text('message', props.alert)" class="subscribe-action">{{ text('message', props.alert) }}</span>
         </div>
       </div>
     </Transition>

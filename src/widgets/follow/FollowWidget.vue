@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
+import { useWidgetText } from '../sdk/text.ts';
+const text = useWidgetText('follow');
 import { computed, ref, watch } from 'vue';
 import type { FollowWidgetSettings } from '../shared/config.ts';
 import type { FollowAlert } from '../shared/follow-controller.ts';
@@ -61,12 +63,12 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
           </svg>
         </div>
         <div class="follow-body">
-          <span class="follow-kicker">New follower</span>
-          <span class="follow-name">{{ props.alert.displayName }}</span>
-          <span v-if="props.settings.showUniqueId && props.alert.uniqueId" class="follow-handle">
-            {{ props.alert.uniqueId }}
+          <span v-if="text('title', props.alert)" class="follow-kicker">{{ text('title', props.alert) }}</span>
+          <span v-if="text('name', props.alert)" class="follow-name">{{ text('name', props.alert) }}</span>
+          <span v-if="props.settings.showUniqueId && props.alert.uniqueId && text('handle', props.alert)" class="follow-handle">
+            {{ text('handle', props.alert) }}
           </span>
-          <span class="follow-action">just followed!</span>
+          <span v-if="text('message', props.alert)" class="follow-action">{{ text('message', props.alert) }}</span>
         </div>
       </div>
     </Transition>
