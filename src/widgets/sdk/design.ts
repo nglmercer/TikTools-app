@@ -31,6 +31,8 @@ function normalizeLayers(value: unknown): WidgetLayer[] | undefined {
     } else {
       const size = readNumber(source, 'size', 16, 160);
       if (size !== undefined) layer.size = size;
+      if (source.placement === 'left' || source.placement === 'right'
+        || source.placement === 'top' || source.placement === 'bottom') layer.placement = source.placement;
     }
     result.push(layer);
   }

@@ -240,6 +240,7 @@ export const spanish: Record<TranslationKey, string> = {
   widgetsBuilderRemoveLayer: 'Quitar capa',
   widgetsBuilderGiftArt: 'Imagen del regalo',
   widgetsBuilderAvatar: 'Avatar',
+  widgetsBuilderImageSide: 'Posición de imagen',
   widgetsBuilderNewText: 'Nuevo texto',
   widgetsBuilderFields: 'Capas de texto',
   widgetsBuilderTextAppearance: 'Estilo del texto',

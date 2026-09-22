@@ -236,6 +236,7 @@ export const english = {
   widgetsBuilderRemoveLayer: 'Remove layer',
   widgetsBuilderGiftArt: 'Gift image',
   widgetsBuilderAvatar: 'Avatar',
+  widgetsBuilderImageSide: 'Image position',
   widgetsBuilderNewText: 'New text',
   widgetsBuilderFields: 'Text layers',
   widgetsBuilderTextAppearance: 'Text appearance',

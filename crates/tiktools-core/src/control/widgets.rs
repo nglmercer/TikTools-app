@@ -370,8 +370,15 @@ fn portable_design(raw: &str) -> Option<String> {
                         serde_json::Value::from((weight / 100.0).round() * 100.0),
                     );
                 }
-            } else if let Some(size) = portable_number(layer.get("size"), 16.0, 160.0) {
-                entry.insert("size".to_owned(), serde_json::Value::from(size));
+            } else {
+                if let Some(size) = portable_number(layer.get("size"), 16.0, 160.0) {
+                    entry.insert("size".to_owned(), serde_json::Value::from(size));
+                }
+                if let Some(placement) = layer.get("placement").and_then(|value| value.as_str()) {
+                    if matches!(placement, "left" | "right" | "top" | "bottom") {
+                        entry.insert("placement".to_owned(), serde_json::Value::from(placement));
+                    }
+                }
             }
             kept.push(serde_json::Value::Object(entry));
         }

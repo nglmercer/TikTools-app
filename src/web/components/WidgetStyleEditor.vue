@@ -657,8 +657,26 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
                   8, 96, 1, ' px', `layer:${layer.id}:fontSize`, (size) => setLayer(layer.id, { fontSize: size }))}
                 {renderSliderRow(t(props.locale, 'widgetsBuilderWeight'), layer.fontWeight ?? (layer.field === 'name' ? 800 : 400),
                   100, 900, 100, '', `layer:${layer.id}:fontWeight`, (weight) => setLayer(layer.id, { fontWeight: weight }))}
-              </> : renderSliderRow(t(props.locale, 'widgetsBuilderSize'), layer.size ?? (layer.kind === 'art' ? 88 : defaults.avatarSize),
-                16, 160, 1, ' px', `layer:${layer.id}:size`, (size) => setLayer(layer.id, { size }))}
+              </> : <>
+                <div class="wb-row wb-align">
+                  <span class="wb-label" id={`${baseId}-${layer.id}-placement`}>{t(props.locale, 'widgetsBuilderImageSide')}</span>
+                  <div class="wb-segmented" role="radiogroup" aria-labelledby={`${baseId}-${layer.id}-placement`}>
+                    {(['left', 'right', 'top', 'bottom'] as const).map((option) => (
+                      <button type="button" role="radio" key={option} disabled={saving.value}
+                        aria-checked={(layer.placement ?? 'left') === option}
+                        class={(layer.placement ?? 'left') === option ? 'is-active' : ''}
+                        onClick={() => change(`layer:${layer.id}:placement`, () => setLayer(layer.id,
+                          { placement: option === 'left' ? undefined : option }))}>
+                        {t(props.locale, option === 'left' ? 'widgetsBuilderAlignLeft'
+                          : option === 'right' ? 'widgetsBuilderAlignRight'
+                            : option === 'top' ? 'widgetsBuilderAddTop' : 'widgetsBuilderAddBottom')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {renderSliderRow(t(props.locale, 'widgetsBuilderSize'), layer.size ?? (layer.kind === 'art' ? 88 : defaults.avatarSize),
+                  16, 160, 1, ' px', `layer:${layer.id}:size`, (size) => setLayer(layer.id, { size }))}
+              </>}
             </div> : null}
           </div>;
         })}

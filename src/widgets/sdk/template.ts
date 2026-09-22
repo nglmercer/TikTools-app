@@ -49,6 +49,8 @@ export interface WidgetLayer {
   fontSize?: number;
   fontWeight?: number;
   size?: number;
+  /** Media placement around the text in its row; card position moves the group. */
+  placement?: 'left' | 'right' | 'top' | 'bottom';
 }
 
 export type WidgetLayerSeed = { id: string; kind: WidgetLayer['kind']; field?: TextField };
