@@ -1,5 +1,5 @@
 <script lang="tsx">
-import { ref } from 'vue';
+import { ref, useId } from 'vue';
 import { Modal, ModalActions } from './ui/Modal.vue';
 import { Button } from './ui/Button.vue';
 import { defineVueComponent } from '../vue/component.ts';
@@ -21,6 +21,8 @@ type Props = {
 
 export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', 'onSave', 'onClose'], (props) => {
   const draft = ref<WidgetStyle>({ ...props.design, text: { ...props.design.text } });
+  const activeTab = ref<'styles' | 'templates'>('styles');
+  const tabId = useId();
   const textLabels = { title: 'widgetsTextTitle', streakTitle: 'widgetsTextStreak', name: 'widgetsTextName', handle: 'widgetsTextHandle', message: 'widgetsTextMessage', count: 'widgetsTextCount', diamonds: 'widgetsTextDiamonds' } as const;
   const defaultsText: Partial<Record<TextField, string>> = textDefaults[props.kind];
   const placeholders = props.kind === 'gift' ? '{{name}}, {{gift}}, {{count}}, {{diamonds}}'
@@ -59,8 +61,25 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
             <WidgetHost template={widgetTemplates[props.kind]} mode="preview" design={draft.value} replayKey={replay.value} />
           </div>
           <Button variant="ghost" onClick={() => { replay.value++; }}>{t(props.locale, 'widgetsReplay')}</Button>
-          <fieldset class="widget-style-editor__texts" disabled={saving.value}>
-            <legend>{t(props.locale, 'widgetsTextHeading')}</legend>
+        </div>
+        <div class="widget-style-editor__controls">
+          <div class="widget-style-editor__tabs" role="tablist" aria-label={t(props.locale, 'widgetsEditDesign')}>
+            {(['styles', 'templates'] as const).map((tab) => <button
+              type="button" role="tab" id={`${tabId}-${tab}`} aria-controls={`${tabId}-panel`}
+              aria-selected={activeTab.value === tab} tabindex={activeTab.value === tab ? 0 : -1}
+              onClick={() => { activeTab.value = tab; }}
+              onKeydown={(event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const next = event.key === 'Home' ? 'styles' : event.key === 'End' ? 'templates' : tab === 'styles' ? 'templates' : 'styles';
+                activeTab.value = next;
+                document.getElementById(`${tabId}-${next}`)?.focus();
+              }}
+            >{t(props.locale, tab === 'styles' ? 'widgetsStylesTab' : 'widgetsTemplatesTab')}</button>)}
+          </div>
+          <div role="tabpanel" id={`${tabId}-panel`} aria-labelledby={`${tabId}-${activeTab.value}`}>
+          {activeTab.value === 'templates' ?
+          <fieldset class="widget-style-editor__texts" disabled={saving.value} aria-label={t(props.locale, 'widgetsTextHeading')}>
             <p class="widget-style-editor__hint">{t(props.locale, 'widgetsTextHint')} <code>{placeholders}</code></p>
             {(Object.keys(defaultsText) as TextField[]).map((field) => <label class="widget-style-editor__text-field">
               <span>{t(props.locale, textLabels[field])}</span>
@@ -70,7 +89,7 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
                 }} />
             </label>)}
           </fieldset>
-        </div>
+          :
         <fieldset class="widget-style-editor__fields" disabled={saving.value}>
           {widgetStyleFields.map((field) => <label class="widget-style-editor__field">
             <span>{t(props.locale, labels[field.key])}</span>
@@ -81,6 +100,9 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
             <output>{draft.value[field.key] ?? defaults[field.key]}{field.type === 'number' ? ' px' : ''}</output>
           </label>)}
         </fieldset>
+          }
+          </div>
+        </div>
       </div>
       {error.value ? <p role="alert">{error.value}</p> : null}
     </Modal>
@@ -89,10 +111,14 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
 </script>
 
 <style scoped>
-.widget-style-editor { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 24px; }
+.widget-style-editor { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px; }
 .widget-style-editor__preview { height: 300px; }
-.widget-style-editor__texts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; border: 0; padding: 16px 0 0; margin: 16px 0 0; min-width: 0; }
-.widget-style-editor__texts legend { font-weight: 700; }
+.widget-style-editor__controls { min-width: 0; }
+.widget-style-editor__tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.widget-style-editor__tabs button { flex: 1; padding: 10px 8px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer; font: inherit; font-weight: 600; }
+.widget-style-editor__tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: #00dce8; background: rgba(0, 220, 232, .06); }
+.widget-style-editor__tabs button:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.widget-style-editor__texts { display: grid; grid-template-columns: minmax(0, 1fr); border: 0; padding: 0; margin: 0; min-width: 0; }
 .widget-style-editor__hint { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); line-height: 1.5; margin: 0 0 12px; }
 .widget-style-editor__text-field { display: grid; gap: 6px; margin-bottom: 12px; font-size: 13px; }
 .widget-style-editor__text-field input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-solid); color: var(--text); padding: 8px 10px; }

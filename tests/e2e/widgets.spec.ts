@@ -2,25 +2,46 @@ import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, installFakeHost } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
 
-test('text editing interpolates live values, hides empty lines and preserves saved drafts on cancel', async ({ page }) => {
+test('text editing interpolates live values, hides empty lines and preserves saved drafts on cancel', async ({ page }, testInfo) => {
   await installFakeHost(page, emptyState(), { theme: 'dark' });
   await page.goto('/');
   await page.getByRole('button', { name: 'Widgets', exact: true }).click();
   const edit = page.getByRole('button', { name: /Edit design/ });
   const dialog = page.getByRole('dialog');
   await edit.click();
+  const textToggle = dialog.getByRole('tab', { name: 'Templates', exact: true });
+  const stylesTab = dialog.getByRole('tab', { name: 'Styles', exact: true });
+  await expect(dialog.getByLabel('Heading', { exact: true })).toBeHidden();
+  await stylesTab.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(textToggle).toBeFocused();
+  await expect(textToggle).toHaveAttribute('aria-selected', 'true');
+  await expect(dialog.locator('details')).toHaveCount(0);
+  await expect(dialog.getByLabel('Background', { exact: true })).toBeHidden();
+  for (const label of ['Heading', 'Viewer name', 'Username', 'Message']) {
+    await expect(dialog.getByLabel(label, { exact: true })).toBeVisible();
+  }
+  await expect(dialog.locator('.follow-card')).toHaveCSS('opacity', '1');
+  await page.screenshot({ path: testInfo.outputPath('templates-tab.png') });
   await dialog.getByLabel('Heading', { exact: true }).fill('Welcome!');
   await dialog.getByLabel('Message', { exact: true }).fill('Thanks {{name}}!');
   await dialog.getByLabel('Username', { exact: true }).fill('');
   await expect(dialog.locator('.follow-action')).toHaveText('Thanks Viewer Name!');
   await expect(dialog.locator('.follow-handle')).toHaveCount(0);
+  await stylesTab.click();
+  await expect(dialog.getByLabel('Heading', { exact: true })).toBeHidden();
+  await textToggle.click();
+  await expect(dialog.getByLabel('Heading', { exact: true })).toHaveValue('Welcome!');
   await dialog.getByRole('button', { name: 'Save design' }).click();
   await expect(page.locator('.follow-kicker')).toHaveText('Welcome!');
   await edit.click();
+  await expect(dialog.getByLabel('Heading', { exact: true })).toBeHidden();
+  await textToggle.click();
   await dialog.getByLabel('Heading', { exact: true }).fill('Discard this');
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).last().click();
   await expect(page.locator('.follow-kicker')).toHaveText('Welcome!');
   await edit.click();
+  await textToggle.click();
   await dialog.getByRole('button', { name: 'Reset to defaults' }).click();
   await expect(dialog.locator('.follow-handle')).toHaveCount(1);
   await expect(dialog.getByLabel('Message', { exact: true })).toHaveValue('just followed!');

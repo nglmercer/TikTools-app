@@ -205,6 +205,8 @@ export const english = {
   widgetsEditDesignHint: 'Customize this widget.',
   widgetsDesignBackground: 'Background',
   widgetsTextHeading: 'Text',
+  widgetsStylesTab: 'Styles',
+  widgetsTemplatesTab: 'Templates',
   widgetsTextHint: 'Leave a field empty to hide that line. Live values:',
   widgetsTextTitle: 'Heading',
   widgetsTextStreak: 'Streak heading',

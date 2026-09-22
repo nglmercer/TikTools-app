@@ -209,6 +209,8 @@ export const spanish: Record<TranslationKey, string> = {
   widgetsEditDesignHint: 'Personaliza este widget.',
   widgetsDesignBackground: 'Fondo',
   widgetsTextHeading: 'Texto',
+  widgetsStylesTab: 'Estilos',
+  widgetsTemplatesTab: 'Plantillas',
   widgetsTextHint: 'Deja un campo vacío para ocultar esa línea. Valores en vivo:',
   widgetsTextTitle: 'Encabezado',
   widgetsTextStreak: 'Encabezado de racha',
