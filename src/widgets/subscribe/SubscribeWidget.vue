@@ -42,7 +42,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
   >
     <Transition name="subscribe" mode="out-in" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
       <div v-if="props.alert" :key="props.alert.id" class="subscribe-card" role="alert">
-        <WidgetLayerStack v-if="layered" :layers="design?.layers ?? []" :event="props.alert"
+        <WidgetLayerStack v-if="layered" variant="subscribe" :layers="design?.layers ?? []" :event="props.alert"
           :avatar-url="props.alert.avatarUrl ?? undefined" />
         <template v-else>
         <div :class="['subscribe-badge', { 'has-avatar': showAvatar }]" aria-hidden="true">

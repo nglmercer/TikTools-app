@@ -42,7 +42,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
   <WidgetStage :debug="props.debug" :status="props.status" class="gift-stage">
     <Transition name="gift" mode="out-in">
       <div v-if="props.alert" :key="props.alert.key" class="gift-card" role="alert">
-        <WidgetLayerStack v-if="layered" :layers="design?.layers ?? []" :event="props.alert"
+        <WidgetLayerStack v-if="layered" variant="gift" :layers="design?.layers ?? []" :event="props.alert"
           :avatar-url="props.alert.avatarUrl ?? undefined" :art-url="props.settings.showImage ? props.alert.giftIconUrl ?? undefined : undefined" />
         <template v-else>
         <div class="gift-art" aria-hidden="true">

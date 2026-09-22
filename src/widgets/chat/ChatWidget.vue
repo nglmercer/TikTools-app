@@ -36,7 +36,7 @@ function initialsFor(message: ChatMessageView): string {
   <WidgetStage :debug="props.debug" :status="props.status" align="bottom" class="chat-stage">
     <TransitionGroup name="chat" tag="div" class="chat-list" aria-live="polite">
       <div v-for="message in props.messages" :key="message.id" class="chat-message">
-        <WidgetLayerStack v-if="layered" :layers="design?.layers ?? []" :event="message"
+        <WidgetLayerStack v-if="layered" variant="chat" :layers="design?.layers ?? []" :event="message"
           :avatar-url="props.settings.showAvatars ? message.avatarUrl ?? undefined : undefined" />
         <template v-else>
         <div class="chat-avatar" aria-hidden="true">

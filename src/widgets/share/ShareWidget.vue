@@ -42,7 +42,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
   >
     <Transition name="share" mode="out-in" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
       <div v-if="props.alert" :key="props.alert.id" class="share-card" role="alert">
-        <WidgetLayerStack v-if="layered" :layers="design?.layers ?? []" :event="props.alert"
+        <WidgetLayerStack v-if="layered" variant="share" :layers="design?.layers ?? []" :event="props.alert"
           :avatar-url="props.alert.avatarUrl ?? undefined" />
         <template v-else>
         <div :class="['share-badge', { 'has-avatar': showAvatar }]" aria-hidden="true">
