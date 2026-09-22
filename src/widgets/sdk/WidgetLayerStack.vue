@@ -92,6 +92,7 @@ function content(layer: WidgetLayer): string {
 .widget-layer-stack { display: flex; flex-direction: column; gap: 4px; width: max-content; max-width: 100%; min-width: 0; text-align: var(--widget-align, left); }
 .widget-layer-row { display: flex; flex-direction: column; align-items: stretch; gap: var(--widget-gap, 16px); width: max-content; max-width: 100%; min-width: 0; }
 .widget-layer-main { display: flex; align-self: center; align-items: center; gap: var(--widget-gap, 16px); width: max-content; max-width: 100%; min-width: 0; }
+.widget-layer-stack.is-gift .widget-layer-main > .widget-layer-media.is-art + .widget-layer-media.is-avatar { align-self: flex-end; position: relative; z-index: 1; margin-left: -32px; }
 .widget-layer-vertical-media { display: flex; justify-content: center; gap: 8px; }
 .widget-layer-text-group { display: flex; flex: 0 1 auto; flex-direction: column; align-items: var(--widget-align-items, stretch); gap: 2px; min-width: 0; }
 .widget-layer-text { max-width: 100%; color: var(--widget-textColor, #f5f5f7); font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; white-space: pre-wrap; }

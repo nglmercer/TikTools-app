@@ -56,8 +56,7 @@ function templateSchema(
     defaultLayers: [
       ...(kind === 'gift' ? [{ id: 'art', kind: 'art' as const }] : []),
       { id: 'avatar', kind: 'avatar' as const },
-      ...fields.filter((field) => field !== 'streakTitle')
-        .map((field) => ({ id: `field:${field}`, kind: 'text' as const, field })),
+      ...fields.map((field) => ({ id: `field:${field}`, kind: 'text' as const, field })),
     ],
     textFields: fields,
     requiredTextFields: coreTextFields[kind],

@@ -49,37 +49,39 @@ const avatarInitials = computed(() => (props.alert?.displayName || props.alert?.
         <WidgetLayerStack v-if="layered" variant="gift" :layers="design?.layers ?? []" :event="props.alert"
           :avatar-url="props.alert.avatarUrl ?? undefined" :art-url="props.settings.showImage ? props.alert.giftIconUrl ?? undefined : undefined" />
         <template v-else>
-        <div class="gift-art" aria-hidden="true">
-          <img
-            v-if="showArtwork"
-            :src="props.alert.giftIconUrl as string"
-            :alt="props.alert.giftName"
-            @error="imageFailed = true"
-          />
-          <svg
-            v-else
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="8" width="18" height="4" rx="1" />
-            <path d="M12 8v13" />
-            <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" />
-            <path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5" />
-          </svg>
+        <div class="gift-media">
+          <div class="gift-art" aria-hidden="true">
+            <img
+              v-if="showArtwork"
+              :src="props.alert.giftIconUrl as string"
+              :alt="props.alert.giftName"
+              @error="imageFailed = true"
+            />
+            <svg
+              v-else
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="8" width="18" height="4" rx="1" />
+              <path d="M12 8v13" />
+              <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" />
+              <path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5" />
+            </svg>
+          </div>
+          <span v-if="avatarVisible" class="gift-avatar">
+            <img v-if="showAvatar" :src="props.alert.avatarUrl as string"
+              :alt="props.alert.displayName" referrerpolicy="no-referrer" @error="avatarFailed = true" />
+            <span v-else aria-hidden="true">{{ avatarInitials }}</span>
+          </span>
         </div>
         <div class="gift-body">
           <span v-if="text(props.alert.streaking ? 'streakTitle' : 'title', props.alert)" class="gift-kicker"
             :style="{ order: order(props.alert.streaking ? 'streakTitle' : 'title') }">{{ text(props.alert.streaking ? 'streakTitle' : 'title', props.alert) }}</span>
           <span class="gift-sender" :style="{ order: order('name') }">
-            <span v-if="avatarVisible" class="gift-avatar">
-              <img v-if="showAvatar" :src="props.alert.avatarUrl as string"
-                :alt="props.alert.displayName" referrerpolicy="no-referrer" @error="avatarFailed = true" />
-              <span v-else aria-hidden="true">{{ avatarInitials }}</span>
-            </span>
             <span v-if="text('name', props.alert)" class="gift-name">{{ text('name', props.alert) }}</span>
           </span>
           <span v-if="text('message', props.alert) || (!customTextOrder && props.settings.showCount && text('count', props.alert))"

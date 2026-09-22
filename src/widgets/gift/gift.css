@@ -20,6 +20,12 @@
   opacity: var(--widget-opacity, 1);
 }
 
+.gift-media {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
 .gift-art {
   flex: none;
   width: 88px;
@@ -68,9 +74,7 @@
 .gift-sender {
   display: flex;
   align-items: center;
-  gap: 10px;
   min-width: 0;
-  /* Avatar or not, the row keeps one height so the card never breathes. */
   min-height: 34px;
 }
 
@@ -79,6 +83,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  align-self: flex-end;
+  position: relative;
+  z-index: 1;
+  margin-left: -16px;
+  margin-bottom: 1px;
   width: var(--widget-avatar-size, 34px);
   height: var(--widget-avatar-size, 34px);
   border-radius: var(--widget-avatar-radius, 50%);
