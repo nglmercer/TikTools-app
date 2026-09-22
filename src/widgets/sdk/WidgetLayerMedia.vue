@@ -16,7 +16,8 @@ const imageUrl = computed(() => {
   const url = props.layer.kind === 'avatar' ? props.avatarUrl : props.artUrl;
   return url && failedUrl.value !== url ? url : undefined;
 });
-const initials = computed(() => (props.event?.displayName || props.event?.uniqueId || '•').slice(0, 2).toUpperCase());
+const initials = computed(() => (props.event?.displayName || props.event?.uniqueId || '•')
+  .trim().split(/\s+/).slice(0, 2).map((part) => part[0] ?? '').join('').toUpperCase());
 </script>
 
 <template>

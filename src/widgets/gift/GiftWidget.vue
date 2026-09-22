@@ -37,6 +37,9 @@ watch(
 
 const showArtwork = computed(() => props.settings.showImage && !!props.alert?.giftIconUrl && !imageFailed.value);
 const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.value);
+const avatarVisible = computed(() => design?.value.avatar?.visible !== false);
+const avatarInitials = computed(() => (props.alert?.displayName || props.alert?.uniqueId || '•')
+  .trim().split(/\s+/).slice(0, 2).map((part) => part[0] ?? '').join('').toUpperCase());
 </script>
 
 <template>
@@ -72,14 +75,11 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
           <span v-if="text(props.alert.streaking ? 'streakTitle' : 'title', props.alert)" class="gift-kicker"
             :style="{ order: order(props.alert.streaking ? 'streakTitle' : 'title') }">{{ text(props.alert.streaking ? 'streakTitle' : 'title', props.alert) }}</span>
           <span class="gift-sender" :style="{ order: order('name') }">
-            <img
-              v-if="showAvatar"
-              class="gift-avatar"
-              :src="props.alert.avatarUrl as string"
-              :alt="props.alert.displayName"
-              referrerpolicy="no-referrer"
-              @error="avatarFailed = true"
-            />
+            <span v-if="avatarVisible" class="gift-avatar">
+              <img v-if="showAvatar" :src="props.alert.avatarUrl as string"
+                :alt="props.alert.displayName" referrerpolicy="no-referrer" @error="avatarFailed = true" />
+              <span v-else aria-hidden="true">{{ avatarInitials }}</span>
+            </span>
             <span v-if="text('name', props.alert)" class="gift-name">{{ text('name', props.alert) }}</span>
           </span>
           <span v-if="text('message', props.alert) || (!customTextOrder && props.settings.showCount && text('count', props.alert))"

@@ -30,7 +30,6 @@ const rows = computed<LayerRow[]>(() => {
       }
       row.text.push(layer);
     } else {
-      if (props.variant === 'gift' && layer.kind === 'avatar' && layer.id === 'avatar' && !props.avatarUrl) continue;
       if (!row || row.text.length > 0) {
         row = { id: layer.id, media: [], text: [] };
         result.push(row);

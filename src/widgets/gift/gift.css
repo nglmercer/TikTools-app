@@ -74,17 +74,28 @@
   min-height: 34px;
 }
 
-img.gift-avatar {
+.gift-avatar {
   flex: none;
-  display: var(--widget-avatar-display, block);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: var(--widget-avatar-size, 34px);
   height: var(--widget-avatar-size, 34px);
   border-radius: var(--widget-avatar-radius, 50%);
-  object-fit: cover;
-  background: #26262e;
+  background: #343038;
+  color: var(--widget-accent, #f5c518);
+  font-size: 11px;
+  font-weight: 800;
   box-sizing: border-box;
   border: var(--widget-avatar-borderWidth, 0px) solid var(--widget-avatar-borderColor, transparent);
   box-shadow: 0 0 0 2px #16161d, 0 0 0 4px rgba(245, 197, 24, 0.7);
+  overflow: hidden;
+}
+
+.gift-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .gift-name {
