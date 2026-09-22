@@ -108,7 +108,6 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
 
         <Card title={t(locale, 'connectToLive')} subtitle={t(locale, 'connectionsLiveLead')} icon={<IconRadio />}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {isLive ? <Alert variant="info">{t(locale, 'live')} — {t(locale, 'disconnectToChangeCreator')}</Alert> : null}
             <TextField
               id="connect-creator"
               name="creator"
@@ -117,7 +116,7 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
               options={recentOptions}
               onOptionPick={(picked) => onSelectRecent(picked)}
               label={t(locale, 'creatorHandle')}
-              hint={t(locale, 'leadingAtOptional')}
+              hint={t(locale, isLive ? 'disconnectToChangeCreator' : 'leadingAtOptional')}
               prefix="@"
               placeholder={t(locale, 'usernamePlaceholder')}
               required
