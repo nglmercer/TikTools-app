@@ -41,9 +41,13 @@ export interface RunningGateway {
   stop: () => Promise<void>;
 }
 
-function runOrThrow(command: string, args: string[], cwd: string): void {
+function runOrThrow(command: string, args: string[], cwd: string, env?: Record<string, string>): void {
   // spawnSync without shell: no interpolation, no globbing.
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
+  const result = spawnSync(command, args, {
+    cwd,
+    stdio: 'inherit',
+    env: env ? { ...process.env, ...env } : process.env,
+  });
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(' ')} exited with code ${result.status}`);
   }
@@ -59,7 +63,11 @@ function ensureGatewayBinary(): string {
 }
 
 function ensureWidgetBundles(): string {
-  runOrThrow('bun', ['run', 'build:widgets'], REPOSITORY_ROOT);
+  // E2E bundles enable the page test hook via a build-time flag. Production
+  // `bun run build:widgets` leaves the hook disabled.
+  runOrThrow('bun', ['run', 'build:widgets'], REPOSITORY_ROOT, {
+    VITE_TIKTOOLS_WIDGET_TEST_HOOK: '1',
+  });
   return join(REPOSITORY_ROOT, 'dist', 'widgets');
 }
 

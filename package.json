@@ -29,6 +29,7 @@
     "build:widget:share": "vite build --config src/widgets/share/vite.config.ts",
     "build:widget:subscribe": "vite build --config src/widgets/subscribe/vite.config.ts",
     "build:widgets": "bun run build:widget:follow && bun run build:widget:gift && bun run build:widget:chat && bun run build:widget:share && bun run build:widget:subscribe",
+    "build:widgets:test": "VITE_TIKTOOLS_WIDGET_TEST_HOOK=1 bun run build:widgets",
     "sync:gateway-widgets": "bun run scripts/sync-gateway-widgets.ts",
     "test:widgets-e2e": "playwright test --config src/widgets/playwright.config.ts && playwright test --config src/widgets/playwright.gateway.config.ts",
     "lint": "eslint src scripts vite.config.ts --max-warnings=0",

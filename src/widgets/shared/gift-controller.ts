@@ -160,7 +160,9 @@ export class GiftController {
 
     if (event.data.repeatEnd) {
       this.finalizeCombo(key);
-      return this.current?.key === key ? 'shown' : 'queued';
+      if (this.current?.key === key) return 'shown';
+      if (totalDiamonds < this.minimumDiamonds) return 'filtered';
+      return 'queued';
     }
     if (this.current?.key === key) {
       this.emitUpdate(comboView(combo));
@@ -168,7 +170,7 @@ export class GiftController {
     }
     if (this.current === null) {
       this.pump();
-      return 'shown';
+      return this.currentAlert?.key === key ? 'shown' : 'aggregated';
     }
     return 'aggregated';
   }
@@ -218,7 +220,7 @@ export class GiftController {
 
   private pump(): void {
     if (this.current !== null) return;
-    const nextActive = mostRecentlyUpdated(this.active);
+    const nextActive = mostRecentlyUpdated(this.active, this.minimumDiamonds);
     if (nextActive) {
       this.show(comboView(nextActive), false);
       return;
@@ -291,9 +293,13 @@ function comboView(combo: ActiveGiftCombo): GiftAlertView {
   };
 }
 
-function mostRecentlyUpdated(active: Map<string, ActiveGiftCombo>): ActiveGiftCombo | null {
+function mostRecentlyUpdated(
+  active: Map<string, ActiveGiftCombo>,
+  minimumDiamonds: number,
+): ActiveGiftCombo | null {
   let newest: ActiveGiftCombo | null = null;
   for (const combo of active.values()) {
+    if (combo.totalDiamonds < minimumDiamonds) continue;
     if (!newest || combo.lastUpdatedAt >= newest.lastUpdatedAt) newest = combo;
   }
   return newest;

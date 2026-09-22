@@ -358,7 +358,7 @@ fn widget_endpoints_restrict_credentials_and_topics() {
     assert_eq!(WsEndpoint::Full.initial_topics(), vec!["*".to_owned()]);
     assert_eq!(
         WsEndpoint::Widgets.initial_topics(),
-        vec!["live.event".to_owned()]
+        vec!["live.event".to_owned(), "event.gap".to_owned()]
     );
     assert!(widget_topics_allowed(&["live.event".to_owned()]));
     assert!(widget_topics_allowed(&[

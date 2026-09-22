@@ -3,8 +3,9 @@ import { join, resolve } from 'node:path';
 /**
  * Static server for the built OBS widgets. Serves `dist/widgets/` over
  * loopback for Playwright (`bun run test:widgets-e2e`) and manual checks.
- * Run `bun run build:widgets` first; the gateway serves these same bytes in
- * production.
+ * Run `bun run build:widgets:test` first for E2E bundles (the page test
+ * hook is enabled); the gateway serves production `bun run build:widgets`
+ * bytes with the hook disabled.
  */
 
 const repositoryRoot = resolve(import.meta.dir, '..');
@@ -48,7 +49,7 @@ for (const kind of WIDGET_KINDS) {
   }
 }
 if (missing.length > 0) {
-  throw new Error(`Widget assets missing under ${widgetsRoot}: ${missing.join(', ')}. Run \`bun run build:widgets\` first.`);
+  throw new Error(`Widget assets missing under ${widgetsRoot}: ${missing.join(', ')}. Run \`bun run build:widgets:test\` first.`);
 }
 
 Bun.serve({

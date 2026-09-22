@@ -13,7 +13,7 @@ export const LIVE_EVENT_TOPIC = 'live.event';
 /** Transport topic signalling skipped broadcast messages. Never replayed. */
 export const EVENT_GAP_TOPIC = 'event.gap';
 
-export const DEFAULT_TOPICS: readonly string[] = [LIVE_EVENT_TOPIC];
+export const DEFAULT_TOPICS: readonly string[] = [LIVE_EVENT_TOPIC, EVENT_GAP_TOPIC];
 
 export const FOLLOW_EVENT_TYPE = 'tiktok.follow';
 export const GIFT_EVENT_TYPE = 'tiktok.gift';

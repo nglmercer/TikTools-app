@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { DEFAULT_TOPICS, EVENT_GAP_TOPIC, LIVE_EVENT_TOPIC } from './config.ts';
 import { GatewayClient, type GatewayStatus } from './gateway-client.ts';
 import type { DomainEventEnvelope, EventGapData } from './event-types.ts';
 import { makeTestFollowEnvelope, makeTestGapEnvelope } from './test-events.ts';
@@ -98,13 +99,16 @@ async function waitFor(condition: () => boolean, timeoutMs = 5000): Promise<void
 }
 
 describe('gateway client', () => {
+  test('default widget topics include live events and gap markers', () => {
+    expect([...DEFAULT_TOPICS]).toEqual([LIVE_EVENT_TOPIC, EVENT_GAP_TOPIC]);
+  });
+
   test('authenticates, subscribes, and dispatches events and gaps', async () => {
     const gateway = startFakeGateway();
     const client = new GatewayClient({
       host: '127.0.0.1',
       port: gateway.port,
       token: 'ttk_test',
-      topics: ['live.event'],
       heartbeatMs: 1000,
       reconnectRandom: () => 0,
     });
@@ -117,7 +121,7 @@ describe('gateway client', () => {
     expect(auth['type']).toBe('auth');
     expect(auth).not.toHaveProperty('topics');
     const subscribe = JSON.parse(gateway.received[1] as string) as Record<string, unknown>;
-    expect(subscribe).toEqual({ type: 'subscribe', topics: ['live.event'] });
+    expect(subscribe).toEqual({ type: 'subscribe', topics: [LIVE_EVENT_TOPIC, EVENT_GAP_TOPIC] });
 
     gateway.broadcast(JSON.stringify(makeTestFollowEnvelope()));
     gateway.broadcast(JSON.stringify(makeTestGapEnvelope(4)));

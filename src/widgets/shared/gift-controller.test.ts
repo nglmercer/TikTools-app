@@ -172,4 +172,115 @@ describe('gift controller', () => {
     expect(controller.handleEnvelope(makeTestFollowEnvelope())).toBe('ignored');
     expect(shown).toHaveLength(1);
   });
+
+  test('streak entirely below threshold never renders', () => {
+    const { fake, shown, updated, hidden, controller } = setup({ minimumDiamonds: 100 });
+    const results = [];
+    for (let step = 1; step <= 5; step += 1) {
+      results.push(
+        controller.handleEnvelope(
+          makeTestGiftEnvelope({
+            id: `low-${step}`,
+            groupId: 'low-streak',
+            giftName: 'Rose',
+            diamondCount: 1,
+            repeatCount: step,
+            comboCount: step,
+            streakable: true,
+            repeatEnd: false,
+          }),
+        ),
+      );
+    }
+    expect(results).toEqual(['aggregated', 'aggregated', 'aggregated', 'aggregated', 'aggregated']);
+    expect(shown).toHaveLength(0);
+    expect(updated).toHaveLength(0);
+    expect(hidden).toHaveLength(0);
+    expect(controller.activeCount).toBe(1);
+    // Timeout finalization still renders nothing.
+    fake.advance(3000);
+    expect(shown).toHaveLength(0);
+    expect(updated).toHaveLength(0);
+    expect(hidden).toHaveLength(0);
+    expect(controller.activeCount).toBe(0);
+  });
+
+  test('streak first renders when it crosses the threshold', () => {
+    const { shown, updated, controller } = setup({ minimumDiamonds: 3 });
+    const results = [];
+    for (let step = 1; step <= 4; step += 1) {
+      results.push(
+        controller.handleEnvelope(
+          makeTestGiftEnvelope({
+            id: `cross-${step}`,
+            groupId: 'cross-streak',
+            giftName: 'Rose',
+            diamondCount: 1,
+            repeatCount: step,
+            comboCount: step,
+            streakable: true,
+            repeatEnd: false,
+          }),
+        ),
+      );
+    }
+    expect(results).toEqual(['aggregated', 'aggregated', 'shown', 'updated']);
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toMatchObject({ count: 3, totalDiamonds: 3, streaking: true });
+    expect(updated).toHaveLength(1);
+    expect(updated[0]).toMatchObject({ count: 4, totalDiamonds: 4, streaking: true });
+    expect(controller.currentAlert?.count).toBe(4);
+  });
+
+  test('visible streak keeps updating after crossing the threshold', () => {
+    const { fake, shown, updated, hidden, controller } = setup({ minimumDiamonds: 5 });
+    for (let step = 1; step <= 7; step += 1) {
+      controller.handleEnvelope(
+        makeTestGiftEnvelope({
+          id: `vis-${step}`,
+          groupId: 'vis-streak',
+          giftName: 'Rose',
+          diamondCount: 1,
+          repeatCount: step,
+          comboCount: step,
+          streakable: true,
+          repeatEnd: step === 7,
+        }),
+      );
+    }
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toMatchObject({ count: 5, totalDiamonds: 5, streaking: true });
+    expect(updated.map((alert) => alert.count)).toEqual([6, 7]);
+    expect(updated[updated.length - 1]).toMatchObject({ streaking: false });
+    fake.advance(5000);
+    expect(hidden).toHaveLength(1);
+    expect(controller.currentAlert).toBeNull();
+  });
+
+  test('below-threshold streak finalizes without ever appearing', () => {
+    const { shown, updated, hidden, controller } = setup({ minimumDiamonds: 100 });
+    const results = [];
+    for (let step = 1; step <= 3; step += 1) {
+      results.push(
+        controller.handleEnvelope(
+          makeTestGiftEnvelope({
+            id: `fin-${step}`,
+            groupId: 'fin-streak',
+            giftName: 'Rose',
+            diamondCount: 1,
+            repeatCount: step,
+            comboCount: step,
+            streakable: true,
+            repeatEnd: step === 3,
+          }),
+        ),
+      );
+    }
+    expect(results).toEqual(['aggregated', 'aggregated', 'filtered']);
+    expect(shown).toHaveLength(0);
+    expect(updated).toHaveLength(0);
+    expect(hidden).toHaveLength(0);
+    expect(controller.currentAlert).toBeNull();
+    expect(controller.queueSize).toBe(0);
+  });
 });

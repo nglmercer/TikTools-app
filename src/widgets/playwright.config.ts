@@ -6,9 +6,10 @@ const baseURL = `http://127.0.0.1:${port}`;
 const repositoryRoot = resolve(import.meta.dirname, '..', '..');
 
 /**
- * Browser tests for the built OBS alert widgets. Specs drive the production
- * bundles in `dist/widgets/` (run `bun run build:widgets` first) through
- * the page test hook — no TikTok connection and no gateway needed.
+ * Browser tests for the built OBS alert widgets. Specs drive E2E-enabled
+ * bundles in `dist/widgets/` (run `bun run build:widgets:test` first)
+ * through the page test hook — no TikTok connection and no gateway needed.
+ * Production `bun run build:widgets` leaves the hook disabled.
  */
 export default defineConfig({
   testDir: './tests',

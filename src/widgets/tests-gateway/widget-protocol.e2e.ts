@@ -45,17 +45,20 @@ function connect(path: string): Promise<WsConversation> {
   });
 }
 
-test('widget credential subscribes to widget topics only', async () => {
+test('widget credential subscribes to live.event and event.gap only', async () => {
   const ws = await connect('/ws/widgets');
   ws.send({ type: 'auth', token: gateway.widgetToken });
   expect(await ws.next()).toMatchObject({ type: 'authenticated' });
+  ws.send({ type: 'subscribe', topics: ['live.event', 'event.gap'] });
+  expect(await ws.next()).toMatchObject({ type: 'subscribed', topics: ['live.event', 'event.gap'] });
+  // Single-topic widget subscriptions stay valid.
   ws.send({ type: 'subscribe', topics: ['live.event'] });
   expect(await ws.next()).toMatchObject({ type: 'subscribed', topics: ['live.event'] });
   // Wildcards and foreign topics are rejected without widening the set.
-  ws.send({ type: 'subscribe', topics: ['*'] });
-  expect(await ws.next()).toMatchObject({ type: 'error' });
-  ws.send({ type: 'subscribe', topics: ['plugin.event'] });
-  expect(await ws.next()).toMatchObject({ type: 'error' });
+  for (const topics of [['*'], ['live.*'], ['plugin.event'], ['live.event', '*']]) {
+    ws.send({ type: 'subscribe', topics });
+    expect(await ws.next()).toMatchObject({ type: 'error' });
+  }
   ws.close();
 });
 

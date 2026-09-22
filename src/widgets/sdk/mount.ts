@@ -4,6 +4,7 @@ import type { WidgetStyle, WidgetTemplate } from './template.ts';
 import { parseDemoMode } from '../shared/config.ts';
 import './standalone.css';
 import { designFromHash } from './design.ts';
+import { isWidgetTestHookEnabled } from './test-hook.ts';
 
 /** Minimal OBS entry point. The editor uses WidgetHost directly. */
 export function mountWidget(template: WidgetTemplate, options: { design?: WidgetStyle } = {}) {
@@ -14,7 +15,7 @@ export function mountWidget(template: WidgetTemplate, options: { design?: Widget
       search: window.location.search,
       mode: parseDemoMode(window.location.hash) ? 'preview' : 'live',
       debug: Boolean(import.meta.env.DEV),
-      testHook: true,
+      testHook: isWidgetTestHookEnabled(),
     }),
   });
   app.mount('#app');
