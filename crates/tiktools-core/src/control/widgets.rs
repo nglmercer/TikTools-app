@@ -293,7 +293,9 @@ fn portable_design(raw: &str) -> Option<String> {
                 let Some(name) = field.as_str() else {
                     continue;
                 };
-                if !TEXT_FIELDS.contains(&name) || kept.iter().any(|kept| kept.as_str() == Some(name)) {
+                if !TEXT_FIELDS.contains(&name)
+                    || kept.iter().any(|kept| kept.as_str() == Some(name))
+                {
                     continue;
                 }
                 kept.push(serde_json::Value::from(name));
@@ -305,6 +307,75 @@ fn portable_design(raw: &str) -> Option<String> {
                 design.insert(key.to_owned(), serde_json::Value::Array(kept));
             }
         }
+    }
+    if let Some(layers) = source.get("layers").and_then(|value| value.as_array()) {
+        let mut kept = Vec::new();
+        let mut ids = std::collections::HashSet::new();
+        for item in layers {
+            let Some(layer) = item.as_object() else {
+                continue;
+            };
+            let Some(id) = layer.get("id").and_then(|value| value.as_str()) else {
+                continue;
+            };
+            let valid_id = !id.is_empty()
+                && id.len() <= 80
+                && id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'_' | b'-'));
+            if !valid_id || ids.contains(id) {
+                continue;
+            }
+            let Some(kind) = layer.get("kind").and_then(|value| value.as_str()) else {
+                continue;
+            };
+            if !matches!(kind, "text" | "avatar" | "art") {
+                continue;
+            }
+            ids.insert(id.to_owned());
+            let mut entry = serde_json::Map::new();
+            entry.insert("id".to_owned(), serde_json::Value::from(id));
+            entry.insert("kind".to_owned(), serde_json::Value::from(kind));
+            let name = layer
+                .get("name")
+                .and_then(|value| value.as_str())
+                .unwrap_or(id);
+            entry.insert(
+                "name".to_owned(),
+                serde_json::Value::from(name.chars().take(80).collect::<String>()),
+            );
+            if kind == "text" {
+                let text = layer
+                    .get("text")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("");
+                entry.insert(
+                    "text".to_owned(),
+                    serde_json::Value::from(text.chars().take(300).collect::<String>()),
+                );
+                if let Some(field) = layer.get("field").and_then(|value| value.as_str()) {
+                    if TEXT_FIELDS.contains(&field) {
+                        entry.insert("field".to_owned(), serde_json::Value::from(field));
+                    }
+                }
+                if let Some(color) = portable_color(layer.get("color")) {
+                    entry.insert("color".to_owned(), serde_json::Value::from(color));
+                }
+                if let Some(size) = portable_number(layer.get("fontSize"), 8.0, 96.0) {
+                    entry.insert("fontSize".to_owned(), serde_json::Value::from(size));
+                }
+                if let Some(weight) = portable_number(layer.get("fontWeight"), 100.0, 900.0) {
+                    entry.insert(
+                        "fontWeight".to_owned(),
+                        serde_json::Value::from((weight / 100.0).round() * 100.0),
+                    );
+                }
+            } else if let Some(size) = portable_number(layer.get("size"), 16.0, 160.0) {
+                entry.insert("size".to_owned(), serde_json::Value::from(size));
+            }
+            kept.push(serde_json::Value::Object(entry));
+        }
+        design.insert("layers".to_owned(), serde_json::Value::Array(kept));
     }
     for key in ["background", "textColor", "accent", "borderColor"] {
         if let Some(color) = portable_color(source.get(key)) {

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
-import { useWidgetText, useWidgetTextOrder } from '../sdk/text.ts';
+import WidgetLayerStack from '../sdk/WidgetLayerStack.vue';
+import { useWidgetText, useWidgetTextOrder, widgetDesignKey } from '../sdk/text.ts';
 const text = useWidgetText('follow');
 const order = useWidgetTextOrder('follow');
-import { computed, ref, watch } from 'vue';
+import { computed, inject, ref, watch } from 'vue';
 import type { FollowWidgetSettings } from '../shared/config.ts';
 import type { FollowAlert } from '../shared/follow-controller.ts';
 import type { GatewayStatus } from '../shared/gateway-client.ts';
@@ -16,6 +17,8 @@ type FollowWidgetProps = {
 };
 
 const props = defineProps<FollowWidgetProps>();
+const design = inject(widgetDesignKey, undefined);
+const layered = computed(() => design?.value.layers !== undefined);
 
 const avatarFailed = ref(false);
 
@@ -39,6 +42,9 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
   >
     <Transition name="follow" mode="out-in" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
       <div v-if="props.alert" :key="props.alert.id" class="follow-card" role="alert">
+        <WidgetLayerStack v-if="layered" :layers="design?.layers ?? []" :event="props.alert"
+          :avatar-url="props.alert.avatarUrl ?? undefined" />
+        <template v-else>
         <div :class="['follow-badge', { 'has-avatar': showAvatar }]" aria-hidden="true">
           <img
             v-if="showAvatar"
@@ -71,6 +77,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
           </span>
           <span v-if="text('message', props.alert)" class="follow-action" :style="{ order: order('message') }">{{ text('message', props.alert) }}</span>
         </div>
+        </template>
       </div>
     </Transition>
   </WidgetStage>

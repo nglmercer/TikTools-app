@@ -38,9 +38,24 @@ export type WidgetAlign = 'left' | 'center' | 'right';
 
 export type WidgetTemplateToken = 'name' | 'username' | 'gift' | 'count' | 'diamonds' | 'message';
 
+export interface WidgetLayer {
+  id: string;
+  kind: 'text' | 'avatar' | 'art';
+  name: string;
+  text?: string;
+  /** Original event field, used only for legacy visibility and default styling. */
+  field?: TextField;
+  color?: string;
+  fontSize?: number;
+  fontWeight?: number;
+  size?: number;
+}
+
+export type WidgetLayerSeed = { id: string; kind: WidgetLayer['kind']; field?: TextField };
+
 /** Built-in controls that a widget template may place in an editor section. */
 export type WidgetEditorControl =
-  | 'textFields' | 'addTextField' | 'textColor'
+  | 'layers' | 'textFields' | 'addTextField' | 'textColor'
   | 'background' | 'accent' | 'radius' | 'borderColor' | 'borderWidth' | 'shadow' | 'opacity'
   | 'align' | 'autoWidth' | 'width' | 'padding' | 'gap'
   | 'avatarVisible' | 'avatarSize' | 'avatarRadius' | 'avatarBorderColor' | 'avatarBorderWidth'
@@ -54,11 +69,13 @@ export interface WidgetEditorGroup {
 /** Section and control ownership is declared by the template. Heading fields
  * belong to the rendered kicker line; hiding all hides that section. */
 export type WidgetEditorSection =
-  | { id: 'text' | 'card' | 'image'; groups: readonly WidgetEditorGroup[] }
+  | { id: 'layers' | 'text' | 'card' | 'image'; groups: readonly WidgetEditorGroup[] }
   | { id: 'heading'; textFields: readonly TextField[]; groups: readonly WidgetEditorGroup[] };
 
 /** JSON-serializable styling contract for an editor; no HTML or scripts. */
 export interface WidgetStyle {
+  /** Ordered content layers. When set, these replace the legacy fixed lines. */
+  layers?: WidgetLayer[];
   text?: Partial<Record<import('./text.ts').TextField, string>>;
   /** Template fields to hide from the rendered alert. Absent = render all. */
   hiddenText?: import('./text.ts').TextField[];
@@ -92,6 +109,7 @@ export interface WidgetStyle {
  * visual defaults; consumers must not recreate those values per surface.
  */
 export interface WidgetTemplateSchema {
+  defaultLayers: readonly WidgetLayerSeed[];
   textFields: readonly TextField[];
   /** Fields the editor keeps available without a remove control. */
   requiredTextFields: readonly TextField[];

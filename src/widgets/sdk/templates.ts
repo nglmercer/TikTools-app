@@ -45,24 +45,20 @@ function templateSchema(
   tokens: readonly WidgetTemplateToken[],
 ): WidgetTemplateSchema {
   const fields = Object.keys(textDefaults[kind]) as TextField[];
-  const headingFields = fields.filter((field) => field === 'title' || field === 'streakTitle');
   const editorSections: WidgetEditorSection[] = [
-    { id: 'text', groups: [
-      { title: 'fields', controls: ['textFields', 'addTextField'] },
-      { title: 'textAppearance', controls: ['textColor'] },
-    ] },
+    { id: 'layers', groups: [{ controls: ['layers'] }] },
     { id: 'card', groups: [
       { title: 'appearance', controls: ['background', 'accent', 'radius', 'borderColor', 'borderWidth', 'shadow', 'opacity'] },
       { title: 'layout', controls: ['align', 'autoWidth', 'width', 'padding', 'gap'] },
     ] },
-    { id: 'image', groups: [
-      { controls: ['avatarVisible', 'avatarSize', 'avatarRadius', 'avatarBorderColor', 'avatarBorderWidth'] },
-    ] },
-    ...(headingFields.length > 0 ? [{ id: 'heading' as const, textFields: headingFields, groups: [
-      { title: 'appearance' as const, controls: ['headingVisible' as const, 'headingColor' as const, 'headingFontSize' as const, 'headingWeight' as const, 'headingSpacing' as const] },
-    ] }] : []),
   ];
   return {
+    defaultLayers: [
+      ...(kind === 'gift' ? [{ id: 'art', kind: 'art' as const }] : []),
+      { id: 'avatar', kind: 'avatar' as const },
+      ...fields.filter((field) => field !== 'streakTitle')
+        .map((field) => ({ id: `field:${field}`, kind: 'text' as const, field })),
+    ],
     textFields: fields,
     requiredTextFields: coreTextFields[kind],
     tokens,

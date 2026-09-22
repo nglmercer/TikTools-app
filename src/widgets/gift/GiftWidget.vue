@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
+import WidgetLayerStack from '../sdk/WidgetLayerStack.vue';
 import { useWidgetText, useWidgetTextOrder, widgetDesignKey } from '../sdk/text.ts';
 const text = useWidgetText('gift');
 const order = useWidgetTextOrder('gift');
@@ -17,6 +18,7 @@ type GiftWidgetProps = {
 
 const props = defineProps<GiftWidgetProps>();
 const design = inject(widgetDesignKey, undefined);
+const layered = computed(() => design?.value.layers !== undefined);
 const customTextOrder = computed(() => Boolean(design?.value.textOrder?.length));
 
 const imageFailed = ref(false);
@@ -40,6 +42,9 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
   <WidgetStage :debug="props.debug" :status="props.status" class="gift-stage">
     <Transition name="gift" mode="out-in">
       <div v-if="props.alert" :key="props.alert.key" class="gift-card" role="alert">
+        <WidgetLayerStack v-if="layered" :layers="design?.layers ?? []" :event="props.alert"
+          :avatar-url="props.alert.avatarUrl ?? undefined" :art-url="props.settings.showImage ? props.alert.giftIconUrl ?? undefined : undefined" />
+        <template v-else>
         <div class="gift-art" aria-hidden="true">
           <img
             v-if="showArtwork"
@@ -96,6 +101,7 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
             {{ text('diamonds', props.alert) }}
           </span>
         </div>
+        </template>
       </div>
     </Transition>
   </WidgetStage>

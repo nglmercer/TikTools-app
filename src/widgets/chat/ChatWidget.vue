@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
-import { useWidgetText, useWidgetTextOrder } from '../sdk/text.ts';
+import WidgetLayerStack from '../sdk/WidgetLayerStack.vue';
+import { useWidgetText, useWidgetTextOrder, widgetDesignKey } from '../sdk/text.ts';
 const text = useWidgetText('chat');
 const order = useWidgetTextOrder('chat');
-import { ref } from 'vue';
+import { computed, inject, ref } from 'vue';
 import type { ChatWidgetSettings } from '../shared/config.ts';
 import type { ChatMessageView } from '../shared/chat-controller.ts';
 import type { GatewayStatus } from '../shared/gateway-client.ts';
@@ -16,6 +17,8 @@ type ChatWidgetProps = {
 };
 
 const props = defineProps<ChatWidgetProps>();
+const design = inject(widgetDesignKey, undefined);
+const layered = computed(() => design?.value.layers !== undefined);
 
 const failedAvatars = ref<Record<string, boolean>>({});
 
@@ -33,6 +36,9 @@ function initialsFor(message: ChatMessageView): string {
   <WidgetStage :debug="props.debug" :status="props.status" align="bottom" class="chat-stage">
     <TransitionGroup name="chat" tag="div" class="chat-list" aria-live="polite">
       <div v-for="message in props.messages" :key="message.id" class="chat-message">
+        <WidgetLayerStack v-if="layered" :layers="design?.layers ?? []" :event="message"
+          :avatar-url="props.settings.showAvatars ? message.avatarUrl ?? undefined : undefined" />
+        <template v-else>
         <div class="chat-avatar" aria-hidden="true">
           <img
             v-if="showAvatar(message)"
@@ -47,6 +53,7 @@ function initialsFor(message: ChatMessageView): string {
           <span v-if="text('name', message)" class="chat-name" :style="{ order: order('name') }">{{ text('name', message) }}</span>
           <span v-if="text('message', message)" class="chat-text" :style="{ order: order('message') }">{{ text('message', message) }}</span>
         </div>
+        </template>
       </div>
     </TransitionGroup>
   </WidgetStage>

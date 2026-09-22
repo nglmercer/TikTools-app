@@ -31,6 +31,7 @@ export function isHiddenField(design: WidgetStyle | undefined, field: TextField)
   return design?.hiddenText?.includes(field) ?? false;
 }
 export const widgetDesignKey: InjectionKey<ComputedRef<WidgetStyle>> = Symbol('widget-design');
+export type WidgetTextEvent = { displayName: string; uniqueId?: string; giftName?: string; count?: number; totalDiamonds?: number; text?: string };
 
 /** One pass, plain text only: event values are never evaluated as templates or HTML. */
 export function interpolateText(template: string, values: Record<string, string>): string {
@@ -39,7 +40,7 @@ export function interpolateText(template: string, values: Record<string, string>
 
 export function useWidgetText(kind: keyof typeof textDefaults) {
   const design = inject(widgetDesignKey, undefined);
-  return (field: TextField, event: { displayName: string; uniqueId?: string; giftName?: string; count?: number; totalDiamonds?: number; text?: string } | null) => {
+  return (field: TextField, event: WidgetTextEvent | null) => {
     if (isHiddenField(design?.value, field)) return '';
     const defaults: Partial<Record<TextField, string>> = textDefaults[kind];
     return interpolateText(design?.value.text?.[field] ?? defaults[field] ?? '', {

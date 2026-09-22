@@ -5,6 +5,8 @@ export type {
   WidgetEditorSection,
   WidgetEditorGroup,
   WidgetEditorControl,
+  WidgetLayer,
+  WidgetLayerSeed,
   WidgetTemplateToken,
   WidgetController,
   WidgetStyle,

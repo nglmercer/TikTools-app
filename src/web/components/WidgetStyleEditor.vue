@@ -18,7 +18,8 @@ import { t, type Locale } from '../i18n.ts';
 import { errorMessage } from '../platform/control-client.ts';
 import WidgetHost from '../../widgets/sdk/WidgetHost.vue';
 import { widgetTemplates, type WidgetKind } from '../../widgets/sdk/templates.ts';
-import type { WidgetAlign, WidgetAvatarStyle, WidgetBadgeStyle, WidgetEditorControl, WidgetEditorSection, WidgetStyle, WidgetTemplateToken } from '../../widgets/sdk/template.ts';
+import { defaultWidgetLayers, updateWidgetLayer } from '../../widgets/sdk/layers.ts';
+import type { WidgetAlign, WidgetAvatarStyle, WidgetBadgeStyle, WidgetEditorControl, WidgetEditorSection, WidgetLayer, WidgetLayerSeed, WidgetStyle, WidgetTemplateToken } from '../../widgets/sdk/template.ts';
 import { orderedTextFields, textDefaults, type TextField } from '../../widgets/sdk/text.ts';
 import { cloneDesign, EditorHistory } from './widgets-editor/history.ts';
 
@@ -33,9 +34,10 @@ type Props = {
 
 type BuilderComponent = WidgetEditorSection['id'];
 
-const COMPONENT_ICON = { text: IconFormat, card: IconSquare, image: IconImage, heading: IconStar } as const;
+const COMPONENT_ICON = { layers: IconFormat, text: IconFormat, card: IconSquare, image: IconImage, heading: IconStar } as const;
 const COMPONENT_KEY = {
-  text: 'widgetsBuilderText', card: 'widgetsBuilderCard', image: 'widgetsBuilderImage', heading: 'widgetsBuilderHeading',
+  layers: 'widgetsBuilderLayers', text: 'widgetsBuilderText', card: 'widgetsBuilderCard',
+  image: 'widgetsBuilderImage', heading: 'widgetsBuilderHeading',
 } as const;
 
 const TOKEN_KEY = {
@@ -54,7 +56,8 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   const template = widgetTemplates[props.kind];
   const schema = template.schema;
   const draft = ref<WidgetStyle>(cloneDesign(props.design));
-  const component = ref<BuilderComponent>('text');
+  const component = ref<BuilderComponent>('layers');
+  const selectedLayer = ref<string | null>(null);
   const saving = ref(false);
   const error = ref('');
   const replay = ref(0);
@@ -81,6 +84,10 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   const visibleFields = ref<TextField[]>(textFields.filter((field) => !draft.value.hiddenText?.includes(field)));
   const orderedVisibleFields = computed(() => orderedTextFields(textFields, draft.value.textOrder)
     .filter((field) => visibleFields.value.includes(field)));
+  const layerLabel = (seed: WidgetLayerSeed): string => seed.field
+    ? t(props.locale, TEXT_LABEL_KEY[seed.field])
+    : t(props.locale, seed.kind === 'art' ? 'widgetsBuilderGiftArt' : 'widgetsBuilderAvatar');
+  const layers = computed(() => draft.value.layers ?? defaultWidgetLayers(props.kind, schema, draft.value, layerLabel));
   const rails = computed<BuilderComponent[]>(() => schema.editorSections
     .filter((section) => section.id !== 'heading' || section.textFields.some((field) => visibleFields.value.includes(field)))
     .map((section) => section.id));
@@ -232,6 +239,7 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
       headingWeight: 'badge.fontWeight', headingSpacing: 'badge.letterSpacing',
     };
     return [...new Set(section.groups.flatMap((group) => group.controls.flatMap((control) => {
+      if (control === 'layers') return ['layers'];
       if (control === 'textFields') {
         return ['textOrder', ...textFields.map((field) => `text.${field}`)];
       }
@@ -283,6 +291,51 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
         .filter((item) => !visibleFields.value.includes(item));
       draft.value = { ...draft.value, textOrder: [...next, ...hidden] };
     });
+  };
+
+  const setLayer = (id: string, patch: Partial<WidgetLayer>): void => {
+    draft.value = { ...draft.value, layers: updateWidgetLayer(layers.value, id, (layer) => ({ ...layer, ...patch })) };
+  };
+
+  const editLayer = (id: string, key: string, patch: Partial<WidgetLayer>): void => {
+    change(`layer:${id}:${key}`, () => setLayer(id, patch), 700);
+  };
+
+  const moveLayer = (id: string, direction: -1 | 1): void => {
+    const current = layers.value;
+    const index = current.findIndex((layer) => layer.id === id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= current.length) return;
+    change('layers:move', () => {
+      const next = [...current];
+      [next[index], next[target]] = [next[target]!, next[index]!];
+      draft.value = { ...draft.value, layers: next };
+    });
+  };
+
+  const removeLayer = (id: string): void => {
+    change('layers:remove', () => {
+      draft.value = { ...draft.value, layers: layers.value.filter((layer) => layer.id !== id) };
+    });
+    if (selectedLayer.value === id) selectedLayer.value = null;
+  };
+
+  const addLayer = (kind: WidgetLayer['kind'], placement: 'top' | 'bottom'): void => {
+    const label = t(props.locale, kind === 'text' ? 'widgetsBuilderText' : kind === 'art' ? 'widgetsBuilderGiftArt' : 'widgetsBuilderAvatar');
+    let number = 1;
+    while (layers.value.some((layer) => layer.name === `${label} ${number}`)) number++;
+    let id: string;
+    do { id = `layer:${Math.random().toString(36).slice(2, 12)}`; }
+    while (layers.value.some((layer) => layer.id === id));
+    const layer: WidgetLayer = { id, kind, name: `${label} ${number}` };
+    if (kind === 'text') layer.text = t(props.locale, 'widgetsBuilderNewText');
+    else layer.size = kind === 'art' ? 88 : defaults.avatarSize;
+    change('layers:add', () => {
+      const current = layers.value;
+      draft.value = { ...draft.value, layers: placement === 'top' ? [layer, ...current] : [...current, layer] };
+    });
+    selectedLayer.value = id;
+    addMenu.value = false;
   };
 
   const resetSection = (): void => {
@@ -552,10 +605,90 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
     );
   };
 
+  const renderLayers = () => (
+    <div class="wb-layer-editor">
+      <p class="wb-layer-editor__hint">{t(props.locale, 'widgetsBuilderLayerHint')}</p>
+      <div class="wb-layer-list">
+        {layers.value.map((layer, index) => {
+          const expanded = selectedLayer.value === layer.id;
+          return <div class={['wb-layer', expanded ? 'is-expanded' : '']} key={layer.id}>
+            <div class="wb-layer__header">
+              <button type="button" class="wb-layer__select" aria-expanded={expanded}
+                onClick={() => { selectedLayer.value = expanded ? null : layer.id; }}>
+                <span class="wb-layer__number">{index + 1}</span>
+                <span class="wb-layer__name">{layer.name}</span>
+              </button>
+              <span class="wb-layer-actions">
+                <button type="button" disabled={index === 0 || saving.value}
+                  aria-label={`${layer.name}: ${t(props.locale, 'widgetsBuilderMoveUp')}`}
+                  onClick={() => moveLayer(layer.id, -1)}>↑</button>
+                <button type="button" disabled={index === layers.value.length - 1 || saving.value}
+                  aria-label={`${layer.name}: ${t(props.locale, 'widgetsBuilderMoveDown')}`}
+                  onClick={() => moveLayer(layer.id, 1)}>↓</button>
+                <button type="button" disabled={saving.value}
+                  aria-label={`${layer.name}: ${t(props.locale, 'widgetsBuilderRemoveLayer')}`}
+                  onClick={() => removeLayer(layer.id)}>×</button>
+              </span>
+            </div>
+            {expanded ? <div class="wb-layer__details">
+              <label class="wb-row">
+                <span class="wb-label">{t(props.locale, 'widgetsBuilderLayerName')}</span>
+                <input class="wb-layer__input" type="text" maxlength={80} value={layer.name}
+                  disabled={saving.value}
+                  onInput={(event) => editLayer(layer.id, 'name', { name: (event.target as HTMLInputElement).value })} />
+              </label>
+              {layer.kind === 'text' ? <>
+                <label class="wb-row">
+                  <span class="wb-label">{t(props.locale, 'widgetsBuilderLayerContent')}</span>
+                  <textarea class="wb-layer__input" rows={3} maxlength={300} value={layer.text ?? ''}
+                    disabled={saving.value}
+                    onInput={(event) => editLayer(layer.id, 'text', { text: (event.target as HTMLTextAreaElement).value })} />
+                </label>
+                <div class="wb-layer__tokens" aria-label={t(props.locale, 'widgetsBuilderInsertToken')}>
+                  {tokens.map((token) => <button type="button" key={token}
+                    disabled={saving.value || (layer.text ?? '').length + token.length + 4 > 300}
+                    onClick={() => editLayer(layer.id, 'text', { text: `${layer.text ?? ''}{{${token}}}` })}>
+                    {t(props.locale, TOKEN_KEY[token])}
+                  </button>)}
+                </div>
+                {renderColorRow(t(props.locale, 'widgetsBuilderColor'), layer.color, defaults.textColor, `layer:${layer.id}:color`,
+                  (color) => setLayer(layer.id, { color }))}
+                {renderSliderRow(t(props.locale, 'widgetsBuilderFontSize'), layer.fontSize ?? (layer.field === 'name' ? 27 : 15),
+                  8, 96, 1, ' px', `layer:${layer.id}:fontSize`, (size) => setLayer(layer.id, { fontSize: size }))}
+                {renderSliderRow(t(props.locale, 'widgetsBuilderWeight'), layer.fontWeight ?? (layer.field === 'name' ? 800 : 400),
+                  100, 900, 100, '', `layer:${layer.id}:fontWeight`, (weight) => setLayer(layer.id, { fontWeight: weight }))}
+              </> : renderSliderRow(t(props.locale, 'widgetsBuilderSize'), layer.size ?? (layer.kind === 'art' ? 88 : defaults.avatarSize),
+                16, 160, 1, ' px', `layer:${layer.id}:size`, (size) => setLayer(layer.id, { size }))}
+            </div> : null}
+          </div>;
+        })}
+      </div>
+      <div class="wb-add">
+        <button type="button" class="wb-add__btn" disabled={saving.value}
+          aria-expanded={addMenu.value} aria-haspopup="menu"
+          onClick={() => { addMenu.value = !addMenu.value; }}>
+          <IconPlus size={14} /> {t(props.locale, 'widgetsBuilderAddLayer')}
+        </button>
+        {addMenu.value ? <div class="wb-menu wb-layer-add" role="menu" aria-label={t(props.locale, 'widgetsBuilderAddLayer')}>
+          {(['text', 'avatar', ...(props.kind === 'gift' ? ['art'] : [])] as WidgetLayer['kind'][]).map((kind) => (
+            <div class="wb-add__choice" key={kind}>
+              <span>{t(props.locale, kind === 'text' ? 'widgetsBuilderText' : kind === 'art' ? 'widgetsBuilderGiftArt' : 'widgetsBuilderAvatar')}</span>
+              <span>
+                <button type="button" role="menuitem" onClick={() => addLayer(kind, 'top')}>{t(props.locale, 'widgetsBuilderAddTop')}</button>
+                <button type="button" role="menuitem" onClick={() => addLayer(kind, 'bottom')}>{t(props.locale, 'widgetsBuilderAddBottom')}</button>
+              </span>
+            </div>
+          ))}
+        </div> : null}
+      </div>
+    </div>
+  );
+
   const renderControl = (control: WidgetEditorControl): VNodeChild => {
     const d = draft.value;
     const autoWidth = d.width === undefined;
     switch (control) {
+      case 'layers': return renderLayers();
       case 'textFields': {
         return orderedVisibleFields.value
           .map((field) => renderTextField(field, !coreFields.includes(field)));
@@ -1194,6 +1327,148 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+
+.wb-layer-editor,
+.wb-layer-list,
+.wb-layer__details {
+  display: grid;
+  gap: 10px;
+}
+
+.wb-layer-editor__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.wb-layer {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-solid);
+}
+
+.wb-layer.is-expanded {
+  border-color: rgba(0, 220, 232, 0.45);
+}
+
+.wb-layer__header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 42px;
+  padding: 5px 6px;
+}
+
+.wb-layer__select {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wb-layer__number {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.wb-layer__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wb-layer__header .wb-layer-actions button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.wb-layer__header .wb-layer-actions button:hover:not(:disabled) {
+  background: var(--panel);
+  color: var(--text);
+}
+
+.wb-layer__header .wb-layer-actions button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.wb-layer__details {
+  padding: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.wb-layer__input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  outline: 0;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.wb-layer__input:focus-visible,
+.wb-layer__select:focus-visible,
+.wb-layer__header .wb-layer-actions button:focus-visible {
+  outline: 2px solid #00dce8;
+  outline-offset: 1px;
+}
+
+.wb-layer__tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.wb-layer__tokens button {
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.wb-layer__tokens button:hover:not(:disabled) {
+  border-color: rgba(0, 220, 232, 0.55);
+  color: var(--text);
 }
 
 .wb-layer-action,

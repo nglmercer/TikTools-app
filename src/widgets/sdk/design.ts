@@ -1,7 +1,41 @@
-import type { WidgetAlign, WidgetAvatarStyle, WidgetBadgeStyle, WidgetStyle } from './template.ts';
+import type { WidgetAlign, WidgetAvatarStyle, WidgetBadgeStyle, WidgetLayer, WidgetStyle } from './template.ts';
 import { textFields, type TextField } from './text.ts';
 
 const COLOR_PATTERN = /^#[\da-f]{6}([\da-f]{2})?$/i;
+const LAYER_ID_PATTERN = /^[A-Za-z0-9:_-]{1,80}$/;
+
+function normalizeLayers(value: unknown): WidgetLayer[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const result: WidgetLayer[] = [];
+  const ids = new Set<string>();
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const source = item as Record<string, unknown>;
+    const id = source.id;
+    const kind = source.kind;
+    if (typeof id !== 'string' || !LAYER_ID_PATTERN.test(id) || ids.has(id)) continue;
+    if (kind !== 'text' && kind !== 'avatar' && kind !== 'art') continue;
+    ids.add(id);
+    const layer: WidgetLayer = { id, kind, name: typeof source.name === 'string' ? source.name.slice(0, 80) : id };
+    if (kind === 'text') {
+      layer.text = typeof source.text === 'string' ? source.text.slice(0, 300) : '';
+      if (typeof source.field === 'string' && (textFields as string[]).includes(source.field)) {
+        layer.field = source.field as TextField;
+      }
+      const color = readColor(source, 'color');
+      if (color) layer.color = color;
+      const fontSize = readNumber(source, 'fontSize', 8, 96);
+      if (fontSize !== undefined) layer.fontSize = fontSize;
+      const fontWeight = readNumber(source, 'fontWeight', 100, 900);
+      if (fontWeight !== undefined) layer.fontWeight = Math.round(fontWeight / 100) * 100;
+    } else {
+      const size = readNumber(source, 'size', 16, 160);
+      if (size !== undefined) layer.size = size;
+    }
+    result.push(layer);
+  }
+  return result;
+}
 
 function readColor(source: Record<string, unknown>, key: string): string | undefined {
   const value = source[key];
@@ -58,6 +92,8 @@ export function normalizeDesign(value: unknown): WidgetStyle {
   const result: WidgetStyle = {};
   if (!value || typeof value !== 'object') return result;
   const source = value as Record<string, unknown>;
+  const layers = normalizeLayers(source.layers);
+  if (layers !== undefined) result.layers = layers;
   if (source.text && typeof source.text === 'object') {
     const fields = source.text as Record<string, unknown>;
     result.text = {};
