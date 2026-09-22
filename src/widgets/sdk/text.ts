@@ -28,7 +28,8 @@ export const coreTextFields: Record<keyof typeof textDefaults, TextField[]> = {
 };
 
 export function isHiddenField(design: WidgetStyle | undefined, field: TextField): boolean {
-  return design?.hiddenText?.includes(field) ?? false;
+  return (design?.hiddenText?.includes(field) ?? false)
+    || (design?.layers !== undefined && !design.layers.some((layer) => layer.kind === 'text' && layer.field === field));
 }
 export const widgetDesignKey: InjectionKey<ComputedRef<WidgetStyle>> = Symbol('widget-design');
 export type WidgetTextEvent = { displayName: string; uniqueId?: string; giftName?: string; count?: number; totalDiamonds?: number; text?: string };

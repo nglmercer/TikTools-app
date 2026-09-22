@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
 import WidgetLayerStack from '../sdk/WidgetLayerStack.vue';
+import { canRenderLegacyLayers } from '../sdk/layers.ts';
 import { useWidgetText, useWidgetTextOrder, widgetDesignKey } from '../sdk/text.ts';
 const text = useWidgetText('gift');
 const order = useWidgetTextOrder('gift');
@@ -18,7 +19,7 @@ type GiftWidgetProps = {
 
 const props = defineProps<GiftWidgetProps>();
 const design = inject(widgetDesignKey, undefined);
-const layered = computed(() => design?.value.layers !== undefined);
+const layered = computed(() => !!design?.value.layers && !canRenderLegacyLayers('gift', design.value));
 const customTextOrder = computed(() => Boolean(design?.value.textOrder?.length));
 
 const imageFailed = ref(false);

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
 import WidgetLayerStack from '../sdk/WidgetLayerStack.vue';
+import { canRenderLegacyLayers } from '../sdk/layers.ts';
 import { useWidgetText, useWidgetTextOrder, widgetDesignKey } from '../sdk/text.ts';
 const text = useWidgetText('share');
 const order = useWidgetTextOrder('share');
@@ -18,7 +19,7 @@ type ShareWidgetProps = {
 
 const props = defineProps<ShareWidgetProps>();
 const design = inject(widgetDesignKey, undefined);
-const layered = computed(() => design?.value.layers !== undefined);
+const layered = computed(() => !!design?.value.layers && !canRenderLegacyLayers('share', design.value));
 
 const avatarFailed = ref(false);
 

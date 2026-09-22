@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
 import WidgetLayerStack from '../sdk/WidgetLayerStack.vue';
+import { canRenderLegacyLayers } from '../sdk/layers.ts';
 import { useWidgetText, useWidgetTextOrder, widgetDesignKey } from '../sdk/text.ts';
 const text = useWidgetText('follow');
 const order = useWidgetTextOrder('follow');
@@ -18,7 +19,7 @@ type FollowWidgetProps = {
 
 const props = defineProps<FollowWidgetProps>();
 const design = inject(widgetDesignKey, undefined);
-const layered = computed(() => design?.value.layers !== undefined);
+const layered = computed(() => !!design?.value.layers && !canRenderLegacyLayers('follow', design.value));
 
 const avatarFailed = ref(false);
 

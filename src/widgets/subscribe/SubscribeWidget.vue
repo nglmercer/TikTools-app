@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
 import WidgetLayerStack from '../sdk/WidgetLayerStack.vue';
+import { canRenderLegacyLayers } from '../sdk/layers.ts';
 import { useWidgetText, useWidgetTextOrder, widgetDesignKey } from '../sdk/text.ts';
 const text = useWidgetText('subscribe');
 const order = useWidgetTextOrder('subscribe');
@@ -18,7 +19,7 @@ type SubscribeWidgetProps = {
 
 const props = defineProps<SubscribeWidgetProps>();
 const design = inject(widgetDesignKey, undefined);
-const layered = computed(() => design?.value.layers !== undefined);
+const layered = computed(() => !!design?.value.layers && !canRenderLegacyLayers('subscribe', design.value));
 
 const avatarFailed = ref(false);
 

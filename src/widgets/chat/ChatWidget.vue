@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
 import WidgetLayerStack from '../sdk/WidgetLayerStack.vue';
+import { canRenderLegacyLayers } from '../sdk/layers.ts';
 import { useWidgetText, useWidgetTextOrder, widgetDesignKey } from '../sdk/text.ts';
 const text = useWidgetText('chat');
 const order = useWidgetTextOrder('chat');
@@ -18,7 +19,7 @@ type ChatWidgetProps = {
 
 const props = defineProps<ChatWidgetProps>();
 const design = inject(widgetDesignKey, undefined);
-const layered = computed(() => design?.value.layers !== undefined);
+const layered = computed(() => !!design?.value.layers && !canRenderLegacyLayers('chat', design.value));
 
 const failedAvatars = ref<Record<string, boolean>>({});
 

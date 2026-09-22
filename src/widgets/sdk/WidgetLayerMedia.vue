@@ -48,10 +48,11 @@ const initials = computed(() => (props.event?.displayName || props.event?.unique
   </div>
 </template>
 
-<style scoped>
+<style>
 .widget-layer-media { display: grid; flex: none; place-items: center; box-sizing: border-box; width: var(--widget-avatar-size, 56px); height: var(--widget-avatar-size, 56px); overflow: hidden; border-radius: var(--widget-avatar-radius, 50%); background: var(--widget-accent, #22c55e); color: #111; font-size: 17px; font-weight: 800; }
 .widget-layer-media.has-image.is-avatar { background: transparent; border: var(--widget-avatar-borderWidth, 2px) solid var(--widget-avatar-borderColor, var(--widget-accent, #22c55e)); }
 .widget-layer-media.is-art { width: 88px; height: 88px; border-radius: 14px; background: #1e1e26; }
+.widget-layer-media.is-art svg { color: var(--widget-accent, #f5c518); }
 .widget-layer-media.is-chat.is-avatar { background: linear-gradient(135deg, #ff0050, #00f2fe); color: #fff; font-size: 10px; }
 .widget-layer-media svg { width: 50%; height: 50%; }
 .widget-layer-media img { width: 100%; height: 100%; object-fit: cover; }

@@ -30,6 +30,7 @@ const rows = computed<LayerRow[]>(() => {
       }
       row.text.push(layer);
     } else {
+      if (props.variant === 'gift' && layer.kind === 'avatar' && layer.id === 'avatar' && !props.avatarUrl) continue;
       if (!row || row.text.length > 0) {
         row = { id: layer.id, media: [], text: [] };
         result.push(row);
@@ -88,7 +89,7 @@ function content(layer: WidgetLayer): string {
   </div>
 </template>
 
-<style scoped>
+<style>
 .widget-layer-stack { display: flex; flex-direction: column; gap: 4px; width: max-content; max-width: 100%; min-width: 0; text-align: var(--widget-align, left); }
 .widget-layer-row { display: flex; flex-direction: column; align-items: stretch; gap: var(--widget-gap, 16px); width: max-content; max-width: 100%; min-width: 0; }
 .widget-layer-main { display: flex; align-self: center; align-items: center; gap: var(--widget-gap, 16px); width: max-content; max-width: 100%; min-width: 0; }
