@@ -10,7 +10,7 @@ export interface WidgetController {
   dispose(): void;
 }
 
-/** Avatar/badge area styling. All fields optional; unset falls back to CSS. */
+/** Avatar area styling. All fields optional; unset falls back to CSS. */
 export interface WidgetAvatarStyle {
   visible?: boolean;
   /** Diameter in px. */
@@ -22,7 +22,8 @@ export interface WidgetAvatarStyle {
   borderWidth?: number;
 }
 
-/** Kicker/badge line styling (e.g. "NEW FOLLOWER"). */
+/** Heading line styling (e.g. "NEW FOLLOWER"). The stored badge key remains
+ * for compatibility with existing widget design URLs. */
 export interface WidgetBadgeStyle {
   visible?: boolean;
   color?: string;
@@ -37,11 +38,32 @@ export type WidgetAlign = 'left' | 'center' | 'right';
 
 export type WidgetTemplateToken = 'name' | 'username' | 'gift' | 'count' | 'diamonds' | 'message';
 
+/** Built-in controls that a widget template may place in an editor section. */
+export type WidgetEditorControl =
+  | 'textFields' | 'addTextField' | 'textColor'
+  | 'background' | 'accent' | 'radius' | 'borderColor' | 'borderWidth' | 'shadow' | 'opacity'
+  | 'align' | 'autoWidth' | 'width' | 'padding' | 'gap'
+  | 'avatarVisible' | 'avatarSize' | 'avatarRadius' | 'avatarBorderColor' | 'avatarBorderWidth'
+  | 'headingVisible' | 'headingColor' | 'headingFontSize' | 'headingWeight' | 'headingSpacing';
+
+export interface WidgetEditorGroup {
+  title?: 'fields' | 'textAppearance' | 'appearance' | 'layout';
+  controls: readonly WidgetEditorControl[];
+}
+
+/** Section and control ownership is declared by the template. Heading fields
+ * belong to the rendered kicker line; hiding all hides that section. */
+export type WidgetEditorSection =
+  | { id: 'text' | 'card' | 'image'; groups: readonly WidgetEditorGroup[] }
+  | { id: 'heading'; textFields: readonly TextField[]; groups: readonly WidgetEditorGroup[] };
+
 /** JSON-serializable styling contract for an editor; no HTML or scripts. */
 export interface WidgetStyle {
   text?: Partial<Record<import('./text.ts').TextField, string>>;
   /** Template fields to hide from the rendered alert. Absent = render all. */
   hiddenText?: import('./text.ts').TextField[];
+  /** Top-to-bottom order of text lines. Missing fields follow template order. */
+  textOrder?: import('./text.ts').TextField[];
   background?: string;
   textColor?: string;
   accent?: string;
@@ -74,6 +96,7 @@ export interface WidgetTemplateSchema {
   /** Fields the editor keeps available without a remove control. */
   requiredTextFields: readonly TextField[];
   tokens: readonly WidgetTemplateToken[];
+  editorSections: readonly WidgetEditorSection[];
   defaultDesign: WidgetStyle;
 }
 

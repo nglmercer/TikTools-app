@@ -71,6 +71,12 @@ export function normalizeDesign(value: unknown): WidgetStyle {
     ))].slice(0, textFields.length);
     if (hidden.length > 0) result.hiddenText = hidden;
   }
+  if (Array.isArray(source.textOrder)) {
+    const order = [...new Set(source.textOrder.filter((field): field is TextField =>
+      typeof field === 'string' && (textFields as string[]).includes(field),
+    ))].slice(0, textFields.length);
+    if (order.length > 0) result.textOrder = order;
+  }
   for (const key of ['background', 'textColor', 'accent', 'borderColor'] as const) {
     const color = readColor(source, key);
     if (color !== undefined) result[key] = color;

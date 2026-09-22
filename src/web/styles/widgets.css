@@ -5,20 +5,23 @@
 
 /* Visual builder dialog: canvas-first, fixed chrome, internal scroll areas. */
 .ui-modal-card--xl.widget-builder-modal {
-  width: min(1180px, calc(100vw - 48px));
-  height: min(720px, calc(100vh - 48px));
-  max-height: calc(100vh - 48px);
+  width: min(1320px, calc(100vw - 36px));
+  height: min(800px, calc(100vh - 36px));
+  max-height: calc(100vh - 36px);
   overflow: hidden;
+  border-color: var(--line);
+  background: var(--panel-solid);
 }
 
 .widget-builder-modal .ui-modal-card__header {
   flex: none;
-  padding: 12px 16px;
+  min-height: 64px;
+  padding: 12px 22px;
   border-bottom: 1px solid var(--line);
 }
 
 .widget-builder-modal .ui-modal-card__title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -36,6 +39,15 @@
 .widget-builder-modal .ui-modal-card__body > .widget-builder {
   flex: 1;
   min-height: 0;
+}
+
+.widget-builder-modal .ui-modal-card__header-actions {
+  gap: 6px;
+}
+
+.widget-builder-modal .ui-modal-card__header-actions .ui-btn--primary {
+  min-width: 88px;
+  margin-left: 10px;
 }
 
 @media (max-width: 640px) {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
-import { useWidgetText } from '../sdk/text.ts';
+import { useWidgetText, useWidgetTextOrder } from '../sdk/text.ts';
 const text = useWidgetText('follow');
+const order = useWidgetTextOrder('follow');
 import { computed, ref, watch } from 'vue';
 import type { FollowWidgetSettings } from '../shared/config.ts';
 import type { FollowAlert } from '../shared/follow-controller.ts';
@@ -63,12 +64,12 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
           </svg>
         </div>
         <div class="follow-body">
-          <span v-if="text('title', props.alert)" class="follow-kicker">{{ text('title', props.alert) }}</span>
-          <span v-if="text('name', props.alert)" class="follow-name">{{ text('name', props.alert) }}</span>
-          <span v-if="props.settings.showUniqueId && props.alert.uniqueId && text('handle', props.alert)" class="follow-handle">
+          <span v-if="text('title', props.alert)" class="follow-kicker" :style="{ order: order('title') }">{{ text('title', props.alert) }}</span>
+          <span v-if="text('name', props.alert)" class="follow-name" :style="{ order: order('name') }">{{ text('name', props.alert) }}</span>
+          <span v-if="props.settings.showUniqueId && props.alert.uniqueId && text('handle', props.alert)" class="follow-handle" :style="{ order: order('handle') }">
             {{ text('handle', props.alert) }}
           </span>
-          <span v-if="text('message', props.alert)" class="follow-action">{{ text('message', props.alert) }}</span>
+          <span v-if="text('message', props.alert)" class="follow-action" :style="{ order: order('message') }">{{ text('message', props.alert) }}</span>
         </div>
       </div>
     </Transition>

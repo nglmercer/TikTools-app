@@ -113,6 +113,11 @@ img.gift-avatar {
   color: var(--widget-accent, #f5c518);
 }
 
+.gift-count-line {
+  font-size: 20px;
+  font-weight: 700;
+}
+
 .gift-count-pop {
   animation: gift-count-pop 260ms ease-out;
 }

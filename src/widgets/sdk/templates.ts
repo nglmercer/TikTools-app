@@ -1,5 +1,5 @@
 import { h, shallowRef } from 'vue';
-import { defineWidget, type WidgetStyle, type WidgetTemplateSchema, type WidgetTemplateToken } from './template.ts';
+import { defineWidget, type WidgetEditorSection, type WidgetStyle, type WidgetTemplateSchema, type WidgetTemplateToken } from './template.ts';
 import FollowWidget from '../follow/FollowWidget.vue';
 import { FollowController, type FollowAlert } from '../shared/follow-controller.ts';
 import ShareWidget from '../share/ShareWidget.vue';
@@ -44,10 +44,29 @@ function templateSchema(
   defaultDesign: WidgetStyle,
   tokens: readonly WidgetTemplateToken[],
 ): WidgetTemplateSchema {
+  const fields = Object.keys(textDefaults[kind]) as TextField[];
+  const headingFields = fields.filter((field) => field === 'title' || field === 'streakTitle');
+  const editorSections: WidgetEditorSection[] = [
+    { id: 'text', groups: [
+      { title: 'fields', controls: ['textFields', 'addTextField'] },
+      { title: 'textAppearance', controls: ['textColor'] },
+    ] },
+    { id: 'card', groups: [
+      { title: 'appearance', controls: ['background', 'accent', 'radius', 'borderColor', 'borderWidth', 'shadow', 'opacity'] },
+      { title: 'layout', controls: ['align', 'autoWidth', 'width', 'padding', 'gap'] },
+    ] },
+    { id: 'image', groups: [
+      { controls: ['avatarVisible', 'avatarSize', 'avatarRadius', 'avatarBorderColor', 'avatarBorderWidth'] },
+    ] },
+    ...(headingFields.length > 0 ? [{ id: 'heading' as const, textFields: headingFields, groups: [
+      { title: 'appearance' as const, controls: ['headingVisible' as const, 'headingColor' as const, 'headingFontSize' as const, 'headingWeight' as const, 'headingSpacing' as const] },
+    ] }] : []),
+  ];
   return {
-    textFields: Object.keys(textDefaults[kind]) as TextField[],
+    textFields: fields,
     requiredTextFields: coreTextFields[kind],
     tokens,
+    editorSections,
     defaultDesign,
   };
 }

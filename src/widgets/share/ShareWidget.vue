@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
-import { useWidgetText } from '../sdk/text.ts';
+import { useWidgetText, useWidgetTextOrder } from '../sdk/text.ts';
 const text = useWidgetText('share');
+const order = useWidgetTextOrder('share');
 import { computed, ref, watch } from 'vue';
 import type { ShareWidgetSettings } from '../shared/config.ts';
 import type { ShareAlert } from '../shared/share-controller.ts';
@@ -64,12 +65,12 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
           </svg>
         </div>
         <div class="share-body">
-          <span v-if="text('title', props.alert)" class="share-kicker">{{ text('title', props.alert) }}</span>
-          <span v-if="text('name', props.alert)" class="share-name">{{ text('name', props.alert) }}</span>
-          <span v-if="props.settings.showUniqueId && props.alert.uniqueId && text('handle', props.alert)" class="share-handle">
+          <span v-if="text('title', props.alert)" class="share-kicker" :style="{ order: order('title') }">{{ text('title', props.alert) }}</span>
+          <span v-if="text('name', props.alert)" class="share-name" :style="{ order: order('name') }">{{ text('name', props.alert) }}</span>
+          <span v-if="props.settings.showUniqueId && props.alert.uniqueId && text('handle', props.alert)" class="share-handle" :style="{ order: order('handle') }">
             {{ text('handle', props.alert) }}
           </span>
-          <span v-if="text('message', props.alert)" class="share-action">{{ text('message', props.alert) }}</span>
+          <span v-if="text('message', props.alert)" class="share-action" :style="{ order: order('message') }">{{ text('message', props.alert) }}</span>
         </div>
       </div>
     </Transition>

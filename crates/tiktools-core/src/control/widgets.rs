@@ -286,22 +286,24 @@ fn portable_design(raw: &str) -> Option<String> {
             design.insert("text".to_owned(), serde_json::Value::Object(text));
         }
     }
-    if let Some(hidden) = source.get("hiddenText").and_then(|value| value.as_array()) {
-        let mut kept: Vec<serde_json::Value> = Vec::new();
-        for field in hidden {
-            let Some(name) = field.as_str() else {
-                continue;
-            };
-            if !TEXT_FIELDS.contains(&name) || kept.iter().any(|kept| kept.as_str() == Some(name)) {
-                continue;
+    for key in ["hiddenText", "textOrder"] {
+        if let Some(fields) = source.get(key).and_then(|value| value.as_array()) {
+            let mut kept: Vec<serde_json::Value> = Vec::new();
+            for field in fields {
+                let Some(name) = field.as_str() else {
+                    continue;
+                };
+                if !TEXT_FIELDS.contains(&name) || kept.iter().any(|kept| kept.as_str() == Some(name)) {
+                    continue;
+                }
+                kept.push(serde_json::Value::from(name));
+                if kept.len() >= TEXT_FIELDS.len() {
+                    break;
+                }
             }
-            kept.push(serde_json::Value::from(name));
-            if kept.len() >= TEXT_FIELDS.len() {
-                break;
+            if !kept.is_empty() {
+                design.insert(key.to_owned(), serde_json::Value::Array(kept));
             }
-        }
-        if !kept.is_empty() {
-            design.insert("hiddenText".to_owned(), serde_json::Value::Array(kept));
         }
     }
     for key in ["background", "textColor", "accent", "borderColor"] {

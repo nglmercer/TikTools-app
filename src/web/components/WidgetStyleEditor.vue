@@ -1,9 +1,8 @@
 <script lang="tsx">
-import { ref, useId } from 'vue';
+import { computed, ref, useId, watch, type VNodeChild } from 'vue';
 import { Modal } from './ui/Modal.vue';
 import { Button } from './ui/Button.vue';
 import {
-  IconBolt,
   IconFormat,
   IconImage,
   IconMore,
@@ -19,8 +18,8 @@ import { t, type Locale } from '../i18n.ts';
 import { errorMessage } from '../platform/control-client.ts';
 import WidgetHost from '../../widgets/sdk/WidgetHost.vue';
 import { widgetTemplates, type WidgetKind } from '../../widgets/sdk/templates.ts';
-import type { WidgetAlign, WidgetAvatarStyle, WidgetBadgeStyle, WidgetStyle, WidgetTemplateToken } from '../../widgets/sdk/template.ts';
-import { textDefaults, type TextField } from '../../widgets/sdk/text.ts';
+import type { WidgetAlign, WidgetAvatarStyle, WidgetBadgeStyle, WidgetEditorControl, WidgetEditorSection, WidgetStyle, WidgetTemplateToken } from '../../widgets/sdk/template.ts';
+import { orderedTextFields, textDefaults, type TextField } from '../../widgets/sdk/text.ts';
 import { cloneDesign, EditorHistory } from './widgets-editor/history.ts';
 
 type Props = {
@@ -32,18 +31,12 @@ type Props = {
   onClose: () => void;
 };
 
-type BuilderComponent = 'alert' | 'text' | 'image' | 'shape' | 'badge';
-type InspectorTab = 'content' | 'style' | 'layout';
+type BuilderComponent = WidgetEditorSection['id'];
 
-const COMPONENT_ORDER: BuilderComponent[] = ['alert', 'text', 'image', 'shape', 'badge'];
-const TAB_ORDER: InspectorTab[] = ['content', 'style', 'layout'];
-
-const COMPONENT_ICON = { alert: IconBolt, text: IconFormat, image: IconImage, shape: IconSquare, badge: IconStar } as const;
+const COMPONENT_ICON = { text: IconFormat, card: IconSquare, image: IconImage, heading: IconStar } as const;
 const COMPONENT_KEY = {
-  alert: 'widgetsBuilderAlert', text: 'widgetsBuilderText', image: 'widgetsBuilderImage',
-  shape: 'widgetsBuilderShape', badge: 'widgetsBuilderBadge',
+  text: 'widgetsBuilderText', card: 'widgetsBuilderCard', image: 'widgetsBuilderImage', heading: 'widgetsBuilderHeading',
 } as const;
-const TAB_KEY = { content: 'widgetsBuilderContent', style: 'widgetsBuilderStyle', layout: 'widgetsBuilderLayout' } as const;
 
 const TOKEN_KEY = {
   name: 'widgetsTokenName', username: 'widgetsTokenUsername', gift: 'widgetsTokenGift',
@@ -61,8 +54,7 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   const template = widgetTemplates[props.kind];
   const schema = template.schema;
   const draft = ref<WidgetStyle>(cloneDesign(props.design));
-  const component = ref<BuilderComponent>('alert');
-  const tab = ref<InspectorTab>('content');
+  const component = ref<BuilderComponent>('text');
   const saving = ref(false);
   const error = ref('');
   const replay = ref(0);
@@ -80,9 +72,6 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   let textBefore: DraftSnapshot | null = null;
   const inputRefs: Partial<Record<TextField, HTMLInputElement | null>> = {};
 
-  const rails: BuilderComponent[] = props.kind === 'chat'
-    ? COMPONENT_ORDER.filter((item) => item !== 'badge')
-    : [...COMPONENT_ORDER];
   const defaultsText: Partial<Record<TextField, string>> = textDefaults[props.kind];
   const textFields = [...schema.textFields];
   const coreFields = [...schema.requiredTextFields];
@@ -90,6 +79,14 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   // The template schema is the source of truth for both screens. A saved
   // hiddenText list is the only reason a supported line is absent here.
   const visibleFields = ref<TextField[]>(textFields.filter((field) => !draft.value.hiddenText?.includes(field)));
+  const orderedVisibleFields = computed(() => orderedTextFields(textFields, draft.value.textOrder)
+    .filter((field) => visibleFields.value.includes(field)));
+  const rails = computed<BuilderComponent[]>(() => schema.editorSections
+    .filter((section) => section.id !== 'heading' || section.textFields.some((field) => visibleFields.value.includes(field)))
+    .map((section) => section.id));
+  watch(rails, (sections) => {
+    if (!sections.includes(component.value)) component.value = sections[0] ?? 'text';
+  });
 
   const snapshot = (): DraftSnapshot => ({
     draft: cloneDesign(draft.value),
@@ -223,18 +220,23 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   };
 
   const resetSectionKeys = (): string[] => {
-    switch (component.value) {
-      case 'alert':
-        return ['background', 'textColor', 'accent', 'radius', 'borderColor', 'borderWidth', 'shadow', 'opacity', 'padding', 'gap', 'align', 'width', 'text'];
-      case 'text':
-        return ['text', 'textColor', 'accent'];
-      case 'image':
-        return ['avatar'];
-      case 'shape':
-        return ['background', 'borderColor', 'borderWidth', 'radius', 'shadow', 'opacity'];
-      case 'badge':
-        return textFields.includes('title') ? ['badge', 'text.title'] : ['badge'];
-    }
+    const section = schema.editorSections.find((item) => item.id === component.value);
+    if (!section) return [];
+    const controlKeys: Partial<Record<WidgetEditorControl, string>> = {
+      textColor: 'textColor', background: 'background', accent: 'accent', radius: 'radius',
+      borderColor: 'borderColor', borderWidth: 'borderWidth', shadow: 'shadow', opacity: 'opacity',
+      align: 'align', autoWidth: 'width', width: 'width', padding: 'padding', gap: 'gap',
+      avatarVisible: 'avatar.visible', avatarSize: 'avatar.size', avatarRadius: 'avatar.radius',
+      avatarBorderColor: 'avatar.borderColor', avatarBorderWidth: 'avatar.borderWidth',
+      headingVisible: 'badge.visible', headingColor: 'badge.color', headingFontSize: 'badge.fontSize',
+      headingWeight: 'badge.fontWeight', headingSpacing: 'badge.letterSpacing',
+    };
+    return [...new Set(section.groups.flatMap((group) => group.controls.flatMap((control) => {
+      if (control === 'textFields') {
+        return ['textOrder', ...textFields.map((field) => `text.${field}`)];
+      }
+      return controlKeys[control] ? [controlKeys[control]] : [];
+    })))];
   };
 
   const setHidden = (hidden: TextField[]): void => {
@@ -255,15 +257,32 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
     });
   };
 
-  const addField = (field: TextField): void => {
-    // Adding a field renders its line again with the default template.
+  const addField = (field: TextField, placement: 'top' | 'bottom'): void => {
     change('field:add', () => {
-      visibleFields.value = [...visibleFields.value, field].sort(
-        (left, right) => textFields.indexOf(left) - textFields.indexOf(right),
-      );
+      const order = orderedTextFields(textFields, draft.value.textOrder).filter((item) => item !== field);
+      const visible = order.filter((item) => visibleFields.value.includes(item));
+      const hidden = order.filter((item) => !visibleFields.value.includes(item));
+      draft.value = { ...draft.value, textOrder: placement === 'top'
+        ? [field, ...visible, ...hidden]
+        : [...visible, field, ...hidden] };
+      visibleFields.value = [...visibleFields.value, field];
       setHidden((draft.value.hiddenText ?? []).filter((item) => item !== field));
     });
     addMenu.value = false;
+  };
+
+  const moveField = (field: TextField, direction: -1 | 1): void => {
+    const visible = orderedVisibleFields.value;
+    const index = visible.indexOf(field);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= visible.length) return;
+    change('text:order', () => {
+      const next = [...visible];
+      [next[index], next[target]] = [next[target]!, next[index]!];
+      const hidden = orderedTextFields(textFields, draft.value.textOrder)
+        .filter((item) => !visibleFields.value.includes(item));
+      draft.value = { ...draft.value, textOrder: [...next, ...hidden] };
+    });
   };
 
   const resetSection = (): void => {
@@ -271,23 +290,23 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
     change('reset', () => {
       const next = { ...draft.value };
       for (const key of keys) {
-        if (key === 'text.title') {
-          if (next.text) {
-            const text = { ...next.text };
-            delete text.title;
-            if (Object.keys(text).length > 0) next.text = text;
-            else delete next.text;
+        const [parent, child] = key.split('.');
+        if (parent && child && (parent === 'text' || parent === 'avatar' || parent === 'badge')) {
+          const nested = next[parent];
+          if (!nested) continue;
+          const updated = { ...nested } as Record<string, unknown>;
+          delete updated[child];
+          if (Object.keys(updated).length > 0) {
+            (next as Record<string, unknown>)[parent] = updated;
+          } else {
+            delete next[parent];
           }
         } else {
           delete next[key as keyof WidgetStyle];
         }
       }
       draft.value = next;
-      const resetTextFields = keys.includes('text')
-        ? textFields
-        : keys.includes('text.title')
-          ? (['title'] as TextField[])
-          : [];
+      const resetTextFields = textFields.filter((field) => keys.includes(`text.${field}`));
       if (resetTextFields.length > 0) {
         // Resetting text restores the template's visibility. Other explicit
         // hidden fields remain hidden until the user adds them back.
@@ -325,14 +344,6 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
       event.preventDefault();
       redo();
     }
-  };
-
-  const moveTab = (current: InspectorTab, key: string): InspectorTab => {
-    if (key === 'Home') return 'content';
-    if (key === 'End') return 'layout';
-    const index = TAB_ORDER.indexOf(current);
-    const delta = key === 'ArrowRight' ? 1 : -1;
-    return TAB_ORDER[(index + delta + TAB_ORDER.length) % TAB_ORDER.length] as InspectorTab;
   };
 
   const colorValue = (value: string | undefined, fallback: string): string =>
@@ -411,21 +422,24 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
     const label = t(props.locale, TEXT_LABEL_KEY[field]);
     const menuOpen = tokenMenu.value === field;
     const inputId = `${baseId}-text-${field}`;
+    const position = orderedVisibleFields.value.indexOf(field);
     return (
-      <div class="wb-text">
+      <div class="wb-text" key={field}>
         <span class="wb-label-row">
           <label class="wb-label" for={inputId}>{label}</label>
-          {removable ? (
-            <button
-              type="button"
-              class="wb-remove"
-              disabled={saving.value}
-              aria-label={`${label}: ${t(props.locale, 'widgetsBuilderRemoveField')}`}
-              onClick={() => removeField(field)}
-            >
-              ×
-            </button>
-          ) : null}
+          <span class="wb-layer-actions">
+            <button type="button" class="wb-layer-action" disabled={position <= 0 || saving.value}
+              aria-label={`${label}: ${t(props.locale, 'widgetsBuilderMoveUp')}`}
+              onClick={() => moveField(field, -1)}>↑</button>
+            <button type="button" class="wb-layer-action" disabled={position >= orderedVisibleFields.value.length - 1 || saving.value}
+              aria-label={`${label}: ${t(props.locale, 'widgetsBuilderMoveDown')}`}
+              onClick={() => moveField(field, 1)}>↓</button>
+            {removable ? (
+              <button type="button" class="wb-remove" disabled={saving.value}
+                aria-label={`${label}: ${t(props.locale, 'widgetsBuilderRemoveField')}`}
+                onClick={() => removeField(field)}>×</button>
+            ) : null}
+          </span>
         </span>
         <span class="wb-text__input">
             <input
@@ -518,9 +532,19 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
         {addMenu.value ? (
           <div class="wb-menu" role="menu" aria-label={t(props.locale, 'widgetsBuilderAddField')}>
             {hidden.map((field) => (
-              <button type="button" role="menuitem" onClick={() => addField(field)}>
+              <div class="wb-add__choice">
                 <span>{t(props.locale, TEXT_LABEL_KEY[field])}</span>
-              </button>
+                <span>
+                  <button type="button" role="menuitem" onClick={() => addField(field, 'top')}
+                    aria-label={`${t(props.locale, TEXT_LABEL_KEY[field])}: ${t(props.locale, 'widgetsBuilderAddTop')}`}>
+                    {t(props.locale, 'widgetsBuilderAddTop')}
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => addField(field, 'bottom')}
+                    aria-label={`${t(props.locale, TEXT_LABEL_KEY[field])}: ${t(props.locale, 'widgetsBuilderAddBottom')}`}>
+                    {t(props.locale, 'widgetsBuilderAddBottom')}
+                  </button>
+                </span>
+              </div>
             ))}
           </div>
         ) : null}
@@ -528,157 +552,93 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
     );
   };
 
-  const renderContent = () => {
-    const selected = component.value;
-    if (selected === 'alert' || selected === 'text') {
-      return (
-        <div class="wb-stack">
-          {visibleFields.value.map((field) => renderTextField(field, !coreFields.includes(field)))}
-          {renderAddField()}
-        </div>
-      );
-    }
-    if (selected === 'image') {
-      return renderToggleRow(t(props.locale, 'widgetsBuilderVisible'), draft.value.avatar?.visible !== false, 'avatar.visible',
-        (next) => updateAvatar('visible', next ? undefined : false));
-    }
-    if (selected === 'badge') {
-      const hasTitle = textFields.includes('title');
-      const titleVisible = hasTitle && visibleFields.value.includes('title');
-      return (
-        <div class="wb-stack">
-          {titleVisible ? renderTextField('title', true) : null}
-          {renderToggleRow(t(props.locale, 'widgetsBuilderVisible'), draft.value.badge?.visible !== false, 'badge.visible',
-            (next) => updateBadge('visible', next ? undefined : false))}
-          {hasTitle && !titleVisible ? (
-            <button
-              type="button"
-              class="wb-add__btn"
-              disabled={saving.value}
-              onClick={() => addField('title')}
-            >
-              <IconPlus size={14} />
-              <span>{t(props.locale, 'widgetsBuilderAddField')}</span>
-            </button>
-          ) : null}
-        </div>
-      );
-    }
-    return <p class="wb-empty">{t(props.locale, 'widgetsBuilderNoContent')}</p>;
-  };
-
-  const renderStyle = () => {
-    const selected = component.value;
-    const d = draft.value;
-    if (selected === 'alert') {
-      return (
-        <div class="wb-stack">
-          {renderColorRow(t(props.locale, 'widgetsDesignBackground'), d.background, defaults.background, 'color:background',
-            (color) => { draft.value = { ...draft.value, background: color }; })}
-          {renderColorRow(t(props.locale, 'widgetsDesignAccent'), d.accent, defaults.accent, 'color:accent',
-            (color) => { draft.value = { ...draft.value, accent: color }; })}
-          {renderColorRow(t(props.locale, 'widgetsDesignText'), d.textColor, defaults.textColor, 'color:textColor',
-            (color) => { draft.value = { ...draft.value, textColor: color }; })}
-          {renderSliderRow(t(props.locale, 'widgetsDesignRadius'), d.radius ?? defaults.radius, 0, 48, 1, ' px', 'radius',
-            (next) => { draft.value = { ...draft.value, radius: next }; })}
-          {renderColorRow(t(props.locale, 'widgetsBuilderBorder'), d.borderColor, defaults.borderColor, 'color:borderColor',
-            (color) => { draft.value = { ...draft.value, borderColor: color }; })}
-          {renderSliderRow(t(props.locale, 'widgetsBuilderBorderWidth'), d.borderWidth ?? defaults.borderWidth, 0, 8, 1, ' px', 'borderWidth',
-            (next) => { draft.value = { ...draft.value, borderWidth: next }; })}
-          {renderToggleRow(t(props.locale, 'widgetsBuilderShadow'), d.shadow !== false, 'shadow',
-            (next) => {
-              const nextDraft = { ...draft.value };
-              if (next) delete nextDraft.shadow;
-              else nextDraft.shadow = false;
-              draft.value = nextDraft;
-            })}
-          {renderSliderRow(t(props.locale, 'widgetsBuilderOpacity'), d.opacity ?? defaults.opacity, 0, 100, 1, '%', 'opacity',
-            (next) => { draft.value = { ...draft.value, opacity: next }; })}
-        </div>
-      );
-    }
-    if (selected === 'text') {
-      return (
-        <div class="wb-stack">
-          {renderColorRow(t(props.locale, 'widgetsDesignText'), d.textColor, defaults.textColor, 'color:textColor',
-            (color) => { draft.value = { ...draft.value, textColor: color }; })}
-          {renderColorRow(t(props.locale, 'widgetsDesignAccent'), d.accent, defaults.accent, 'color:accent',
-            (color) => { draft.value = { ...draft.value, accent: color }; })}
-        </div>
-      );
-    }
-    if (selected === 'image') {
-      return (
-        <div class="wb-stack">
-          {renderSliderRow(t(props.locale, 'widgetsBuilderRound'), d.avatar?.radius ?? Math.min(80, (d.avatar?.size ?? defaults.avatarSize) / 2), 0, 80, 1, ' px', 'avatar.radius',
-            (next) => updateAvatar('radius', next))}
-          {renderColorRow(t(props.locale, 'widgetsBuilderBorder'), d.avatar?.borderColor, defaults.accent, 'avatar.borderColor',
-            (color) => updateAvatar('borderColor', color))}
-          {renderSliderRow(t(props.locale, 'widgetsBuilderBorderWidth'), d.avatar?.borderWidth ?? 0, 0, 8, 1, ' px', 'avatar.borderWidth',
-            (next) => updateAvatar('borderWidth', next))}
-        </div>
-      );
-    }
-    if (selected === 'shape') {
-      return (
-        <div class="wb-stack">
-          {renderColorRow(t(props.locale, 'widgetsDesignBackground'), d.background, defaults.background, 'color:background',
-            (color) => { draft.value = { ...draft.value, background: color }; })}
-          {renderColorRow(t(props.locale, 'widgetsBuilderBorder'), d.borderColor, defaults.borderColor, 'color:borderColor',
-            (color) => { draft.value = { ...draft.value, borderColor: color }; })}
-          {renderSliderRow(t(props.locale, 'widgetsBuilderBorderWidth'), d.borderWidth ?? defaults.borderWidth, 0, 8, 1, ' px', 'borderWidth',
-            (next) => { draft.value = { ...draft.value, borderWidth: next }; })}
-          {renderSliderRow(t(props.locale, 'widgetsDesignRadius'), d.radius ?? defaults.radius, 0, 48, 1, ' px', 'radius',
-            (next) => { draft.value = { ...draft.value, radius: next }; })}
-          {renderToggleRow(t(props.locale, 'widgetsBuilderShadow'), d.shadow !== false, 'shadow',
-            (next) => {
-              const nextDraft = { ...draft.value };
-              if (next) delete nextDraft.shadow;
-              else nextDraft.shadow = false;
-              draft.value = nextDraft;
-            })}
-          {renderSliderRow(t(props.locale, 'widgetsBuilderOpacity'), d.opacity ?? defaults.opacity, 0, 100, 1, '%', 'opacity',
-            (next) => { draft.value = { ...draft.value, opacity: next }; })}
-        </div>
-      );
-    }
-    return (
-      <div class="wb-stack">
-        {renderColorRow(t(props.locale, 'widgetsBuilderColor'), d.badge?.color, defaults.accent, 'badge.color',
-          (color) => updateBadge('color', color))}
-        {renderSliderRow(t(props.locale, 'widgetsBuilderFontSize'), d.badge?.fontSize ?? defaults.badgeSize, 8, 32, 1, ' px', 'badge.fontSize',
-          (next) => updateBadge('fontSize', next))}
-        {renderSliderRow(t(props.locale, 'widgetsBuilderWeight'), d.badge?.fontWeight ?? defaults.badgeWeight, 400, 900, 100, '', 'badge.fontWeight',
-          (next) => updateBadge('fontWeight', next))}
-        {renderSliderRow(t(props.locale, 'widgetsBuilderSpacing'), d.badge?.letterSpacing ?? defaults.badgeSpacing, 0, 8, 0.5, ' px', 'badge.letterSpacing',
-          (next) => updateBadge('letterSpacing', next))}
-      </div>
-    );
-  };
-
-  const renderLayout = () => {
+  const renderControl = (control: WidgetEditorControl): VNodeChild => {
     const d = draft.value;
     const autoWidth = d.width === undefined;
-    return (
-      <div class="wb-stack">
-        {component.value === 'image' ? renderSliderRow(t(props.locale, 'widgetsBuilderSize'), d.avatar?.size ?? defaults.avatarSize, 16, 160, 1, ' px', 'avatar.size',
-          (next) => updateAvatar('size', next)) : null}
-        {renderAlignRow()}
-        {renderToggleRow(t(props.locale, 'widgetsBuilderAuto'), autoWidth, 'width.auto',
-          (next) => {
-            const nextDraft = { ...draft.value };
-            if (next) delete nextDraft.width;
-            else nextDraft.width = defaults.width;
-            draft.value = nextDraft;
-          })}
-        {renderSliderRow(t(props.locale, 'widgetsBuilderWidth'), d.width ?? defaults.width, 240, 720, 4, ' px', 'width',
-          (next) => { draft.value = { ...draft.value, width: next }; }, autoWidth)}
-        {renderSliderRow(t(props.locale, 'widgetsBuilderPadding'), d.padding ?? defaults.padding, 0, 64, 1, ' px', 'padding',
-          (next) => { draft.value = { ...draft.value, padding: next }; })}
-        {renderSliderRow(t(props.locale, 'widgetsBuilderGap'), d.gap ?? defaults.gap, 0, 48, 1, ' px', 'gap',
-          (next) => { draft.value = { ...draft.value, gap: next }; })}
-      </div>
-    );
+    switch (control) {
+      case 'textFields': {
+        return orderedVisibleFields.value
+          .map((field) => renderTextField(field, !coreFields.includes(field)));
+      }
+      case 'addTextField': return renderAddField();
+      case 'textColor': return renderColorRow(t(props.locale, 'widgetsDesignText'), d.textColor, defaults.textColor, 'color:textColor',
+        (color) => { draft.value = { ...draft.value, textColor: color }; });
+      case 'background': return renderColorRow(t(props.locale, 'widgetsDesignBackground'), d.background, defaults.background, 'color:background',
+        (color) => { draft.value = { ...draft.value, background: color }; });
+      case 'accent': return renderColorRow(t(props.locale, 'widgetsDesignAccent'), d.accent, defaults.accent, 'color:accent',
+        (color) => { draft.value = { ...draft.value, accent: color }; });
+      case 'radius': return renderSliderRow(t(props.locale, 'widgetsDesignRadius'), d.radius ?? defaults.radius, 0, 48, 1, ' px', 'radius',
+        (next) => { draft.value = { ...draft.value, radius: next }; });
+      case 'borderColor': return renderColorRow(t(props.locale, 'widgetsBuilderBorder'), d.borderColor, defaults.borderColor, 'color:borderColor',
+        (color) => { draft.value = { ...draft.value, borderColor: color }; });
+      case 'borderWidth': return renderSliderRow(t(props.locale, 'widgetsBuilderBorderWidth'), d.borderWidth ?? defaults.borderWidth, 0, 8, 1, ' px', 'borderWidth',
+        (next) => { draft.value = { ...draft.value, borderWidth: next }; });
+      case 'shadow': return renderToggleRow(t(props.locale, 'widgetsBuilderShadow'), d.shadow !== false, 'shadow',
+        (next) => {
+          const nextDraft = { ...draft.value };
+          if (next) delete nextDraft.shadow;
+          else nextDraft.shadow = false;
+          draft.value = nextDraft;
+        });
+      case 'opacity': return renderSliderRow(t(props.locale, 'widgetsBuilderOpacity'), d.opacity ?? defaults.opacity, 0, 100, 1, '%', 'opacity',
+        (next) => { draft.value = { ...draft.value, opacity: next }; });
+      case 'align': return renderAlignRow();
+      case 'autoWidth': return renderToggleRow(t(props.locale, 'widgetsBuilderAuto'), autoWidth, 'width.auto',
+        (next) => {
+          const nextDraft = { ...draft.value };
+          if (next) delete nextDraft.width;
+          else nextDraft.width = defaults.width;
+          draft.value = nextDraft;
+        });
+      case 'width': return renderSliderRow(t(props.locale, 'widgetsBuilderWidth'), d.width ?? defaults.width, 240, 720, 4, ' px', 'width',
+        (next) => { draft.value = { ...draft.value, width: next }; }, autoWidth);
+      case 'padding': return renderSliderRow(t(props.locale, 'widgetsBuilderPadding'), d.padding ?? defaults.padding, 0, 64, 1, ' px', 'padding',
+        (next) => { draft.value = { ...draft.value, padding: next }; });
+      case 'gap': return renderSliderRow(t(props.locale, 'widgetsBuilderGap'), d.gap ?? defaults.gap, 0, 48, 1, ' px', 'gap',
+        (next) => { draft.value = { ...draft.value, gap: next }; });
+      case 'avatarVisible': return renderToggleRow(t(props.locale, 'widgetsBuilderVisible'), d.avatar?.visible !== false, 'avatar.visible',
+        (next) => updateAvatar('visible', next ? undefined : false));
+      case 'avatarSize': return renderSliderRow(t(props.locale, 'widgetsBuilderSize'), d.avatar?.size ?? defaults.avatarSize, 16, 160, 1, ' px', 'avatar.size',
+        (next) => updateAvatar('size', next));
+      case 'avatarRadius': return renderSliderRow(t(props.locale, 'widgetsBuilderRound'), d.avatar?.radius ?? Math.min(80, (d.avatar?.size ?? defaults.avatarSize) / 2), 0, 80, 1, ' px', 'avatar.radius',
+        (next) => updateAvatar('radius', next));
+      case 'avatarBorderColor': return renderColorRow(t(props.locale, 'widgetsBuilderBorder'), d.avatar?.borderColor, defaults.accent, 'avatar.borderColor',
+        (color) => updateAvatar('borderColor', color));
+      case 'avatarBorderWidth': return renderSliderRow(t(props.locale, 'widgetsBuilderBorderWidth'), d.avatar?.borderWidth ?? 0, 0, 8, 1, ' px', 'avatar.borderWidth',
+        (next) => updateAvatar('borderWidth', next));
+      case 'headingVisible': return renderToggleRow(t(props.locale, 'widgetsBuilderVisible'), d.badge?.visible !== false, 'badge.visible',
+        (next) => updateBadge('visible', next ? undefined : false));
+      case 'headingColor': return renderColorRow(t(props.locale, 'widgetsBuilderColor'), d.badge?.color, defaults.accent, 'badge.color',
+        (color) => updateBadge('color', color));
+      case 'headingFontSize': return renderSliderRow(t(props.locale, 'widgetsBuilderFontSize'), d.badge?.fontSize ?? defaults.badgeSize, 8, 32, 1, ' px', 'badge.fontSize',
+        (next) => updateBadge('fontSize', next));
+      case 'headingWeight': return renderSliderRow(t(props.locale, 'widgetsBuilderWeight'), d.badge?.fontWeight ?? defaults.badgeWeight, 400, 900, 100, '', 'badge.fontWeight',
+        (next) => updateBadge('fontWeight', next));
+      case 'headingSpacing': return renderSliderRow(t(props.locale, 'widgetsBuilderSpacing'), d.badge?.letterSpacing ?? defaults.badgeSpacing, 0, 8, 0.5, ' px', 'badge.letterSpacing',
+        (next) => updateBadge('letterSpacing', next));
+    }
+  };
+
+  const renderPanel = () => {
+    const section = schema.editorSections.find((item) => item.id === component.value);
+    if (!section) return null;
+    const groupTitles = {
+      fields: 'widgetsBuilderFields',
+      textAppearance: 'widgetsBuilderTextAppearance',
+      appearance: 'widgetsBuilderAppearance',
+      layout: 'widgetsBuilderLayout',
+    } as const;
+    return <div class="wb-groups">
+      {section.groups.map((group) => {
+        const controls = group.controls.map(renderControl);
+        return group.title
+          ? <section class="wb-group">
+              <h3 class="wb-group__title">{t(props.locale, groupTitles[group.title])}</h3>
+              <div class="wb-stack">{controls}</div>
+            </section>
+          : <div class="wb-stack">{controls}</div>;
+      })}
+    </div>;
   };
 
   return () => (
@@ -721,7 +681,8 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
     >
       <div class="widget-builder" onKeydown={onRootKeydown}>
         <nav class="wb-rail" aria-label={t(props.locale, 'widgetsBuilder')}>
-          {rails.map((item) => {
+          <div class="wb-rail__heading">{t(props.locale, 'widgetsBuilderElements')}</div>
+          {rails.value.map((item) => {
             const Icon = COMPONENT_ICON[item];
             const selected = component.value === item;
             return (
@@ -729,7 +690,10 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
                 type="button"
                 class={['wb-rail__item', selected ? 'is-active' : '']}
                 aria-pressed={selected}
-                onClick={() => { component.value = item; }}
+                onClick={() => {
+                  component.value = item;
+                  closeMenus();
+                }}
               >
                 <Icon size={20} />
                 <span>{t(props.locale, COMPONENT_KEY[item])}</span>
@@ -739,43 +703,37 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
         </nav>
 
         <section class="wb-canvas" aria-label={t(props.locale, 'widgetsPreview')}>
-          <div class="wb-canvas__frame">
-            <WidgetHost template={template} mode="preview" design={draft.value} replayKey={replay.value} />
+          <div class="wb-canvas__toolbar">
+            <div class="wb-canvas__title">
+              <span class="wb-canvas__status" aria-hidden="true" />
+              <span>{t(props.locale, 'widgetsBuilderPreview')}</span>
+            </div>
+            <span class="wb-canvas__hint">{t(props.locale, 'widgetsBuilderPreviewHint')}</span>
+          </div>
+          <div class="wb-canvas__workarea">
+            <div class="wb-canvas__frame">
+              <WidgetHost template={template} mode="preview" design={draft.value} replayKey={replay.value} />
+            </div>
+          </div>
+          <div class="wb-canvas__footer">
+            <span>{t(props.locale, 'widgetsBuilderCanvasSize')}</span>
             <Button
               variant="soft"
               size="sm"
               icon={<IconPlay size={14} />}
-              iconOnly
               tooltip={t(props.locale, 'widgetsReplay')}
               onClick={() => { replay.value++; }}
-            />
+            >{t(props.locale, 'widgetsReplay')}</Button>
           </div>
         </section>
 
         <aside class="wb-inspector">
           <div class="wb-inspector__head">
-            <div class="wb-tabs" role="tablist" aria-label={t(props.locale, 'widgetsBuilder')}>
-              {TAB_ORDER.map((name) => (
-                <button
-                  type="button"
-                  role="tab"
-                  id={`${baseId}-tab-${name}`}
-                  aria-controls={`${baseId}-panel`}
-                  aria-selected={tab.value === name}
-                  tabindex={tab.value === name ? 0 : -1}
-                  class={tab.value === name ? 'is-active' : ''}
-                  onClick={() => { tab.value = name; }}
-                  onKeydown={(event) => {
-                    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-                    event.preventDefault();
-                    const next = moveTab(name, event.key);
-                    tab.value = next;
-                    document.getElementById(`${baseId}-tab-${next}`)?.focus();
-                  }}
-                >
-                  {t(props.locale, TAB_KEY[name])}
-                </button>
-              ))}
+            <div class="wb-inspector__selection">
+              <span class="wb-inspector__icon">{(() => { const Icon = COMPONENT_ICON[component.value]; return <Icon size={18} />; })()}</span>
+              <span class="wb-inspector__selection-text">
+                <strong>{t(props.locale, COMPONENT_KEY[component.value])}</strong>
+              </span>
             </div>
             <div class="wb-reset">
               <button
@@ -803,12 +761,12 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
           </div>
           <div
             class="wb-panel"
-            role="tabpanel"
             id={`${baseId}-panel`}
-            aria-labelledby={`${baseId}-tab-${tab.value}`}
+            role="region"
+            aria-label={t(props.locale, COMPONENT_KEY[component.value])}
           >
             <fieldset class="wb-fields" disabled={saving.value}>
-              {tab.value === 'content' ? renderContent() : tab.value === 'style' ? renderStyle() : renderLayout()}
+              {renderPanel()}
             </fieldset>
           </div>
           {error.value ? <p class="wb-error" role="alert">{error.value}</p> : null}
@@ -827,7 +785,7 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
 .widget-builder {
   position: relative;
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr) 300px;
+  grid-template-columns: 154px minmax(0, 1fr) 328px;
   gap: 0;
   height: 100%;
   min-height: 0;
@@ -837,28 +795,39 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
 .wb-rail {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 14px 10px;
+  gap: 4px;
+  padding: 22px 12px;
   border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel-solid) 88%, var(--bg));
   overflow-y: auto;
+}
+
+.wb-rail__heading {
+  padding: 0 10px 12px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
 }
 
 .wb-rail__item {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 60px;
-  padding: 8px 4px;
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 43px;
+  padding: 9px 12px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
   cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
 }
 
 .wb-rail__item:hover {
@@ -867,9 +836,13 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
 }
 
 .wb-rail__item.is-active {
-  border-color: rgba(0, 220, 232, 0.55);
-  background: rgba(0, 220, 232, 0.08);
+  border-color: color-mix(in srgb, var(--tt-cyan) 26%, transparent);
+  background: color-mix(in srgb, var(--tt-cyan) 11%, transparent);
   color: var(--text);
+}
+
+.wb-rail__item.is-active svg {
+  color: var(--tt-cyan);
 }
 
 .wb-rail__item:focus-visible {
@@ -880,26 +853,78 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
 .wb-canvas {
   min-width: 0;
   min-height: 0;
-  padding: 14px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: color-mix(in srgb, var(--bg) 65%, var(--panel-solid));
+}
+
+.wb-canvas__toolbar,
+.wb-canvas__footer {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  padding: 0 22px;
+}
+
+.wb-canvas__toolbar {
+  border-bottom: 1px solid var(--line);
+}
+
+.wb-canvas__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.wb-canvas__status {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tt-green);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tt-green) 13%, transparent);
+}
+
+.wb-canvas__hint,
+.wb-canvas__footer > span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.wb-canvas__workarea {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  overflow: hidden;
 }
 
 .wb-canvas__frame {
   position: relative;
-  flex: 1;
-  min-height: 0;
+  width: min(100%, calc((100dvh - 270px) * 16 / 9));
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  border-radius: 12px;
   background:
-    repeating-conic-gradient(rgba(255, 255, 255, 0.04) 0% 25%, transparent 0% 50%) 0 0 / 22px 22px,
-    #101014;
+    repeating-conic-gradient(#20232b 0% 25%, #181b22 0% 50%) 0 0 / 24px 24px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32), 0 0 0 8px rgba(255, 255, 255, 0.018);
 }
 
-.wb-canvas__frame > .ui-btn {
-  position: absolute;
-  left: 10px;
-  bottom: 10px;
+.wb-canvas__footer {
+  min-height: 57px;
+  border-top: 1px solid var(--line);
+}
+
+.wb-canvas__footer .ui-btn {
+  gap: 7px;
 }
 
 .wb-inspector {
@@ -907,49 +932,46 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   flex-direction: column;
   min-height: 0;
   border-left: 1px solid var(--line);
+  background: var(--panel-solid);
 }
 
 .wb-inspector__head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 76px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--line);
 }
 
-.wb-tabs {
+.wb-inspector__selection {
   display: flex;
-  flex: 1;
-  gap: 2px;
+  align-items: center;
+  gap: 11px;
   min-width: 0;
 }
 
-.wb-tabs button {
-  flex: 1;
-  padding: 8px 4px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
+.wb-inspector__icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--tt-cyan) 22%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tt-cyan) 10%, transparent);
+  color: var(--tt-cyan);
 }
 
-.wb-tabs button:hover {
+.wb-inspector__selection-text {
+  display: grid;
+  min-width: 0;
+}
+
+.wb-inspector__selection-text strong {
   color: var(--text);
-  background: var(--panel);
-}
-
-.wb-tabs button.is-active {
-  color: var(--text);
-  background: rgba(0, 220, 232, 0.1);
-}
-
-.wb-tabs button:focus-visible {
-  outline: 2px solid #00dce8;
-  outline-offset: -2px;
+  font-size: 14px;
 }
 
 .wb-reset {
@@ -983,7 +1005,7 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px 14px 18px;
+  padding: 20px 18px 24px;
 }
 
 .wb-fields {
@@ -995,13 +1017,24 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
 
 .wb-stack {
   display: grid;
-  gap: 13px;
+  gap: 18px;
 }
 
-.wb-empty {
-  margin: 4px 0;
-  color: var(--text-muted);
+.wb-groups {
+  display: grid;
+  gap: 28px;
+}
+
+.wb-group + .wb-group {
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.wb-group__title {
+  margin: 0 0 16px;
+  color: var(--text);
   font-size: 12px;
+  font-weight: 750;
 }
 
 .wb-row {
@@ -1011,8 +1044,8 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
 
 .wb-label {
   font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
+  font-weight: 700;
+  color: var(--text-secondary);
 }
 
 .wb-color__inputs {
@@ -1022,8 +1055,8 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
 }
 
 .wb-color input[type='color'] {
-  width: 40px;
-  height: 30px;
+  width: 42px;
+  height: 36px;
   padding: 2px;
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -1035,12 +1068,12 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   flex: 1;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--panel-solid);
   color: var(--text);
   font: inherit;
   font-size: 12px;
-  padding: 7px 9px;
+  padding: 9px 10px;
 }
 
 .wb-slider__control {
@@ -1157,6 +1190,13 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   gap: 8px;
 }
 
+.wb-layer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.wb-layer-action,
 .wb-remove {
   display: grid;
   place-items: center;
@@ -1171,11 +1211,18 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   cursor: pointer;
 }
 
+.wb-layer-action:hover:not(:disabled),
 .wb-remove:hover:not(:disabled) {
   background: var(--panel);
   color: var(--text);
 }
 
+.wb-layer-action:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.wb-layer-action:focus-visible,
 .wb-remove:focus-visible {
   outline: 2px solid #00dce8;
   outline-offset: 1px;
@@ -1215,6 +1262,32 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
 .wb-add .wb-menu {
   top: auto;
   bottom: calc(100% + 6px);
+  min-width: 245px;
+}
+
+.wb-add__choice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 7px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.wb-add__choice + .wb-add__choice {
+  border-top: 1px solid var(--line);
+}
+
+.wb-add__choice > span:last-child {
+  display: flex;
+  gap: 2px;
+}
+
+.wb-add .wb-menu .wb-add__choice button {
+  width: auto;
+  padding: 5px 7px;
+  white-space: nowrap;
 }
 
 .wb-text__input {
@@ -1226,20 +1299,21 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   flex: 1;
   min-width: 0;
   border: 1px solid var(--line);
-  border-radius: 7px;
-  background: var(--panel-solid);
+  border-radius: 8px;
+  background: var(--input-bg);
   color: var(--text);
   font: inherit;
   font-size: 12px;
-  padding: 7px 9px;
+  padding: 10px 11px;
 }
 
 .wb-token-btn {
   flex: none;
-  padding: 0 9px;
+  min-width: 38px;
+  padding: 0 8px;
   border: 1px solid var(--line);
-  border-radius: 7px;
-  background: transparent;
+  border-radius: 8px;
+  background: var(--input-bg);
   color: var(--text-muted);
   font: inherit;
   font-size: 12px;
@@ -1333,9 +1407,9 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
   }
 }
 
-@media (max-width: 980px) {
+@media (max-width: 860px) {
   .widget-builder {
-    grid-template-columns: 76px minmax(0, 1fr);
+    grid-template-columns: 140px minmax(0, 1fr);
     grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr);
     overflow-y: auto;
   }
@@ -1348,6 +1422,13 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
     border-left: 0;
     border-top: 1px solid var(--line);
     min-height: 260px;
+  }
+
+  .wb-canvas__frame {
+    width: auto;
+    height: 100%;
+    max-width: 100%;
+    max-height: none;
   }
 }
 
@@ -1363,12 +1444,32 @@ export default defineVueComponent<Props>(['locale', 'kind', 'title', 'design', '
     border-right: 0;
     border-bottom: 1px solid var(--line);
     overflow-x: auto;
-    padding: 10px;
+    padding: 8px 10px;
+  }
+
+  .wb-rail__heading {
+    display: none;
   }
 
   .wb-rail__item {
-    flex: 1 0 64px;
-    min-height: 54px;
+    flex: 1 0 auto;
+    justify-content: center;
+    min-height: 44px;
+    padding: 8px 10px;
   }
+
+  .wb-canvas__toolbar,
+  .wb-canvas__footer {
+    padding: 0 14px;
+  }
+
+  .wb-canvas__hint {
+    display: none;
+  }
+
+  .wb-canvas__workarea {
+    padding: 12px;
+  }
+
 }
 </style>

@@ -11,6 +11,11 @@ export const textDefaults = {
 export type TextField = 'title' | 'streakTitle' | 'name' | 'handle' | 'message' | 'count' | 'diamonds';
 export const textFields: TextField[] = ['title', 'streakTitle', 'name', 'handle', 'message', 'count', 'diamonds'];
 
+export function orderedTextFields(fields: readonly TextField[], order?: readonly TextField[]): TextField[] {
+  const selected = (order ?? []).filter((field) => fields.includes(field));
+  return [...new Set([...selected, ...fields])];
+}
+
 /** Fields the builder keeps available without a remove control. */
 export const coreTextFields: Record<keyof typeof textDefaults, TextField[]> = {
   follow: ['handle', 'message'],
@@ -42,4 +47,10 @@ export function useWidgetText(kind: keyof typeof textDefaults) {
       count: event?.count?.toLocaleString('en-US') ?? '', diamonds: event?.totalDiamonds?.toLocaleString('en-US') ?? '', message: event?.text ?? '',
     });
   };
+}
+
+export function useWidgetTextOrder(kind: keyof typeof textDefaults) {
+  const design = inject(widgetDesignKey, undefined);
+  const fields = Object.keys(textDefaults[kind]) as TextField[];
+  return (field: TextField): number => orderedTextFields(fields, design?.value.textOrder).indexOf(field);
 }

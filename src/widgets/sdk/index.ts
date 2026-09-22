@@ -2,6 +2,9 @@ export { defineWidget, resolveWidgetDesign, styleVariables, widgetStyleFields } 
 export type {
   WidgetTemplate,
   WidgetTemplateSchema,
+  WidgetEditorSection,
+  WidgetEditorGroup,
+  WidgetEditorControl,
   WidgetTemplateToken,
   WidgetController,
   WidgetStyle,

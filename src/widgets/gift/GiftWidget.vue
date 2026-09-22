@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
-import { useWidgetText } from '../sdk/text.ts';
+import { useWidgetText, useWidgetTextOrder, widgetDesignKey } from '../sdk/text.ts';
 const text = useWidgetText('gift');
-import { computed, ref, watch } from 'vue';
+const order = useWidgetTextOrder('gift');
+import { computed, inject, ref, watch } from 'vue';
 import type { GiftWidgetSettings } from '../shared/config.ts';
 import type { GiftAlertView } from '../shared/gift-controller.ts';
 import type { GatewayStatus } from '../shared/gateway-client.ts';
@@ -15,6 +16,8 @@ type GiftWidgetProps = {
 };
 
 const props = defineProps<GiftWidgetProps>();
+const design = inject(widgetDesignKey, undefined);
+const customTextOrder = computed(() => Boolean(design?.value.textOrder?.length));
 
 const imageFailed = ref(false);
 const avatarFailed = ref(false);
@@ -60,8 +63,9 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
           </svg>
         </div>
         <div class="gift-body">
-          <span v-if="text(props.alert.streaking ? 'streakTitle' : 'title', props.alert)" class="gift-kicker">{{ text(props.alert.streaking ? 'streakTitle' : 'title', props.alert) }}</span>
-          <span class="gift-sender">
+          <span v-if="text(props.alert.streaking ? 'streakTitle' : 'title', props.alert)" class="gift-kicker"
+            :style="{ order: order(props.alert.streaking ? 'streakTitle' : 'title') }">{{ text(props.alert.streaking ? 'streakTitle' : 'title', props.alert) }}</span>
+          <span class="gift-sender" :style="{ order: order('name') }">
             <img
               v-if="showAvatar"
               class="gift-avatar"
@@ -72,17 +76,23 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
             />
             <span v-if="text('name', props.alert)" class="gift-name">{{ text('name', props.alert) }}</span>
           </span>
-          <span v-if="text('message', props.alert) || (props.settings.showCount && text('count', props.alert))" class="gift-line">
+          <span v-if="text('message', props.alert) || (!customTextOrder && props.settings.showCount && text('count', props.alert))"
+            class="gift-line" :style="{ order: order('message') }">
             {{ text('message', props.alert) }}
             <span
-              v-if="props.settings.showCount && text('count', props.alert)"
+              v-if="!customTextOrder && props.settings.showCount && text('count', props.alert)"
               :key="props.alert.count"
               class="gift-count gift-count-pop"
             >
               {{ text('count', props.alert) }}
             </span>
           </span>
-          <span v-if="props.settings.showDiamonds && text('diamonds', props.alert)" class="gift-diamonds">
+          <span v-if="customTextOrder && props.settings.showCount && text('count', props.alert)"
+            class="gift-count-line" :style="{ order: order('count') }">
+            <span :key="props.alert.count" class="gift-count gift-count-pop">{{ text('count', props.alert) }}</span>
+          </span>
+          <span v-if="props.settings.showDiamonds && text('diamonds', props.alert)" class="gift-diamonds"
+            :style="{ order: order('diamonds') }">
             {{ text('diamonds', props.alert) }}
           </span>
         </div>

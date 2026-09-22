@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
-import { useWidgetText } from '../sdk/text.ts';
+import { useWidgetText, useWidgetTextOrder } from '../sdk/text.ts';
 const text = useWidgetText('chat');
+const order = useWidgetTextOrder('chat');
 import { ref } from 'vue';
 import type { ChatWidgetSettings } from '../shared/config.ts';
 import type { ChatMessageView } from '../shared/chat-controller.ts';
@@ -43,8 +44,8 @@ function initialsFor(message: ChatMessageView): string {
           <span v-else>{{ initialsFor(message) }}</span>
         </div>
         <div class="chat-content">
-          <span v-if="text('name', message)" class="chat-name">{{ text('name', message) }}</span>
-          <span v-if="text('message', message)" class="chat-text">{{ text('message', message) }}</span>
+          <span v-if="text('name', message)" class="chat-name" :style="{ order: order('name') }">{{ text('name', message) }}</span>
+          <span v-if="text('message', message)" class="chat-text" :style="{ order: order('message') }">{{ text('message', message) }}</span>
         </div>
       </div>
     </TransitionGroup>

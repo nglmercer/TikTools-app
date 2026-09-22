@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import WidgetStage from '../sdk/WidgetStage.vue';
-import { useWidgetText } from '../sdk/text.ts';
+import { useWidgetText, useWidgetTextOrder } from '../sdk/text.ts';
 const text = useWidgetText('subscribe');
+const order = useWidgetTextOrder('subscribe');
 import { computed, ref, watch } from 'vue';
 import type { SubscribeWidgetSettings } from '../shared/config.ts';
 import type { SubscribeAlert } from '../shared/subscribe-controller.ts';
@@ -60,12 +61,12 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
           </svg>
         </div>
         <div class="subscribe-body">
-          <span v-if="text('title', props.alert)" class="subscribe-kicker">{{ text('title', props.alert) }}</span>
-          <span v-if="text('name', props.alert)" class="subscribe-name">{{ text('name', props.alert) }}</span>
-          <span v-if="props.settings.showUniqueId && props.alert.uniqueId && text('handle', props.alert)" class="subscribe-handle">
+          <span v-if="text('title', props.alert)" class="subscribe-kicker" :style="{ order: order('title') }">{{ text('title', props.alert) }}</span>
+          <span v-if="text('name', props.alert)" class="subscribe-name" :style="{ order: order('name') }">{{ text('name', props.alert) }}</span>
+          <span v-if="props.settings.showUniqueId && props.alert.uniqueId && text('handle', props.alert)" class="subscribe-handle" :style="{ order: order('handle') }">
             {{ text('handle', props.alert) }}
           </span>
-          <span v-if="text('message', props.alert)" class="subscribe-action">{{ text('message', props.alert) }}</span>
+          <span v-if="text('message', props.alert)" class="subscribe-action" :style="{ order: order('message') }">{{ text('message', props.alert) }}</span>
         </div>
       </div>
     </Transition>
