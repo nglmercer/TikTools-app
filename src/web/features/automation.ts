@@ -14,10 +14,6 @@ import {
 } from '../../automation/autocomplete-registry.ts';
 import { setPluginEventTypes } from '../../automation/event-registry.ts';
 import {
-  moderationPenaltyAction,
-  moderationPenaltyEvent,
-} from '../../automation/behavior/moderation-penalty.ts';
-import {
   mergePluginAutocomplete,
   mergePluginPages,
   mergePluginUis,
@@ -223,22 +219,6 @@ export function useAutomation(control: ControlClient) {
   const handleSaveEvent = (event: LiveEvent): void => {
     void mutate(() => saveRecord('event', event));
   };
-  /**
-   * Web equivalent of the CLI `moderation-penalty` verb: one validated
-   * amount becomes the `core.points` action first, then the behavior event
-   * referencing it. Sequential inside one mutation so the event never
-   * dangles and the snapshot refreshes once.
-   */
-  const handleSaveModerationPenalty = (points: number): void => {
-    void mutate(async () => {
-      const action = moderationPenaltyAction(points);
-      await control.call('automation.create', { kind: 'action', record: action });
-      await control.call('automation.create', {
-        kind: 'event',
-        record: moderationPenaltyEvent(action.id),
-      });
-    });
-  };
   const handleDeleteEvent = (id: string): void => {
     void mutate(() => control.call('automation.delete', { id, kind: 'event' }));
   };
@@ -277,7 +257,6 @@ export function useAutomation(control: ControlClient) {
     handleSetActionEnabled,
     handleTestAction,
     handleSaveEvent,
-    handleSaveModerationPenalty,
     handleDeleteEvent,
     handleSetEventEnabled,
     handleTestEvent,

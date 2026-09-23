@@ -4,7 +4,6 @@ import { defineVueComponent } from '../vue/component.ts';
 import { ActionEditor } from './behavior/action-editor.vue';
 import { ActionPicker } from './behavior/action-picker.vue';
 import { EventEditor } from './behavior/event-editor.vue';
-import { ModerationPenaltyEditor } from './behavior/moderation-penalty-editor.vue';
 import { ActionsTable } from './behavior/ActionsTable.vue';
 import { EventsTable } from './behavior/EventsTable.vue';
 import { HotkeyFloatBadge } from './behavior/HotkeyFloatBadge.vue';
@@ -39,7 +38,6 @@ type BehaviorViewProps = {
   onSetActionEnabled: (id: string, enabled: boolean) => void;
   onTestAction: (action: LiveAction, trigger?: string) => void;
   onSaveEvent: (event: LiveEvent) => void;
-  onSaveModerationPenalty: (points: number) => void;
   onDeleteEvent: (id: string) => void;
   onSetEventEnabled: (id: string, enabled: boolean) => void;
   onTestEvent: (event: LiveEvent) => void;
@@ -56,8 +54,7 @@ type Screen =
   | { kind: 'list' }
   | { kind: 'picker' }
   | { kind: 'action'; action: LiveAction; isNew: boolean }
-  | { kind: 'event'; event: LiveEvent; isNew: boolean }
-  | { kind: 'moderation-penalty' };
+  | { kind: 'event'; event: LiveEvent; isNew: boolean };
 
 export const BehaviorView = defineVueComponent<BehaviorViewProps>(
   [
@@ -75,7 +72,6 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     'onSetActionEnabled',
     'onTestAction',
     'onSaveEvent',
-    'onSaveModerationPenalty',
     'onDeleteEvent',
     'onSetEventEnabled',
     'onTestEvent',
@@ -176,20 +172,6 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     );
   }
 
-  if (currentScreen.kind === 'moderation-penalty') {
-    return (
-      <ModerationPenaltyEditor
-        locale={locale}
-        error={error}
-        onCancel={() => { screen.value = { kind: 'list' }; }}
-        onSave={(points) => {
-          props.onSaveModerationPenalty(points);
-          screen.value = { kind: 'list' };
-        }}
-      />
-    );
-  }
-
   return (
     <div class="plg plg--behavior">
       {error && <div class="plg-stack"><div class="plg-alert">{error}</div></div>}
@@ -223,7 +205,6 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
             onDelete={props.onDeleteEvent}
             onEdit={(event) => { screen.value = { kind: 'event', event, isNew: false }; }}
             onNew={(event) => { screen.value = { kind: 'event', event, isNew: true }; }}
-            onNewModerationPenalty={() => { screen.value = { kind: 'moderation-penalty' }; }}
           />
         </div>
 

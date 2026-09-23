@@ -138,7 +138,6 @@ const activePluginBackend = computed(() => {
         :on-set-action-enabled="app.handleSetActionEnabled"
         :on-test-action="app.handleTestAction"
         :on-save-event="app.handleSaveEvent"
-        :on-save-moderation-penalty="app.handleSaveModerationPenalty"
         :on-delete-event="app.handleDeleteEvent"
         :on-set-event-enabled="app.handleSetEventEnabled"
         :on-test-event="app.handleTestEvent"

@@ -305,7 +305,6 @@ export function useAppController() {
     handleSetActionEnabled: automation.handleSetActionEnabled,
     handleTestAction: automation.handleTestAction,
     handleSaveEvent: automation.handleSaveEvent,
-    handleSaveModerationPenalty: automation.handleSaveModerationPenalty,
     handleDeleteEvent: automation.handleDeleteEvent,
     handleSetEventEnabled: automation.handleSetEventEnabled,
     handleTestEvent: automation.handleTestEvent,
