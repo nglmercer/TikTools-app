@@ -2,6 +2,7 @@ import {
   EVENT_REGISTRY_VERSION as GENERATED_EVENT_REGISTRY_VERSION,
   GENERATED_EVENT_REGISTRY,
 } from './contracts/generated/event-registry.generated.ts';
+import { isAutocompletePathAvailable } from './autocomplete-registry.ts';
 import type { AutomationEvent, JsonObject } from './types.ts';
 import type { PluginEventType } from './behavior/types.ts';
 
@@ -16,6 +17,10 @@ import type { PluginEventType } from './behavior/types.ts';
  * sample event in the app derives from here — see
  * `web/components/node-editor/template-suggestions.ts` and
  * `automation/behavior/fields.ts`.
+ *
+ * Field listings hide paths owned by unavailable plugins (see
+ * `autocomplete-registry.ts`); samples and `registryHasPath` always read the
+ * raw contract.
  */
 
 export type RegistryFieldKind = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null' | 'unknown';
@@ -142,13 +147,22 @@ export function registryEntryFor(eventType: string): RegistryEventEntry | undefi
   return REGISTRY.events[eventType] ?? PLUGIN_OVERLAY.get(eventType)?.entry;
 }
 
-/** All `event.*` paths (with types, labels, samples) for one trigger. */
-export function fieldsForEventType(eventType: string): RegistryField[] {
-  return registryEntryFor(eventType)?.fields ?? [];
+/**
+ * All `event.*` paths (with types, labels, samples) for one trigger.
+ *
+ * Paths owned by an unavailable plugin (see `autocomplete-registry.ts`) are
+ * hidden, so the field picker and template autocomplete never recommend
+ * enrichment that cannot exist. Pass `includeDisabled` for the raw contract.
+ */
+export function fieldsForEventType(eventType: string, options?: { includeDisabled?: boolean }): RegistryField[] {
+  const fields = registryEntryFor(eventType)?.fields ?? [];
+  if (options?.includeDisabled === true) return fields;
+  return fields.filter((field) => isAutocompletePathAvailable(field.path, eventType));
 }
 
-/** Union of every trigger's fields, deduplicated by path. */
-export function allRegistryFields(): RegistryField[] {
+/** Union of every trigger's fields, deduplicated by path. Gated like above. */
+export function allRegistryFields(options?: { includeDisabled?: boolean }): RegistryField[] {
+  const includeDisabled = options?.includeDisabled === true;
   const seen = new Set<string>();
   const out: RegistryField[] = [];
   const entries = [
@@ -158,6 +172,7 @@ export function allRegistryFields(): RegistryField[] {
   for (const entry of entries) {
     for (const field of entry.fields) {
       if (seen.has(field.path)) continue;
+      if (!includeDisabled && !isAutocompletePathAvailable(field.path)) continue;
       seen.add(field.path);
       out.push(field);
     }
@@ -186,7 +201,11 @@ export function sampleDataForType(eventType: string): JsonObject {
   return (data !== null && typeof data === 'object' && !Array.isArray(data) ? data : {}) as JsonObject;
 }
 
-/** True when the registry documents a path for a trigger (drift guard). */
+/**
+ * True when the registry documents a path for a trigger (drift guard).
+ * Reads the raw contract: availability gating must never make a documented
+ * path look undocumented.
+ */
 export function registryHasPath(eventType: string, path: string): boolean {
-  return fieldsForEventType(eventType).some((field) => field.path === path);
+  return fieldsForEventType(eventType, { includeDisabled: true }).some((field) => field.path === path);
 }

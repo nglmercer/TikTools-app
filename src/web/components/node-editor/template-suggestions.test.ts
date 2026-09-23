@@ -1,5 +1,9 @@
-import { expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 
+import {
+  resetAutocompleteRegistry,
+  syncAutocompletePluginStates,
+} from '../../../automation/autocomplete-registry.ts';
 import { sampleEventForType } from '../../../automation/event-registry.ts';
 import type { JsonObject } from '../../../automation/types.ts';
 import { applyPresetInsert } from '../autocomplete/autocomplete-controller.ts';
@@ -128,4 +132,44 @@ test('text scope offers raw comment and Text Intelligence TTS text', () => {
     expect(suggestions.some((entry) => entry.value === 'event.data.comment')).toBe(true);
     expect(suggestions.some((entry) => entry.value === 'event.intel.comment.tts.text')).toBe(true);
   }
+});
+
+describe('plugin availability gating', () => {
+  afterEach(() => {
+    resetAutocompleteRegistry();
+  });
+
+  test('textintel paths disappear from template autocomplete while disabled', () => {
+    syncAutocompletePluginStates([{ id: 'textintel', installed: true, enabled: false }]);
+    const values = getTemplateSuggestions('tiktok.chat', 'en').map((entry) => entry.value);
+    expect(values.some((value) => value.startsWith('event.intel.comment.'))).toBe(false);
+    expect(values.some((value) => value.startsWith('event.intel.user.'))).toBe(false);
+    expect(values).not.toContain('event.intel.providers.textintel.comment.moderation.blocked');
+    // Core paths and the host-stamped processing status survive.
+    expect(values).toContain('event.data.comment');
+    expect(values).toContain('event.intel.processing.status');
+  });
+
+  test('moderation verdict is suggested for chat while enabled', () => {
+    const blocked = 'event.intel.providers.textintel.comment.moderation.blocked';
+    const chat = getTemplateSuggestions('tiktok.chat', 'en').map((entry) => entry.value);
+    expect(chat).toContain(blocked);
+    const gift = getTemplateSuggestions('tiktok.gift', 'en').map((entry) => entry.value);
+    expect(gift).not.toContain(blocked);
+    const union = getTemplateSuggestions(undefined, 'en').map((entry) => entry.value);
+    expect(union).toContain(blocked);
+  });
+
+  test('stale live-only provider paths stop being suggested once disabled', () => {
+    const lastEvent = sampleEventForType('tiktok.chat');
+    const intel = (lastEvent as unknown as JsonObject)['intel'] as JsonObject;
+    intel['providers'] = { textintel: { comment: { moderation: { blocked: true } } } };
+    const enabled = getTemplateSuggestions('tiktok.chat', 'en', lastEvent).map((entry) => entry.value);
+    expect(enabled).toContain('event.intel.providers.textintel.comment');
+    syncAutocompletePluginStates([{ id: 'textintel', installed: true, enabled: false }]);
+    const disabled = getTemplateSuggestions('tiktok.chat', 'en', lastEvent).map((entry) => entry.value);
+    expect(disabled.some((value) => value.startsWith('event.intel.providers.textintel'))).toBe(false);
+    expect(disabled.some((value) => value.startsWith('event.intel.comment.'))).toBe(false);
+    expect(disabled).toContain('event.data.comment');
+  });
 });

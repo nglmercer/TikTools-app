@@ -398,6 +398,19 @@ contribution index plus an in-memory activation snapshot, rebuilt only on
 install, uninstall, enable, and disable. The enrich hot path filters the
 cached index by event type and never touches manifests or SQLite.
 
+The editor's autocomplete follows the same availability: the web layer syncs
+installed/enabled states from every behavior snapshot into
+`src/automation/autocomplete-registry.ts`, and paths owned by an unavailable
+plugin disappear from the field picker and template autocomplete.
+`event.intel.providers.<pluginId>.*` is attributed to its plugin by naming
+convention with no registration needed; a processor that promotes the shared
+stable keys (`event.intel.comment.*`, `event.intel.user.*`) additionally
+registers those prefixes via `registerAutocompleteContribution`, so the views
+stay suggested while at least one promoter is available. Contributions can
+also push extra suggestion fields for paths the static registry cannot know
+(such as a provider-namespaced verdict); `unregisterAutocompleteContribution`
+undoes them.
+
 SDK sketch:
 
 ```rust

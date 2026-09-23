@@ -119,6 +119,19 @@ export function findField(trigger: string, path: string): EventFieldDefinition |
   return fieldsForTrigger(trigger).find((field) => field.path === path);
 }
 
+/**
+ * Operators for a filter path. Registry paths keep their kind's operators;
+ * advanced custom paths (anything the registry does not know, such as the
+ * provider-namespaced enrichment under `event.intel.providers.*` that the
+ * contract generator deliberately skips) get the free-text comparisons plus
+ * the boolean assertions, so an untyped path can still assert truthiness.
+ */
+export function operatorsForPath(trigger: string, path: string): FilterOperator[] {
+  const field = findField(trigger, path);
+  if (field) return operatorsFor(field.kind);
+  return [...operatorsFor('text'), 'is-true', 'is-false'];
+}
+
 /** A path the user wrote by hand still has to render: treat it as free text. */
 export function fieldKindFor(trigger: string, path: string): FieldValueKind {
   return findField(trigger, path)?.kind ?? 'text';

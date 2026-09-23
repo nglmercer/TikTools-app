@@ -33,11 +33,12 @@ type EventsTableProps = {
   onDelete: (id: string) => void;
   onEdit: (event: LiveEvent) => void;
   onNew: (event: LiveEvent) => void;
+  onNewModerationPenalty: () => void;
 };
 
 /** Searchable, sortable events section: header tools, rows table, and empty state. */
 export const EventsTable = defineVueComponent<EventsTableProps>(
-  ['locale', 'events', 'actions', 'eventTypes', 'onSetEnabled', 'onDelete', 'onEdit', 'onNew'],
+  ['locale', 'events', 'actions', 'eventTypes', 'onSetEnabled', 'onDelete', 'onEdit', 'onNew', 'onNewModerationPenalty'],
   (props) => {
   const query = ref('');
   const sort = ref<SortMode>('name');
@@ -73,6 +74,16 @@ export const EventsTable = defineVueComponent<EventsTableProps>(
           <span class="plg-section__sort">
             <SortControl locale={locale} value={sort.value} onChange={(value) => { sort.value = value; }} />
           </span>
+          <Tooltip text={t(locale, 'behavior.copy.moderationPenaltyHint')} position="left">
+            <button
+              type="button"
+              class="plg-btn plg-btn--sm plg-section__new"
+              onClick={() => props.onNewModerationPenalty()}
+            >
+              <Icon name="shield" size={14} />
+              <span>{t(locale, 'behavior.copy.moderationPenalty')}</span>
+            </button>
+          </Tooltip>
           <Tooltip text={t(locale, 'behavior.copy.newEvent')} position="left">
             <button
               type="button"

@@ -143,13 +143,13 @@ action:  core.points
 
 The penalty amount is user-configured per rule (any finite non-zero
 number); the points service clamps totals at zero. Create the rule from the
-CLI:
+web UI (Behavior → Events → Moderation penalty) or from the CLI:
 
 ```sh
 tiktools automation moderation-penalty --points -10
 ```
 
-which stores the `core.points` action plus the `tiktok.chat` event wired to
+Both store the `core.points` action plus the `tiktok.chat` event wired to
 it. Blocked messages stay available as raw live events; `moderation.blocked`
 is the decision signal for downstream consumers (TTS, automations, rewards).
 

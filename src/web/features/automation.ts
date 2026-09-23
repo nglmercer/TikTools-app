@@ -8,7 +8,12 @@ import type {
   LiveEvent,
   PluginPageDescriptor,
 } from '../../automation/behavior/types.ts';
+import { syncAutocompletePluginStates } from '../../automation/autocomplete-registry.ts';
 import { setPluginEventTypes } from '../../automation/event-registry.ts';
+import {
+  moderationPenaltyAction,
+  moderationPenaltyEvent,
+} from '../../automation/behavior/moderation-penalty.ts';
 import { mergePluginPages, mergePluginUis } from '../../automation/plugins/declarative.ts';
 import type { HotkeyStatusData } from '../../shared/messages.ts';
 import type { ControlClient } from '../platform/control-client.ts';
@@ -58,6 +63,16 @@ export function useAutomation(control: ControlClient) {
   const applySnapshot = (snapshot: BehaviorSnapshot): void => {
     setPluginTranslations(snapshot.translations);
     setPluginEventTypes(snapshot.eventTypes ?? []);
+    // Gate plugin-owned suggestions (TextIntel intel paths, provider
+    // namespaces) on installed/enabled state — a disabled plugin's paths
+    // disappear from the field picker and template autocomplete.
+    syncAutocompletePluginStates(
+      snapshot.plugins.map((plugin) => ({
+        id: plugin.descriptor.id,
+        installed: plugin.installed,
+        enabled: plugin.enabled,
+      })),
+    );
     behavior.value = snapshot;
     if (
       !snapshot.plugins.some(
@@ -197,6 +212,22 @@ export function useAutomation(control: ControlClient) {
   const handleSaveEvent = (event: LiveEvent): void => {
     void mutate(() => saveRecord('event', event));
   };
+  /**
+   * Web equivalent of the CLI `moderation-penalty` verb: one validated
+   * amount becomes the `core.points` action first, then the behavior event
+   * referencing it. Sequential inside one mutation so the event never
+   * dangles and the snapshot refreshes once.
+   */
+  const handleSaveModerationPenalty = (points: number): void => {
+    void mutate(async () => {
+      const action = moderationPenaltyAction(points);
+      await control.call('automation.create', { kind: 'action', record: action });
+      await control.call('automation.create', {
+        kind: 'event',
+        record: moderationPenaltyEvent(action.id),
+      });
+    });
+  };
   const handleDeleteEvent = (id: string): void => {
     void mutate(() => control.call('automation.delete', { id, kind: 'event' }));
   };
@@ -235,6 +266,7 @@ export function useAutomation(control: ControlClient) {
     handleSetActionEnabled,
     handleTestAction,
     handleSaveEvent,
+    handleSaveModerationPenalty,
     handleDeleteEvent,
     handleSetEventEnabled,
     handleTestEvent,

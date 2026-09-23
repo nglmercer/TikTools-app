@@ -1,6 +1,10 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 
-import { fieldsForTrigger, findField, operatorsFor } from './fields.ts';
+import {
+  resetAutocompleteRegistry,
+  syncAutocompletePluginStates,
+} from '../autocomplete-registry.ts';
+import { fieldsForTrigger, findField, operatorsFor, operatorsForPath } from './fields.ts';
 import { matchesFilter } from './filters.ts';
 import { sampleEventFor } from './samples.ts';
 
@@ -39,5 +43,64 @@ describe('condition fields', () => {
     for (const trigger of ['tiktok.gift', 'tiktok.chat', 'tiktok.like', 'points.awarded', 'tiktok.follow'] as const) {
       expect(fieldsForTrigger(trigger).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('operatorsForPath', () => {
+  test('registry paths keep their kind operators', () => {
+    expect(findField('tiktok.chat', 'event.data.comment')?.kind).toBe('text');
+    expect(operatorsForPath('tiktok.chat', 'event.data.comment')).toEqual([
+      'eq',
+      'neq',
+      'in',
+      'contains',
+      'starts-with',
+    ]);
+    expect(findField('tiktok.gift', 'event.data.repeatEnd')?.kind).toBe('boolean');
+    expect(operatorsForPath('tiktok.gift', 'event.data.repeatEnd')).toEqual([
+      'is-true',
+      'is-false',
+    ]);
+  });
+
+  test('custom paths offer text operators plus boolean assertions', () => {
+    // Provider-namespaced enrichment is deliberately absent from the
+    // registry; the advanced custom path still needs `is-true` so the
+    // moderation `blocked` verdict stays filterable and editable.
+    const path = 'event.intel.providers.textintel.comment.moderation.blocked';
+    expect(findField('tiktok.chat', path)).toBeUndefined();
+    expect(operatorsForPath('tiktok.chat', path)).toEqual([
+      'eq',
+      'neq',
+      'in',
+      'contains',
+      'starts-with',
+      'is-true',
+      'is-false',
+    ]);
+  });
+});
+
+describe('plugin availability gating', () => {
+  afterEach(() => {
+    resetAutocompleteRegistry();
+  });
+
+  test('condition fields hide textintel enrichment while it is disabled', () => {
+    syncAutocompletePluginStates([{ id: 'textintel', installed: true, enabled: false }]);
+    const paths = fieldsForTrigger('tiktok.chat').map((field) => field.path);
+    expect(paths.some((path) => path.startsWith('event.intel.comment.'))).toBe(false);
+    expect(paths.some((path) => path.startsWith('event.intel.user.'))).toBe(false);
+    // Core data fields and the host-stamped processing status survive.
+    expect(paths).toContain('event.data.comment');
+    expect(paths).toContain('event.intel.processing.status');
+  });
+
+  test('condition fields offer textintel enrichment while it is available', () => {
+    const paths = fieldsForTrigger('tiktok.chat').map((field) => field.path);
+    expect(paths).toContain('event.intel.comment.tts.text');
+    syncAutocompletePluginStates([{ id: 'textintel', installed: true, enabled: true }]);
+    expect(fieldsForTrigger('tiktok.chat').map((field) => field.path))
+      .toContain('event.intel.comment.tts.text');
   });
 });

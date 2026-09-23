@@ -6,6 +6,7 @@ import {
   fieldsForTrigger,
   findField,
   operatorsFor,
+  operatorsForPath,
   type EventFieldDefinition,
   type FieldValueKind,
 } from '../../../automation/behavior/fields.ts';
@@ -177,7 +178,7 @@ export const ConditionTable = defineVueComponent<ConditionTableProps>(
       {filters.map((filter, index) => {
         const field = findField(trigger, filter.path);
         const kind = kindOf(filter);
-        const operators = operatorsFor(kind);
+        const operators = operatorsForPath(trigger, filter.path);
         const picked = valuesOf(filter);
         const needsValue = filter.operator !== 'is-true' && filter.operator !== 'is-false';
         const missing = needsValue && picked.length === 0;

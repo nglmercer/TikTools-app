@@ -1,5 +1,10 @@
 import type { AutomationEvent, JsonValue } from '../../../automation/types.ts';
 import {
+  contributionFieldsForTrigger,
+  isAutocompletePathAvailable,
+  type AutocompleteContributionField,
+} from '../../../automation/autocomplete-registry.ts';
+import {
   allRegistryFields,
   fieldsForEventType,
   registryEntryFor,
@@ -55,9 +60,12 @@ export function getTemplateSuggestions(
     .map((field) => toSuggestion(field, locale, eventType, matchingLastEvent ? readTemplatePath(matchingLastEvent, field.path) : undefined));
 
   // Existent data: paths the last live event really carried (custom payloads,
-  // plugin emits) that the static registry cannot know about.
+  // plugin emits) that the static registry cannot know about. Gated by owner
+  // availability: a stale event from before the plugin was disabled must not
+  // keep recommending paths that can no longer exist.
   const observed: AutocompleteItem[] = matchingLastEvent
     ? flattenJsonPaths(matchingLastEvent, 'event')
+      .filter((path) => isAutocompletePathAvailable(path, eventType))
       .filter((path) => matchesPathScope(path, readTemplatePath(matchingLastEvent, path), definition.observed))
       .filter((path) => !base.some((entry) => entry.value === path))
       .map((path) => {
@@ -73,7 +81,18 @@ export function getTemplateSuggestions(
       })
     : [];
 
-  const merged = mergeSuggestions(base, observed);
+  // Plugin-pushed suggestions (provider-namespaced paths the static registry
+  // deliberately skips). Already gated by owner availability; the registry
+  // stays the priority source when both know a path.
+  const contributed: AutocompleteItem[] = contributionFieldsForTrigger(eventType)
+    .filter((field) => matchesPathScope(
+      field.path,
+      matchingLastEvent ? readTemplatePath(matchingLastEvent, field.path) : undefined,
+      definition.observed,
+    ))
+    .map((field) => toContributionSuggestion(field, locale, matchingLastEvent));
+
+  const merged = mergeSuggestions(base, observed, contributed);
   if (extraContext === undefined) return merged;
   // Generic: push any object as extra autocomplete items (custom schema/event).
   const extra = suggestionsFromObject(extraContext, 'event', { maxItems: 60 });
@@ -95,6 +114,24 @@ function toSuggestion(
     kind: field.kind,
     detail: field.tsType,
     documentation: [hint ?? `${label} · ${field.path}`, source].filter(Boolean).join('\n'),
+    preview: liveValue === undefined ? undefined : formatTemplateValue(liveValue),
+  };
+}
+
+function toContributionSuggestion(
+  field: AutocompleteContributionField,
+  locale: Locale,
+  lastEvent: AutomationEvent | undefined,
+): AutocompleteItem {
+  const language = locale === 'es' ? 'es' : 'en';
+  const liveValue = lastEvent ? readTemplatePath(lastEvent, field.path) : undefined;
+  const hint = field.hint?.[language];
+  return {
+    value: field.path,
+    label: field.label[language],
+    kind: field.kind,
+    detail: field.kind,
+    documentation: [hint ?? `${field.label[language]} · ${field.path}`].filter(Boolean).join('\n'),
     preview: liveValue === undefined ? undefined : formatTemplateValue(liveValue),
   };
 }
