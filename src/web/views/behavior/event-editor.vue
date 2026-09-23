@@ -2,11 +2,19 @@
 import { ref, watch } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { ConditionTable } from '../../components/ui/ConditionTable.vue';
+import { PickerModal } from '../../components/ui/PickerModal.vue';
+import { TemplateConfigModal, type TemplateParamField } from '../../components/ui/TemplateConfigModal.vue';
 import { Switch } from '../../components/ui/Checkbox.vue';
 import { Select } from '../../components/ui/Select.vue';
 import { TextInput } from '../../components/ui/TextInput.vue';
-import { IconChevronLeft } from '../../components/icons/index.ts';
+import { Icon, IconChevronLeft } from '../../components/icons/index.ts';
 import { InfoTip } from '../../components/ui/InfoTip.vue';
+import {
+  applyConditionTemplate,
+  conditionTemplatesFor,
+  type ConditionTemplate,
+} from '../../../automation/behavior/condition-templates.ts';
+import { registerModerationTemplates } from '../../../automation/behavior/moderation-templates.ts';
 import { COOLDOWN_CHOICES, describeFilter, sentenceFor, triggerLabel, triggerSelectOptions } from './helpers.vue';
 import type {
   BehaviorRun,
@@ -16,7 +24,7 @@ import type {
 } from '../../../automation/behavior/types.ts';
 import type { GiftCatalogEntry, ViewerRecord } from '../../../shared/messages.ts';
 import type { HotkeyStatusData } from '../../../shared/messages.ts';
-import { t, type Locale } from '../../i18n.ts';
+import { i18nText, t, type Locale } from '../../i18n.ts';
 import { useDialogs } from '../../composables/useDialogs.ts';
 import { rawHotkeyInputHint, requiresRawHotkeyInput } from '../../components/ui/hotkey-status.ts';
 
@@ -43,9 +51,40 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
   const draft = ref<LiveEvent>(props.event);
   const step = ref(1);
   const dialogs = useDialogs();
+  const showTemplates = ref(false);
+  const configuringId = ref<string | null>(null);
   watch(() => props.event, (event) => { draft.value = event; });
 
+  // Template sources register idempotently; the section button below only
+  // exists while templates apply to the current trigger.
+  registerModerationTemplates();
+
   const update = (patch: Partial<LiveEvent>): void => { draft.value = { ...draft.value, ...patch }; };
+
+  const applyTemplate = (template: ConditionTemplate, answers: Record<string, string>): void => {
+    // A template defines the section: rows replace, then stay editable inline.
+    update({ filters: applyConditionTemplate(template, answers) });
+  };
+
+  const pickTemplate = (templates: ConditionTemplate[], id: string): void => {
+    const template = templates.find((entry) => entry.id === id);
+    showTemplates.value = false;
+    if (!template) return;
+    if ((template.params ?? []).length > 0) configuringId.value = template.id;
+    else applyTemplate(template, {});
+  };
+
+  const configFields = (locale: Locale, template: ConditionTemplate): TemplateParamField[] =>
+    (template.params ?? []).map((param) => ({
+      key: param.key,
+      label: i18nText(locale, param.label),
+      hint: param.hint ? i18nText(locale, param.hint) : undefined,
+      kind: param.kind,
+      default: param.default,
+      min: param.min,
+      max: param.max,
+      step: param.step,
+    }));
 
   return () => {
   const draftValue = draft.value;
@@ -55,6 +94,8 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
     .filter((name): name is string => Boolean(name));
   const rawHotkeyRequested = draftValue.trigger === 'hotkey.pressed' && requiresRawHotkeyInput(draftValue.filters);
   const rawHotkeyWarning = rawHotkeyInputHint(props.hotkeyStatus, rawHotkeyRequested);
+  const templates = conditionTemplatesFor(draftValue.trigger);
+  const configuringTemplate = templates.find((entry) => entry.id === configuringId.value);
 
   const steps = [
     { number: 1, label: t(props.locale, 'behavior.copy.stepWhen'), sub: triggerLabel(draftValue.trigger, props.eventTypes ?? [], props.locale) },
@@ -155,6 +196,17 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
                 <div class="plg-label-row">
                   <span class="plg-label">{t(props.locale, 'behavior.copy.stepFiltersHint')}</span>
                   <InfoTip text={t(props.locale, 'behavior.copy.orHint')} position="right" />
+                  {templates.length > 0 && (
+                    <button
+                      type="button"
+                      class="plg-btn plg-btn--sm"
+                      style="margin-left: auto;"
+                      onClick={() => { showTemplates.value = true; }}
+                    >
+                      <Icon name="template" size={14} />
+                      <span>{t(props.locale, 'condition.templates')}</span>
+                    </button>
+                  )}
                 </div>
 
                 {rawHotkeyWarning && (
@@ -171,6 +223,42 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
                   viewers={props.viewers}
                   onChange={(filters) => update({ filters })}
                 />
+
+                {showTemplates.value && (
+                  <PickerModal
+                    title={t(props.locale, 'condition.templatesTitle')}
+                    description={t(props.locale, 'condition.templatesLead')}
+                    options={templates.map((template) => ({
+                      value: template.id,
+                      label: i18nText(props.locale, template.title),
+                      meta: template.description ? i18nText(props.locale, template.description) : undefined,
+                    }))}
+                    selected={[]}
+                    searchPlaceholder={t(props.locale, 'condition.templatesSearch')}
+                    emptyLabel={t(props.locale, 'condition.templatesEmpty')}
+                    doneLabel={t(props.locale, 'condition.templatesApply')}
+                    closeLabel={t(props.locale, 'cancel')}
+                    onPick={(values) => { if (values[0] !== undefined) pickTemplate(templates, values[0]); }}
+                    onClose={() => { showTemplates.value = false; }}
+                  />
+                )}
+
+                {configuringTemplate && (
+                  <TemplateConfigModal
+                    title={t(props.locale, 'condition.templatesConfigure', { title: i18nText(props.locale, configuringTemplate.title) })}
+                    description={t(props.locale, 'condition.templatesConfigureLead')}
+                    params={configFields(props.locale, configuringTemplate)}
+                    applyLabel={t(props.locale, 'condition.templatesApply')}
+                    cancelLabel={t(props.locale, 'cancel')}
+                    onApply={(answers) => {
+                      const record: Record<string, string> = {};
+                      for (const answer of answers) record[answer.key] = answer.value;
+                      configuringId.value = null;
+                      applyTemplate(configuringTemplate, record);
+                    }}
+                    onClose={() => { configuringId.value = null; }}
+                  />
+                )}
               </div>
             )}
 
