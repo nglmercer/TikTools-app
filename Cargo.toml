@@ -40,11 +40,11 @@ rusqlite = { version = "0.40", default-features = false }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
-libloading = "0.8.9"
-sha2 = "0.10"
-zip = { version = "4.2", default-features = false, features = ["deflate"] }
-rfd = { version = "0.15.4", default-features = false, features = ["xdg-portal", "tokio"] }
-rodio = { version = "0.21.1", features = ["tracing"] }
+libloading = "0.9.0"
+sha2 = "0.11"
+zip = { version = "8.6", default-features = false, features = ["deflate"] }
+rfd = { version = "0.16.0", default-features = false, features = ["xdg-portal", "tokio"] }
+rodio = { version = "0.22.2", features = ["tracing"] }
 napi-vm = { git = "https://github.com/nglmercer/napi-vm", rev = "8a2848d16c5b5039fc1d46cb8979d5897eb5b4d0", default-features = false }
 
 # The checked-in JavaScript/Bun package was only a compatibility implementation. The desktop
