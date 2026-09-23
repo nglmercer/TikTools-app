@@ -7,8 +7,9 @@ mod state;
 mod tests;
 mod topics;
 mod websocket;
+mod widgets;
 
-use self::config::{load_config, persist_generated_token};
+use self::config::{load_config, persist_generated_credentials};
 use self::server::run_server;
 use self::state::GatewayState;
 use std::sync::mpsc as std_mpsc;
@@ -24,9 +25,9 @@ pub struct EventGatewayPlugin {
 }
 
 impl Plugin for EventGatewayPlugin {
-    fn initialize(&mut self, _context: &PluginContext) -> PluginResult<()> {
-        let (config, settings_path) = load_config()?;
-        persist_generated_token(&config, settings_path.as_ref())?;
+    fn initialize(&mut self, context: &PluginContext) -> PluginResult<()> {
+        let (config, settings_path) = load_config(&context.identity.id)?;
+        persist_generated_credentials(&config, settings_path.as_ref())?;
         let state = GatewayState::new(config);
         let (ready_sender, ready_receiver) = std_mpsc::channel();
         let server_state = Arc::clone(&state);

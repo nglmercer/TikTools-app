@@ -3,6 +3,7 @@ import { computed, type Component } from 'vue';
 import { i18nText, t, type Locale } from '../i18n.ts';
 import type { AppTab } from '../types.ts';
 import type { PluginPageDescriptor } from '../../automation/behavior/types.ts';
+import widgetsOverlayGraphic from '../assets/widgets-overlay.svg';
 import { isConnectionOnlyPage, pluginNavId } from '../../automation/plugins/declarative.ts';
 import { Tooltip } from './ui/Tooltip.vue';
 import { Icon, readIconName } from './icons/index.ts';
@@ -12,7 +13,7 @@ import {
   IconCoins,
   IconRadio,
   IconSettings,
-  IconSparkles,
+  IconEdgeNet,
   IconPlugins,
 } from './icons.vue';
 
@@ -28,7 +29,8 @@ const props = defineProps<NavigationRailProps>();
 type NavigationTab = {
   id: AppTab;
   tooltip: string;
-  icon: Component | string;
+  icon?: Component | string;
+  imageSrc?: string;
 };
 
 const builtinTabs = computed<NavigationTab[]>(() => [
@@ -36,8 +38,9 @@ const builtinTabs = computed<NavigationTab[]>(() => [
   { id: 'points', tooltip: t(props.locale, 'tabPoints'), icon: IconCoins },
   { id: 'analytics', tooltip: t(props.locale, 'tabAnalytics'), icon: IconBarChart },
   { id: 'connect', tooltip: t(props.locale, 'tabConnect'), icon: IconRadio },
-  { id: 'behavior', tooltip: t(props.locale, 'tabBehavior'), icon: IconSparkles },
+  { id: 'behavior', tooltip: t(props.locale, 'tabBehavior'), icon: IconEdgeNet },
   { id: 'plugins', tooltip: t(props.locale, 'tabPlugins'), icon: IconPlugins },
+  { id: 'widgets', tooltip: t(props.locale, 'tabWidgets'), imageSrc: widgetsOverlayGraphic },
   { id: 'settings', tooltip: t(props.locale, 'tabSettings'), icon: IconSettings },
 ]);
 
@@ -75,7 +78,14 @@ const navTabs = computed<NavigationTab[]>(() => [...builtinTabs.value, ...plugin
         :aria-current="props.activeTab === tab.id ? 'page' : undefined"
         @click="props.onTabChange(tab.id)"
       >
-        <Icon v-if="typeof tab.icon === 'string'" :name="tab.icon" />
+        <img
+          v-if="tab.imageSrc"
+          class="nav-tab-btn__image"
+          :src="tab.imageSrc"
+          alt=""
+          aria-hidden="true"
+        />
+        <Icon v-else-if="typeof tab.icon === 'string'" :name="tab.icon" />
         <component v-else :is="tab.icon" />
       </button>
     </Tooltip>

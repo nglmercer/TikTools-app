@@ -95,3 +95,10 @@
   color: var(--text);
   outline: none;
 }
+
+.ui-modal-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}

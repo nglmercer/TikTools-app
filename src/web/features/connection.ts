@@ -41,6 +41,10 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
   const noteCreatorSeen = (clean: string, persist: boolean): void => {
     activeCreator.value = clean;
     activeCreatorRef.value = clean;
+    // The connect input mirrors the authoritative creator — saved user on
+    // boot, canonical handle on connect, resync value after a gap — so the
+    // header pill and the form never disagree.
+    uniqueId.value = clean;
     recents.value = addRecentUsername(clean);
     if (persist) saveUsername(clean);
   };
@@ -90,6 +94,9 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     status.value = 'connecting';
     activeCreator.value = target;
     activeCreatorRef.value = target;
+    // Write the normalized handle back so the input matches the pill
+    // exactly (no stray `@` or whitespace the user typed).
+    uniqueId.value = target;
     saveUsername(target);
     recents.value = addRecentUsername(target);
     callbacks.goFeed();

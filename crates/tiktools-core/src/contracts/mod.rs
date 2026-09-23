@@ -20,6 +20,11 @@ pub struct AutomationUser {
     pub unique_id: String,
     pub nickname: String,
     pub sec_uid: String,
+    /// Display-only avatar URL from the live event. Optional so older
+    /// producers/consumers keep working; renderers must fall back to
+    /// initials when it is absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -213,6 +218,7 @@ mod tests {
                 unique_id: "alice".to_owned(),
                 nickname: "Alice".to_owned(),
                 sec_uid: "".to_owned(),
+                avatar_url: Some("https://cdn.example/a.png".to_owned()),
             }),
             data: serde_json::json!({}),
             points: None,
@@ -222,7 +228,7 @@ mod tests {
         .expect("automation event should serialize");
         assert_eq!(event["type"], "tiktok.chat");
         assert_eq!(event["user"]["userId"], "42");
-        assert!(event["user"].get("avatarUrl").is_none());
+        assert_eq!(event["user"]["avatarUrl"], "https://cdn.example/a.png");
         assert!(event.get("intel").is_none());
     }
 
@@ -234,6 +240,9 @@ mod tests {
         assert!(properties.get("eventType").is_none());
         assert!(schema["$defs"]["AutomationUser"]["properties"]
             .get("avatarUrl")
-            .is_none());
+            .is_some());
+        assert!(!schema["$defs"]["AutomationUser"]["required"]
+            .as_array()
+            .is_some_and(|required| required.iter().any(|key| key == "avatarUrl")));
     }
 }

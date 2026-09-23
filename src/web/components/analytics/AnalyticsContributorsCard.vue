@@ -5,6 +5,7 @@ import type { AnalyticsTopViewer } from '../../../shared/messages.ts';
 import { IconTrophy } from '../icons.vue';
 import { Card } from '../ui/Card.vue';
 import { DataTable, type Column } from '../ui/Table.vue';
+import { UserAvatar } from '../user-avatar.vue';
 import { formatTime } from './analytics-intraday.ts';
 import { formatCount } from './analytics-range.ts';
 
@@ -42,7 +43,17 @@ export const AnalyticsContributorsCard = defineVueFunctional<AnalyticsContributo
     {
       key: 'viewer',
       header: t(locale, 'viewer'),
-      render: (row) => <span style={{ fontWeight: 600 }}>@{row.uniqueId}</span>,
+      render: (row) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <UserAvatar
+            uniqueId={row.uniqueId}
+            avatarUrl={row.avatarUrl}
+            imgClass="tt-chip-avatar"
+            fallbackClass="tt-chip-avatar fallback"
+          />
+          <span style={{ fontWeight: 600 }}>@{row.uniqueId}</span>
+        </span>
+      ),
     },
     {
       key: 'chats',

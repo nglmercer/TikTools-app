@@ -148,6 +148,7 @@ const INIT_SCRIPT = `
     'creators.recent': () => ({ creators: state.recentCreators }),
     'gifts.list': () => ({ gifts: state.gifts }),
     'processors.status': () => ({ processors: state.processors }),
+    'widgets.status': () => ({ state: 'missing', port: 17452, error: null }),
     'app.state.get': () => ({ state: { ...state.appState } }),
     'app.state.set': (params) => {
       state.appState[params.key] = params.value;

@@ -145,7 +145,38 @@ export function IconSparkles({ size = 18, strokeWidth = 1.75, className }: IconP
     </SvgIcon>
   );
 }
+export function IconEdgeNet({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+        <defs>
+          <linearGradient id="flow" x1="5" y1="6" x2="23" y2="22">
+            <stop stop-color="#25F4EE"/>
+            <stop offset="1" stop-color="#7B61FF"/>
+          </linearGradient>
+        </defs>
 
+        <circle cx="7" cy="14" r="3" stroke="url(#flow)" stroke-width="1.8"/>
+
+        <path
+          d="M10 14H14C16 14 16 10 18 10H21"
+          stroke="#71809A"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        />
+
+        <path
+          d="M14 14C16 14 16 18 18 18H21"
+          stroke="#71809A"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        />
+
+        <circle cx="22" cy="10" r="2" stroke="url(#flow)" stroke-width="1.6"/>
+        <circle cx="22" cy="18" r="2" stroke="url(#flow)" stroke-width="1.6"/>
+    </SvgIcon>
+
+  )
+}
 export function IconSettings({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
   return (
     <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
@@ -617,6 +648,52 @@ export function IconDoc({ size = 18, strokeWidth = 1.75, className }: IconProps 
  * - nav `connect` tab = live signal (radio); header/card connect action = plug
  * - nav `analytics` = bar chart; `automation` = sparkles; feed `all` = bolt
  */
+export function IconUndo({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <path d="M3 7v6h6" />
+      <path d="M21 17a9 9 0 0 0-15-6.7L3 13" />
+    </SvgIcon>
+  );
+}
+
+export function IconRedo({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <path d="M21 7v6h-6" />
+      <path d="M3 17a9 9 0 0 1 15-6.7L21 13" />
+    </SvgIcon>
+  );
+}
+
+export function IconMore({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className} filled>
+      <circle cx="12" cy="5" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="12" cy="19" r="1.6" />
+    </SvgIcon>
+  );
+}
+
+export function IconImage({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="M21 15l-5-5L5 21" />
+    </SvgIcon>
+  );
+}
+
+export function IconSquare({ size = 18, strokeWidth = 1.75, className }: IconProps = {}): VNode {
+  return (
+    <SvgIcon size={size} strokeWidth={strokeWidth} className={className}>
+      <rect x="4" y="4" width="16" height="16" rx="3" />
+    </SvgIcon>
+  );
+}
+
 export const IconConnect: IconComponent = IconConnected;
 export const IconDisconnect: IconComponent = IconDisconnected;
 export const IconLive: IconComponent = IconRadio;

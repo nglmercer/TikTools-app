@@ -4,7 +4,7 @@ use super::auth::{authorized_http, origin_allowed};
 use super::http::{read_http_request, stream_events, write_http_response};
 use super::state::GatewayState;
 use super::topics::query_topics;
-use super::websocket::websocket_connection;
+use super::websocket::{websocket_connection, WsEndpoint};
 use std::io;
 use std::sync::mpsc as std_mpsc;
 use std::sync::Arc;
@@ -170,7 +170,29 @@ async fn handle_connection(stream: TcpStream, state: Arc<GatewayState>) -> io::R
             stream_events(stream, state, topics, origin.as_deref()).await
         }
         ("GET", "/ws") => {
-            websocket_connection(stream, state, headers, origin.as_deref(), version).await
+            websocket_connection(
+                stream,
+                state,
+                headers,
+                origin.as_deref(),
+                version,
+                WsEndpoint::Full,
+            )
+            .await
+        }
+        ("GET", "/ws/widgets") => {
+            websocket_connection(
+                stream,
+                state,
+                headers,
+                origin.as_deref(),
+                version,
+                WsEndpoint::Widgets,
+            )
+            .await
+        }
+        ("GET", path) if super::widgets::is_widget_route(path) => {
+            super::widgets::serve_widget_request(&mut stream, state, path, origin.as_deref()).await
         }
         _ => {
             write_http_response(

@@ -114,6 +114,67 @@ describe('useConnection pick-live', () => {
   });
 });
 
+describe('useConnection creator/input sync', () => {
+  test('connect writes the normalized handle back to the input', async () => {
+    const control = stubControl({
+      call: <T,>(): Promise<T> =>
+        Promise.resolve({
+          connected: true,
+          uniqueId: 'alice',
+          roomId: '123',
+          connectionId: 'connection-1',
+          native: true,
+        } as T),
+    });
+    const connection = useConnection(control, callbacks);
+    connection.setUniqueId('  @alice  ');
+
+    connection.handleConnect();
+    await flushPromises();
+
+    expect(connection.activeCreator.value).toBe('alice');
+    expect(connection.uniqueId.value).toBe('alice');
+  });
+
+  test('a live.connected event syncs the pill and the input', () => {
+    const topics = new Map<string, (data: never) => void>();
+    const control = stubControl({
+      onTopic: (<T,>(topic: string, handler: (data: T) => void): (() => void) => {
+        topics.set(topic, handler as (data: never) => void);
+        return () => {};
+      }) as ControlClient['onTopic'],
+    });
+    const connection = useConnection(control, callbacks);
+    connection.setUniqueId('stale_typing');
+
+    topics.get('live.connected')?.({ uniqueId: '@Canonical_Name' } as never);
+
+    expect(connection.status.value).toBe('connected');
+    expect(connection.activeCreator.value).toBe('Canonical_Name');
+    expect(connection.uniqueId.value).toBe('Canonical_Name');
+  });
+
+  test('a resync read syncs the input with the authoritative creator', async () => {
+    const control = stubControl({
+      call: <T,>(): Promise<T> =>
+        Promise.resolve({
+          connected: true,
+          uniqueId: '@resync_creator',
+          roomId: '123',
+          connectionId: 'connection-1',
+          native: true,
+        } as T),
+    });
+    const connection = useConnection(control, callbacks);
+    connection.setUniqueId('something_else');
+
+    await connection.refreshStatus();
+
+    expect(connection.activeCreator.value).toBe('resync_creator');
+    expect(connection.uniqueId.value).toBe('resync_creator');
+  });
+});
+
 describe('useConnection refreshStatus', () => {
   test('a connected read rebuilds the pill from the authoritative state', async () => {
     const control = stubControl({

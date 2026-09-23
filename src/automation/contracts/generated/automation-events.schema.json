@@ -116,6 +116,13 @@
     },
     "AutomationUser": {
       "properties": {
+        "avatarUrl": {
+          "description": "Display-only avatar URL from the live event. Optional so older\nproducers/consumers keep working; renderers must fall back to\ninitials when it is absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "nickname": {
           "type": "string"
         },

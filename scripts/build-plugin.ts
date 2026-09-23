@@ -1,5 +1,6 @@
 import { mkdir, readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
+import { GATEWAY_WIDGET_KINDS, ensureGatewayWidgetsStaged } from './lib/gateway-widgets.ts';
 import {
   artifactFileName,
   detectHostTarget,
@@ -197,6 +198,11 @@ for (const { directory, manifestPath, manifest } of targets) {
   if (sourceEntry.includes('\0') || sourceEntry.startsWith('/') || sourceEntry.split('/').includes('..')) {
     fail(`${manifestPath} has an unsafe entry: ${sourceEntry}`);
   }
+  if (id === 'tiktools.event-gateway') {
+    // Widget bundles are mandatory gateway content: build and stage them
+    // before the packager snapshots dist/, and fail loudly when missing.
+    await ensureGatewayWidgetsStaged(repositoryRoot);
+  }
 
   // WASM stays target-independent unless it genuinely needs host WASI;
   // compiled native/process entries are platform-specific.
@@ -254,6 +260,9 @@ for (const { directory, manifestPath, manifest } of targets) {
     fail(`packager did not produce ${archivePath}`);
   }
   await verifyPackagedManifest(archivePath, id, packageTarget);
+  if (id === 'tiktools.event-gateway') {
+    await verifyPackagedWidgets(archivePath, id);
+  }
 
   console.log(`Created ${basename(archivePath)}`);
   built.push(archivePath);
@@ -286,6 +295,18 @@ async function verifyPackagedManifest(
   );
   if (!entryFile) {
     fail(`archive ${archivePath} does not contain declared entry ${String(packaged.entry)}`);
+  }
+}
+
+async function verifyPackagedWidgets(archivePath: string, id: string): Promise<void> {
+  // Never silently ship a gateway whose /widgets/* routes 404: every
+  // staged bundle must be inside the archive we just wrote.
+  const entries = await readArchiveEntries(archivePath);
+  for (const kind of GATEWAY_WIDGET_KINDS) {
+    const entry = `${id}/dist/widgets/${kind}/index.html`;
+    if (!entries.includes(entry)) {
+      fail(`archive ${archivePath} is missing ${entry}; refusing to ship a gateway without widget assets`);
+    }
   }
 }
 

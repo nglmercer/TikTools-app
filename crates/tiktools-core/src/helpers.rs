@@ -312,6 +312,25 @@ pub(crate) fn client_event_kind(event: &ClientEvent) -> &'static str {
     }
 }
 
+/// UI-ready `room.stats` contributor row (`TopViewerPayload`): rank, score,
+/// identity, and the display-only avatar URL. Renderers fall back to
+/// initials when the avatar is absent.
+#[cfg(feature = "native-tiktok")]
+pub(crate) fn top_viewer_value(viewer: &tiktools_tiktok::events::TopViewer) -> serde_json::Value {
+    let mut value = json!({
+        "rank": viewer.rank,
+        "score": viewer.score,
+        "delta": viewer.delta,
+        "uniqueId": clean_unique_id(&viewer.user.unique_id).unwrap_or_else(|| "viewer".to_owned()),
+        "nickname": viewer.user.nickname,
+        "userId": viewer.user.id.to_string(),
+    });
+    if let Some(avatar_url) = viewer.user.avatar_url.as_ref() {
+        value["avatarUrl"] = json!(avatar_url);
+    }
+    value
+}
+
 #[cfg(feature = "native-tiktok")]
 pub(crate) fn user_value(user: &tiktools_tiktok::events::EventUser) -> serde_json::Value {
     serde_json::to_value(crate::contracts::AutomationUser {
@@ -319,6 +338,7 @@ pub(crate) fn user_value(user: &tiktools_tiktok::events::EventUser) -> serde_jso
         unique_id: clean_unique_id(&user.unique_id).unwrap_or_else(|| "viewer".to_owned()),
         nickname: user.nickname.clone(),
         sec_uid: user.sec_uid.clone(),
+        avatar_url: user.avatar_url.clone(),
     })
     .expect("automation user must serialize")
 }

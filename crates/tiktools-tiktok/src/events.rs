@@ -10,7 +10,7 @@ use crate::GiftInfo;
 
 pub use ttl_live_events::{
     ChatEvent, EventUser, GiftEvent, LikeEvent, LiveEvent as CanonicalLiveEvent, MemberEvent,
-    RoomUserEvent, SocialEvent,
+    RoomUserEvent, SocialEvent, TopViewer,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

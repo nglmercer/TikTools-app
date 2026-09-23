@@ -355,6 +355,7 @@ export type AnalyticsTopViewer = {
   shares: number;
   interactions: number;
   lastSeen: number;
+  avatarUrl?: string;
 };
 
 export type AnalyticsHourRow = {

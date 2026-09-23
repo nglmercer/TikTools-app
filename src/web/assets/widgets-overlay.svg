@@ -1,0 +1,49 @@
+<svg
+  width="28"
+  height="28"
+  viewBox="0 0 28 28"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-labelledby="title desc"
+>
+  <title id="title">Overlay</title>
+  <desc id="desc">Two layered rounded panels</desc>
+
+  <defs>
+    <linearGradient
+      id="overlay-gradient"
+      x1="5"
+      y1="5"
+      x2="23"
+      y2="23"
+      gradientUnits="userSpaceOnUse"
+    >
+      <stop stop-color="#25F4EE" />
+      <stop offset="1" stop-color="#7B61FF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Back layer -->
+  <rect
+    x="5"
+    y="5"
+    width="14"
+    height="12"
+    rx="3"
+    stroke="#71809A"
+    stroke-width="1.6"
+  />
+
+  <!-- Front overlay -->
+  <rect
+    x="9"
+    y="10"
+    width="14"
+    height="12"
+    rx="3"
+    fill="rgba(37,244,238,0.06)"
+    stroke="url(#overlay-gradient)"
+    stroke-width="1.8"
+  />
+</svg>

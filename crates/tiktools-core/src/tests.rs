@@ -303,6 +303,111 @@ async fn native_live_event_reaches_the_domain_boundary() {
         .any(|message| matches!(message, HostMessage::Leaderboard { .. })));
 }
 
+#[cfg(feature = "native-tiktok")]
+#[tokio::test]
+async fn native_avatar_reaches_ui_points_and_room_tops() {
+    use tiktools_tiktok::events::{
+        CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser, RoomUserEvent, TopViewer,
+    };
+
+    const AVATAR: &str = "https://cdn.example/avatars/alice.png";
+
+    fn user() -> EventUser {
+        EventUser {
+            id: 42,
+            unique_id: "alice".to_owned(),
+            nickname: "Alice".to_owned(),
+            sec_uid: "sec-alice".to_owned(),
+            avatar_url: Some(AVATAR.to_owned()),
+        }
+    }
+
+    fn wrap(base: CanonicalLiveEvent) -> NativeLiveEvent {
+        NativeLiveEvent {
+            base,
+            metadata: EventMetadata {
+                method: "WebcastTest".to_owned(),
+                msg_id: 7,
+                is_history: false,
+            },
+            gift: None,
+        }
+    }
+
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter.clone()));
+    *recover_rwlock_write(&core.connection_context, "test connection context") =
+        Some(LiveContext {
+            unique_id: "creator".to_owned(),
+            room_id: "room-1".to_owned(),
+            connection_id: "connection-1".to_owned(),
+        });
+
+    // Unit boundary: the UI shape and the automation user both carry it.
+    let chat = wrap(CanonicalLiveEvent::Chat(ChatEvent {
+        user: user(),
+        comment: "hello".to_owned(),
+    }));
+    let (ui_event, _, options, _) = core.ui_event_and_points(&chat).expect("chat maps");
+    assert_eq!(ui_event["avatarUrl"], AVATAR);
+    assert_eq!(options.avatar_url.as_deref(), Some(AVATAR));
+    let automation = core.normalize_native_event(&chat).expect("chat normalizes");
+    assert_eq!(automation["user"]["avatarUrl"], AVATAR);
+
+    // Integration: one handled event lands on the domain bus and the board.
+    let mut domain = core.events.subscribe_domain();
+    core.handle_native_event(ClientEvent::Event(chat)).await;
+    let mut saw_avatar = false;
+    while let Ok(event) = domain.try_recv() {
+        if let crate::events::DomainEvent::LiveUiEvent { event } = event {
+            if event.get("avatarUrl").and_then(Value::as_str) == Some(AVATAR) {
+                saw_avatar = true;
+            }
+        }
+    }
+    assert!(saw_avatar, "live.ui-event must carry avatarUrl");
+    // The board may hold viewers from other tests; resolve ours by handle.
+    let board = core.points.leaderboard(Some(1_000));
+    let alice = board
+        .iter()
+        .find(|viewer| viewer.get("uniqueId").and_then(Value::as_str) == Some("alice"))
+        .expect("alice must be on the leaderboard");
+    assert_eq!(alice["avatarUrl"], AVATAR);
+
+    // Room tops: native ranks map to TopViewerPayload rows with avatars.
+    let room = wrap(CanonicalLiveEvent::RoomUser(RoomUserEvent {
+        total: 120,
+        popularity: 500,
+        total_user: 90,
+        anonymous: 30,
+        top_viewers: vec![TopViewer {
+            rank: 1,
+            score: 9000,
+            delta: 100,
+            user: user(),
+        }],
+        ranked_viewers: Vec::new(),
+    }));
+    core.handle_native_event(ClientEvent::Event(room)).await;
+    let mut saw_top = false;
+    while let Ok(event) = domain.try_recv() {
+        if let crate::events::DomainEvent::RoomStats {
+            viewers,
+            total_users,
+            top_viewers,
+        } = event
+        {
+            assert_eq!(viewers, 120);
+            assert_eq!(total_users, 90);
+            assert_eq!(top_viewers.len(), 1);
+            assert_eq!(top_viewers[0]["uniqueId"], "alice");
+            assert_eq!(top_viewers[0]["avatarUrl"], AVATAR);
+            saw_top = true;
+        }
+    }
+    assert!(saw_top, "room.stats must carry mapped top viewers");
+}
+
 #[tokio::test]
 async fn plugin_typed_event_runs_while_its_plugin_is_enabled() {
     let emitter = Arc::new(RecordingEmitter::default());

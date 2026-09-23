@@ -11,9 +11,10 @@ impl AppCore {
         let base_options = || AwardOptions {
             user_id: (user.id != 0).then(|| user.id.to_string()),
             nickname: (!user.nickname.is_empty()).then(|| user.nickname.clone()),
+            avatar_url: user.avatar_url.clone(),
             ..AwardOptions::default()
         };
-        match &event.base {
+        let (mut ui_event, action, options, reason) = match &event.base {
             tiktools_tiktok::events::CanonicalLiveEvent::Chat(chat) => Some((
                 json!({
                     "kind": "chat",
@@ -121,7 +122,14 @@ impl AppCore {
             }
             tiktools_tiktok::events::CanonicalLiveEvent::RoomUser(_)
             | tiktools_tiktok::events::CanonicalLiveEvent::Unknown { .. } => None,
+        }?;
+        // The feed card renders the avatar only when present; omitting the
+        // key (instead of a null) keeps the UI shape identical to before
+        // for events TikTok sends without a user image.
+        if let Some(avatar_url) = user.avatar_url.as_ref() {
+            ui_event["avatarUrl"] = json!(avatar_url);
         }
+        Some((ui_event, action, options, reason))
     }
     #[cfg(feature = "native-tiktok")]
     pub(crate) fn normalize_native_event(

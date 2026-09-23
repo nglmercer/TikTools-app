@@ -400,6 +400,12 @@ function registrySource(schema: JsonRecord): string {
     const intelFields = intelFieldsFor(schema, intelScope);
     const sampleData: JsonRecord = {};
     for (const field of fields) sampleData[field.path.slice('event.data.'.length)] = field.sample;
+    // Sample user generated from the schema (like `data` above) so every
+    // `event.user.*` registry path resolves against it; curated identity
+    // values overlay on top for the demos/tests that rely on them.
+    const sampleUser: JsonRecord = {};
+    for (const field of envelopePaths) sampleUser[field.path.slice('event.user.'.length)] = field.sample;
+    Object.assign(sampleUser, { uniqueId: 'usuario_demo', nickname: 'Viewer Demo', secUid: '', userId: '1' });
     events[eventType] = {
       dataInterface: contractName ?? 'JsonObject',
       sourceInterface: nativeMethod ?? contractName ?? '-',
@@ -407,7 +413,7 @@ function registrySource(schema: JsonRecord): string {
         id: 'sample-event',
         type: eventType,
         timestamp: 0,
-        ...(hasUser ? { user: { uniqueId: 'usuario_demo', nickname: 'Viewer Demo', secUid: '', userId: '1' } } : {}),
+        ...(hasUser ? { user: sampleUser } : {}),
         data: sampleData,
         intel: eventType === 'tiktok.chat' ? INTEL_CHAT_SENTINEL : INTEL_DEFAULT_SENTINEL,
       },

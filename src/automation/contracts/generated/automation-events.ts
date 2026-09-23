@@ -17,7 +17,7 @@ export interface AutomationEvent {
   "sourceEventId"?: string | null;
   "timestamp": number;
   "type": string;
-  "user"?: { "nickname": string; "secUid": string; "uniqueId": string; "userId": string | null } | null;
+  "user"?: { "avatarUrl": string | null; "nickname": string; "secUid": string; "uniqueId": string; "userId": string | null } | null;
 }
 
 export interface AutomationPoints {
@@ -27,6 +27,7 @@ export interface AutomationPoints {
 }
 
 export interface AutomationUser {
+  "avatarUrl"?: string | null;
   "nickname": string;
   "secUid": string;
   "uniqueId": string;

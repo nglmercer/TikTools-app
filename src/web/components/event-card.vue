@@ -2,6 +2,7 @@
 import type { DisplayEvent } from '../types.ts';
 import { t, type Locale } from '../i18n.ts';
 import { IconBolt, IconGift, IconHeart } from './icons.vue';
+import { UserAvatar } from './user-avatar.vue';
 
 function getAvatarColor(username: string): string {
   const gradients = [
@@ -68,7 +69,6 @@ export function EventCard({ event, locale = 'en' }: EventCardProps) {
 
   const text = localizedText(event, locale);
 
-  const hasAvatar = Boolean(event.avatarUrl);
   const timeLabel = new Date(event.receivedAt).toLocaleTimeString(locale === 'es' ? 'es-ES' : 'en-US', {
     hour: '2-digit',
     minute: '2-digit',
@@ -76,30 +76,12 @@ export function EventCard({ event, locale = 'en' }: EventCardProps) {
 
   return (
     <div class={`tiktok-chat-row ${event.kind}`}>
-      {/* Avatar: real image if available, initials fallback */}
-      {hasAvatar ? (
-        <img
-          class="tt-avatar-img"
-          src={event.avatarUrl!}
-          alt={displayName}
-          loading="lazy"
-          onError={(e) => {
-            const img = e.currentTarget as HTMLImageElement;
-            img.style.display = 'none';
-            const fallback = img.nextElementSibling as HTMLElement | null;
-            if (fallback) fallback.style.display = 'flex';
-          }}
-        />
-      ) : null}
-      <div
-        class="tt-avatar"
-        style={{
-          background: getAvatarColor(cleanHandle),
-          display: hasAvatar ? 'none' : 'flex',
-        }}
-      >
-        {cleanHandle.slice(0, 2).toUpperCase()}
-      </div>
+      <UserAvatar
+        uniqueId={cleanHandle}
+        nickname={event.nickname}
+        avatarUrl={event.avatarUrl}
+        fallbackStyle={{ background: getAvatarColor(cleanHandle) }}
+      />
 
       {/* Message Content Container */}
       <div class="tt-content-wrap">

@@ -17,6 +17,7 @@ mod plugins;
 mod points;
 mod processors;
 mod system;
+mod widgets;
 mod workflows;
 
 pub use analytics::GiftDebugResult;
@@ -29,6 +30,7 @@ pub use plugin_settings::{PluginConnectionResult, PluginProvisionResult, PluginS
 pub use plugins::{PluginActionOutcome, PluginInstallResult};
 pub use processors::ProcessorOutcomeDto;
 pub use system::{DoctorCheck, DoctorReport};
+pub use widgets::{WidgetsCopyResult, WidgetsState, WidgetsStatusResult, GATEWAY_PLUGIN_ID};
 
 /// Machine-readable operation failure. The control API maps this 1:1 onto
 /// the JSON-RPC error envelope (`code` + `message`).

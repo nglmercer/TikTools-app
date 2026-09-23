@@ -1,6 +1,6 @@
 //! WebSocket sessions, control messages, and event streaming.
 
-use super::auth::{authorization_token, tokens_equal};
+use super::auth::{authorization_token, tokens_equal, widget_topics_allowed, WIDGET_TOPICS};
 use super::config::GatewayConfig;
 use super::http::{cors_headers, write_http_response};
 use super::state::GatewayState;
@@ -23,12 +23,44 @@ const MAX_WEBSOCKET_MESSAGE_BYTES: usize = 1024 * 1024;
 
 const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Which credential a WebSocket endpoint honors. `/ws` is the full
+/// gateway surface (full token, arbitrary subscriptions); `/ws/widgets`
+/// honors only the widget-scoped token and only widget topics, so a
+/// leaked OBS URL can never escalate into full event access.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WsEndpoint {
+    Full,
+    Widgets,
+}
+
+impl WsEndpoint {
+    pub(crate) fn expected_credential<'a>(&self, config: &'a GatewayConfig) -> &'a str {
+        match self {
+            WsEndpoint::Full => &config.token,
+            WsEndpoint::Widgets => &config.widget_token,
+        }
+    }
+
+    pub(crate) fn initial_topics(&self) -> Vec<String> {
+        match self {
+            WsEndpoint::Full => vec!["*".to_owned()],
+            // Least privilege that still renders: widgets subscribe
+            // explicitly after auth, but a listen-only client must still
+            // stay inside the widget topic set. Both widget topics are
+            // included so lag notifications reach widgets even before
+            // the explicit subscribe lands.
+            WsEndpoint::Widgets => WIDGET_TOPICS.iter().map(|topic| topic.to_string()).collect(),
+        }
+    }
+}
+
 pub(crate) async fn websocket_connection(
     mut stream: BufStream<TcpStream>,
     state: Arc<GatewayState>,
     headers: HashMap<String, String>,
     origin: Option<&str>,
     version: http::Version,
+    endpoint: WsEndpoint,
 ) -> io::Result<()> {
     if headers
         .get("upgrade")
@@ -93,10 +125,10 @@ pub(crate) async fn websocket_connection(
 
     let mut websocket = WebSocketStream::from_raw_socket(stream, Role::Server, None).await;
     let mut receiver = state.events.subscribe();
-    let mut authenticated =
-        authorization_token(&headers).is_some_and(|token| tokens_equal(token, &state.config.token));
+    let mut authenticated = authorization_token(&headers)
+        .is_some_and(|token| tokens_equal(token, endpoint.expected_credential(&state.config)));
     let mut topics = if authenticated {
-        vec!["*".to_owned()]
+        endpoint.initial_topics()
     } else {
         Vec::new()
     };
@@ -114,7 +146,7 @@ pub(crate) async fn websocket_connection(
                 }
                 message = websocket.next() => {
                     match message {
-                        Some(Ok(message)) => match handle_websocket_control(message, &state.config, &mut authenticated, &mut topics, &mut websocket).await {
+                        Some(Ok(message)) => match handle_websocket_control(message, &state.config, endpoint, &mut authenticated, &mut topics, &mut websocket).await {
                             Ok(true) => {}
                             Ok(false) => break,
                             Err(error) => return Err(error),
@@ -135,7 +167,7 @@ pub(crate) async fn websocket_connection(
             }
             message = websocket.next() => {
                 match message {
-                    Some(Ok(message)) => match handle_websocket_control(message, &state.config, &mut authenticated, &mut topics, &mut websocket).await {
+                    Some(Ok(message)) => match handle_websocket_control(message, &state.config, endpoint, &mut authenticated, &mut topics, &mut websocket).await {
                         Ok(true) => {}
                         Ok(false) => break,
                         Err(error) => return Err(error),
@@ -165,6 +197,7 @@ pub(crate) async fn websocket_connection(
 async fn handle_websocket_control<S>(
     message: Message,
     config: &GatewayConfig,
+    endpoint: WsEndpoint,
     authenticated: &mut bool,
     topics: &mut Vec<String>,
     websocket: &mut WebSocketStream<S>,
@@ -189,7 +222,15 @@ where
                     "WebSocket message too large",
                 ));
             }
-            handle_websocket_json(text.as_ref(), config, authenticated, topics, websocket).await
+            handle_websocket_json(
+                text.as_ref(),
+                config,
+                endpoint,
+                authenticated,
+                topics,
+                websocket,
+            )
+            .await
         }
         Message::Binary(bytes) => {
             if bytes.len() > MAX_WEBSOCKET_MESSAGE_BYTES {
@@ -201,6 +242,7 @@ where
             handle_websocket_json(
                 std::str::from_utf8(&bytes).unwrap_or_default(),
                 config,
+                endpoint,
                 authenticated,
                 topics,
                 websocket,
@@ -214,6 +256,7 @@ where
 async fn handle_websocket_json<S>(
     text: &str,
     config: &GatewayConfig,
+    endpoint: WsEndpoint,
     authenticated: &mut bool,
     topics: &mut Vec<String>,
     websocket: &mut WebSocketStream<S>,
@@ -230,7 +273,7 @@ where
                 .get("token")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            if !tokens_equal(token, &config.token) {
+            if !tokens_equal(token, endpoint.expected_credential(config)) {
                 let _ = websocket
                     .send(Message::Text(
                         json!({"type": "error", "error": "authentication failed"})
@@ -241,7 +284,7 @@ where
                 return Ok(false);
             }
             *authenticated = true;
-            *topics = vec!["*".to_owned()];
+            *topics = endpoint.initial_topics();
             websocket
                 .send(Message::Text(
                     json!({"type": "authenticated"}).to_string().into(),
@@ -268,6 +311,10 @@ where
                     return Ok(true);
                 }
                 next.push(topic.to_owned());
+            }
+            if endpoint == WsEndpoint::Widgets && !widget_topics_allowed(&next) {
+                send_control_error(websocket, "topic not allowed for widget credentials").await?;
+                return Ok(true);
             }
             *topics = next;
             websocket

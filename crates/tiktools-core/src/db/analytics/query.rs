@@ -201,7 +201,7 @@ impl DatabaseManager {
              ORDER BY SUM(chats + gifts + likes + shares) DESC, MAX(last_seen) DESC
              LIMIT ?4",
         )?;
-        let top_viewers = viewers_statement
+        let mut top_viewers = viewers_statement
             .query_map(
                 params![creator_unique_id, window_lo, window_hi, limit],
                 |row| {
@@ -214,10 +214,12 @@ impl DatabaseManager {
                         shares: row.get(5)?,
                         interactions: row.get(6)?,
                         last_seen: row.get(7)?,
+                        avatar_url: None,
                     })
                 },
             )?
             .collect::<Result<Vec<_>, _>>()?;
+        self.attach_viewer_avatars(&mut top_viewers);
         // Session instants are exact, so the frame shift applies cleanly here
         // (identical to the legacy expression when offset == 0).
         let sessions: i64 = connection.query_row(
@@ -255,5 +257,37 @@ impl DatabaseManager {
             sessions,
             hours,
         })
+    }
+
+    /// Fills display-only avatars from the points `viewers` table. Best
+    /// effort: a missing points database (or table) leaves every avatar
+    /// as `None` instead of failing the summary.
+    fn attach_viewer_avatars(&self, top_viewers: &mut [AnalyticsTopViewer]) {
+        if top_viewers.is_empty() {
+            return;
+        }
+        let connection = match self.open(&self.points_path()) {
+            Ok(connection) => connection,
+            Err(_) => return,
+        };
+        let mut statement = match connection.prepare("SELECT unique_id, avatar_url FROM viewers") {
+            Ok(statement) => statement,
+            Err(_) => return,
+        };
+        let rows = match statement.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        }) {
+            Ok(rows) => rows,
+            Err(_) => return,
+        };
+        let mut by_unique_id = std::collections::HashMap::new();
+        for (unique_id, avatar_url) in rows.flatten() {
+            if let Some(url) = avatar_url.filter(|url| !url.is_empty()) {
+                by_unique_id.insert(unique_id, url);
+            }
+        }
+        for viewer in top_viewers.iter_mut() {
+            viewer.avatar_url = by_unique_id.get(&viewer.unique_id).cloned();
+        }
     }
 }

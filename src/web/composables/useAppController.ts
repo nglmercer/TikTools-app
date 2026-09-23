@@ -11,6 +11,7 @@ import { useMedia } from '../features/media.ts';
 import { usePlugins } from '../features/plugins.ts';
 import { usePoints } from '../features/points.ts';
 import { useProcessors } from '../features/processors.ts';
+import { useWidgets } from '../features/widgets.ts';
 import { createControlClient } from '../platform/control-client.ts';
 import {
   controlBackend,
@@ -68,6 +69,7 @@ export function useAppController() {
   });
   const analytics = useAnalytics(control, () => connection.activeCreator.value);
   const automation = useAutomation(control);
+  const widgets = useWidgets(control);
   const plugins = usePlugins(control, {
     translate,
     refreshBehavior: () => automation.refresh(),
@@ -327,5 +329,15 @@ export function useAppController() {
     handleCancelPluginReplace: plugins.handleCancelPluginReplace,
     openMediaPicker: media.openMediaPicker,
     handleAnalyzeScript: automation.handleAnalyzeScript,
+    widgetsStatus: widgets.status,
+    widgetDesigns: widgets.designs,
+    widgetDesignsLoading: widgets.designsLoading,
+    widgetDesignsError: widgets.designsError,
+    loadWidgetDesigns: widgets.loadDesigns,
+    saveWidgetDesign: widgets.saveDesign,
+    widgetsStatusError: widgets.statusError,
+    widgetsRefreshing: widgets.refreshing,
+    refreshWidgetsStatus: widgets.refreshStatus,
+    copyWidgetObsUrl: widgets.copyObsUrl,
   };
 }

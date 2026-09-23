@@ -64,10 +64,12 @@ bun run contracts:check
 bun run deps:check
 ```
 
-The host intentionally exposes only fields it emits. For example, user
-`avatarUrl`, gift `toUser`, and room-stat `topViewers` are not automation fields
-unless the Rust boundary starts emitting them and the generated contracts are
-updated together.
+The host intentionally exposes only fields it emits. For example, gift
+`toUser` and room-stat `topViewers` are not automation fields unless the Rust
+boundary starts emitting them and the generated contracts are updated together.
+User `avatarUrl` is the exception: an optional display-only hint the host emits
+on automation users so renderers (feed, tops, tables, OBS overlays) can show
+the TikTok user image, falling back to initials when it is absent.
 
 ## Built-in action types
 

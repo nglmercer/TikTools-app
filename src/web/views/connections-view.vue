@@ -108,7 +108,6 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
 
         <Card title={t(locale, 'connectToLive')} subtitle={t(locale, 'connectionsLiveLead')} icon={<IconRadio />}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {isLive ? <Alert variant="info">{t(locale, 'live')} — {t(locale, 'disconnectToChangeCreator')}</Alert> : null}
             <TextField
               id="connect-creator"
               name="creator"
@@ -117,7 +116,7 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
               options={recentOptions}
               onOptionPick={(picked) => onSelectRecent(picked)}
               label={t(locale, 'creatorHandle')}
-              hint={t(locale, 'leadingAtOptional')}
+              hint={t(locale, isLive ? 'disconnectToChangeCreator' : 'leadingAtOptional')}
               prefix="@"
               placeholder={t(locale, 'usernamePlaceholder')}
               required
@@ -144,29 +143,31 @@ export const ConnectionsView = defineVueComponent<ConnectionsViewProps>(
 
             {error ? <Alert variant="danger">{error}</Alert> : null}
 
-            <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'stretch' }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 'none' }}>
-                {!showCookie.value ? (
-                  <Button
-                    variant="soft"
-                    size="sm"
-                    icon={<IconLock size={14} />}
-                    tooltip={t(locale, 'guestCookieHint')}
-                    onClick={() => (showCookie.value = true)}
-                    disabled={isLive || isBusy}
-                  >
-                    {t(locale, 'authenticatedCookie')}
+            {!isLive ? (
+              <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'stretch' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 'none' }}>
+                  {!showCookie.value ? (
+                    <Button
+                      variant="soft"
+                      size="sm"
+                      icon={<IconLock size={14} />}
+                      tooltip={t(locale, 'guestCookieHint')}
+                      onClick={() => (showCookie.value = true)}
+                      disabled={isBusy}
+                    >
+                      {t(locale, 'authenticatedCookie')}
+                    </Button>
+                  ) : null}
+                  <InfoTip text={t(locale, 'guestCookieHint')} position="top" />
+                </div>
+                <div style={{ display: 'flex', gap: 8, flex: '1 1 auto', minWidth: 0 }}>
+                  <Button type="submit" variant="primary" block loading={isBusy} disabled={!uniqueId.trim()}>
+                    {isBusy ? t(locale, 'connecting') : t(locale, 'connect')}
                   </Button>
-                ) : null}
-                <InfoTip text={t(locale, 'guestCookieHint')} position="top" />
+                  <Button variant="cyan" tooltip={t(locale, 'pickLive')} disabled={isBusy} onClick={onPickLive} icon={<IconDice />} iconOnly />
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 8, flex: '1 1 auto', minWidth: 0 }}>
-                <Button type="submit" variant="primary" block loading={isBusy} disabled={isLive || !uniqueId.trim()}>
-                  {isBusy ? t(locale, 'connecting') : isLive ? t(locale, 'live') : t(locale, 'connect')}
-                </Button>
-                <Button variant="cyan" tooltip={t(locale, 'pickLive')} disabled={isLive || isBusy} onClick={onPickLive} icon={<IconDice />} iconOnly />
-              </div>
-            </div>
+            ) : null}
 
             {isLive || status === 'error' ? (
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>

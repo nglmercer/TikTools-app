@@ -256,9 +256,10 @@ export const GENERATED_EVENT_REGISTRY = {
         "type": "tiktok.chat",
         "timestamp": 0,
         "user": {
-          "uniqueId": "usuario_demo",
+          "avatarUrl": "sample",
           "nickname": "Viewer Demo",
           "secUid": "",
+          "uniqueId": "usuario_demo",
           "userId": "1"
         },
         "data": {
@@ -270,6 +271,21 @@ export const GENERATED_EVENT_REGISTRY = {
         "intel": INTEL_SAMPLE_CHAT
       },
       "fields": [
+        {
+          "path": "event.user.avatarUrl",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Avatar Url",
+            "es": "Avatar Url"
+          },
+          "hint": {
+            "en": "AutomationUser.avatarUrl",
+            "es": "AutomationUser.avatarUrl"
+          },
+          "sample": "sample"
+        },
         {
           "path": "event.user.nickname",
           "tsType": "string",
@@ -1618,9 +1634,10 @@ export const GENERATED_EVENT_REGISTRY = {
         "type": "tiktok.gift",
         "timestamp": 0,
         "user": {
-          "uniqueId": "usuario_demo",
+          "avatarUrl": "sample",
           "nickname": "Viewer Demo",
           "secUid": "",
+          "uniqueId": "usuario_demo",
           "userId": "1"
         },
         "data": {
@@ -1640,6 +1657,21 @@ export const GENERATED_EVENT_REGISTRY = {
         "intel": INTEL_SAMPLE_DEFAULT
       },
       "fields": [
+        {
+          "path": "event.user.avatarUrl",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Avatar Url",
+            "es": "Avatar Url"
+          },
+          "hint": {
+            "en": "AutomationUser.avatarUrl",
+            "es": "AutomationUser.avatarUrl"
+          },
+          "sample": "sample"
+        },
         {
           "path": "event.user.nickname",
           "tsType": "string",
@@ -2232,9 +2264,10 @@ export const GENERATED_EVENT_REGISTRY = {
         "type": "tiktok.like",
         "timestamp": 0,
         "user": {
-          "uniqueId": "usuario_demo",
+          "avatarUrl": "sample",
           "nickname": "Viewer Demo",
           "secUid": "",
+          "uniqueId": "usuario_demo",
           "userId": "1"
         },
         "data": {
@@ -2247,6 +2280,21 @@ export const GENERATED_EVENT_REGISTRY = {
         "intel": INTEL_SAMPLE_DEFAULT
       },
       "fields": [
+        {
+          "path": "event.user.avatarUrl",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Avatar Url",
+            "es": "Avatar Url"
+          },
+          "hint": {
+            "en": "AutomationUser.avatarUrl",
+            "es": "AutomationUser.avatarUrl"
+          },
+          "sample": "sample"
+        },
         {
           "path": "event.user.nickname",
           "tsType": "string",
@@ -2662,9 +2710,10 @@ export const GENERATED_EVENT_REGISTRY = {
         "type": "tiktok.follow",
         "timestamp": 0,
         "user": {
-          "uniqueId": "usuario_demo",
+          "avatarUrl": "sample",
           "nickname": "Viewer Demo",
           "secUid": "",
+          "uniqueId": "usuario_demo",
           "userId": "1"
         },
         "data": {
@@ -2678,6 +2727,21 @@ export const GENERATED_EVENT_REGISTRY = {
         "intel": INTEL_SAMPLE_DEFAULT
       },
       "fields": [
+        {
+          "path": "event.user.avatarUrl",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Avatar Url",
+            "es": "Avatar Url"
+          },
+          "hint": {
+            "en": "AutomationUser.avatarUrl",
+            "es": "AutomationUser.avatarUrl"
+          },
+          "sample": "sample"
+        },
         {
           "path": "event.user.nickname",
           "tsType": "string",
@@ -3120,9 +3184,10 @@ export const GENERATED_EVENT_REGISTRY = {
         "type": "tiktok.share",
         "timestamp": 0,
         "user": {
-          "uniqueId": "usuario_demo",
+          "avatarUrl": "sample",
           "nickname": "Viewer Demo",
           "secUid": "",
+          "uniqueId": "usuario_demo",
           "userId": "1"
         },
         "data": {
@@ -3136,6 +3201,21 @@ export const GENERATED_EVENT_REGISTRY = {
         "intel": INTEL_SAMPLE_DEFAULT
       },
       "fields": [
+        {
+          "path": "event.user.avatarUrl",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Avatar Url",
+            "es": "Avatar Url"
+          },
+          "hint": {
+            "en": "AutomationUser.avatarUrl",
+            "es": "AutomationUser.avatarUrl"
+          },
+          "sample": "sample"
+        },
         {
           "path": "event.user.nickname",
           "tsType": "string",
@@ -3578,9 +3658,10 @@ export const GENERATED_EVENT_REGISTRY = {
         "type": "tiktok.join",
         "timestamp": 0,
         "user": {
-          "uniqueId": "usuario_demo",
+          "avatarUrl": "sample",
           "nickname": "Viewer Demo",
           "secUid": "",
+          "uniqueId": "usuario_demo",
           "userId": "1"
         },
         "data": {
@@ -3593,6 +3674,21 @@ export const GENERATED_EVENT_REGISTRY = {
         "intel": INTEL_SAMPLE_DEFAULT
       },
       "fields": [
+        {
+          "path": "event.user.avatarUrl",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Avatar Url",
+            "es": "Avatar Url"
+          },
+          "hint": {
+            "en": "AutomationUser.avatarUrl",
+            "es": "AutomationUser.avatarUrl"
+          },
+          "sample": "sample"
+        },
         {
           "path": "event.user.nickname",
           "tsType": "string",
@@ -4008,9 +4104,10 @@ export const GENERATED_EVENT_REGISTRY = {
         "type": "tiktok.social",
         "timestamp": 0,
         "user": {
-          "uniqueId": "usuario_demo",
+          "avatarUrl": "sample",
           "nickname": "Viewer Demo",
           "secUid": "",
+          "uniqueId": "usuario_demo",
           "userId": "1"
         },
         "data": {
@@ -4024,6 +4121,21 @@ export const GENERATED_EVENT_REGISTRY = {
         "intel": INTEL_SAMPLE_DEFAULT
       },
       "fields": [
+        {
+          "path": "event.user.avatarUrl",
+          "tsType": "string | null",
+          "kind": "string",
+          "optional": true,
+          "label": {
+            "en": "Avatar Url",
+            "es": "Avatar Url"
+          },
+          "hint": {
+            "en": "AutomationUser.avatarUrl",
+            "es": "AutomationUser.avatarUrl"
+          },
+          "sample": "sample"
+        },
         {
           "path": "event.user.nickname",
           "tsType": "string",
