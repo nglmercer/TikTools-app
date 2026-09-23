@@ -10,6 +10,7 @@ use tiktools_plugin_api::{compose_text, strip_emoji};
 
 use tiktools_plugin_sdk::{TextPronunciation, TextView};
 
+use crate::moderation;
 use crate::settings::{EmojiMode, TextIntelSettings};
 
 /// Version of this stable mapping. Bumped deliberately when the emitted
@@ -18,7 +19,6 @@ pub const INTEL_SCHEMA_VERSION: u32 = 2;
 const MAX_LANGUAGE_CANDIDATES: usize = 3;
 const MAX_OBFUSCATION_FLAGS: usize = 8;
 const MAX_SPAM_REASONS: usize = 4;
-const SPAM_DETECTED_THRESHOLD: f64 = 0.7;
 const SUSPICIOUS_UNICODE_THRESHOLD: f64 = 0.5;
 
 pub fn truncate_chars(text: &str, max_chars: usize) -> (String, bool) {
@@ -90,15 +90,38 @@ pub fn comment_annotation(
     if settings.obfuscation {
         comment["obfuscation"] = obfuscation_value(fingerprint);
     }
-    if settings.spam {
-        comment["spam"] = spam_value(fingerprint);
+    let spam_evidence = settings.spam.then(|| spam_parts(fingerprint));
+    if let Some((score, reasons)) = &spam_evidence {
+        comment["spam"] = spam_value(*score, reasons, settings);
     }
     if settings.rebus {
         if let Some(rebus) = rebus_value(fingerprint, settings) {
             comment["rebus"] = rebus;
         }
     }
-    if settings.tts_candidate {
+    // Term matching is skipped entirely with the default empty list, so the
+    // moderation verdict costs nothing for existing installations.
+    let term_matches = if settings.bad_words.is_empty() {
+        Vec::new()
+    } else {
+        moderation::match_terms(fingerprint, &settings.bad_words)
+    };
+    let verdict = moderation::moderation_value(
+        settings.filter_spam,
+        settings.spam_threshold,
+        spam_evidence.as_ref().map(|(score, _)| *score),
+        settings.filter_bad_words,
+        &term_matches,
+    );
+    let blocked = verdict.get("blocked").and_then(Value::as_bool) == Some(true);
+    comment["moderation"] = verdict;
+    if blocked && settings.mute_blocked_tts {
+        // Explicit skip policy, never an omitted view: downstream TTS falls
+        // back to raw text when no view exists, so blocked messages must
+        // carry `speak: false` even with `ttsCandidate` disabled.
+        comment["tts"] =
+            json!({"text": "", "source": "policy", "speak": false, "reason": "moderation-blocked"});
+    } else if settings.tts_candidate {
         comment["tts"] = tts_value(fingerprint, raw, &composition.emoji_only, settings);
     }
     comment
@@ -201,23 +224,29 @@ fn obfuscation_value(fingerprint: &MessageFingerprint) -> Value {
     })
 }
 
-fn spam_value(fingerprint: &MessageFingerprint) -> Value {
+/// Spam score plus bounded reasons, shared by the stable `spam` evidence
+/// and the moderation verdict so the predictor runs once per message.
+fn spam_parts(fingerprint: &MessageFingerprint) -> (f64, Vec<Value>) {
     // The engine builder installs HeuristicSpamPredictor by default (a trained
     // predictor needs an explicit artifact file), so this is the engine's own
     // predictor, not a fork of it. Patterns stay empty: this offline build
     // registers no patterns, and `match_patterns`/`detect_spam` would
     // re-analyze the text just to return that empty set.
     let spam = textintel::predict_spam(fingerprint, &[]);
-    let score = clamp01(spam.probability);
+    let reasons = spam
+        .reasons
+        .iter()
+        .take(MAX_SPAM_REASONS)
+        .map(|reason| Value::String(truncate_str(reason, 128)))
+        .collect::<Vec<_>>();
+    (clamp01(spam.probability), reasons)
+}
+
+fn spam_value(score: f64, reasons: &[Value], settings: &TextIntelSettings) -> Value {
     json!({
         "score": score,
-        "detected": score >= SPAM_DETECTED_THRESHOLD,
-        "reasons": spam
-            .reasons
-            .iter()
-            .take(MAX_SPAM_REASONS)
-            .map(|reason| Value::String(truncate_str(reason, 128)))
-            .collect::<Vec<_>>(),
+        "detected": score >= settings.spam_threshold,
+        "reasons": reasons,
     })
 }
 

@@ -106,6 +106,18 @@ struct RawSettings {
     max_input_chars: Option<u64>,
     #[serde(deserialize_with = "lenient")]
     emoji_mode: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    filter_spam: Option<bool>,
+    #[serde(deserialize_with = "lenient")]
+    spam_threshold: Option<f64>,
+    #[serde(deserialize_with = "lenient")]
+    filter_bad_words: Option<bool>,
+    // `Vec<Value>` (not `Vec<String>`) so one mistyped entry degrades to a
+    // skipped entry instead of discarding the whole list.
+    #[serde(deserialize_with = "lenient")]
+    bad_words: Option<Vec<Value>>,
+    #[serde(deserialize_with = "lenient")]
+    mute_blocked_tts: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -125,6 +137,11 @@ pub struct TextIntelSettings {
     pub minimum_rebus_confidence: f64,
     pub max_input_chars: usize,
     pub emoji_mode: EmojiMode,
+    pub filter_spam: bool,
+    pub spam_threshold: f64,
+    pub filter_bad_words: bool,
+    pub bad_words: Vec<String>,
+    pub mute_blocked_tts: bool,
 }
 
 impl Default for TextIntelSettings {
@@ -149,6 +166,14 @@ impl Default for TextIntelSettings {
             minimum_rebus_confidence: 0.5,
             max_input_chars: 500,
             emoji_mode: EmojiMode::Keep,
+            // Moderation is opt-in: existing installations must not suddenly
+            // start blocking messages. `spam` still calculates evidence;
+            // `filter_spam` decides whether that evidence blocks.
+            filter_spam: false,
+            spam_threshold: 0.7,
+            filter_bad_words: false,
+            bad_words: Vec::new(),
+            mute_blocked_tts: true,
         }
     }
 }
@@ -193,8 +218,26 @@ impl From<RawSettings> for TextIntelSettings {
                 .as_deref()
                 .map(EmojiMode::parse)
                 .unwrap_or(defaults.emoji_mode),
+            filter_spam: raw.filter_spam.unwrap_or(defaults.filter_spam),
+            spam_threshold: clamp_confidence(raw.spam_threshold, defaults.spam_threshold),
+            filter_bad_words: raw.filter_bad_words.unwrap_or(defaults.filter_bad_words),
+            bad_words: raw
+                .bad_words
+                .map(sanitize_raw_bad_words)
+                .unwrap_or_default(),
+            mute_blocked_tts: raw.mute_blocked_tts.unwrap_or(defaults.mute_blocked_tts),
         }
     }
+}
+
+/// Keeps string entries for moderation sanitizing; non-string entries
+/// degrade to skipped entries. Never logs its input.
+fn sanitize_raw_bad_words(raw: Vec<Value>) -> Vec<String> {
+    crate::moderation::sanitize_bad_words(
+        raw.into_iter()
+            .filter_map(|entry| entry.as_str().map(str::to_owned))
+            .collect(),
+    )
 }
 
 impl TextIntelSettings {
@@ -208,7 +251,7 @@ impl TextIntelSettings {
     /// plugin clears its bounded caches whenever this changes.
     pub fn digest(&self) -> String {
         format!(
-            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{:?}|{:?}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{:?}|{:?}|{}|{}|{}|{:?}|{}|{:016x}|{}",
             self.analyze_comments,
             self.analyze_nicknames,
             self.analyze_usernames,
@@ -224,8 +267,30 @@ impl TextIntelSettings {
             ordered_float_bits(self.minimum_rebus_confidence),
             self.max_input_chars,
             self.emoji_mode.as_str(),
+            self.filter_spam,
+            ordered_float_bits(self.spam_threshold),
+            self.filter_bad_words,
+            fnv1a64_terms(&self.bad_words),
+            self.mute_blocked_tts,
         )
     }
+}
+
+/// Deterministic 64-bit FNV-1a over the sanitized term list, so the digest
+/// stays bounded no matter how many terms are configured. The digest never
+/// carries the terms themselves.
+fn fnv1a64_terms(terms: &[String]) -> u64 {
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for term in terms {
+        for byte in term.as_bytes() {
+            hash ^= u64::from(*byte);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+        // Separates terms so ["ab", "c"] and ["a", "bc"] hash differently.
+        hash ^= 0xff;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }
 
 fn ordered_float_bits(value: f64) -> u64 {
@@ -301,5 +366,92 @@ mod tests {
         changed.minimum_tts_confidence = 0.8;
         assert_ne!(base.digest(), changed.digest());
         assert_eq!(base.digest(), TextIntelSettings::default().digest());
+    }
+
+    #[test]
+    fn moderation_defaults_are_opt_in() {
+        let settings = TextIntelSettings::default();
+        assert!(!settings.filter_spam);
+        assert_eq!(settings.spam_threshold, 0.7);
+        assert!(!settings.filter_bad_words);
+        assert!(settings.bad_words.is_empty());
+        assert!(settings.mute_blocked_tts);
+
+        // Stored settings predating moderation deserialize unchanged.
+        let legacy = TextIntelSettings::from_value(&json!({
+            "analyzeComments": true,
+            "spam": true,
+        }));
+        assert_eq!(legacy, TextIntelSettings::default());
+
+        // The camelCase wire shape parses.
+        let settings = TextIntelSettings::from_value(&json!({
+            "filterSpam": true,
+            "spamThreshold": 0.75,
+            "filterBadWords": true,
+            "badWords": ["scam", "badword"],
+            "muteBlockedTts": false,
+        }));
+        assert!(settings.filter_spam);
+        assert_eq!(settings.spam_threshold, 0.75);
+        assert!(settings.filter_bad_words);
+        assert_eq!(settings.bad_words, vec!["scam", "badword"]);
+        assert!(!settings.mute_blocked_tts);
+    }
+
+    #[test]
+    fn moderation_settings_parse_leniently_and_stay_bounded() {
+        let settings = TextIntelSettings::from_value(&json!({
+            "filterSpam": "yes",
+            "spamThreshold": 7.5,
+            "filterBadWords": 1,
+            "badWords": [" ok ", "", 42, "ok", "x".repeat(200)],
+            "muteBlockedTts": "no",
+        }));
+        assert!(!settings.filter_spam);
+        assert_eq!(settings.spam_threshold, 1.0);
+        assert!(!settings.filter_bad_words);
+        assert_eq!(settings.bad_words, vec!["ok"]);
+        assert!(settings.mute_blocked_tts);
+
+        let settings = TextIntelSettings::from_value(&json!({
+            "spamThreshold": -2.0,
+            "badWords": "not-an-array",
+        }));
+        assert_eq!(settings.spam_threshold, 0.0);
+        assert!(settings.bad_words.is_empty());
+
+        // One bad field never discards the rest.
+        let settings = TextIntelSettings::from_value(&json!({
+            "filterSpam": true,
+            "badWords": ["scam"],
+            "spamThreshold": "high",
+        }));
+        assert!(settings.filter_spam);
+        assert_eq!(settings.bad_words, vec!["scam"]);
+        assert_eq!(settings.spam_threshold, 0.7);
+    }
+
+    #[test]
+    fn digest_covers_every_moderation_setting() {
+        let base = TextIntelSettings::default();
+        let mut changed = base.clone();
+        changed.filter_spam = true;
+        assert_ne!(base.digest(), changed.digest());
+        let mut changed = base.clone();
+        changed.spam_threshold = 0.8;
+        assert_ne!(base.digest(), changed.digest());
+        let mut changed = base.clone();
+        changed.filter_bad_words = true;
+        assert_ne!(base.digest(), changed.digest());
+        let mut changed = base.clone();
+        changed.bad_words = vec!["scam".to_owned()];
+        assert_ne!(base.digest(), changed.digest());
+        let mut changed = base.clone();
+        changed.mute_blocked_tts = false;
+        assert_ne!(base.digest(), changed.digest());
+        // The digest never carries the terms themselves.
+        assert!(!base.digest().contains("scam"));
+        assert!(!changed.digest().contains("scam"));
     }
 }

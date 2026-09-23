@@ -10,6 +10,7 @@
 mod cooldown;
 mod filters;
 mod matching;
+pub(crate) mod moderation;
 mod runs;
 mod snapshot;
 #[cfg(test)]

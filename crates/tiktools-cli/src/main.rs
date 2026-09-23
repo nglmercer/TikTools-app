@@ -33,6 +33,7 @@ commands:
            | create --record json [--kind k] | update <id> --record json [--kind k]
            | delete <id> [--kind k] | enable <id> [--kind k] | disable <id> [--kind k]
            | test (--id <id> | --record json) [--kind k] [--trigger t]
+           | moderation-penalty --points <delta>
            | context
   workflow list | get <id> | save --record json | delete <id>
            | enable <id> | disable <id>

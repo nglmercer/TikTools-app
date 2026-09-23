@@ -11,6 +11,10 @@ mod script;
 pub(crate) mod token_provision;
 
 pub use app_state::AppStateService;
+pub use automation::moderation::{
+    moderation_penalty_action_record, moderation_penalty_event_record, validate_penalty_points,
+    MODERATION_BLOCKED_PATH, MODERATION_POINTS_ACTION_TYPE, MODERATION_VIEWER_TEMPLATE,
+};
 pub(crate) use automation::read_event_path;
 pub use automation::AutomationService;
 pub use capabilities::{

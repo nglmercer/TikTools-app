@@ -469,6 +469,28 @@ mod tests {
     }
 
     #[test]
+    fn negative_adjustments_clamp_at_zero() {
+        // The `core.points` execution path (moderation penalties included)
+        // adjusts through here: viewers can never drop below zero.
+        let service = PointsService::default();
+        service.award_points(
+            "alice",
+            PointAction::Manual,
+            AwardOptions {
+                custom_amount: Some(5.0),
+                ..AwardOptions::default()
+            },
+        );
+        let award = service.adjust("alice", -10.0).expect("viewer exists");
+        assert_eq!(award.total_points, 0.0);
+        assert_eq!(award.delta, -10.0);
+        assert_eq!(service.leaderboard(Some(1))[0]["points"], 0.0);
+        // Unknown viewers stay unknown: no negative phantom rows.
+        assert!(service.adjust("nobody", -10.0).is_none());
+        assert!(service.adjust("alice", f64::NAN).is_none());
+    }
+
+    #[test]
     fn point_configuration_normalizes_unsafe_ranges() {
         let mut config = PointsConfig {
             points_per_coin: -10.0,

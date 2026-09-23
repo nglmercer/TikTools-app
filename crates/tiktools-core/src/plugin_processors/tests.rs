@@ -218,6 +218,64 @@ async fn eligible_processor_enriches_matching_event() {
 }
 
 #[tokio::test]
+async fn moderation_verdict_merges_provider_namespaced_with_muted_tts() {
+    let manifest = processor_manifest(
+        "textintel",
+        &["events.enrich"],
+        json!([{
+            "id": "textintel.analyze",
+            "title": {"default": "Text Intelligence"},
+            "eventTypes": ["tiktok.chat"],
+        }]),
+    );
+    let harness = make_harness(
+        &[("textintel", manifest)],
+        scripted(|_request| {
+            Ok(enrich_response(
+                json!({"comment": {
+                    "normalized": "this is a scam",
+                    "spam": {"score": 0.12, "detected": false, "reasons": []},
+                    "moderation": {
+                        "blocked": true,
+                        "spam": false,
+                        "spamScore": 0.12,
+                        "badWords": true,
+                        "matches": [{"term": "scam", "view": "raw"}],
+                        "reasons": ["bad-word"],
+                    },
+                }}),
+                json!({"comment": {
+                    "text": "",
+                    "source": "policy",
+                    "speak": false,
+                    "reason": "moderation-blocked",
+                }}),
+            ))
+        }),
+    );
+    let event = chat_event();
+    let enriched = enrich(&harness, event.clone()).await;
+    // Raw live event fields are never modified by moderation.
+    assert_eq!(raw_fields(&enriched), raw_fields(&event));
+    // The verdict is addressable for automation filters.
+    assert_eq!(
+        enriched["intel"]["providers"]["textintel"]["comment"]["moderation"]["blocked"],
+        true
+    );
+    // The stable contract promotes without the provider-namespaced verdict.
+    assert_eq!(enriched["intel"]["comment"]["normalized"], "this is a scam");
+    assert!(enriched["intel"]["comment"].get("moderation").is_none());
+    assert!(enriched["intel"].get("processing").is_none());
+    // The skip policy projects to stable TTS: nothing falls back to raw text.
+    assert_eq!(enriched["intel"]["comment"]["tts"]["speak"], false);
+    assert_eq!(
+        enriched["intel"]["comment"]["tts"]["reason"],
+        "moderation-blocked"
+    );
+    drop_harness(harness);
+}
+
+#[tokio::test]
 async fn enrich_requests_carry_plugin_settings() {
     let manifest = processor_manifest(
         "configured",

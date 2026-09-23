@@ -409,8 +409,351 @@ mod tests {
         assert_eq!(processor.comment_cache.len(), 1);
     }
 
+    const SPAMMY: &str =
+        "BUY NOW!!! cheap followers!!! visit https://spam.example.com FREE MONEY $$$";
+
     #[test]
-    fn nickname_phonetic_nests_without_overwriting_spoken_selection() {
+    fn spam_filtering_uses_configured_threshold() {
+        let mut processor = processor();
+        let mut logs = Vec::new();
+        // Disabled filter never blocks, however high the score.
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterSpam": false}),
+                SPAMMY,
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        let score = annotations["comment"]["spam"]["score"]
+            .as_f64()
+            .expect("spam score");
+        assert!(score > 0.0, "fixture must look spammy, got {score}");
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], false);
+        assert_eq!(annotations["comment"]["moderation"]["spam"], false);
+        assert_eq!(
+            annotations["comment"]["moderation"]["spamScore"]
+                .as_f64()
+                .unwrap(),
+            score
+        );
+
+        // Enabled with a zero threshold blocks on any evidence.
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterSpam": true, "spamThreshold": 0.0}),
+                SPAMMY,
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], true);
+        assert_eq!(annotations["comment"]["moderation"]["spam"], true);
+        assert_eq!(
+            annotations["comment"]["moderation"]["reasons"],
+            json!(["spam"])
+        );
+
+        // The decision straddles the engine's own score: exact threshold
+        // blocks (`>=`), anything above it does not.
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterSpam": true, "spamThreshold": score}),
+                SPAMMY,
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], true);
+        let above = (score + 0.2).min(1.0);
+        assert!(above > score, "fixture score {score} leaves no room above");
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterSpam": true, "spamThreshold": above}),
+                SPAMMY,
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], false);
+
+        // Benign chat stays unblocked at the default threshold.
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterSpam": true}),
+                "hello everyone",
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], false);
+
+        // The stable spam evidence honors the same threshold.
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterSpam": true, "spamThreshold": 0.0}),
+                SPAMMY,
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["spam"]["detected"], true);
+    }
+
+    #[test]
+    fn bad_word_filtering_blocks_matches_only_when_enabled() {
+        let mut processor = processor();
+        let mut logs = Vec::new();
+        // Matches are visible as evidence, but never block while disabled.
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterBadWords": false, "badWords": ["scam"]}),
+                "this is a scam",
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], false);
+        assert_eq!(annotations["comment"]["moderation"]["badWords"], false);
+        assert_eq!(
+            annotations["comment"]["moderation"]["matches"],
+            json!([{"term": "scam", "view": "raw"}])
+        );
+
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterBadWords": true, "badWords": ["scam"]}),
+                "this is a scam",
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], true);
+        assert_eq!(annotations["comment"]["moderation"]["badWords"], true);
+        assert_eq!(
+            annotations["comment"]["moderation"]["reasons"],
+            json!(["bad-word"])
+        );
+
+        // An empty list blocks nothing even with the filter enabled.
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterBadWords": true, "badWords": []}),
+                "this is a scam",
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], false);
+        assert_eq!(annotations["comment"]["moderation"]["matches"], json!([]));
+    }
+
+    #[test]
+    fn bad_words_match_through_obfuscation_views() {
+        let mut processor = processor();
+        let mut logs = Vec::new();
+        let settings = json!({"filterBadWords": true, "badWords": ["badword", "scam"]});
+        for (message, term, view) in [
+            ("that badword is here", "badword", "raw"),
+            ("b4dw0rd", "badword", "leet"),
+            ("baaaadword", "badword", "repetition_collapsed"),
+            ("bаdword", "badword", "skeleton"),
+            ("this is a scam", "scam", "raw"),
+        ] {
+            let (annotations, _) = processor
+                .enrich_texts(&settings, message, "Viewer", "viewer", &mut logs)
+                .unwrap();
+            assert_eq!(
+                annotations["comment"]["moderation"]["blocked"], true,
+                "{message:?}"
+            );
+            assert_eq!(
+                annotations["comment"]["moderation"]["matches"],
+                json!([{"term": term, "view": view}]),
+                "{message:?}"
+            );
+        }
+        // Substrings of innocent words never block.
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterBadWords": true, "badWords": ["ass"]}),
+                "class dismissed",
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], false);
+    }
+
+    #[test]
+    fn blocked_messages_emit_non_speakable_tts_policy() {
+        let mut processor = processor();
+        let mut logs = Vec::new();
+        let settings = json!({
+            "filterBadWords": true,
+            "badWords": ["scam"],
+            "muteBlockedTts": true,
+        });
+        let (annotations, views) = processor
+            .enrich_texts(&settings, "this is a scam", "Viewer", "viewer", &mut logs)
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], true);
+        assert_eq!(annotations["comment"]["tts"]["speak"], false);
+        assert_eq!(annotations["comment"]["tts"]["source"], "policy");
+        assert_eq!(
+            annotations["comment"]["tts"]["reason"],
+            "moderation-blocked"
+        );
+        assert_eq!(annotations["comment"]["tts"]["text"], "");
+        // The policy travels in the canonical view: dropping it would let TTS
+        // fall back to the raw blocked message.
+        let view = views.get("comment").expect("moderation-policy view");
+        assert!(!view.speak);
+        assert_eq!(view.reason.as_deref(), Some("moderation-blocked"));
+        assert_eq!(view.source, "policy");
+    }
+
+    #[test]
+    fn unmuted_blocks_keep_regular_tts() {
+        let mut processor = processor();
+        let mut logs = Vec::new();
+        let (annotations, views) = processor
+            .enrich_texts(
+                &json!({
+                    "filterBadWords": true,
+                    "badWords": ["scam"],
+                    "muteBlockedTts": false,
+                }),
+                "this is a scam",
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], true);
+        assert_eq!(annotations["comment"]["tts"]["speak"], true);
+        assert!(!annotations["comment"]["tts"]["text"]
+            .as_str()
+            .unwrap_or_default()
+            .is_empty());
+        assert!(views.get("comment").is_some_and(|view| view.speak));
+    }
+
+    #[test]
+    fn blocked_policy_emitted_even_without_tts_candidates() {
+        let mut processor = processor();
+        let mut logs = Vec::new();
+        let (annotations, views) = processor
+            .enrich_texts(
+                &json!({
+                    "filterBadWords": true,
+                    "badWords": ["scam"],
+                    "muteBlockedTts": true,
+                    "ttsCandidate": false,
+                }),
+                "this is a scam",
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], true);
+        // Normal candidate generation is off, yet the skip policy must still
+        // exist so consumers cannot speak the raw comment.
+        assert_eq!(annotations["comment"]["tts"]["speak"], false);
+        assert_eq!(
+            annotations["comment"]["tts"]["reason"],
+            "moderation-blocked"
+        );
+        let view = views.get("comment").expect("moderation-policy view");
+        assert!(!view.speak);
+    }
+
+    #[test]
+    fn moderation_settings_invalidate_caches() {
+        let mut processor = processor();
+        let mut logs = Vec::new();
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterBadWords": false, "badWords": ["scam"]}),
+                "this is a scam",
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], false);
+        assert_eq!(processor.comment_cache.len(), 1);
+        // Same text, moderation enabled: the stale unblocked entry is dropped.
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterBadWords": true, "badWords": ["scam"]}),
+                "this is a scam",
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], true);
+        assert_eq!(processor.comment_cache.len(), 1);
+    }
+
+    #[test]
+    fn malformed_moderation_settings_fall_back_safely() {
+        let mut processor = processor();
+        let mut logs = Vec::new();
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({
+                    "filterSpam": "yes",
+                    "spamThreshold": "high",
+                    "filterBadWords": 1,
+                    "badWords": "not-an-array",
+                    "muteBlockedTts": "no",
+                }),
+                "this is a scam",
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], false);
+        assert!(annotations["comment"].get("spam").is_some());
+        assert!(annotations["comment"].get("tts").is_some());
+    }
+
+    #[test]
+    fn moderation_payload_stays_bounded() {
+        let mut processor = processor();
+        let mut logs = Vec::new();
+        let terms: Vec<String> = (0..600).map(|index| format!("term{index:04}")).collect();
+        let message = format!("hello {}", "x".repeat(2_000));
+        let (annotations, _) = processor
+            .enrich_texts(
+                &json!({"filterBadWords": true, "badWords": terms}),
+                &message,
+                "Viewer",
+                "viewer",
+                &mut logs,
+            )
+            .unwrap();
+        let payload = serde_json::to_vec(&annotations["comment"]).unwrap();
+        assert!(payload.len() <= 32 * 1024, "{}", payload.len());
+        assert_eq!(annotations["comment"]["moderation"]["blocked"], false);
+    }
+
+    #[test]
+    fn nickname_phonetic_nests_without_overriting_spoken_selection() {
         let mut processor = processor();
         let mut logs = Vec::new();
         let (annotations, views) = processor

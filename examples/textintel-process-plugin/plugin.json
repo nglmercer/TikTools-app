@@ -39,6 +39,11 @@
         "rebus": {"type": "boolean", "default": true, "description": "Expose rebus decoding candidates."},
         "obfuscation": {"type": "boolean", "default": true, "description": "Expose obfuscation evidence (leet, repetition, confusables)."},
         "spam": {"type": "boolean", "default": true, "description": "Expose heuristic spam scores (filtering stays user-controlled)."},
+        "filterSpam": {"type": "boolean", "default": false, "description": "Mark messages as blocked when the TextIntel spam score reaches the configured threshold."},
+        "spamThreshold": {"type": "number", "minimum": 0, "maximum": 1, "multipleOf": 0.05, "default": 0.7, "description": "Spam score required to block a message when spam filtering is enabled."},
+        "filterBadWords": {"type": "boolean", "default": false, "description": "Block messages containing configured words or phrases after TextIntel normalization."},
+        "badWords": {"type": "array", "items": {"type": "string"}, "default": [], "description": "Words or phrases to block. Matching uses TextIntel normalized and anti-obfuscation views."},
+        "muteBlockedTts": {"type": "boolean", "default": true, "description": "Prevent blocked messages from being spoken by TTS."},
         "phonetic": {"type": "boolean", "default": true, "description": "Expose phonetic/IPA evidence for nicknames."},
         "ttsCandidate": {"type": "boolean", "default": true, "description": "Resolve spoken TTS candidates with confidence."},
         "engineMode": {"type": "string", "enum": ["default", "production-local-lite", "production-local"], "default": "production-local-lite", "description": "Textintel engine preset (offline only). Lite is default: default mode is much slower on long input."},
@@ -51,7 +56,9 @@
     "uiHints": {
       "fields": {
         "minimumTtsConfidence": {"kind": "range"},
-        "minimumRebusConfidence": {"kind": "range"}
+        "minimumRebusConfidence": {"kind": "range"},
+        "spamThreshold": {"kind": "range"},
+        "badWords": {"kind": "tags"}
       }
     }
   }

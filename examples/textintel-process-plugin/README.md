@@ -20,6 +20,8 @@ the `events.enrich` capability, and implement `Plugin::enrich`.
 - `src/mapping.rs` — output rendering: fingerprints become annotations and
   the canonical text views (spoken selection, skip policies, nested
   pronunciation evidence).
+- `src/moderation.rs` — chat moderation: configured-term matching over the
+  fingerprint views plus the plugin-owned verdict automations filter on.
 - `src/settings.rs` — lenient serde settings with per-field fallbacks.
 - `src/cache.rs` — the generic FIFO-bounded cache.
 - `benches/processor_latency.rs` — dependency-free latency harness driving
@@ -46,6 +48,110 @@ The host loads `settings.json` and attaches it to every
 `EventEnrichmentRequest.settings`, so settings apply without file access from
 any runtime and take effect on the next event. Unknown settings are ignored;
 malformed values fall back per field.
+
+## Chat moderation
+
+Every analyzed comment carries a plugin-owned verdict (stable shape; the
+host keeps it under the provider namespace, so the stable `IntelComment`
+contract is untouched):
+
+```json
+{
+  "blocked": true,
+  "spam": false,
+  "spamScore": 0.12,
+  "badWords": true,
+  "matches": [{"term": "badword", "view": "leet"}],
+  "reasons": ["bad-word"]
+}
+```
+
+Automations filter on `event.intel.providers.textintel.comment.moderation.blocked`
+(`is-true`). Both filters are opt-in and default off, so existing
+installations never start blocking messages on upgrade.
+
+### Spam moderation
+
+`spam` calculates evidence; `filterSpam` decides whether that evidence
+blocks. `detected` in the stable spam evidence follows the same threshold.
+
+```json
+{
+  "spam": true,
+  "filterSpam": true,
+  "spamThreshold": 0.75
+}
+```
+
+### Bad words
+
+```json
+{
+  "filterBadWords": true,
+  "badWords": ["scam", "badword", "spam phrase"]
+}
+```
+
+Matching runs over TextIntel's normalized and anti-obfuscation views, not
+just the raw text: `BADWORD` matches through `casefold`, full-width text
+through `nfkc`, `b4dw0rd` through `leet`, `baaaadword` through
+`repetition_collapsed`, confusable spellings through the confusable
+skeleton, combined obfuscation through the full `normalized` pipeline, and
+decoded text through strong `rebus` candidates. Each term reports the first
+(least transformed) view that reveals it.
+
+Single-word terms require word boundaries, so `ass` never matches `class`;
+phrases match as contiguous spans. The list is sanitized (trimmed,
+deduplicated, capped at 500 terms of 128 characters) and never logged.
+
+### TTS
+
+```json
+{
+  "muteBlockedTts": true
+}
+```
+
+Blocked chat emits an explicit non-speakable policy view instead of spoken
+text:
+
+```json
+{
+  "text": "",
+  "source": "policy",
+  "speak": false,
+  "reason": "moderation-blocked"
+}
+```
+
+The policy is emitted even with `ttsCandidate` disabled: omitting the view
+would let TTS consumers fall back to the raw blocked comment. Set
+`muteBlockedTts` to `false` to keep regular TTS for blocked messages.
+
+### Points
+
+The processor is intentionally side-effect free: it never touches viewer
+points. Deductions are automation work over the existing executable action:
+
+```text
+trigger: tiktok.chat
+filter:  event.intel.providers.textintel.comment.moderation.blocked is true
+action:  core.points
+  uniqueId: {{ event.user.uniqueId }}
+  delta: -10
+```
+
+The penalty amount is user-configured per rule (any finite non-zero
+number); the points service clamps totals at zero. Create the rule from the
+CLI:
+
+```sh
+tiktools automation moderation-penalty --points -10
+```
+
+which stores the `core.points` action plus the `tiktok.chat` event wired to
+it. Blocked messages stay available as raw live events; `moderation.blocked`
+is the decision signal for downstream consumers (TTS, automations, rewards).
 
 ## Concurrency note
 
