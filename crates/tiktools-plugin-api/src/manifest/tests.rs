@@ -673,3 +673,124 @@ fn parses_the_migrated_sonicboom_package_manifest() {
     assert!(!manifest.pages.is_empty(), "legacy pages kept");
     assert!(!manifest.action_types.is_empty(), "http actions kept");
 }
+
+#[test]
+fn reads_autocomplete_section_raw_on_any_schema() {
+    for schema in [2, 3] {
+        let manifest = PluginManifest::from_json_str(&format!(
+            r#"{{"schemaVersion": {schema}, "id": "textintel", "name": "TextIntel", "version": "0.1.0", "runtime": "process", "entry": "tiktools-textintel", "autocomplete": [{{"id": "stable-views", "prefixes": ["event.intel.comment."]}}]}}"#
+        ))
+        .unwrap();
+        assert_eq!(manifest.autocomplete.len(), 1);
+    }
+    let manifest = PluginManifest::from_json_str(
+        r#"{"schemaVersion": 2, "id": "plain", "name": "Plain", "version": "1.0.0", "runtime": "process", "entry": "plain"}"#,
+    )
+    .unwrap();
+    assert!(manifest.autocomplete.is_empty());
+}
+
+#[test]
+fn accepts_stable_prefixes_and_own_provider_fields() {
+    assert!(validate_plugin_autocomplete(
+        "textintel",
+        &serde_json::json!({
+            "id": "stable-views",
+            "prefixes": ["event.intel.comment.", "event.intel.user"],
+            "fields": [{
+                "path": "event.intel.providers.textintel.comment.moderation.blocked",
+                "kind": "boolean",
+                "label": {"default": "Moderation blocked"},
+                "hint": {"default": "True when blocked."}
+            }],
+            "triggers": ["tiktok.chat"]
+        })
+    )
+    .is_ok());
+    // The bare provider root claims the plugin's whole subtree.
+    assert!(validate_plugin_autocomplete(
+        "demo",
+        &serde_json::json!({"id": "all", "prefixes": ["event.intel.providers.demo"]})
+    )
+    .is_ok());
+}
+
+#[test]
+fn rejects_paths_outside_the_plugins_own_enrichment_namespace() {
+    for path in [
+        "event.data.comment",
+        "event.user.uniqueId",
+        "event.intel.processing.status",
+        "event.intel.providers.other.comment.normalized",
+        "event.intel.providers.textintelother.comment.x",
+        "event.intel",
+        "event.intel.commentary.drift",
+    ] {
+        assert!(
+            validate_plugin_autocomplete(
+                "textintel",
+                &serde_json::json!({"id": "claim", "prefixes": [path]})
+            )
+            .is_err(),
+            "must reject {path}"
+        );
+        assert!(
+            validate_plugin_autocomplete(
+                "textintel",
+                &serde_json::json!({"id": "claim", "paths": [path]})
+            )
+            .is_err(),
+            "must reject {path}"
+        );
+    }
+}
+
+#[test]
+fn rejects_malformed_autocomplete_entries() {
+    // Missing id, unknown id shape, and claim-less entries.
+    assert!(validate_plugin_autocomplete(
+        "demo",
+        &serde_json::json!({"prefixes": ["event.intel.comment."]})
+    )
+    .is_err());
+    assert!(validate_plugin_autocomplete(
+        "demo",
+        &serde_json::json!({"id": "has space", "prefixes": ["event.intel.comment."]})
+    )
+    .is_err());
+    assert!(validate_plugin_autocomplete("demo", &serde_json::json!({"id": "empty"})).is_err());
+    assert!(validate_plugin_autocomplete(
+        "demo",
+        &serde_json::json!({"id": "empty", "prefixes": []})
+    )
+    .is_err());
+    // Fields need a path, a scalar kind, and a label.
+    assert!(validate_plugin_autocomplete("demo", &serde_json::json!({"id": "fld", "fields": [{"path": "event.intel.providers.demo.x", "kind": "object", "label": {"default": "X"}}]})).is_err());
+    assert!(validate_plugin_autocomplete("demo", &serde_json::json!({"id": "fld", "fields": [{"path": "event.intel.providers.demo.x", "kind": "boolean"}]})).is_err());
+    assert!(validate_plugin_autocomplete("demo", &serde_json::json!({"id": "fld", "fields": [{"path": "event.intel.providers.demo.x.", "kind": "boolean", "label": {"default": "X"}}]})).is_err());
+    // Triggers name dotted event types.
+    assert!(validate_plugin_autocomplete("demo", &serde_json::json!({"id": "trg", "prefixes": ["event.intel.comment."], "triggers": ["CHAT"]})).is_err());
+    // Caps are enforced.
+    let many = vec!["event.intel.comment."; 17];
+    assert!(validate_plugin_autocomplete(
+        "demo",
+        &serde_json::json!({"id": "cap", "prefixes": many})
+    )
+    .is_err());
+}
+
+#[test]
+fn shipped_textintel_example_declares_valid_autocomplete() {
+    // Pins the reference processor manifest to the validator: its stable
+    // views and moderation verdict must parse and validate, or the editor
+    // silently loses TextIntel suggestions on the next snapshot.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/textintel-process-plugin/plugin.json");
+    let input = std::fs::read_to_string(&root).expect("textintel manifest");
+    let manifest = PluginManifest::from_json_str(&input).expect("valid manifest");
+    assert_eq!(manifest.id, "textintel");
+    assert_eq!(manifest.autocomplete.len(), 2);
+    for entry in &manifest.autocomplete {
+        validate_plugin_autocomplete(&manifest.id, entry).expect("valid contribution");
+    }
+}

@@ -122,6 +122,11 @@ pub struct PluginManifest {
     /// builds its processor catalog; the raw list is kept here so discovery
     /// never fails on a single bad entry.
     pub processor_types: Vec<Value>,
+    /// Autocomplete contributions a plugin offers for the automation editor
+    /// (owned `event.intel.*` namespaces plus extra suggestion fields).
+    /// Kept raw like `event_types`; the host validates each entry against
+    /// the plugin's own namespace when it merges the behavior snapshot.
+    pub autocomplete: Vec<Value>,
     /// Optional host-registry icon name (`keyboard`, `voice`, ...). The host
     /// only renders names from its own icon registry and falls back to a
     /// heuristic icon otherwise. Plugins can only name icons, never supply SVG.

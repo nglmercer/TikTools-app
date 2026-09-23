@@ -1,6 +1,8 @@
 import type {
   ActionSource,
   Localized,
+  PluginAutocompleteContribution,
+  PluginAutocompleteField,
   PluginPageDescriptor,
   PluginPageSection,
   PluginPageSectionKind,
@@ -337,6 +339,103 @@ export function mergePluginUis(stamped: readonly unknown[] | undefined): PluginU
     if (!descriptor) continue;
     if (seen.has(descriptor.pluginId)) continue;
     seen.add(descriptor.pluginId);
+    merged.push(descriptor);
+  }
+  return merged;
+}
+
+/** Defense-in-depth caps mirroring the host validator (see `validate_plugin_autocomplete`). */
+const MAX_AUTOCOMPLETE_LIST = 32;
+const MAX_AUTOCOMPLETE_TEXT = 256;
+
+function readAutocompletePaths(value: JsonValue | undefined, max: number): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > max) return undefined;
+  const out: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'string') return undefined;
+    const trimmed = entry.trim();
+    if (!trimmed || trimmed.length > MAX_AUTOCOMPLETE_TEXT) return undefined;
+    out.push(trimmed);
+  }
+  return out;
+}
+
+function readAutocompleteFields(value: JsonValue | undefined): PluginAutocompleteField[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > MAX_AUTOCOMPLETE_LIST) return undefined;
+  const out: PluginAutocompleteField[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) return undefined;
+    if (typeof entry.path !== 'string') return undefined;
+    const path = entry.path.trim();
+    if (!path || path.length > MAX_AUTOCOMPLETE_TEXT || path.endsWith('.')) return undefined;
+    if (entry.kind !== 'string' && entry.kind !== 'number' && entry.kind !== 'boolean') return undefined;
+    const label = readLocalized(entry.label);
+    if (!label) return undefined;
+    const field: PluginAutocompleteField = { path, kind: entry.kind as PluginAutocompleteField['kind'], label };
+    if (entry.hint !== undefined) {
+      const hint = readLocalized(entry.hint);
+      if (!hint) return undefined;
+      field.hint = hint;
+    }
+    out.push(field);
+  }
+  return out;
+}
+
+/**
+ * Converts a host-stamped autocomplete entry to a typed descriptor. The host
+ * already validated the shape and namespace; this guards the registry
+ * against malformed snapshots by rejecting them instead of gating on
+ * garbage paths.
+ */
+export function toPluginAutocompleteContribution(value: JsonValue): PluginAutocompleteContribution | undefined {
+  if (!isRecord(value)) return undefined;
+  if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > MAX_AUTOCOMPLETE_TEXT) {
+    return undefined;
+  }
+  if (typeof value.pluginId !== 'string' || !value.pluginId.trim() || value.pluginId.length > 128) {
+    return undefined;
+  }
+  const prefixes = readAutocompletePaths(value.prefixes, 16);
+  const paths = readAutocompletePaths(value.paths, MAX_AUTOCOMPLETE_LIST);
+  const fields = readAutocompleteFields(value.fields);
+  const triggers = readAutocompletePaths(value.triggers, MAX_AUTOCOMPLETE_LIST);
+  if (prefixes === undefined && value.prefixes !== undefined) return undefined;
+  if (paths === undefined && value.paths !== undefined) return undefined;
+  if (fields === undefined && value.fields !== undefined) return undefined;
+  if (triggers === undefined && value.triggers !== undefined) return undefined;
+  if ((prefixes?.length ?? 0) + (paths?.length ?? 0) + (fields?.length ?? 0) === 0) return undefined;
+  const source = isRecord(value.source) && value.source.kind === 'plugin' && value.source.pluginId === value.pluginId
+    ? (value.source as ActionSource)
+    : { kind: 'plugin', pluginId: value.pluginId } as ActionSource;
+  const descriptor: PluginAutocompleteContribution = {
+    id: value.id,
+    pluginId: value.pluginId,
+    source,
+  };
+  if (prefixes) descriptor.prefixes = prefixes;
+  if (paths) descriptor.paths = paths;
+  if (fields) descriptor.fields = fields;
+  if (triggers) descriptor.triggers = triggers;
+  return descriptor;
+}
+
+/**
+ * Merges host-stamped autocomplete contributions. Invalid entries are
+ * dropped; later duplicates of a namespaced id lose to the first.
+ */
+export function mergePluginAutocomplete(
+  stamped: readonly unknown[] | undefined,
+): PluginAutocompleteContribution[] {
+  if (!stamped) return [];
+  const seen = new Set<string>();
+  const merged: PluginAutocompleteContribution[] = [];
+  for (const entry of stamped) {
+    const descriptor = toPluginAutocompleteContribution(entry as JsonValue);
+    if (!descriptor || seen.has(descriptor.id)) continue;
+    seen.add(descriptor.id);
     merged.push(descriptor);
   }
   return merged;

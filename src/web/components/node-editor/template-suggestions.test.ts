@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import {
+  applySnapshotContributions,
   resetAutocompleteRegistry,
   syncAutocompletePluginStates,
 } from '../../../automation/autocomplete-registry.ts';
+import type { PluginAutocompleteContribution } from '../../../automation/behavior/types.ts';
 import { sampleEventForType } from '../../../automation/event-registry.ts';
 import type { JsonObject } from '../../../automation/types.ts';
 import { applyPresetInsert } from '../autocomplete/autocomplete-controller.ts';
@@ -139,7 +141,35 @@ describe('plugin availability gating', () => {
     resetAutocompleteRegistry();
   });
 
+  /** Host-stamped shape of the TextIntel manifest `autocomplete` section. */
+  function seedTextintel(): void {
+    const source = { kind: 'plugin', pluginId: 'textintel' } as const;
+    const entries: PluginAutocompleteContribution[] = [
+      {
+        id: 'textintel/stable-views',
+        pluginId: 'textintel',
+        prefixes: ['event.intel.comment.', 'event.intel.user.'],
+        source: { ...source },
+      },
+      {
+        id: 'textintel/moderation',
+        pluginId: 'textintel',
+        fields: [
+          {
+            path: 'event.intel.providers.textintel.comment.moderation.blocked',
+            kind: 'boolean',
+            label: { default: 'Moderation blocked', i18key: '' },
+          },
+        ],
+        triggers: ['tiktok.chat'],
+        source: { ...source },
+      },
+    ];
+    applySnapshotContributions(entries);
+  }
+
   test('textintel paths disappear from template autocomplete while disabled', () => {
+    seedTextintel();
     syncAutocompletePluginStates([{ id: 'textintel', installed: true, enabled: false }]);
     const values = getTemplateSuggestions('tiktok.chat', 'en').map((entry) => entry.value);
     expect(values.some((value) => value.startsWith('event.intel.comment.'))).toBe(false);
@@ -151,6 +181,7 @@ describe('plugin availability gating', () => {
   });
 
   test('moderation verdict is suggested for chat while enabled', () => {
+    seedTextintel();
     const blocked = 'event.intel.providers.textintel.comment.moderation.blocked';
     const chat = getTemplateSuggestions('tiktok.chat', 'en').map((entry) => entry.value);
     expect(chat).toContain(blocked);
@@ -161,6 +192,7 @@ describe('plugin availability gating', () => {
   });
 
   test('stale live-only provider paths stop being suggested once disabled', () => {
+    seedTextintel();
     const lastEvent = sampleEventForType('tiktok.chat');
     const intel = (lastEvent as unknown as JsonObject)['intel'] as JsonObject;
     intel['providers'] = { textintel: { comment: { moderation: { blocked: true } } } };

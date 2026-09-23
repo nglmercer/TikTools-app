@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import {
+  applySnapshotContributions,
   resetAutocompleteRegistry,
   syncAutocompletePluginStates,
 } from '../autocomplete-registry.ts';
+import type { PluginAutocompleteContribution } from './types.ts';
 import { fieldsForTrigger, findField, operatorsFor, operatorsForPath } from './fields.ts';
 import { matchesFilter } from './filters.ts';
 import { sampleEventFor } from './samples.ts';
@@ -86,7 +88,21 @@ describe('plugin availability gating', () => {
     resetAutocompleteRegistry();
   });
 
+  /** Host-stamped shape of the TextIntel manifest `autocomplete` section. */
+  function seedTextintel(): void {
+    const entries: PluginAutocompleteContribution[] = [
+      {
+        id: 'textintel/stable-views',
+        pluginId: 'textintel',
+        prefixes: ['event.intel.comment.', 'event.intel.user.'],
+        source: { kind: 'plugin', pluginId: 'textintel' },
+      },
+    ];
+    applySnapshotContributions(entries);
+  }
+
   test('condition fields hide textintel enrichment while it is disabled', () => {
+    seedTextintel();
     syncAutocompletePluginStates([{ id: 'textintel', installed: true, enabled: false }]);
     const paths = fieldsForTrigger('tiktok.chat').map((field) => field.path);
     expect(paths.some((path) => path.startsWith('event.intel.comment.'))).toBe(false);
@@ -97,6 +113,7 @@ describe('plugin availability gating', () => {
   });
 
   test('condition fields offer textintel enrichment while it is available', () => {
+    seedTextintel();
     const paths = fieldsForTrigger('tiktok.chat').map((field) => field.path);
     expect(paths).toContain('event.intel.comment.tts.text');
     syncAutocompletePluginStates([{ id: 'textintel', installed: true, enabled: true }]);

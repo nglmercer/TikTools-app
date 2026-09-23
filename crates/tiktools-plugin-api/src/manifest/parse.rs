@@ -131,6 +131,9 @@ impl PluginManifest {
             return Err(ManifestError::InvalidField("eventSubscriptions"));
         }
         let processor_types = json_list(object, "processorTypes")?;
+        // Additive on every schema version: old hosts ignore the unknown
+        // key, and entries are validated at snapshot merge, never here.
+        let autocomplete = json_list(object, "autocomplete")?;
         let (settings_schema, settings_ui_hints) = settings(object)?;
         // Declarative integration blocks exist only on schema v3. A v2
         // manifest carrying the same keys keeps today's behavior: the keys
@@ -187,6 +190,7 @@ impl PluginManifest {
             event_types,
             event_subscriptions,
             processor_types,
+            autocomplete,
             settings_schema,
             settings_ui_hints,
             http,

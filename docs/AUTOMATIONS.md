@@ -137,8 +137,10 @@ event.intel.user.nickname.language.top in [es, en]
 
 Templates resolve the same paths (`{{ event.intel.comment.tts.text }}`),
 and the field picker plus template autocomplete discover them from the
-generated event registry — gated by plugin availability, so a disabled
-processor's paths are never suggested (see `autocomplete-registry.ts`).
+generated event registry — gated by the manifest-declared `autocomplete`
+contributions the snapshot carries, so a disabled processor's paths are
+never suggested (see `autocomplete-registry.ts`; old hosts without the
+snapshot key keep static suggestions).
 TTS consumers should resolve spoken input through
 the provider-neutral lookup (`event.intel.comment.tts.text` falling back to
 `event.data.comment`, nickname view falling back to nickname, then handle)

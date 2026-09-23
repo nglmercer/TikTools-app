@@ -13,32 +13,42 @@
  * 1. Ownership. `event.intel.providers.<pluginId>.*` is attributed by
  *    convention to `<pluginId>` (the host merge guarantees that namespace, see
  *    `tiktools-core::plugin_processors::merge`). Shared stable views such as
- *    `event.intel.comment.*` cannot be attributed by naming, so the plugin
- *    that promotes them registers an explicit contribution instead. Any
- *    processor that promotes the same stable keys registers the same
- *    prefixes; a shared path stays visible while at least one owner is
- *    available.
- * 2. Availability. The web layer syncs installed/enabled states from every
- *    behavior snapshot (`syncAutocompletePluginStates`). Unknown plugins fail
- *    open (suggested): old hosts without a snapshot and unit tests without a
- *    sync keep today's behavior.
+ *    `event.intel.comment.*` cannot be attributed by naming, so plugins
+ *    declare them in their manifest `autocomplete` section instead; the host
+ *    validates, stamps, and ships them in the behavior snapshot, and the web
+ *    layer seeds them here (`applySnapshotContributions`). Any processor that
+ *    promotes the same stable keys declares the same prefixes; a shared path
+ *    stays visible while at least one owner is available.
+ * 2. Availability. Declared contributions are presence-gated: the host only
+ *    ships them while their plugin is installed, enabled, and available, so
+ *    a disabled plugin's suggestions vanish with the next snapshot. Live
+ *    paths from plugins that declare nothing still need the installed /
+ *    enabled / available states synced from every snapshot
+ *    (`syncAutocompletePluginStates`). Unknown plugins fail open (suggested):
+ *    old hosts and unit tests without a sync keep today's behavior.
  *
- * Public API for plugins and host integrations:
+ * Public API for host integrations:
  *
- * - `registerAutocompleteContribution` pushes ownership and/or extra
- *   suggestion fields (paths the static registry cannot know, such as a
- *   provider-namespaced verdict); re-registering an id replaces it.
+ * - `applySnapshotContributions` replaces the snapshot-seeded contributions
+ *   (origin `snapshot`) from the merged behavior snapshot.
+ * - `registerAutocompleteContribution` pushes a local contribution (origin
+ *   `local`) that survives snapshot refreshes; re-registering an id
+ *   replaces it. For tests and local integrations — plugins declare their
+ *   contributions in their manifest instead.
  * - `unregisterAutocompleteContribution` /
  *   `unregisterAutocompleteContributionsForPlugin` undo a contribution
- *   (hot-unload, tests). Enable/disable needs no (un)registration: the
- *   snapshot sync gates every registered contribution automatically.
+ *   (hot-unload, tests).
  *
- * UI-agnostic on purpose: `src/automation` never imports from `src/web`.
- * Contribution fields feed template autocomplete only — the event registry
- * keeps its sample-drift guarantee (every registry path resolves against its
- * sample event), so provider-namespaced paths that samples cannot carry must
- * never be appended there.
+ * This registry holds no plugin-specific builtins: when a plugin is absent,
+ * its suggestions are absent. UI-agnostic on purpose: `src/automation`
+ * never imports from `src/web`. Contribution fields feed template
+ * autocomplete only — the event registry keeps its sample-drift guarantee
+ * (every registry path resolves against its sample event), so
+ * provider-namespaced paths that samples cannot carry must never be
+ * appended there.
  */
+
+import type { PluginAutocompleteContribution } from './behavior/types.ts';
 
 export type AutocompleteScalarKind = 'string' | 'number' | 'boolean';
 
@@ -54,7 +64,7 @@ export interface AutocompleteContributionField {
 export interface AutocompleteContribution {
   /** Stable id; re-registering the same id replaces the contribution. */
   id: string;
-  /** Owning plugin, e.g. `textintel`. Gated by its installed/enabled state. */
+  /** Owning plugin id. Gated by its installed/enabled/available state. */
   pluginId: string;
   /** Owned namespaces, e.g. `event.intel.comment.` (trailing dot optional). */
   prefixes?: string[];
@@ -69,7 +79,12 @@ export interface AutocompleteContribution {
 export interface AutocompletePluginState {
   installed: boolean;
   enabled: boolean;
+  /** False when the dependency cannot load on this machine. Absent fails open. */
+  available?: boolean;
 }
+
+/** Where a contribution came from: the behavior snapshot or a local push. */
+export type AutocompleteContributionOrigin = 'snapshot' | 'local';
 
 interface StoredContribution {
   id: string;
@@ -78,6 +93,7 @@ interface StoredContribution {
   paths: string[];
   fields: AutocompleteContributionField[];
   triggers: string[] | undefined;
+  origin: AutocompleteContributionOrigin;
 }
 
 const contributions = new Map<string, StoredContribution>();
@@ -116,11 +132,10 @@ function contributionOwnsPath(contribution: StoredContribution, path: string): b
     || contribution.fields.some((field) => field.path === candidate);
 }
 
-/**
- * Push (or replace) a plugin's autocomplete contribution. Throws on an empty
- * id or plugin id, mirroring the other registry helpers.
- */
-export function registerAutocompleteContribution(contribution: AutocompleteContribution): void {
+function storeContribution(
+  contribution: AutocompleteContribution,
+  origin: AutocompleteContributionOrigin,
+): void {
   const id = contribution.id.trim();
   const pluginId = contribution.pluginId.trim();
   if (!id || !pluginId) throw new Error('An autocomplete contribution needs an id and a pluginId.');
@@ -132,14 +147,60 @@ export function registerAutocompleteContribution(contribution: AutocompleteContr
       label: { en: field.label.en, es: field.label.es },
       hint: field.hint ? { en: field.hint.en, es: field.hint.es } : undefined,
     }));
+  const triggers = cleanList(contribution.triggers);
   contributions.set(id, {
     id,
     pluginId,
     prefixes: cleanList(contribution.prefixes),
     paths: cleanList(contribution.paths),
     fields,
-    triggers: cleanList(contribution.triggers).length > 0 ? cleanList(contribution.triggers) : undefined,
+    triggers: triggers.length > 0 ? triggers : undefined,
+    origin,
   });
+}
+
+/**
+ * Push (or replace) a local autocomplete contribution. Local pushes survive
+ * snapshot refreshes; the snapshot only ever replaces its own origin. For
+ * tests and local integrations — plugins declare their contributions in
+ * their manifest instead. Throws on an empty id or plugin id.
+ */
+export function registerAutocompleteContribution(contribution: AutocompleteContribution): void {
+  storeContribution(contribution, 'local');
+}
+
+/**
+ * Replace the snapshot-seeded contributions from the merged behavior
+ * snapshot. The host already filtered by installed/enabled/available, so
+ * presence here means available; local pushes are left untouched. Pass the
+ * merged descriptors (`mergePluginAutocomplete`); malformed entries are
+ * skipped, never fatal.
+ */
+export function applySnapshotContributions(entries: PluginAutocompleteContribution[]): void {
+  for (const [id, contribution] of contributions) {
+    if (contribution.origin === 'snapshot') contributions.delete(id);
+  }
+  for (const contribution of entries) {
+    if (!contribution || !contribution.id.trim() || !contribution.pluginId.trim()) continue;
+    storeContribution(
+      {
+        id: contribution.id,
+        pluginId: contribution.pluginId,
+        prefixes: contribution.prefixes,
+        paths: contribution.paths,
+        fields: (contribution.fields ?? []).map((field) => ({
+          path: field.path,
+          kind: field.kind,
+          // Manifest labels carry one default; both locales read it, like
+          // the event-type overlay in `event-registry.ts`.
+          label: { en: field.label.default, es: field.label.default },
+          hint: field.hint ? { en: field.hint.default, es: field.hint.default } : undefined,
+        })),
+        triggers: contribution.triggers,
+      },
+      'snapshot',
+    );
+  }
 }
 
 /** Undo one contribution by id. Returns false when nothing was registered. */
@@ -172,11 +233,11 @@ export function autocompleteContributions(): AutocompleteContribution[] {
   }));
 }
 
-/** Record one plugin's installed/enabled state. Empty ids are ignored. */
+/** Record one plugin's installed/enabled/available state. Empty ids are ignored. */
 export function setAutocompletePluginState(pluginId: string, state: AutocompletePluginState): void {
   const id = pluginId.trim();
   if (!id) return;
-  pluginStates.set(id, { installed: state.installed, enabled: state.enabled });
+  pluginStates.set(id, { installed: state.installed, enabled: state.enabled, available: state.available });
 }
 
 /**
@@ -184,19 +245,27 @@ export function setAutocompletePluginState(pluginId: string, state: Autocomplete
  * authoritative: plugins absent from it return to fail-open.
  */
 export function syncAutocompletePluginStates(
-  plugins: Array<{ id: string; installed: boolean; enabled: boolean }>,
+  plugins: Array<{ id: string; installed: boolean; enabled: boolean; available?: boolean }>,
 ): void {
   pluginStates.clear();
   for (const plugin of plugins) {
-    setAutocompletePluginState(plugin.id, { installed: plugin.installed, enabled: plugin.enabled });
+    setAutocompletePluginState(plugin.id, {
+      installed: plugin.installed,
+      enabled: plugin.enabled,
+      available: plugin.available,
+    });
   }
 }
 
-/** True when the plugin may currently emit events. Unknown plugins fail open. */
+/**
+ * True when the plugin may currently enrich events. Unknown plugins fail
+ * open; like the host trigger gate, only an explicit `available: false`
+ * counts as unavailable.
+ */
 export function isAutocompletePluginAvailable(pluginId: string): boolean {
   const state = pluginStates.get(pluginId.trim());
   if (!state) return true;
-  return state.installed && state.enabled;
+  return state.installed && state.enabled && state.available !== false;
 }
 
 /**
@@ -241,49 +310,13 @@ export function contributionFieldsForTrigger(
   return out;
 }
 
-function registerBuiltins(): void {
-  // Stable views the TextIntel processor promotes (`comment`/`user` plus
-  // their TTS projections). Any future processor promoting the same stable
-  // keys registers the same prefixes; the OR rule in
-  // `isAutocompletePathAvailable` keeps them visible while at least one
-  // promoter is available. `event.intel.processing.status` is host-stamped
-  // (core), so it stays ungated.
-  registerAutocompleteContribution({
-    id: 'textintel.stable-views',
-    pluginId: 'textintel',
-    prefixes: ['event.intel.comment.', 'event.intel.user.'],
-  });
-  // Provider-namespaced verdict the static registry deliberately skips
-  // (`providers` is untyped JSON). Offered for the chat trigger TextIntel
-  // enriches, and for union queries; hidden while TextIntel is unavailable.
-  registerAutocompleteContribution({
-    id: 'textintel.moderation',
-    pluginId: 'textintel',
-    fields: [
-      {
-        path: 'event.intel.providers.textintel.comment.moderation.blocked',
-        kind: 'boolean',
-        label: { en: 'Moderation blocked', es: 'Bloqueado por moderación' },
-        hint: {
-          en: 'True when TextIntel blocked this chat message (spam or bad words).',
-          es: 'Verdadero cuando TextIntel bloqueó este mensaje del chat (spam o palabras prohibidas).',
-        },
-      },
-    ],
-    triggers: ['tiktok.chat'],
-  });
-}
-
-registerBuiltins();
-
 /**
- * Test helper: drops every plugin state and custom contribution, then
- * restores the builtins. Always call it (or the try/finally equivalent)
+ * Test helper: drops every plugin state and contribution, local and
+ * snapshot-seeded alike. Always call it (or the try/finally equivalent)
  * around tests that sync states or register contributions — the registry is
  * process-global and leaks between tests otherwise.
  */
 export function resetAutocompleteRegistry(): void {
   contributions.clear();
   pluginStates.clear();
-  registerBuiltins();
 }

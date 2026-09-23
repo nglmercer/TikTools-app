@@ -111,6 +111,30 @@ export interface PluginEventType {
   source: ActionSource;
 }
 
+export interface PluginAutocompleteField {
+  /** Dotted path, exactly what filters and templates store. */
+  path: string;
+  kind: 'string' | 'number' | 'boolean';
+  label: Localized;
+  hint?: Localized;
+}
+
+/** One host-stamped entry of a plugin manifest `autocomplete` section. */
+export interface PluginAutocompleteContribution {
+  /** Namespaced by the host as `<pluginId>/<contributionId>`. */
+  id: string;
+  pluginId: string;
+  /** Owned namespaces, e.g. `event.intel.comment.` (trailing dot optional). */
+  prefixes?: string[];
+  /** Owned exact paths (gated, but not added as suggestions). */
+  paths?: string[];
+  /** Extra suggestion items, gated by the owner like everything else. */
+  fields?: PluginAutocompleteField[];
+  /** Event types this contribution applies to; absent means every trigger. */
+  triggers?: string[];
+  source: ActionSource;
+}
+
 export interface LiveAction {
   /** Version 2 is the descriptor/JSON-schema action format; v1 is migrated on read. */
   schemaVersion: 1 | 2;
@@ -221,6 +245,8 @@ export interface BehaviorSnapshot {
   actionTypes: ActionTypeDefinition[];
   /** Plugin-declared event types merged by the host; absent on old hosts. */
   eventTypes?: PluginEventType[];
+  /** Plugin-declared autocomplete contributions, stamped by the host; absent on old hosts. */
+  autocompleteContributions?: PluginAutocompleteContribution[];
   /** Plugin-contributed automation templates, stamped by the host; absent on old hosts. */
   pluginTemplates?: PluginTemplateDescriptor[];
   /** Plugin-contributed configuration pages, stamped by the host; absent on old hosts. */

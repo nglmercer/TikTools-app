@@ -8,13 +8,20 @@ import type {
   LiveEvent,
   PluginPageDescriptor,
 } from '../../automation/behavior/types.ts';
-import { syncAutocompletePluginStates } from '../../automation/autocomplete-registry.ts';
+import {
+  applySnapshotContributions,
+  syncAutocompletePluginStates,
+} from '../../automation/autocomplete-registry.ts';
 import { setPluginEventTypes } from '../../automation/event-registry.ts';
 import {
   moderationPenaltyAction,
   moderationPenaltyEvent,
 } from '../../automation/behavior/moderation-penalty.ts';
-import { mergePluginPages, mergePluginUis } from '../../automation/plugins/declarative.ts';
+import {
+  mergePluginAutocomplete,
+  mergePluginPages,
+  mergePluginUis,
+} from '../../automation/plugins/declarative.ts';
 import type { HotkeyStatusData } from '../../shared/messages.ts';
 import type { ControlClient } from '../platform/control-client.ts';
 import { ControlCallError, errorMessage } from '../platform/control-client.ts';
@@ -63,14 +70,18 @@ export function useAutomation(control: ControlClient) {
   const applySnapshot = (snapshot: BehaviorSnapshot): void => {
     setPluginTranslations(snapshot.translations);
     setPluginEventTypes(snapshot.eventTypes ?? []);
-    // Gate plugin-owned suggestions (TextIntel intel paths, provider
-    // namespaces) on installed/enabled state — a disabled plugin's paths
-    // disappear from the field picker and template autocomplete.
+    // Seed plugin-declared autocomplete contributions (manifest
+    // `autocomplete` sections, shipped only while their plugin is installed,
+    // enabled, and available) and gate undeclared provider-namespace paths
+    // on plugin state. Absent on old hosts: nothing is seeded and
+    // suggestions keep their static behavior.
+    applySnapshotContributions(mergePluginAutocomplete(snapshot.autocompleteContributions));
     syncAutocompletePluginStates(
       snapshot.plugins.map((plugin) => ({
         id: plugin.descriptor.id,
         installed: plugin.installed,
         enabled: plugin.enabled,
+        available: plugin.available,
       })),
     );
     behavior.value = snapshot;

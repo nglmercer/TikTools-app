@@ -398,18 +398,37 @@ contribution index plus an in-memory activation snapshot, rebuilt only on
 install, uninstall, enable, and disable. The enrich hot path filters the
 cached index by event type and never touches manifests or SQLite.
 
-The editor's autocomplete follows the same availability: the web layer syncs
-installed/enabled states from every behavior snapshot into
-`src/automation/autocomplete-registry.ts`, and paths owned by an unavailable
-plugin disappear from the field picker and template autocomplete.
-`event.intel.providers.<pluginId>.*` is attributed to its plugin by naming
-convention with no registration needed; a processor that promotes the shared
-stable keys (`event.intel.comment.*`, `event.intel.user.*`) additionally
-registers those prefixes via `registerAutocompleteContribution`, so the views
-stay suggested while at least one promoter is available. Contributions can
-also push extra suggestion fields for paths the static registry cannot know
-(such as a provider-namespaced verdict); `unregisterAutocompleteContribution`
-undoes them.
+The editor's autocomplete follows the same availability through a
+manifest-declared `autocomplete` section: the host validates each entry,
+stamps it with namespaced identity, and ships it in the behavior snapshot
+only while the plugin is installed, enabled, and available — so a disabled
+plugin's suggestions vanish from the field picker and template autocomplete
+on the next snapshot, with no plugin-specific code in the web layer. A
+processor that promotes the shared stable keys declares those prefixes, and
+may push extra suggestion fields for paths the static registry cannot know
+(such as a provider-namespaced verdict):
+
+```json
+"autocomplete": [{
+  "id": "stable-views",
+  "prefixes": ["event.intel.comment.", "event.intel.user."],
+  "fields": [{
+    "path": "event.intel.providers.textintel.comment.moderation.blocked",
+    "kind": "boolean",
+    "label": {"default": "Moderation blocked"}
+  }],
+  "triggers": ["tiktok.chat"]
+}]
+```
+
+Claims are restricted to the plugin's own enrichment namespace: the stable
+prefixes `event.intel.comment.` / `event.intel.user.` plus the plugin's own
+`event.intel.providers.<ownId>.` subtree. Core paths (`event.data.*`,
+`event.user.*`), host-stamped `event.intel.processing.*`, and other plugins'
+subtrees are rejected at merge, so a manifest can never hide suggestions it
+does not own. Live `providers.<pluginId>.*` paths need no declaration: the
+web layer attributes them by naming convention and gates them on the synced
+plugin state (`src/automation/autocomplete-registry.ts`).
 
 SDK sketch:
 

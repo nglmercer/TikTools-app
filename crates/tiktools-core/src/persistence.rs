@@ -65,6 +65,7 @@ impl AppCore {
         let mut plugin_templates = Vec::new();
         let mut plugin_pages = Vec::new();
         let mut plugin_uis = Vec::new();
+        let mut autocomplete = Vec::new();
         let mut plugins = Vec::new();
         let persisted_plugins = object
             .get("plugins")
@@ -213,6 +214,16 @@ impl AppCore {
                         }
                     }
                 }
+                // Autocomplete contributions ride the same availability gate:
+                // disabling or uninstalling a plugin removes its suggestions
+                // from the editor on the next snapshot.
+                autocomplete.extend(merge_plugin_autocomplete(
+                    &plugin.manifest.id,
+                    &plugin.manifest.autocomplete,
+                    installed,
+                    enabled,
+                    plugin.available,
+                ));
             }
 
             for descriptor in &plugin.manifest.action_types {
@@ -259,6 +270,10 @@ impl AppCore {
         object.insert("pluginTemplates".to_owned(), Value::Array(plugin_templates));
         object.insert("pluginPages".to_owned(), Value::Array(plugin_pages));
         object.insert("pluginUis".to_owned(), Value::Array(plugin_uis));
+        object.insert(
+            "autocompleteContributions".to_owned(),
+            Value::Array(autocomplete),
+        );
         object.insert("translations".to_owned(), builtin_translations());
     }
 
@@ -372,10 +387,61 @@ pub(super) fn stamp_plugin_event_type(
     Some((event_type, Value::Object(entry)))
 }
 
+/// Merges one plugin's manifest `autocomplete` section into snapshot-ready
+/// contributions. Entries surface only while the plugin is installed,
+/// enabled, and available; invalid entries are skipped with a warning, so
+/// one bad entry never breaks the whole snapshot.
+fn merge_plugin_autocomplete(
+    plugin_id: &str,
+    entries: &[Value],
+    installed: bool,
+    enabled: bool,
+    available: bool,
+) -> Vec<Value> {
+    if !(installed && enabled && available) {
+        return Vec::new();
+    }
+    entries
+        .iter()
+        .filter_map(|entry| {
+            let stamped = stamp_plugin_autocomplete(plugin_id, entry.clone());
+            if stamped.is_none() {
+                tracing::warn!(plugin = %plugin_id, "plugin autocomplete entry is invalid; skipped");
+            }
+            stamped
+        })
+        .collect()
+}
+
+/// Validates one manifest `autocomplete` entry against the plugin's own
+/// namespace and stamps host-owned identity (namespaced id, plugin id,
+/// source). Returns the snapshot-ready entry, or `None` when invalid (the
+/// catalog merge warns and skips it).
+pub(super) fn stamp_plugin_autocomplete(plugin_id: &str, descriptor: Value) -> Option<Value> {
+    if tiktools_plugin_api::manifest::validate_plugin_autocomplete(plugin_id, &descriptor).is_err()
+    {
+        return None;
+    }
+    let mut stamped = descriptor.as_object()?.clone();
+    let namespaced = stamped
+        .get("id")
+        .and_then(Value::as_str)
+        .map(|id| format!("{plugin_id}/{id}"));
+    if let Some(namespaced) = namespaced {
+        stamped.insert("id".to_owned(), Value::String(namespaced));
+    }
+    stamped.insert("pluginId".to_owned(), Value::String(plugin_id.to_owned()));
+    stamped.insert(
+        "source".to_owned(),
+        json!({"kind": "plugin", "pluginId": plugin_id}),
+    );
+    Some(Value::Object(stamped))
+}
+
 #[cfg(test)]
 mod persistence_tests {
     use super::*;
-    use serde_json::json;
+    use serde_json::{json, Value};
 
     #[test]
     fn stamps_valid_event_types_and_rejects_reserved_ones() {
@@ -395,5 +461,80 @@ mod persistence_tests {
         )
         .is_none());
         assert!(stamp_plugin_event_type("hotkeys", json!({"type": "hotkey.pressed"}),).is_none());
+    }
+
+    #[test]
+    fn stamps_valid_autocomplete_entries_with_host_identity() {
+        let entry = stamp_plugin_autocomplete(
+            "textintel",
+            json!({
+                "id": "stable-views",
+                "prefixes": ["event.intel.comment."],
+                "fields": [{
+                    "path": "event.intel.providers.textintel.comment.moderation.blocked",
+                    "kind": "boolean",
+                    "label": {"default": "Moderation blocked"}
+                }],
+                "triggers": ["tiktok.chat"]
+            }),
+        )
+        .expect("valid entry should stamp");
+        assert_eq!(
+            entry.get("id").and_then(Value::as_str),
+            Some("textintel/stable-views")
+        );
+        assert_eq!(
+            entry.get("pluginId").and_then(Value::as_str),
+            Some("textintel")
+        );
+        assert_eq!(
+            entry.get("source"),
+            Some(&json!({"kind": "plugin", "pluginId": "textintel"}))
+        );
+        // Claims are preserved untouched; only identity is stamped.
+        assert_eq!(
+            entry.get("prefixes"),
+            Some(&json!(["event.intel.comment."]))
+        );
+        // Core paths, foreign namespaces, and malformed entries are dropped.
+        for descriptor in [
+            json!({"id": "core", "prefixes": ["event.data."]}),
+            json!({"id": "foreign", "prefixes": ["event.intel.providers.other."]}),
+            json!({"id": "processing", "paths": ["event.intel.processing.status"]}),
+            json!({"id": "empty"}),
+            json!({"prefixes": ["event.intel.comment."]}),
+        ] {
+            assert!(
+                stamp_plugin_autocomplete("textintel", descriptor).is_none(),
+                "invalid entry should not stamp"
+            );
+        }
+    }
+
+    #[test]
+    fn autocomplete_merge_is_gated_on_plugin_availability() {
+        let entries = vec![
+            json!({"id": "stable-views", "prefixes": ["event.intel.comment."]}),
+            json!({"id": "hijack", "prefixes": ["event.data."]}),
+        ];
+        let merged = merge_plugin_autocomplete("textintel", &entries, true, true, true);
+        // The valid entry stamps; the invalid one is skipped, never fatal.
+        assert_eq!(merged.len(), 1);
+        assert_eq!(
+            merged[0].get("id").and_then(Value::as_str),
+            Some("textintel/stable-views")
+        );
+        // Any inactive flag removes every contribution from the snapshot.
+        for (installed, enabled, available) in [
+            (false, true, true),
+            (true, false, true),
+            (true, true, false),
+        ] {
+            assert!(
+                merge_plugin_autocomplete("textintel", &entries, installed, enabled, available)
+                    .is_empty(),
+                "inactive plugin should contribute nothing"
+            );
+        }
     }
 }

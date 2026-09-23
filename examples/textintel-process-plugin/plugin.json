@@ -27,6 +27,24 @@
       ]
     }
   ],
+  "autocomplete": [
+    {
+      "id": "stable-views",
+      "prefixes": ["event.intel.comment.", "event.intel.user."]
+    },
+    {
+      "id": "moderation",
+      "fields": [
+        {
+          "path": "event.intel.providers.textintel.comment.moderation.blocked",
+          "kind": "boolean",
+          "label": {"default": "Moderation blocked"},
+          "hint": {"default": "True when TextIntel blocked this chat message (spam or bad words)."}
+        }
+      ],
+      "triggers": ["tiktok.chat"]
+    }
+  ],
   "settings": {
     "schema": {
       "type": "object",

@@ -3,6 +3,7 @@ import { expect, test } from 'bun:test';
 import type { JsonValue } from '../types.ts';
 import {
   isConnectionOnlyPage,
+  mergePluginAutocomplete,
   mergePluginPages,
   mergePluginTemplates,
   mergePluginUis,
@@ -12,6 +13,7 @@ import {
   parsePluginNavId,
   pluginNavId,
   splitTemplateId,
+  toPluginAutocompleteContribution,
   toPluginPageDescriptor,
   toPluginTemplateDescriptor,
   isSecretField,
@@ -176,4 +178,66 @@ test('tts outputs source stays optional and never drops the panel', () => {
     expect(parsed?.sections).toHaveLength(1);
     expect(parsed?.sections[0]?.outputsFrom).toBeUndefined();
   }
+});
+
+test('autocomplete contributions keep their claims and gain a source', () => {
+  const parsed = toPluginAutocompleteContribution({
+    id: 'textintel/stable-views',
+    pluginId: 'textintel',
+    prefixes: ['event.intel.comment.', '  event.intel.user.  '],
+    triggers: ['tiktok.chat'],
+    source: { kind: 'plugin', pluginId: 'textintel' },
+  });
+  expect(parsed?.id).toBe('textintel/stable-views');
+  expect(parsed?.prefixes).toEqual(['event.intel.comment.', 'event.intel.user.']);
+  expect(parsed?.source).toEqual({ kind: 'plugin', pluginId: 'textintel' });
+  // A missing stamp is synthesized from the plugin id, like templates.
+  const unstamped = toPluginAutocompleteContribution({
+    id: 'demo/all',
+    pluginId: 'demo',
+    paths: ['event.intel.providers.demo.x'],
+  });
+  expect(unstamped?.source).toEqual({ kind: 'plugin', pluginId: 'demo' });
+});
+
+test('autocomplete fields need a path, a scalar kind, and a label', () => {
+  const base = {
+    id: 'demo/moderation',
+    pluginId: 'demo',
+    source: { kind: 'plugin', pluginId: 'demo' },
+  };
+  const field = {
+    path: 'event.intel.providers.demo.comment.moderation.blocked',
+    kind: 'boolean',
+    label: { default: 'Blocked' },
+    hint: { default: 'True when blocked.' },
+  };
+  expect(toPluginAutocompleteContribution({ ...base, fields: [field] })?.fields).toHaveLength(1);
+  for (const broken of [
+    { ...field, kind: 'object' },
+    { ...field, label: undefined },
+    { ...field, path: 'event.intel.providers.demo.x.' },
+    { ...field, path: '  ' },
+  ]) {
+    expect(toPluginAutocompleteContribution({ ...base, fields: [broken] })).toBeUndefined();
+  }
+});
+
+test('autocomplete merge drops invalid entries and duplicate ids', () => {
+  expect(mergePluginAutocomplete(undefined)).toEqual([]);
+  const valid = {
+    id: 'demo/all',
+    pluginId: 'demo',
+    prefixes: ['event.intel.comment.'],
+    source: { kind: 'plugin', pluginId: 'demo' },
+  };
+  const merged = mergePluginAutocomplete([
+    valid,
+    { ...valid, prefixes: ['event.intel.user.'] },
+    { id: 'demo/empty', pluginId: 'demo' },
+    { id: '', pluginId: 'demo', prefixes: ['event.intel.comment.'] },
+    'not-an-object',
+  ]);
+  expect(merged.map((entry) => entry.id)).toEqual(['demo/all']);
+  expect(merged[0]?.prefixes).toEqual(['event.intel.comment.']);
 });
