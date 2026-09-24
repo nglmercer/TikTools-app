@@ -10,6 +10,7 @@ mod discovery;
 #[cfg(feature = "plugin-install")]
 mod installer;
 mod manager;
+mod napi_vm;
 mod native;
 mod process;
 #[cfg(test)]
@@ -23,6 +24,7 @@ pub use discovery::plugin_roots;
 #[cfg(feature = "plugin-install")]
 pub use installer::{InstalledPluginPackage, PluginInstaller};
 pub use manager::{PluginManager, RuntimeRegistry};
+pub use napi_vm::NapiVmPluginRuntime;
 pub use native::NativePluginRuntime;
 pub use process::ProcessPluginRuntime;
 pub use types::{

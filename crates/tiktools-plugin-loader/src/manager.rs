@@ -18,8 +18,8 @@ use tiktools_plugin_api::{
 use crate::{
     discovery::{read_discovered_plugin, MAX_DIRECTORY_ENTRIES},
     worker::{run_instance_worker, QueuedCall, RunningInstance, WorkerMsg},
-    DeclarativePluginRuntime, DiscoveredPlugin, NativePluginRuntime, PluginLoaderError, PluginRoot,
-    PluginRuntime, ProcessPluginRuntime, WasmPluginRuntime,
+    DeclarativePluginRuntime, DiscoveredPlugin, NapiVmPluginRuntime, NativePluginRuntime,
+    PluginLoaderError, PluginRoot, PluginRuntime, ProcessPluginRuntime, WasmPluginRuntime,
 };
 
 /// Cold-start allowance for the first call of a process generation. A fresh
@@ -54,6 +54,7 @@ impl RuntimeRegistry {
         registry.register(Arc::new(ProcessPluginRuntime));
         registry.register(Arc::new(WasmPluginRuntime));
         registry.register(Arc::new(DeclarativePluginRuntime));
+        registry.register(Arc::new(NapiVmPluginRuntime));
         registry
     }
 

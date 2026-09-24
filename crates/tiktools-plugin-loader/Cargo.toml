@@ -11,9 +11,15 @@ default = ["native-plugins", "plugin-install"]
 native-plugins = ["dep:libloading"]
 wasm-plugins = []
 plugin-install = ["dep:sha2", "dep:zip"]
+# In-process `.node` addons for napi-vm plugins (napi-rs). Off by default:
+# guest JavaScript stays inside the pure-Rust VM with no native code.
+# Native addons are trusted code, never sandboxed; each one must be
+# separately allowlisted with a SHA-256 digest from trusted host metadata.
+napi-vm-node-api = ["napi-vm/node-api-host"]
 
 [dependencies]
 tiktools-plugin-api = { path = "../tiktools-plugin-api" }
+napi-vm.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
