@@ -19,15 +19,30 @@
 //! `"apiVersion": 1` next to the TikTools fields, and request no napi-vm
 //! `permissions` object (that key collides with TikTools' own string-list
 //! `permissions`, so host capabilities stay deny-by-default in this slice).
+//!
+//! Native addons (napi-rs `.node` binaries) are opt-in per plugin through
+//! the manifest `nativeAddons` list. Before `host.load`, the owner thread
+//! authorizes exactly the declared host-platform artifacts with their pinned
+//! SHA-256 digests; with no declaration the guest stays inside the
+//! pure-Rust VM. While idle the owner thread pumps the napi-vm event loop
+//! so native TSFN/async callbacks run without an arriving plugin request.
 
 use std::{
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, Sender},
     thread::{self, JoinHandle},
+    time::Duration,
 };
 
 use napi_vm::{RustPluginHost, RustPluginHostOptions, RustPluginPolicy};
-use tiktools_plugin_api::{PluginManifest, PluginRuntimeKind, MAX_FRAME_BYTES};
+#[cfg(all(
+    feature = "napi-vm-node-api",
+    any(target_os = "linux", target_os = "macos", target_os = "windows")
+))]
+use tiktools_plugin_api::manifest::{current_target, parse_sha256_hex};
+use tiktools_plugin_api::{
+    NativeAddonDeclaration, PluginManifest, PluginRuntimeKind, MAX_FRAME_BYTES,
+};
 
 use crate::{PluginInstance, PluginLoaderError, PluginRuntime};
 
@@ -77,13 +92,16 @@ impl NapiVmPluginInstance {
         let id = manifest.id.clone();
         let name = manifest.name.clone();
         let context = guest_context(manifest);
+        let native_addons = manifest.native_addons.clone();
         let directory = directory.to_owned();
         let (tx, rx) = mpsc::channel();
         let (ready_tx, ready_rx) = mpsc::channel();
         let thread_id = id.clone();
         let worker = thread::Builder::new()
             .name(format!("tiktools-napi-vm-{thread_id}"))
-            .spawn(move || run_vm_owner(name, directory, context, rx, ready_tx))
+            .spawn(move || {
+                run_vm_owner(name, directory, context, native_addons, rx, ready_tx);
+            })
             .map_err(|error| {
                 PluginLoaderError::Runtime(format!("could not start napi-vm thread: {error}"))
             })?;
@@ -167,13 +185,26 @@ fn guest_context(manifest: &PluginManifest) -> serde_json::Value {
     })
 }
 
+/// How long the VM owner waits for the next command before pumping the
+/// napi-vm event loop for native TSFN/async callbacks. Short enough for
+/// interactive native workloads, long enough to sleep instead of spin.
+const VM_EVENT_LOOP_POLL: Duration = Duration::from_millis(10);
+
 /// VM owner-thread main loop. Creates the `RustPluginHost` here so the VM
-/// never exists anywhere else, reports the `onLoad` outcome through the
-/// handshake channel, then serves calls until `Shutdown` unloads the guest.
+/// never exists anywhere else, authorizes declared native addons, reports
+/// the `onLoad` outcome through the handshake channel, then serves calls
+/// until `Shutdown` unloads the guest.
+///
+/// Shutdown order: stop accepting calls, run guest `onUnload`, dispose the
+/// napi-vm plugin and shut down its native runtime, then exit this thread.
+/// The host never terminates threads an addon detached itself: persistent
+/// addon resources must expose their own stop API, which the guest calls
+/// from `onUnload`.
 fn run_vm_owner(
     name: String,
     directory: PathBuf,
     context: serde_json::Value,
+    native_addons: Vec<NativeAddonDeclaration>,
     rx: Receiver<VmCommand>,
     ready: Sender<Result<(), PluginLoaderError>>,
 ) {
@@ -184,6 +215,10 @@ fn run_vm_owner(
         policy: RustPluginPolicy::default(),
         ..RustPluginHostOptions::default()
     });
+    if let Err(error) = configure_host_napi_addons(&mut host, &name, &directory, &native_addons) {
+        let _ = ready.send(Err(error));
+        return;
+    }
     if let Err(error) = host.load(&directory).map(|_| ()) {
         let _ = ready.send(Err(PluginLoaderError::Runtime(format!(
             "napi-vm plugin `{name}` failed to load: {error}"
@@ -193,19 +228,136 @@ fn run_vm_owner(
     if ready.send(Ok(())).is_err() {
         return;
     }
-    for command in rx {
-        match command {
-            VmCommand::Call { request, respond } => {
+    loop {
+        match rx.recv_timeout(VM_EVENT_LOOP_POLL) {
+            Ok(VmCommand::Call { request, respond }) => {
                 let _ = respond.send(handle_vm_call(&mut host, &name, &request, &context));
             }
-            VmCommand::Shutdown => break,
+            Ok(VmCommand::Shutdown) => break,
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
+        // Pump after every call and while idle so queued native callbacks
+        // execute promptly without an arriving plugin request.
+        pump_vm_event_loop(&mut host, &name);
     }
     // Best-effort `onUnload`: the VM is revoked by dropping the host either
     // way, so a failing hook is reported but never blocks teardown.
     if let Err(error) = host.unload(&name) {
         tracing::warn!(plugin = %name, %error, "napi-vm plugin failed in onUnload");
     }
+}
+
+/// Runs one non-blocking napi-vm event-loop turn so native TSFN/async
+/// callbacks posted while the VM is idle execute promptly. A failure is
+/// logged and never breaks the owner loop: one throwing callback must not
+/// kill the plugin thread.
+fn pump_vm_event_loop(host: &mut RustPluginHost, name: &str) {
+    let Some(plugin) = host.get_mut(name) else {
+        return;
+    };
+    if let Err(error) = plugin.interpreter_mut().run_event_loop_once(Duration::ZERO) {
+        tracing::warn!(plugin = %name, %error, "napi-vm event-loop pump failed");
+    }
+}
+
+/// Authorizes exactly the manifest-declared host-platform artifacts before
+/// `host.load`. With no declaration this is a no-op and the guest stays
+/// inside the pure-Rust VM. Only declared package roots, artifact paths,
+/// and pinned digests are ever authorized; arbitrary `.node` files stay
+/// refused even when they sit inside the plugin directory.
+#[cfg(all(
+    feature = "napi-vm-node-api",
+    any(target_os = "linux", target_os = "macos", target_os = "windows")
+))]
+fn configure_host_napi_addons(
+    host: &mut RustPluginHost,
+    name: &str,
+    directory: &Path,
+    native_addons: &[NativeAddonDeclaration],
+) -> Result<(), PluginLoaderError> {
+    use napi_vm::RustPluginNapiOptions;
+
+    if native_addons.is_empty() {
+        return Ok(());
+    }
+    let root = std::fs::canonicalize(directory).map_err(|error| {
+        PluginLoaderError::Runtime(format!(
+            "napi-vm plugin `{name}` directory is not usable: {error}"
+        ))
+    })?;
+    let mut options = RustPluginNapiOptions::default();
+    for declaration in native_addons {
+        // napi-vm preflights every allowlisted file against the host binary
+        // format at load, so only host-platform artifacts are authorized
+        // even though the archive ships them all. Final selection among
+        // same-platform twins stays with the package loader cascade.
+        let selected = declaration.host_artifacts();
+        if selected.is_empty() {
+            return Err(PluginLoaderError::Runtime(format!(
+                "napi-vm plugin `{name}` package `{}` has no native artifact for {}",
+                declaration.package,
+                current_target(),
+            )));
+        }
+        for (platform, artifact) in selected {
+            let path = root.join(&declaration.root).join(&artifact.path);
+            // The manifest parser guarantees safe-relative segments; the
+            // canonical containment check still runs so a hand-built
+            // manifest value can never authorize an escape.
+            let canonical = std::fs::canonicalize(&path).map_err(|_| {
+                PluginLoaderError::Runtime(format!(
+                    "napi-vm plugin `{name}` native artifact is missing: {}",
+                    path.display(),
+                ))
+            })?;
+            if !canonical.starts_with(&root) {
+                return Err(PluginLoaderError::Runtime(format!(
+                    "napi-vm plugin `{name}` native artifact escapes its package: {}",
+                    path.display(),
+                )));
+            }
+            let digest = parse_sha256_hex(&artifact.sha256).ok_or_else(|| {
+                PluginLoaderError::Runtime(format!(
+                    "napi-vm plugin `{name}` native artifact has an invalid digest: {}",
+                    path.display(),
+                ))
+            })?;
+            tracing::debug!(
+                plugin = %name,
+                package = %declaration.package,
+                platform = %platform,
+                path = %canonical.display(),
+                "authorizing native addon artifact",
+            );
+            options = options.allow_addon_with_sha256(canonical, digest);
+        }
+    }
+    host.configure_napi_addons(name, options).map_err(|error| {
+        PluginLoaderError::Runtime(format!(
+            "napi-vm plugin `{name}` native addon configuration failed: {error}"
+        ))
+    })
+}
+
+/// Builds without the native backend: any `nativeAddons` declaration fails
+/// closed instead of silently running without its addons.
+#[cfg(not(all(
+    feature = "napi-vm-node-api",
+    any(target_os = "linux", target_os = "macos", target_os = "windows")
+)))]
+fn configure_host_napi_addons(
+    _host: &mut RustPluginHost,
+    name: &str,
+    _directory: &Path,
+    native_addons: &[NativeAddonDeclaration],
+) -> Result<(), PluginLoaderError> {
+    if native_addons.is_empty() {
+        return Ok(());
+    }
+    Err(PluginLoaderError::Runtime(format!(
+        "napi-vm plugin `{name}` declares native addons but this build lacks napi-vm-node-api support"
+    )))
 }
 
 /// Runs one `PluginCall` through the guest `call(request, context)` export

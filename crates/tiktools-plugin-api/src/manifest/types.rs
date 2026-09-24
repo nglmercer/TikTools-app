@@ -100,6 +100,50 @@ impl PluginTrust {
     }
 }
 
+/// One platform-specific `.node` binary inside a declared native package.
+///
+/// `path` is relative to the package `root`; `sha256` is the lowercase hex
+/// digest the host pins before the file is ever loaded.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NativeAddonArtifact {
+    pub path: String,
+    pub sha256: String,
+}
+
+/// One bundled native package a `napi-vm` plugin may load `.node` binaries
+/// from. `package` is the bare specifier guests require (`rdev-node`);
+/// `root` is the package directory relative to the plugin root
+/// (`node_modules/rdev-node`); `artifacts` maps platform triples
+/// (`linux-x64-gnu`, `darwin-arm64`, ...) to their pinned binaries.
+///
+/// Native addons are trusted code with host process privileges, never
+/// sandboxed. This declaration is the authorization boundary: the host
+/// allowlists a host-platform subset of these artifacts and refuses every
+/// other `.node` file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NativeAddonDeclaration {
+    pub package: String,
+    pub root: String,
+    pub artifacts: std::collections::BTreeMap<String, NativeAddonArtifact>,
+}
+
+impl NativeAddonDeclaration {
+    /// The declared artifacts eligible on this host, in preference order.
+    /// Foreign-OS/architecture entries are never selected: napi-vm
+    /// preflights every authorized file against the host binary format at
+    /// load, so authorizing them would fail the whole plugin.
+    pub fn host_artifacts(&self) -> Vec<(&str, &NativeAddonArtifact)> {
+        let keys = crate::manifest::host_native_artifact_keys();
+        keys.iter()
+            .filter_map(|key| {
+                self.artifacts
+                    .get_key_value(key)
+                    .map(|(platform, artifact)| (platform.as_str(), artifact))
+            })
+            .collect()
+    }
+}
+
 /// No structural equality: the typed `ui` fragment carries float bounds and
 /// free-form JSON configs for which bit-equality is meaningless. Callers
 /// compare identity (`id`) or individual fields instead.
@@ -166,6 +210,11 @@ pub struct PluginManifest {
     /// or a webview entry. Parsed and validated at discovery, unlike the
     /// raw `pages` compatibility input converted by the host frontend.
     pub ui: Option<crate::ui::PluginUiManifest>,
+    /// Bundled native (`.node`) packages a `napi-vm` plugin may load. Empty
+    /// for every other runtime and for pure-JavaScript plugins: with no
+    /// declaration the guest stays inside the pure-Rust VM.
+    #[serde(rename = "nativeAddons")]
+    pub native_addons: Vec<NativeAddonDeclaration>,
 }
 impl fmt::Display for PluginRuntimeKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

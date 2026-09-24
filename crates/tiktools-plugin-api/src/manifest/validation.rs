@@ -961,3 +961,100 @@ pub fn current_target() -> String {
     };
     format!("{platform}-{arch}-{abi}")
 }
+
+/// Maximum declared native packages per manifest. Real plugins bundle one
+/// or two; the cap only bounds adversarial manifests.
+pub(crate) const MAX_NATIVE_ADDON_PACKAGES: usize = 32;
+/// Maximum platform artifacts per native package. napi-rs publishes about
+/// twenty triples; the cap leaves headroom without admitting junk.
+pub(crate) const MAX_NATIVE_ARTIFACTS_PER_PACKAGE: usize = 64;
+pub(crate) const MAX_NATIVE_PACKAGE_LEN: usize = 256;
+pub(crate) const MAX_NATIVE_PLATFORM_KEY_LEN: usize = 64;
+pub(crate) const MAX_NATIVE_PATH_LEN: usize = 512;
+
+/// A bare package specifier guests can require (`rdev-node`,
+/// `@scope/pkg`). Mirrors the host module loader's constraints — dot
+/// segments, absolute paths, and URL-like requests are never valid package
+/// names — so a declared alias is always requirable.
+pub fn is_valid_native_package_name(value: &str) -> bool {
+    if value.is_empty()
+        || value.len() > MAX_NATIVE_PACKAGE_LEN
+        || value.starts_with('.')
+        || value.starts_with('/')
+        || value.starts_with('#')
+        || value.contains('\\')
+        || value.contains(':')
+        || value.contains('\0')
+        || value.chars().any(char::is_whitespace)
+    {
+        return false;
+    }
+    let parts: Vec<_> = value.split('/').collect();
+    // The alias names the package root, never a subpath: unscoped names
+    // carry no slash, scoped names carry exactly one.
+    let package_end = if value.starts_with('@') { 2 } else { 1 };
+    if parts.len() != package_end
+        || parts.iter().any(|part| part.is_empty())
+        || parts.iter().any(|part| matches!(*part, "." | ".."))
+    {
+        return false;
+    }
+    if value.starts_with('@') && parts[0].len() <= 1 {
+        return false;
+    }
+    true
+}
+
+/// Platform keys are lookup labels, not paths: lowercase slug segments that
+/// never match a future triple are simply never selected. Unknown keys stay
+/// valid so new napi-rs targets keep parsing on older hosts.
+pub fn is_valid_native_platform_key(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    (1..=MAX_NATIVE_PLATFORM_KEY_LEN).contains(&bytes.len())
+        && bytes.iter().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
+        })
+}
+
+/// Parses a manifest SHA-256 hex digest into raw bytes. Accepts either hex
+/// case; anything else is not a digest.
+pub fn parse_sha256_hex(value: &str) -> Option<[u8; 32]> {
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    let mut digest = [0_u8; 32];
+    for (index, chunk) in value.as_bytes().chunks(2).enumerate() {
+        let text = std::str::from_utf8(chunk).ok()?;
+        digest[index] = u8::from_str_radix(text, 16).ok()?;
+    }
+    Some(digest)
+}
+
+/// Artifact keys the host authorizes, in preference order: the exact TikTools
+/// target first, then the napi-rs spellings for this OS and architecture.
+///
+/// napi-vm preflights every allowlisted `.node` against the host binary
+/// format at load, so foreign-OS/architecture files must never be
+/// authorized even though the archive ships them all. Same-OS/arch libc
+/// twins (gnu/musl) are both valid ELF and both stay eligible; the
+/// package loader cascade keeps the one that initializes.
+pub fn host_native_artifact_keys() -> Vec<String> {
+    let mut keys = vec![current_target()];
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+    let extra: &[&str] = match (os, arch) {
+        ("linux", "x86_64") => &["linux-x64-gnu", "linux-x64-musl"],
+        ("linux", "aarch64") => &["linux-arm64-gnu", "linux-arm64-musl"],
+        ("macos", "aarch64") => &["darwin-arm64"],
+        ("macos", "x86_64") => &["darwin-x64"],
+        ("windows", "x86_64") => &["win32-x64-msvc"],
+        ("windows", "aarch64") => &["win32-arm64-msvc"],
+        _ => &[],
+    };
+    for key in extra {
+        if !keys.iter().any(|existing| existing == key) {
+            keys.push((*key).to_owned());
+        }
+    }
+    keys
+}

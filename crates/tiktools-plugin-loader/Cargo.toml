@@ -7,14 +7,16 @@ rust-version.workspace = true
 description = "Runtime discovery and loading for TikTools plugins"
 
 [features]
-default = ["native-plugins", "plugin-install"]
+default = ["native-plugins", "plugin-install", "napi-vm-node-api"]
 native-plugins = ["dep:libloading"]
 wasm-plugins = []
 plugin-install = ["dep:sha2", "dep:zip"]
-# In-process `.node` addons for napi-vm plugins (napi-rs). Off by default:
-# guest JavaScript stays inside the pure-Rust VM with no native code.
-# Native addons are trusted code, never sandboxed; each one must be
-# separately allowlisted with a SHA-256 digest from trusted host metadata.
+# In-process `.node` addons for napi-vm plugins (napi-rs). Compiled in by
+# default, but never active without an explicit per-plugin manifest
+# declaration: with no `nativeAddons` entry the guest stays inside the
+# pure-Rust VM with no native code. Native addons are trusted code, never
+# sandboxed; each one must be separately allowlisted with a SHA-256 digest
+# from trusted host metadata.
 napi-vm-node-api = ["napi-vm/node-api-host"]
 
 [dependencies]
@@ -27,3 +29,9 @@ tracing.workspace = true
 libloading = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Integration tests hash staged `.node` files and craft `.plugin` archives
+# regardless of which optional features are enabled.
+sha2.workspace = true
+zip.workspace = true

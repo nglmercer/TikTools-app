@@ -17,6 +17,9 @@ exclude = [
     "examples/event-gateway-process-plugin",
     "examples/hotkey-process-plugin",
     "examples/textintel-process-plugin",
+    # napi-rs fixture for the napi-vm native addon tests. Built on demand by
+    # the integration test with its own lockfile, never by the workspace.
+    "crates/tiktools-plugin-loader/tests/fixtures/native-tsfn",
 ]
 resolver = "2"
 

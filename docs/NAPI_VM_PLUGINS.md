@@ -100,11 +100,118 @@ with deny-by-default capabilities, which is why the runtime maps to
 interpreter loop budget, so spinning guest code terminates with a
 `RangeError` instead of wedging unload.
 
-`.node` addons stay off the normal path: the loader's `napi-vm-node-api`
-cargo feature (disabled by default) wires napi-vm's `node-api-host`
-backend for real native workloads only. Native addons are trusted code,
-never sandboxed — each one must be explicitly allowlisted with a SHA-256
-digest from trusted host metadata.
+## Bundled native addons (napi-rs `.node`)
+
+A `napi-vm` plugin may bundle napi-rs packages holding one `.node` binary
+per platform. Guest code keeps its natural shape:
+
+```ts
+import { startListener } from 'rdev-node';
+```
+
+```text
+my-plugin/
+  plugin.json
+  dist/index.js
+  node_modules/
+    rdev-node/
+      package.json
+      wrapper.mjs
+      index.js
+      node-rdev.win32-x64-msvc.node
+      node-rdev.linux-x64-gnu.node
+      node-rdev.linux-x64-musl.node
+      node-rdev.darwin-arm64.node
+```
+
+### Manifest
+
+Native code is never active without an explicit per-plugin declaration.
+Each package names its root, and each platform artifact pins its file plus
+a SHA-256 digest:
+
+```json
+{
+  "nativeAddons": [
+    {
+      "package": "rdev-node",
+      "root": "node_modules/rdev-node",
+      "artifacts": {
+        "win32-x64-msvc": {
+          "path": "node-rdev.win32-x64-msvc.node",
+          "sha256": "..."
+        },
+        "linux-x64-gnu": {
+          "path": "node-rdev.linux-x64-gnu.node",
+          "sha256": "..."
+        },
+        "darwin-arm64": {
+          "path": "node-rdev.darwin-arm64.node",
+          "sha256": "..."
+        }
+      }
+    }
+  ]
+}
+```
+
+Validation fails discovery on any deviation: paths must be relative with
+no `..`, artifacts must use the `.node` extension, every digest is
+required (64 hex characters), roots must stay inside the plugin
+directory, and duplicate package aliases are rejected.
+
+### Authorization
+
+Before `host.load`, the loader authorizes exactly the declared
+host-platform artifacts with their pinned digests through napi-vm's
+`configure_napi_addons`. napi-vm preflights every authorized file against
+the host binary format at load, so foreign-OS/architecture files are
+never authorized even though the archive ships them all; same-platform
+libc twins (`linux-x64-gnu` + `linux-x64-musl`) both stay eligible. A
+missing host artifact, a missing file, or a digest mismatch fails the
+load. Undeclared `.node` files are refused even when they sit inside the
+plugin directory, and a plugin with no declaration runs in the pure-Rust
+VM with no native backend at all.
+
+Native addons are trusted code with TikTools process privileges, never
+sandboxed. Manifest and checksum validation is an authorization boundary,
+not a sandbox. Paths outside the plugin root are never trusted, and the
+host never runs npm lifecycle scripts or installs dependencies.
+
+### Package layout
+
+Two napi-vm constraints shape the package:
+
+- Static ESM imports resolve to JavaScript sources only, so the
+  generated napi-rs CommonJS loader cannot be imported directly. Ship a
+  tiny ESM wrapper and route it through the `exports` map (`import` to
+  the wrapper, `require` to the generated loader); the wrapper
+  re-exports the loader through the VM's `require()`.
+- Guests have no `process` global and no filesystem access, so the
+  loader cannot sniff the platform. Probe each adjacent `.node` file in
+  a `try`/`require` cascade and keep the first one that initializes.
+  Undeclared files fail with "not allowlisted" and foreign binaries
+  fail their preflight; both are caught by the cascade.
+
+### Packaging
+
+`tiktools-plugin-pack` includes `node_modules/**` for `napi-vm` plugins
+(and only for them) with no platform filtering and no binary stripping:
+every configured `.node` target ships in the same archive, covered by
+`checksums.json` like every other file. Symlink rejection and root
+containment still apply.
+
+### Event loop and shutdown
+
+The VM owner thread waits on its command channel with a short timeout
+and pumps the napi-vm event loop after every call and while idle, so
+native TSFN/async callbacks run without an arriving plugin request.
+
+Shutdown order: stop accepting calls, run guest `onUnload`, dispose the
+napi-vm plugin, shut down the native runtime, then exit the VM thread.
+The host never terminates threads an addon detached itself: persistent
+addon resources must expose their own stop/unsubscribe API, which the
+guest calls from `onUnload` (the fixture calls `stopListener()` there).
 
 ## Reference fixture
 
@@ -118,6 +225,20 @@ node_modules/.bin/tsc -p crates/tiktools-plugin-loader/tests/fixtures/napi-vm-ec
 `crates/tiktools-plugin-loader/tests/napi_vm.rs` drives it through
 discovery, start, `action`/`poll` calls, and stop, plus fail-closed
 guests and missing-entry loads.
+
+`crates/tiktools-plugin-loader/tests/fixtures/napi-vm-native` is the
+native variant: a bundled `rdev-node` package (ESM wrapper plus a
+napi-rs style loader cascade) backed by the napi-rs fixture crate in
+`tests/fixtures/native-tsfn`, rebuilt with:
+
+```bash
+node_modules/.bin/tsc -p crates/tiktools-plugin-loader/tests/fixtures/napi-vm-native/tsconfig.json
+```
+
+`crates/tiktools-plugin-loader/tests/napi_vm_native.rs` builds the
+fixture `.node` offline, stages a multi-platform tree with computed
+digests, and covers configured loads, undeclared/wrong-hash/missing
+rejections, TSFN delivery while idle, and clean shutdown with reload.
 
 ## Follow-ups (upstream napi-vm)
 

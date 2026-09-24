@@ -815,3 +815,219 @@ fn shipped_textintel_example_declares_valid_autocomplete() {
         validate_plugin_autocomplete(&manifest.id, entry).expect("valid contribution");
     }
 }
+
+#[test]
+fn parses_native_addon_declarations() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{
+            "schemaVersion": 3,
+            "id": "hotkeys",
+            "name": "Hotkeys",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "apiVersion": 1,
+            "nativeAddons": [
+                {
+                    "package": "rdev-node",
+                    "root": "node_modules/rdev-node",
+                    "artifacts": {
+                        "win32-x64-msvc": {
+                            "path": "node-rdev.win32-x64-msvc.node",
+                            "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                        },
+                        "linux-x64-gnu": {
+                            "path": "node-rdev.linux-x64-gnu.node",
+                            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                        },
+                        "darwin-arm64": {
+                            "path": "node-rdev.darwin-arm64.node",
+                            "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+                        }
+                    }
+                }
+            ]
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(manifest.native_addons.len(), 1);
+    let declaration = &manifest.native_addons[0];
+    assert_eq!(declaration.package, "rdev-node");
+    assert_eq!(declaration.root, "node_modules/rdev-node");
+    assert_eq!(declaration.artifacts.len(), 3);
+    // Digests normalize to lowercase hex.
+    assert_eq!(
+        declaration.artifacts["win32-x64-msvc"].sha256,
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    );
+    assert_eq!(
+        declaration.artifacts["linux-x64-gnu"].path,
+        "node-rdev.linux-x64-gnu.node"
+    );
+    // Unknown future triples parse (they are simply never selected).
+    let future = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"xx","name":"X","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js","nativeAddons":[{"package":"pkg","root":"node_modules/pkg","artifacts":{"fuchsia-arm64":{"path":"a.node","sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}}]}"#,
+    )
+    .unwrap();
+    assert!(future.native_addons[0]
+        .artifacts
+        .contains_key("fuchsia-arm64"));
+    // Absent declarations default to none: the guest stays in the pure VM.
+    let plain = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"xx","name":"X","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js"}"#,
+    )
+    .unwrap();
+    assert!(plain.native_addons.is_empty());
+}
+
+#[test]
+fn rejects_native_addon_path_traversal() {
+    for (package, root, path) in [
+        ("../evil", "node_modules/evil", "evil.node"),
+        ("evil", "../evil", "evil.node"),
+        ("evil", "/absolute", "evil.node"),
+        ("evil", "node_modules/evil", "../../evil.node"),
+        ("evil", "node_modules/evil", "/absolute.node"),
+        ("evil", "node_modules/evil", "evil.js"),
+        ("evil", "node_modules/evil", "evil.NODE"),
+        ("./evil", "node_modules/evil", "evil.node"),
+        ("evil/sub", "node_modules/evil", "evil.node"),
+        ("@scope", "node_modules/evil", "evil.node"),
+    ] {
+        let input = serde_json::json!({
+            "schemaVersion": 3,
+            "id": "xx",
+            "name": "X",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "nativeAddons": [{
+                "package": package,
+                "root": root,
+                "artifacts": {"linux-x64-gnu": {"path": path, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}},
+            }],
+        });
+        assert!(
+            matches!(
+                PluginManifest::from_value(input),
+                Err(ManifestError::InvalidField("nativeAddons"))
+            ),
+            "package={package} root={root} path={path} should be rejected"
+        );
+    }
+    // Scoped aliases and nested artifact paths are fine.
+    let scoped = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"xx","name":"X","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js","nativeAddons":[{"package":"@scope/pkg","root":"node_modules/@scope/pkg","artifacts":{"linux-x64-gnu":{"path":"prebuilds/linux-x64/a.node","sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}}}]}"#,
+    )
+    .unwrap();
+    assert_eq!(scoped.native_addons[0].package, "@scope/pkg");
+}
+
+#[test]
+fn rejects_native_addon_digest_and_shape_errors() {
+    let declaration = |artifacts: serde_json::Value| {
+        serde_json::json!({
+            "schemaVersion": 3,
+            "id": "xx",
+            "name": "X",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "nativeAddons": [{"package": "pkg", "root": "node_modules/pkg", "artifacts": artifacts}],
+        })
+    };
+    // Missing digest.
+    assert!(matches!(
+        PluginManifest::from_value(declaration(serde_json::json!({
+            "linux-x64-gnu": {"path": "a.node"},
+        }))),
+        Err(ManifestError::InvalidField("nativeAddons"))
+    ));
+    // Truncated, overlong, and non-hex digests.
+    for digest in ["abc123", &"ab".repeat(40), &"zz".repeat(32), ""] {
+        assert!(
+            matches!(
+                PluginManifest::from_value(declaration(serde_json::json!({
+                    "linux-x64-gnu": {"path": "a.node", "sha256": digest},
+                }))),
+                Err(ManifestError::InvalidField("nativeAddons"))
+            ),
+            "digest {digest:?} should be rejected"
+        );
+    }
+    // Empty artifacts, non-object artifacts, and bad platform keys.
+    for artifacts in [
+        serde_json::json!({}),
+        serde_json::json!([]),
+        serde_json::json!({"../x": {"path": "a.node", "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}}),
+        serde_json::json!({"Linux-x64": {"path": "a.node", "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}}),
+    ] {
+        assert!(
+            matches!(
+                PluginManifest::from_value(declaration(artifacts)),
+                Err(ManifestError::InvalidField("nativeAddons"))
+            ),
+            "malformed artifacts should be rejected"
+        );
+    }
+    // Duplicate package aliases are rejected.
+    let duplicate = serde_json::json!({
+        "schemaVersion": 3,
+        "id": "xx",
+        "name": "X",
+        "version": "1.0.0",
+        "runtime": "napi-vm",
+        "entry": "dist/index.js",
+        "nativeAddons": [
+            {"package": "pkg", "root": "node_modules/a", "artifacts": {"linux-x64-gnu": {"path": "a.node", "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}}},
+            {"package": "pkg", "root": "node_modules/b", "artifacts": {"linux-x64-gnu": {"path": "b.node", "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}}},
+        ],
+    });
+    assert!(matches!(
+        PluginManifest::from_value(duplicate),
+        Err(ManifestError::InvalidField("nativeAddons"))
+    ));
+}
+
+#[test]
+fn parses_sha256_hex_and_host_artifact_keys() {
+    assert_eq!(
+        parse_sha256_hex("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+            .unwrap()[..4],
+        [0xe3, 0xb0, 0xc4, 0x42]
+    );
+    assert!(parse_sha256_hex("e3b0").is_none());
+    assert!(parse_sha256_hex(&"gg".repeat(32)).is_none());
+
+    let keys = host_native_artifact_keys();
+    assert_eq!(keys[0], current_target());
+    // Every key is a valid platform label on every host.
+    for key in &keys {
+        assert!(is_valid_native_platform_key(key), "{key}");
+    }
+    // Same-OS/arch libc twins stay eligible together.
+    if current_target() == "linux-x64-gnu" {
+        assert_eq!(keys, vec!["linux-x64-gnu", "linux-x64-musl"]);
+    }
+}
+
+#[test]
+fn host_artifacts_selects_host_platform_entries() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"xx","name":"X","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js","nativeAddons":[{"package":"pkg","root":"node_modules/pkg","artifacts":{"win32-x64-msvc":{"path":"w.node","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"linux-x64-gnu":{"path":"g.node","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"linux-x64-musl":{"path":"m.node","sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},"darwin-arm64":{"path":"d.node","sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}}]}"#,
+    )
+    .unwrap();
+    let selected = manifest.native_addons[0].host_artifacts();
+    assert!(!selected.is_empty());
+    // Every selection is one of the host keys, in preference order.
+    let keys = host_native_artifact_keys();
+    let positions: Vec<usize> = selected
+        .iter()
+        .map(|(platform, _)| keys.iter().position(|key| key == platform).unwrap())
+        .collect();
+    assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+    // Foreign platforms are never selected.
+    for (platform, _) in &selected {
+        assert!(keys.iter().any(|key| key == platform));
+    }
+}
