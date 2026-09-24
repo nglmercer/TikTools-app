@@ -179,8 +179,8 @@ Check the runtime plugin directories and make sure each package contains
 `plugin.json` with:
 
 ```text
-schemaVersion: 2
-runtime: native | process | wasm
+schemaVersion: 2 | 3
+runtime: native | process | wasm | declarative | napi-vm
 entry: package-relative file
 protocolVersion: 1
 ```
