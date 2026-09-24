@@ -150,6 +150,27 @@ fn omitted_trust_preserves_schema_v2_defaults() {
 }
 
 #[test]
+fn reads_napi_vm_manifest_with_kebab_case_runtime() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"example.plugin","name":"Example","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js","capabilities":[]}"#,
+    )
+    .unwrap();
+    assert_eq!(manifest.runtime, PluginRuntimeKind::NapiVm);
+    assert_eq!(manifest.entry, "dist/index.js");
+    assert_eq!(manifest.trust, PluginTrust::Sandboxed);
+    assert_eq!(
+        manifest.security_model(),
+        PluginSecurityModel::Sandboxed
+    );
+    assert_eq!(manifest.runtime.to_string(), "napi-vm");
+    assert_eq!(PluginRuntimeKind::parse("napi-vm"), Some(PluginRuntimeKind::NapiVm));
+    let serialized = serde_json::to_value(manifest.runtime).unwrap();
+    assert_eq!(serialized, Value::String("napi-vm".to_owned()));
+    let round_trip: PluginRuntimeKind = serde_json::from_value(serialized).unwrap();
+    assert_eq!(round_trip, PluginRuntimeKind::NapiVm);
+}
+
+#[test]
 fn current_target_is_platform_qualified() {
     assert!(current_target().starts_with(&format!("{}-", current_platform())));
 }

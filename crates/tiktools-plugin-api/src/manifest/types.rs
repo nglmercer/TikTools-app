@@ -23,6 +23,12 @@ pub enum PluginRuntimeKind {
     /// Host-interpreted declarative package (schema v3): HTTP actions,
     /// option sources, templates, and pages with no executable entry.
     Declarative,
+    /// TypeScript-first plugin compiled to JavaScript and executed through
+    /// the `napi-vm` interpreter (`napi_vm::RustPluginHost`). Guest code is
+    /// sandboxed by the VM with deny-by-default capabilities; explicitly
+    /// allowlisted `.node` addons are trusted native code, not sandboxed.
+    #[serde(rename = "napi-vm")]
+    NapiVm,
 }
 
 /// Runtime boundary semantics used for host policy and documentation. This
@@ -43,6 +49,7 @@ impl PluginRuntimeKind {
             "wasm" => Some(Self::Wasm),
             "process" => Some(Self::Process),
             "declarative" => Some(Self::Declarative),
+            "napi-vm" => Some(Self::NapiVm),
             _ => None,
         }
     }
@@ -54,7 +61,10 @@ impl PluginRuntimeKind {
             // no execution boundary applies.
             Self::Native | Self::Declarative => PluginSecurityModel::Trusted,
             Self::Process => PluginSecurityModel::Isolated,
-            Self::Wasm => PluginSecurityModel::Sandboxed,
+            // napi-vm guest JavaScript runs inside the interpreter with
+            // deny-by-default capabilities. Explicitly allowlisted `.node`
+            // addons escape this boundary and are trusted native code.
+            Self::Wasm | Self::NapiVm => PluginSecurityModel::Sandboxed,
         }
     }
 }
@@ -82,7 +92,9 @@ impl PluginTrust {
     pub const fn default_for_runtime(runtime: PluginRuntimeKind) -> Self {
         match runtime {
             PluginRuntimeKind::Native => Self::Trusted,
-            PluginRuntimeKind::Wasm | PluginRuntimeKind::Process => Self::Sandboxed,
+            PluginRuntimeKind::Wasm | PluginRuntimeKind::Process | PluginRuntimeKind::NapiVm => {
+                Self::Sandboxed
+            }
             PluginRuntimeKind::Declarative => Self::Untrusted,
         }
     }
@@ -162,6 +174,7 @@ impl fmt::Display for PluginRuntimeKind {
             Self::Wasm => "wasm",
             Self::Process => "process",
             Self::Declarative => "declarative",
+            Self::NapiVm => "napi-vm",
         })
     }
 }

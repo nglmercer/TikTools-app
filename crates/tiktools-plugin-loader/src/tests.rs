@@ -290,6 +290,7 @@ fn scripted_manager_with_kind(
         PluginRuntimeKind::Wasm => "wasm",
         PluginRuntimeKind::Process => "process",
         PluginRuntimeKind::Declarative => "declarative",
+        PluginRuntimeKind::NapiVm => "napi-vm",
     };
     for id in ids {
         write_plugin_with_runtime(&root, id, runtime_name);
