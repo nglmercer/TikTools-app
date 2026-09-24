@@ -17,6 +17,7 @@ use tiktools_plugin_api::{
 
 use crate::{
     discovery::{read_discovered_plugin, MAX_DIRECTORY_ENTRIES},
+    napi_vm::{native_addons_allowed, untrusted_native_addons},
     worker::{run_instance_worker, QueuedCall, RunningInstance, WorkerMsg},
     DeclarativePluginRuntime, DiscoveredPlugin, NapiVmPluginRuntime, NativePluginRuntime,
     PluginLoaderError, PluginRoot, PluginRuntime, ProcessPluginRuntime, WasmPluginRuntime,
@@ -237,6 +238,11 @@ impl PluginManager {
                     .reason
                     .unwrap_or_else(|| "plugin is unavailable".to_owned()),
             ));
+        }
+        if !plugin.manifest.native_addons.is_empty()
+            && !native_addons_allowed(&plugin.manifest, plugin.source)
+        {
+            return Err(untrusted_native_addons(&plugin.manifest.id));
         }
         let runtime = self.runtimes.get(plugin.manifest.runtime).ok_or_else(|| {
             PluginLoaderError::RuntimeUnavailable(plugin.manifest.runtime.to_string())

@@ -1000,34 +1000,110 @@ fn parses_sha256_hex_and_host_artifact_keys() {
     assert!(parse_sha256_hex(&"gg".repeat(32)).is_none());
 
     let keys = host_native_artifact_keys();
-    assert_eq!(keys[0], current_target());
+    assert_eq!(keys[0], current_napi_target());
     // Every key is a valid platform label on every host.
     for key in &keys {
         assert!(is_valid_native_platform_key(key), "{key}");
     }
-    // Same-OS/arch libc twins stay eligible together.
-    if current_target() == "linux-x64-gnu" {
-        assert_eq!(keys, vec!["linux-x64-gnu", "linux-x64-musl"]);
+    // The napi-rs spelling leads; the TikTools spelling follows only when
+    // it differs (darwin). Libc twins are never co-listed: selection is
+    // exact, never a same-platform pair.
+    if current_napi_target() == "linux-x64-gnu" {
+        assert_eq!(keys, vec!["linux-x64-gnu"]);
     }
 }
 
 #[test]
-fn host_artifacts_selects_host_platform_entries() {
+fn select_host_artifact_picks_exactly_one_host_entry() {
     let manifest = PluginManifest::from_json_str(
         r#"{"schemaVersion":3,"id":"xx","name":"X","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js","nativeAddons":[{"package":"pkg","root":"node_modules/pkg","artifacts":{"win32-x64-msvc":{"path":"w.node","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"linux-x64-gnu":{"path":"g.node","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"linux-x64-musl":{"path":"m.node","sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},"darwin-arm64":{"path":"d.node","sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}}]}"#,
     )
     .unwrap();
-    let selected = manifest.native_addons[0].host_artifacts();
-    assert!(!selected.is_empty());
-    // Every selection is one of the host keys, in preference order.
+    let (platform, artifact) = manifest.native_addons[0]
+        .select_host_artifact()
+        .expect("host artifact must be selected");
+    // Exactly the first host key present in the map: the napi-rs spelling
+    // of this host, never a foreign target and never a libc twin pair.
     let keys = host_native_artifact_keys();
-    let positions: Vec<usize> = selected
-        .iter()
-        .map(|(platform, _)| keys.iter().position(|key| key == platform).unwrap())
-        .collect();
-    assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
-    // Foreign platforms are never selected.
-    for (platform, _) in &selected {
-        assert!(keys.iter().any(|key| key == platform));
+    assert_eq!(platform, keys[0]);
+    assert!(artifact.path.ends_with(".node"));
+    // A declaration without any host entry selects nothing: the loader
+    // fails closed instead of authorizing a foreign file.
+    let foreign = PluginManifest::from_value(serde_json::json!({
+        "schemaVersion": 3,
+        "id": "xx",
+        "name": "X",
+        "version": "1.0.0",
+        "runtime": "napi-vm",
+        "entry": "dist/index.js",
+        "nativeAddons": [{
+            "package": "pkg",
+            "root": "node_modules/pkg",
+            "artifacts": {
+                "fuchsia-arm64": {
+                    "path": "f.node",
+                    "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                },
+            },
+        }],
+    }))
+    .unwrap();
+    assert!(foreign.native_addons[0].select_host_artifact().is_none());
+}
+
+#[test]
+fn native_addons_rejected_on_non_napi_vm_runtimes() {
+    for runtime in ["native", "process", "wasm", "declarative"] {
+        let manifest = serde_json::json!({
+            "schemaVersion": 3,
+            "id": "xx",
+            "name": "X",
+            "version": "1.0.0",
+            "runtime": runtime,
+            "entry": "dist/index.js",
+            "nativeAddons": [{
+                "package": "pkg",
+                "root": "node_modules/pkg",
+                "artifacts": {
+                    "linux-x64-gnu": {
+                        "path": "a.node",
+                        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    },
+                },
+            }],
+        });
+        assert!(
+            matches!(
+                PluginManifest::from_value(manifest),
+                Err(ManifestError::InvalidField("nativeAddons"))
+            ),
+            "runtime {runtime} must reject nativeAddons"
+        );
+    }
+}
+
+#[test]
+fn host_target_reports_real_libc_and_napi_spelling() {
+    // Compile-time libc fact: musl builds report musl, all other Linux
+    // builds report gnu.
+    assert_eq!(is_musl(), cfg!(target_env = "musl"));
+    if current_platform() == "linux" {
+        assert_eq!(
+            current_target(),
+            format!(
+                "linux-{}-{}",
+                current_arch(),
+                if is_musl() { "musl" } else { "gnu" }
+            )
+        );
+    }
+    // The napi-rs spelling matches the generated loaders' vocabulary,
+    // including un-suffixed darwin triples.
+    let napi = current_napi_target();
+    assert!(is_valid_native_platform_key(&napi), "{napi}");
+    if current_platform() == "darwin" {
+        assert_eq!(napi, format!("darwin-{}", current_arch()));
+    } else {
+        assert_eq!(napi, current_target());
     }
 }

@@ -106,7 +106,7 @@ A `napi-vm` plugin may bundle napi-rs packages holding one `.node` binary
 per platform. Guest code keeps its natural shape:
 
 ```ts
-import { startListener } from 'rdev-node';
+import { startListener, stopListener } from 'rdev-node';
 ```
 
 ```text
@@ -124,11 +124,20 @@ my-plugin/
       node-rdev.darwin-arm64.node
 ```
 
+`index.js` is the real generated napi-rs direct/bundled loader (built
+with `napi build --platform --binding-loader direct`): an exact
+platform table that resolves one file and requires it once. There is no
+`try`/`require` cascade and no `.node` load failure used as platform
+detection. TikTools authorizes the file and reports the host target; the
+generated loader owns target-to-artifact selection.
+
 ### Manifest
 
-Native code is never active without an explicit per-plugin declaration.
-Each package names its root, and each platform artifact pins its file plus
-a SHA-256 digest:
+Native code is never active without an explicit per-plugin declaration,
+and only `napi-vm` manifests may carry one: `nativeAddons` on any other
+runtime fails validation instead of being silently ignored. Each package
+names its root, and each platform artifact pins its file plus a SHA-256
+digest:
 
 ```json
 {
@@ -160,38 +169,48 @@ no `..`, artifacts must use the `.node` extension, every digest is
 required (64 hex characters), roots must stay inside the plugin
 directory, and duplicate package aliases are rejected.
 
+Enabling native code additionally requires `"trust": "trusted"`. The
+default napi-vm manifest is `Sandboxed`, so a native plugin visibly opts
+out of the sandbox; `Sandboxed` and `Untrusted` manifests fail closed on
+every install source. The single choke point is
+`native_addons_allowed(manifest, source)` in the loader.
+
 ### Authorization
 
-Before `host.load`, the loader authorizes exactly the declared
-host-platform artifacts with their pinned digests through napi-vm's
-`configure_napi_addons`. napi-vm preflights every authorized file against
-the host binary format at load, so foreign-OS/architecture files are
-never authorized even though the archive ships them all; same-platform
-libc twins (`linux-x64-gnu` + `linux-x64-musl`) both stay eligible. A
-missing host artifact, a missing file, or a digest mismatch fails the
-load. Undeclared `.node` files are refused even when they sit inside the
-plugin directory, and a plugin with no declaration runs in the pure-Rust
-VM with no native backend at all.
+The host determines the canonical target — including the real Linux
+libc (`linux-x64-gnu` vs `linux-x64-musl`, detected from the running
+binary, never assumed) — and before `host.load` authorizes exactly one
+declared artifact per package through napi-vm's `configure_napi_addons`.
+napi-vm preflights the authorized file against the host binary format at
+load. A missing host artifact, a missing file, or a digest mismatch
+fails the load. Undeclared `.node` files are refused even when they sit
+inside the plugin directory, and a plugin with no declaration runs in
+the pure-Rust VM with no native backend at all.
 
-Native addons are trusted code with TikTools process privileges, never
+Native addons execute with TikTools process privileges and are not
 sandboxed. Manifest and checksum validation is an authorization boundary,
-not a sandbox. Paths outside the plugin root are never trusted, and the
-host never runs npm lifecycle scripts or installs dependencies.
+not a sandbox: digests prove the files are the ones that were packaged,
+never that the native code is trustworthy. Paths outside the plugin root
+are never trusted, and the host never runs npm lifecycle scripts or
+installs dependencies.
 
 ### Package layout
 
-Two napi-vm constraints shape the package:
+The generated loader reads `process.platform`/`process.arch` (plus a
+libc check when gnu and musl share a table). Plugins with native
+declarations receive exactly that — a minimal `process` global carrying
+the real host facts — and nothing else of `process` is emulated: no env
+vars, no argv, no versions, no I/O. Guests without declarations keep the
+inert stub. The guest-visible facts only steer the loader; authorization
+still happens host-side, so a file outside the authorized set fails
+closed even if the loader names it.
 
-- Static ESM imports resolve to JavaScript sources only, so the
-  generated napi-rs CommonJS loader cannot be imported directly. Ship a
-  tiny ESM wrapper and route it through the `exports` map (`import` to
-  the wrapper, `require` to the generated loader); the wrapper
-  re-exports the loader through the VM's `require()`.
-- Guests have no `process` global and no filesystem access, so the
-  loader cannot sniff the platform. Probe each adjacent `.node` file in
-  a `try`/`require` cascade and keep the first one that initializes.
-  Undeclared files fail with "not allowlisted" and foreign binaries
-  fail their preflight; both are caught by the cascade.
+One napi-vm constraint shapes the package: static ESM imports resolve
+to JavaScript sources only, so the generated napi-rs CommonJS loader
+cannot be imported directly. Ship a tiny ESM wrapper and route it
+through the `exports` map (`import` to the wrapper, `require` to the
+generated loader); the wrapper re-exports the loader through the VM's
+`require()`.
 
 ### Packaging
 
@@ -227,8 +246,9 @@ discovery, start, `action`/`poll` calls, and stop, plus fail-closed
 guests and missing-entry loads.
 
 `crates/tiktools-plugin-loader/tests/fixtures/napi-vm-native` is the
-native variant: a bundled `rdev-node` package (ESM wrapper plus a
-napi-rs style loader cascade) backed by the napi-rs fixture crate in
+native variant: a bundled `rdev-node` package (ESM wrapper plus the real
+generated napi-rs direct/bundled loader — see the fixture `README.md`
+for its provenance) backed by the napi-rs fixture crate in
 `tests/fixtures/native-tsfn`, rebuilt with:
 
 ```bash
@@ -237,8 +257,9 @@ node_modules/.bin/tsc -p crates/tiktools-plugin-loader/tests/fixtures/napi-vm-na
 
 `crates/tiktools-plugin-loader/tests/napi_vm_native.rs` builds the
 fixture `.node` offline, stages a multi-platform tree with computed
-digests, and covers configured loads, undeclared/wrong-hash/missing
-rejections, TSFN delivery while idle, and clean shutdown with reload.
+digests, and covers exact-target loads, ESM import and CJS require,
+undeclared/wrong-hash/missing/untrusted rejections, GNU vs musl
+selection, TSFN delivery while idle, and clean shutdown with reload.
 
 ## Follow-ups (upstream napi-vm)
 

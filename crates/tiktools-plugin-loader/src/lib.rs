@@ -24,7 +24,7 @@ pub use discovery::plugin_roots;
 #[cfg(feature = "plugin-install")]
 pub use installer::{InstalledPluginPackage, PluginInstaller};
 pub use manager::{PluginManager, RuntimeRegistry};
-pub use napi_vm::NapiVmPluginRuntime;
+pub use napi_vm::{native_addons_allowed, NapiVmPluginRuntime};
 pub use native::NativePluginRuntime;
 pub use process::ProcessPluginRuntime;
 pub use types::{

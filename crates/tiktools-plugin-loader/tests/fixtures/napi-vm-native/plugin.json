@@ -7,5 +7,6 @@
   "runtime": "napi-vm",
   "entry": "dist/index.js",
   "capabilities": [],
+  "trust": "trusted",
   "apiVersion": 1
 }

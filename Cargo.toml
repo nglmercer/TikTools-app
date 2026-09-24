@@ -20,6 +20,8 @@ exclude = [
     # napi-rs fixture for the napi-vm native addon tests. Built on demand by
     # the integration test with its own lockfile, never by the workspace.
     "crates/tiktools-plugin-loader/tests/fixtures/native-tsfn",
+    # Musl libc-detection probe, built on demand the same way.
+    "crates/tiktools-plugin-loader/tests/fixtures/musl-probe",
 ]
 resolver = "2"
 
@@ -48,7 +50,7 @@ sha2 = "0.10"
 zip = { version = "4.2", default-features = false, features = ["deflate"] }
 rfd = { version = "0.15.4", default-features = false, features = ["xdg-portal", "tokio"] }
 rodio = { version = "0.21.1", features = ["tracing"] }
-napi-vm = { git = "https://github.com/nglmercer/napi-vm", rev = "aadb658b63c2a13e59abb43b74ea1da02d6a79e4", default-features = false }
+napi-vm = { git = "https://github.com/nglmercer/napi-vm", rev = "10884c84dcf49ad1ef6ef3f6c989fb5ceb0fab04", default-features = false }
 
 # The checked-in JavaScript/Bun package was only a compatibility implementation. The desktop
 # host consumes the Rust crates directly from the upstream workspace at a pinned revision.

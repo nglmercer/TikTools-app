@@ -89,6 +89,19 @@ const plugin: TikToolsPlugin = {
       if (typeId === "native.sum") {
         return { summary: `sum:${add(19, 23)}`, logs: [], intents: [], events: [] };
       }
+      if (typeId === "native.require") {
+        // Same package through the VM's CommonJS `require()` instead of
+        // the static ESM import above: both entries resolve one package.
+        const binding = require("rdev-node") as {
+          add: (left: number, right: number) => number;
+        };
+        return {
+          summary: `require:${typeof binding.add}:${binding.add(20, 22)}`,
+          logs: [],
+          intents: [],
+          events: [],
+        };
+      }
       if (typeId === "native.evil") {
         // Probes the allowlist: `dist/evil.node` exists on disk but is
         // never declared, so requiring it must fail closed.

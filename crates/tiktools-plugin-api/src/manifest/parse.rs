@@ -176,8 +176,13 @@ impl PluginManifest {
             None
         };
         // Additive on every schema version like `autocomplete`: old hosts
-        // ignore the unknown key, and only the napi-vm runtime consumes it.
+        // ignore the unknown key. Only the napi-vm runtime may declare
+        // native addons; any other runtime fails instead of silently
+        // dropping a native-code authorization.
         let native_addons = parse_native_addons(object.get("nativeAddons"))?;
+        if !native_addons.is_empty() && runtime != PluginRuntimeKind::NapiVm {
+            return Err(ManifestError::InvalidField("nativeAddons"));
+        }
 
         Ok(Self {
             schema_version,

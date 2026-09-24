@@ -128,19 +128,18 @@ pub struct NativeAddonDeclaration {
 }
 
 impl NativeAddonDeclaration {
-    /// The declared artifacts eligible on this host, in preference order.
-    /// Foreign-OS/architecture entries are never selected: napi-vm
-    /// preflights every authorized file against the host binary format at
-    /// load, so authorizing them would fail the whole plugin.
-    pub fn host_artifacts(&self) -> Vec<(&str, &NativeAddonArtifact)> {
+    /// The one declared artifact for this host, if any: the first hit in
+    /// host key preference order. Foreign targets are never selected, and
+    /// same-platform libc twins never both authorize — the generated
+    /// napi-rs loader resolves the exact file itself, so the host must
+    /// agree with it on exactly one.
+    pub fn select_host_artifact(&self) -> Option<(&str, &NativeAddonArtifact)> {
         let keys = crate::manifest::host_native_artifact_keys();
-        keys.iter()
-            .filter_map(|key| {
-                self.artifacts
-                    .get_key_value(key)
-                    .map(|(platform, artifact)| (platform.as_str(), artifact))
-            })
-            .collect()
+        keys.iter().find_map(|key| {
+            self.artifacts
+                .get_key_value(key)
+                .map(|(platform, artifact)| (platform.as_str(), artifact))
+        })
     }
 }
 

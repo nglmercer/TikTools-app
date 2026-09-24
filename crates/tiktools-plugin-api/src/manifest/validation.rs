@@ -945,21 +945,56 @@ pub fn current_platform() -> String {
     .to_owned()
 }
 
-pub fn current_target() -> String {
-    let platform = current_platform();
-    let arch = match std::env::consts::ARCH {
+/// Node.js architecture vocabulary (`process.arch`): the same names the
+/// generated napi-rs loaders match on.
+pub fn current_arch() -> String {
+    match std::env::consts::ARCH {
         "x86_64" => "x64",
         "aarch64" => "arm64",
         "x86" => "ia32",
         architecture => architecture,
-    };
+    }
+    .to_owned()
+}
+
+/// Whether this binary links musl libc. Compile-time detection is the
+/// reliable determination here: a process cannot change its libc at
+/// runtime, so the libc that will `dlopen` a `.node` file is fixed when
+/// TikTools itself is built.
+pub fn is_musl() -> bool {
+    cfg!(target_env = "musl")
+}
+
+pub fn current_target() -> String {
+    let platform = current_platform();
+    let arch = current_arch();
     let abi = match std::env::consts::OS {
         "windows" => "msvc",
-        "linux" => "gnu",
+        "linux" => {
+            if is_musl() {
+                "musl"
+            } else {
+                "gnu"
+            }
+        }
         "macos" => "darwin",
         other => other,
     };
     format!("{platform}-{arch}-{abi}")
+}
+
+/// The host target in napi-rs `platformArchABI` vocabulary
+/// (`linux-x64-gnu`, `win32-x64-msvc`, `darwin-arm64`, ...). This is the
+/// canonical key native artifact declarations are selected by: it matches
+/// what the generated loaders resolve, including the un-suffixed darwin
+/// triples and the real Linux libc.
+pub fn current_napi_target() -> String {
+    let platform = current_platform();
+    let arch = current_arch();
+    match std::env::consts::OS {
+        "macos" => format!("{platform}-{arch}"),
+        _ => current_target(),
+    }
 }
 
 /// Maximum declared native packages per manifest. Real plugins bundle one
@@ -1030,31 +1065,17 @@ pub fn parse_sha256_hex(value: &str) -> Option<[u8; 32]> {
     Some(digest)
 }
 
-/// Artifact keys the host authorizes, in preference order: the exact TikTools
-/// target first, then the napi-rs spellings for this OS and architecture.
-///
-/// napi-vm preflights every allowlisted `.node` against the host binary
-/// format at load, so foreign-OS/architecture files must never be
-/// authorized even though the archive ships them all. Same-OS/arch libc
-/// twins (gnu/musl) are both valid ELF and both stay eligible; the
-/// package loader cascade keeps the one that initializes.
+/// Artifact keys the host selects from, in preference order: the napi-rs
+/// `platformArchABI` for this host first, then the TikTools spelling as a
+/// legacy fallback (they differ only for darwin). Selection takes the
+/// first hit and authorizes exactly that artifact: same-platform libc
+/// twins are never co-authorized, since authorizing both would only turn a
+/// clear authorization error into a dynamic-loader failure.
 pub fn host_native_artifact_keys() -> Vec<String> {
-    let mut keys = vec![current_target()];
-    let os = std::env::consts::OS;
-    let arch = std::env::consts::ARCH;
-    let extra: &[&str] = match (os, arch) {
-        ("linux", "x86_64") => &["linux-x64-gnu", "linux-x64-musl"],
-        ("linux", "aarch64") => &["linux-arm64-gnu", "linux-arm64-musl"],
-        ("macos", "aarch64") => &["darwin-arm64"],
-        ("macos", "x86_64") => &["darwin-x64"],
-        ("windows", "x86_64") => &["win32-x64-msvc"],
-        ("windows", "aarch64") => &["win32-arm64-msvc"],
-        _ => &[],
-    };
-    for key in extra {
-        if !keys.iter().any(|existing| existing == key) {
-            keys.push((*key).to_owned());
-        }
+    let mut keys = vec![current_napi_target()];
+    let legacy = current_target();
+    if !keys.iter().any(|existing| existing == &legacy) {
+        keys.push(legacy);
     }
     keys
 }

@@ -157,8 +157,9 @@ fn package(options: Options) -> Result<(), Box<dyn Error>> {
     // napi-vm plugins resolve bundled npm packages from `node_modules`
     // at runtime, including napi-rs `.node` binaries. Every configured
     // platform target ships in the same archive: the host authorizes its
-    // own subset at load and the package loader selects among twins, so
-    // packaging must never filter by platform or strip native binaries.
+    // exact target file at load while the generated loader resolves the
+    // same file itself, so packaging must never filter by platform or
+    // strip native binaries.
     let mut directories = vec!["assets", "dist", "locales"];
     if manifest.runtime == PluginRuntimeKind::NapiVm {
         directories.push("node_modules");

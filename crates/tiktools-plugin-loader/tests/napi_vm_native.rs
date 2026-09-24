@@ -27,7 +27,7 @@ use std::{
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tiktools_plugin_api::{
-    manifest::{current_target, host_native_artifact_keys},
+    manifest::{current_napi_target, host_native_artifact_keys},
     PluginManifest,
 };
 use tiktools_plugin_loader::{
@@ -37,8 +37,8 @@ use tiktools_plugin_loader::{
 static BUILD_ONCE: OnceLock<PathBuf> = OnceLock::new();
 static STAGE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Platform keys the fixture loader cascade probes, in probe order. Keep in
-/// sync with `node_modules/rdev-node/index.js` in the guest fixture.
+/// Platform keys in the generated loader's resolution table. Keep in sync
+/// with `node_modules/rdev-node/index.js` in the guest fixture.
 const CASCADE_KEYS: [&str; 8] = [
     "win32-x64-msvc",
     "win32-arm64-msvc",
@@ -127,18 +127,23 @@ fn placeholder_bytes(platform: &str) -> Vec<u8> {
     format!("placeholder native binary for {platform}; never authorized on this host").into_bytes()
 }
 
-/// Writes one `.node` per cascade key: real fixture bytes for host keys,
-/// placeholders for foreign keys (never authorized on this host), and
-/// returns the matching `artifacts` map with computed digests.
+/// Writes one `.node` per loader-table key and returns the matching
+/// `artifacts` map with computed digests. Only the exact host key carries
+/// real fixture bytes; every other key — foreign targets and the
+/// same-platform libc twin alike — carries placeholders that could never
+/// initialize. A successful load therefore proves exact authorization: any
+/// co-authorized twin would fail its binary preflight instead.
 fn write_node_binaries(package_dir: &Path) -> serde_json::Map<String, Value> {
-    let host_keys = host_native_artifact_keys();
+    let exact_host_key = &host_native_artifact_keys()[0];
+    assert!(
+        CASCADE_KEYS.contains(&exact_host_key.as_str()),
+        "test host {exact_host_key} is not covered by the fixture loader table"
+    );
     let library_bytes = fs::read(native_library()).unwrap();
     let mut artifacts = serde_json::Map::new();
     for key in CASCADE_KEYS {
         let file = format!("node-rdev.{key}.node");
-        let bytes = if host_keys.iter().any(|host| host == key) {
-            // Same-host twins carry real bytes: napi-vm preflights every
-            // authorized file against the host binary format at load.
+        let bytes = if key == exact_host_key {
             library_bytes.clone()
         } else {
             placeholder_bytes(key)
@@ -220,6 +225,129 @@ fn native_addon_loads_and_answers_sync_call() {
 }
 
 #[test]
+fn same_platform_twin_is_not_authorized() {
+    let (staged, manifest) = stage_native_plugin("exact-auth", |_| {});
+    // The libc twin of the exact host artifact ships as placeholder bytes
+    // that could never initialize: the load below succeeds only because
+    // the twin is never authorized or preflighted.
+    let twin = if current_napi_target().ends_with("-gnu") {
+        current_napi_target().replace("-gnu", "-musl")
+    } else if current_napi_target().ends_with("-musl") {
+        current_napi_target().replace("-musl", "-gnu")
+    } else {
+        panic!("test host has no libc twin to discriminate");
+    };
+    let twin_bytes =
+        fs::read(staged.join(format!("node_modules/rdev-node/node-rdev.{twin}.node"))).unwrap();
+    assert!(twin_bytes.starts_with(b"placeholder"), "{twin}");
+
+    let mut instance = NapiVmPluginRuntime.load(&manifest, &staged).unwrap();
+    let result = call_json(instance.as_mut(), &action_request("native.sum"));
+    assert_eq!(result.get("summary"), Some(&json!("sum:42")), "{result}");
+    instance.shutdown().unwrap();
+
+    fs::remove_dir_all(&staged).ok();
+}
+
+#[test]
+fn musl_target_selects_musl_artifact() {
+    // GNU hosts prove their own side in every load test above; this builds
+    // a musl binary and runs it, proving libc detection, the napi-rs host
+    // spelling, and exact selection from the musl side. Only the target
+    // toolchain gates the test: any other build failure is reported.
+    if !cfg!(target_os = "linux") {
+        eprintln!("skipping musl probe: musl libc only exists on Linux");
+        return;
+    }
+    let target_dir = scratch_root("musl-probe-target");
+    let output = std::process::Command::new("cargo")
+        .args([
+            "build",
+            "--offline",
+            "--locked",
+            "--target",
+            "x86_64-unknown-linux-musl",
+            "--manifest-path",
+        ])
+        .arg(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/musl-probe/Cargo.toml"))
+        .arg("--target-dir")
+        .arg(&target_dir)
+        .output()
+        .expect("cargo is required to build the musl probe");
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if stderr.contains("may not be installed") || stderr.contains("can't find crate") {
+            eprintln!("skipping musl probe: x86_64-unknown-linux-musl target missing");
+            return;
+        }
+        panic!("musl probe build failed: {stderr}");
+    }
+    let probe = target_dir.join("x86_64-unknown-linux-musl/debug/tiktools-musl-probe");
+    let output = std::process::Command::new(&probe)
+        .output()
+        .expect("musl probe must execute");
+    assert!(
+        output.status.success(),
+        "musl probe failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("MUSL PROBE OK: linux-x64-musl"),
+        "{:?}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn cjs_require_resolves_the_same_package() {
+    let (staged, manifest) = stage_native_plugin("cjs-require", |_| {});
+    let mut instance = NapiVmPluginRuntime.load(&manifest, &staged).unwrap();
+    // Static ESM `import` (used at the top of the guest) and dynamic
+    // CommonJS `require()` resolve one generated loader and one binding.
+    let result = call_json(instance.as_mut(), &action_request("native.require"));
+    assert_eq!(
+        result.get("summary"),
+        Some(&json!("require:function:42")),
+        "{result}"
+    );
+    instance.shutdown().unwrap();
+
+    fs::remove_dir_all(&staged).ok();
+}
+
+#[test]
+fn untrusted_native_addon_is_rejected() {
+    let dedicated = scratch_root("untrusted-root");
+    let housed = dedicated.join("napi-vm-native");
+    let manifest = stage_native_plugin_at(&housed, |manifest| {
+        manifest.as_object_mut().unwrap().remove("trust");
+    });
+    // Without the explicit opt-out the manifest is Sandboxed by default.
+    assert_eq!(manifest.trust, tiktools_plugin_api::PluginTrust::Sandboxed);
+
+    // Direct runtime loads refuse.
+    let error = match NapiVmPluginRuntime.load(&manifest, &housed) {
+        Ok(_) => panic!("untrusted native addon must fail"),
+        Err(error) => error.to_string(),
+    };
+    assert!(error.contains("not trusted"), "{error}");
+
+    // Managed loads refuse with the discovered source.
+    let manager = PluginManager::new(vec![PluginRoot {
+        path: dedicated.clone(),
+        source: PluginSource::Development,
+    }]);
+    manager.scan().unwrap();
+    let error = match manager.start(&manifest.id) {
+        Ok(()) => panic!("untrusted managed start must fail"),
+        Err(error) => error.to_string(),
+    };
+    assert!(error.contains("not trusted"), "{error}");
+
+    fs::remove_dir_all(&dedicated).ok();
+}
+
+#[test]
 fn undeclared_dot_node_require_fails_closed() {
     let (staged, manifest) = stage_native_plugin("undeclared", |_| {});
     // Present on disk but never declared: the guest probe must fail.
@@ -256,10 +384,10 @@ fn native_load_without_declaration_fails_closed() {
         Ok(_) => panic!("load without a nativeAddons declaration must fail"),
         Err(error) => error.to_string(),
     };
-    assert!(
-        error.contains("not configured") || error.contains("allowlist"),
-        "{error}"
-    );
+    // Without a declaration the guest gets neither target facts nor an
+    // allowlist, so the generated loader fails while resolving the
+    // platform — before any `.node` file is even named.
+    assert!(error.contains("Unsupported platform/arch"), "{error}");
 
     fs::remove_dir_all(&staged).ok();
 }
@@ -305,7 +433,7 @@ fn missing_host_artifact_fails_load_with_clear_error() {
         Err(error) => error.to_string(),
     };
     assert!(
-        error.contains("has no native artifact for") && error.contains(&current_target()),
+        error.contains("has no native artifact for") && error.contains(&current_napi_target()),
         "{error}"
     );
 
@@ -448,6 +576,7 @@ fn installer_retains_bundled_native_tree() {
         "version": "1.0.0",
         "runtime": "napi-vm",
         "entry": "dist/index.js",
+        "trust": "trusted",
         "apiVersion": 1,
         "nativeAddons": [{
             "package": "rdev-node",
