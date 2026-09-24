@@ -24,9 +24,9 @@ pub use intel::{
     IntelUnicode, IntelUser,
 };
 pub use manifest::{
-    NativeAddonArtifact, NativeAddonDeclaration, PluginManifest, PluginProcessorDescriptor,
-    PluginRuntimeKind, PluginSecurityModel, PluginTrust, ProcessorFailureMode,
-    ProcessorInputDescriptor, ProcessorStage,
+    NativeAddonDeclaration, PluginManifest, PluginProcessorDescriptor, PluginRuntimeKind,
+    PluginSecurityModel, PluginTrust, ProcessorFailureMode, ProcessorInputDescriptor,
+    ProcessorStage,
 };
 pub use media::{
     AudioOverlap, AudioPlayOptions, AudioPlaybackResult, MediaDirectoryRef, MediaFileRef,

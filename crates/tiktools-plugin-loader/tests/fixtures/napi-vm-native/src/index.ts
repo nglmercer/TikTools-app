@@ -6,12 +6,22 @@
 //   node_modules/.bin/tsc -p crates/tiktools-plugin-loader/tests/fixtures/napi-vm-native/tsconfig.json
 //
 // The host loads `dist/index.js` as an ES module through
-// `napi_vm::RustPluginHost`. Native calls go through the bundled
-// `rdev-node` package exactly like a real device plugin would.
+// `napi_vm::RustPluginHost`. TikTools selects the exact host `.node`
+// from the declared package root and exposes it as a native `require()`
+// alias, so the guest loads it through `node:module` without executing
+// any package loader.
 
-import { add, startListener, stopListener } from 'rdev-node';
+import { createRequire } from 'node:module';
 
-declare const require: (specifier: string) => unknown;
+const require = createRequire(import.meta.url);
+
+interface RdevBinding {
+  add(left: number, right: number): number;
+  startListener(callback: (event: string) => void): boolean;
+  stopListener(): boolean;
+}
+
+const { add, startListener, stopListener } = require('rdev-node') as RdevBinding;
 
 export type PluginCall =
   | { type: "action"; action: Record<string, unknown>; event: unknown }
@@ -90,13 +100,11 @@ const plugin: TikToolsPlugin = {
         return { summary: `sum:${add(19, 23)}`, logs: [], intents: [], events: [] };
       }
       if (typeId === "native.require") {
-        // Same package through the VM's CommonJS `require()` instead of
-        // the static ESM import above: both entries resolve one package.
-        const binding = require("rdev-node") as {
-          add: (left: number, right: number) => number;
-        };
+        // Same package through a fresh alias lookup instead of the
+        // module-top binding: both resolve one allowlisted binary.
+        const again = require("rdev-node") as RdevBinding;
         return {
-          summary: `require:${typeof binding.add}:${binding.add(20, 22)}`,
+          summary: `require:${typeof again.add}:${again.add(20, 22)}`,
           logs: [],
           intents: [],
           events: [],
@@ -108,7 +116,8 @@ const plugin: TikToolsPlugin = {
         try {
           require("./evil.node");
           return { summary: "evil:loaded", logs: [], intents: [], events: [] };
-        } catch (error) {
+        }
+        catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           return { summary: `evil:${message}`, logs: [], intents: [], events: [] };
         }
@@ -122,7 +131,8 @@ const plugin: TikToolsPlugin = {
     // never terminates threads the addon detached itself.
     try {
       stopListener();
-    } catch {
+    }
+    catch {
       // Unloading must not fail when the listener never started.
     }
     return { unloaded: true };

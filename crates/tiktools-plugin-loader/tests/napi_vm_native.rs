@@ -1,15 +1,21 @@
 //! Native addon coverage for the napi-vm runtime: a bundled napi-rs
 //! package (built from `tests/fixtures/native-tsfn`) is staged into a copy
-//! of the `napi-vm-native` guest fixture, declared in `nativeAddons` with
-//! computed SHA-256 digests, and driven through load, sync calls, idle
-//! TSFN delivery, shutdown, and reload. Negative tests pin the
-//! authorization boundary: undeclared files, wrong digests, and missing
-//! host artifacts all fail closed.
+//! of the `napi-vm-native` guest fixture through the SDK staging library,
+//! declared in `nativeAddons` as `{ package, root }`, and driven through
+//! load, sync calls, idle TSFN delivery, shutdown, and reload. TikTools
+//! selects the exact host `.node` from the package root and exposes it as
+//! a native `require()` alias; guests load it through `node:module`
+//! `createRequire` without executing any package loader. Negative tests
+//! pin the authorization boundary: undeclared files, missing or ambiguous
+//! host binaries, and untrusted manifests all fail closed.
 //!
 //! The guest under test keeps its natural shape:
 //!
 //! ```ts
-//! import { startListener } from 'rdev-node';
+//! import { createRequire } from 'node:module';
+//!
+//! const require = createRequire(import.meta.url);
+//! const { startListener, stopListener } = require('rdev-node');
 //! ```
 
 #![cfg(feature = "napi-vm-node-api")]
@@ -26,19 +32,18 @@ use std::{
 
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use tiktools_plugin_api::{
-    manifest::{current_napi_target, host_native_artifact_keys},
-    PluginManifest,
-};
+use tiktools_plugin_api::{manifest::current_napi_target, PluginManifest};
 use tiktools_plugin_loader::{
     NapiVmPluginRuntime, PluginManager, PluginRoot, PluginRuntime, PluginSource,
 };
+use tiktools_plugin_sdk::native_stage::{stage_native_package, NativeStageRequest};
 
 static BUILD_ONCE: OnceLock<PathBuf> = OnceLock::new();
 static STAGE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Platform keys in the generated loader's resolution table. Keep in sync
-/// with `node_modules/rdev-node/index.js` in the guest fixture.
+/// Platform files staged into the fixture package. Only the exact host
+/// file carries real bytes; the rest are placeholders selection must
+/// ignore.
 const CASCADE_KEYS: [&str; 8] = [
     "win32-x64-msvc",
     "win32-arm64-msvc",
@@ -124,23 +129,23 @@ fn native_library() -> &'static Path {
 }
 
 fn placeholder_bytes(platform: &str) -> Vec<u8> {
-    format!("placeholder native binary for {platform}; never authorized on this host").into_bytes()
+    format!("placeholder native binary for {platform}; never selected on this host").into_bytes()
 }
 
-/// Writes one `.node` per loader-table key and returns the matching
-/// `artifacts` map with computed digests. Only the exact host key carries
-/// real fixture bytes; every other key — foreign targets and the
-/// same-platform libc twin alike — carries placeholders that could never
-/// initialize. A successful load therefore proves exact authorization: any
-/// co-authorized twin would fail its binary preflight instead.
-fn write_node_binaries(package_dir: &Path) -> serde_json::Map<String, Value> {
-    let exact_host_key = &host_native_artifact_keys()[0];
+/// Writes one `.node` per platform key into a source package directory.
+/// Only the exact host key carries real fixture bytes; every other key —
+/// foreign targets and the same-platform libc twin alike — carries
+/// placeholders that could never initialize. A successful load therefore
+/// proves exact selection: any wrong pick would fail its binary preflight
+/// instead. A throwing `index.js` tripwire proves package loader code
+/// never executes: guests load the addon purely through its native alias.
+fn write_node_binaries(package_dir: &Path) {
+    let exact_host_key = current_napi_target();
     assert!(
         CASCADE_KEYS.contains(&exact_host_key.as_str()),
-        "test host {exact_host_key} is not covered by the fixture loader table"
+        "test host {exact_host_key} is not covered by the staged platform files"
     );
     let library_bytes = fs::read(native_library()).unwrap();
-    let mut artifacts = serde_json::Map::new();
     for key in CASCADE_KEYS {
         let file = format!("node-rdev.{key}.node");
         let bytes = if key == exact_host_key {
@@ -149,22 +154,48 @@ fn write_node_binaries(package_dir: &Path) -> serde_json::Map<String, Value> {
             placeholder_bytes(key)
         };
         fs::write(package_dir.join(&file), &bytes).unwrap();
-        artifacts.insert(
-            key.to_owned(),
-            json!({"path": file, "sha256": sha256_hex(&bytes)}),
-        );
     }
-    artifacts
+    fs::write(
+        package_dir.join("index.js"),
+        "throw new Error('package loader must not execute');",
+    )
+    .unwrap();
 }
 
-/// Stages a native plugin at `staged`: copies the guest fixture, writes the
-/// multi-platform `.node` tree, and injects a `nativeAddons` declaration
-/// with computed digests. The `mutate` hook lets negative tests corrupt
-/// the declaration afterwards.
+/// Assembles the `rdev-node` source package in scratch (fixture manifest
+/// plus the multi-platform `.node` tree) and stages it into the plugin
+/// through the SDK staging library, the same call a real plugin build
+/// makes instead of `npm install`. Overwrites the file skeleton the
+/// fixture copy ships.
+fn stage_rdev_package(staged: &Path, label: &str) {
+    let source = scratch_root(label);
+    fs::create_dir_all(&source).unwrap();
+    copy_dir(&fixture_dir().join("node_modules/rdev-node"), &source);
+    write_node_binaries(&source);
+    let report = stage_native_package(&NativeStageRequest {
+        package: "rdev-node",
+        source: &source,
+        plugin_dir: staged,
+        root: "node_modules/rdev-node",
+        overwrite: true,
+    })
+    .unwrap();
+    assert_eq!(
+        report.node_binaries.len(),
+        CASCADE_KEYS.len(),
+        "staging must retain every platform binary: {report:?}"
+    );
+    fs::remove_dir_all(&source).ok();
+}
+
+/// Stages a native plugin at `staged`: copies the guest fixture, stages
+/// the `rdev-node` package, and injects a `{ package, root }`
+/// `nativeAddons` declaration. The `mutate` hook lets negative tests
+/// corrupt the declaration afterwards.
 fn stage_native_plugin_at(staged: &Path, mutate: impl FnOnce(&mut Value)) -> PluginManifest {
     fs::create_dir_all(staged).unwrap();
     copy_dir(&fixture_dir(), staged);
-    let artifacts = write_node_binaries(&staged.join("node_modules/rdev-node"));
+    stage_rdev_package(staged, "rdev-source");
 
     let manifest_path = staged.join("plugin.json");
     let mut manifest: Value =
@@ -172,7 +203,6 @@ fn stage_native_plugin_at(staged: &Path, mutate: impl FnOnce(&mut Value)) -> Plu
     manifest["nativeAddons"] = json!([{
         "package": "rdev-node",
         "root": "node_modules/rdev-node",
-        "artifacts": artifacts,
     }]);
     mutate(&mut manifest);
     fs::write(
@@ -225,17 +255,19 @@ fn native_addon_loads_and_answers_sync_call() {
 }
 
 #[test]
-fn same_platform_twin_is_not_authorized() {
-    let (staged, manifest) = stage_native_plugin("exact-auth", |_| {});
-    // The libc twin of the exact host artifact ships as placeholder bytes
+fn same_platform_twin_is_not_selected() {
+    if !current_napi_target().ends_with("-gnu") && !current_napi_target().ends_with("-musl") {
+        eprintln!("skipping twin test: test host has no libc twin to discriminate");
+        return;
+    }
+    let (staged, manifest) = stage_native_plugin("exact-select", |_| {});
+    // The libc twin of the exact host binary ships as placeholder bytes
     // that could never initialize: the load below succeeds only because
-    // the twin is never authorized or preflighted.
+    // selection picks the exact host file and nothing else.
     let twin = if current_napi_target().ends_with("-gnu") {
         current_napi_target().replace("-gnu", "-musl")
-    } else if current_napi_target().ends_with("-musl") {
-        current_napi_target().replace("-musl", "-gnu")
     } else {
-        panic!("test host has no libc twin to discriminate");
+        current_napi_target().replace("-musl", "-gnu")
     };
     let twin_bytes =
         fs::read(staged.join(format!("node_modules/rdev-node/node-rdev.{twin}.node"))).unwrap();
@@ -250,7 +282,7 @@ fn same_platform_twin_is_not_authorized() {
 }
 
 #[test]
-fn musl_target_selects_musl_artifact() {
+fn musl_target_selects_musl_binary() {
     // GNU hosts prove their own side in every load test above; this builds
     // a musl binary and runs it, proving libc detection, the napi-rs host
     // spelling, and exact selection from the musl side. Only the target
@@ -291,19 +323,19 @@ fn musl_target_selects_musl_artifact() {
         "musl probe failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        String::from_utf8_lossy(&output.stdout).contains("MUSL PROBE OK: linux-x64-musl"),
-        "{:?}",
-        String::from_utf8_lossy(&output.stdout)
+        stdout.contains("MUSL PROBE OK") && stdout.contains("node-rdev.linux-x64-musl.node"),
+        "{stdout:?}"
     );
 }
 
 #[test]
-fn cjs_require_resolves_the_same_package() {
-    let (staged, manifest) = stage_native_plugin("cjs-require", |_| {});
+fn alias_require_resolves_the_same_package() {
+    let (staged, manifest) = stage_native_plugin("alias-require", |_| {});
     let mut instance = NapiVmPluginRuntime.load(&manifest, &staged).unwrap();
-    // Static ESM `import` (used at the top of the guest) and dynamic
-    // CommonJS `require()` resolve one generated loader and one binding.
+    // A fresh alias lookup resolves the same allowlisted binary as the
+    // module-top `createRequire` binding.
     let result = call_json(instance.as_mut(), &action_request("native.require"));
     assert_eq!(
         result.get("summary"),
@@ -373,8 +405,10 @@ fn native_load_without_declaration_fails_closed() {
     let staged = scratch_root("no-declaration");
     fs::create_dir_all(&staged).unwrap();
     copy_dir(&fixture_dir(), &staged);
-    // Ship every binary but declare nothing: no allowlist, no loading.
-    write_node_binaries(&staged.join("node_modules/rdev-node"));
+    // Ship every binary but declare nothing: no alias, no loading. The
+    // guest's `require('rdev-node')` falls through to the package's
+    // throwing `index.js` tripwire instead of reaching any binary.
+    stage_rdev_package(&staged, "rdev-source");
     let manifest =
         PluginManifest::from_json_str(&fs::read_to_string(staged.join("plugin.json")).unwrap())
             .unwrap();
@@ -384,56 +418,26 @@ fn native_load_without_declaration_fails_closed() {
         Ok(_) => panic!("load without a nativeAddons declaration must fail"),
         Err(error) => error.to_string(),
     };
-    // Without a declaration the guest gets neither target facts nor an
-    // allowlist, so the generated loader fails while resolving the
-    // platform — before any `.node` file is even named.
-    assert!(error.contains("Unsupported platform/arch"), "{error}");
+    assert!(error.contains("package loader must not execute"), "{error}");
 
     fs::remove_dir_all(&staged).ok();
 }
 
 #[test]
-fn wrong_digest_fails_load() {
-    let (staged, manifest) = stage_native_plugin("wrong-hash", |manifest| {
-        let host_key = host_native_artifact_keys().remove(0);
-        let artifact = &mut manifest["nativeAddons"][0]["artifacts"][host_key];
-        let mut digest = artifact["sha256"].as_str().unwrap().to_owned();
-        let last = digest.pop().unwrap();
-        digest.push(if last == '0' { '1' } else { '0' });
-        artifact["sha256"] = Value::String(digest);
-    });
+fn missing_host_binary_fails_load_with_clear_error() {
+    let (staged, manifest) = stage_native_plugin("no-host-binary", |_| {});
+    fs::remove_file(staged.join(format!(
+        "node_modules/rdev-node/node-rdev.{}.node",
+        current_napi_target()
+    )))
+    .unwrap();
 
     let error = match NapiVmPluginRuntime.load(&manifest, &staged) {
-        Ok(_) => panic!("load with a wrong digest must fail"),
-        Err(error) => error.to_string(),
-    };
-    assert!(error.contains("integrity"), "{error}");
-
-    fs::remove_dir_all(&staged).ok();
-}
-
-#[test]
-fn missing_host_artifact_fails_load_with_clear_error() {
-    let (staged, manifest) = stage_native_plugin("no-host-artifact", |manifest| {
-        let artifacts = manifest["nativeAddons"][0]["artifacts"]
-            .as_object_mut()
-            .unwrap();
-        artifacts.retain(|key, _| key.starts_with("fuchsia-"));
-        artifacts.insert(
-            "fuchsia-arm64".to_owned(),
-            json!({
-                "path": "node-rdev.fuchsia-arm64.node",
-                "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            }),
-        );
-    });
-
-    let error = match NapiVmPluginRuntime.load(&manifest, &staged) {
-        Ok(_) => panic!("load with no host artifact must fail"),
+        Ok(_) => panic!("load with no host binary must fail"),
         Err(error) => error.to_string(),
     };
     assert!(
-        error.contains("has no native artifact for") && error.contains(&current_napi_target()),
+        error.contains("has no binary for") && error.contains(&current_napi_target()),
         "{error}"
     );
 
@@ -441,17 +445,24 @@ fn missing_host_artifact_fails_load_with_clear_error() {
 }
 
 #[test]
-fn missing_declared_file_fails_load() {
-    let (staged, manifest) = stage_native_plugin("missing-file", |_| {});
-    let host_key = host_native_artifact_keys().remove(0);
-    fs::remove_file(staged.join(format!("node_modules/rdev-node/node-rdev.{host_key}.node")))
-        .unwrap();
+fn multiple_matching_host_binaries_fail_load() {
+    let (staged, manifest) = stage_native_plugin("ambiguous-binary", |_| {});
+    // A second file matching the host suffix: selection must refuse to
+    // guess between them.
+    fs::write(
+        staged.join(format!(
+            "node_modules/rdev-node/other.{}.node",
+            current_napi_target()
+        )),
+        b"ambiguous host binary",
+    )
+    .unwrap();
 
     let error = match NapiVmPluginRuntime.load(&manifest, &staged) {
-        Ok(_) => panic!("load with a missing artifact file must fail"),
+        Ok(_) => panic!("load with ambiguous host binaries must fail"),
         Err(error) => error.to_string(),
     };
-    assert!(error.contains("missing"), "{error}");
+    assert!(error.contains("expected exactly one"), "{error}");
 
     fs::remove_dir_all(&staged).ok();
 }
@@ -502,6 +513,20 @@ fn tsfn_callback_is_delivered_while_vm_is_idle() {
         "callback was not delivered while idle: delivered_at={delivered_at} polled_at={polled_at}"
     );
 
+    let result = call_json(instance.as_mut(), &action_request("native.stop"));
+    assert_eq!(
+        result.get("summary"),
+        Some(&json!("stopped:true")),
+        "{result}"
+    );
+
+    // Stopping releases the listener: starting again works.
+    let result = call_json(instance.as_mut(), &action_request("native.start"));
+    assert_eq!(
+        result.get("summary"),
+        Some(&json!("started:true")),
+        "{result}"
+    );
     let result = call_json(instance.as_mut(), &action_request("native.stop"));
     assert_eq!(
         result.get("summary"),
@@ -581,26 +606,16 @@ fn installer_retains_bundled_native_tree() {
         "nativeAddons": [{
             "package": "rdev-node",
             "root": "node_modules/rdev-node",
-            "artifacts": {
-                "linux-x64-gnu": {
-                    "path": "node-rdev.linux-x64-gnu.node",
-                    "sha256": sha256_hex(b"fake-linux"),
-                },
-                "win32-x64-msvc": {
-                    "path": "node-rdev.win32-x64-msvc.node",
-                    "sha256": sha256_hex(b"fake-win32"),
-                },
-            },
         }],
     });
     let manifest_bytes = serde_json::to_vec_pretty(&manifest).unwrap();
     let entry_bytes =
         b"export default { call() { return { logs: [], intents: [], events: [] }; } };";
-    let loader_bytes = b"module.exports = {};";
+    let package_bytes = br#"{"name":"rdev-node","version":"1.0.0"}"#;
     let files: &[(&str, &[u8])] = &[
         ("plugin.json", &manifest_bytes),
         ("dist/index.js", entry_bytes),
-        ("node_modules/rdev-node/index.js", loader_bytes),
+        ("node_modules/rdev-node/package.json", package_bytes),
         (
             "node_modules/rdev-node/node-rdev.linux-x64-gnu.node",
             b"fake-linux",
@@ -639,8 +654,13 @@ fn installer_retains_bundled_native_tree() {
     .unwrap();
     assert_eq!(installed.manifest.id, "native-installed");
     assert_eq!(installed.manifest.native_addons.len(), 1);
+    assert_eq!(installed.manifest.native_addons[0].package, "rdev-node");
+    assert_eq!(
+        installed.manifest.native_addons[0].root,
+        "node_modules/rdev-node"
+    );
     for name in [
-        "node_modules/rdev-node/index.js",
+        "node_modules/rdev-node/package.json",
         "node_modules/rdev-node/node-rdev.linux-x64-gnu.node",
         "node_modules/rdev-node/node-rdev.win32-x64-msvc.node",
     ] {

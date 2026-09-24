@@ -2191,7 +2191,6 @@ checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
 [[package]]
 name = "napi-vm"
 version = "0.1.5"
-source = "git+https://github.com/nglmercer/napi-vm?rev=10884c84dcf49ad1ef6ef3f6c989fb5ceb0fab04#10884c84dcf49ad1ef6ef3f6c989fb5ceb0fab04"
 dependencies = [
  "corosensei",
  "js-sys",
@@ -4582,6 +4581,7 @@ dependencies = [
  "sha2",
  "thiserror 2.0.20",
  "tiktools-plugin-api",
+ "tiktools-plugin-sdk",
  "tracing",
  "zip",
 ]

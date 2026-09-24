@@ -6,9 +6,13 @@
 //   node_modules/.bin/tsc -p crates/tiktools-plugin-loader/tests/fixtures/napi-vm-native/tsconfig.json
 //
 // The host loads `dist/index.js` as an ES module through
-// `napi_vm::RustPluginHost`. Native calls go through the bundled
-// `rdev-node` package exactly like a real device plugin would.
-import { add, startListener, stopListener } from 'rdev-node';
+// `napi_vm::RustPluginHost`. TikTools selects the exact host `.node`
+// from the declared package root and exposes it as a native `require()`
+// alias, so the guest loads it through `node:module` without executing
+// any package loader.
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { add, startListener, stopListener } = require('rdev-node');
 const queue = [];
 const plugin = {
     onLoad(context) {
@@ -45,11 +49,11 @@ const plugin = {
                 return { summary: `sum:${add(19, 23)}`, logs: [], intents: [], events: [] };
             }
             if (typeId === "native.require") {
-                // Same package through the VM's CommonJS `require()` instead of
-                // the static ESM import above: both entries resolve one package.
-                const binding = require("rdev-node");
+                // Same package through a fresh alias lookup instead of the
+                // module-top binding: both resolve one allowlisted binary.
+                const again = require("rdev-node");
                 return {
-                    summary: `require:${typeof binding.add}:${binding.add(20, 22)}`,
+                    summary: `require:${typeof again.add}:${again.add(20, 22)}`,
                     logs: [],
                     intents: [],
                     events: [],

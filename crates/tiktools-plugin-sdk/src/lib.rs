@@ -11,6 +11,7 @@ mod decode;
 mod enrich;
 mod error;
 pub mod native;
+pub mod native_stage;
 mod plugin;
 pub mod process;
 mod results;

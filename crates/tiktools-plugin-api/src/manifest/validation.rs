@@ -945,8 +945,8 @@ pub fn current_platform() -> String {
     .to_owned()
 }
 
-/// Node.js architecture vocabulary (`process.arch`): the same names the
-/// generated napi-rs loaders match on.
+/// Node.js architecture vocabulary (`x64`, `arm64`, `ia32`): the same
+/// names napi-rs artifact filenames use.
 pub fn current_arch() -> String {
     match std::env::consts::ARCH {
         "x86_64" => "x64",
@@ -985,9 +985,9 @@ pub fn current_target() -> String {
 
 /// The host target in napi-rs `platformArchABI` vocabulary
 /// (`linux-x64-gnu`, `win32-x64-msvc`, `darwin-arm64`, ...). This is the
-/// canonical key native artifact declarations are selected by: it matches
-/// what the generated loaders resolve, including the un-suffixed darwin
-/// triples and the real Linux libc.
+/// canonical infix host binary selection matches on: it encodes the real
+/// platform, architecture, and Linux libc, including the un-suffixed
+/// darwin triples.
 pub fn current_napi_target() -> String {
     let platform = current_platform();
     let arch = current_arch();
@@ -1000,11 +1000,7 @@ pub fn current_napi_target() -> String {
 /// Maximum declared native packages per manifest. Real plugins bundle one
 /// or two; the cap only bounds adversarial manifests.
 pub(crate) const MAX_NATIVE_ADDON_PACKAGES: usize = 32;
-/// Maximum platform artifacts per native package. napi-rs publishes about
-/// twenty triples; the cap leaves headroom without admitting junk.
-pub(crate) const MAX_NATIVE_ARTIFACTS_PER_PACKAGE: usize = 64;
 pub(crate) const MAX_NATIVE_PACKAGE_LEN: usize = 256;
-pub(crate) const MAX_NATIVE_PLATFORM_KEY_LEN: usize = 64;
 pub(crate) const MAX_NATIVE_PATH_LEN: usize = 512;
 
 /// A bare package specifier guests can require (`rdev-node`,
@@ -1040,42 +1036,74 @@ pub fn is_valid_native_package_name(value: &str) -> bool {
     true
 }
 
-/// Platform keys are lookup labels, not paths: lowercase slug segments that
-/// never match a future triple are simply never selected. Unknown keys stay
-/// valid so new napi-rs targets keep parsing on older hosts.
-pub fn is_valid_native_platform_key(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    (1..=MAX_NATIVE_PLATFORM_KEY_LEN).contains(&bytes.len())
-        && bytes.iter().all(|byte| {
-            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
-        })
+/// Failures selecting the host binary from a declared native package
+/// root. Selection is exact: foreign targets are ignored, and anything
+/// but one match fails the load instead of guessing.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum NativeBinarySelectError {
+    #[error("native package `{root}` has no binary for {target}")]
+    NoHostBinary { root: String, target: String },
+    #[error("native package `{root}` has {count} binaries for {target}; expected exactly one")]
+    MultipleHostBinaries {
+        root: String,
+        target: String,
+        count: usize,
+    },
+    #[error("native package root is not a directory: {0}")]
+    NotADirectory(String),
+    #[error("cannot inspect native package root: {0}")]
+    Unreadable(String),
 }
 
-/// Parses a manifest SHA-256 hex digest into raw bytes. Accepts either hex
-/// case; anything else is not a digest.
-pub fn parse_sha256_hex(value: &str) -> Option<[u8; 32]> {
-    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return None;
+/// Selects the exact `.node` binary for this host from a declared native
+/// package root.
+///
+/// napi-rs artifacts are named `<binary>.<platformArchABI>.node`
+/// (`node-rdev.linux-x64-gnu.node`, `node-rdev.darwin-arm64.node`, ...),
+/// so the host suffix comes from [`current_napi_target`], which already
+/// encodes the real platform, architecture, and Linux libc. Foreign
+/// targets never match and the same-platform libc twin never matches;
+/// zero or several matches fail instead of guessing. Only top-level
+/// regular files ending in `.node` are considered.
+pub fn select_host_native_binary(
+    package_root: &std::path::Path,
+) -> Result<std::path::PathBuf, NativeBinarySelectError> {
+    if !package_root.is_dir() {
+        return Err(NativeBinarySelectError::NotADirectory(
+            package_root.display().to_string(),
+        ));
     }
-    let mut digest = [0_u8; 32];
-    for (index, chunk) in value.as_bytes().chunks(2).enumerate() {
-        let text = std::str::from_utf8(chunk).ok()?;
-        digest[index] = u8::from_str_radix(text, 16).ok()?;
+    let target = current_napi_target();
+    let suffix = format!(".{target}.node");
+    let entries = std::fs::read_dir(package_root)
+        .map_err(|_| NativeBinarySelectError::Unreadable(package_root.display().to_string()))?;
+    let mut matches = Vec::new();
+    for entry in entries {
+        let entry = entry
+            .map_err(|_| NativeBinarySelectError::Unreadable(package_root.display().to_string()))?;
+        if !entry
+            .file_type()
+            .map(|kind| kind.is_file())
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.len() > suffix.len() && name.ends_with(suffix.as_str()) {
+            matches.push(entry.path());
+        }
     }
-    Some(digest)
-}
-
-/// Artifact keys the host selects from, in preference order: the napi-rs
-/// `platformArchABI` for this host first, then the TikTools spelling as a
-/// legacy fallback (they differ only for darwin). Selection takes the
-/// first hit and authorizes exactly that artifact: same-platform libc
-/// twins are never co-authorized, since authorizing both would only turn a
-/// clear authorization error into a dynamic-loader failure.
-pub fn host_native_artifact_keys() -> Vec<String> {
-    let mut keys = vec![current_napi_target()];
-    let legacy = current_target();
-    if !keys.iter().any(|existing| existing == &legacy) {
-        keys.push(legacy);
+    matches.sort();
+    match matches.len() {
+        1 => Ok(matches.remove(0)),
+        0 => Err(NativeBinarySelectError::NoHostBinary {
+            root: package_root.display().to_string(),
+            target,
+        }),
+        count => Err(NativeBinarySelectError::MultipleHostBinaries {
+            root: package_root.display().to_string(),
+            target,
+            count,
+        }),
     }
-    keys
 }

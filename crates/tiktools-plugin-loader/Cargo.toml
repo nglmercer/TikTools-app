@@ -34,4 +34,5 @@ zip = { workspace = true, optional = true }
 # Integration tests hash staged `.node` files and craft `.plugin` archives
 # regardless of which optional features are enabled.
 sha2.workspace = true
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk" }
 zip.workspace = true

@@ -100,47 +100,23 @@ impl PluginTrust {
     }
 }
 
-/// One platform-specific `.node` binary inside a declared native package.
+/// One bundled native package a `napi-vm` plugin may load a `.node`
+/// binary from. `package` is the bare specifier guests require
+/// (`rdev-node`); `root` is the package directory relative to the plugin
+/// root (`node_modules/rdev-node`).
 ///
-/// `path` is relative to the package `root`; `sha256` is the lowercase hex
-/// digest the host pins before the file is ever loaded.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NativeAddonArtifact {
-    pub path: String,
-    pub sha256: String,
-}
-
-/// One bundled native package a `napi-vm` plugin may load `.node` binaries
-/// from. `package` is the bare specifier guests require (`rdev-node`);
-/// `root` is the package directory relative to the plugin root
-/// (`node_modules/rdev-node`); `artifacts` maps platform triples
-/// (`linux-x64-gnu`, `darwin-arm64`, ...) to their pinned binaries.
+/// There is deliberately no per-target artifact map and no manifest hash:
+/// the host selects the exact binary for its own platform from the
+/// package root at load, and napi-vm allowlists and pins that one file
+/// internally.
 ///
 /// Native addons are trusted code with host process privileges, never
-/// sandboxed. This declaration is the authorization boundary: the host
-/// allowlists a host-platform subset of these artifacts and refuses every
-/// other `.node` file.
+/// sandboxed. This declaration is the authorization boundary: only the
+/// selected binary loads, and every other `.node` file is refused.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NativeAddonDeclaration {
     pub package: String,
     pub root: String,
-    pub artifacts: std::collections::BTreeMap<String, NativeAddonArtifact>,
-}
-
-impl NativeAddonDeclaration {
-    /// The one declared artifact for this host, if any: the first hit in
-    /// host key preference order. Foreign targets are never selected, and
-    /// same-platform libc twins never both authorize — the generated
-    /// napi-rs loader resolves the exact file itself, so the host must
-    /// agree with it on exactly one.
-    pub fn select_host_artifact(&self) -> Option<(&str, &NativeAddonArtifact)> {
-        let keys = crate::manifest::host_native_artifact_keys();
-        keys.iter().find_map(|key| {
-            self.artifacts
-                .get_key_value(key)
-                .map(|(platform, artifact)| (platform.as_str(), artifact))
-        })
-    }
 }
 
 /// No structural equality: the typed `ui` fragment carries float bounds and

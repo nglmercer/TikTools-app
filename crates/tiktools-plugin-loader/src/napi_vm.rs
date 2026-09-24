@@ -23,11 +23,13 @@
 //! Native addons (napi-rs `.node` binaries) are opt-in per plugin through
 //! the manifest `nativeAddons` list, and only for explicitly trusted
 //! manifests (see `native_addons_allowed`). Before `host.load`, the owner
-//! thread authorizes exactly one declared artifact per package — the exact
-//! current host target — with its pinned SHA-256 digest; with no
-//! declaration the guest stays inside the pure-Rust VM. While idle the
-//! owner thread pumps the napi-vm event loop so native TSFN/async
-//! callbacks run without an arriving plugin request.
+//! thread selects the exact host binary from each declared package root,
+//! authorizes that one file through napi-vm (which pins its contents
+//! internally), and exposes it to guests as a native `require()` alias
+//! under the declared package name; with no declaration the guest stays
+//! inside the pure-Rust VM. While idle the owner thread pumps the napi-vm
+//! event loop so native TSFN/async callbacks run without an arriving
+//! plugin request.
 
 use std::{
     path::{Path, PathBuf},
@@ -36,14 +38,12 @@ use std::{
     time::Duration,
 };
 
-use napi_vm::{
-    GuestLibc, GuestTargetInfo, RustPluginHost, RustPluginHostOptions, RustPluginPolicy,
-};
+use napi_vm::{RustPluginHost, RustPluginHostOptions, RustPluginPolicy};
 #[cfg(all(
     feature = "napi-vm-node-api",
     any(target_os = "linux", target_os = "macos", target_os = "windows")
 ))]
-use tiktools_plugin_api::manifest::{current_napi_target, parse_sha256_hex};
+use tiktools_plugin_api::manifest::select_host_native_binary;
 use tiktools_plugin_api::{
     NativeAddonDeclaration, PluginManifest, PluginRuntimeKind, MAX_FRAME_BYTES,
 };
@@ -99,7 +99,7 @@ impl PluginRuntime for NapiVmPluginRuntime {
 /// Native addons execute with TikTools process privileges and are not
 /// sandboxed. The default napi-vm manifest is `Sandboxed`, so enabling
 /// native code requires the manifest to opt out explicitly with
-/// `"trust": "trusted"`. The pinned SHA-256 digests and `checksums.json`
+/// `"trust": "trusted"`. Internally pinned hashes and `checksums.json`
 /// are integrity metadata — they prove the files are the ones that were
 /// packaged, never that the native code is trustworthy — so install-time
 /// provenance narrowing (quarantine or consent for user-installed
@@ -124,25 +124,6 @@ pub(crate) fn untrusted_native_addons(id: &str) -> PluginLoaderError {
         "napi-vm plugin `{id}` declares native addons but is not trusted; \
          native addons execute with TikTools process privileges and are not sandboxed"
     ))
-}
-
-/// The canonical host target facts handed to napi-vm for guest loader
-/// resolution: real platform/arch in Node.js `process` vocabulary plus
-/// the real Linux libc identity. This is the same determination the
-/// artifact authorization below selects by, so loader and host agree on
-/// exactly one file.
-fn guest_target_info() -> GuestTargetInfo {
-    use tiktools_plugin_api::manifest::{current_arch, current_platform, is_musl};
-
-    GuestTargetInfo {
-        platform: current_platform(),
-        arch: current_arch(),
-        libc: if is_musl() {
-            GuestLibc::Musl
-        } else {
-            GuestLibc::Gnu
-        },
-    }
 }
 
 struct NapiVmPluginInstance {
@@ -276,23 +257,11 @@ fn run_vm_owner(
 ) {
     // Deny-by-default: no filesystem, no `node:path`, no capability modules
     // in this slice. TikTools-owned host APIs arrive as Rust capability
-    // modules granted per plugin in a follow-up.
-    //
-    // Plugins with native declarations additionally receive the minimal
-    // host target facts (`process.platform`/`process.arch` plus the real
-    // Linux libc identity) that generated napi-rs loaders resolve their
-    // exact `.node` file from. Nothing else of `process` is emulated, and
-    // guests without declarations keep the inert stub. Authorization still
-    // happens host-side below: the guest-visible facts only steer the
-    // loader, and any file outside the authorized set fails closed.
-    let guest_target = if native_addons.is_empty() {
-        None
-    } else {
-        Some(guest_target_info())
-    };
+    // modules granted per plugin in a follow-up. Native selection is
+    // host-side (see below): guests receive no platform or libc facts and
+    // load the addon through its package alias instead of a loader.
     let mut host = RustPluginHost::new(RustPluginHostOptions {
         policy: RustPluginPolicy::default(),
-        guest_target,
         ..RustPluginHostOptions::default()
     });
     if let Err(error) = configure_host_napi_addons(&mut host, &name, &directory, &native_addons) {
@@ -341,12 +310,13 @@ fn pump_vm_event_loop(host: &mut RustPluginHost, name: &str) {
     }
 }
 
-/// Authorizes exactly one manifest-declared artifact per package — the
-/// exact current host target — before `host.load`. With no declaration
-/// this is a no-op and the guest stays inside the pure-Rust VM. Only
-/// declared package roots, artifact paths, and pinned digests are ever
-/// authorized; arbitrary `.node` files stay refused even when they sit
-/// inside the plugin directory.
+/// Selects the exact host binary from each declared package root and
+/// authorizes it before `host.load`: one `.node` per package, exposed to
+/// guests as a native `require()` alias under the declared package name.
+/// With no declaration this is a no-op and the guest stays inside the
+/// pure-Rust VM. Only the selected file is ever authorized; arbitrary
+/// `.node` files stay refused even when they sit inside the plugin
+/// directory.
 #[cfg(all(
     feature = "napi-vm-node-api",
     any(target_os = "linux", target_os = "macos", target_os = "windows")
@@ -369,48 +339,49 @@ fn configure_host_napi_addons(
     })?;
     let mut options = RustPluginNapiOptions::default();
     for declaration in native_addons {
-        // The generated napi-rs loader resolves the exact host file
-        // itself, so the host authorizes exactly that file: one artifact
-        // per package, even though the archive ships them all. A missing
-        // host artifact fails here instead of surfacing later as a
-        // dynamic-loader error inside the guest.
-        let Some((platform, artifact)) = declaration.select_host_artifact() else {
-            return Err(PluginLoaderError::Runtime(format!(
-                "napi-vm plugin `{name}` package `{}` has no native artifact for {}",
-                declaration.package,
-                current_napi_target(),
-            )));
-        };
-        let path = root.join(&declaration.root).join(&artifact.path);
-        // The manifest parser guarantees safe-relative segments; the
-        // canonical containment check still runs so a hand-built
+        // The manifest parser guarantees a safe-relative root; every
+        // canonical containment check below still runs so a hand-built
         // manifest value can never authorize an escape.
-        let canonical = std::fs::canonicalize(&path).map_err(|_| {
+        let package_root = std::fs::canonicalize(root.join(&declaration.root)).map_err(|_| {
             PluginLoaderError::Runtime(format!(
-                "napi-vm plugin `{name}` native artifact is missing: {}",
-                path.display(),
+                "napi-vm plugin `{name}` native package `{}` is missing: {}",
+                declaration.package,
+                root.join(&declaration.root).display(),
+            ))
+        })?;
+        if !package_root.starts_with(&root) {
+            return Err(PluginLoaderError::Runtime(format!(
+                "napi-vm plugin `{name}` native package `{}` escapes the plugin directory",
+                declaration.package,
+            )));
+        }
+        let selected = select_host_native_binary(&package_root).map_err(|error| {
+            PluginLoaderError::Runtime(format!(
+                "napi-vm plugin `{name}` package `{}`: {error}",
+                declaration.package,
+            ))
+        })?;
+        let canonical = std::fs::canonicalize(&selected).map_err(|_| {
+            PluginLoaderError::Runtime(format!(
+                "napi-vm plugin `{name}` native binary is missing: {}",
+                selected.display(),
             ))
         })?;
         if !canonical.starts_with(&root) {
             return Err(PluginLoaderError::Runtime(format!(
-                "napi-vm plugin `{name}` native artifact escapes its package: {}",
-                path.display(),
+                "napi-vm plugin `{name}` native binary escapes the plugin directory: {}",
+                selected.display(),
             )));
         }
-        let digest = parse_sha256_hex(&artifact.sha256).ok_or_else(|| {
-            PluginLoaderError::Runtime(format!(
-                "napi-vm plugin `{name}` native artifact has an invalid digest: {}",
-                path.display(),
-            ))
-        })?;
         tracing::debug!(
             plugin = %name,
             package = %declaration.package,
-            platform = %platform,
             path = %canonical.display(),
-            "authorizing native addon artifact",
+            "authorizing native addon binary",
         );
-        options = options.allow_addon_with_sha256(canonical, digest);
+        options = options
+            .allow_addon(&canonical)
+            .allow_addon_alias(declaration.package.clone(), &canonical);
     }
     host.configure_napi_addons(name, options).map_err(|error| {
         PluginLoaderError::Runtime(format!(

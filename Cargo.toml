@@ -50,7 +50,11 @@ sha2 = "0.10"
 zip = { version = "4.2", default-features = false, features = ["deflate"] }
 rfd = { version = "0.15.4", default-features = false, features = ["xdg-portal", "tokio"] }
 rodio = { version = "0.21.1", features = ["tracing"] }
-napi-vm = { git = "https://github.com/nglmercer/napi-vm", rev = "10884c84dcf49ad1ef6ef3f6c989fb5ceb0fab04", default-features = false }
+# Local mainline checkout: native-addon integration uses `allow_addon` /
+# `allow_addon_alias` plus `node:module` createRequire, which live on
+# napi-vm main, not on the old guest-target branch. Flip back to a git
+# rev once the napi-vm side is pushed.
+napi-vm = { path = "../napi-vm", default-features = false }
 
 # The checked-in JavaScript/Bun package was only a compatibility implementation. The desktop
 # host consumes the Rust crates directly from the upstream workspace at a pinned revision.

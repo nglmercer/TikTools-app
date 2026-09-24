@@ -1,19 +1,17 @@
 use serde_json::{Map, Value};
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use super::{
     types::{
-        NativeAddonArtifact, NativeAddonDeclaration, PluginManifest, PluginRuntimeKind,
-        PluginSecurityModel, PluginTrust,
+        NativeAddonDeclaration, PluginManifest, PluginRuntimeKind, PluginSecurityModel, PluginTrust,
     },
     validation::{
         current_platform, current_target, is_safe_relative_path, is_supported_schema,
-        is_valid_event_subscription, is_valid_native_package_name, is_valid_native_platform_key,
-        is_valid_plugin_id, parse_sha256_hex, validate_action_type, validate_declarative_action,
-        validate_http_config, ManifestError, MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES,
-        MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES, MAX_NATIVE_ADDON_PACKAGES,
-        MAX_NATIVE_ARTIFACTS_PER_PACKAGE, MAX_NATIVE_PATH_LEN,
+        is_valid_event_subscription, is_valid_native_package_name, is_valid_plugin_id,
+        validate_action_type, validate_declarative_action, validate_http_config, ManifestError,
+        MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES, MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES,
+        MAX_NATIVE_ADDON_PACKAGES, MAX_NATIVE_PATH_LEN,
     },
 };
 use crate::{TIKTOOLS_PLUGIN_ABI_VERSION, TIKTOOLS_PLUGIN_PROTOCOL_VERSION};
@@ -362,11 +360,13 @@ fn sanitized_tags(value: Option<&Value>) -> Vec<String> {
     tags
 }
 
-/// Parses the optional `nativeAddons` authorization list. Every path must
-/// stay inside the plugin directory, every artifact must name a `.node`
-/// file with a pinned SHA-256, and every package alias must be unique.
-/// Anything else fails discovery: a malformed authorization boundary must
-/// never degrade into a partial allowlist.
+/// Parses the optional `nativeAddons` authorization list. Each entry
+/// names a package and its root inside the plugin directory; the host
+/// selects the exact binary for its own platform at load, so the manifest
+/// carries no per-target paths and no hashes. Every root must stay inside
+/// the plugin directory and every package alias must be unique. Anything
+/// else fails discovery: a malformed authorization boundary must never
+/// degrade into a partial allowlist.
 fn parse_native_addons(
     value: Option<&Value>,
 ) -> Result<Vec<NativeAddonDeclaration>, ManifestError> {
@@ -399,53 +399,12 @@ fn parse_native_addons(
             if root.len() > MAX_NATIVE_PATH_LEN || !is_safe_relative_path(root) {
                 return Err(ManifestError::InvalidField(FIELD));
             }
-            let artifacts = object
-                .get("artifacts")
-                .and_then(Value::as_object)
-                .ok_or(ManifestError::InvalidField(FIELD))?;
-            if artifacts.is_empty() || artifacts.len() > MAX_NATIVE_ARTIFACTS_PER_PACKAGE {
-                return Err(ManifestError::InvalidField(FIELD));
-            }
-            let mut parsed = BTreeMap::new();
-            for (platform, artifact) in artifacts {
-                if !is_valid_native_platform_key(platform) {
-                    return Err(ManifestError::InvalidField(FIELD));
-                }
-                let artifact = artifact
-                    .as_object()
-                    .ok_or(ManifestError::InvalidField(FIELD))?;
-                let path = artifact
-                    .get("path")
-                    .and_then(Value::as_str)
-                    .ok_or(ManifestError::InvalidField(FIELD))?;
-                if path.len() > MAX_NATIVE_PATH_LEN
-                    || !is_safe_relative_path(path)
-                    || !path.ends_with(".node")
-                {
-                    return Err(ManifestError::InvalidField(FIELD));
-                }
-                // Both segments are safe-relative, so their join cannot
-                // escape the plugin directory; the loader re-checks the
-                // canonical path defensively before authorizing it.
-                let sha256 = artifact
-                    .get("sha256")
-                    .and_then(Value::as_str)
-                    .ok_or(ManifestError::InvalidField(FIELD))?;
-                if parse_sha256_hex(sha256).is_none() {
-                    return Err(ManifestError::InvalidField(FIELD));
-                }
-                parsed.insert(
-                    platform.clone(),
-                    NativeAddonArtifact {
-                        path: path.to_owned(),
-                        sha256: sha256.to_ascii_lowercase(),
-                    },
-                );
-            }
+            // The root is safe-relative, so its join cannot escape the
+            // plugin directory; the loader re-checks the canonical path
+            // defensively before authorizing anything under it.
             Ok(NativeAddonDeclaration {
                 package: package.to_owned(),
                 root: root.to_owned(),
-                artifacts: parsed,
             })
         })
         .collect()
