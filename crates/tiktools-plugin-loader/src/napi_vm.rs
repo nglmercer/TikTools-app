@@ -60,9 +60,7 @@ impl PluginRuntime for NapiVmPluginRuntime {
                 "runtime kind mismatch".to_owned(),
             ));
         }
-        Ok(Box::new(NapiVmPluginInstance::spawn(
-            manifest, directory,
-        )?))
+        Ok(Box::new(NapiVmPluginInstance::spawn(manifest, directory)?))
     }
 }
 
@@ -139,9 +137,9 @@ impl PluginInstance for NapiVmPluginInstance {
             let _ = tx.send(VmCommand::Shutdown);
         }
         if let Some(worker) = self.worker.take() {
-            worker
-                .join()
-                .map_err(|_| PluginLoaderError::Runtime(format!("plugin `{}` worker panicked", self.id)))?;
+            worker.join().map_err(|_| {
+                PluginLoaderError::Runtime(format!("plugin `{}` worker panicked", self.id))
+            })?;
         }
         Ok(())
     }
@@ -225,8 +223,9 @@ fn handle_vm_call(
     })?;
     // Validate before embedding so a non-JSON caller gets a typed error
     // instead of a guest syntax failure.
-    let _: serde_json::Value = serde_json::from_str(request_text)
-        .map_err(|error| PluginLoaderError::Runtime(format!("plugin request is not JSON: {error}")))?;
+    let _: serde_json::Value = serde_json::from_str(request_text).map_err(|error| {
+        PluginLoaderError::Runtime(format!("plugin request is not JSON: {error}"))
+    })?;
     let context_text = serde_json::to_string(context).map_err(|error| {
         PluginLoaderError::Runtime(format!("could not encode plugin context: {error}"))
     })?;
@@ -292,10 +291,19 @@ mod tests {
     #[test]
     fn envelope_embeds_request_and_context_as_literals() {
         let source = call_envelope(r#"{"type":"poll"}"#, r#"{"pluginId":"demo"}"#);
-        assert!(source.contains(r#"const request = {"type":"poll"};"#), "{source}");
-        assert!(source.contains(r#"const context = {"pluginId":"demo"};"#), "{source}");
-        assert!(source.contains("__pluginInstance.call(request, context)"), "{source}");
-        assert!(source.startsWith("await (async () => {"), "{source}");
+        assert!(
+            source.contains(r#"const request = {"type":"poll"};"#),
+            "{source}"
+        );
+        assert!(
+            source.contains(r#"const context = {"pluginId":"demo"};"#),
+            "{source}"
+        );
+        assert!(
+            source.contains("__pluginInstance.call(request, context)"),
+            "{source}"
+        );
+        assert!(source.starts_with("await (async () => {"), "{source}");
     }
 
     #[test]

@@ -158,12 +158,12 @@ fn reads_napi_vm_manifest_with_kebab_case_runtime() {
     assert_eq!(manifest.runtime, PluginRuntimeKind::NapiVm);
     assert_eq!(manifest.entry, "dist/index.js");
     assert_eq!(manifest.trust, PluginTrust::Sandboxed);
-    assert_eq!(
-        manifest.security_model(),
-        PluginSecurityModel::Sandboxed
-    );
+    assert_eq!(manifest.security_model(), PluginSecurityModel::Sandboxed);
     assert_eq!(manifest.runtime.to_string(), "napi-vm");
-    assert_eq!(PluginRuntimeKind::parse("napi-vm"), Some(PluginRuntimeKind::NapiVm));
+    assert_eq!(
+        PluginRuntimeKind::parse("napi-vm"),
+        Some(PluginRuntimeKind::NapiVm)
+    );
     let serialized = serde_json::to_value(manifest.runtime).unwrap();
     assert_eq!(serialized, Value::String("napi-vm".to_owned()));
     let round_trip: PluginRuntimeKind = serde_json::from_value(serialized).unwrap();

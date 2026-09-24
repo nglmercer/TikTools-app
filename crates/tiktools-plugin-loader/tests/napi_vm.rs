@@ -5,14 +5,14 @@
 
 use std::{
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use serde_json::{json, Value};
 use tiktools_plugin_api::{PluginManifest, PluginRuntimeKind};
 use tiktools_plugin_loader::{
-    NapiVmPluginRuntime, PluginInstance, PluginManager, PluginRoot, PluginRuntime, PluginSource,
+    NapiVmPluginRuntime, PluginManager, PluginRoot, PluginRuntime, PluginSource,
 };
 
 fn fixture_dir() -> PathBuf {
@@ -30,7 +30,7 @@ fn temp_root(label: &str) -> PathBuf {
     ))
 }
 
-fn copy_dir(source: &PathBuf, target: &PathBuf) {
+fn copy_dir(source: &Path, target: &Path) {
     for entry in fs::read_dir(source).unwrap() {
         let entry = entry.unwrap();
         let destination = target.join(entry.file_name());
@@ -73,10 +73,9 @@ fn fixture_manifest_parses_as_napi_vm() {
     assert!(manifest.target_matches_current_platform());
     // The napi-vm compatibility subset rides along in the same file without
     // disturbing the TikTools parse.
-    let raw: Value = serde_json::from_str(
-        &fs::read_to_string(fixture_dir().join("plugin.json")).unwrap(),
-    )
-    .unwrap();
+    let raw: Value =
+        serde_json::from_str(&fs::read_to_string(fixture_dir().join("plugin.json")).unwrap())
+            .unwrap();
     assert_eq!(raw.get("apiVersion"), Some(&json!(1)));
 }
 
@@ -177,10 +176,9 @@ fn guest_without_call_export_fails_closed() {
     )
     .unwrap();
 
-    let manifest = PluginManifest::from_json_str(
-        &fs::read_to_string(staged.join("plugin.json")).unwrap(),
-    )
-    .unwrap();
+    let manifest =
+        PluginManifest::from_json_str(&fs::read_to_string(staged.join("plugin.json")).unwrap())
+            .unwrap();
     let mut instance = NapiVmPluginRuntime.load(&manifest, &staged).unwrap();
     let error = instance
         .handle_message(br#"{"type":"poll"}"#)
@@ -206,10 +204,9 @@ fn missing_entry_fails_load() {
     )
     .unwrap();
 
-    let manifest = PluginManifest::from_json_str(
-        &fs::read_to_string(staged.join("plugin.json")).unwrap(),
-    )
-    .unwrap();
+    let manifest =
+        PluginManifest::from_json_str(&fs::read_to_string(staged.join("plugin.json")).unwrap())
+            .unwrap();
     let error = match NapiVmPluginRuntime.load(&manifest, &staged) {
         Ok(_) => panic!("load with a missing entry must fail"),
         Err(error) => error.to_string(),
