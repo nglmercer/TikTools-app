@@ -40,26 +40,32 @@
 //! a polling interval.
 
 use std::{
+    collections::{BTreeMap, HashSet},
     path::{Path, PathBuf},
     sync::{mpsc as std_mpsc, Arc},
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
-use napi_vm::{RustPluginHost, RustPluginHostOptions, RustPluginPolicy, WakeNotifier};
+use napi_vm::{
+    value_to_json, Interpreter, RustPluginCapability, RustPluginHost, RustPluginHostOptions,
+    RustPluginPolicy, Value, VmErr, WakeNotifier,
+};
 #[cfg(all(
     feature = "napi-vm-node-api",
     any(target_os = "linux", target_os = "macos", target_os = "windows")
 ))]
 use tiktools_plugin_api::manifest::select_host_native_binary;
 use tiktools_plugin_api::{
-    NativeAddonDeclaration, PluginManifest, PluginRuntimeKind, MAX_FRAME_BYTES,
+    capabilities::EVENTS_PUBLISH, manifest::declared_event_types, NativeAddonDeclaration,
+    PluginManifest, PluginRuntimeKind, MAX_FRAME_BYTES,
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::{
     worker::{QueuedCall, WorkerMsg},
-    ManagedWorker, PluginInstance, PluginLoaderError, PluginRuntime, PluginSource,
+    EmittedEvent, ManagedWorker, PluginInstance, PluginLoaderError, PluginRuntime, PluginSource,
+    WorkerContext,
 };
 
 #[derive(Default)]
@@ -76,7 +82,11 @@ impl PluginRuntime for NapiVmPluginRuntime {
         directory: &Path,
     ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
         check_manifest(manifest)?;
-        let (tx, worker) = spawn_owner(manifest, directory)?;
+        // Direct loads have no manager bus: emits fail loudly instead of
+        // vanishing, so embedders learn push needs the managed path.
+        let (orphan_tx, orphan_rx) = broadcast::channel(1);
+        drop(orphan_rx);
+        let (tx, worker) = spawn_owner(manifest, directory, orphan_tx)?;
         Ok(Box::new(NapiVmPluginInstance {
             id: manifest.id.clone(),
             tx: Some(tx),
@@ -88,11 +98,12 @@ impl PluginRuntime for NapiVmPluginRuntime {
         &self,
         manifest: &PluginManifest,
         directory: &Path,
+        ctx: &WorkerContext,
     ) -> Option<Result<ManagedWorker, PluginLoaderError>> {
         if let Err(error) = check_manifest(manifest) {
             return Some(Err(error));
         }
-        match spawn_owner(manifest, directory) {
+        match spawn_owner(manifest, directory, ctx.emit_sender()) {
             Ok((tx, worker)) => Some(Ok(ManagedWorker::new(tx, worker))),
             Err(error) => Some(Err(error)),
         }
@@ -225,14 +236,189 @@ impl Drop for NapiVmPluginInstance {
 const DIRECT_CALL_TIMEOUT: Duration = Duration::from_secs(365 * 24 * 60 * 60);
 
 /// Guest-visible context for `call(request, context)`: plugin identity only.
-/// Host capabilities arrive through Rust capability modules in a follow-up;
-/// this object stays additive so guests can ignore unknown fields.
+/// Host capabilities arrive through Rust capability modules such as
+/// [`EVENTS_CAPABILITY`]; this object stays additive so guests can ignore
+/// unknown fields.
 fn guest_context(manifest: &PluginManifest) -> serde_json::Value {
     serde_json::json!({
         "pluginId": manifest.id,
         "name": manifest.name,
         "version": manifest.version,
     })
+}
+
+/// Guest module for push events: `import { emit, emitMany } from
+/// "tiktools:events"`. Installed only for plugins whose manifest requests
+/// publishing; every emit is validated here (shape, declared type, size)
+/// and re-validated by core (publish grant) before delivery.
+pub const EVENTS_CAPABILITY: &str = "tiktools:events";
+
+/// Max serialized bytes of one pushed event (type plus data).
+/// Hotkey-class events are ~100 bytes; 64 KiB leaves wide headroom while
+/// keeping the bounded push bus small under burst.
+const MAX_EMIT_EVENT_BYTES: usize = 64 * 1024;
+
+/// Max events per `emitMany` batch: bursts stay bounded per call.
+const MAX_EMIT_BATCH: usize = 64;
+
+/// Per-plugin push state: what the `tiktools:events` closures validate
+/// against and where accepted events go.
+struct EventsPush {
+    plugin_id: String,
+    declared: HashSet<String>,
+    tx: broadcast::Sender<EmittedEvent>,
+}
+
+/// Translates the TikTools manifest into the napi-vm events request: a
+/// plugin that declares the publish capability asks for the module. The
+/// guest import still requires the host grant (installed in
+/// `run_vm_owner`); delivery additionally requires core's per-event
+/// validation.
+fn events_push_for(
+    manifest: &PluginManifest,
+    emit_tx: broadcast::Sender<EmittedEvent>,
+) -> Option<EventsPush> {
+    if !manifest
+        .capabilities
+        .iter()
+        .any(|capability| capability == EVENTS_PUBLISH)
+    {
+        return None;
+    }
+    Some(EventsPush {
+        plugin_id: manifest.id.clone(),
+        declared: declared_event_types(manifest).into_iter().collect(),
+        tx: emit_tx,
+    })
+}
+
+fn install_events_capability(
+    host: &mut RustPluginHost,
+    events: &EventsPush,
+) -> Result<(), PluginLoaderError> {
+    let plugin_id = events.plugin_id.clone();
+    let declared = events.declared.clone();
+    let tx = events.tx.clone();
+    let capability =
+        RustPluginCapability::new(EVENTS_CAPABILITY).export("emit", move |interp, args| {
+            let event = args.first().cloned().unwrap_or(Value::Undefined);
+            push_one(interp, &plugin_id, &declared, &tx, &event).map(|_| Value::Undefined)
+        });
+    let plugin_id = events.plugin_id.clone();
+    let declared = events.declared.clone();
+    let tx = events.tx.clone();
+    let capability = capability.export("emitMany", move |interp, args| {
+        let batch = args.first().cloned().unwrap_or(Value::Undefined);
+        push_many(interp, &plugin_id, &declared, &tx, &batch)
+            .map(|count| Value::Number(count as f64))
+    });
+    host.define_capability(capability).map_err(|error| {
+        PluginLoaderError::Runtime(format!(
+            "napi-vm plugin `{}` events capability failed: {error}",
+            events.plugin_id
+        ))
+    })?;
+    host.set_extra_capability_requests(BTreeMap::from([(
+        EVENTS_CAPABILITY.to_owned(),
+        serde_json::json!(true),
+    )]))
+    .map_err(|error| {
+        PluginLoaderError::Runtime(format!(
+            "napi-vm plugin `{}` events request failed: {error}",
+            events.plugin_id
+        ))
+    })
+}
+
+/// Validates one pushed event and enqueues it. Failures throw to the guest,
+/// so a misbehaving plugin learns immediately instead of losing events.
+fn push_one(
+    interp: &mut Interpreter,
+    plugin_id: &str,
+    declared: &HashSet<String>,
+    tx: &broadcast::Sender<EmittedEvent>,
+    event: &Value,
+) -> Result<(), VmErr> {
+    let json = value_to_json(interp, event)
+        .map_err(|error| VmErr::Msg(format!("emit: event is not serializable: {error}")))?;
+    let (event_type, data) = check_emitted_json(declared, &json, "emit")?;
+    tx.send(EmittedEvent {
+        plugin_id: plugin_id.to_owned(),
+        event_type,
+        data,
+    })
+    .map_err(|_| VmErr::Msg("emit: event bus unavailable".to_owned()))?;
+    Ok(())
+}
+
+/// Validates a batch and enqueues it, returning the accepted count. The
+/// batch is validated fully before anything is sent: a bad batch sends
+/// nothing.
+fn push_many(
+    interp: &mut Interpreter,
+    plugin_id: &str,
+    declared: &HashSet<String>,
+    tx: &broadcast::Sender<EmittedEvent>,
+    batch: &Value,
+) -> Result<usize, VmErr> {
+    let json = value_to_json(interp, batch)
+        .map_err(|error| VmErr::Msg(format!("emitMany: batch is not serializable: {error}")))?;
+    let events = json
+        .as_array()
+        .ok_or_else(|| VmErr::Msg("emitMany: expected an array of events".to_owned()))?;
+    if events.len() > MAX_EMIT_BATCH {
+        return Err(VmErr::Msg(format!(
+            "emitMany: batch exceeds {MAX_EMIT_BATCH} events"
+        )));
+    }
+    let mut staged = Vec::with_capacity(events.len());
+    for event in events {
+        staged.push(check_emitted_json(declared, event, "emitMany")?);
+    }
+    for (event_type, data) in staged {
+        tx.send(EmittedEvent {
+            plugin_id: plugin_id.to_owned(),
+            event_type,
+            data,
+        })
+        .map_err(|_| VmErr::Msg("emitMany: event bus unavailable".to_owned()))?;
+    }
+    Ok(events.len())
+}
+
+/// Shared shape/type/size validation for pushed events: `{ type, data? }`
+/// with a declared type and a bounded payload. Core re-validates the
+/// publish grant before delivery.
+fn check_emitted_json(
+    declared: &HashSet<String>,
+    json: &serde_json::Value,
+    caller: &str,
+) -> Result<(String, serde_json::Value), VmErr> {
+    let object = json
+        .as_object()
+        .ok_or_else(|| VmErr::Msg(format!("{caller}: event must be an object")))?;
+    let event_type = object
+        .get("type")
+        .and_then(serde_json::Value::as_str)
+        .filter(|kind| !kind.is_empty())
+        .ok_or_else(|| VmErr::Msg(format!("{caller}: event needs a non-empty string type")))?;
+    if !declared.contains(event_type) {
+        return Err(VmErr::Msg(format!(
+            "{caller}: undeclared event type `{event_type}`"
+        )));
+    }
+    let bytes = serde_json::to_vec(json)
+        .map_err(|error| VmErr::Msg(format!("{caller}: event is not serializable: {error}")))?;
+    if bytes.len() > MAX_EMIT_EVENT_BYTES {
+        return Err(VmErr::Msg(format!(
+            "{caller}: event exceeds {MAX_EMIT_EVENT_BYTES} bytes"
+        )));
+    }
+    let data = object
+        .get("data")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    Ok((event_type.to_owned(), data))
 }
 
 /// Spawns the dedicated VM owner thread and waits for the guest `onLoad`
@@ -243,6 +429,7 @@ fn guest_context(manifest: &PluginManifest) -> serde_json::Value {
 fn spawn_owner(
     manifest: &PluginManifest,
     directory: &Path,
+    emit_tx: broadcast::Sender<EmittedEvent>,
 ) -> Result<
     (
         mpsc::UnboundedSender<WorkerMsg>,
@@ -255,6 +442,7 @@ fn spawn_owner(
     let context = guest_context(manifest);
     let native_addons = manifest.native_addons.clone();
     let directory = directory.to_owned();
+    let events = events_push_for(manifest, emit_tx);
     let (tx, rx) = mpsc::unbounded_channel();
     let (ready_tx, ready_rx) = std_mpsc::channel();
     let thread_id = id.clone();
@@ -267,6 +455,7 @@ fn spawn_owner(
                 directory,
                 context,
                 native_addons,
+                events,
                 rx,
                 wake_tx,
                 ready_tx,
@@ -299,6 +488,7 @@ fn run_vm_owner(
     directory: PathBuf,
     context: serde_json::Value,
     native_addons: Vec<NativeAddonDeclaration>,
+    events: Option<EventsPush>,
     mut rx: mpsc::UnboundedReceiver<WorkerMsg>,
     wake_tx: mpsc::UnboundedSender<WorkerMsg>,
     ready: std_mpsc::Sender<Result<(), PluginLoaderError>>,
@@ -308,8 +498,12 @@ fn run_vm_owner(
     // modules granted per plugin in a follow-up. Native selection is
     // host-side (see below): guests receive no platform or libc facts and
     // load the addon through its package alias instead of a loader.
+    let policy = match &events {
+        Some(_) => RustPluginPolicy::default().grant(EVENTS_CAPABILITY, serde_json::json!(true)),
+        None => RustPluginPolicy::default(),
+    };
     let mut host = RustPluginHost::new(RustPluginHostOptions {
-        policy: RustPluginPolicy::default(),
+        policy,
         ..RustPluginHostOptions::default()
     });
     // Guest load entry point: `host.load` evaluates the guest module and
@@ -322,6 +516,18 @@ fn run_vm_owner(
         native_addons = native_addons.len(),
         "napi-vm guest load started"
     );
+    if let Some(events) = &events {
+        if let Err(error) = install_events_capability(&mut host, events) {
+            tracing::warn!(
+                plugin = %name,
+                elapsed_ms = load_started.elapsed().as_millis() as u64,
+                %error,
+                "napi-vm guest load failed"
+            );
+            let _ = ready.send(Err(error));
+            return Ok(());
+        }
+    }
     if let Err(error) = configure_host_napi_addons(&mut host, &name, &directory, &native_addons) {
         tracing::warn!(
             plugin = %name,
@@ -650,8 +856,10 @@ mod tests {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/napi-vm-echo");
         let bytes = std::fs::read(dir.join("plugin.json")).unwrap();
         let manifest = PluginManifest::from_json_str(std::str::from_utf8(&bytes).unwrap()).unwrap();
+        let (emit_tx, _emit_rx) = broadcast::channel(8);
+        let ctx = WorkerContext::new(emit_tx);
         let owned = NapiVmPluginRuntime
-            .spawn_worker(&manifest, &dir)
+            .spawn_worker(&manifest, &dir, &ctx)
             .expect("napi-vm provides an owned worker")
             .expect("owned worker spawns");
         let (tx, worker) = owned.into_parts();
@@ -674,6 +882,101 @@ mod tests {
         );
         tx.send(WorkerMsg::Shutdown).unwrap();
         worker.join().unwrap().unwrap();
+    }
+
+    fn push_fixture() -> (
+        Interpreter,
+        HashSet<String>,
+        broadcast::Sender<EmittedEvent>,
+    ) {
+        let declared: HashSet<String> = ["push.tick".to_owned()].into_iter().collect();
+        let (tx, _) = broadcast::channel(8);
+        (Interpreter::new(), declared, tx)
+    }
+
+    #[test]
+    fn push_accepts_declared_events_and_rejects_the_rest() {
+        let (mut interp, declared, tx) = push_fixture();
+        let mut rx = tx.subscribe();
+        let event = interp
+            .eval_source("({type:'push.tick',data:{n:1}})")
+            .unwrap();
+        push_one(&mut interp, "p", &declared, &tx, &event).unwrap();
+        let got = rx.try_recv().unwrap();
+        assert_eq!(got.plugin_id, "p");
+        assert_eq!(got.event_type, "push.tick");
+        assert_eq!(got.data, serde_json::json!({"n": 1}));
+
+        // Undeclared type, missing type, and non-objects all throw.
+        for source in [
+            "({type:'nope'})",
+            "({data:{}})",
+            "({type:''})",
+            "({type:42})",
+            "42",
+            "'push.tick'",
+            "null",
+        ] {
+            let bad = interp.eval_source(source).unwrap();
+            assert!(
+                push_one(&mut interp, "p", &declared, &tx, &bad).is_err(),
+                "{source} must be rejected"
+            );
+        }
+        assert!(rx.try_recv().is_err(), "rejected emits send nothing");
+
+        // Oversized payloads throw.
+        let big = "x".repeat(MAX_EMIT_EVENT_BYTES);
+        let event = napi_vm::value_from_json(&serde_json::json!({
+            "type": "push.tick",
+            "data": { "s": big },
+        }))
+        .unwrap();
+        let error = push_one(&mut interp, "p", &declared, &tx, &event).unwrap_err();
+        assert!(error.to_string().contains("exceeds"), "{error}");
+    }
+
+    #[test]
+    fn push_many_validates_before_sending_anything() {
+        let (mut interp, declared, tx) = push_fixture();
+        let mut rx = tx.subscribe();
+        let batch = interp
+            .eval_source("[{type:'push.tick'},{type:'push.tick',data:2}]")
+            .unwrap();
+        assert_eq!(
+            push_many(&mut interp, "p", &declared, &tx, &batch).unwrap(),
+            2
+        );
+        assert!(rx.try_recv().is_ok());
+        assert!(rx.try_recv().is_ok());
+
+        // One bad event poisons the batch: nothing is sent.
+        let batch = interp
+            .eval_source("[{type:'push.tick'},{type:'nope'}]")
+            .unwrap();
+        assert!(push_many(&mut interp, "p", &declared, &tx, &batch).is_err());
+        assert!(rx.try_recv().is_err());
+
+        // Non-arrays and over-long batches throw.
+        let not_array = interp.eval_source("({type:'push.tick'})").unwrap();
+        assert!(push_many(&mut interp, "p", &declared, &tx, &not_array).is_err());
+        let long = format!(
+            "[{}]",
+            vec!["{type:'push.tick'}"; MAX_EMIT_BATCH + 1].join(",")
+        );
+        let over = interp.eval_source(&long).unwrap();
+        let error = push_many(&mut interp, "p", &declared, &tx, &over).unwrap_err();
+        assert!(error.to_string().contains("exceeds"), "{error}");
+    }
+
+    #[test]
+    fn push_without_subscribers_fails_loudly() {
+        let (mut interp, declared, _) = push_fixture();
+        let (orphan_tx, orphan_rx) = broadcast::channel(1);
+        drop(orphan_rx);
+        let event = interp.eval_source("({type:'push.tick'})").unwrap();
+        let error = push_one(&mut interp, "p", &declared, &orphan_tx, &event).unwrap_err();
+        assert!(error.to_string().contains("unavailable"), "{error}");
     }
 
     fn trust_manifest(trust: &str) -> PluginManifest {

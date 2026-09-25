@@ -22,11 +22,12 @@ pub use types::{
     MAX_PLUGIN_PROCESSOR_TIMEOUT_MS,
 };
 pub use validation::{
-    current_arch, current_napi_target, current_platform, current_target, is_known_napi_target,
-    is_musl, is_safe_relative_path, is_valid_event_subscription, is_valid_event_type,
-    is_valid_native_lib_binary, is_valid_native_lib_repo, is_valid_native_lib_tag,
-    is_valid_native_lib_version, is_valid_native_package_name, is_valid_plugin_id,
-    select_host_native_binary, validate_action_type, validate_declarative_action,
-    validate_event_type, validate_http_config, validate_plugin_autocomplete, validate_plugin_page,
-    validate_plugin_template, ManifestError, NativeBinarySelectError, NAPI_TARGETS,
+    current_arch, current_napi_target, current_platform, current_target, declared_event_types,
+    is_known_napi_target, is_musl, is_safe_relative_path, is_valid_event_subscription,
+    is_valid_event_type, is_valid_native_lib_binary, is_valid_native_lib_repo,
+    is_valid_native_lib_tag, is_valid_native_lib_version, is_valid_native_package_name,
+    is_valid_plugin_id, select_host_native_binary, validate_action_type,
+    validate_declarative_action, validate_event_type, validate_http_config,
+    validate_plugin_autocomplete, validate_plugin_page, validate_plugin_template, ManifestError,
+    NativeBinarySelectError, NAPI_TARGETS,
 };

@@ -74,9 +74,40 @@ pub trait PluginRuntime: Send + Sync {
         &self,
         manifest: &PluginManifest,
         directory: &Path,
+        ctx: &WorkerContext,
     ) -> Option<Result<ManagedWorker, PluginLoaderError>> {
-        let _ = (manifest, directory);
+        let _ = (manifest, directory, ctx);
         None
+    }
+}
+
+/// One guest-pushed event waiting on the loader's push bus. Validated at
+/// emit time (shape, declared type, size); core re-validates the publish
+/// grant before delivery.
+#[derive(Debug, Clone)]
+pub struct EmittedEvent {
+    pub plugin_id: String,
+    pub event_type: String,
+    pub data: serde_json::Value,
+}
+
+/// Manager-owned resources a runtime-owned worker needs at spawn. Today
+/// this is the push-bus sender for guest-emitted events; runtimes that
+/// spawn their own worker thread receive it here instead of allocating
+/// per-plugin channels the manager could never drain.
+pub struct WorkerContext {
+    emit_tx: tokio::sync::broadcast::Sender<EmittedEvent>,
+}
+
+impl WorkerContext {
+    pub(crate) fn new(emit_tx: tokio::sync::broadcast::Sender<EmittedEvent>) -> Self {
+        Self { emit_tx }
+    }
+
+    /// Clone the push-bus sender for guest-emitted events. `send` is
+    /// synchronous and never blocks, so owner threads use it directly.
+    pub fn emit_sender(&self) -> tokio::sync::broadcast::Sender<EmittedEvent> {
+        self.emit_tx.clone()
     }
 }
 

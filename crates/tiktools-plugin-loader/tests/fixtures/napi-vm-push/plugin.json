@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 3,
+  "id": "tiktools.napi-vm-push",
+  "name": "NapiVmPush",
+  "version": "0.1.0",
+  "description": "Push fixture for the tiktools:events capability integration test.",
+  "runtime": "napi-vm",
+  "entry": "dist/index.js",
+  "capabilities": ["events.publish"],
+  "eventTypes": [
+    {"type": "push.tick", "title": {"default": "Push tick"}}
+  ],
+  "apiVersion": 1
+}

@@ -14,14 +14,15 @@ use tiktools_plugin_api::{
     sync::{recover_mutex, recover_rwlock_read, recover_rwlock_write},
     PluginRuntimeKind,
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::{
     discovery::{read_discovered_plugin, MAX_DIRECTORY_ENTRIES},
     napi_vm::{native_addons_allowed, untrusted_native_addons},
     worker::{run_instance_worker, QueuedCall, RunningInstance, WorkerMsg},
-    DeclarativePluginRuntime, DiscoveredPlugin, NapiVmPluginRuntime, NativePluginRuntime,
-    PluginLoaderError, PluginRoot, PluginRuntime, ProcessPluginRuntime, WasmPluginRuntime,
+    DeclarativePluginRuntime, DiscoveredPlugin, EmittedEvent, NapiVmPluginRuntime,
+    NativePluginRuntime, PluginLoaderError, PluginRoot, PluginRuntime, ProcessPluginRuntime,
+    WasmPluginRuntime, WorkerContext,
 };
 
 /// Cold-start allowance for the first call of a process generation. A fresh
@@ -104,7 +105,13 @@ pub struct PluginManager {
     instances: RwLock<BTreeMap<String, Arc<RunningInstance>>>,
     lifecycle: Mutex<()>,
     next_token: AtomicU64,
+    emit_bus: broadcast::Sender<EmittedEvent>,
 }
+
+/// Push-bus buffer: burst headroom for guest-emitted events while core
+/// drains. Bounded: a lagging subscriber drops with a `Lagged` error
+/// instead of growing memory, and emits stay small by construction.
+const EMIT_BUS_CAPACITY: usize = 256;
 
 impl PluginManager {
     pub fn new(roots: Vec<PluginRoot>) -> Self {
@@ -119,11 +126,19 @@ impl PluginManager {
             instances: RwLock::new(BTreeMap::new()),
             lifecycle: Mutex::new(()),
             next_token: AtomicU64::new(1),
+            emit_bus: broadcast::channel(EMIT_BUS_CAPACITY).0,
         }
     }
 
     pub fn roots(&self) -> &[PluginRoot] {
         &self.roots
+    }
+
+    /// Subscribe to guest-pushed events from every managed plugin. Core
+    /// runs one forwarder over this; the poll path is unchanged and stays
+    /// as the fallback for runtimes and guests without push.
+    pub fn subscribe_emitted_events(&self) -> broadcast::Receiver<EmittedEvent> {
+        self.emit_bus.subscribe()
     }
 
     pub fn scan(&self) -> Result<Vec<DiscoveredPlugin>, PluginLoaderError> {
@@ -261,8 +276,9 @@ impl PluginManager {
         // Runtimes with an owned worker (napi-vm) serve the call queue on
         // their own thread, bypassing the generic worker: one thread per
         // plugin instead of two, with identical queue/deadline semantics.
+        let worker_ctx = WorkerContext::new(self.emit_bus.clone());
         let (tx, worker) = if let Some(owned) =
-            runtime.spawn_worker(&plugin.manifest, &plugin.directory)
+            runtime.spawn_worker(&plugin.manifest, &plugin.directory, &worker_ctx)
         {
             match owned {
                 Ok(owned) => owned.into_parts(),

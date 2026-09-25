@@ -1301,6 +1301,52 @@ async fn fast_poll_events_publish_before_slow_sibling_completes() {
 }
 
 #[tokio::test]
+async fn pushed_events_publish_without_polling() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
+    core.plugins.start("hotkeys").unwrap();
+    let mut domain = core.events.subscribe_domain();
+    core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "hotkeys".to_owned(),
+        event_type: "hotkey.pressed".to_owned(),
+        data: fake_press("k", "ctrl"),
+    })
+    .await;
+    let mut seen = Vec::new();
+    while let Ok(event) = domain.try_recv() {
+        if let crate::events::DomainEvent::PluginEvent { plugin_id, .. } = event {
+            seen.push(plugin_id);
+        }
+    }
+    assert_eq!(seen, ["hotkeys"]);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn pushed_events_reject_undeclared_types_and_unknown_plugins() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
+    core.plugins.start("hotkeys").unwrap();
+    let mut domain = core.events.subscribe_domain();
+    // Undeclared type: dropped and counted, never published.
+    core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "hotkeys".to_owned(),
+        event_type: "nope.undeclared".to_owned(),
+        data: fake_press("k", ""),
+    })
+    .await;
+    // Unknown plugin: stale in-flight emit, dropped silently.
+    core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "ghost".to_owned(),
+        event_type: "hotkey.pressed".to_owned(),
+        data: fake_press("k", ""),
+    })
+    .await;
+    assert!(domain.try_recv().is_err(), "dropped pushes publish nothing");
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn more_than_sixteen_events_are_all_processed_in_order() {
     let state = Arc::new(FakePluginState::default());
     let batch: Vec<Value> = (0..40)

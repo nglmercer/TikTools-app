@@ -161,6 +161,83 @@ async fn manager_discovers_starts_calls_and_stops_napi_vm_plugin() {
     fs::remove_dir_all(&root).ok();
 }
 
+#[tokio::test]
+async fn guest_push_delivers_to_bus_without_polling() {
+    let root = temp_root("push-root");
+    let staged = root.join("napi-vm-push");
+    fs::create_dir_all(&staged).unwrap();
+    copy_dir(
+        &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/napi-vm-push"),
+        &staged,
+    );
+    let manager = PluginManager::new(vec![PluginRoot {
+        path: root.clone(),
+        source: PluginSource::Development,
+    }]);
+    manager.scan().unwrap();
+    manager.start("tiktools.napi-vm-push").unwrap();
+    let mut bus = manager.subscribe_emitted_events();
+
+    // One action fires one emit; no poll happens anywhere in this test.
+    let result = manager
+        .call(
+            "tiktools.napi-vm-push",
+            &json!({
+                "type": "action",
+                "action": { "typeId": "push.fire", "config": {} },
+                "event": {},
+            }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.get("summary"), Some(&json!("emitted")), "{result}");
+    let emitted = tokio::time::timeout(std::time::Duration::from_secs(5), bus.recv())
+        .await
+        .expect("push must arrive without polling")
+        .unwrap();
+    assert_eq!(emitted.plugin_id, "tiktools.napi-vm-push");
+    assert_eq!(emitted.event_type, "push.tick");
+    assert_eq!(emitted.data, json!({"n": 1}));
+
+    // Batch push returns the accepted count and delivers each event.
+    let result = manager
+        .call(
+            "tiktools.napi-vm-push",
+            &json!({
+                "type": "action",
+                "action": { "typeId": "push.fire-many", "config": {} },
+                "event": {},
+            }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.get("summary"), Some(&json!("emitted:2")), "{result}");
+    for _ in 0..2 {
+        tokio::time::timeout(std::time::Duration::from_secs(5), bus.recv())
+            .await
+            .expect("batch push must arrive")
+            .unwrap();
+    }
+
+    // Undeclared types throw to the guest: the action fails and the bus
+    // stays silent.
+    let error = manager
+        .call(
+            "tiktools.napi-vm-push",
+            &json!({
+                "type": "action",
+                "action": { "typeId": "push.undeclared", "config": {} },
+                "event": {},
+            }),
+        )
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("undeclared"), "{error}");
+
+    manager.stop("tiktools.napi-vm-push").unwrap();
+    fs::remove_dir_all(&root).ok();
+}
+
 #[test]
 fn guest_without_call_export_fails_closed() {
     let root = temp_root("no-call");

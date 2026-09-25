@@ -90,10 +90,21 @@ impl AppCore {
         let task = runtime.spawn(async move {
             let mut ticker = tokio::time::interval(PLUGIN_POLL_INTERVAL);
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            let mut emit_rx = core.plugins.subscribe_emitted_events();
             loop {
                 tokio::select! {
                     _ = shutdown.notified() => break,
                     _ = ticker.tick() => core.poll_plugin_events().await,
+                    emitted = emit_rx.recv() => match emitted {
+                        Ok(emitted) => core.handle_pushed_event(emitted).await,
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                            tracing::warn!(
+                                skipped,
+                                "push bus lagged; dropped pushed events"
+                            );
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    },
                 }
             }
         });

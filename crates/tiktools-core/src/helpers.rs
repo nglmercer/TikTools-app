@@ -428,24 +428,7 @@ pub(crate) fn parse_plugin_progress(
     })
 }
 
-/// Validated event types from one plugin manifest, in manifest order.
-pub(crate) fn declared_event_types(
-    manifest: &tiktools_plugin_api::manifest::PluginManifest,
-) -> Vec<String> {
-    manifest
-        .event_types
-        .iter()
-        .filter_map(|entry| {
-            if tiktools_plugin_api::manifest::validate_event_type(entry).is_err() {
-                return None;
-            }
-            entry
-                .get("type")
-                .and_then(Value::as_str)
-                .map(ToOwned::to_owned)
-        })
-        .collect()
-}
+pub(crate) use tiktools_plugin_api::manifest::declared_event_types;
 
 /// Host-stamped owner of a plugin event (`source.kind == "plugin"`).
 /// Only the host writes this stamp (`make_plugin_event`); plugin payloads

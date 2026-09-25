@@ -28,7 +28,7 @@ pub use napi_vm::{native_addons_allowed, NapiVmPluginRuntime};
 pub use native::NativePluginRuntime;
 pub use process::ProcessPluginRuntime;
 pub use types::{
-    DiscoveredPlugin, ManagedWorker, PluginInstance, PluginLoaderError, PluginRoot, PluginRuntime,
-    PluginSource,
+    DiscoveredPlugin, EmittedEvent, ManagedWorker, PluginInstance, PluginLoaderError, PluginRoot,
+    PluginRuntime, PluginSource, WorkerContext,
 };
 pub use wasm::WasmPluginRuntime;

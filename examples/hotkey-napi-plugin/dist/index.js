@@ -16,10 +16,14 @@
 //   const { startListener, stopListener } = require('rdev-node');
 //
 // The guest watches the OS keyboard, tracks modifiers plus a rolling
-// 8-key sequence, and answers the host `poll` call with everything
-// observed since the previous tick. It never sends keystrokes anywhere;
-// it only reports what was pressed as `hotkey.pressed` events.
+// 8-key sequence, and pushes every press through `tiktools:events` the
+// moment the native callback runs — no 1-second poll wait. The `poll`
+// call stays as the fallback: anything still queued (an emit that threw
+// on an old host, a status transition, logs) drains there. It never
+// sends keystrokes anywhere; it only reports what was pressed as
+// `hotkey.pressed` events.
 import { createRequire } from "node:module";
+import { emit } from "tiktools:events";
 import { chordDescription, createListenerStats, createPressQueue, diagnosticStatsLines, drainBatch, emitPress, keyName, KeyState, noteNativeCallback, overallStatus, parseBindConfig, rdevCapabilities, shortcutId, wantsListening, } from "./hotkeys";
 const require = createRequire(import.meta.url);
 const binding = require("rdev-node");
@@ -83,6 +87,7 @@ function startListening() {
             }
             if (emitPress(state, pending, keyName(keyCode), pressed, "rdev", Date.now())) {
                 stats.pressesQueued += 1;
+                pushPendingPresses();
             }
         }, (message) => {
             listening = false;
@@ -99,6 +104,30 @@ function startListening() {
         stats.failures += 1;
         pushLog(`hotkey: rdev listener failed to start (${detail})`);
         setReport({ backend: "rdev", state: "failed", detail });
+    }
+}
+// Pushes every queued press through `tiktools:events` immediately. A
+// throwing emit (old host without push, rejected payload) puts this and
+// the rest back in order, so the `poll` fallback still delivers them.
+function pushPendingPresses() {
+    const batch = drainBatch(pending);
+    for (let index = 0; index < batch.length; index++) {
+        const item = batch[index];
+        try {
+            emit({
+                type: "hotkey.pressed",
+                data: {
+                    key: item.key,
+                    modifiers: item.modifiers,
+                    sequence: item.sequence,
+                    backend: item.backend,
+                },
+            });
+        }
+        catch {
+            pending.events.unshift(...batch.slice(index));
+            break;
+        }
     }
 }
 function stopListening() {

@@ -640,6 +640,26 @@ fn is_valid_trigger_name(value: &str) -> bool {
         })
 }
 
+/// Validated event types from one plugin manifest, in manifest order.
+/// Invalid entries are skipped (the host catalog merge reports them);
+/// callers treat the result as the authoritative publish allowlist for
+/// the plugin, on both the poll and push paths.
+pub fn declared_event_types(manifest: &super::PluginManifest) -> Vec<String> {
+    manifest
+        .event_types
+        .iter()
+        .filter_map(|entry| {
+            if validate_event_type(entry).is_err() {
+                return None;
+            }
+            entry
+                .get("type")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned)
+        })
+        .collect()
+}
+
 /// Validate one eventTypes entry from a plugin manifest. Shape errors are
 /// reported by the host catalog merge, which skips the entry with a warning.
 pub fn validate_event_type(entry: &Value) -> Result<(), ManifestError> {
