@@ -16,6 +16,7 @@ pub mod services;
 mod automation_runtime;
 mod helpers;
 mod hotkey_bindings;
+pub mod input_access;
 mod ipc_handlers;
 mod live_events;
 mod persistence;

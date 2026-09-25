@@ -25,11 +25,15 @@ import {
   BackendReport,
   Chord,
   chordDescription,
+  createListenerStats,
   createPressQueue,
+  diagnosticStatsLines,
   drainBatch,
   emitPress,
   keyName,
   KeyState,
+  ListenerStats,
+  noteNativeCallback,
   overallStatus,
   parseBindConfig,
   PressQueue,
@@ -110,6 +114,19 @@ let lastReportedDropped = 0;
 // exactly one `hotkey.status` event per change.
 let report: BackendReport = { backend: "rdev", state: "starting", detail: "" };
 let statusDirty = true;
+// Debug counters (see `hotkey.diagnostics`) plus one-shot transition logs.
+// Poll ticks stay silent unless something changed: the host logs every poll
+// log line as a warning, so only transitions are queued here.
+const stats: ListenerStats = createListenerStats();
+const pendingLogs: string[] = [];
+const MAX_PENDING_LOGS = 8;
+
+function pushLog(line: string): void {
+  pendingLogs.push(line);
+  while (pendingLogs.length > MAX_PENDING_LOGS) {
+    pendingLogs.shift();
+  }
+}
 
 function setReport(next: BackendReport): void {
   if (
@@ -130,6 +147,11 @@ function startListening(): void {
   try {
     startListener(
       (event) => {
+        // First native callback ever: the native -> guest path is alive.
+        // Counts only, never key contents.
+        if (noteNativeCallback(stats, Date.now())) {
+          pushLog("hotkey: first native key event observed (backend rdev)");
+        }
         const pressed = event.eventType === "KeyPress";
         const keyCode =
           event.eventType === "KeyPress"
@@ -140,17 +162,24 @@ function startListening(): void {
         if (keyCode === undefined) {
           return;
         }
-        emitPress(state, pending, keyName(keyCode), pressed, "rdev", Date.now());
+        if (emitPress(state, pending, keyName(keyCode), pressed, "rdev", Date.now())) {
+          stats.pressesQueued += 1;
+        }
       },
       (message) => {
         listening = false;
+        stats.failures += 1;
+        pushLog(`hotkey: rdev listener failed (${message})`);
         setReport({ backend: "rdev", state: "failed", detail: message });
       },
     );
     listening = true;
+    pushLog("hotkey: rdev listener started");
     setReport({ backend: "rdev", state: "running", detail: "" });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
+    stats.failures += 1;
+    pushLog(`hotkey: rdev listener failed to start (${detail})`);
     setReport({ backend: "rdev", state: "failed", detail });
   }
 }
@@ -169,6 +198,9 @@ function stopListening(): boolean {
     stopped = false;
   }
   listening = false;
+  if (stopped) {
+    pushLog("hotkey: listener stopped");
+  }
   return stopped;
 }
 
@@ -216,6 +248,7 @@ const plugin: TikToolsPlugin = {
       throw new Error("hotkeys: missing pluginId in TikTools context");
     }
     if (request.type === "poll") {
+      stats.pollsServed += 1;
       const events: PluginEvent[] = drainBatch(pending).map((item) => ({
         type: "hotkey.pressed",
         data: {
@@ -225,7 +258,7 @@ const plugin: TikToolsPlugin = {
           backend: item.backend,
         },
       }));
-      const logs: string[] = [];
+      const logs: string[] = pendingLogs.splice(0, pendingLogs.length);
       // Fresh overflow this tick: one log line plus a status re-emit with
       // the new counters. Counts only — never key contents.
       const freshOverflow = pending.dropped !== lastReportedDropped;
@@ -288,6 +321,7 @@ const plugin: TikToolsPlugin = {
           `  bindings: ${bindings.length} chord(s) watched, sequences ${sequencesNeeded ? "enabled" : "disabled"}`,
           "  portal: unsupported (compositor chords need the retired process plugin)",
           "  session: unknown (guests observe no platform facts)",
+          ...diagnosticStatsLines(stats, Date.now()),
           "Queue:",
           `  dropped events (overflow): ${pending.dropped}`,
           `  pending events: ${pending.events.length}`,

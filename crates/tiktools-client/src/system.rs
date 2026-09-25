@@ -2,7 +2,7 @@
 
 use super::TikToolsClient;
 use serde_json::Value;
-use tiktools_control_api::modules::system::{DoctorReport, ShutdownResult};
+use tiktools_control_api::modules::system::{DoctorReport, InputAccessResult, ShutdownResult};
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::modules::OkResult;
 use tiktools_control_api::ClientError;
@@ -17,6 +17,7 @@ pub(crate) const METHODS: &[&str] = &[
     SYSTEM_DOCTOR,
     SYSTEM_SHUTDOWN,
     SYSTEM_PING,
+    SYSTEM_REQUEST_INPUT_ACCESS,
 ];
 
 const SYSTEM_INFO: &str = "system.info";
@@ -25,6 +26,7 @@ const SYSTEM_SNAPSHOT: &str = "system.snapshot";
 const SYSTEM_DOCTOR: &str = "system.doctor";
 const SYSTEM_SHUTDOWN: &str = "system.shutdown";
 const SYSTEM_PING: &str = "system.ping";
+const SYSTEM_REQUEST_INPUT_ACCESS: &str = "system.requestInputAccess";
 
 impl TikToolsClient {
     /// Host info: version, features, paths, pid.
@@ -56,5 +58,12 @@ impl TikToolsClient {
     /// RPC method `system.ping`.
     pub async fn system_ping(&self) -> Result<OkResult, ClientError> {
         self.call(SYSTEM_PING, Empty::default()).await
+    }
+    /// Probe raw-input access; install the seat rule via one polkit
+    /// prompt when blocked. Powers the UI "grant access" button.
+    /// RPC method `system.requestInputAccess`.
+    pub async fn system_request_input_access(&self) -> Result<InputAccessResult, ClientError> {
+        self.call(SYSTEM_REQUEST_INPUT_ACCESS, Empty::default())
+            .await
     }
 }

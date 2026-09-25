@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 pub use tiktools_core::control::DoctorReport;
+pub use tiktools_core::control::InputAccessResult;
 use tiktools_core::AppCore;
 
 use crate::{
@@ -70,6 +71,19 @@ pub fn register(router: &mut ControlRouter) {
                 ok: true,
                 message: "shutdown started".to_owned(),
             })
+        },
+    );
+    router.register_typed::<Empty, InputAccessResult, _, _>(
+        "system.requestInputAccess",
+        "Probe raw-input access; install the seat rule via one polkit prompt when blocked",
+        true,
+        |core: Arc<AppCore>, _params: Empty| async move {
+            // Subprocesses (polkit prompt) stay off Tokio workers.
+            let outcome = crate::modules::blocking_task("system.requestInputAccess", move || {
+                core.request_input_access()
+            })
+            .await?;
+            Ok::<InputAccessResult, ApiError>(outcome)
         },
     );
     // Back-compat alias used by older automation clients.

@@ -1704,3 +1704,17 @@ async fn hotkey_status_event_reaches_plugin_status_topic() {
     }
     assert!(saw_event && saw_status);
 }
+
+#[test]
+fn system_info_advertises_napi_vm_node_api_by_default() {
+    // Pins the default feature wiring: the loader dependency opts out of
+    // loader defaults, so this forwarding is the only thing compiling the
+    // real `.node` selection into every host. If it goes missing, napi-vm
+    // plugins declaring `nativeAddons` fail closed at load with "this
+    // build lacks napi-vm-node-api support".
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = AppCore::new(emitter);
+    let info = core.system_info();
+    assert_eq!(info["name"], "tiktools");
+    assert_eq!(info["features"]["napiVmNodeApi"], true);
+}

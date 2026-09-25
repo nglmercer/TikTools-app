@@ -132,6 +132,8 @@ const activePluginBackend = computed(() => {
         :test-runs="app.behaviorTestRuns"
         :hotkey-status="app.hotkeyStatus"
         :last-hotkey-event="app.lastHotkeyEvent"
+        :hotkey-access-pending="app.hotkeyAccessPending"
+        :on-request-hotkey-access="app.handleRequestHotkeyAccess"
         :error="app.behaviorError"
         :on-save-action="app.handleSaveAction"
         :on-delete-action="app.handleDeleteAction"

@@ -108,3 +108,57 @@ describe('useAutomation live updates', () => {
     expect(automation.hotkeyStatus.value).toEqual(status);
   });
 });
+
+describe('useAutomation hotkey access request', () => {
+  function stubbed(result: unknown): {
+    client: ControlClient;
+    calls: string[];
+  } {
+    const { client } = fakeControl();
+    const calls: string[] = [];
+    client.call = ((method: string) => {
+      calls.push(method);
+      if (method === 'system.requestInputAccess') return Promise.resolve(result);
+      if (method === 'automation.runs') return Promise.resolve({ runs: [] });
+      return Promise.resolve({ actions: [], events: [], plugins: [], actionTypes: [], translations: {} });
+    }) as ControlClient['call'];
+    return { client, calls };
+  }
+
+  async function flush(times = 4): Promise<void> {
+    for (let i = 0; i < times; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  test('granted access refreshes and clears the pending flag', async () => {
+    const { client, calls } = stubbed({ granted: true, message: 'granted' });
+    const automation = useAutomation(client);
+    automation.handleRequestHotkeyAccess();
+    expect(automation.hotkeyAccessPending.value).toBe(true);
+    await flush();
+    expect(calls.filter((method) => method === 'system.requestInputAccess')).toHaveLength(1);
+    expect(calls).toContain('automation.snapshot');
+    expect(automation.hotkeyAccessPending.value).toBe(false);
+    expect(automation.behaviorError.value).toBe('');
+  });
+
+  test('denied access surfaces the host message without refreshing', async () => {
+    const { client, calls } = stubbed({ granted: false, message: 'dismissed' });
+    const automation = useAutomation(client);
+    automation.handleRequestHotkeyAccess();
+    await flush();
+    expect(automation.hotkeyAccessPending.value).toBe(false);
+    expect(automation.behaviorError.value).toBe('dismissed');
+    expect(calls).not.toContain('automation.snapshot');
+  });
+
+  test('double clicks issue a single request', async () => {
+    const { client, calls } = stubbed({ granted: true, message: 'granted' });
+    const automation = useAutomation(client);
+    automation.handleRequestHotkeyAccess();
+    automation.handleRequestHotkeyAccess();
+    await flush();
+    expect(calls.filter((method) => method === 'system.requestInputAccess')).toHaveLength(1);
+  });
+});

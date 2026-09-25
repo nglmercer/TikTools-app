@@ -66,6 +66,24 @@ export function hotkeyListenerState(
   return 'starting';
 }
 
+/**
+ * True when a backend failed for the one reason the UI can fix in-app:
+ * unreadable `/dev/input` devices (Linux/Wayland seat permissions). The
+ * native denial always names `/dev/input`; every other failure (display
+ * errors, unsupported sessions) needs a different fix, so the grant
+ * button stays hidden for those.
+ */
+export function hotkeyNeedsSeatAccess(
+  data: HotkeyStatusData | null | undefined,
+): boolean {
+  if (!data || !Array.isArray(data.backends)) return false;
+  return data.backends.some(
+    (entry) =>
+      (entry.state === 'failed' || PERMISSION.has(entry.state)) &&
+      (entry.detail || '').includes('/dev/input'),
+  );
+}
+
 /** Human chord for the last received press, e.g. `Ctrl+K`. */
 export function formatHotkeyChord(key: string, modifiers: string): string {
   const parts = [...modifiers.split('+').filter(Boolean), key].filter(Boolean);

@@ -35,7 +35,7 @@ use std::{
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, Sender},
     thread::{self, JoinHandle},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use napi_vm::{RustPluginHost, RustPluginHostOptions, RustPluginPolicy};
@@ -264,23 +264,71 @@ fn run_vm_owner(
         policy: RustPluginPolicy::default(),
         ..RustPluginHostOptions::default()
     });
+    // Guest load entry point: `host.load` evaluates the guest module and
+    // settles its `onLoad` (including native addon calls). A guest stuck
+    // there shows as `load started` with no matching `loaded`, while the
+    // manager-side `plugin starting` line stays open too.
+    let load_started = Instant::now();
+    tracing::info!(
+        plugin = %name,
+        native_addons = native_addons.len(),
+        "napi-vm guest load started"
+    );
     if let Err(error) = configure_host_napi_addons(&mut host, &name, &directory, &native_addons) {
+        tracing::warn!(
+            plugin = %name,
+            elapsed_ms = load_started.elapsed().as_millis() as u64,
+            %error,
+            "napi-vm guest load failed"
+        );
         let _ = ready.send(Err(error));
         return;
     }
     if let Err(error) = host.load(&directory).map(|_| ()) {
-        let _ = ready.send(Err(PluginLoaderError::Runtime(format!(
-            "napi-vm plugin `{name}` failed to load: {error}"
-        ))));
+        let error =
+            PluginLoaderError::Runtime(format!("napi-vm plugin `{name}` failed to load: {error}"));
+        tracing::warn!(
+            plugin = %name,
+            elapsed_ms = load_started.elapsed().as_millis() as u64,
+            %error,
+            "napi-vm guest load failed"
+        );
+        let _ = ready.send(Err(error));
         return;
     }
+    tracing::info!(
+        plugin = %name,
+        elapsed_ms = load_started.elapsed().as_millis() as u64,
+        "napi-vm guest loaded (onLoad settled)"
+    );
     if ready.send(Ok(())).is_err() {
         return;
     }
     loop {
         match rx.recv_timeout(VM_EVENT_LOOP_POLL) {
             Ok(VmCommand::Call { request, respond }) => {
-                let _ = respond.send(handle_vm_call(&mut host, &name, &request, &context));
+                let kind = request_kind(&request);
+                let call_started = Instant::now();
+                let outcome = handle_vm_call(&mut host, &name, &request, &context);
+                let elapsed_ms = call_started.elapsed().as_millis() as u64;
+                // Steady-state poll ticks land here every second per plugin,
+                // so only slow calls warn; the rest stay at debug.
+                if elapsed_ms > SLOW_GUEST_CALL_MS {
+                    tracing::warn!(
+                        plugin = %name,
+                        kind,
+                        elapsed_ms,
+                        "napi-vm guest call is slow; a blocking guest wedges its poll/action"
+                    );
+                } else {
+                    tracing::debug!(
+                        plugin = %name,
+                        kind,
+                        elapsed_ms,
+                        "napi-vm guest call finished"
+                    );
+                }
+                let _ = respond.send(outcome);
             }
             Ok(VmCommand::Shutdown) => break,
             Err(mpsc::RecvTimeoutError::Timeout) => {}
@@ -291,10 +339,43 @@ fn run_vm_owner(
         pump_vm_event_loop(&mut host, &name);
     }
     // Best-effort `onUnload`: the VM is revoked by dropping the host either
-    // way, so a failing hook is reported but never blocks teardown.
+    // way, so a failing hook is reported but never blocks teardown. The
+    // started/finished pair brackets a hook stuck in native teardown.
+    let unload_started = Instant::now();
+    tracing::info!(plugin = %name, "napi-vm guest unload started (onUnload)");
     if let Err(error) = host.unload(&name) {
-        tracing::warn!(plugin = %name, %error, "napi-vm plugin failed in onUnload");
+        tracing::warn!(
+            plugin = %name,
+            elapsed_ms = unload_started.elapsed().as_millis() as u64,
+            %error,
+            "napi-vm plugin failed in onUnload"
+        );
+    } else {
+        tracing::info!(
+            plugin = %name,
+            elapsed_ms = unload_started.elapsed().as_millis() as u64,
+            "napi-vm guest unloaded (onUnload settled)"
+        );
     }
+}
+
+/// Guest calls slower than this warn instead of debug-logging. The poll
+/// deadline is 5 s; 2 s leaves headroom while catching wedged guests.
+const SLOW_GUEST_CALL_MS: u64 = 2000;
+
+/// Best-effort `PluginCall` discriminator (`poll`, `action`, ...) for
+/// call timing lines. Malformed requests keep their typed error
+/// downstream; here they just log as `unknown`.
+fn request_kind(request: &[u8]) -> String {
+    serde_json::from_slice::<serde_json::Value>(request)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("type")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| "unknown".to_owned())
 }
 
 /// Runs one non-blocking napi-vm event-loop turn so native TSFN/async
@@ -522,6 +603,14 @@ mod tests {
                 "version": "1.0.0",
             })
         );
+    }
+
+    #[test]
+    fn request_kind_names_calls_and_degrades() {
+        assert_eq!(request_kind(br#"{"type":"poll"}"#), "poll");
+        assert_eq!(request_kind(br#"{"type":"action","action":{}}"#), "action");
+        assert_eq!(request_kind(b"not json"), "unknown");
+        assert_eq!(request_kind(br#"{"nope":true}"#), "unknown");
     }
 
     fn trust_manifest(trust: &str) -> PluginManifest {

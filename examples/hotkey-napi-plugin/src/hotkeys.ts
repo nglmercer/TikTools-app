@@ -515,6 +515,62 @@ export function wantsListening(chords: Chord[], sequencesNeeded: boolean): boole
   return sequencesNeeded || chords.length > 0;
 }
 
+/// Cumulative listener counters behind `hotkey.diagnostics` and the
+/// one-shot poll logs. Poll ticks stay silent by design (the host logs
+/// every poll log line as a warning), so transitions and totals are the
+/// only thing emitted: enough to tell "native never fired" apart from
+/// "host drops everything" without spamming the log.
+export interface ListenerStats {
+  /// Raw native callbacks observed (presses and releases, all keys).
+  nativeCallbacks: number;
+  /// Non-modifier presses queued for the host.
+  pressesQueued: number;
+  /// Poll ticks answered.
+  pollsServed: number;
+  /// Start attempts that threw or reported failure.
+  failures: number;
+  /// Monotonic ms of the first native callback, 0 when none arrived yet.
+  firstCallbackAtMs: number;
+  /// Monotonic ms of the latest native callback, 0 when none arrived yet.
+  lastCallbackAtMs: number;
+}
+
+export function createListenerStats(): ListenerStats {
+  return {
+    nativeCallbacks: 0,
+    pressesQueued: 0,
+    pollsServed: 0,
+    failures: 0,
+    firstCallbackAtMs: 0,
+    lastCallbackAtMs: 0,
+  };
+}
+
+/// Records one native callback. Returns true exactly once, on the first
+/// callback ever, so the guest can log the native path coming alive.
+export function noteNativeCallback(stats: ListenerStats, nowMs: number): boolean {
+  stats.nativeCallbacks += 1;
+  stats.lastCallbackAtMs = nowMs;
+  if (stats.firstCallbackAtMs === 0) {
+    stats.firstCallbackAtMs = nowMs;
+    return true;
+  }
+  return false;
+}
+
+/// Counter lines for the `hotkey.diagnostics` report. `nowMs` uses the
+/// same clock as `noteNativeCallback` (any monotonic ms).
+export function diagnosticStatsLines(stats: ListenerStats, nowMs: number): string[] {
+  const lastAge =
+    stats.lastCallbackAtMs === 0 ? "never" : `${Math.max(0, nowMs - stats.lastCallbackAtMs)}ms ago`;
+  return [
+    `  native callbacks: ${stats.nativeCallbacks} (last ${lastAge})`,
+    `  presses queued: ${stats.pressesQueued}`,
+    `  polls served: ${stats.pollsServed}`,
+    `  failures: ${stats.failures}`,
+  ];
+}
+
 export function rdevCapabilities(): {
   globalChords: boolean;
   arbitraryKeys: boolean;

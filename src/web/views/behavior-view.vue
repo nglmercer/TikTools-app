@@ -32,6 +32,8 @@ type BehaviorViewProps = {
   testRuns: BehaviorRun[];
   hotkeyStatus?: HotkeyStatusData | null;
   lastHotkeyEvent?: LastHotkeyEvent | null;
+  hotkeyAccessPending?: boolean;
+  onRequestHotkeyAccess: () => void;
   error?: string;
   onSaveAction: (action: LiveAction) => void;
   onDeleteAction: (id: string) => void;
@@ -66,6 +68,8 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     'testRuns',
     'hotkeyStatus',
     'lastHotkeyEvent',
+    'hotkeyAccessPending',
+    'onRequestHotkeyAccess',
     'error',
     'onSaveAction',
     'onDeleteAction',
@@ -181,6 +185,8 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
         plugins={snapshot.plugins}
         hotkeyStatus={props.hotkeyStatus}
         lastHotkeyEvent={props.lastHotkeyEvent}
+        accessPending={props.hotkeyAccessPending}
+        onRequestAccess={props.onRequestHotkeyAccess}
       />
 
       <div class="plg-body">

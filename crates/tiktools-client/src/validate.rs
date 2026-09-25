@@ -182,6 +182,7 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "system.doctor" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "system.shutdown" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "system.ping" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
+        "system.requestInputAccess" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "widgets.status" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "widgets.copyObsUrl" => WidgetsCopyParams::deserialize(params)
             .map(|_| ())

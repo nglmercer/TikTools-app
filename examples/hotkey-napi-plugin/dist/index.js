@@ -20,7 +20,7 @@
 // observed since the previous tick. It never sends keystrokes anywhere;
 // it only reports what was pressed as `hotkey.pressed` events.
 import { createRequire } from "node:module";
-import { chordDescription, createPressQueue, drainBatch, emitPress, keyName, KeyState, overallStatus, parseBindConfig, rdevCapabilities, shortcutId, wantsListening, } from "./hotkeys";
+import { chordDescription, createListenerStats, createPressQueue, diagnosticStatsLines, drainBatch, emitPress, keyName, KeyState, noteNativeCallback, overallStatus, parseBindConfig, rdevCapabilities, shortcutId, wantsListening, } from "./hotkeys";
 const require = createRequire(import.meta.url);
 const binding = require("rdev-node");
 const { startListener } = binding;
@@ -40,6 +40,18 @@ let lastReportedDropped = 0;
 // exactly one `hotkey.status` event per change.
 let report = { backend: "rdev", state: "starting", detail: "" };
 let statusDirty = true;
+// Debug counters (see `hotkey.diagnostics`) plus one-shot transition logs.
+// Poll ticks stay silent unless something changed: the host logs every poll
+// log line as a warning, so only transitions are queued here.
+const stats = createListenerStats();
+const pendingLogs = [];
+const MAX_PENDING_LOGS = 8;
+function pushLog(line) {
+    pendingLogs.push(line);
+    while (pendingLogs.length > MAX_PENDING_LOGS) {
+        pendingLogs.shift();
+    }
+}
 function setReport(next) {
     if (next.backend !== report.backend ||
         next.state !== report.state ||
@@ -55,6 +67,11 @@ function startListening() {
     state.reset();
     try {
         startListener((event) => {
+            // First native callback ever: the native -> guest path is alive.
+            // Counts only, never key contents.
+            if (noteNativeCallback(stats, Date.now())) {
+                pushLog("hotkey: first native key event observed (backend rdev)");
+            }
             const pressed = event.eventType === "KeyPress";
             const keyCode = event.eventType === "KeyPress"
                 ? event.keyPress?.key
@@ -64,16 +81,23 @@ function startListening() {
             if (keyCode === undefined) {
                 return;
             }
-            emitPress(state, pending, keyName(keyCode), pressed, "rdev", Date.now());
+            if (emitPress(state, pending, keyName(keyCode), pressed, "rdev", Date.now())) {
+                stats.pressesQueued += 1;
+            }
         }, (message) => {
             listening = false;
+            stats.failures += 1;
+            pushLog(`hotkey: rdev listener failed (${message})`);
             setReport({ backend: "rdev", state: "failed", detail: message });
         });
         listening = true;
+        pushLog("hotkey: rdev listener started");
         setReport({ backend: "rdev", state: "running", detail: "" });
     }
     catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
+        stats.failures += 1;
+        pushLog(`hotkey: rdev listener failed to start (${detail})`);
         setReport({ backend: "rdev", state: "failed", detail });
     }
 }
@@ -92,6 +116,9 @@ function stopListening() {
         stopped = false;
     }
     listening = false;
+    if (stopped) {
+        pushLog("hotkey: listener stopped");
+    }
     return stopped;
 }
 function statusEvent(droppedEvents, pendingEvents) {
@@ -136,6 +163,7 @@ const plugin = {
             throw new Error("hotkeys: missing pluginId in TikTools context");
         }
         if (request.type === "poll") {
+            stats.pollsServed += 1;
             const events = drainBatch(pending).map((item) => ({
                 type: "hotkey.pressed",
                 data: {
@@ -145,7 +173,7 @@ const plugin = {
                     backend: item.backend,
                 },
             }));
-            const logs = [];
+            const logs = pendingLogs.splice(0, pendingLogs.length);
             // Fresh overflow this tick: one log line plus a status re-emit with
             // the new counters. Counts only — never key contents.
             const freshOverflow = pending.dropped !== lastReportedDropped;
@@ -199,6 +227,7 @@ const plugin = {
                     `  bindings: ${bindings.length} chord(s) watched, sequences ${sequencesNeeded ? "enabled" : "disabled"}`,
                     "  portal: unsupported (compositor chords need the retired process plugin)",
                     "  session: unknown (guests observe no platform facts)",
+                    ...diagnosticStatsLines(stats, Date.now()),
                     "Queue:",
                     `  dropped events (overflow): ${pending.dropped}`,
                     `  pending events: ${pending.events.length}`,

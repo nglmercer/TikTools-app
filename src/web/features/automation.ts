@@ -50,6 +50,7 @@ export function useAutomation(control: ControlClient) {
   const behaviorError = ref('');
   const hotkeyStatus = ref<HotkeyStatusData | null>(null);
   const lastHotkeyEvent = ref<LastHotkeyEvent | null>(null);
+  const hotkeyAccessPending = ref(false);
 
   /** Plugin configuration pages from the behavior snapshot, validated. */
   const pluginPages: ComputedRef<PluginPageDescriptor[]> = computed(() =>
@@ -229,6 +230,29 @@ export function useAutomation(control: ControlClient) {
     testRecord('event', event);
   };
 
+  /** One-click seat access: the host probes, then polkit-prompts at most
+   * once. Guarded against double clicks; the polkit dialog can sit open
+   * a while, so the button stays disabled until the call settles. A
+   * dismissed prompt is an Ok result with `granted: false`, not an
+   * error, so the message surfaces explicitly instead of vanishing. */
+  const handleRequestHotkeyAccess = (): void => {
+    if (hotkeyAccessPending.value) return;
+    hotkeyAccessPending.value = true;
+    clearBehaviorError();
+    void control
+      .call<{ granted: boolean; message: string }>('system.requestInputAccess', {})
+      .then((result) => {
+        if (result.granted) return refresh();
+        behaviorError.value = result.message || 'Access was not granted.';
+      })
+      .catch((failure: unknown) => {
+        behaviorError.value = errorMessage(failure);
+      })
+      .finally(() => {
+        hotkeyAccessPending.value = false;
+      });
+  };
+
   const handleAnalyzeScript = (
     nodeId: string,
     source: string,
@@ -249,6 +273,8 @@ export function useAutomation(control: ControlClient) {
     behaviorError,
     hotkeyStatus,
     lastHotkeyEvent,
+    hotkeyAccessPending,
+    handleRequestHotkeyAccess,
     pluginPages,
     pluginUis,
     clearBehaviorError,

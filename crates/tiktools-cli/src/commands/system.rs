@@ -11,6 +11,7 @@ pub enum Command {
     Health,
     Snapshot,
     Doctor,
+    RequestInputAccess,
 }
 
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
@@ -20,6 +21,7 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
         "health" => Ok(Command::Health),
         "snapshot" => Ok(Command::Snapshot),
         "doctor" => Ok(Command::Doctor),
+        "request-input-access" => Ok(Command::RequestInputAccess),
         other => Err(format!("unknown system verb `{other}`").into()),
     }
 }
@@ -30,5 +32,6 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
         Command::Health => result_value(client.system_health().await?),
         Command::Snapshot => result_value(client.system_snapshot().await?),
         Command::Doctor => result_value(client.system_doctor().await?),
+        Command::RequestInputAccess => result_value(client.system_request_input_access().await?),
     }
 }

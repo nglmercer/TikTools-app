@@ -10,13 +10,16 @@ import { describe, expect, test } from "bun:test";
 import {
   canonicalModifiers,
   chordDescription,
+  createListenerStats,
   createPressQueue,
+  diagnosticStatsLines,
   drainBatch,
   emitPress,
   isModifier,
   keyName,
   KeyState,
   MAX_PENDING_EVENTS,
+  noteNativeCallback,
   overallStatus,
   parseBindConfig,
   POLL_MAX_EVENTS_PER_RESPONSE,
@@ -282,6 +285,42 @@ describe("overallStatus", () => {
         .summary,
     ).toBe("Global Hotkeys: failed via native listener (no display)");
     expect(overallStatus([]).summary).toBe("Global Hotkeys: starting");
+  });
+});
+
+describe("listener stats", () => {
+  test("noteNativeCallback reports the first callback exactly once", () => {
+    const stats = createListenerStats();
+    expect(stats.nativeCallbacks).toBe(0);
+    expect(noteNativeCallback(stats, 100)).toBe(true);
+    expect(noteNativeCallback(stats, 200)).toBe(false);
+    expect(stats.nativeCallbacks).toBe(2);
+    expect(stats.firstCallbackAtMs).toBe(100);
+    expect(stats.lastCallbackAtMs).toBe(200);
+  });
+
+  test("diagnosticStatsLines renders counters and last-callback age", () => {
+    expect(diagnosticStatsLines(createListenerStats(), 1000)).toEqual([
+      "  native callbacks: 0 (last never)",
+      "  presses queued: 0",
+      "  polls served: 0",
+      "  failures: 0",
+    ]);
+    const stats = {
+      ...createListenerStats(),
+      nativeCallbacks: 3,
+      pressesQueued: 2,
+      pollsServed: 9,
+      failures: 1,
+      firstCallbackAtMs: 500,
+      lastCallbackAtMs: 900,
+    };
+    expect(diagnosticStatsLines(stats, 1000)).toEqual([
+      "  native callbacks: 3 (last 100ms ago)",
+      "  presses queued: 2",
+      "  polls served: 9",
+      "  failures: 1",
+    ]);
   });
 });
 

@@ -81,6 +81,7 @@ export const spanish: Record<TranslationKey, string> = {
   hotkeyStateDisabled: 'Desactivado',
   hotkeyStateNoEvents: 'Sin eventos recibidos aún',
   hotkeyLastEvent: 'Último evento',
+  hotkeyGrantAccess: 'Conceder acceso de entrada',
   hotkeyRawInputHint: 'Este disparador necesita acceso al teclado sin procesar en Wayland. TikTools lo solicitará automáticamente mediante el diálogo de autorización del sistema.',
 
   // Minimalist Tabs & Tooltips

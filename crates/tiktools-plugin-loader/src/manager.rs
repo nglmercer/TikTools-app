@@ -247,7 +247,28 @@ impl PluginManager {
         let runtime = self.runtimes.get(plugin.manifest.runtime).ok_or_else(|| {
             PluginLoaderError::RuntimeUnavailable(plugin.manifest.runtime.to_string())
         })?;
-        let instance = runtime.load(&plugin.manifest, &plugin.directory)?;
+        // Lifecycle entry point: a load that never finishes (a guest stuck
+        // in onLoad, a native addon hanging) shows here as `starting` with
+        // no matching `started`, which is the whole diagnostic.
+        let start_started = std::time::Instant::now();
+        tracing::info!(
+            id = %id,
+            runtime = %plugin.manifest.runtime,
+            "plugin starting"
+        );
+        let instance = match runtime.load(&plugin.manifest, &plugin.directory) {
+            Ok(instance) => instance,
+            Err(error) => {
+                tracing::warn!(
+                    id = %id,
+                    runtime = %plugin.manifest.runtime,
+                    elapsed_ms = start_started.elapsed().as_millis() as u64,
+                    %error,
+                    "plugin failed to start"
+                );
+                return Err(error);
+            }
+        };
         let token = self.next_token.fetch_add(1, Ordering::AcqRel);
         let (tx, rx) = mpsc::channel();
         let worker_id = id.to_owned();
@@ -270,6 +291,11 @@ impl PluginManager {
             }),
         );
         self.set_running(id, true);
+        tracing::info!(
+            id = %id,
+            elapsed_ms = start_started.elapsed().as_millis() as u64,
+            "plugin started"
+        );
         Ok(())
     }
 
@@ -311,8 +337,14 @@ impl PluginManager {
     ) -> Result<(), PluginLoaderError> {
         let Some(instance) = instance else {
             self.set_running(id, false);
+            tracing::debug!(id = %id, "plugin stop requested while not running");
             return Ok(());
         };
+        // Stop entry point: a join that never returns (a guest stuck in
+        // onUnload, native teardown hanging) shows here as `stopping`
+        // with no matching `stopped`.
+        let stop_started = std::time::Instant::now();
+        tracing::info!(id = %id, "plugin stopping");
         let _ = instance.tx.send(WorkerMsg::Shutdown);
         // The instance is already removed from the map here, so a
         // poisoned worker lock recovers instead of failing the stop.
@@ -325,6 +357,19 @@ impl PluginManager {
             None => Ok(()),
         };
         self.set_running(id, false);
+        match &result {
+            Ok(()) => tracing::info!(
+                id = %id,
+                elapsed_ms = stop_started.elapsed().as_millis() as u64,
+                "plugin stopped"
+            ),
+            Err(error) => tracing::warn!(
+                id = %id,
+                elapsed_ms = stop_started.elapsed().as_millis() as u64,
+                %error,
+                "plugin stop failed"
+            ),
+        }
         result
     }
 

@@ -39,11 +39,21 @@ impl AppCore {
                 "persistence": cfg!(feature = "persistence"),
                 "pluginInstall": cfg!(feature = "plugin-install"),
                 "http": cfg!(feature = "http"),
+                "napiVmNodeApi": cfg!(feature = "napi-vm-node-api"),
             },
             "home": self.db.paths().root.display().to_string(),
             "dataDir": self.db.paths().data.display().to_string(),
             "pid": std::process::id(),
         })
+    }
+
+    /// Probes Linux/Wayland raw-input readability and, when blocked,
+    /// installs the seat rule through one polkit prompt (or directly when
+    /// already privileged). Powers the UI "grant access" button so users
+    /// never need terminal commands. Blocking (subprocesses): callers must
+    /// stay off Tokio workers.
+    pub fn request_input_access(&self) -> crate::input_access::InputAccessResult {
+        crate::input_access::request_input_access()
     }
 
     pub fn system_health(&self) -> Value {

@@ -106,10 +106,26 @@ Hotkey diagnostics (napi-vm):
   bindings: 2 chord(s) watched, sequences enabled
   portal: unsupported (compositor chords need the retired process plugin)
   session: unknown (guests observe no platform facts)
+  native callbacks: 128 (last 4ms ago)
+  presses queued: 96
+  polls served: 57
+  failures: 0
 Queue:
   dropped events (overflow): 0
   pending events: 0
 ```
+
+The counters discriminate the failure stage: `native callbacks: 0 (last
+never)` with `failures: 0` means the native hook is alive but the OS
+delivers nothing (focus/permission at the compositor level); `failures:
+N` with a backend `detail` names the start failure verbatim. Listener
+transitions (started, first native event, stopped, failed) are also
+emitted as one-shot poll logs, which the host records as warnings —
+steady-state polls stay silent. For the native side, run the desktop
+app with `RDEV_NODE_DEBUG=1` to trace every observed event (kinds and
+key codes only, never window titles) plus the evdev devices opened on
+Wayland; lifecycle lines (`listener started`, `stopped by request`,
+thread exit with forwarded counts) always print to stderr.
 
 `hotkey.status` carries one backend entry with `state` (`starting`,
 `running`, `permission-required`, `unsupported`, `failed`), a
@@ -122,7 +138,7 @@ The UI needs no update for new states: `running` and
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Wayland: backend `failed`, `/dev/input` denied | evdev path needs raw-input access | grant `/dev/input` read access (seat ACL, `input` group, or udev rule), or run on X11 where no extra permissions are needed |
+| Wayland: backend `failed`, `/dev/input` denied | evdev path needs raw-input access | click **Grant input access** next to the hotkey badge (one system authorization dialog, no terminal, no re-login); terminal fallback from the sibling `rdev-node` checkout: `./scripts/setup-linux-input.sh` (`--check` reports state without changes); or run on X11 where no extra permissions are needed |
 | X11: `failed` with display error | plugin lost `DISPLAY`/`XAUTHORITY` | check `hotkey.diagnostics`; the loader forwards desktop env |
 | Chord-only Behavior never fires | listener stopped | fixed: watched chords keep the listener running (`wantsListening`) |
 | `hotkey event queue overflowed` in logs | consumer slower than typist | counts only, no key contents; poll drains 16 events per tick |

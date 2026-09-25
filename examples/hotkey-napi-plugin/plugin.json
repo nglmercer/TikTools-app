@@ -500,7 +500,8 @@
       "sample": {
         "key": "k",
         "modifiers": "ctrl",
-        "sequence": "g k"
+        "sequence": "g k",
+        "backend": "rdev"
       }
     },
     {
@@ -538,6 +539,8 @@
       "sample": {
         "platform": "unknown",
         "session": "unknown",
+        "droppedEvents": 0,
+        "pendingEvents": 0,
         "backends": [
           {
             "backend": "rdev",

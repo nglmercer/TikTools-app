@@ -428,6 +428,38 @@ export function overallStatus(reports) {
 export function wantsListening(chords, sequencesNeeded) {
     return sequencesNeeded || chords.length > 0;
 }
+export function createListenerStats() {
+    return {
+        nativeCallbacks: 0,
+        pressesQueued: 0,
+        pollsServed: 0,
+        failures: 0,
+        firstCallbackAtMs: 0,
+        lastCallbackAtMs: 0,
+    };
+}
+/// Records one native callback. Returns true exactly once, on the first
+/// callback ever, so the guest can log the native path coming alive.
+export function noteNativeCallback(stats, nowMs) {
+    stats.nativeCallbacks += 1;
+    stats.lastCallbackAtMs = nowMs;
+    if (stats.firstCallbackAtMs === 0) {
+        stats.firstCallbackAtMs = nowMs;
+        return true;
+    }
+    return false;
+}
+/// Counter lines for the `hotkey.diagnostics` report. `nowMs` uses the
+/// same clock as `noteNativeCallback` (any monotonic ms).
+export function diagnosticStatsLines(stats, nowMs) {
+    const lastAge = stats.lastCallbackAtMs === 0 ? "never" : `${Math.max(0, nowMs - stats.lastCallbackAtMs)}ms ago`;
+    return [
+        `  native callbacks: ${stats.nativeCallbacks} (last ${lastAge})`,
+        `  presses queued: ${stats.pressesQueued}`,
+        `  polls served: ${stats.pollsServed}`,
+        `  failures: ${stats.failures}`,
+    ];
+}
 export function rdevCapabilities() {
     return {
         globalChords: true,

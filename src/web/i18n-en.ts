@@ -79,6 +79,7 @@ export const english = {
   hotkeyStateDisabled: 'Disabled',
   hotkeyStateNoEvents: 'No events received yet',
   hotkeyLastEvent: 'Last event',
+  hotkeyGrantAccess: 'Grant input access',
   hotkeyRawInputHint: 'This trigger needs raw keyboard access on Wayland. TikTools will request it automatically through the system authorization dialog.',
 
   // Minimalist Tabs & Tooltips

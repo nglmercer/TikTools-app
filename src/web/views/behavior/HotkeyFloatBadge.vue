@@ -6,7 +6,7 @@ import type { HotkeyStatusData } from '../../../shared/messages.ts';
 import type { LastHotkeyEvent } from '../../features/automation.ts';
 import { Icon } from '../../components/icons/index.ts';
 import { Tooltip } from '../../components/ui/Tooltip.vue';
-import { formatHotkeyChord, hotkeyListenerState, summarizeHotkeyStatus } from '../../components/ui/hotkey-status.ts';
+import { formatHotkeyChord, hotkeyListenerState, hotkeyNeedsSeatAccess, summarizeHotkeyStatus } from '../../components/ui/hotkey-status.ts';
 import { t, type Locale } from '../../i18n.ts';
 import { relativeTime } from './helpers.vue';
 
@@ -15,6 +15,8 @@ type HotkeyFloatBadgeProps = {
   plugins: PluginStatus[];
   hotkeyStatus?: HotkeyStatusData | null;
   lastHotkeyEvent?: LastHotkeyEvent | null;
+  accessPending?: boolean;
+  onRequestAccess?: () => void;
 };
 
 /**
@@ -23,7 +25,7 @@ type HotkeyFloatBadgeProps = {
  * last event.
  */
 export const HotkeyFloatBadge = defineVueComponent<HotkeyFloatBadgeProps>(
-  ['locale', 'plugins', 'hotkeyStatus', 'lastHotkeyEvent'],
+  ['locale', 'plugins', 'hotkeyStatus', 'lastHotkeyEvent', 'accessPending', 'onRequestAccess'],
   (props) => {
   return () => {
   const locale = props.locale;
@@ -68,8 +70,23 @@ export const HotkeyFloatBadge = defineVueComponent<HotkeyFloatBadgeProps>(
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
     .join(' — ');
 
+  const showGrantAccess = hotkeyPanel.tone === 'err'
+    && hotkeyNeedsSeatAccess(props.hotkeyStatus)
+    && typeof props.onRequestAccess === 'function';
+
   return (
     <span class="plg-hotkey-float">
+      {showGrantAccess && (
+        <button
+          type="button"
+          class="plg-btn plg-btn--sm"
+          style="margin-right: 8px;"
+          disabled={props.accessPending === true}
+          onClick={() => props.onRequestAccess?.()}
+        >
+          {t(locale, 'hotkeyGrantAccess')}
+        </button>
+      )}
       <Tooltip text={hotkeyTip} position="left">
         <span class="plg-hotkey-float__body" role="img" aria-label={hotkeyTip}>
           <Icon name="keyboard" size={15} />
