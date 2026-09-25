@@ -332,9 +332,6 @@ shutdown with reload.
   manifest (id/entry) instead of sharing one `plugin.json` shape, which
   removes the `apiVersion` compat key, the `name` regex constraint, and
   the `permissions` key collision.
-- `RustLoadedPlugin::call_json(...)`: invoke the guest `call()` export
-  (Promise-aware) without TikTools reaching the guest handle through
-  `interpreter_mut()`.
 - Rust capability modules for TikTools-owned APIs (`events`, `points`,
   `storage`, `audio`, `http`), granted per plugin from the manifest's
   `capabilities` list.
