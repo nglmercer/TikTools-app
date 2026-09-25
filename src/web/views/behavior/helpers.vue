@@ -277,6 +277,8 @@ export function describeAction(action: LiveAction): string {
       return `emit ${readString(action.config.type)}`;
     case 'core.points':
       return `${readString(action.config.delta)} · ${readString(action.config.uniqueId)}`;
+    case 'core.points.subtract':
+      return `-${readString(action.config.amount)} · ${readString(action.config.uniqueId)}`;
     case 'core.delay':
       return `${readString(action.config.ms)} ms`;
     case 'core.log':

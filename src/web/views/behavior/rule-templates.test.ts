@@ -23,7 +23,7 @@ const MINIMAL = {
 
 test('builtins parse, stay available on core types, and round-trip', () => {
   expect(BUILTIN_RULE_TEMPLATES.length).toBeGreaterThanOrEqual(4);
-  const available = new Set(['core.fetch', 'core.points', 'audio.play', 'core.log']);
+  const available = new Set(['core.fetch', 'core.points', 'core.points.subtract', 'audio.play', 'core.log']);
   for (const template of BUILTIN_RULE_TEMPLATES) {
     const requirements = missingRuleTemplateRequirements(
       template,

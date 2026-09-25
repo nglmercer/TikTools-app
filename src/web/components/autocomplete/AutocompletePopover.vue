@@ -15,6 +15,7 @@ import {
 import {
   getCaretAnchorRect,
   resolveAnchorRect,
+  resolveDesiredPopupWidth,
   type AutocompleteAnchorMode,
 } from './autocomplete-anchors.ts';
 import {
@@ -112,6 +113,7 @@ export const AutocompletePopover = defineVueComponent<AutocompletePopoverProps>(
       margin: props.margin ?? AUTOCOMPLETE_VIEWPORT_MARGIN,
       preferredWidth: props.preferredWidth,
       minWidth: props.minWidth,
+      anchorMode: props.anchorMode ?? 'field',
     });
 
     const engine = createMeasuredPopoverEngine(
@@ -244,8 +246,11 @@ export const AutocompletePopover = defineVueComponent<AutocompletePopoverProps>(
     const hiddenWidth = (): number => {
       const anchor = readAnchor();
       const viewport = readViewport();
-      const desired = props.preferredWidth
-        ?? ((props.anchorMode ?? 'field') === 'caret' ? AUTOCOMPLETE_PREFERRED_WIDTH : anchor?.width ?? AUTOCOMPLETE_PREFERRED_WIDTH);
+      const desired = resolveDesiredPopupWidth({
+        anchorWidth: anchor?.width ?? AUTOCOMPLETE_PREFERRED_WIDTH,
+        mode: props.anchorMode ?? 'field',
+        preferredWidth: props.preferredWidth,
+      });
       if (!anchor || !viewport) return desired;
       return resolvePopupWidth(desired, viewport, engineOptions());
     };

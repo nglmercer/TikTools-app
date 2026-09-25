@@ -473,6 +473,31 @@ const BUILTIN_DOCUMENTS: unknown[] = [
     }],
     event: { name: 'Chat points', trigger: 'tiktok.chat' },
   },
+  {
+    templateVersion: 1,
+    id: 'moderation-subtract',
+    title: { default: 'Moderation: subtract points', i18key: 'behavior.copy.tplModerationSubtractTitle' },
+    description: { default: 'Deduct points when a chat message trips the repetition filter.', i18key: 'behavior.copy.tplModerationSubtractDesc' },
+    icon: 'shield',
+    params: {
+      type: 'object',
+      properties: {
+        threshold: { type: 'number', title: 'Repetition threshold', default: 0.7 },
+        amount: { type: 'number', title: 'Points to subtract', default: 10 },
+      },
+      required: ['threshold', 'amount'],
+    },
+    actions: [{
+      name: 'Subtract moderation points',
+      typeId: 'core.points.subtract',
+      config: { uniqueId: '{{ event.user.uniqueId }}', amount: '{{ params.amount }}' },
+    }],
+    event: {
+      name: 'Moderation penalty',
+      trigger: 'tiktok.chat',
+      filters: [{ path: 'event.intel.comment.composition.repetitionScore', operator: 'gte', value: '{{ params.threshold }}' }],
+    },
+  },
 ];
 
 function loadBuiltins(): RuleTemplate[] {

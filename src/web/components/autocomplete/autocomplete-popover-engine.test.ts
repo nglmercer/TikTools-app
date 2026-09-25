@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import { createMeasuredPopoverEngine } from './autocomplete-popover-engine.ts';
-import type { AnchorRect, PopupSize, ViewportSize } from './autocomplete-position.ts';
+import { AUTOCOMPLETE_PREFERRED_WIDTH, type AnchorRect, type PopupSize, type ViewportSize } from './autocomplete-position.ts';
 
 function setup() {
   let anchor: AnchorRect | null = { top: 634, left: 120, bottom: 680, width: 320 };
@@ -124,6 +124,23 @@ test('option changes reposition with the new width budget', () => {
   harness.engine.setOptions({ preferredWidth: 420, maxWidth: 420 });
   harness.flush();
   expect(harness.engine.snapshot().placement?.width).toBe(420);
+});
+
+test('caret anchors size from the preferred width, not the zero-width caret rect', () => {
+  const harness = setup();
+  harness.setAnchor({ top: 204, left: 184, bottom: 222, width: 2 });
+  harness.engine.setOptions({ anchorMode: 'caret' });
+  harness.engine.setOpen(true);
+  harness.flush();
+  expect(harness.engine.snapshot().placement?.width).toBe(AUTOCOMPLETE_PREFERRED_WIDTH);
+});
+
+test('field anchors keep matching their control width', () => {
+  const harness = setup();
+  harness.engine.setOptions({ anchorMode: 'field' });
+  harness.engine.setOpen(true);
+  harness.flush();
+  expect(harness.engine.snapshot().placement?.width).toBe(320);
 });
 
 test('subscribers only fire on real snapshot changes', () => {

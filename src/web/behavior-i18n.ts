@@ -139,7 +139,9 @@ export const BEHAVIOR_UI_TRANSLATIONS: TranslationCatalog = {
       tplGiftSoundTitle: "Gift sound alert",
       tplGiftSoundDesc: "Play a local sound when a gift arrives.",
       tplChatPointsTitle: "Chat points",
-      tplChatPointsDesc: "Award points for every chat message."
+      tplChatPointsDesc: "Award points for every chat message.",
+      tplModerationSubtractTitle: "Moderation: subtract points",
+      tplModerationSubtractDesc: "Deduct points when a chat message trips the repetition filter."
     }),
     ...ns("behavior.trigger.tiktok.", {
       chat: "Someone comments",
@@ -391,7 +393,9 @@ export const BEHAVIOR_UI_TRANSLATIONS: TranslationCatalog = {
       tplGiftSoundTitle: "Alerta de sonido por regalo",
       tplGiftSoundDesc: "Reproduce un sonido local cuando llega un regalo.",
       tplChatPointsTitle: "Puntos por chat",
-      tplChatPointsDesc: "Otorga puntos por cada mensaje del chat."
+      tplChatPointsDesc: "Otorga puntos por cada mensaje del chat.",
+      tplModerationSubtractTitle: "Moderación: restar puntos",
+      tplModerationSubtractDesc: "Resta puntos cuando un mensaje supera el filtro de repetición."
     }),
     ...ns("behavior.trigger.tiktok.", {
       chat: "Alguien comenta",

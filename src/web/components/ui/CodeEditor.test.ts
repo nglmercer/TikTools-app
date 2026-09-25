@@ -50,6 +50,32 @@ test('validateJsonText accepts quoted template expressions', () => {
   expect(validateJsonText('{"message": "{{ event.data.comment }}"}')).toEqual({ state: 'valid' });
 });
 
+test('validateJsonText accepts bare template values inline', () => {
+  expect(validateJsonText('{"count": {{ event.data.repeatCount }}}')).toEqual({ state: 'valid' });
+  expect(validateJsonText('{"items": [{{ event.a }}, 2], "ok": {{ event.b }}}')).toEqual({ state: 'valid' });
+});
+
+test('validateJsonText still rejects broken JSON around templates', () => {
+  for (const value of ['{"count": {{ event.x }},}', '{"count": {{ event.x }', '{"count": {{ event.x }}} extra']) {
+    expect(validateJsonText(value).state).toBe('invalid');
+  }
+});
+
+test('formatJsonText keeps bare template spans unquoted', () => {
+  expect(formatJsonText('{"count":{{ event.data.repeatCount }},"a":1}'))
+    .toBe('{\n  "count": {{ event.data.repeatCount }},\n  "a": 1\n}');
+});
+
+test('formatJsonText restores mixed bare and quoted spans', () => {
+  expect(formatJsonText('{"count":{{ event.n }},"name":"{{ event.u }}","cmd":"/give {{ event.n }}"}'))
+    .toBe('{\n  "count": {{ event.n }},\n  "name": "{{ event.u }}",\n  "cmd": "/give {{ event.n }}"\n}');
+});
+
+test('formatJsonText keeps the minecraft command body intact', () => {
+  const formatted = formatJsonText('{"text": "/give @p minecraft:apple {{ event.data.repeatCount }}"}');
+  expect(formatted).toContain('"/give @p minecraft:apple {{ event.data.repeatCount }}"');
+});
+
 test('validateJsonText reports broken input with a message', () => {
   for (const value of ['{"a": 1,}', '{"a": 1', '{a: 1}', '{"a": }', 'plain text']) {
     const result = validateJsonText(value);
@@ -106,6 +132,18 @@ test('paste of invalid JSON stays editable without formatting', () => {
     selectionStart: 0,
     selectionEnd: 0,
   })).toBe(false);
+});
+
+test('paste of templated JSON formats with spans intact', () => {
+  expect(shouldFormatPastedJson({
+    language: 'json',
+    validateJson: true,
+    formatJsonOnPaste: true,
+    pastedText: '{"count": {{ event.data.repeatCount }}}',
+    currentValue: '',
+    selectionStart: 0,
+    selectionEnd: 0,
+  })).toBe(true);
 });
 
 test('paste formatting is disabled for text editors or when opted out', () => {

@@ -1,4 +1,4 @@
-import type { AnchorRect } from './autocomplete-position.ts';
+import { AUTOCOMPLETE_PREFERRED_WIDTH, type AnchorRect } from './autocomplete-position.ts';
 
 /**
  * Anchor strategies for the shared popover. `field` anchors to a whole
@@ -16,6 +16,22 @@ export function resolveAnchorRect(input: {
 }): AnchorRect | null {
   if (input.mode === 'caret') return input.caret ?? input.field;
   return input.field;
+}
+
+/**
+ * Desired popup width before viewport clamping. A caret anchor is a
+ * zero-width point, so caret popovers fall back to the preferred width
+ * instead of the anchor width; field popovers match their control box.
+ * An explicit `preferredWidth` always wins.
+ */
+export function resolveDesiredPopupWidth(input: {
+  anchorWidth: number;
+  mode: AutocompleteAnchorMode;
+  preferredWidth?: number;
+}): number {
+  if (typeof input.preferredWidth === 'number') return input.preferredWidth;
+  if (input.mode === 'caret') return AUTOCOMPLETE_PREFERRED_WIDTH;
+  return input.anchorWidth;
 }
 
 export type CaretMarkerMetrics = {

@@ -1855,3 +1855,65 @@ fn system_info_advertises_napi_vm_node_api_by_default() {
     assert_eq!(info["name"], "tiktools");
     assert_eq!(info["features"]["napiVmNodeApi"], true);
 }
+
+#[tokio::test]
+async fn subtract_action_deducts_and_clamps_at_zero() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    core.points.award_points(
+        "carol",
+        PointAction::Manual,
+        AwardOptions {
+            custom_amount: Some(30.0),
+            ..AwardOptions::default()
+        },
+    );
+    let event = json!({"user": {"uniqueId": "carol"}});
+    let action = |amount: f64| {
+        json!({
+            "id": "act-sub",
+            "name": "Sub",
+            "typeId": "core.points.subtract",
+            "config": {"uniqueId": "{{ event.user.uniqueId }}", "amount": amount},
+        })
+    };
+    let points_of = |core: &Arc<AppCore>| {
+        core.points
+            .leaderboard(Some(1_000))
+            .into_iter()
+            .find(|viewer| viewer.get("uniqueId").and_then(Value::as_str) == Some("carol"))
+            .and_then(|viewer| viewer.get("points").and_then(Value::as_f64))
+    };
+
+    let run = core
+        .execute_action(&action(10.0), &event, None, false)
+        .await;
+    assert_eq!(run["status"], "ok");
+    assert_eq!(points_of(&core), Some(20.0));
+
+    // Overdrafts clamp at zero instead of erroring.
+    let run = core
+        .execute_action(&action(99.0), &event, None, false)
+        .await;
+    assert_eq!(run["status"], "ok");
+    assert_eq!(points_of(&core), Some(0.0));
+
+    // Unknown viewers stay unknown: no negative phantom rows.
+    let ghost = json!({"user": {"uniqueId": "ghost"}});
+    let run = core.execute_action(&action(5.0), &ghost, None, false).await;
+    assert_eq!(run["status"], "error");
+
+    // Zero amounts are rejected like any other empty config.
+    let run = core.execute_action(&action(0.0), &event, None, false).await;
+    assert_eq!(run["status"], "error");
+
+    // Dry runs never touch the board.
+    let dry = core.test_action(&action(5.0), None).await;
+    let summary = dry["summary"].as_str().unwrap_or_default();
+    assert!(
+        summary.starts_with("would deduct "),
+        "unexpected summary: {summary}"
+    );
+    assert!(summary.ends_with(" 5"), "unexpected summary: {summary}");
+    assert_eq!(points_of(&core), Some(0.0));
+}
