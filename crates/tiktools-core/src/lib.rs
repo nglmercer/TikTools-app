@@ -337,6 +337,7 @@ impl AppCore {
             plugin_directory: paths.plugins.clone(),
             staging_directory: paths.temp.join("plugin-install"),
             replace_existing,
+            provider_endpoints: None,
         };
         let archive = archive.as_ref();
         let manifest = installer.inspect_manifest(archive)?;

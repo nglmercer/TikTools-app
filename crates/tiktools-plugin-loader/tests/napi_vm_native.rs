@@ -649,6 +649,7 @@ fn installer_retains_bundled_native_tree() {
         plugin_directory: scratch.join("plugins"),
         staging_directory: scratch.join("staging"),
         replace_existing: false,
+        provider_endpoints: None,
     }
     .install(&archive_path)
     .unwrap();

@@ -119,6 +119,43 @@ pub struct NativeAddonDeclaration {
     pub root: String,
 }
 
+/// Where a `napi-vm` plugin's native library comes from. `npm` is the
+/// default: the pinned tarball is fetched from the registry, its
+/// integrity verified, and the package extracted. `github` fetches the
+/// pinned release assets (`index.js`, `index.d.ts`, plus the target's
+/// `.node`) from a repository's releases page instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NativeLibProvider {
+    Npm,
+    Github,
+}
+
+/// One declarative native-library dependency of a `napi-vm` plugin.
+/// Unlike `nativeAddons` (the load-time authorization boundary), this is
+/// install-time configuration: it tells the staging tool and the plugin
+/// installer where to fetch the package bytes from. `version` is always
+/// an exact pin, never a range; the lockfile carries the verified
+/// content hashes.
+///
+/// `provider` defaults to `npm`. A `github` entry additionally names
+/// the `repo` (`owner/name`), the release `tag`, and the napi `binary`
+/// stem (`node-rdev`) used to build per-target asset names; those keys
+/// are rejected on `npm` entries so a half-migrated declaration fails
+/// instead of silently fetching from the wrong source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NativeLibDeclaration {
+    pub package: String,
+    pub version: String,
+    pub provider: NativeLibProvider,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary: Option<String>,
+}
+
 /// No structural equality: the typed `ui` fragment carries float bounds and
 /// free-form JSON configs for which bit-equality is meaningless. Callers
 /// compare identity (`id`) or individual fields instead.
@@ -190,6 +227,12 @@ pub struct PluginManifest {
     /// declaration the guest stays inside the pure-Rust VM.
     #[serde(rename = "nativeAddons")]
     pub native_addons: Vec<NativeAddonDeclaration>,
+    /// Declarative native-library sources a `napi-vm` plugin's packages
+    /// are fetched from at install/stage time. Empty for every other
+    /// runtime and for manually staged packages: with no declaration the
+    /// host loads whatever the package roots already contain.
+    #[serde(rename = "nativeLibs")]
+    pub native_libs: Vec<NativeLibDeclaration>,
 }
 impl fmt::Display for PluginRuntimeKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

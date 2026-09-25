@@ -23,3 +23,6 @@ playwright/.cache/
 # bundled npm package layout the integration tests stage from.
 !crates/tiktools-plugin-loader/tests/fixtures/napi-vm-native/dist/
 !crates/tiktools-plugin-loader/tests/fixtures/napi-vm-native/node_modules/
+# The napi-vm hotkeys example commits its compiled guest entry for
+# reviewability; its node_modules are staged at build time and ignored.
+!examples/hotkey-napi-plugin/dist/

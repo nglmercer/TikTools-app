@@ -15,8 +15,8 @@
 //!   to exist; a package declaring none is native-only and needs just its
 //!   binaries;
 //! - honors the `files` allowlist when present, so build byproducts never
-//!   leak into the plugin; without one, nested `node_modules`, `.git`,
-//!   and `target` directories are skipped;
+//!   leak into the plugin; `node_modules`, `.git`, and `target` trees are
+//!   never traversed, with or without one;
 //! - keeps every `.node` binary (no platform filtering) and refuses a
 //!   package with none;
 //! - refuses symlinks anywhere and verifies the staged tree stays inside
@@ -377,8 +377,8 @@ fn allowlist_matches(allowlist: &[String], relative: &str) -> bool {
 }
 
 /// Walks the source tree and returns selected relative paths (`/`
-/// separators). Symlinks fail the whole stage; without an allowlist,
-/// dependency, VCS, and build directories are skipped.
+/// separators). Symlinks fail the whole stage; dependency, VCS, and
+/// build directories are never traversed.
 fn select_source_files(
     source: &Path,
     allowlist: Option<&Vec<String>>,
@@ -410,10 +410,13 @@ fn select_source_files(
                 )
             };
             if file_type.is_dir() {
-                let excluded = allowlist.is_none()
-                    && relative
-                        .split('/')
-                        .any(|segment| EXCLUDED_DIRECTORIES.contains(&segment));
+                // Never traversed, with or without an allowlist: native
+                // packages are flat by construction, and a source checkout
+                // carries dependency trees full of symlinks that staging
+                // must neither copy nor choke on.
+                let excluded = relative
+                    .split('/')
+                    .any(|segment| EXCLUDED_DIRECTORIES.contains(&segment));
                 if !excluded {
                     stack.push(PathBuf::from(relative));
                 }
@@ -535,6 +538,39 @@ mod tests {
         );
         assert!(plugin.join("node_modules/rdev-node/index.js").is_file());
         assert!(!plugin.join("node_modules/rdev-node/src").exists());
+        assert!(!plugin.join("node_modules/rdev-node/node_modules").exists());
+
+        fs::remove_dir_all(&source).ok();
+        fs::remove_dir_all(&plugin).ok();
+    }
+
+    #[test]
+    fn checkout_directories_are_never_traversed() {
+        // Even with a `files` allowlist, dependency trees are pruned
+        // before symlink checks: a source checkout nests symlinks under
+        // node_modules that staging must neither copy nor choke on.
+        let source = fixture_source("prune");
+        write_package(&source);
+        fs::create_dir_all(source.join("node_modules/dep")).unwrap();
+        write_source(&source, "node_modules/dep/index.js", b"{}");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink("index.js", source.join("node_modules/dep/link.js")).unwrap();
+
+        let plugin = fixture_source("prune-plugin");
+        let report = stage_native_package(&stage_request(
+            "rdev-node",
+            &source,
+            &plugin,
+            "node_modules/rdev-node",
+        ))
+        .unwrap();
+        assert!(
+            !report
+                .files
+                .iter()
+                .any(|file| file.contains("node_modules/rdev-node/node_modules")),
+            "{report:?}"
+        );
         assert!(!plugin.join("node_modules/rdev-node/node_modules").exists());
 
         fs::remove_dir_all(&source).ok();

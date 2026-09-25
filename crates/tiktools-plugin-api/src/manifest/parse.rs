@@ -4,14 +4,17 @@ use std::collections::BTreeSet;
 
 use super::{
     types::{
-        NativeAddonDeclaration, PluginManifest, PluginRuntimeKind, PluginSecurityModel, PluginTrust,
+        NativeAddonDeclaration, NativeLibDeclaration, NativeLibProvider, PluginManifest,
+        PluginRuntimeKind, PluginSecurityModel, PluginTrust,
     },
     validation::{
         current_platform, current_target, is_safe_relative_path, is_supported_schema,
-        is_valid_event_subscription, is_valid_native_package_name, is_valid_plugin_id,
-        validate_action_type, validate_declarative_action, validate_http_config, ManifestError,
-        MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES, MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES,
-        MAX_NATIVE_ADDON_PACKAGES, MAX_NATIVE_PATH_LEN,
+        is_valid_event_subscription, is_valid_native_lib_binary, is_valid_native_lib_repo,
+        is_valid_native_lib_tag, is_valid_native_lib_version, is_valid_native_package_name,
+        is_valid_plugin_id, validate_action_type, validate_declarative_action,
+        validate_http_config, ManifestError, MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES,
+        MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES, MAX_NATIVE_ADDON_PACKAGES,
+        MAX_NATIVE_LIB_PACKAGES, MAX_NATIVE_PATH_LEN,
     },
 };
 use crate::{TIKTOOLS_PLUGIN_ABI_VERSION, TIKTOOLS_PLUGIN_PROTOCOL_VERSION};
@@ -181,6 +184,12 @@ impl PluginManifest {
         if !native_addons.is_empty() && runtime != PluginRuntimeKind::NapiVm {
             return Err(ManifestError::InvalidField("nativeAddons"));
         }
+        // Same runtime rule as `nativeAddons`: fetch configuration for
+        // native libraries only exists on napi-vm.
+        let native_libs = parse_native_libs(object.get("nativeLibs"))?;
+        if !native_libs.is_empty() && runtime != PluginRuntimeKind::NapiVm {
+            return Err(ManifestError::InvalidField("nativeLibs"));
+        }
 
         Ok(Self {
             schema_version,
@@ -211,6 +220,7 @@ impl PluginManifest {
             pages,
             ui,
             native_addons,
+            native_libs,
         })
     }
 
@@ -405,6 +415,90 @@ fn parse_native_addons(
             Ok(NativeAddonDeclaration {
                 package: package.to_owned(),
                 root: root.to_owned(),
+            })
+        })
+        .collect()
+}
+
+/// Parses the optional `nativeLibs` fetch list. Each entry pins one
+/// package version and names its provider (`npm` when omitted). A
+/// `github` entry additionally requires `repo`, `tag`, and `binary`;
+/// those keys are rejected on `npm` entries so a half-migrated
+/// declaration fails instead of fetching from the wrong source.
+/// Package names are unique per manifest, like `nativeAddons`.
+fn parse_native_libs(value: Option<&Value>) -> Result<Vec<NativeLibDeclaration>, ManifestError> {
+    const FIELD: &str = "nativeLibs";
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let entries = value.as_array().ok_or(ManifestError::InvalidField(FIELD))?;
+    if entries.len() > MAX_NATIVE_LIB_PACKAGES {
+        return Err(ManifestError::InvalidField(FIELD));
+    }
+    let mut seen = BTreeSet::new();
+    entries
+        .iter()
+        .map(|entry| {
+            let object = entry
+                .as_object()
+                .ok_or(ManifestError::InvalidField(FIELD))?;
+            let package = object
+                .get("package")
+                .and_then(Value::as_str)
+                .ok_or(ManifestError::InvalidField(FIELD))?;
+            if !is_valid_native_package_name(package) || !seen.insert(package.to_owned()) {
+                return Err(ManifestError::InvalidField(FIELD));
+            }
+            let version = object
+                .get("version")
+                .and_then(Value::as_str)
+                .ok_or(ManifestError::InvalidField(FIELD))?;
+            if !is_valid_native_lib_version(version) {
+                return Err(ManifestError::InvalidField(FIELD));
+            }
+            let provider = match object.get("provider").and_then(Value::as_str) {
+                None => NativeLibProvider::Npm,
+                Some("npm") => NativeLibProvider::Npm,
+                Some("github") => NativeLibProvider::Github,
+                Some(_) => return Err(ManifestError::InvalidField(FIELD)),
+            };
+            let optional = |key: &str| -> Result<Option<String>, ManifestError> {
+                match object.get(key) {
+                    None => Ok(None),
+                    Some(Value::String(text)) => Ok(Some(text.clone())),
+                    Some(_) => Err(ManifestError::InvalidField(FIELD)),
+                }
+            };
+            let repo = optional("repo")?;
+            let tag = optional("tag")?;
+            let binary = optional("binary")?;
+            match provider {
+                NativeLibProvider::Npm => {
+                    if repo.is_some() || tag.is_some() || binary.is_some() {
+                        return Err(ManifestError::InvalidField(FIELD));
+                    }
+                }
+                NativeLibProvider::Github => {
+                    let (Some(repo), Some(tag), Some(binary)) =
+                        (repo.as_deref(), tag.as_deref(), binary.as_deref())
+                    else {
+                        return Err(ManifestError::InvalidField(FIELD));
+                    };
+                    if !is_valid_native_lib_repo(repo)
+                        || !is_valid_native_lib_tag(tag)
+                        || !is_valid_native_lib_binary(binary)
+                    {
+                        return Err(ManifestError::InvalidField(FIELD));
+                    }
+                }
+            }
+            Ok(NativeLibDeclaration {
+                package: package.to_owned(),
+                version: version.to_owned(),
+                provider,
+                repo,
+                tag,
+                binary,
             })
         })
         .collect()

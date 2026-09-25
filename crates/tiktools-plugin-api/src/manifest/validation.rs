@@ -1002,6 +1002,33 @@ pub fn current_napi_target() -> String {
 pub(crate) const MAX_NATIVE_ADDON_PACKAGES: usize = 32;
 pub(crate) const MAX_NATIVE_PACKAGE_LEN: usize = 256;
 pub(crate) const MAX_NATIVE_PATH_LEN: usize = 512;
+pub(crate) const MAX_NATIVE_LIB_PACKAGES: usize = 32;
+pub(crate) const MAX_NATIVE_LIB_VERSION_LEN: usize = 64;
+pub(crate) const MAX_NATIVE_LIB_REPO_LEN: usize = 256;
+pub(crate) const MAX_NATIVE_LIB_TAG_LEN: usize = 128;
+pub(crate) const MAX_NATIVE_LIB_BINARY_LEN: usize = 128;
+
+/// Canonical napi-rs target triples (`{binary}.{target}.node`) the
+/// native-library providers know. `--target` validation and lockfile
+/// pinning accept exactly these: a target outside this list is a
+/// configuration error, never a guessed asset name.
+pub const NAPI_TARGETS: &[&str] = &[
+    "win32-x64-msvc",
+    "win32-ia32-msvc",
+    "win32-arm64-msvc",
+    "darwin-x64",
+    "darwin-arm64",
+    "linux-x64-gnu",
+    "linux-x64-musl",
+    "linux-arm64-gnu",
+    "linux-arm64-musl",
+    "linux-arm-gnueabihf",
+];
+
+/// Whether `target` is a known napi-rs target triple.
+pub fn is_known_napi_target(target: &str) -> bool {
+    NAPI_TARGETS.contains(&target)
+}
 
 /// A bare package specifier guests can require (`rdev-node`,
 /// `@scope/pkg`). Mirrors the host module loader's constraints — dot
@@ -1034,6 +1061,79 @@ pub fn is_valid_native_package_name(value: &str) -> bool {
         return false;
     }
     true
+}
+
+/// An exact version pin (`1.0.1`, optionally with `-prerelease` or
+/// `+build` suffixes). Ranges (`^1.0.0`, `~1.0`, `*`, `latest`) are
+/// never valid: declarative native libraries resolve to exactly one
+/// immutable artifact.
+pub fn is_valid_native_lib_version(value: &str) -> bool {
+    if value.is_empty() || value.len() > MAX_NATIVE_LIB_VERSION_LEN {
+        return false;
+    }
+    let core = value.split(['-', '+']).next().unwrap_or_default();
+    let mut parts = core.split('.');
+    let valid_core = matches!((parts.next(), parts.next(), parts.next(), parts.next()), (
+        Some(major),
+        Some(minor),
+        Some(patch),
+        None,
+    ) if !major.is_empty()
+        && !minor.is_empty()
+        && !patch.is_empty()
+        && major.bytes().all(|byte| byte.is_ascii_digit())
+        && minor.bytes().all(|byte| byte.is_ascii_digit())
+        && patch.bytes().all(|byte| byte.is_ascii_digit()));
+    if !valid_core {
+        return false;
+    }
+    value
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+'))
+}
+
+/// A `owner/name` repository slug. Both segments are non-empty and carry
+/// no whitespace, slashes, or URL-significant characters, so the slug
+/// interpolates safely into a release-download URL path.
+pub fn is_valid_native_lib_repo(value: &str) -> bool {
+    if value.is_empty() || value.len() > MAX_NATIVE_LIB_REPO_LEN {
+        return false;
+    }
+    let mut parts = value.split('/');
+    let valid = matches!((parts.next(), parts.next(), parts.next()), (
+        Some(owner),
+        Some(name),
+        None,
+    ) if !owner.is_empty() && !name.is_empty());
+    if !valid {
+        return false;
+    }
+    value
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'/'))
+}
+
+/// A release tag (`v1.0.1`). Non-empty, slash-free, and limited to URL
+/// path-safe characters so it interpolates into a download URL.
+pub fn is_valid_native_lib_tag(value: &str) -> bool {
+    if value.is_empty() || value.len() > MAX_NATIVE_LIB_TAG_LEN {
+        return false;
+    }
+    value
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+'))
+}
+
+/// A napi binary stem (`node-rdev`) used to build per-target asset
+/// names (`{stem}.{target}.node`). Same discipline as tags: URL-safe,
+/// slash-free, non-empty.
+pub fn is_valid_native_lib_binary(value: &str) -> bool {
+    if value.is_empty() || value.len() > MAX_NATIVE_LIB_BINARY_LEN {
+        return false;
+    }
+    value
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
 }
 
 /// Failures selecting the host binary from a declared native package

@@ -189,13 +189,90 @@ facts and need none: no `process`, no `fs`, no `child_process`, no
 `process.report`, no `process.env`. The guest reaches the addon only
 through the package alias.
 
+### Declarative native libraries (`nativeLibs`)
+
+`nativeAddons` authorizes loading; `nativeLibs` declares where the
+bytes come from. Each entry pins one package version and names its
+provider — `npm` by default, `github` for release assets:
+
+```json
+{
+  "nativeLibs": [
+    { "package": "rdev-node", "version": "1.0.5" },
+    {
+      "package": "other",
+      "version": "0.3.0",
+      "provider": "github",
+      "repo": "owner/other",
+      "tag": "v0.3.0",
+      "binary": "other-native"
+    }
+  ]
+}
+```
+
+Rules mirror `nativeAddons`: napi-vm manifests only, unique package
+names, and versions are exact pins — ranges (`^1.0.0`, `latest`) are
+rejected. A `github` entry requires `repo` (`owner/name`), the release
+`tag`, and the napi `binary` stem used to build per-target asset names
+(`index.js`, `index.d.ts`, `{binary}.{target}.node`); those keys are
+rejected on `npm` entries so a half-migrated declaration fails instead
+of fetching from the wrong source.
+
+Content hashes live in the committed `native-libs.lock.json` next to
+`plugin.json`, written by the staging tool's `--pin` mode:
+
+```bash
+cargo run -p tiktools-plugin-sdk --features providers \
+  --bin tiktools-plugin-stage-native -- \
+  --provider all --manifest my-plugin/plugin.json --pin
+```
+
+Pinning is the trust moment: the tool resolves each declaration,
+downloads the artifacts, and records the npm tarball integrity plus
+every `.node` SHA-256 (or every GitHub asset SHA-256). Review the
+lockfile diff before committing it. Fetching replays the lockfile and
+verifies every byte before staging; a declaration/lockfile mismatch, a
+missing pin, or tampered bytes all fail the fetch.
+
+### Staging native packages
+
+Declared package roots are populated by the shared
+`tiktools-plugin-stage-native` tool (`crates/tiktools-plugin-sdk`),
+which validates the name, requires at least one `.node` artifact, and
+copies `package.json` plus the artifacts into
+`<plugin>/<root>`. Every flow stages through that one binary:
+
+- **dev** (`scripts/dev-plugins.ts`): prefers a sibling source checkout
+  (clone `rdev-node` beside the repository); when a checkout is missing
+  but the example declares `nativeLibs` with a committed lockfile, the
+  host binaries are fetched from their pinned provider instead.
+- **packaged builds** (`scripts/build-plugin.ts`): same sibling-first
+  rule on host builds. Declared and pinned libraries additionally
+  unlock cross-target builds (`--target x86_64-pc-windows-msvc` from a
+  Linux host serves that target's binary from the provider); without a
+  lockfile, cross-target napi-vm builds are still rejected.
+- **release** (`scripts/package-release.ts`): fetches every declared
+  library for the release target from its pinned provider — no sibling
+  checkout needed on CI.
+- **install** (plugin installer): when an archive declares `nativeLibs`
+  and ships its lockfile but lacks the install host's binary, the
+  installer backfills exactly that binary from its pinned provider
+  before completing. Complete trees never touch the network.
+
+Provider fetches keep only the requested target's `.node` (plus the
+package manifest and companion sources), so provider-built trees are
+single-target; sibling checkouts stage whatever they carry.
+
 ### Packaging
 
 `tiktools-plugin-pack` includes `node_modules/**` for `napi-vm` plugins
 (and only for them) with no platform filtering and no binary stripping:
-every configured `.node` target ships in the same archive, covered by
-`checksums.json` like every other file. Symlink rejection and root
-containment still apply.
+whatever the staging flow placed under the declared roots ships in the
+archive, covered by `checksums.json` like every other file. A declared
+`nativeLibs` entry additionally ships its `native-libs.lock.json` under
+the same checksums, so the installer can replay the pins. Symlink
+rejection and root containment still apply.
 
 ### Event loop and shutdown
 
@@ -208,6 +285,18 @@ napi-vm plugin, shut down the native runtime, then exit the VM thread.
 The host never terminates threads an addon detached itself: persistent
 addon resources must expose their own stop/unsubscribe API, which the
 guest calls from `onUnload` (the fixture calls `stopListener()` there).
+
+## Real-world example
+
+`examples/hotkey-napi-plugin` is the production native plugin: a
+TypeScript guest driving `rdev-node` for global hotkeys (see
+`docs/HOTKEYS_LINUX.md`). Build and test it with:
+
+```bash
+node_modules/.bin/tsc -p examples/hotkey-napi-plugin/tsconfig.json
+bun test examples/hotkey-napi-plugin/
+bun run scripts/build-plugin.ts -- --plugin hotkey-napi-plugin --host
+```
 
 ## Reference fixture
 
@@ -249,3 +338,6 @@ shutdown with reload.
 - Rust capability modules for TikTools-owned APIs (`events`, `points`,
   `storage`, `audio`, `http`), granted per plugin from the manifest's
   `capabilities` list.
+- Hotkey host capability modules (Wayland portal chords, evdev raw
+  input) restoring what the retired process plugin did guest-side;
+  see `docs/HOTKEYS_LINUX.md`.

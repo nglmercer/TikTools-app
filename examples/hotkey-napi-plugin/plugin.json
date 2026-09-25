@@ -1,21 +1,30 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "hotkeys",
-  "name": "Global Hotkeys",
+  "name": "GlobalHotkeys",
   "version": "0.2.0",
   "description": "Publishes global shortcut and key-sequence events (`hotkey.pressed`) that behaviors can trigger on. Reports listener health as `hotkey.status`.",
-  "longDescription": "Publishes global shortcut and key-sequence events (`hotkey.pressed`) that behaviors can trigger on, and reports listener health as `hotkey.status`.\n\n- Portal chords plus raw-input sequences on Wayland (see `docs/HOTKEYS_LINUX.md`)\n- Recent keys exposed as `event.data.sequence` for phrase matching",
+  "longDescription": "Publishes global shortcut and key-sequence events (`hotkey.pressed`) that behaviors can trigger on, and reports listener health as `hotkey.status`.\n\n- Raw-input chords and sequences through the bundled rdev-node native addon\n- Recent keys exposed as `event.data.sequence` for phrase matching",
   "icon": "keyboard",
   "tags": ["hotkeys", "events", "system"],
-  "runtime": "process",
+  "runtime": "napi-vm",
   "trust": "trusted",
-  "entry": "tiktools-hotkey-process-plugin",
-  "protocolVersion": 1,
+  "entry": "dist/index.js",
+  "apiVersion": 1,
+  "nativeAddons": [
+    {
+      "package": "rdev-node",
+      "root": "node_modules/rdev-node"
+    }
+  ],
+  "nativeLibs": [
+    {
+      "package": "rdev-node",
+      "version": "1.0.5"
+    }
+  ],
   "capabilities": [
     "events.publish"
-  ],
-  "permissions": [
-    "input.raw"
   ],
   "targets": [
     "win32",
@@ -31,7 +40,7 @@
         "i18key": "hotkeys.bind.title"
       },
       "description": {
-        "default": "Register configured chords with the desktop portal and enable raw input when needed.",
+        "default": "Watch configured chords and enable raw input when needed.",
         "i18key": "hotkeys.bind.description"
       },
       "tag": "hotkeys",
@@ -42,7 +51,7 @@
         {
           "key": "shortcuts",
           "label": {
-            "default": "Portal shortcuts",
+            "default": "Watched chords",
             "i18key": "hotkeys.bind.shortcuts.label"
           },
           "kind": "code",
@@ -63,7 +72,7 @@
           "value": "true",
           "advanced": true,
           "hint": {
-            "default": "Required for bare keys, arbitrary keys, and sequence filters on Wayland.",
+            "default": "Required for bare keys, arbitrary keys, and sequence filters.",
             "i18key": "hotkeys.bind.sequences.hint"
           }
         }
@@ -483,20 +492,8 @@
             "i18key": "hotkeys.field.backend.label"
           },
           "hint": {
-            "default": "Listener that observed the press: rdev, x11, portal, or evdev.",
+            "default": "Listener that observed the press: rdev.",
             "i18key": "hotkeys.field.backend.hint"
-          }
-        },
-        {
-          "path": "event.data.shortcut_id",
-          "kind": "text",
-          "label": {
-            "default": "Shortcut ID",
-            "i18key": "hotkeys.field.shortcut.label"
-          },
-          "hint": {
-            "default": "Portal shortcut id (for example ctrl-shift-k). Only set on portal events.",
-            "i18key": "hotkeys.field.shortcut.hint"
           }
         }
       ],
@@ -533,20 +530,20 @@
             "i18key": "hotkeys.status.field.session.label"
           },
           "hint": {
-            "default": "linux session kind: wayland, x11, or unknown. n/a on Windows/macOS.",
+            "default": "Always unknown: napi-vm guests observe no platform facts.",
             "i18key": "hotkeys.status.field.session.hint"
           }
         }
       ],
       "sample": {
-        "platform": "linux",
-        "session": "wayland",
+        "platform": "unknown",
+        "session": "unknown",
         "backends": [
           {
-            "backend": "portal",
-            "state": "active",
-            "detail": "3 shortcuts bound",
-            "summary": "Global Hotkeys: active via XDG Desktop Portal (3 shortcuts bound)"
+            "backend": "rdev",
+            "state": "running",
+            "detail": "",
+            "summary": "Global Hotkeys: running via native listener"
           }
         ]
       }

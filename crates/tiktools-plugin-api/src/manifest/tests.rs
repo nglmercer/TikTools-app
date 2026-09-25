@@ -817,6 +817,27 @@ fn shipped_textintel_example_declares_valid_autocomplete() {
 }
 
 #[test]
+fn shipped_hotkeys_example_declares_native_addon() {
+    // Pins the napi-vm hotkeys example to the validator: its id, runtime,
+    // trust, entry, and native declaration must parse, or the reference
+    // native plugin silently stops loading on the next snapshot.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/hotkey-napi-plugin/plugin.json");
+    let input = std::fs::read_to_string(&root).expect("hotkeys manifest");
+    let manifest = PluginManifest::from_json_str(&input).expect("valid manifest");
+    assert_eq!(manifest.id, "hotkeys");
+    assert_eq!(manifest.runtime, PluginRuntimeKind::NapiVm);
+    assert_eq!(manifest.trust, PluginTrust::Trusted);
+    assert_eq!(manifest.native_addons.len(), 1);
+    assert_eq!(manifest.native_addons[0].package, "rdev-node");
+    assert_eq!(manifest.native_addons[0].root, "node_modules/rdev-node");
+    assert_eq!(manifest.native_libs.len(), 1);
+    assert_eq!(manifest.native_libs[0].package, "rdev-node");
+    assert_eq!(manifest.native_libs[0].version, "1.0.5");
+    assert_eq!(manifest.native_libs[0].provider, NativeLibProvider::Npm);
+}
+
+#[test]
 fn parses_simple_native_addon_declarations() {
     let manifest = PluginManifest::from_json_str(
         r#"{
@@ -955,6 +976,130 @@ fn rejects_duplicate_native_packages() {
     assert!(matches!(
         PluginManifest::from_value(duplicate),
         Err(ManifestError::InvalidField("nativeAddons"))
+    ));
+}
+
+#[test]
+fn parses_native_lib_declarations_with_npm_default() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{
+            "schemaVersion": 3,
+            "id": "hotkeys",
+            "name": "Hotkeys",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "apiVersion": 1,
+            "nativeLibs": [
+                {"package": "rdev-node", "version": "1.0.1"},
+                {
+                    "package": "other",
+                    "version": "2.0.0-beta.1",
+                    "provider": "npm"
+                },
+                {
+                    "package": "gh-only",
+                    "version": "0.3.0",
+                    "provider": "github",
+                    "repo": "owner/gh-only",
+                    "tag": "v0.3.0",
+                    "binary": "gh-only"
+                }
+            ]
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(manifest.native_libs.len(), 3);
+    assert_eq!(manifest.native_libs[0].package, "rdev-node");
+    assert_eq!(manifest.native_libs[0].version, "1.0.1");
+    assert_eq!(manifest.native_libs[0].provider, NativeLibProvider::Npm);
+    assert_eq!(manifest.native_libs[0].repo, None);
+    assert_eq!(manifest.native_libs[1].provider, NativeLibProvider::Npm);
+    assert_eq!(manifest.native_libs[2].provider, NativeLibProvider::Github);
+    assert_eq!(
+        manifest.native_libs[2].repo.as_deref(),
+        Some("owner/gh-only")
+    );
+    assert_eq!(manifest.native_libs[2].tag.as_deref(), Some("v0.3.0"));
+    assert_eq!(manifest.native_libs[2].binary.as_deref(), Some("gh-only"));
+    // Absent declarations default to none: manually staged trees load.
+    let plain = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"xx","name":"X","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js"}"#,
+    )
+    .unwrap();
+    assert!(plain.native_libs.is_empty());
+}
+
+#[test]
+fn rejects_native_lib_shape_errors() {
+    let manifest_with = |libs: serde_json::Value| {
+        serde_json::json!({
+            "schemaVersion": 3,
+            "id": "xx",
+            "name": "X",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "nativeLibs": libs,
+        })
+    };
+    // Non-array list, non-object entries, missing or mistyped fields,
+    // version ranges, unknown providers, github entries missing keys,
+    // npm entries carrying github keys, and duplicate packages.
+    let bad = [
+        serde_json::json!("pkg"),
+        serde_json::json!([42]),
+        serde_json::json!([{"package": "pkg"}]),
+        serde_json::json!([{"version": "1.0.0"}]),
+        serde_json::json!([{"package": 42, "version": "1.0.0"}]),
+        serde_json::json!([{"package": "../evil", "version": "1.0.0"}]),
+        serde_json::json!([{"package": "pkg", "version": "^1.0.0"}]),
+        serde_json::json!([{"package": "pkg", "version": "~1.0"}]),
+        serde_json::json!([{"package": "pkg", "version": "latest"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "ftp"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "github"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "github", "repo": "o/p", "tag": "v1"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "github", "repo": "o/p", "tag": "v1.0.0", "binary": "../evil"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "github", "repo": "noslash", "tag": "v1.0.0", "binary": "b"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "github", "repo": "o/p", "tag": "has space", "binary": "b"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "repo": "o/p"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "tag": "v1.0.0"}]),
+        serde_json::json!([
+            {"package": "pkg", "version": "1.0.0"},
+            {"package": "pkg", "version": "2.0.0"},
+        ]),
+    ];
+    for libs in bad {
+        assert!(
+            matches!(
+                PluginManifest::from_value(manifest_with(libs)),
+                Err(ManifestError::InvalidField("nativeLibs"))
+            ),
+            "malformed nativeLibs should be rejected"
+        );
+    }
+    // Absurd library counts are bounded.
+    let many: Vec<_> = (0..33)
+        .map(|index| serde_json::json!({"package": format!("pkg{index}"), "version": "1.0.0"}))
+        .collect();
+    assert!(matches!(
+        PluginManifest::from_value(manifest_with(serde_json::Value::Array(many))),
+        Err(ManifestError::InvalidField("nativeLibs"))
+    ));
+    // Only napi-vm manifests may declare fetch sources.
+    let foreign = serde_json::json!({
+        "schemaVersion": 3,
+        "id": "xx",
+        "name": "X",
+        "version": "1.0.0",
+        "runtime": "process",
+        "entry": "plugin",
+        "nativeLibs": [{"package": "pkg", "version": "1.0.0"}],
+    });
+    assert!(matches!(
+        PluginManifest::from_value(foreign),
+        Err(ManifestError::InvalidField("nativeLibs"))
     ));
 }
 
