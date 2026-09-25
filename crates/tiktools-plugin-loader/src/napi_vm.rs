@@ -504,90 +504,31 @@ fn handle_vm_call(
     let request_text = std::str::from_utf8(request).map_err(|_| {
         PluginLoaderError::Runtime("napi-vm plugin request is not UTF-8".to_owned())
     })?;
-    // Validate before embedding so a non-JSON caller gets a typed error
-    // instead of a guest syntax failure.
-    let _: serde_json::Value = serde_json::from_str(request_text).map_err(|error| {
+    // Decode once: the guest function receives converted values, never
+    // source text, so a non-JSON caller gets a typed error up front.
+    let request_value: serde_json::Value = serde_json::from_str(request_text).map_err(|error| {
         PluginLoaderError::Runtime(format!("plugin request is not JSON: {error}"))
     })?;
-    let context_text = serde_json::to_string(context).map_err(|error| {
-        PluginLoaderError::Runtime(format!("could not encode plugin context: {error}"))
-    })?;
-    let source = call_envelope(request_text, &context_text);
     let plugin = host.get_mut(name).ok_or_else(|| {
         PluginLoaderError::Runtime(format!("napi-vm plugin `{name}` is not loaded"))
     })?;
-    let value = plugin
-        .interpreter_mut()
-        .eval_source(&source)
+    let response = plugin
+        .call_json(&request_value, context)
         .map_err(|error| PluginLoaderError::Runtime(format!("napi-vm call failed: {error}")))?;
-    let napi_vm::Value::String(envelope) = &value else {
-        return Err(PluginLoaderError::Runtime(
-            "napi-vm call returned an invalid host result".to_owned(),
-        ));
-    };
-    let envelope: serde_json::Value = serde_json::from_str(envelope).map_err(|error| {
-        PluginLoaderError::Runtime(format!("napi-vm call returned invalid JSON: {error}"))
+    let serialized = serde_json::to_string(&response).map_err(|error| {
+        PluginLoaderError::Runtime(format!("napi-vm call result is not serializable: {error}"))
     })?;
-    let serialized = envelope
-        .get("serialized")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| {
-            PluginLoaderError::Runtime("napi-vm call result is not serializable".to_owned())
-        })?;
     if serialized.len() > MAX_FRAME_BYTES {
         return Err(PluginLoaderError::Runtime(
             "napi-vm plugin returned an oversized result".to_owned(),
         ));
     }
-    Ok(serialized.as_bytes().to_vec())
-}
-
-/// Builds the one-shot guest program for a call. Both fragments are
-/// serializer-produced JSON, so they embed as safe JavaScript literals.
-/// `__pluginInstance` is napi-vm's current guest-handle global; the envelope
-/// fails closed with a TikTools-typed error when it is absent, and the whole
-/// bridge is slated to move to an upstream `call_json` API (see docs).
-fn call_envelope(request_json: &str, context_json: &str) -> String {
-    format!(
-        r#"await (async () => {{
-  const request = {request_json};
-  const context = {context_json};
-  if (typeof __pluginInstance === "undefined" || __pluginInstance === null)
-    throw new Error("tiktools: napi-vm guest instance is unavailable");
-  if (typeof __pluginInstance.call !== "function")
-    throw new Error("tiktools: napi-vm guest must export call(request, context)");
-  const value = await __pluginInstance.call(request, context);
-  if (value === undefined)
-    throw new TypeError("tiktools: call must return a PluginCallResult object");
-  const serialized = JSON.stringify(value);
-  if (typeof serialized !== "string")
-    throw new TypeError("tiktools: PluginCallResult must be JSON serializable");
-  return JSON.stringify({{ defined: true, serialized }});
-}})()"#
-    )
+    Ok(serialized.into_bytes())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn envelope_embeds_request_and_context_as_literals() {
-        let source = call_envelope(r#"{"type":"poll"}"#, r#"{"pluginId":"demo"}"#);
-        assert!(
-            source.contains(r#"const request = {"type":"poll"};"#),
-            "{source}"
-        );
-        assert!(
-            source.contains(r#"const context = {"pluginId":"demo"};"#),
-            "{source}"
-        );
-        assert!(
-            source.contains("__pluginInstance.call(request, context)"),
-            "{source}"
-        );
-        assert!(source.starts_with("await (async () => {"), "{source}");
-    }
 
     #[test]
     fn guest_context_carries_plugin_identity() {
