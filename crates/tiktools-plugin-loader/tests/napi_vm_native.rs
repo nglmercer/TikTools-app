@@ -538,8 +538,8 @@ fn tsfn_callback_is_delivered_while_vm_is_idle() {
     fs::remove_dir_all(&staged).ok();
 }
 
-#[test]
-fn clean_shutdown_and_reload_with_active_listener() {
+#[tokio::test]
+async fn clean_shutdown_and_reload_with_active_listener() {
     // A dedicated discovery root: parallel tests stage siblings with the
     // same plugin id, so scanning the shared scratch directory would be
     // nondeterministic.
@@ -562,6 +562,7 @@ fn clean_shutdown_and_reload_with_active_listener() {
     manager.start(&manifest.id).unwrap();
     let result = manager
         .call(&manifest.id, &action_request("native.start"))
+        .await
         .unwrap();
     assert_eq!(
         result.get("summary"),
@@ -579,6 +580,7 @@ fn clean_shutdown_and_reload_with_active_listener() {
     manager.start(&manifest.id).unwrap();
     let result = manager
         .call(&manifest.id, &action_request("native.sum"))
+        .await
         .unwrap();
     assert_eq!(result.get("summary"), Some(&json!("sum:42")), "{result}");
     manager.stop(&manifest.id).unwrap();

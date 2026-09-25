@@ -6,9 +6,17 @@
 //! napi-vm's pure-Rust interpreter with deny-by-default host capabilities.
 //!
 //! Threading: napi-vm's VM is `!Send` (`Rc`/`RefCell` internals), while
-//! [`PluginInstance`] must be `Send`. The VM therefore lives on one dedicated
-//! owner thread per plugin instance; the `Send` handle only carries a command
-//! channel and the thread's join handle. The VM value never crosses threads.
+//! [`PluginInstance`] must be `Send`. Each plugin therefore runs on one
+//! dedicated owner thread that serves the manager's call queue directly —
+//! there is no generic worker thread in front of it (see
+//! `PluginRuntime::spawn_worker`). The VM value never crosses threads:
+//! only plain bytes move over the queue, and only the owner thread runs
+//! guest code or drains the event loop.
+//!
+//! The owner sleeps with no timeout while idle: plugin commands and
+//! host-event wakes (native callbacks, async completions, and finalizers
+//! posted from other threads) are the only work sources, so an idle plugin
+//! consumes zero recurring wakeups.
 //!
 //! Protocol: unchanged. The host sends `PluginCall` JSON and the guest
 //! answers `PluginCallResult` JSON through its `call(request, context)`
@@ -27,18 +35,18 @@
 //! authorizes that one file through napi-vm (which pins its contents
 //! internally), and exposes it to guests as a native `require()` alias
 //! under the declared package name; with no declaration the guest stays
-//! inside the pure-Rust VM. While idle the owner thread pumps the napi-vm
-//! event loop so native TSFN/async callbacks run without an arriving
-//! plugin request.
+//! inside the pure-Rust VM. While idle the owner thread sleeps: native
+//! TSFN/async callbacks wake it through a host-event notifier instead of
+//! a polling interval.
 
 use std::{
     path::{Path, PathBuf},
-    sync::mpsc::{self, Receiver, Sender},
+    sync::{mpsc as std_mpsc, Arc},
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
 
-use napi_vm::{RustPluginHost, RustPluginHostOptions, RustPluginPolicy};
+use napi_vm::{RustPluginHost, RustPluginHostOptions, RustPluginPolicy, WakeNotifier};
 #[cfg(all(
     feature = "napi-vm-node-api",
     any(target_os = "linux", target_os = "macos", target_os = "windows")
@@ -47,19 +55,12 @@ use tiktools_plugin_api::manifest::select_host_native_binary;
 use tiktools_plugin_api::{
     NativeAddonDeclaration, PluginManifest, PluginRuntimeKind, MAX_FRAME_BYTES,
 };
+use tokio::sync::{mpsc, oneshot};
 
-use crate::{PluginInstance, PluginLoaderError, PluginRuntime, PluginSource};
-
-/// Commands the `Send` instance handle forwards to its dedicated VM thread.
-/// The VM thread is the sole owner of the `RustPluginHost`; nothing
-/// VM-backed ever crosses this channel, only plain bytes.
-enum VmCommand {
-    Call {
-        request: Vec<u8>,
-        respond: Sender<Result<Vec<u8>, PluginLoaderError>>,
-    },
-    Shutdown,
-}
+use crate::{
+    worker::{QueuedCall, WorkerMsg},
+    ManagedWorker, PluginInstance, PluginLoaderError, PluginRuntime, PluginSource,
+};
 
 #[derive(Default)]
 pub struct NapiVmPluginRuntime;
@@ -74,21 +75,46 @@ impl PluginRuntime for NapiVmPluginRuntime {
         manifest: &PluginManifest,
         directory: &Path,
     ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
-        if manifest.runtime != PluginRuntimeKind::NapiVm {
-            return Err(PluginLoaderError::Runtime(
-                "runtime kind mismatch".to_owned(),
-            ));
-        }
-        if !manifest.native_addons.is_empty()
-            // Direct runtime loads carry development-embedder provenance:
-            // production loads go through `PluginManager::start`, which
-            // passes the discovered source.
-            && !native_addons_allowed(manifest, PluginSource::Development)
-        {
-            return Err(untrusted_native_addons(&manifest.id));
-        }
-        Ok(Box::new(NapiVmPluginInstance::spawn(manifest, directory)?))
+        check_manifest(manifest)?;
+        let (tx, worker) = spawn_owner(manifest, directory)?;
+        Ok(Box::new(NapiVmPluginInstance {
+            id: manifest.id.clone(),
+            tx: Some(tx),
+            worker: Some(worker),
+        }))
     }
+
+    fn spawn_worker(
+        &self,
+        manifest: &PluginManifest,
+        directory: &Path,
+    ) -> Option<Result<ManagedWorker, PluginLoaderError>> {
+        if let Err(error) = check_manifest(manifest) {
+            return Some(Err(error));
+        }
+        match spawn_owner(manifest, directory) {
+            Ok((tx, worker)) => Some(Ok(ManagedWorker::new(tx, worker))),
+            Err(error) => Some(Err(error)),
+        }
+    }
+}
+
+/// Shared load prelude: runtime-kind match plus the trusted-native choke
+/// point (see `native_addons_allowed`). Production loads additionally pass
+/// install provenance through `PluginManager::start`, which checks first;
+/// direct loads carry development-embedder provenance here.
+fn check_manifest(manifest: &PluginManifest) -> Result<(), PluginLoaderError> {
+    if manifest.runtime != PluginRuntimeKind::NapiVm {
+        return Err(PluginLoaderError::Runtime(
+            "runtime kind mismatch".to_owned(),
+        ));
+    }
+    if !manifest.native_addons.is_empty()
+        && !native_addons_allowed(manifest, PluginSource::Development)
+    {
+        return Err(untrusted_native_addons(&manifest.id));
+    }
+    Ok(())
 }
 
 /// Whether this plugin may enable its `nativeAddons` declarations. This is
@@ -128,59 +154,8 @@ pub(crate) fn untrusted_native_addons(id: &str) -> PluginLoaderError {
 
 struct NapiVmPluginInstance {
     id: String,
-    tx: Option<Sender<VmCommand>>,
-    worker: Option<JoinHandle<()>>,
-}
-
-impl NapiVmPluginInstance {
-    /// Spawns the dedicated VM owner thread and waits for the guest `onLoad`
-    /// to settle, so `load` fails fast instead of reporting a dead instance.
-    fn spawn(manifest: &PluginManifest, directory: &Path) -> Result<Self, PluginLoaderError> {
-        let id = manifest.id.clone();
-        let name = manifest.name.clone();
-        let context = guest_context(manifest);
-        let native_addons = manifest.native_addons.clone();
-        let directory = directory.to_owned();
-        let (tx, rx) = mpsc::channel();
-        let (ready_tx, ready_rx) = mpsc::channel();
-        let thread_id = id.clone();
-        let worker = thread::Builder::new()
-            .name(format!("tiktools-napi-vm-{thread_id}"))
-            .spawn(move || {
-                run_vm_owner(name, directory, context, native_addons, rx, ready_tx);
-            })
-            .map_err(|error| {
-                PluginLoaderError::Runtime(format!("could not start napi-vm thread: {error}"))
-            })?;
-        // The VM thread always answers the handshake before serving calls: a
-        // dropped sender means it died during startup, which is also a load
-        // failure, never a half-alive instance.
-        ready_rx.recv().map_err(|_| {
-            PluginLoaderError::Runtime(format!("napi-vm plugin `{id}` failed during startup"))
-        })??;
-        Ok(Self {
-            id,
-            tx: Some(tx),
-            worker: Some(worker),
-        })
-    }
-
-    fn send_call(&mut self, request: &[u8]) -> Result<Vec<u8>, PluginLoaderError> {
-        let tx = self.tx.as_ref().ok_or_else(|| {
-            PluginLoaderError::Runtime(format!("napi-vm plugin `{}` stopped", self.id))
-        })?;
-        let (respond, answer) = mpsc::channel();
-        tx.send(VmCommand::Call {
-            request: request.to_vec(),
-            respond,
-        })
-        .map_err(|_| {
-            PluginLoaderError::Runtime(format!("napi-vm plugin `{}` worker is gone", self.id))
-        })?;
-        answer.recv().map_err(|_| {
-            PluginLoaderError::Runtime(format!("napi-vm plugin `{}` worker died", self.id))
-        })?
-    }
+    tx: Option<mpsc::UnboundedSender<WorkerMsg>>,
+    worker: Option<JoinHandle<Result<(), PluginLoaderError>>>,
 }
 
 impl PluginInstance for NapiVmPluginInstance {
@@ -188,23 +163,45 @@ impl PluginInstance for NapiVmPluginInstance {
         &self.id
     }
 
+    /// Direct (unmanaged) call: enqueue on the owner thread and block for
+    /// the answer. Sync-only: `blocking_recv` panics inside a Tokio
+    /// runtime, so async callers must go through `PluginManager` instead.
     fn handle_message(&mut self, request: &[u8]) -> Result<Vec<u8>, PluginLoaderError> {
-        self.send_call(request)
+        let tx = self.tx.as_ref().ok_or_else(|| {
+            PluginLoaderError::Runtime(format!("napi-vm plugin `{}` stopped", self.id))
+        })?;
+        let (respond, answer) = oneshot::channel();
+        tx.send(WorkerMsg::Call(QueuedCall {
+            request: request.to_vec(),
+            timeout: DIRECT_CALL_TIMEOUT,
+            deadline: Instant::now() + DIRECT_CALL_TIMEOUT,
+            respond,
+        }))
+        .map_err(|_| {
+            PluginLoaderError::Runtime(format!("napi-vm plugin `{}` worker is gone", self.id))
+        })?;
+        answer.blocking_recv().map_err(|_| {
+            PluginLoaderError::Runtime(format!("napi-vm plugin `{}` worker died", self.id))
+        })?
     }
 
-    /// Runs guest `onUnload` on the VM thread, then joins it. Every
-    /// `eval_source` gets a fresh loop budget inside napi-vm, so spinning
-    /// guest JavaScript terminates with a `RangeError` instead of wedging
-    /// this join; only trusted native (`.node`/capability) code could block
-    /// it, exactly like a native plugin could.
+    /// Runs guest `onUnload` on the VM thread, then joins it. Every guest
+    /// call gets a fresh loop budget inside napi-vm, so spinning guest
+    /// JavaScript terminates with a `RangeError` instead of wedging this
+    /// join; only trusted native (`.node`/capability) code could block it,
+    /// exactly like a native plugin could. An `onUnload` failure propagates,
+    /// like the generic worker's shutdown errors.
     fn shutdown(&mut self) -> Result<(), PluginLoaderError> {
         if let Some(tx) = self.tx.take() {
-            let _ = tx.send(VmCommand::Shutdown);
+            let _ = tx.send(WorkerMsg::Shutdown);
         }
         if let Some(worker) = self.worker.take() {
-            worker.join().map_err(|_| {
-                PluginLoaderError::Runtime(format!("plugin `{}` worker panicked", self.id))
-            })?;
+            worker
+                .join()
+                .map_err(|_| {
+                    PluginLoaderError::Runtime(format!("plugin `{}` worker panicked", self.id))
+                })
+                .and_then(|inner| inner)?;
         }
         Ok(())
     }
@@ -216,10 +213,16 @@ impl Drop for NapiVmPluginInstance {
     /// thread exits on its own; dropping the join handle never blocks here.
     fn drop(&mut self) {
         if let Some(tx) = self.tx.take() {
-            let _ = tx.send(VmCommand::Shutdown);
+            let _ = tx.send(WorkerMsg::Shutdown);
         }
     }
 }
+
+/// Effective deadline for direct (unmanaged) `load()` calls. The direct
+/// path predates worker deadlines and blocks until the guest answers; the
+/// distant deadline preserves that while letting the owner share one
+/// deadline-enforcing loop with the managed path.
+const DIRECT_CALL_TIMEOUT: Duration = Duration::from_secs(365 * 24 * 60 * 60);
 
 /// Guest-visible context for `call(request, context)`: plugin identity only.
 /// Host capabilities arrive through Rust capability modules in a follow-up;
@@ -232,15 +235,59 @@ fn guest_context(manifest: &PluginManifest) -> serde_json::Value {
     })
 }
 
-/// How long the VM owner waits for the next command before pumping the
-/// napi-vm event loop for native TSFN/async callbacks. Short enough for
-/// interactive native workloads, long enough to sleep instead of spin.
-const VM_EVENT_LOOP_POLL: Duration = Duration::from_millis(10);
+/// Spawns the dedicated VM owner thread and waits for the guest `onLoad`
+/// to settle, so callers fail fast instead of reporting a dead instance.
+/// Shared by the direct `load()` path and the manager's owned worker: in
+/// both cases exactly one thread owns the VM.
+#[allow(clippy::type_complexity)]
+fn spawn_owner(
+    manifest: &PluginManifest,
+    directory: &Path,
+) -> Result<
+    (
+        mpsc::UnboundedSender<WorkerMsg>,
+        JoinHandle<Result<(), PluginLoaderError>>,
+    ),
+    PluginLoaderError,
+> {
+    let id = manifest.id.clone();
+    let name = manifest.name.clone();
+    let context = guest_context(manifest);
+    let native_addons = manifest.native_addons.clone();
+    let directory = directory.to_owned();
+    let (tx, rx) = mpsc::unbounded_channel();
+    let (ready_tx, ready_rx) = std_mpsc::channel();
+    let thread_id = id.clone();
+    let wake_tx = tx.clone();
+    let worker = thread::Builder::new()
+        .name(format!("tiktools-napi-vm-{thread_id}"))
+        .spawn(move || {
+            run_vm_owner(
+                name,
+                directory,
+                context,
+                native_addons,
+                rx,
+                wake_tx,
+                ready_tx,
+            )
+        })
+        .map_err(|error| {
+            PluginLoaderError::Runtime(format!("could not start napi-vm thread: {error}"))
+        })?;
+    // The VM thread always answers the handshake before serving calls: a
+    // dropped sender means it died during startup, which is also a load
+    // failure, never a half-alive instance.
+    ready_rx.recv().map_err(|_| {
+        PluginLoaderError::Runtime(format!("napi-vm plugin `{id}` failed during startup"))
+    })??;
+    Ok((tx, worker))
+}
 
 /// VM owner-thread main loop. Creates the `RustPluginHost` here so the VM
 /// never exists anywhere else, authorizes declared native addons, reports
-/// the `onLoad` outcome through the handshake channel, then serves calls
-/// until `Shutdown` unloads the guest.
+/// the `onLoad` outcome through the handshake channel, then serves the
+/// manager's call queue until `Shutdown` unloads the guest.
 ///
 /// Shutdown order: stop accepting calls, run guest `onUnload`, dispose the
 /// napi-vm plugin and shut down its native runtime, then exit this thread.
@@ -252,9 +299,10 @@ fn run_vm_owner(
     directory: PathBuf,
     context: serde_json::Value,
     native_addons: Vec<NativeAddonDeclaration>,
-    rx: Receiver<VmCommand>,
-    ready: Sender<Result<(), PluginLoaderError>>,
-) {
+    mut rx: mpsc::UnboundedReceiver<WorkerMsg>,
+    wake_tx: mpsc::UnboundedSender<WorkerMsg>,
+    ready: std_mpsc::Sender<Result<(), PluginLoaderError>>,
+) -> Result<(), PluginLoaderError> {
     // Deny-by-default: no filesystem, no `node:path`, no capability modules
     // in this slice. TikTools-owned host APIs arrive as Rust capability
     // modules granted per plugin in a follow-up. Native selection is
@@ -282,7 +330,7 @@ fn run_vm_owner(
             "napi-vm guest load failed"
         );
         let _ = ready.send(Err(error));
-        return;
+        return Ok(());
     }
     if let Err(error) = host.load(&directory).map(|_| ()) {
         let error =
@@ -294,7 +342,7 @@ fn run_vm_owner(
             "napi-vm guest load failed"
         );
         let _ = ready.send(Err(error));
-        return;
+        return Ok(());
     }
     tracing::info!(
         plugin = %name,
@@ -302,14 +350,39 @@ fn run_vm_owner(
         "napi-vm guest loaded (onLoad settled)"
     );
     if ready.send(Ok(())).is_err() {
-        return;
+        return Ok(());
     }
+    // Host-event wake: native callbacks, async completions, and finalizers
+    // posted from other threads wake this loop through the command queue.
+    // Bridges without threaded ingress ignore the registration.
+    if let Some(plugin) = host.get_mut(&name) {
+        let wake = wake_tx.clone();
+        let notifier: WakeNotifier = Arc::new(move || {
+            let _ = wake.send(WorkerMsg::HostEvent);
+        });
+        plugin.interpreter_mut().set_host_wake_notifier(notifier);
+    }
+    // Initial pump: run anything load queued (native handshake callbacks)
+    // before sleeping, so the first idle state is fully drained.
+    pump_vm_event_loop(&mut host, &name);
     loop {
-        match rx.recv_timeout(VM_EVENT_LOOP_POLL) {
-            Ok(VmCommand::Call { request, respond }) => {
-                let kind = request_kind(&request);
+        // Block with no timeout: commands and host-event wakes are the only
+        // work sources — guest timers always drain inside the call that
+        // scheduled them, and native callbacks arrive as host events — so
+        // an idle plugin sleeps with zero recurring wakeups.
+        match rx.blocking_recv() {
+            Some(WorkerMsg::Call(call)) => {
+                // Same queue-deadline rule as the generic worker: expire
+                // here so a timed-out caller never causes stale guest work.
+                if Instant::now() >= call.deadline {
+                    let _ = call.respond.send(Err(PluginLoaderError::Timeout(format!(
+                        "plugin `{name}` call expired while queued"
+                    ))));
+                    continue;
+                }
+                let kind = request_kind(&call.request);
                 let call_started = Instant::now();
-                let outcome = handle_vm_call(&mut host, &name, &request, &context);
+                let outcome = handle_vm_call(&mut host, &name, &call.request, &context);
                 let elapsed_ms = call_started.elapsed().as_millis() as u64;
                 // Steady-state poll ticks land here every second per plugin,
                 // so only slow calls warn; the rest stay at debug.
@@ -328,34 +401,52 @@ fn run_vm_owner(
                         "napi-vm guest call finished"
                     );
                 }
-                let _ = respond.send(outcome);
+                let _ = call.respond.send(outcome);
             }
-            Ok(VmCommand::Shutdown) => break,
-            Err(mpsc::RecvTimeoutError::Timeout) => {}
-            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            // A native callback, async completion, or finalizer arrived:
+            // fall through to the pump below.
+            Some(WorkerMsg::HostEvent) => {}
+            Some(WorkerMsg::Shutdown) | None => break,
         }
-        // Pump after every call and while idle so queued native callbacks
+        // Pump after every call and every wake so queued native callbacks
         // execute promptly without an arriving plugin request.
         pump_vm_event_loop(&mut host, &name);
     }
-    // Best-effort `onUnload`: the VM is revoked by dropping the host either
-    // way, so a failing hook is reported but never blocks teardown. The
+    // Fail waiters queued behind the shutdown instead of leaving them on
+    // their deadlines; mirrors the generic worker.
+    while let Ok(message) = rx.try_recv() {
+        if let WorkerMsg::Call(call) = message {
+            let _ = call.respond.send(Err(PluginLoaderError::Runtime(format!(
+                "plugin `{name}` stopped"
+            ))));
+        }
+    }
+    // `onUnload` errors propagate like the generic worker's shutdown
+    // errors: the VM is revoked by dropping the host either way. The
     // started/finished pair brackets a hook stuck in native teardown.
     let unload_started = Instant::now();
     tracing::info!(plugin = %name, "napi-vm guest unload started (onUnload)");
-    if let Err(error) = host.unload(&name) {
-        tracing::warn!(
-            plugin = %name,
-            elapsed_ms = unload_started.elapsed().as_millis() as u64,
-            %error,
-            "napi-vm plugin failed in onUnload"
-        );
-    } else {
-        tracing::info!(
-            plugin = %name,
-            elapsed_ms = unload_started.elapsed().as_millis() as u64,
-            "napi-vm guest unloaded (onUnload settled)"
-        );
+    match host.unload(&name) {
+        Ok(_) => {
+            tracing::info!(
+                plugin = %name,
+                elapsed_ms = unload_started.elapsed().as_millis() as u64,
+                "napi-vm guest unloaded (onUnload settled)"
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let error = PluginLoaderError::Runtime(format!(
+                "napi-vm plugin `{name}` failed in onUnload: {error}"
+            ));
+            tracing::warn!(
+                plugin = %name,
+                elapsed_ms = unload_started.elapsed().as_millis() as u64,
+                %error,
+                "napi-vm plugin failed in onUnload"
+            );
+            Err(error)
+        }
     }
 }
 
@@ -493,8 +584,8 @@ fn configure_host_napi_addons(
 
 /// Runs one `PluginCall` through the guest `call(request, context)` export
 /// and returns the raw `PluginCallResult` JSON bytes, like every other
-/// runtime. Promise results are awaited inside the envelope; napi-vm drains
-/// the VM job queue before `eval_source` returns.
+/// runtime. Promise results are awaited inside `call_json`, which drains
+/// the VM job queue before returning.
 fn handle_vm_call(
     host: &mut RustPluginHost,
     name: &str,
@@ -552,6 +643,37 @@ mod tests {
         assert_eq!(request_kind(br#"{"type":"action","action":{}}"#), "action");
         assert_eq!(request_kind(b"not json"), "unknown");
         assert_eq!(request_kind(br#"{"nope":true}"#), "unknown");
+    }
+
+    #[test]
+    fn owned_worker_serves_calls_and_shuts_down() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/napi-vm-echo");
+        let bytes = std::fs::read(dir.join("plugin.json")).unwrap();
+        let manifest = PluginManifest::from_json_str(std::str::from_utf8(&bytes).unwrap()).unwrap();
+        let owned = NapiVmPluginRuntime
+            .spawn_worker(&manifest, &dir)
+            .expect("napi-vm provides an owned worker")
+            .expect("owned worker spawns");
+        let (tx, worker) = owned.into_parts();
+        let (respond, answer) = oneshot::channel();
+        tx.send(WorkerMsg::Call(QueuedCall {
+            request: br#"{"type":"poll"}"#.to_vec(),
+            timeout: Duration::from_secs(30),
+            deadline: Instant::now() + Duration::from_secs(30),
+            respond,
+        }))
+        .unwrap();
+        let response = answer.blocking_recv().unwrap().unwrap();
+        let result: serde_json::Value = serde_json::from_slice(&response).unwrap();
+        assert_eq!(
+            result.get("events"),
+            Some(
+                &serde_json::json!([{ "type": "echo.tick", "data": { "plugin": "tiktools.napi-vm-echo" } }])
+            ),
+            "{result}"
+        );
+        tx.send(WorkerMsg::Shutdown).unwrap();
+        worker.join().unwrap().unwrap();
     }
 
     fn trust_manifest(trust: &str) -> PluginManifest {

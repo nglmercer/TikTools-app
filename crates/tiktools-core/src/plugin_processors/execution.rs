@@ -158,9 +158,6 @@ async fn call_processor_once(
                 InvokeError::Timeout => ProcessorError::Timeout,
                 InvokeError::Unavailable(reason) => ProcessorError::Unavailable(reason),
                 InvokeError::Plugin(reason) => ProcessorError::PluginError(reason),
-                InvokeError::Join(reason) => {
-                    ProcessorError::PluginError(format!("processor task failed: {reason}"))
-                }
             })?;
     let duration_ms = started.elapsed().as_millis().min(u64::MAX as u128) as u64;
     let result = tiktools_plugin_sdk::decode_enrichment_result(response)

@@ -52,7 +52,6 @@ impl AppCore {
         const MAX_CONCURRENT_POLLS: usize = 6;
         let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&self.plugins));
         let mut tasks = tokio::task::JoinSet::new();
-        let mut outcomes = Vec::with_capacity(candidates.len());
         for (plugin_id, declared) in candidates {
             if !self.plugin_retry_allowed(&plugin_id) {
                 continue;
@@ -71,9 +70,6 @@ impl AppCore {
                     Err(crate::plugin_invoker::InvokeError::Timeout) => {
                         Err("plugin poll timed out".to_owned())
                     }
-                    Err(crate::plugin_invoker::InvokeError::Join(reason)) => {
-                        Err(format!("plugin poll task failed: {reason}"))
-                    }
                     Err(
                         crate::plugin_invoker::InvokeError::Unavailable(reason)
                         | crate::plugin_invoker::InvokeError::Plugin(reason),
@@ -82,95 +78,108 @@ impl AppCore {
                 (plugin_id, declared_for_task, response)
             });
             if tasks.len() >= MAX_CONCURRENT_POLLS {
-                if let Some(Ok(outcome)) = tasks.join_next().await {
-                    outcomes.push(outcome);
+                if let Some(Ok((plugin_id, declared, response))) = tasks.join_next().await {
+                    self.handle_poll_outcome(plugin_id, declared, response, &source)
+                        .await;
                 }
             }
         }
+        // Outcomes are processed as each poll completes: a slow sibling
+        // must not delay another plugin's events behind a batch drain.
         while let Some(joined) = tasks.join_next().await {
-            if let Ok(outcome) = joined {
-                outcomes.push(outcome);
+            if let Ok((plugin_id, declared, response)) = joined {
+                self.handle_poll_outcome(plugin_id, declared, response, &source)
+                    .await;
             }
         }
-        outcomes.sort_by(|left, right| left.0.cmp(&right.0));
-        for (plugin_id, declared, response) in outcomes {
-            let response = match response {
-                Ok(response) => response,
-                Err(error) => {
-                    self.record_plugin_failure(&plugin_id, error);
-                    continue;
-                }
+    }
+
+    /// Validates one completed poll response and publishes its events
+    /// immediately. Runs per completion (not per batch) so fast plugins
+    /// never wait for slow siblings.
+    async fn handle_poll_outcome(
+        self: &Arc<Self>,
+        plugin_id: String,
+        declared: Vec<String>,
+        response: Result<serde_json::Value, String>,
+        source: &serde_json::Value,
+    ) {
+        let response = match response {
+            Ok(response) => response,
+            Err(error) => {
+                self.record_plugin_failure(&plugin_id, error);
+                return;
+            }
+        };
+        let response = match tiktools_plugin_sdk::decode_plugin_result(response) {
+            Ok(response) => response,
+            Err(error) => {
+                self.record_plugin_failure(&plugin_id, error.to_string());
+                return;
+            }
+        };
+        self.record_plugin_success(&plugin_id);
+        if let Some(progress) = parse_plugin_progress(&response) {
+            // Poll progress travels on the domain topic; the legacy
+            // push was removed with the migrated duplicates.
+            let state = match progress.state {
+                crate::ipc::messages::PluginProgressState::Downloading => "downloading",
+                crate::ipc::messages::PluginProgressState::Loading => "loading",
+                crate::ipc::messages::PluginProgressState::Ready => "ready",
+                crate::ipc::messages::PluginProgressState::Failed => "failed",
             };
-            let response = match tiktools_plugin_sdk::decode_plugin_result(response) {
-                Ok(response) => response,
-                Err(error) => {
-                    self.record_plugin_failure(&plugin_id, error.to_string());
-                    continue;
-                }
-            };
-            self.record_plugin_success(&plugin_id);
-            if let Some(progress) = parse_plugin_progress(&response) {
-                // Poll progress travels on the domain topic; the legacy
-                // push was removed with the migrated duplicates.
-                let state = match progress.state {
-                    crate::ipc::messages::PluginProgressState::Downloading => "downloading",
-                    crate::ipc::messages::PluginProgressState::Loading => "loading",
-                    crate::ipc::messages::PluginProgressState::Ready => "ready",
-                    crate::ipc::messages::PluginProgressState::Failed => "failed",
-                };
-                self.events
-                    .publish_domain(crate::events::DomainEvent::PluginProgress {
-                        plugin_id: plugin_id.clone(),
-                        state: state.to_owned(),
-                        progress: progress.progress,
-                        message: progress.message,
-                    });
-            }
-            // Plugin-authored poll logs are operational notes (queue
-            // overflow, backend transitions), never key contents: surface
-            // them so a struggling plugin cannot look healthy.
-            for log in response.logs.iter().take(8) {
-                tracing::warn!(plugin = %plugin_id, message = %log, "plugin poll reported a warning");
-            }
-            let parsed = parse_polled_events(&declared, &response);
-            let dropped = parsed.dropped();
-            if dropped > 0 {
-                self.record_plugin_drops(&plugin_id, dropped);
-                tracing::warn!(
-                    plugin = %plugin_id,
-                    polled = response.events.len(),
-                    accepted = parsed.events.len(),
-                    truncated = parsed.truncated,
-                    undeclared = parsed.undeclared,
-                    invalid = parsed.invalid,
-                    "plugin poll events dropped during validation"
-                );
-            } else if !parsed.events.is_empty() {
-                tracing::debug!(
-                    plugin = %plugin_id,
-                    polled = response.events.len(),
-                    accepted = parsed.events.len(),
-                    "plugin poll events accepted"
-                );
-            }
-            for (event_type, data) in parsed.events {
-                tracing::debug!(
-                    plugin = %plugin_id,
-                    event_type = %event_type,
-                    "validated plugin event entering automation"
-                );
-                // `publish_automation_event` publishes the authoritative
-                // `plugin.event` domain event (and records diagnostics)
-                // before enrichment/execution, so control-plane visibility
-                // never depends on automation success.
-                self.publish_automation_event(self.make_plugin_event(
-                    &plugin_id,
-                    &source,
-                    &event_type,
-                    data,
-                ))
-                .await;
-            }
+            self.events
+                .publish_domain(crate::events::DomainEvent::PluginProgress {
+                    plugin_id: plugin_id.clone(),
+                    state: state.to_owned(),
+                    progress: progress.progress,
+                    message: progress.message,
+                });
+        }
+        // Plugin-authored poll logs are operational notes (queue
+        // overflow, backend transitions), never key contents: surface
+        // them so a struggling plugin cannot look healthy.
+        for log in response.logs.iter().take(8) {
+            tracing::warn!(plugin = %plugin_id, message = %log, "plugin poll reported a warning");
+        }
+        let parsed = parse_polled_events(&declared, &response);
+        let dropped = parsed.dropped();
+        if dropped > 0 {
+            self.record_plugin_drops(&plugin_id, dropped);
+            tracing::warn!(
+                plugin = %plugin_id,
+                polled = response.events.len(),
+                accepted = parsed.events.len(),
+                truncated = parsed.truncated,
+                undeclared = parsed.undeclared,
+                invalid = parsed.invalid,
+                "plugin poll events dropped during validation"
+            );
+        } else if !parsed.events.is_empty() {
+            tracing::debug!(
+                plugin = %plugin_id,
+                polled = response.events.len(),
+                accepted = parsed.events.len(),
+                "plugin poll events accepted"
+            );
+        }
+        for (event_type, data) in parsed.events {
+            tracing::debug!(
+                plugin = %plugin_id,
+                event_type = %event_type,
+                "validated plugin event entering automation"
+            );
+            // `publish_automation_event` publishes the authoritative
+            // `plugin.event` domain event (and records diagnostics)
+            // before enrichment/execution, so control-plane visibility
+            // never depends on automation success.
+            self.publish_automation_event(self.make_plugin_event(
+                &plugin_id,
+                &source,
+                &event_type,
+                data,
+            ))
+            .await;
         }
     }
 }

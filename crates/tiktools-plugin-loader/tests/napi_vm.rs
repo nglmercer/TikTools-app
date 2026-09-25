@@ -120,8 +120,8 @@ fn guest_answers_action_and_poll_calls() {
     instance.shutdown().unwrap();
 }
 
-#[test]
-fn manager_discovers_starts_calls_and_stops_napi_vm_plugin() {
+#[tokio::test]
+async fn manager_discovers_starts_calls_and_stops_napi_vm_plugin() {
     let root = staged_root();
     let manager = PluginManager::new(vec![PluginRoot {
         path: root.clone(),
@@ -147,6 +147,7 @@ fn manager_discovers_starts_calls_and_stops_napi_vm_plugin() {
                 "event": {},
             }),
         )
+        .await
         .unwrap();
     assert_eq!(
         result.get("summary"),

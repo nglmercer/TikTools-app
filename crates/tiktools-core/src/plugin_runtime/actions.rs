@@ -81,9 +81,6 @@ impl AppCore {
                     plugin.manifest.id,
                     action_timeout.as_secs()
                 ),
-                crate::plugin_invoker::InvokeError::Join(reason) => {
-                    format!("plugin task failed: {reason}")
-                }
                 crate::plugin_invoker::InvokeError::Unavailable(reason)
                 | crate::plugin_invoker::InvokeError::Plugin(reason) => reason,
             })?;

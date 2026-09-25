@@ -108,8 +108,8 @@ fn scan_preserves_the_authoritative_running_instance_state() {
     let _ = fs::remove_dir_all(root);
 }
 
-#[test]
-fn declarative_plugins_start_without_an_entry_and_reject_calls() {
+#[tokio::test]
+async fn declarative_plugins_start_without_an_entry_and_reject_calls() {
     let root = temp_root();
     fs::create_dir_all(root.join("decl")).unwrap();
     fs::write(
@@ -130,6 +130,7 @@ fn declarative_plugins_start_without_an_entry_and_reject_calls() {
     assert!(manager.get("decl").unwrap().running);
     let error = manager
         .call("decl", &serde_json::json!({"jsonrpc": "2.0"}))
+        .await
         .unwrap_err()
         .to_string();
     assert!(
@@ -308,8 +309,8 @@ fn scripted_manager_with_kind(
     (manager, root)
 }
 
-#[test]
-fn worker_discards_calls_that_expire_while_queued() {
+#[tokio::test]
+async fn worker_discards_calls_that_expire_while_queued() {
     use std::sync::atomic::{AtomicU64, Ordering};
     let executions = Arc::new(AtomicU64::new(0));
     let executions_for_handler = Arc::clone(&executions);
@@ -323,32 +324,36 @@ fn worker_discards_calls_that_expire_while_queued() {
     );
     manager.start("slow").unwrap();
     let worker = Arc::clone(&manager);
-    let first = std::thread::spawn(move || {
-        worker.call_with_deadline(
-            "slow",
-            &serde_json::json!({"type": "poll"}),
-            Instant::now() + Duration::from_secs(5),
-        )
+    let first = tokio::spawn(async move {
+        worker
+            .call_with_deadline(
+                "slow",
+                &serde_json::json!({"type": "poll"}),
+                Instant::now() + Duration::from_secs(5),
+            )
+            .await
     });
     // Let the first call reach the worker before queueing an expired one.
-    std::thread::sleep(Duration::from_millis(50));
-    let expired = manager.call_with_deadline(
-        "slow",
-        &serde_json::json!({"type": "poll"}),
-        Instant::now() + Duration::from_millis(25),
-    );
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let expired = manager
+        .call_with_deadline(
+            "slow",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_millis(25),
+        )
+        .await;
     assert!(
         matches!(expired, Err(PluginLoaderError::Timeout(_))),
         "expired queued call should time out, got {expired:?}"
     );
-    assert!(first.join().unwrap().is_ok());
+    assert!(first.await.unwrap().is_ok());
     assert_eq!(executions.load(Ordering::Acquire), 1);
     manager.stop_all();
     let _ = fs::remove_dir_all(root);
 }
 
-#[test]
-fn timeout_keeps_a_healthy_instance_running() {
+#[tokio::test]
+async fn timeout_keeps_a_healthy_instance_running() {
     // Native workers run plugin code synchronously and never
     // self-terminate on a manager timeout, so the instance stays usable.
     // (Process workers kill their child on the same deadline instead;
@@ -362,25 +367,29 @@ fn timeout_keeps_a_healthy_instance_running() {
         }),
     );
     manager.start("slow").unwrap();
-    let expired = manager.call_with_deadline(
-        "slow",
-        &serde_json::json!({"type": "poll"}),
-        Instant::now() + Duration::from_millis(10),
-    );
+    let expired = manager
+        .call_with_deadline(
+            "slow",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_millis(10),
+        )
+        .await;
     assert!(matches!(expired, Err(PluginLoaderError::Timeout(_))));
     assert!(manager.is_running("slow"));
-    let recovered = manager.call_with_deadline(
-        "slow",
-        &serde_json::json!({"type": "poll"}),
-        Instant::now() + Duration::from_secs(5),
-    );
+    let recovered = manager
+        .call_with_deadline(
+            "slow",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_secs(5),
+        )
+        .await;
     assert!(recovered.is_ok());
     manager.stop_all();
     let _ = fs::remove_dir_all(root);
 }
 
-#[test]
-fn process_timeout_retires_the_instance_so_next_start_is_fresh() {
+#[tokio::test]
+async fn process_timeout_retires_the_instance_so_next_start_is_fresh() {
     use std::sync::atomic::{AtomicU64, Ordering};
     let calls = Arc::new(AtomicU64::new(0));
     let calls_for_handler = Arc::clone(&calls);
@@ -396,17 +405,21 @@ fn process_timeout_retires_the_instance_so_next_start_is_fresh() {
         }),
     );
     manager.start("slow").unwrap();
-    let warmed = manager.call_with_deadline(
-        "slow",
-        &serde_json::json!({"type": "poll"}),
-        Instant::now() + Duration::from_secs(5),
-    );
+    let warmed = manager
+        .call_with_deadline(
+            "slow",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_secs(5),
+        )
+        .await;
     assert!(warmed.is_ok());
-    let timed_out = manager.call_with_deadline(
-        "slow",
-        &serde_json::json!({"type": "poll"}),
-        Instant::now() + Duration::from_millis(25),
-    );
+    let timed_out = manager
+        .call_with_deadline(
+            "slow",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_millis(25),
+        )
+        .await;
     assert!(
         matches!(timed_out, Err(PluginLoaderError::Timeout(_))),
         "hung process call should time out, got {timed_out:?}"
@@ -416,18 +429,20 @@ fn process_timeout_retires_the_instance_so_next_start_is_fresh() {
     // "plugin process stdin is unavailable".
     assert!(!manager.is_running("slow"));
     manager.start("slow").unwrap();
-    let recovered = manager.call_with_deadline(
-        "slow",
-        &serde_json::json!({"type": "poll"}),
-        Instant::now() + Duration::from_secs(5),
-    );
+    let recovered = manager
+        .call_with_deadline(
+            "slow",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_secs(5),
+        )
+        .await;
     assert!(recovered.is_ok());
     manager.stop_all();
     let _ = fs::remove_dir_all(root);
 }
 
-#[test]
-fn process_first_call_gets_cold_start_grace_once() {
+#[tokio::test]
+async fn process_first_call_gets_cold_start_grace_once() {
     use std::sync::atomic::{AtomicU64, Ordering};
     let calls = Arc::new(AtomicU64::new(0));
     let calls_for_handler = Arc::clone(&calls);
@@ -443,20 +458,24 @@ fn process_first_call_gets_cold_start_grace_once() {
         }),
     );
     manager.start("cold").unwrap();
-    let warmed = manager.call_with_deadline(
-        "cold",
-        &serde_json::json!({"type": "poll"}),
-        Instant::now() + Duration::from_millis(100),
-    );
+    let warmed = manager
+        .call_with_deadline(
+            "cold",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_millis(100),
+        )
+        .await;
     assert!(
         warmed.is_ok(),
         "first process call should get cold-start grace, got {warmed:?}"
     );
-    let steady = manager.call_with_deadline(
-        "cold",
-        &serde_json::json!({"type": "poll"}),
-        Instant::now() + Duration::from_millis(100),
-    );
+    let steady = manager
+        .call_with_deadline(
+            "cold",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_millis(100),
+        )
+        .await;
     assert!(
         matches!(steady, Err(PluginLoaderError::Timeout(_))),
         "second slow call should time out without grace, got {steady:?}"
@@ -503,8 +522,8 @@ fn cold_start_claim_extends_exactly_one_caller_per_generation() {
     let _ = fs::remove_dir_all(native_root);
 }
 
-#[test]
-fn claimed_grace_is_not_re_extended_by_the_worker() {
+#[tokio::test]
+async fn claimed_grace_is_not_re_extended_by_the_worker() {
     let (manager, root) = scripted_manager(
         &["slow"],
         Arc::new(|_| {
@@ -518,11 +537,13 @@ fn claimed_grace_is_not_re_extended_by_the_worker() {
     assert!(effective >= Duration::from_secs(10));
     // ...so a direct caller that was not told about the claim still times
     // out on its own short deadline instead of being extended twice.
-    let timed_out = manager.call_with_deadline(
-        "slow",
-        &serde_json::json!({"type": "poll"}),
-        Instant::now() + Duration::from_millis(100),
-    );
+    let timed_out = manager
+        .call_with_deadline(
+            "slow",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_millis(100),
+        )
+        .await;
     assert!(
         matches!(timed_out, Err(PluginLoaderError::Timeout(_))),
         "consumed grace must not re-extend, got {timed_out:?}"
@@ -531,8 +552,8 @@ fn claimed_grace_is_not_re_extended_by_the_worker() {
     let _ = fs::remove_dir_all(root);
 }
 
-#[test]
-fn transport_errors_retire_the_instance_and_restart_recovers() {
+#[tokio::test]
+async fn transport_errors_retire_the_instance_and_restart_recovers() {
     use std::sync::atomic::{AtomicU64, Ordering};
     let calls = Arc::new(AtomicU64::new(0));
     let calls_for_handler = Arc::clone(&calls);
@@ -552,6 +573,7 @@ fn transport_errors_retire_the_instance_and_restart_recovers() {
             &serde_json::json!({"type": "poll"}),
             Instant::now() + Duration::from_secs(5),
         )
+        .await
         .is_err());
     assert!(!manager.is_running("flaky"));
     manager.start("flaky").unwrap();
@@ -561,13 +583,14 @@ fn transport_errors_retire_the_instance_and_restart_recovers() {
             &serde_json::json!({"type": "poll"}),
             Instant::now() + Duration::from_secs(5),
         )
+        .await
         .is_ok());
     manager.stop_all();
     let _ = fs::remove_dir_all(root);
 }
 
-#[test]
-fn worker_panic_isolates_the_plugin_without_hanging_siblings() {
+#[tokio::test]
+async fn worker_panic_isolates_the_plugin_without_hanging_siblings() {
     let (manager, root) = scripted_manager(
         &["doomed", "healthy"],
         Arc::new(|request| {
@@ -579,21 +602,25 @@ fn worker_panic_isolates_the_plugin_without_hanging_siblings() {
     );
     manager.start("doomed").unwrap();
     manager.start("healthy").unwrap();
-    let failed = manager.call_with_deadline(
-        "doomed",
-        &serde_json::json!({"type": "doomed"}),
-        Instant::now() + Duration::from_secs(5),
-    );
+    let failed = manager
+        .call_with_deadline(
+            "doomed",
+            &serde_json::json!({"type": "doomed"}),
+            Instant::now() + Duration::from_secs(5),
+        )
+        .await;
     assert!(
         matches!(failed, Err(PluginLoaderError::Runtime(_))),
         "panicking worker should surface a runtime error, got {failed:?}"
     );
     assert!(!manager.is_running("doomed"));
-    let sibling = manager.call_with_deadline(
-        "healthy",
-        &serde_json::json!({"type": "poll"}),
-        Instant::now() + Duration::from_secs(5),
-    );
+    let sibling = manager
+        .call_with_deadline(
+            "healthy",
+            &serde_json::json!({"type": "poll"}),
+            Instant::now() + Duration::from_secs(5),
+        )
+        .await;
     assert!(sibling.is_ok());
     manager.stop_all();
     let _ = fs::remove_dir_all(root);
@@ -640,16 +667,18 @@ fn stop_reports_a_poisoned_lifecycle_lock_as_a_typed_error() {
     let _ = fs::remove_dir_all(root);
 }
 
-#[test]
-fn call_reports_poisoned_locks_as_a_typed_error() {
+#[tokio::test]
+async fn call_reports_poisoned_locks_as_a_typed_error() {
     let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
     manager.start("demo").unwrap();
     manager.poison_locks_for_test();
-    let called = manager.call_with_timeout(
-        "demo",
-        &serde_json::json!({"type": "poll"}),
-        Duration::from_secs(5),
-    );
+    let called = manager
+        .call_with_timeout(
+            "demo",
+            &serde_json::json!({"type": "poll"}),
+            Duration::from_secs(5),
+        )
+        .await;
     assert!(
         matches!(called, Err(PluginLoaderError::LockPoisoned(_))),
         "poisoned call should fail typed, got {called:?}"
@@ -729,8 +758,8 @@ fn stop_all_recovers_from_a_poisoned_worker_lock() {
     let _ = fs::remove_dir_all(root);
 }
 
-#[test]
-fn one_broken_plugin_does_not_block_sibling_shutdown() {
+#[tokio::test]
+async fn one_broken_plugin_does_not_block_sibling_shutdown() {
     let root = temp_root();
     write_plugin_with_runtime(&root, "doomed", "process");
     write_plugin_with_runtime(&root, "flaky", "native");
@@ -761,11 +790,64 @@ fn one_broken_plugin_does_not_block_sibling_shutdown() {
     assert!(!manager.is_running("healthy"));
     // The healthy sibling restarts and answers afterwards.
     manager.start("healthy").unwrap();
-    let answer = manager.call("healthy", &serde_json::json!({"type": "poll"}));
+    let answer = manager
+        .call("healthy", &serde_json::json!({"type": "poll"}))
+        .await;
     assert!(
         answer.is_ok(),
         "healthy sibling should answer, got {answer:?}"
     );
     manager.stop_all();
+    let _ = fs::remove_dir_all(root);
+}
+
+fn copy_fixture_dir(source: &std::path::Path, target: &std::path::Path) {
+    for entry in std::fs::read_dir(source).unwrap() {
+        let entry = entry.unwrap();
+        let destination = target.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            std::fs::create_dir_all(&destination).unwrap();
+            copy_fixture_dir(&entry.path(), &destination);
+        } else {
+            std::fs::copy(entry.path(), &destination).unwrap();
+        }
+    }
+}
+
+#[tokio::test]
+async fn napi_vm_plugin_runs_on_a_single_owner_thread() {
+    // Real fixture through real discovery: the napi-vm runtime must serve
+    // the manager queue on its own owner thread, with no generic worker
+    // thread in front of it.
+    let root = temp_root();
+    let staged = root.join("napi-vm-echo");
+    std::fs::create_dir_all(&staged).unwrap();
+    copy_fixture_dir(
+        &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/napi-vm-echo"),
+        &staged,
+    );
+    let manager = PluginManager::new(vec![PluginRoot {
+        path: root.clone(),
+        source: PluginSource::Development,
+    }]);
+    manager.scan().unwrap();
+    manager.start("tiktools.napi-vm-echo").unwrap();
+    assert_eq!(
+        manager
+            .worker_thread_name_for_test("tiktools.napi-vm-echo")
+            .as_deref(),
+        Some("tiktools-napi-vm-tiktools.napi-vm-echo"),
+        "napi-vm plugin must run on its owner thread, not the generic worker"
+    );
+    let result = manager
+        .call(
+            "tiktools.napi-vm-echo",
+            &serde_json::json!({"type": "poll"}),
+        )
+        .await
+        .unwrap();
+    assert!(result.get("events").is_some(), "{result}");
+    manager.stop("tiktools.napi-vm-echo").unwrap();
+    assert!(!manager.is_running("tiktools.napi-vm-echo"));
     let _ = fs::remove_dir_all(root);
 }

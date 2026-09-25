@@ -3,7 +3,7 @@ use std::{
     fs,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
-        mpsc, Arc, Mutex, RwLock,
+        Arc, Mutex, RwLock,
     },
     thread,
     time::{Duration, Instant},
@@ -14,6 +14,7 @@ use tiktools_plugin_api::{
     sync::{recover_mutex, recover_rwlock_read, recover_rwlock_write},
     PluginRuntimeKind,
 };
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     discovery::{read_discovered_plugin, MAX_DIRECTORY_ENTRIES},
@@ -256,28 +257,50 @@ impl PluginManager {
             runtime = %plugin.manifest.runtime,
             "plugin starting"
         );
-        let instance = match runtime.load(&plugin.manifest, &plugin.directory) {
-            Ok(instance) => instance,
-            Err(error) => {
-                tracing::warn!(
-                    id = %id,
-                    runtime = %plugin.manifest.runtime,
-                    elapsed_ms = start_started.elapsed().as_millis() as u64,
-                    %error,
-                    "plugin failed to start"
-                );
-                return Err(error);
-            }
-        };
         let token = self.next_token.fetch_add(1, Ordering::AcqRel);
-        let (tx, rx) = mpsc::channel();
-        let worker_id = id.to_owned();
-        let worker = thread::Builder::new()
-            .name("tiktools-plugin".to_owned())
-            .spawn(move || run_instance_worker(worker_id, instance, rx))
-            .map_err(|error| {
-                PluginLoaderError::Runtime(format!("could not start plugin worker: {error}"))
-            })?;
+        // Runtimes with an owned worker (napi-vm) serve the call queue on
+        // their own thread, bypassing the generic worker: one thread per
+        // plugin instead of two, with identical queue/deadline semantics.
+        let (tx, worker) = if let Some(owned) =
+            runtime.spawn_worker(&plugin.manifest, &plugin.directory)
+        {
+            match owned {
+                Ok(owned) => owned.into_parts(),
+                Err(error) => {
+                    tracing::warn!(
+                        id = %id,
+                        runtime = %plugin.manifest.runtime,
+                        elapsed_ms = start_started.elapsed().as_millis() as u64,
+                        %error,
+                        "plugin failed to start"
+                    );
+                    return Err(error);
+                }
+            }
+        } else {
+            let instance = match runtime.load(&plugin.manifest, &plugin.directory) {
+                Ok(instance) => instance,
+                Err(error) => {
+                    tracing::warn!(
+                        id = %id,
+                        runtime = %plugin.manifest.runtime,
+                        elapsed_ms = start_started.elapsed().as_millis() as u64,
+                        %error,
+                        "plugin failed to start"
+                    );
+                    return Err(error);
+                }
+            };
+            let (tx, rx) = mpsc::unbounded_channel();
+            let worker_id = id.to_owned();
+            let worker = thread::Builder::new()
+                .name("tiktools-plugin".to_owned())
+                .spawn(move || run_instance_worker(worker_id, instance, rx))
+                .map_err(|error| {
+                    PluginLoaderError::Runtime(format!("could not start plugin worker: {error}"))
+                })?;
+            (tx, worker)
+        };
         // The worker thread is already spawned here, so a poisoned map
         // recovers instead of failing midway through the mutation.
         recover_rwlock_write(&self.instances, "plugin instances").insert(
@@ -383,8 +406,9 @@ impl PluginManager {
         }
     }
 
-    pub fn call(&self, id: &str, request: &Value) -> Result<Value, PluginLoaderError> {
+    pub async fn call(&self, id: &str, request: &Value) -> Result<Value, PluginLoaderError> {
         self.call_with_timeout(id, request, Duration::from_secs(30))
+            .await
     }
 
     /// Claims the cold-start grace for one process instance, if still
@@ -417,13 +441,14 @@ impl PluginManager {
     /// TODO(protocol-v2): per-QoS-class instances or multiplexed process
     /// requests would let realtime processors skip ahead of background
     /// actions sharing one process.
-    pub fn call_with_timeout(
+    pub async fn call_with_timeout(
         &self,
         id: &str,
         request: &Value,
         timeout: Duration,
     ) -> Result<Value, PluginLoaderError> {
         self.call_with_deadline(id, request, Instant::now() + timeout)
+            .await
     }
 
     /// Calls one plugin instance with an absolute deadline covering queueing
@@ -438,7 +463,7 @@ impl PluginManager {
     /// same deadline on its I/O and kills the child when it fires. Keeping a
     /// timed-out process instance would fail the next call instantly with
     /// "plugin process stdin is unavailable".
-    pub fn call_with_deadline(
+    pub async fn call_with_deadline(
         &self,
         id: &str,
         request: &Value,
@@ -466,7 +491,7 @@ impl PluginManager {
             deadline
         };
         let remaining = deadline - now;
-        let (respond, answer) = mpsc::channel();
+        let (respond, answer) = oneshot::channel();
         instance
             .tx
             .send(WorkerMsg::Call(QueuedCall {
@@ -479,19 +504,22 @@ impl PluginManager {
                 self.remove_failed_worker(id, instance.token);
                 PluginLoaderError::Runtime(format!("plugin `{id}` worker is gone"))
             })?;
-        let response = answer
-            .recv_timeout(remaining)
-            .map_err(|error| match error {
-                mpsc::RecvTimeoutError::Timeout => {
-                    if is_process {
-                        self.remove_failed_worker(id, instance.token);
-                    }
-                    PluginLoaderError::Timeout(format!("plugin `{id}` call timed out"))
-                }
-                mpsc::RecvTimeoutError::Disconnected => {
+        // Async wait: no thread is spent here, unlike the old blocking
+        // `recv_timeout` inside `spawn_blocking`. Timeout and worker-death
+        // semantics are unchanged: a dropped oneshot sender means the
+        // worker died without answering, exactly like a disconnected
+        // channel before.
+        let response = tokio::time::timeout(remaining, answer)
+            .await
+            .map_err(|_| {
+                if is_process {
                     self.remove_failed_worker(id, instance.token);
-                    PluginLoaderError::Runtime(format!("plugin `{id}` worker died"))
                 }
+                PluginLoaderError::Timeout(format!("plugin `{id}` call timed out"))
+            })?
+            .map_err(|_| {
+                self.remove_failed_worker(id, instance.token);
+                PluginLoaderError::Runtime(format!("plugin `{id}` worker died"))
             })?;
         let response = match response {
             Ok(response) => response,
@@ -593,5 +621,14 @@ impl PluginManager {
             let _lifecycle = self.lifecycle.lock().unwrap();
             panic!("test poison");
         }));
+    }
+
+    /// Test-only: name of the thread serving `id`, so tests can prove which
+    /// worker implementation a runtime resolved to (owned vs generic).
+    pub(crate) fn worker_thread_name_for_test(&self, id: &str) -> Option<String> {
+        let instances = self.instances.read().ok()?;
+        let instance = instances.get(id)?;
+        let worker = instance.worker.lock().ok()?;
+        worker.as_ref()?.thread().name().map(str::to_owned)
     }
 }

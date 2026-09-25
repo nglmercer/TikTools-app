@@ -64,4 +64,45 @@ pub trait PluginRuntime: Send + Sync {
         manifest: &PluginManifest,
         directory: &Path,
     ) -> Result<Box<dyn PluginInstance>, PluginLoaderError>;
+    /// Optionally provide a runtime-owned worker thread that serves the
+    /// manager's call queue directly, bypassing the generic
+    /// `run_instance_worker` thread. Runtimes whose state is `!Send`
+    /// (napi-vm) use this so one owner thread per plugin serves calls,
+    /// instead of a generic worker forwarding to a second VM thread.
+    /// `None` (the default) keeps the generic worker.
+    fn spawn_worker(
+        &self,
+        manifest: &PluginManifest,
+        directory: &Path,
+    ) -> Option<Result<ManagedWorker, PluginLoaderError>> {
+        let _ = (manifest, directory);
+        None
+    }
+}
+
+/// A runtime-owned worker: the manager-facing end of a thread the runtime
+/// spawned itself. Opaque on purpose: only the runtime that spawned the
+/// thread understands its shutdown protocol, which mirrors the generic
+/// worker's (`Shutdown` message, then join).
+pub struct ManagedWorker {
+    tx: tokio::sync::mpsc::UnboundedSender<crate::worker::WorkerMsg>,
+    worker: std::thread::JoinHandle<Result<(), PluginLoaderError>>,
+}
+
+impl ManagedWorker {
+    pub(crate) fn new(
+        tx: tokio::sync::mpsc::UnboundedSender<crate::worker::WorkerMsg>,
+        worker: std::thread::JoinHandle<Result<(), PluginLoaderError>>,
+    ) -> Self {
+        Self { tx, worker }
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        tokio::sync::mpsc::UnboundedSender<crate::worker::WorkerMsg>,
+        std::thread::JoinHandle<Result<(), PluginLoaderError>>,
+    ) {
+        (self.tx, self.worker)
+    }
 }

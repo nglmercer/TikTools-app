@@ -935,6 +935,8 @@ const FAKE_HOTKEY_MANIFEST: &str = r#"{
 #[derive(Default)]
 struct FakePluginState {
     poll_batches: Mutex<VecDeque<Vec<Value>>>,
+    poll_batches_by_id: Mutex<std::collections::HashMap<String, VecDeque<Vec<Value>>>>,
+    poll_gates: Mutex<std::collections::HashMap<String, Arc<AtomicBool>>>,
     actions: Mutex<Vec<Value>>,
     event_calls: Mutex<Vec<Value>>,
     event_delay_ms: AtomicU64,
@@ -979,12 +981,39 @@ impl PluginInstance for FakeInstance {
             .map_err(|error| PluginLoaderError::Runtime(error.to_string()))?;
         let response = match request.get("type").and_then(Value::as_str) {
             Some("poll") => {
+                if let Some(gate) = self
+                    .state
+                    .poll_gates
+                    .lock()
+                    .expect("fake gates poisoned")
+                    .get(&self.id)
+                    .cloned()
+                {
+                    // Rendezvous for ordering tests: block until the test
+                    // opens the gate (a fail-safe timeout keeps a forgotten
+                    // gate from hanging the suite).
+                    let start = std::time::Instant::now();
+                    while !gate.load(AtomicOrdering::SeqCst) {
+                        if start.elapsed() > std::time::Duration::from_secs(15) {
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(5));
+                    }
+                }
                 let batch = self
                     .state
-                    .poll_batches
+                    .poll_batches_by_id
                     .lock()
                     .expect("fake batches poisoned")
-                    .pop_front()
+                    .get_mut(&self.id)
+                    .and_then(|batches| batches.pop_front())
+                    .or_else(|| {
+                        self.state
+                            .poll_batches
+                            .lock()
+                            .expect("fake batches poisoned")
+                            .pop_front()
+                    })
                     .unwrap_or_default();
                 json!({"events": batch})
             }
@@ -1206,6 +1235,68 @@ async fn fake_hotkey_poll_reaches_domain_automation_and_runs() {
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0]["action"]["typeId"], "hotkey.bind");
     assert!(actions[0]["action"]["config"]["shortcuts"].is_array());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn fast_poll_events_publish_before_slow_sibling_completes() {
+    let state = Arc::new(FakePluginState::default());
+    // Per-plugin batches: arrival is deterministic regardless of which
+    // poll reaches the fake first.
+    for (id, key) in [("fast", "f"), ("slow", "s")] {
+        state.poll_batches_by_id.lock().unwrap().insert(
+            id.to_owned(),
+            std::collections::VecDeque::from([vec![fake_press(key, "")]]),
+        );
+    }
+    // The slow poll blocks until the test opens the gate: ordering is
+    // proven by rendezvous, with no timing assertions.
+    let gate = Arc::new(AtomicBool::new(false));
+    state
+        .poll_gates
+        .lock()
+        .unwrap()
+        .insert("slow".to_owned(), Arc::clone(&gate));
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["fast", "slow"]);
+    let mut domain = core.events.subscribe_domain();
+
+    let poll = tokio::spawn({
+        let core = Arc::clone(&core);
+        async move { core.poll_plugin_events().await }
+    });
+    // The fast plugin's event must publish while the slow sibling is
+    // still blocked: under batch-then-process it would wait for the gate.
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            while let Ok(event) = domain.try_recv() {
+                if matches!(
+                    event,
+                    crate::events::DomainEvent::PluginEvent { ref plugin_id, .. }
+                    if plugin_id == "fast"
+                ) {
+                    return;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("fast plugin event should publish while slow sibling runs");
+    assert!(
+        !poll.is_finished(),
+        "slow sibling must still be blocked when fast publishes"
+    );
+    gate.store(true, AtomicOrdering::SeqCst);
+    poll.await.unwrap();
+
+    // Both plugins' events published on the same subscription.
+    let mut seen = std::collections::HashSet::new();
+    while let Ok(event) = domain.try_recv() {
+        if let crate::events::DomainEvent::PluginEvent { plugin_id, .. } = event {
+            seen.insert(plugin_id);
+        }
+    }
+    assert!(seen.contains("slow"), "slow event missing: {seen:?}");
     let _ = std::fs::remove_dir_all(root);
 }
 

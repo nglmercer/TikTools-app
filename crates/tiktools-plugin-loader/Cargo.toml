@@ -16,7 +16,7 @@ plugin-install = ["dep:sha2", "dep:zip"]
 # `.node` binary, the installer downloads exactly that binary from its
 # pinned provider. Compiled in by default, but never active without a
 # manifest declaration and never used when the tree is already complete.
-native-providers = ["tiktools-plugin-sdk/providers", "dep:tokio"]
+native-providers = ["tiktools-plugin-sdk/providers"]
 # In-process `.node` addons for napi-vm plugins (napi-rs). Compiled in by
 # default, but never active without an explicit per-plugin manifest
 # declaration: with no `nativeAddons` entry the guest stays inside the
@@ -32,7 +32,12 @@ napi-vm.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, optional = true }
+# Required (not optional): the Tokio→worker call bridge is async end to
+# end — Tokio senders plus oneshot responses — so plugin calls no longer
+# spend a `spawn_blocking` thread per invocation waiting on a blocking
+# queue. Worker threads receive through `blocking_recv`, which needs no
+# runtime context.
+tokio = { workspace = true }
 tracing.workspace = true
 libloading = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }

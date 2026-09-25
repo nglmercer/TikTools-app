@@ -92,13 +92,14 @@ node_modules/.bin/tsc -p my-plugin/tsconfig.json
 
 ## Threading and security
 
-napi-vm's VM is `!Send`, so each plugin instance owns one dedicated VM
-thread hosting its `RustPluginHost`; the `Send` loader handle only
-forwards channel commands. Guest JavaScript runs inside the interpreter
-with deny-by-default capabilities, which is why the runtime maps to
-`PluginSecurityModel::Sandboxed`. Every host call gets a fresh
-interpreter loop budget, so spinning guest code terminates with a
-`RangeError` instead of wedging unload.
+napi-vm's VM is `!Send`, so each plugin instance runs on one dedicated
+VM owner thread hosting its `RustPluginHost`. The owner serves the
+manager's call queue directly — there is no generic worker thread in
+front of it — and only plain bytes cross the queue. Guest JavaScript
+runs inside the interpreter with deny-by-default capabilities, which is
+why the runtime maps to `PluginSecurityModel::Sandboxed`. Every host
+call gets a fresh interpreter loop budget, so spinning guest code
+terminates with a `RangeError` instead of wedging unload.
 
 ## Bundled native addons (napi-rs `.node`)
 
@@ -276,9 +277,10 @@ rejection and root containment still apply.
 
 ### Event loop and shutdown
 
-The VM owner thread waits on its command channel with a short timeout
-and pumps the napi-vm event loop after every call and while idle, so
-native TSFN/async callbacks run without an arriving plugin request.
+The VM owner thread blocks on its command channel with no timeout and
+pumps the napi-vm event loop after every call and every host-event
+wake, so native TSFN/async callbacks run without an arriving plugin
+request while an idle plugin sleeps with zero recurring wakeups.
 
 Shutdown order: stop accepting calls, run guest `onUnload`, dispose the
 napi-vm plugin, shut down the native runtime, then exit the VM thread.
