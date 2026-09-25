@@ -130,6 +130,7 @@ const activePluginBackend = computed(() => {
         :snapshot="app.behavior"
         :runs="app.behaviorRuns"
         :test-runs="app.behaviorTestRuns"
+        :globals="app.globals"
         :hotkey-status="app.hotkeyStatus"
         :last-hotkey-event="app.lastHotkeyEvent"
         :hotkey-access-pending="app.hotkeyAccessPending"
@@ -235,6 +236,11 @@ const activePluginBackend = computed(() => {
         :theme="app.theme"
         :on-locale-change="app.setLocale"
         :on-theme-change="app.setTheme"
+        :globals="app.globals"
+        :globals-loading="app.globalsLoading"
+        :globals-error="app.globalsError"
+        :on-load-globals="app.loadGlobals"
+        :on-save-globals="app.saveGlobals"
       />
 
       <PluginPageView

@@ -25,9 +25,12 @@ impl AppCore {
             .cloned()
             .unwrap_or_default();
         let mut logs = Vec::new();
+        // One snapshot per execution: url, headers, and body render the
+        // same values even if a concurrent write lands mid-action.
+        let globals = self.automation_globals();
         let result = match tokio::time::timeout(
             AUTOMATION_ACTION_DEADLINE,
-            self.execute_action_impl(&type_id, &config, action, event, &mut logs, test),
+            self.execute_action_impl(&type_id, &config, action, event, &globals, &mut logs, test),
         )
         .await
         {
@@ -86,12 +89,16 @@ impl AppCore {
         run
     }
 
+    // Eight narrow params (action identity, payload, render context,
+    // output): bundling would churn every arm for no clarity gain.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn execute_action_impl(
         self: &Arc<Self>,
         type_id: &str,
         config: &serde_json::Map<String, Value>,
         action: &Value,
         event: &Value,
+        globals: &std::collections::BTreeMap<String, String>,
         logs: &mut Vec<String>,
         test: bool,
     ) -> Result<String, String> {
@@ -103,6 +110,7 @@ impl AppCore {
                         .and_then(Value::as_str)
                         .unwrap_or_default(),
                     event,
+                    globals,
                 );
                 tracing::info!(target: "tiktools::automation", message = %message, "automation log");
                 logs.push(message.clone());
@@ -117,7 +125,7 @@ impl AppCore {
                 )?;
                 let payload = config
                     .get("data")
-                    .map(|value| render_json_map(value, event))
+                    .map(|value| render_json_map(value, event, globals))
                     .unwrap_or_default();
                 if !test {
                     self.publish_automation_event(self.make_internal_automation_event(
@@ -137,6 +145,7 @@ impl AppCore {
                 let unique_id = render_template(
                     config.get("uniqueId").and_then(Value::as_str).unwrap_or(""),
                     event,
+                    globals,
                 );
                 let delta = number_value(config.get("delta")).unwrap_or_default();
                 if unique_id.trim().is_empty() || !delta.is_finite() || delta == 0.0 {
@@ -151,6 +160,7 @@ impl AppCore {
                 let unique_id = render_template(
                     config.get("uniqueId").and_then(Value::as_str).unwrap_or(""),
                     event,
+                    globals,
                 );
                 let amount = number_value(config.get("amount")).unwrap_or_default().abs();
                 if unique_id.trim().is_empty() || !amount.is_finite() || amount == 0.0 {
@@ -171,7 +181,8 @@ impl AppCore {
                 Ok(format!("wait {millis} ms"))
             }
             "audio.play" | "core.audio.play" => {
-                self.execute_audio_action(config, event, logs, test).await
+                self.execute_audio_action(config, event, globals, logs, test)
+                    .await
             }
             "core.code" => {
                 let source = config
@@ -200,7 +211,7 @@ impl AppCore {
                     let event_type = normalize_emit_type(event_type)?;
                     let payload = intent
                         .get("data")
-                        .map(|value| render_json_map(value, event))
+                        .map(|value| render_json_map(value, event, globals))
                         .unwrap_or_default();
                     if !test {
                         self.publish_automation_event(self.make_internal_automation_event(
@@ -224,7 +235,10 @@ impl AppCore {
                     let Some(intent) = intent.as_object() else {
                         continue;
                     };
-                    parts.push(self.execute_audio_action(intent, event, logs, test).await?);
+                    parts.push(
+                        self.execute_audio_action(intent, event, globals, logs, test)
+                            .await?,
+                    );
                 }
                 if let Some(intent) = result.get("fetch").and_then(Value::as_object) {
                     let mut fetch_config = intent.clone();
@@ -236,6 +250,7 @@ impl AppCore {
                         self.execute_http_action(
                             &fetch_config,
                             event,
+                            globals,
                             logs,
                             Some(&allowed_hosts),
                             test,
@@ -250,7 +265,7 @@ impl AppCore {
                 }
             }
             "core.fetch" => {
-                self.execute_http_action(config, event, logs, None, test)
+                self.execute_http_action(config, event, globals, logs, None, test)
                     .await
             }
             _ if type_id.is_empty() => Err("Action has no typeId.".to_owned()),

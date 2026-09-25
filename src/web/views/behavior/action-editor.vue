@@ -31,6 +31,8 @@ type ActionEditorProps = {
   isNew: boolean;
   error?: string;
   testRuns: BehaviorRun[];
+  /** Runtime globals for `{{ globals.* }}` autocomplete in every field. */
+  globals?: Record<string, string>;
   actionOptions: Record<string, ActionOptionItem[]>;
   actionOptionErrors: Record<string, string>;
   onGetActionOptions: (source: string, refresh?: boolean) => void;
@@ -42,7 +44,7 @@ type ActionEditorProps = {
 };
 
 export const ActionEditor = defineVueComponent<ActionEditorProps>(
-  ['locale', 'action', 'actionTypes', 'isNew', 'error', 'testRuns', 'actionOptions', 'actionOptionErrors', 'onGetActionOptions', 'onOpenMediaPicker', 'onCancel', 'onSave', 'onDelete', 'onTest'],
+  ['locale', 'action', 'actionTypes', 'isNew', 'error', 'testRuns', 'globals', 'actionOptions', 'actionOptionErrors', 'onGetActionOptions', 'onOpenMediaPicker', 'onCancel', 'onSave', 'onDelete', 'onTest'],
   (props) => {
   const draft = ref<LiveAction>(props.action);
   const dialogs = useDialogs();
@@ -94,7 +96,7 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
   const permissionsValue = permissions.value;
   const testRunValue = testRun.value;
   const locale = props.locale;
-  const suggestionsFor = resolveAutocompleteSources({ locale: props.locale, suggestionContext, suggestionScopes: suggestionScopes.value });
+  const suggestionsFor = resolveAutocompleteSources({ locale: props.locale, suggestionContext, suggestionScopes: suggestionScopes.value, globals: props.globals });
   const isFetch = draftValue.typeId === 'core.fetch';
   return (
     <div class="plg">
@@ -204,6 +206,7 @@ export const ActionEditor = defineVueComponent<ActionEditorProps>(
                     fieldOptions={fieldOptions.value}
                     suggestionContext={suggestionContext}
                     suggestionScopes={suggestionScopes.value}
+                    globals={props.globals}
                     onOpenMediaPicker={props.onOpenMediaPicker}
                     onChange={(config) => { draft.value = { ...draft.value, config }; }}
                   />

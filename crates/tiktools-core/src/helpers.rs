@@ -193,6 +193,7 @@ pub(crate) fn is_private_ip(address: std::net::IpAddr) -> bool {
 pub(crate) fn render_json_map(
     value: &Value,
     event: &Value,
+    globals: &std::collections::BTreeMap<String, String>,
 ) -> std::collections::BTreeMap<String, Value> {
     value
         .as_object()
@@ -202,7 +203,7 @@ pub(crate) fn render_json_map(
                 .map(|(key, value)| {
                     let value = value
                         .as_str()
-                        .map(|value| Value::String(render_template(value, event)))
+                        .map(|value| Value::String(render_template(value, event, globals)))
                         .unwrap_or_else(|| value.clone());
                     (key.clone(), value)
                 })
@@ -211,7 +212,13 @@ pub(crate) fn render_json_map(
         .unwrap_or_default()
 }
 
-pub(crate) fn render_template(source: &str, event: &Value) -> String {
+enum SpanAction {
+    Render(String),
+    Drop,
+    Keep,
+}
+
+fn substitute_spans(source: &str, resolve: impl Fn(&str) -> SpanAction) -> String {
     let mut rendered = String::with_capacity(source.len());
     let mut rest = source;
     while let Some(start) = rest.find("{{") {
@@ -221,14 +228,78 @@ pub(crate) fn render_template(source: &str, event: &Value) -> String {
             rendered.push_str(&rest[start..]);
             break;
         };
-        let path = expression[..end].trim();
-        if let Some(value) = read_event_path(event, path) {
-            rendered.push_str(&value_to_string(value));
+        match resolve(expression[..end].trim()) {
+            SpanAction::Render(text) => rendered.push_str(&text),
+            SpanAction::Drop => {}
+            SpanAction::Keep => rendered.push_str(&rest[start..start + 2 + end + 2]),
         }
         rest = &expression[end + 2..];
     }
     rendered.push_str(rest);
     rendered
+}
+
+/// `scheme:///path` parses with the first segment as host; reject it so
+/// a missing global in host position fails closed instead of redirecting.
+pub(crate) fn has_empty_authority(url: &str) -> bool {
+    match url.split_once("://") {
+        Some((_, rest)) => rest.starts_with('/'),
+        None => false,
+    }
+}
+
+/// Full runtime render: `{{ globals.* }}` resolves from the globals
+/// snapshot, everything else from the event (unchanged legacy behavior).
+/// Unknown spans of either kind render as empty.
+pub(crate) fn render_template(
+    source: &str,
+    event: &Value,
+    globals: &std::collections::BTreeMap<String, String>,
+) -> String {
+    substitute_spans(source, |path| match read_global_path(globals, path) {
+        Some(text) => SpanAction::Render(text),
+        None if is_globals_path(path) => SpanAction::Drop,
+        None => match read_event_path(event, path) {
+            Some(value) => SpanAction::Render(value_to_string(value)),
+            None => SpanAction::Drop,
+        },
+    })
+}
+
+/// Phase-one render for URLs: only `{{ globals.* }}` resolves
+/// (operator-trusted); every other span stays literal for phase two.
+pub(crate) fn render_globals_only(
+    source: &str,
+    globals: &std::collections::BTreeMap<String, String>,
+) -> String {
+    substitute_spans(source, |path| match read_global_path(globals, path) {
+        Some(text) => SpanAction::Render(text),
+        None if is_globals_path(path) => SpanAction::Drop,
+        None => SpanAction::Keep,
+    })
+}
+
+fn is_globals_path(path: &str) -> bool {
+    path == "globals" || path.starts_with("globals.")
+}
+
+/// Flat lookup: dots in keys are literal (`{{ globals.a.b }}` reads key
+/// `a.b`, never a nested walk). Bare `{{ globals }}` renders the snapshot.
+fn read_global_path(
+    globals: &std::collections::BTreeMap<String, String>,
+    path: &str,
+) -> Option<String> {
+    if path == "globals" {
+        let snapshot = Value::Object(
+            globals
+                .iter()
+                .map(|(key, value)| (key.clone(), Value::String(value.clone())))
+                .collect(),
+        );
+        return Some(value_to_string(&snapshot));
+    }
+    let key = path.strip_prefix("globals.")?;
+    globals.get(key).cloned()
 }
 
 pub(crate) fn read_event_path<'a>(event: &'a Value, path: &str) -> Option<&'a Value> {
@@ -566,5 +637,54 @@ mod tests {
             ..Default::default()
         };
         assert!(parse_plugin_progress(&response).is_none());
+    }
+
+    fn globals_fixture() -> std::collections::BTreeMap<String, String> {
+        [
+            ("commandHost".to_owned(), "127.0.0.1".to_owned()),
+            ("commandPort".to_owned(), "46665".to_owned()),
+        ]
+        .into_iter()
+        .collect()
+    }
+
+    #[test]
+    fn render_resolves_globals_beside_event_spans() {
+        let event = json!({"data": {"repeatCount": 3}});
+        let rendered = render_template(
+            "http://{{ globals.commandHost }}:{{ globals.commandPort }}/x {{ event.data.repeatCount }}",
+            &event,
+            &globals_fixture(),
+        );
+        assert_eq!(rendered, "http://127.0.0.1:46665/x 3");
+    }
+
+    #[test]
+    fn render_drops_unknown_globals_and_keeps_event_behavior() {
+        let event = json!({"data": {"giftName": "Rose"}});
+        let rendered = render_template(
+            "{{ globals.missing }}|{{ event.data.giftName }}|{{ event.nope }}",
+            &event,
+            &globals_fixture(),
+        );
+        assert_eq!(rendered, "|Rose|");
+    }
+
+    #[test]
+    fn empty_authority_detection_covers_globals_gaps() {
+        assert!(has_empty_authority("http:///api/chat"));
+        assert!(has_empty_authority("https:///x"));
+        assert!(!has_empty_authority("http://127.0.0.1:46665/api/chat"));
+        assert!(!has_empty_authority("http://host/api/chat"));
+        assert!(!has_empty_authority("not a url"));
+    }
+
+    #[test]
+    fn render_globals_only_leaves_event_spans_literal() {
+        let rendered = render_globals_only(
+            "http://{{ globals.commandHost }}:{{ globals.commandPort }}/{{ event.data.path }}",
+            &globals_fixture(),
+        );
+        assert_eq!(rendered, "http://127.0.0.1:46665/{{ event.data.path }}");
     }
 }

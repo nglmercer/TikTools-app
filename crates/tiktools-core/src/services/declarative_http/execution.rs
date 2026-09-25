@@ -100,6 +100,7 @@ impl crate::AppCore {
             .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
             .unwrap_or_default();
         let allowed = vec![host];
+        let globals = self.automation_globals();
         // One request line per call so plugin/TTS logs show exactly what was
         // sent: method, path, and whether credentials were attached. The
         // token value itself never appears here.
@@ -111,7 +112,7 @@ impl crate::AppCore {
             ));
         }
         let summary = self
-            .execute_http_action(&fetch, event, logs, Some(&allowed), false)
+            .execute_http_action(&fetch, event, &globals, logs, Some(&allowed), false)
             .await
             .map_err(|error| {
                 with_auth_hint(

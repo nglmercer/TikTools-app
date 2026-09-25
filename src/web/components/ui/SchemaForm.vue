@@ -26,6 +26,8 @@ export type SchemaFormProps = {
   onChange: (value: JsonObject) => void;
   /** Additional suggestions merged with the host-provided context. */
   templateSuggestions?: AutocompleteItem[];
+  /** Runtime globals merged as `globals.*` autocomplete rows. */
+  globals?: Record<string, string>;
   /** Any object pushed as autocomplete (live event, custom schema sample…). */
   suggestionContext?: JsonValue | AutomationEvent;
   /** Per-field scopes, e.g. `{ url: 'http-url', body: 'http-data' }`. */
@@ -60,6 +62,7 @@ export const SchemaForm = defineVueComponent<SchemaFormProps>(
     'value',
     'onChange',
     'templateSuggestions',
+    'globals',
     'suggestionContext',
     'suggestionScopes',
     'eventType',
@@ -102,6 +105,7 @@ export const SchemaForm = defineVueComponent<SchemaFormProps>(
     eventType: props.eventType,
     lastEvent: props.lastEvent,
     templateSuggestions,
+    globals: props.globals,
   });
 
   return (

@@ -70,6 +70,7 @@ impl ControlApi {
         modules::processors::register(router);
         modules::media::register(router);
         modules::app::register(router);
+        modules::globals::register(router);
         modules::creators::register(router);
         modules::analytics::register(router);
         modules::gifts::register(router);
@@ -81,6 +82,7 @@ impl ControlApi {
             "plugins.uninstall",
             "plugins.settings.reset",
             "automation.delete",
+            "globals.delete",
             "workflows.delete",
             "points.reset",
             "creators.history.clear",

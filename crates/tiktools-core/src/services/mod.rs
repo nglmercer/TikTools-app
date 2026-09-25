@@ -3,6 +3,7 @@ mod automation;
 mod capabilities;
 mod catalog;
 pub(crate) mod declarative_http;
+pub mod globals;
 mod live;
 mod media;
 pub(crate) mod option_sources;

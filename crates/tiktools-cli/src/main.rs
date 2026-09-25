@@ -29,6 +29,7 @@ commands:
        | pick --session-cookie <cookie> | disconnect | status
   points config get | config set k=v... | viewer get <id> | adjust <id> <delta>
        | leaderboard [--limit N] | reset [id]
+  globals list | get <key> | set <key> <value> | delete <key>
   automation list [--kind event|action|all] | get <id> [--kind k]
            | create --record json [--kind k] | update <id> --record json [--kind k]
            | delete <id> [--kind k] | enable <id> [--kind k] | disable <id> [--kind k]

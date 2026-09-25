@@ -13,6 +13,7 @@ import { usePoints } from '../features/points.ts';
 import { useProcessors } from '../features/processors.ts';
 import { useWidgets } from '../features/widgets.ts';
 import { useRuleTemplates } from '../features/rule-templates.ts';
+import { useGlobals } from '../features/globals.ts';
 import { createControlClient } from '../platform/control-client.ts';
 import {
   controlBackend,
@@ -72,6 +73,7 @@ export function useAppController() {
   const automation = useAutomation(control);
   const widgets = useWidgets(control);
   const ruleTemplates = useRuleTemplates(control);
+  const globals = useGlobals(control);
   const plugins = usePlugins(control, {
     translate,
     refreshBehavior: () => automation.refresh(),
@@ -106,13 +108,14 @@ export function useAppController() {
   // Reliable-gap resync: the host skipped authoritative events this client
   // never saw, so every authoritative snapshot is re-read (live status,
   // points config/leaderboard, creators, automation/workflows including
-  // plugin state, gifts). Missing events are never reconstructed.
+  // plugin state, gifts, globals). Missing events are never reconstructed.
   control.onGap(() => {
     void connection.refreshStatus();
     void points.refresh();
     void creators.refresh();
     void automation.refresh();
     void live.refresh();
+    void globals.loadGlobals();
   });
 
   watch(locale, (value) => {
@@ -153,6 +156,7 @@ export function useAppController() {
     void automation.refresh();
     void live.refresh();
     void processors.refresh();
+    void globals.loadGlobals();
 
     // Keep the saved username in the connect form, but wait for an explicit
     // user action before starting network work on a cold launch.
@@ -309,6 +313,11 @@ export function useAppController() {
     loadRuleTemplateCustom: ruleTemplates.loadCustom,
     importRuleTemplates: ruleTemplates.importTemplates,
     deleteRuleTemplateCustom: ruleTemplates.deleteCustom,
+    globals: globals.globals,
+    globalsLoading: globals.loading,
+    globalsError: globals.error,
+    loadGlobals: globals.loadGlobals,
+    saveGlobals: globals.saveGlobals,
     handleDeleteAction: automation.handleDeleteAction,
     handleSetActionEnabled: automation.handleSetActionEnabled,
     handleTestAction: automation.handleTestAction,

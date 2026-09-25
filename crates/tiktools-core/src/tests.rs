@@ -1877,12 +1877,13 @@ async fn subtract_action_deducts_and_clamps_at_zero() {
             "config": {"uniqueId": "{{ event.user.uniqueId }}", "amount": amount},
         })
     };
+    // Zero-point viewers sink below the leaderboard's top-1000 window on
+    // populated homes, so read back through a no-op adjust (direct lookup,
+    // no ranking involved).
     let points_of = |core: &Arc<AppCore>| {
         core.points
-            .leaderboard(Some(1_000))
-            .into_iter()
-            .find(|viewer| viewer.get("uniqueId").and_then(Value::as_str) == Some("carol"))
-            .and_then(|viewer| viewer.get("points").and_then(Value::as_f64))
+            .adjust("carol", 0.0)
+            .map(|award| award.total_points)
     };
 
     let run = core

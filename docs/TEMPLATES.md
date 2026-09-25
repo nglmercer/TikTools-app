@@ -69,6 +69,26 @@ schema defaults → profile params → profile entry params → `--param k=v`.
 CLI `--param` values parse as JSON when possible (`--param port=8080` is a
 number) and fall back to strings.
 
+## Runtime globals
+
+`{{ params.* }}` bakes a value into each record at import. For values that
+change after import — an ephemeral integration port, a rotated token — use
+runtime globals instead: `{{ globals.commandPort }}` renders at event time
+from the host store, so one edit repoints every rule with no re-import.
+
+```bash
+tiktools globals set commandPort 46665
+tiktools globals get commandPort
+tiktools globals list
+tiktools globals delete commandPort
+```
+
+The desktop Settings tab edits the same store, and `globals.*` rows appear
+in every template field's autocomplete. Keys are identifiers (`1..=64`
+chars, letters/digits/`._-`, leading letter or `_`); values render as
+text (≤4096 chars, ≤128 keys). Unknown `{{ globals.* }}` spans render as
+empty, and a URL left host-less after globals render fails closed.
+
 ## Profile document (v1)
 
 ```json
@@ -130,8 +150,13 @@ POST http://127.0.0.1:8080/api/chat   {"text": "/give @p minecraft:apple 3"}
 CommandAPI runs on loopback with an ephemeral port by default, so the
 templates set `allowPrivateNetwork: true` and take `commandHost` /
 `commandPort` params — override once per profile instead of editing six
-rules (`--param commandPort=9090`). Start Minecraft with the mod, join a
-world (commands fail while no world is loaded), then import:
+rules (`--param commandPort=9090`). Because the port changes on every
+Minecraft start, either pin it in-game (`/commandapi port 8080`) or point
+the rules at a runtime global (`http://{{ globals.commandHost }}:{{
+globals.commandPort }}/api/chat`) and update the value after each start
+(`tiktools globals set commandPort 46665`, or the desktop Settings tab).
+Start Minecraft with the mod, join a world (commands fail while no world
+is loaded), then import:
 
 ```bash
 tiktools template profile-import examples/profiles/minecraft-gifts.tikprofile.json

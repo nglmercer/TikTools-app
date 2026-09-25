@@ -33,6 +33,8 @@ type BehaviorViewProps = {
   viewers: ViewerRecord[];
   runs: BehaviorRun[];
   testRuns: BehaviorRun[];
+  /** Runtime globals for `{{ globals.* }}` autocomplete in action editors. */
+  globals: Record<string, string>;
   hotkeyStatus?: HotkeyStatusData | null;
   lastHotkeyEvent?: LastHotkeyEvent | null;
   hotkeyAccessPending?: boolean;
@@ -75,6 +77,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     'viewers',
     'runs',
     'testRuns',
+    'globals',
     'hotkeyStatus',
     'lastHotkeyEvent',
     'hotkeyAccessPending',
@@ -150,6 +153,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
         isNew={currentScreen.isNew}
         error={error}
         testRuns={testRuns}
+        globals={props.globals}
         actionOptions={props.actionOptions}
         actionOptionErrors={props.actionOptionErrors}
         onGetActionOptions={props.onGetActionOptions}

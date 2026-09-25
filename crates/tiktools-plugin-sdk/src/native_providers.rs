@@ -932,7 +932,6 @@ pub async fn fetch_and_stage_native_libs(
     Ok(reports)
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

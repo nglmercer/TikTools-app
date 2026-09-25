@@ -9,6 +9,7 @@
 
 mod analytics;
 mod automation;
+mod globals;
 mod helpers;
 mod live;
 mod media;
