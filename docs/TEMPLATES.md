@@ -1,0 +1,143 @@
+# Rule templates and profiles
+
+Behavior rules (one trigger event plus its actions) can be shared as JSON
+documents: single **templates** (`.tiktemplate.json`) and multi-rule
+**profiles** (`.tikprofile.json`). The CLI owns the full round trip; the
+desktop Behavior tab imports single templates through the Rule templates
+gallery. Both sides parse the same v1 documents
+(`crates/tiktools-core/src/services/templates.rs` and
+`src/web/views/behavior/rule-templates.ts`) and pin their agreement with the
+fixtures under `examples/templates/fixtures/`.
+
+## Template document (v1)
+
+```json
+{
+  "templateVersion": 1,
+  "id": "minecraft-gift-command",
+  "title": "Minecraft gift command",
+  "description": "…",
+  "icon": "code",
+  "params": {
+    "type": "object",
+    "properties": {
+      "giftName": { "type": "string", "title": "Gift name", "default": "Rose" },
+      "commandPort": { "type": "number", "title": "CommandAPI port", "default": 8080 }
+    },
+    "required": ["giftName"]
+  },
+  "actions": [
+    {
+      "name": "Send Minecraft command",
+      "typeId": "core.fetch",
+      "enabled": true,
+      "config": {
+        "method": "POST",
+        "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
+        "body": "{\"text\": \"{{ params.command }}\"}",
+        "allowPrivateNetwork": true
+      }
+    }
+  ],
+  "event": {
+    "name": "Minecraft gift",
+    "trigger": "tiktok.gift",
+    "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "{{ params.giftName }}" }],
+    "cooldownMs": 0,
+    "cooldownScope": "global",
+    "runMode": "all"
+  }
+}
+```
+
+Rules: 1–8 actions, 0–12 filters, ids match
+`[a-z0-9][a-z0-9._-]{1,63}`. `title`/`description` accept a plain string or
+`{"default": "…", "i18key": "…"}`.
+
+## Params substitution
+
+`{{ params.* }}` resolves once, when the template is applied:
+
+- a string holding exactly one span takes the **raw** value, so numbers and
+  booleans survive for typed configs (`"delta": "{{ params.delta }}"` → `10`);
+- embedded spans interpolate as text;
+- `{{ event.* }}` spans always survive for per-event runtime rendering;
+- unknown `{{ params.* }}` keys render as `""`.
+
+Param layers merge outer-to-inner; later layers win:
+schema defaults → profile params → profile entry params → `--param k=v`.
+CLI `--param` values parse as JSON when possible (`--param port=8080` is a
+number) and fall back to strings.
+
+## Profile document (v1)
+
+```json
+{
+  "profileVersion": 1,
+  "id": "minecraft-gifts",
+  "name": "Minecraft gifts",
+  "description": "…",
+  "params": { "commandHost": "127.0.0.1", "commandPort": 8080 },
+  "templates": [
+    { "template": { "templateVersion": 1, "id": "…", "…" : "…" }, "params": {} }
+  ]
+}
+```
+
+1–32 inline entries. Each entry stays a valid standalone template so it can
+also be imported on its own or from the desktop gallery.
+
+## CLI
+
+```bash
+# Offline plan: validate, merge params, print the records that would be created.
+tiktools template import rules.tiktemplate.json --dry-run --param giftName=Rose
+
+# Instantiate records (actions first, then the linked event) and store the
+# document in the template gallery shared with the desktop modal.
+tiktools template import rules.tiktemplate.json --param giftName=Rose
+
+# Profiles: same flow for every entry, profile params merged underneath.
+tiktools template profile-import examples/profiles/minecraft-gifts.tikprofile.json --dry-run
+tiktools template profile-import examples/profiles/minecraft-gifts.tikprofile.json
+
+# Round trip back to files.
+tiktools template export --event <event-id> --out rose.tiktemplate.json
+tiktools template profile-export --out backup.tikprofile.json
+
+# Gallery.
+tiktools template list
+tiktools template delete <template-id>
+```
+
+Useful flags: `--event-name` / `--action-name` (single-template imports),
+`--no-save` (skip the gallery), `--disabled` (create records disabled).
+Imports check requirements first and refuse with a clear error when an
+action type is unavailable (missing or disabled plugin) or a trigger is
+unknown; nothing is created in that case.
+
+## Minecraft example
+
+`examples/profiles/minecraft-gifts.tikprofile.json` replicates the classic
+gift wall: Roses give apples, Galaxies give diamonds, TNT gives TNT, GG
+grants speed, Hearts heal, and follows post a welcome message. Every rule is
+a `core.fetch` POST to the local CommandAPI:
+
+```text
+POST http://127.0.0.1:8080/api/chat   {"text": "/give @p minecraft:apple 3"}
+```
+
+CommandAPI runs on loopback with an ephemeral port by default, so the
+templates set `allowPrivateNetwork: true` and take `commandHost` /
+`commandPort` params — override once per profile instead of editing six
+rules (`--param commandPort=9090`). Start Minecraft with the mod, join a
+world (commands fail while no world is loaded), then import:
+
+```bash
+tiktools template profile-import examples/profiles/minecraft-gifts.tikprofile.json
+tiktools automation list --kind all
+```
+
+Caveat: streakable gifts emit one event per combo tick with the running
+`repeatCount`, so a ×5 Rose streak fires five commands. Tune with per-rule
+`cooldownMs` if your server economy minds.

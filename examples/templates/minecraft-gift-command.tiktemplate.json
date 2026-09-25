@@ -1,0 +1,66 @@
+{
+  "templateVersion": 1,
+  "id": "minecraft-gift-command",
+  "title": "Minecraft gift command",
+  "description": "Send a Minecraft command through the local CommandAPI whenever a gift arrives. {{ event.* }} spans render per gift at runtime.",
+  "icon": "code",
+  "params": {
+    "type": "object",
+    "properties": {
+      "giftName": {
+        "type": "string",
+        "title": "Gift name",
+        "default": "Rose"
+      },
+      "command": {
+        "type": "string",
+        "title": "Minecraft command",
+        "default": "/give @p minecraft:apple {{ event.data.repeatCount }}"
+      },
+      "commandHost": {
+        "type": "string",
+        "title": "CommandAPI host",
+        "default": "127.0.0.1"
+      },
+      "commandPort": {
+        "type": "number",
+        "title": "CommandAPI port",
+        "default": 8080
+      }
+    },
+    "required": ["giftName", "command"]
+  },
+  "actions": [
+    {
+      "name": "Send Minecraft command",
+      "typeId": "core.fetch",
+      "enabled": true,
+      "config": {
+        "method": "POST",
+        "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"text\": \"{{ params.command }}\"}",
+        "timeoutMs": 5000,
+        "emitResponseAs": "",
+        "allowPrivateNetwork": true
+      }
+    }
+  ],
+  "event": {
+    "name": "Minecraft gift",
+    "enabled": true,
+    "trigger": "tiktok.gift",
+    "filters": [
+      {
+        "path": "event.data.giftName",
+        "operator": "eq",
+        "value": "{{ params.giftName }}"
+      }
+    ],
+    "cooldownMs": 0,
+    "cooldownScope": "global",
+    "runMode": "all"
+  }
+}

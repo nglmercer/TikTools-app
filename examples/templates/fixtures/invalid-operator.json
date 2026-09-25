@@ -1,0 +1,11 @@
+{
+  "templateVersion": 1,
+  "id": "fixture-operator",
+  "title": "Fixture operator",
+  "actions": [{ "name": "Log", "typeId": "core.log", "config": {} }],
+  "event": {
+    "name": "Gift",
+    "trigger": "tiktok.gift",
+    "filters": [{ "path": "event.data.giftName", "operator": "matches", "value": "Rose" }]
+  }
+}

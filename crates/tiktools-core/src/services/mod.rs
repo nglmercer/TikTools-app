@@ -8,6 +8,7 @@ mod media;
 pub(crate) mod option_sources;
 mod points;
 mod script;
+pub mod templates;
 pub(crate) mod token_provision;
 
 pub use app_state::AppStateService;

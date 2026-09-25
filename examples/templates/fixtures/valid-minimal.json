@@ -1,0 +1,7 @@
+{
+  "templateVersion": 1,
+  "id": "fixture-minimal",
+  "title": "Fixture minimal",
+  "actions": [{ "name": "Log", "typeId": "core.log", "config": { "message": "hi" } }],
+  "event": { "name": "Gift", "trigger": "tiktok.gift" }
+}

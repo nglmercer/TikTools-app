@@ -90,6 +90,56 @@ pub fn print_human(command: &str, result: Value) {
             }
             print_json(&result);
         }
+        "template" => {
+            if let Some(templates) = result.get("templates").and_then(Value::as_array) {
+                if templates.is_empty() {
+                    println!("no custom templates");
+                    return;
+                }
+                for template in templates {
+                    let id = template.get("id").and_then(Value::as_str).unwrap_or("?");
+                    let title = template.get("title").and_then(Value::as_str).unwrap_or("?");
+                    let trigger = template
+                        .get("trigger")
+                        .and_then(Value::as_str)
+                        .unwrap_or("?");
+                    println!("{id} {title} [{trigger}]");
+                }
+                return;
+            }
+            if let Some(imported) = result.get("imported").and_then(Value::as_array) {
+                for entry in imported {
+                    let event = entry.get("event");
+                    let id = event
+                        .and_then(|event| event.get("id"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("?");
+                    let name = event
+                        .and_then(|event| event.get("name"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("?");
+                    let actions = entry
+                        .get("actions")
+                        .and_then(Value::as_array)
+                        .map(Vec::len)
+                        .unwrap_or(0);
+                    println!("created event {id} {name} (+{actions} action(s))");
+                }
+                if result.get("savedToGallery").and_then(Value::as_bool) == Some(true) {
+                    println!("saved to template gallery");
+                }
+                return;
+            }
+            if let Some(path) = result.get("path").and_then(Value::as_str) {
+                println!("wrote {path}");
+                return;
+            }
+            if let Some(deleted) = result.get("deleted").and_then(Value::as_str) {
+                println!("deleted {deleted}");
+                return;
+            }
+            print_json(&result);
+        }
         "system" => {
             if let Some(checks) = result.get("checks").and_then(Value::as_array) {
                 println!(

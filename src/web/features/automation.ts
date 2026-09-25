@@ -230,6 +230,16 @@ export function useAutomation(control: ControlClient) {
     testRecord('event', event);
   };
 
+  /** Applies a rule template: creates its actions first, then the linked event. */
+  const handleApplyRuleTemplate = (actions: LiveAction[], event: LiveEvent): void => {
+    void mutate(async () => {
+      for (const action of actions) {
+        await control.call('automation.create', { kind: 'action', record: action });
+      }
+      await control.call('automation.create', { kind: 'event', record: event });
+    });
+  };
+
   /** One-click seat access: the host probes, then polkit-prompts at most
    * once. Guarded against double clicks; the polkit dialog can sit open
    * a while, so the button stays disabled until the call settles. A
@@ -287,6 +297,7 @@ export function useAutomation(control: ControlClient) {
     handleSetEventEnabled,
     handleTestEvent,
     handleAnalyzeScript,
+    handleApplyRuleTemplate,
     refresh,
   };
 }

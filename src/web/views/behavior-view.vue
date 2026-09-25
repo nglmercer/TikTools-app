@@ -1,9 +1,12 @@
 <script lang="tsx">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { defineVueComponent } from '../vue/component.ts';
+import { Icon } from '../components/icons/index.ts';
 import { ActionEditor } from './behavior/action-editor.vue';
 import { ActionPicker } from './behavior/action-picker.vue';
 import { EventEditor } from './behavior/event-editor.vue';
+import { RuleTemplateModal } from './behavior/RuleTemplateModal.vue';
+import type { RuleTemplate } from './behavior/rule-templates.ts';
 import { ActionsTable } from './behavior/ActionsTable.vue';
 import { EventsTable } from './behavior/EventsTable.vue';
 import { HotkeyFloatBadge } from './behavior/HotkeyFloatBadge.vue';
@@ -50,6 +53,12 @@ type BehaviorViewProps = {
   /** Per-source fetch errors for the option lists above. */
   actionOptionErrors: Record<string, string>;
   onGetActionOptions: (source: string, refresh?: boolean) => void;
+  onApplyRuleTemplate: (actions: LiveAction[], event: LiveEvent) => void;
+  ruleTemplateCustom: RuleTemplate[];
+  ruleTemplateError: string | null;
+  onLoadRuleTemplateCustom: () => Promise<void>;
+  onImportRuleTemplates: (templates: RuleTemplate[]) => Promise<number>;
+  onDeleteRuleTemplateCustom: (id: string) => void;
 };
 
 type Screen =
@@ -84,9 +93,20 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     'actionOptions',
     'actionOptionErrors',
     'onGetActionOptions',
+    'onApplyRuleTemplate',
+    'ruleTemplateCustom',
+    'ruleTemplateError',
+    'onLoadRuleTemplateCustom',
+    'onImportRuleTemplates',
+    'onDeleteRuleTemplateCustom',
   ],
   (props) => {
   const screen = ref<Screen>({ kind: 'list' });
+  const templateModalOpen = ref(false);
+
+  onMounted(() => {
+    void props.onLoadRuleTemplateCustom();
+  });
 
   const lastRunByAction = computed(() => {
     const map = new Map<string, BehaviorRun>();
@@ -191,6 +211,27 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
 
       <div class="plg-body">
         <div class="plg-scroll">
+          <div class="plg-section">
+            <div class="plg-section__head">
+              <div class="plg-section__title">
+                <span class="plg-section__icon" aria-hidden="true">
+                  <Icon name="template" size={16} />
+                </span>
+                <h3>{t(locale, 'behavior.copy.tplTitle')}</h3>
+              </div>
+              <div class="rule-template-head-tools">
+                <button
+                  type="button"
+                  class="plg-btn plg-btn--sm"
+                  onClick={() => { templateModalOpen.value = true; }}
+                >
+                  <Icon name="template" size={14} />
+                  <span>{t(locale, 'behavior.copy.fromTemplate')}</span>
+                </button>
+              </div>
+            </div>
+            <p class="plg-note">{t(locale, 'behavior.copy.tplLead')}</p>
+          </div>
           <ActionsTable
             locale={locale}
             actions={snapshot.actions}
@@ -213,6 +254,19 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
             onNew={(event) => { screen.value = { kind: 'event', event, isNew: true }; }}
           />
         </div>
+
+      {templateModalOpen.value && (
+        <RuleTemplateModal
+          locale={locale}
+          snapshot={snapshot}
+          customTemplates={props.ruleTemplateCustom}
+          customError={props.ruleTemplateError}
+          onClose={() => { templateModalOpen.value = false; }}
+          onApply={props.onApplyRuleTemplate}
+          onImport={props.onImportRuleTemplates}
+          onDeleteCustom={props.onDeleteRuleTemplateCustom}
+        />
+      )}
 
         <aside class="plg-body__aside">
           <div class="plg-toolbar">
@@ -241,3 +295,12 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
 
 export default BehaviorView;
 </script>
+
+<style scoped>
+.rule-template-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+</style>

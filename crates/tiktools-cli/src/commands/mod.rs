@@ -16,6 +16,7 @@ pub mod points;
 pub mod processors;
 pub mod raw;
 pub mod system;
+pub mod template;
 pub mod workflows;
 
 use serde_json::Value;
@@ -54,6 +55,7 @@ pub enum Plan {
     Workflows(workflows::Command),
     Media(media::Command),
     System(system::Command),
+    Template(template::Command),
     Api(api::Command),
     Rpc { method: String, params: Value },
 }
@@ -128,6 +130,7 @@ pub fn parse_command(args: &[String]) -> Result<Plan, CommandError> {
         "workflow" => Plan::Workflows(workflows::parse(rest)?),
         "media" => Plan::Media(media::parse(rest)?),
         "system" => Plan::System(system::parse(rest)?),
+        "template" => Plan::Template(template::parse(rest)?),
         "api" => Plan::Api(api::parse(rest)?),
         "rpc" => raw::parse_rpc(rest)?,
         // `serve_plan` handles every `host` form before parsing commands;
@@ -166,6 +169,10 @@ pub async fn execute_plan(client: &TikToolsClient, plan: Plan) -> Result<Output,
         Plan::System(command) => Ok(Output::new(
             "system",
             system::execute(client, command).await?,
+        )),
+        Plan::Template(command) => Ok(Output::new(
+            "template",
+            template::execute(client, command).await?,
         )),
         Plan::Api(command) => api::execute(client, command).await,
         Plan::Rpc { method, params } => Ok(Output::new(

@@ -32,6 +32,23 @@ pub fn flag_value(args: &[String], flag: &str) -> Option<String> {
         .cloned()
 }
 
+/// Collects every value of a repeatable `--flag value` flag, in order.
+pub fn flag_values(args: &[String], flag: &str) -> Vec<String> {
+    let mut values = Vec::new();
+    let mut index = 0;
+    while index < args.len() {
+        if args[index] == flag {
+            if let Some(value) = args.get(index + 1) {
+                values.push(value.clone());
+            }
+            index += 2;
+        } else {
+            index += 1;
+        }
+    }
+    values
+}
+
 pub fn required_record(args: &[String], usage: &str) -> Result<Value, String> {
     match flag_value(args, "--record") {
         Some(raw) => parse_json_value(&raw),

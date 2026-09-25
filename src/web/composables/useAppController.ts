@@ -12,6 +12,7 @@ import { usePlugins } from '../features/plugins.ts';
 import { usePoints } from '../features/points.ts';
 import { useProcessors } from '../features/processors.ts';
 import { useWidgets } from '../features/widgets.ts';
+import { useRuleTemplates } from '../features/rule-templates.ts';
 import { createControlClient } from '../platform/control-client.ts';
 import {
   controlBackend,
@@ -70,6 +71,7 @@ export function useAppController() {
   const analytics = useAnalytics(control, () => connection.activeCreator.value);
   const automation = useAutomation(control);
   const widgets = useWidgets(control);
+  const ruleTemplates = useRuleTemplates(control);
   const plugins = usePlugins(control, {
     translate,
     refreshBehavior: () => automation.refresh(),
@@ -301,6 +303,12 @@ export function useAppController() {
     handleResetPoints: points.handleResetPoints,
     handleAdjustPoints: points.handleAdjustPoints,
     handleSaveAction: automation.handleSaveAction,
+    handleApplyRuleTemplate: automation.handleApplyRuleTemplate,
+    ruleTemplateCustom: ruleTemplates.custom,
+    ruleTemplateError: ruleTemplates.error,
+    loadRuleTemplateCustom: ruleTemplates.loadCustom,
+    importRuleTemplates: ruleTemplates.importTemplates,
+    deleteRuleTemplateCustom: ruleTemplates.deleteCustom,
     handleDeleteAction: automation.handleDeleteAction,
     handleSetActionEnabled: automation.handleSetActionEnabled,
     handleTestAction: automation.handleTestAction,
