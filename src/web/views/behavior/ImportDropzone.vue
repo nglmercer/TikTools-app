@@ -3,8 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 import { Icon } from '../../components/icons/Icon.vue';
 import { Button } from '../../components/ui/Button.vue';
-import { i18nText, type Locale } from '../../i18n.ts';
-import type { RuleTemplate } from './rule-templates.ts';
+import type { Locale } from '../../i18n.ts';
 
 export type ImportDropzoneProps = {
   locale: Locale;
@@ -140,45 +139,6 @@ export const ImportDropzone = defineVueComponent<ImportDropzoneProps>(
   },
 );
 
-export type StagedTemplateListProps = {
-  locale: Locale;
-  /** Pre-translated headline, e.g. the profile name or template count. */
-  headline: string;
-  templates: RuleTemplate[];
-  source: string;
-  stagedFrom: string;
-  clearLabel: string;
-  /** Optional pre-translated note rendered under the list. */
-  hint?: string;
-  onClear: () => void;
-};
-
-/** Shared staged-import preview: what would be imported, before it is. */
-export const StagedTemplateList = defineVueComponent<StagedTemplateListProps>(
-  ['locale', 'headline', 'templates', 'source', 'stagedFrom', 'clearLabel', 'hint', 'onClear'],
-  (props) => () => (
-    <div class="rule-import-staged" role="status">
-      <div class="rule-import-staged__head">
-        <strong>{props.headline}</strong>
-        <span class="rule-import-staged__source">{props.stagedFrom}</span>
-        <Button variant="ghost" size="sm" onClick={() => props.onClear()}>
-          {props.clearLabel}
-        </Button>
-      </div>
-      <ul>
-        {props.templates.map((template) => (
-          <li key={template.id}>
-            <Icon name={template.icon} size={14} />
-            <span>{i18nText(props.locale, template.title)}</span>
-            <small>{template.event.trigger}</small>
-          </li>
-        ))}
-      </ul>
-      {props.hint ? <p class="rule-import-hint">{props.hint}</p> : null}
-    </div>
-  ),
-);
-
 export default ImportDropzone;
 </script>
 
@@ -222,51 +182,6 @@ export default ImportDropzone;
   display: flex;
   gap: 8px;
   margin-top: 4px;
-}
-
-.rule-import-staged {
-  border: 1px solid var(--tt-border, #34343f);
-  border-radius: 12px;
-  padding: 12px;
-  background: var(--tt-bg-soft, #1c1c26);
-}
-
-.rule-import-staged__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.rule-import-staged__source {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--tt-text-dim, #a8a8b8);
-  font-size: 12px;
-}
-
-.rule-import-staged ul {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.rule-import-staged li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.rule-import-staged li small {
-  margin-left: auto;
-  color: var(--tt-text-dim, #a8a8b8);
-  font-size: 11px;
 }
 
 .rule-import-hint {

@@ -29,7 +29,8 @@ import {
   type RuleTemplate,
 } from './rule-templates.ts';
 import { parseRuleTemplateImport } from '../../features/rule-templates.ts';
-import { ImportDropzone, StagedTemplateList } from './import-parts.vue';
+import { ImportDropzone } from './ImportDropzone.vue';
+import { StagedTemplateList } from './StagedTemplateList.vue';
 
 type RuleTemplateModalProps = {
   locale: Locale;

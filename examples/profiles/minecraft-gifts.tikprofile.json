@@ -2,7 +2,7 @@
   "profileVersion": 1,
   "id": "minecraft-gifts",
   "name": "Minecraft gifts",
-  "description": "TikTok LIVE gifts drive Minecraft commands through the local CommandAPI (http://127.0.0.1:8080/api/chat). Roses give apples, Galaxies give diamonds, TNT gives TNT, GG grants speed, Hearts heal, and follows post a welcome message. Override commandHost/commandPort once for the whole profile.",
+  "description": "TikTok LIVE gifts drive Minecraft commands through the local CommandAPI (http://127.0.0.1:8080/api/chat). Roses give apples, Galaxies give diamonds, TNT gives TNT, GG grants speed, Hearts heal, and follows post a welcome message. Every rule fires one batched `messages` request: the reward command plus an on-screen title and subtitle announcing the sender. Override commandHost/commandPort once for the whole profile.",
   "params": {
     "commandHost": "127.0.0.1",
     "commandPort": 8080
@@ -13,7 +13,7 @@
         "templateVersion": 1,
         "id": "minecraft-rose-apple",
         "title": "Rose gives apples",
-        "description": "Every Rose sends /give @p minecraft:apple <count> to the local player.",
+        "description": "Every Rose sends one batched request: /give @p minecraft:apple <count> plus an on-screen ROSE! title and thanks subtitle.",
         "icon": "gift",
         "params": {
           "type": "object",
@@ -31,7 +31,7 @@
               "method": "POST",
               "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
               "headers": { "Content-Type": "application/json" },
-              "body": "{\"text\": \"/give @p minecraft:apple {{ event.data.repeatCount }}\"}",
+              "body": "{\"messages\": [\"/give @p minecraft:apple {{ event.data.repeatCount }}\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks {{ event.user.nickname }}!\\\",\\\"color\\\":\\\"white\\\"}\", \"/title @a title {\\\"text\\\":\\\"ROSE!\\\",\\\"color\\\":\\\"red\\\",\\\"bold\\\":true}\"]}",
               "timeoutMs": 5000,
               "emitResponseAs": "",
               "allowPrivateNetwork": true
@@ -55,7 +55,7 @@
         "templateVersion": 1,
         "id": "minecraft-galaxy-diamond",
         "title": "Galaxy gives diamonds",
-        "description": "Every Galaxy sends /give @p minecraft:diamond <count> to the local player.",
+        "description": "Every Galaxy sends one batched request: /give @p minecraft:diamond <count> plus an on-screen GALAXY! title and thanks subtitle.",
         "icon": "gift",
         "params": {
           "type": "object",
@@ -73,7 +73,7 @@
               "method": "POST",
               "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
               "headers": { "Content-Type": "application/json" },
-              "body": "{\"text\": \"/give @p minecraft:diamond {{ event.data.repeatCount }}\"}",
+              "body": "{\"messages\": [\"/give @p minecraft:diamond {{ event.data.repeatCount }}\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks {{ event.user.nickname }}!\\\",\\\"color\\\":\\\"white\\\"}\", \"/title @a title {\\\"text\\\":\\\"GALAXY!\\\",\\\"color\\\":\\\"aqua\\\",\\\"bold\\\":true}\"]}",
               "timeoutMs": 5000,
               "emitResponseAs": "",
               "allowPrivateNetwork": true
@@ -97,7 +97,7 @@
         "templateVersion": 1,
         "id": "minecraft-tnt",
         "title": "TNT gives TNT",
-        "description": "Every TNT gift sends /give @p minecraft:tnt <count> to the local player.",
+        "description": "Every TNT gift sends one batched request: /give @p minecraft:tnt <count> plus an on-screen TNT! title and thanks subtitle.",
         "icon": "gift",
         "params": {
           "type": "object",
@@ -115,7 +115,7 @@
               "method": "POST",
               "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
               "headers": { "Content-Type": "application/json" },
-              "body": "{\"text\": \"/give @p minecraft:tnt {{ event.data.repeatCount }}\"}",
+              "body": "{\"messages\": [\"/give @p minecraft:tnt {{ event.data.repeatCount }}\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks {{ event.user.nickname }}!\\\",\\\"color\\\":\\\"white\\\"}\", \"/title @a title {\\\"text\\\":\\\"TNT!\\\",\\\"color\\\":\\\"gold\\\",\\\"bold\\\":true}\"]}",
               "timeoutMs": 5000,
               "emitResponseAs": "",
               "allowPrivateNetwork": true
@@ -139,7 +139,7 @@
         "templateVersion": 1,
         "id": "minecraft-gg-speed",
         "title": "GG grants speed",
-        "description": "Every GG sends /effect give @p minecraft:speed 30 1 to the local player.",
+        "description": "Every GG sends one batched request: a 30s speed effect plus an on-screen GG! title and thanks subtitle.",
         "icon": "live",
         "params": {
           "type": "object",
@@ -157,7 +157,7 @@
               "method": "POST",
               "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
               "headers": { "Content-Type": "application/json" },
-              "body": "{\"text\": \"/effect give @p minecraft:speed 30 1\"}",
+              "body": "{\"messages\": [\"/effect give @p minecraft:speed 30 1\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks {{ event.user.nickname }}!\\\",\\\"color\\\":\\\"white\\\"}\", \"/title @a title {\\\"text\\\":\\\"GG!\\\",\\\"color\\\":\\\"green\\\",\\\"bold\\\":true}\"]}",
               "timeoutMs": 5000,
               "emitResponseAs": "",
               "allowPrivateNetwork": true
@@ -181,7 +181,7 @@
         "templateVersion": 1,
         "id": "minecraft-heart-heal",
         "title": "Heart heals",
-        "description": "Every Heart sends /effect give @p minecraft:instant_health 1 1 to the local player.",
+        "description": "Every Heart sends one batched request: instant health plus an on-screen HEAL! title and thanks subtitle.",
         "icon": "heart",
         "params": {
           "type": "object",
@@ -199,7 +199,7 @@
               "method": "POST",
               "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
               "headers": { "Content-Type": "application/json" },
-              "body": "{\"text\": \"/effect give @p minecraft:instant_health 1 1\"}",
+              "body": "{\"messages\": [\"/effect give @p minecraft:instant_health 1 1\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks {{ event.user.nickname }}!\\\",\\\"color\\\":\\\"white\\\"}\", \"/title @a title {\\\"text\\\":\\\"HEAL!\\\",\\\"color\\\":\\\"light_purple\\\",\\\"bold\\\":true}\"]}",
               "timeoutMs": 5000,
               "emitResponseAs": "",
               "allowPrivateNetwork": true
@@ -223,7 +223,7 @@
         "templateVersion": 1,
         "id": "minecraft-follow-welcome",
         "title": "Follow welcome message",
-        "description": "Every follow posts a welcome chat message as the local player.",
+        "description": "Every follow sends one batched request: a welcome chat message plus an on-screen NEW FOLLOWER title and subtitle.",
         "icon": "follow",
         "params": {
           "type": "object",
@@ -241,7 +241,7 @@
               "method": "POST",
               "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
               "headers": { "Content-Type": "application/json" },
-              "body": "{\"text\": \"Welcome {{ event.user.nickname }} to the stream!\"}",
+              "body": "{\"messages\": [\"Welcome {{ event.user.nickname }} to the stream!\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks for following!\\\",\\\"color\\\":\\\"gray\\\"}\", \"/title @a title {\\\"text\\\":\\\"NEW FOLLOWER\\\",\\\"color\\\":\\\"yellow\\\",\\\"bold\\\":true}\"]}",
               "timeoutMs": 5000,
               "emitResponseAs": "",
               "allowPrivateNetwork": true

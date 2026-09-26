@@ -1,12 +1,16 @@
 <script lang="tsx">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
+import type { JsonObject } from '../../../automation/types.ts';
 import { Button } from '../../components/ui/Button.vue';
+import { FormField } from '../../components/ui/FormField.vue';
 import { Modal, ModalActions } from '../../components/ui/Modal.vue';
+import { SchemaForm } from '../../components/ui/SchemaForm.vue';
 import { t, type Locale } from '../../i18n.ts';
 import type { AppliedRuleTemplate } from './rule-templates.ts';
-import { instantiateProfile, parseRuleProfileImport, type RuleProfile } from '../../features/rule-profiles.ts';
-import { ImportDropzone, StagedTemplateList } from './import-parts.vue';
+import { instantiateProfile, parseRuleProfileImport, profileParamSchema, type RuleProfile } from '../../features/rule-profiles.ts';
+import { ImportDropzone } from './ImportDropzone.vue';
+import { StagedTemplateList } from './StagedTemplateList.vue';
 
 export type ProfileImportDialogProps = {
   locale: Locale;
@@ -21,6 +25,11 @@ export const ProfileImportDialog = defineVueComponent<ProfileImportDialogProps>(
     const staged = ref<{ source: string; profile: RuleProfile } | null>(null);
     const errors = ref<string[]>([]);
     const importing = ref(false);
+    const paramValues = ref<JsonObject>({});
+
+    const collected = computed(() =>
+      staged.value ? profileParamSchema(staged.value.profile) : null,
+    );
 
     /** Profiles stage as one pack; raw JSON is never typed into the UI. */
     const stageContent = (text: string, source: string): void => {
@@ -31,7 +40,15 @@ export const ProfileImportDialog = defineVueComponent<ProfileImportDialogProps>(
         return;
       }
       staged.value = { source, profile: profiled.profile };
+      // Every staged file starts from its own declared values — never from
+      // a previous import's edits.
+      paramValues.value = { ...(profileParamSchema(profiled.profile)?.defaults ?? {}) };
       errors.value = [];
+    };
+
+    const clearStaged = (): void => {
+      staged.value = null;
+      paramValues.value = {};
     };
 
     const runImport = async (): Promise<void> => {
@@ -43,9 +60,13 @@ export const ProfileImportDialog = defineVueComponent<ProfileImportDialogProps>(
       }
       importing.value = true;
       try {
-        // Profiles apply immediately (records + pack registration) with
-        // merged default params; per-entry options stay a CLI feature.
-        await props.onApplyProfile(pending.profile, instantiateProfile(pending.profile));
+        // Profiles apply immediately (records + pack registration) with the
+        // dialog's params winning over every layer; per-entry options stay
+        // a CLI feature.
+        await props.onApplyProfile(
+          pending.profile,
+          instantiateProfile(pending.profile, collected.value ? { ...paramValues.value } : {}),
+        );
         props.onClose();
       } catch {
         // Failures surface through profilesError; the dialog stays open.
@@ -79,7 +100,7 @@ export const ProfileImportDialog = defineVueComponent<ProfileImportDialogProps>(
           <div class="template-config">
             <ImportDropzone
               locale={locale}
-              title={t(locale, 'behavior.copy.tplDropTitle')}
+              title={t(locale, 'behavior.copy.proDropTitle')}
               hint={t(locale, 'behavior.copy.tplDropHint')}
               browseLabel={t(locale, 'behavior.copy.tplBrowse')}
               pasteLabel={t(locale, 'behavior.copy.tplPaste')}
@@ -100,9 +121,22 @@ export const ProfileImportDialog = defineVueComponent<ProfileImportDialogProps>(
                 source={pending.source}
                 stagedFrom={t(locale, 'behavior.copy.tplStagedFrom', { source: pending.source })}
                 clearLabel={t(locale, 'behavior.copy.tplClearStaged')}
-                hint={t(locale, 'behavior.copy.proApplyHint')}
-                onClear={() => { staged.value = null; }}
+                hint={collected.value ? undefined : t(locale, 'behavior.copy.proApplyHint')}
+                onClear={() => clearStaged()}
               />
+            )}
+            {pending && collected.value && (
+              <div>
+                <FormField label={t(locale, 'behavior.copy.proParamsLabel')}>
+                  <SchemaForm
+                    locale={locale}
+                    schema={collected.value.schema}
+                    value={paramValues.value}
+                    onChange={(next) => { paramValues.value = next; }}
+                  />
+                </FormField>
+                <p class="template-hint">{t(locale, 'behavior.copy.proParamsHint')}</p>
+              </div>
             )}
             {props.profilesError ? <p class="template-error" role="alert">{props.profilesError}</p> : null}
             {errors.value.map((message) => (

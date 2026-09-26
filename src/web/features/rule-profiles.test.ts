@@ -9,6 +9,7 @@ import {
   mergedEntryParams,
   parseRuleProfile,
   parseRuleProfileImport,
+  profileParamSchema,
   resolvedPacks,
   slugProfileId,
   useRuleProfiles,
@@ -84,6 +85,34 @@ test('param layers merge schema defaults, profile, then entry', () => {
   if (!parsed.ok) return;
   expect(mergedEntryParams(parsed.profile, parsed.profile.templates[0]!)).toEqual({ giftName: 'Heart' });
   expect(mergedEntryParams(parsed.profile, parsed.profile.templates[1]!)).toEqual({ giftName: 'Galaxy' });
+});
+
+test('import overrides win over entry params on every rule', () => {
+  const parsed = parseRuleProfile(PROFILE);
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  const [first, second] = instantiateProfile(parsed.profile, { giftName: 'TNT' });
+  expect(first?.event.filters[0]?.value).toBe('TNT');
+  expect(second?.event.filters[0]?.value).toBe('TNT');
+});
+
+test('profile param schema unions entries with profile values as defaults', () => {
+  const parsed = parseRuleProfile(PROFILE);
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) return;
+  const collected = profileParamSchema(parsed.profile);
+  expect(collected?.schema).toEqual({
+    type: 'object',
+    properties: { giftName: { type: 'string', default: 'Rose' } },
+  });
+  expect(collected?.defaults).toEqual({ giftName: 'Heart' });
+
+  const plain = parseRuleProfile({ ...PROFILE, templates: [{ template: TEMPLATE('bare', 'x'), params: {} }] });
+  expect(plain.ok).toBe(true);
+  if (!plain.ok) return;
+  plain.profile.templates[0]!.template.params = undefined;
+  plain.profile.params = {};
+  expect(profileParamSchema(plain.profile)).toBe(null);
 });
 
 test('instantiation substitutes params with fresh ids', () => {

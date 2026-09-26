@@ -121,14 +121,15 @@ everything else, and the tables list only the active pack's rules — a fresh
 pack shows empty tables, never foreign rules. Ids whose records were
 deleted prune silently. The selector
 menu creates empty packs, opens the profile import dialog for
-`.tikprofile.json` files (staged preview, default options), exports any pack
-back to a profile file (CLI `profile-export` shape, round-trippable), and
-deletes packs with a confirm — deletion removes the pack's events and
+`.tikprofile.json` files (staged preview plus an editable settings form
+prefilled from the file, so imports never silently apply defaults), exports
+any pack back to a profile file (CLI `profile-export` shape, round-trippable),
+and deletes packs with a confirm — deletion removes the pack's events and
 actions too. Only `default` refuses deletion. Re-applying a profile replaces
 its membership
 (previous records fall back to `default`). Profile params merge as schema
-defaults → profile → entry; per-entry options stay a CLI feature
-(`--param`, `--event-name`, `--disabled`).
+defaults → profile → entry → dialog edits (CLI: `--param` instead);
+per-entry options stay a CLI feature (`--param`, `--event-name`, `--disabled`).
 
 ## CLI
 
@@ -167,8 +168,12 @@ grants speed, Hearts heal, and follows post a welcome message. Every rule is
 a `core.fetch` POST to the local CommandAPI:
 
 ```text
-POST http://127.0.0.1:8080/api/chat   {"text": "/give @p minecraft:apple 3"}
+POST http://127.0.0.1:8080/api/chat   {"messages": ["/give @p minecraft:apple 3", "/title @a times 10 50 10", ...]}
 ```
+
+Each rule fires one batched `messages` request: the reward command plus
+`/title` commands that flash a big colored title and a thanks subtitle
+naming the sender, so one HTTP call covers reward and announcement.
 
 CommandAPI runs on loopback with an ephemeral port by default, so the
 templates set `allowPrivateNetwork: true` and take `commandHost` /

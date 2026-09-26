@@ -6,11 +6,25 @@
   align-items: center;
   justify-content: center;
   padding: 18px;
+}
+
+/* The dim + blur live on a backdrop layer behind the card — never on the
+   backdrop itself. WebKitGTK (Linux desktop) does not paint text carets
+   inside a backdrop-filter subtree, so filtering the card's ancestor would
+   hide every input caret in every modal. Chromium/Firefox paint it fine,
+   which is why this only shows in the app. */
+.ui-modal-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   background: rgba(0, 0, 0, 0.68);
   backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
 }
 
 .ui-modal-card {
+  position: relative;
+  z-index: 1;
   display: flex;
   width: min(100%, 440px);
   max-height: min(90vh, 620px);

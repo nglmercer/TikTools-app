@@ -157,9 +157,12 @@ export const BEHAVIOR_UI_TRANSLATIONS: TranslationCatalog = {
       proImportTitle: "Import profile",
       proImportLead: "A profile pack applies all its rules at once and becomes the live profile.",
       proImportNotProfile: "That file is not a rule profile.",
+      proDropTitle: "Drop a profile file here",
+      proParamsLabel: "Profile settings",
+      proParamsHint: "Starting values come from the file; edits apply to every rule in this profile.",
       proStaged: "Profile “{name}” ({count} rules)",
       proApplyStaged: "Create {count} rules",
-      proApplyHint: "Applies with default options and marks the profile active. Per-entry options stay a CLI feature."
+      proApplyHint: "Creates every rule and marks the profile active. Per-entry options stay a CLI feature."
     }),
     ...ns("behavior.trigger.tiktok.", {
       chat: "Someone comments",
@@ -429,9 +432,12 @@ export const BEHAVIOR_UI_TRANSLATIONS: TranslationCatalog = {
       proImportTitle: "Importar perfil",
       proImportLead: "Un pack de perfil aplica todas sus reglas de una vez y pasa a ser el perfil activo.",
       proImportNotProfile: "Ese archivo no es un perfil de reglas.",
+      proDropTitle: "Suelta un archivo de perfil aquí",
+      proParamsLabel: "Ajustes del perfil",
+      proParamsHint: "Los valores iniciales vienen del archivo; los cambios aplican a todas las reglas del perfil.",
       proStaged: "Perfil “{name}” ({count} reglas)",
       proApplyStaged: "Crear {count} reglas",
-      proApplyHint: "Aplica con las opciones por defecto y marca el perfil como activo. Las opciones por entrada siguen siendo de CLI."
+      proApplyHint: "Crea todas las reglas y marca el perfil como activo. Las opciones por entrada siguen siendo de CLI."
     }),
     ...ns("behavior.trigger.tiktok.", {
       chat: "Alguien comenta",

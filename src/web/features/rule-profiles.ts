@@ -144,14 +144,40 @@ export function parseRuleProfileImport(text: string): { profile: RuleProfile | n
   return { profile: parsed.profile, errors: [] };
 }
 
-/** Param layers outer-to-inner (mirrors the CLI minus --param): schema defaults → profile → entry. */
-export function mergedEntryParams(profile: RuleProfile, entry: RuleProfileEntry): JsonObject {
-  return { ...ruleParamDefaults(entry.template.params), ...profile.params, ...entry.params };
+/** Param layers inner-to-outer (mirrors the CLI): schema defaults → profile → entry → overrides. */
+export function mergedEntryParams(profile: RuleProfile, entry: RuleProfileEntry, overrides: JsonObject = {}): JsonObject {
+  return { ...ruleParamDefaults(entry.template.params), ...profile.params, ...entry.params, ...overrides };
 }
 
 /** Instantiates every entry with fresh record ids and merged params. */
-export function instantiateProfile(profile: RuleProfile): AppliedRuleTemplate[] {
-  return profile.templates.map((entry) => applyRuleTemplate(entry.template, mergedEntryParams(profile, entry)));
+export function instantiateProfile(profile: RuleProfile, overrides: JsonObject = {}): AppliedRuleTemplate[] {
+  return profile.templates.map((entry) => applyRuleTemplate(entry.template, mergedEntryParams(profile, entry, overrides)));
+}
+
+/**
+ * Union of every entry's param schema with profile values as the starting
+ * point, for the import dialog's settings form. Null when no entry declares
+ * params — the dialog then applies the profile untouched.
+ */
+export function profileParamSchema(profile: RuleProfile): { schema: JsonObject; defaults: JsonObject } | null {
+  const properties: JsonObject = {};
+  const required: string[] = [];
+  for (const entry of profile.templates) {
+    const schema = entry.template.params;
+    if (!isRecord(schema)) continue;
+    const props = schema['properties'];
+    if (isRecord(props)) Object.assign(properties, props);
+    const req = schema['required'];
+    if (Array.isArray(req)) {
+      for (const key of req) {
+        if (typeof key === 'string' && !required.includes(key)) required.push(key);
+      }
+    }
+  }
+  if (Object.keys(properties).length === 0) return null;
+  const schema: JsonObject = { type: 'object', properties };
+  if (required.length > 0) schema['required'] = required;
+  return { schema, defaults: { ...ruleParamDefaults(schema), ...profile.params } };
 }
 
 /**
