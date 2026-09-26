@@ -111,7 +111,7 @@ export const TestConsole = defineVueComponent<{
       {run && (
         <div class="act-status">
           <span class={`act-pill ${status.ok ? 'is-ok' : 'is-err'}`}>{status.text}</span>
-          <span class="act-ms">{run.durationMs} ms</span>
+          <span class="act-ms">{run.durationMs} ms{run.eventSource ? ` · ${run.eventSource === 'live' ? t(locale, 'behavior.copy.testLive') : t(locale, 'behavior.copy.testSample')}` : ''}</span>
         </div>
       )}
 

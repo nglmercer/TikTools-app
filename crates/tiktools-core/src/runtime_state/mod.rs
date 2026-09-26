@@ -47,6 +47,12 @@ use crate::{
 pub(crate) struct AutomationRuntimeState {
     pub(crate) last_event: RwLock<Option<serde_json::Value>>,
     pub(crate) last_event_at: RwLock<Option<u64>>,
+    /// Last observed envelope per event type (`tiktok.gift`, `hotkey.pressed`,
+    /// ...). The test harness replays these so emulation runs against real
+    /// data instead of generic samples; keyed by type, so one chat message
+    /// never evicts the last gift.
+    pub(crate) last_events: RwLock<BTreeMap<String, serde_json::Value>>,
+    pub(crate) last_events_at: RwLock<BTreeMap<String, u64>>,
     pub(crate) last_context_emit_at: AtomicU64,
     pub(crate) sequence: AtomicU64,
     /// Bounds native-live automation work. Events arriving while all slots
@@ -62,6 +68,8 @@ impl Default for AutomationRuntimeState {
         Self {
             last_event: RwLock::new(None),
             last_event_at: RwLock::new(None),
+            last_events: RwLock::new(BTreeMap::new()),
+            last_events_at: RwLock::new(BTreeMap::new()),
             last_context_emit_at: AtomicU64::new(0),
             sequence: AtomicU64::new(0),
             #[cfg(feature = "native-tiktok")]

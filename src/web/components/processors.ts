@@ -1,5 +1,5 @@
 import type { AutomationEvent } from '../../automation/types.ts';
-import { sampleEventForType } from '../../automation/event-registry.ts';
+import { emulateEventForType } from '../../automation/event-emulation.ts';
 import type {
   ProcessorStatusEntry,
   ProcessorStatusMetrics,
@@ -31,11 +31,15 @@ export function processorMetricRows(metrics: ProcessorStatusMetrics): ProcessorM
 }
 
 /**
- * Sample live event for previewing one processor: the registry sample for
- * its first subscribed type, else the chat sample. Unknown types degrade to
- * a minimal envelope instead of failing.
+ * Live event for previewing one processor: the last live envelope of its
+ * first subscribed type when one matches (real data), else the registry
+ * sample for that type (chat when it subscribes to nothing). Unknown types
+ * degrade to a minimal envelope instead of failing.
  */
-export function processorPreviewEvent(entry: ProcessorStatusEntry): AutomationEvent {
+export function processorPreviewEvent(
+  entry: ProcessorStatusEntry,
+  lastEvent?: AutomationEvent | null,
+): AutomationEvent {
   const [first] = entry.eventTypes;
-  return sampleEventForType(first ?? 'tiktok.chat');
+  return emulateEventForType(first ?? 'tiktok.chat', lastEvent).event;
 }

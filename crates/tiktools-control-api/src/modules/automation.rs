@@ -57,6 +57,16 @@ pub struct AutomationDeleteResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct AutomationContextParams {
+    /// Return the last envelope of this type instead of the global last
+    /// event. Callers emulating one trigger pass it so previews replay real
+    /// data of the right shape.
+    #[serde(default)]
+    pub event_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct AutomationContextResult {
     pub event: Option<Value>,
     pub captured_at: Option<u64>,
@@ -200,12 +210,17 @@ pub fn register(router: &mut ControlRouter) {
                 .map_err(|error| ApiError::from(error).scoped_not_found("automation_not_found"))
         },
     );
-    router.register_typed::<Empty, AutomationContextResult, _, _>(
+    router.register_typed::<AutomationContextParams, AutomationContextResult, _, _>(
         "automation.context",
-        "Last automation event observed, for context panels and previews",
+        "Last automation event observed, for context panels and previews (eventType narrows to one trigger)",
         false,
-        |core: Arc<AppCore>, _params: Empty| async move {
-            let (event, captured_at) = core.automation_context();
+        |core: Arc<AppCore>, params: AutomationContextParams| async move {
+            let (event, captured_at) = match params.event_type.as_deref() {
+                Some(event_type) if !event_type.trim().is_empty() => {
+                    core.automation_context_for(event_type)
+                }
+                _ => core.automation_context(),
+            };
             Ok::<AutomationContextResult, ApiError>(AutomationContextResult { event, captured_at })
         },
     );

@@ -591,9 +591,61 @@ async fn test_event_names_sample_data_on_mismatch() {
         }))
         .await;
     assert_eq!(result["status"], "error");
+    assert_eq!(result["eventSource"], "sample");
     let summary = result["summary"].as_str().unwrap_or_default();
-    assert!(summary.contains("sample data:"), "{summary}");
-    assert!(summary.contains("hello"), "{summary}");
+    assert!(summary.contains("the sample event"), "{summary}");
+    assert!(summary.contains("Hello there"), "{summary}");
+}
+
+#[tokio::test]
+async fn test_event_replays_last_live_event_of_its_trigger() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    // A chat arrives after the gift: per-type memory must keep both, so the
+    // gift test replays the real gift instead of the newer chat or a sample.
+    core.remember_automation_event(&serde_json::json!({
+        "id": "live-gift-1",
+        "type": "tiktok.gift",
+        "timestamp": 1,
+        "user": {"uniqueId": "luna_dev", "nickname": "Luna", "secUid": "sec-1", "userId": "7"},
+        "data": {
+            "giftId": "5655", "giftName": "Galaxy", "diamondCount": 1000,
+            "repeatCount": 2, "comboCount": 2, "groupId": "g-1",
+            "repeatEnd": true, "streakable": false,
+            "giftIconUrl": null, "method": "WebcastGiftMessage",
+            "msgId": "9", "isHistory": false
+        }
+    }));
+    core.remember_automation_event(&serde_json::json!({
+        "id": "live-chat-1",
+        "type": "tiktok.chat",
+        "timestamp": 2,
+        "user": {"uniqueId": "other", "nickname": "Other", "secUid": "sec-2", "userId": "8"},
+        "data": {"comment": "hi", "method": "WebcastChatMessage", "msgId": "10", "isHistory": false}
+    }));
+    assert_eq!(
+        core.last_event_for("tiktok.gift")
+            .as_ref()
+            .and_then(|event| event.get("id")),
+        Some(&serde_json::Value::String("live-gift-1".to_owned())),
+    );
+    let result = core
+        .test_event(&serde_json::json!({
+            "id": "evt-gift",
+            "name": "Galaxy gate",
+            "enabled": true,
+            "trigger": "tiktok.gift",
+            "filters": [{"path": "event.data.giftName", "operator": "eq", "value": "Galaxy"}],
+            "cooldownMs": 0,
+            "cooldownScope": "user",
+            "actionIds": [],
+            "runMode": "all"
+        }))
+        .await;
+    // No saved actions: the filter matched (live data), the harness just has
+    // nothing to run. A sample replay would have failed the Galaxy filter.
+    assert_eq!(result["eventSource"], "live");
+    assert_eq!(result["summary"], "The event has no saved actions to test.");
 }
 
 #[test]

@@ -367,7 +367,12 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
             </button>
             {props.testRuns.map((run) => (
               <div class={`plg-panel ${run.status === 'error' ? 'plg-panel--err' : 'plg-panel--ok'}`} key={run.id}>
-                <span class="plg-row__name">{run.actionName}</span>
+                <span class="plg-row__name">
+                  {run.actionName}
+                  {run.eventSource && (
+                    <span class="plg-note"> · {run.eventSource === 'live' ? t(props.locale, 'behavior.copy.testLive') : t(props.locale, 'behavior.copy.testSample')}</span>
+                  )}
+                </span>
                 <span class="plg-mono">{run.error ?? run.summary}</span>
               </div>
             ))}

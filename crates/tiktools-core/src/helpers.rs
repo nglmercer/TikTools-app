@@ -344,16 +344,6 @@ pub(crate) fn as_values(value: &Value) -> Vec<&Value> {
     }
 }
 
-pub(crate) fn sample_automation_event(event_type: &str) -> Value {
-    json!({
-        "id": "sample-event",
-        "type": event_type,
-        "timestamp": now_millis(),
-        "user": {"uniqueId": "viewer_demo", "nickname": "Viewer Demo", "userId": "1"},
-        "data": {"comment": "hello", "giftName": "Rosa", "diamondCount": 1, "count": 1}
-    })
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct LiveContext {
     pub(crate) unique_id: String,

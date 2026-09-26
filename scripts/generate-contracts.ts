@@ -164,7 +164,7 @@ function sampleForSchema(schema: Schema, root: JsonRecord): unknown {
   }
 }
 
-function sampleForField(name: string, schema: Schema, root: JsonRecord): unknown {
+function sampleForField(name: string, schema: Schema, root: JsonRecord, eventType?: string): unknown {
   switch (name) {
     case 'giftName': return 'Rosa';
     case 'giftId': return '5655';
@@ -172,6 +172,19 @@ function sampleForField(name: string, schema: Schema, root: JsonRecord): unknown
     case 'msgId': return '1';
     case 'method': return 'WebcastSampleMessage';
     case 'emitType': return 'plugin.sample';
+    // A fresh internal emit has no nesting; the generic number sampler (1)
+    // would misrepresent it as already-nested.
+    case 'depth': return 0;
+    // `action` discriminates the social/member trigger: follow is 1, share
+    // is 3, and anything else is the generic social/join case. The generic
+    // sampler (1 for every number) made share/social/join samples claim to
+    // be follows, so filters and previews tested against the wrong shape.
+    case 'action': {
+      if (eventType === 'tiktok.share') return 3;
+      if (eventType === 'tiktok.follow') return 1;
+      if (eventType === 'tiktok.social' || eventType === 'tiktok.join') return 0;
+      return sampleForSchema(schema, root);
+    }
     default: return sampleForSchema(schema, root);
   }
 }
@@ -381,7 +394,7 @@ function registrySource(schema: JsonRecord): string {
         optional: !required.has(key),
         label: { en: humanize(key), es: humanize(key) },
         hint: { en: `${contractName ?? 'JsonObject'}.${key}`, es: `${contractName ?? 'JsonObject'}.${key}` },
-        sample: sampleForField(key, value, schema),
+        sample: sampleForField(key, value, schema, eventType),
         sourceField: key,
         ...(native
           ? {

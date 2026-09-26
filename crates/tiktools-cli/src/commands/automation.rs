@@ -14,7 +14,9 @@ pub enum Command {
     List {
         kind: String,
     },
-    Context,
+    Context {
+        event_type: Option<String>,
+    },
     Get {
         id: String,
         kind: String,
@@ -58,7 +60,9 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
         "list" => Ok(Command::List {
             kind: flag_value(rest, "--kind").unwrap_or_else(|| "all".to_owned()),
         }),
-        "context" => Ok(Command::Context),
+        "context" => Ok(Command::Context {
+            event_type: flag_value(rest, "--event-type"),
+        }),
         "get" => Ok(Command::Get {
             id: positional(rest, 0, "automation get <id> [--kind k]")?,
             kind: kind(),
@@ -123,7 +127,9 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                 .automation_list(AutomationListParams { kind: Some(kind) })
                 .await?,
         ),
-        Command::Context => result_value(client.automation_context().await?),
+        Command::Context { event_type } => {
+            result_value(client.automation_context_for(event_type).await?)
+        }
         Command::Get { id, kind } => result_value(
             client
                 .automation_get(AutomationGetParams {

@@ -3,15 +3,35 @@
 use crate::*;
 
 impl AppCore {
+    /// Event the test harness replays for `trigger`: the last live envelope
+    /// of that type when one was observed (real user, real gift, real counts),
+    /// else the declaring plugin's manifest sample, else the per-type sample.
+    /// Replayed live envelopes keep their payload and get a fresh timestamp.
+    /// Returns the event plus where it came from (`live` or `sample`) so the
+    /// UI can tell the operator what the test actually ran against.
+    fn test_event_for(&self, trigger: &str) -> (Value, &'static str) {
+        if let Some(mut event) = self.last_event_for(trigger) {
+            event["timestamp"] = Value::from(now_millis());
+            return (event, "live");
+        }
+        let event = self
+            .plugin_event_sample(trigger)
+            .unwrap_or_else(|| sample_automation_event(trigger));
+        (event, "sample")
+    }
+
     pub(crate) async fn test_action(
         self: &Arc<Self>,
         action: &Value,
         trigger: Option<&str>,
     ) -> Value {
-        let event = recover_rwlock_read(&self.automation_state.last_event, "automation event")
-            .clone()
-            .unwrap_or_else(|| sample_automation_event(trigger.unwrap_or("tiktok.chat")));
-        self.execute_action(action, &event, None, true).await
+        let trigger = trigger.unwrap_or("tiktok.chat");
+        let (event, source) = self.test_event_for(trigger);
+        let mut run = self.execute_action(action, &event, None, true).await;
+        if let Some(object) = run.as_object_mut() {
+            object.insert("eventSource".to_owned(), Value::String(source.to_owned()));
+        }
+        run
     }
 
     pub(crate) async fn test_event(self: &Arc<Self>, record: &Value) -> Value {
@@ -20,18 +40,12 @@ impl AppCore {
             .get("trigger")
             .and_then(Value::as_str)
             .unwrap_or("tiktok.chat");
-        let event = recover_rwlock_read(&self.automation_state.last_event, "automation event")
-            .clone()
-            .filter(|event| event.get("type").and_then(Value::as_str) == Some(trigger))
-            .unwrap_or_else(|| {
-                self.plugin_event_sample(trigger)
-                    .unwrap_or_else(|| sample_automation_event(trigger))
-            });
+        let (event, source) = self.test_event_for(trigger);
 
         if !self.automation.event_record_matches(record, &event) {
-            // Name the sample data so a mismatch against a plugin sample
-            // (hotkey.pressed ships key "k") reads as a data problem, not a
-            // broken trigger.
+            // Name the replayed data so a mismatch against a plugin sample
+            // (hotkey.pressed ships key "k") or a stale live event reads as
+            // a data problem, not a broken trigger.
             let preview = event.get("data").map(|data| {
                 const MAX_PREVIEW: usize = 120;
                 let text = serde_json::to_string(data).unwrap_or_default();
@@ -41,13 +55,16 @@ impl AppCore {
                     text
                 }
             });
+            let origin = if source == "live" {
+                "the last live event"
+            } else {
+                "the sample event"
+            };
             let summary = match preview {
                 Some(preview) if !preview.is_empty() => {
-                    format!(
-                        "Event filters did not match the sample event (sample data: {preview})."
-                    )
+                    format!("Event filters did not match {origin} (event data: {preview}).")
                 }
-                _ => "Event filters did not match the sample event.".to_owned(),
+                _ => format!("Event filters did not match {origin}."),
             };
             return json!({
                 "id": self.automation.next_run_id("test-event", started),
@@ -58,6 +75,7 @@ impl AppCore {
                 "summary": summary.clone(),
                 "durationMs": now_millis().saturating_sub(started),
                 "test": true,
+                "eventSource": source,
                 "logs": [],
                 "error": summary
             });
@@ -75,6 +93,7 @@ impl AppCore {
                 "summary": summary,
                 "durationMs": now_millis().saturating_sub(started),
                 "test": true,
+                "eventSource": source,
                 "logs": [],
                 "error": summary
             });
@@ -104,6 +123,7 @@ impl AppCore {
             "summary": summary,
             "durationMs": now_millis().saturating_sub(started),
             "test": true,
+            "eventSource": source,
             "logs": [],
             "actions": runs
         });

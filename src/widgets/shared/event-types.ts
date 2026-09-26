@@ -6,16 +6,26 @@
 import type {
   AutomationUser,
   ChatAutomationData,
+  ConnectionAutomationData,
   GiftAutomationData,
+  LikeAutomationData,
   MemberAutomationData,
+  PluginEmitAutomationData,
+  PointsAwardedAutomationData,
+  RoomStatsAutomationData,
   SocialAutomationData,
 } from '../../automation/contracts/generated/automation-events.ts';
 
 export type {
   AutomationUser,
   ChatAutomationData,
+  ConnectionAutomationData,
   GiftAutomationData,
+  LikeAutomationData,
   MemberAutomationData,
+  PluginEmitAutomationData,
+  PointsAwardedAutomationData,
+  RoomStatsAutomationData,
   SocialAutomationData,
 };
 
@@ -78,6 +88,54 @@ export interface JoinAutomationEvent {
   timestamp: number;
   user?: AutomationUser | null;
   data: MemberAutomationData;
+}
+
+export interface LikeAutomationEvent {
+  id: string;
+  type: 'tiktok.like';
+  timestamp: number;
+  user?: AutomationUser | null;
+  data: LikeAutomationData;
+}
+
+export interface SocialAutomationEvent {
+  id: string;
+  type: 'tiktok.social';
+  timestamp: number;
+  user?: AutomationUser | null;
+  data: SocialAutomationData;
+}
+
+export interface RoomStatsAutomationEvent {
+  id: string;
+  type: 'tiktok.room_stats';
+  timestamp: number;
+  user?: AutomationUser | null;
+  data: RoomStatsAutomationData;
+}
+
+export interface ConnectionAutomationEvent {
+  id: string;
+  type: 'tiktok.connected' | 'tiktok.disconnected';
+  timestamp: number;
+  user?: AutomationUser | null;
+  data: ConnectionAutomationData;
+}
+
+export interface PointsAwardedAutomationEvent {
+  id: string;
+  type: 'points.awarded';
+  timestamp: number;
+  user?: AutomationUser | null;
+  data: PointsAwardedAutomationData;
+}
+
+export interface PluginEmitAutomationEvent {
+  id: string;
+  type: 'plugin.emit';
+  timestamp: number;
+  user?: AutomationUser | null;
+  data: PluginEmitAutomationData;
 }
 
 /** `event.gap` payload: broadcast messages were skipped, do not resync. */

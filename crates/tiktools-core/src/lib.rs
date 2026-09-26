@@ -30,6 +30,7 @@ mod runtime_state;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use automation_runtime::samples::{sample_automation_event, sample_user};
 pub(crate) use helpers::*;
 pub(crate) use tiktools_plugin_api::sync::{
     recover_mutex, recover_rwlock_read, recover_rwlock_write,

@@ -3,9 +3,10 @@
 use super::TikToolsClient;
 use serde_json::Value;
 use tiktools_control_api::modules::automation::{
-    AutomationContextResult, AutomationCreateParams, AutomationDeleteResult, AutomationGetParams,
-    AutomationListParams, AutomationListResult, AutomationNodesResult, AutomationRunsResult,
-    AutomationScriptParams, AutomationTestParams, AutomationUpdateParams, ScriptAnalysisResult,
+    AutomationContextParams, AutomationContextResult, AutomationCreateParams,
+    AutomationDeleteResult, AutomationGetParams, AutomationListParams, AutomationListResult,
+    AutomationNodesResult, AutomationRunsResult, AutomationScriptParams, AutomationTestParams,
+    AutomationUpdateParams, ScriptAnalysisResult,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
@@ -100,7 +101,17 @@ impl TikToolsClient {
     /// Last automation event observed, for context panels and previews.
     /// RPC method `automation.context`.
     pub async fn automation_context(&self) -> Result<AutomationContextResult, ClientError> {
-        self.call(AUTOMATION_CONTEXT, Empty::default()).await
+        self.automation_context_for(None).await
+    }
+    /// Last envelope of one event type (`tiktok.gift`, ...), for emulating
+    /// that trigger against real data. `None` returns the global last event.
+    /// RPC method `automation.context`.
+    pub async fn automation_context_for(
+        &self,
+        event_type: Option<String>,
+    ) -> Result<AutomationContextResult, ClientError> {
+        self.call(AUTOMATION_CONTEXT, AutomationContextParams { event_type })
+            .await
     }
     /// Dry-runs a saved (id) or inline (record) event or action.
     /// RPC method `automation.test`.
