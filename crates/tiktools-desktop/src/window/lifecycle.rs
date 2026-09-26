@@ -479,6 +479,18 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
             }
             WindowEvent::KeyboardInput { event, .. } => self.on_keyboard_input(event),
             WindowEvent::Resized(size) => self.resize_webview(size),
+            WindowEvent::Focused(gained) => {
+                tracing::debug!(gained, "desktop window focus changed");
+                if platform::window_focus_action(gained)
+                    == platform::WindowFocusAction::FocusWebview
+                {
+                    if let Some(webview) = self.webview.as_ref() {
+                        if let Err(error) = webview.focus() {
+                            tracing::debug!(%error, "could not focus WebView");
+                        }
+                    }
+                }
+            }
             WindowEvent::Destroyed => {
                 tracing::debug!(tray = self.tray.is_some(), "window was destroyed");
                 self.webview.take();
