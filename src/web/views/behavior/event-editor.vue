@@ -15,7 +15,7 @@ import {
   type ConditionTemplate,
 } from '../../../automation/behavior/condition-templates.ts';
 import { registerModerationTemplates } from '../../../automation/behavior/moderation-templates.ts';
-import { COOLDOWN_CHOICES, describeFilter, sentenceFor, triggerLabel, triggerSelectOptions } from './helpers.vue';
+import { COOLDOWN_CHOICES, describeFilter, sentenceFor, testSourceLabel, triggerLabel, triggerSelectOptions } from './helpers.vue';
 import type {
   BehaviorRun,
   LiveAction,
@@ -43,10 +43,11 @@ type EventEditorProps = {
   onSave: (event: LiveEvent) => void;
   onDelete: (id: string) => void;
   onTest: (event: LiveEvent) => void;
+  onFire: (event: LiveEvent) => void;
 };
 
 export const EventEditor = defineVueComponent<EventEditorProps>(
-  ['locale', 'event', 'isNew', 'actions', 'gifts', 'viewers', 'error', 'testRuns', 'hotkeyStatus', 'eventTypes', 'onCancel', 'onSave', 'onDelete', 'onTest'],
+  ['locale', 'event', 'isNew', 'actions', 'gifts', 'viewers', 'error', 'testRuns', 'hotkeyStatus', 'eventTypes', 'onCancel', 'onSave', 'onDelete', 'onTest', 'onFire'],
   (props) => {
   const draft = ref<LiveEvent>(props.event);
   const step = ref(1);
@@ -365,12 +366,15 @@ export const EventEditor = defineVueComponent<EventEditorProps>(
             <button type="button" class="plg-btn plg-btn--block" onClick={() => props.onTest(draftValue)}>
               {t(props.locale, 'behavior.copy.test')}
             </button>
+            <button type="button" class="plg-btn plg-btn--block plg-btn--primary" onClick={() => props.onFire(draftValue)}>
+              {t(props.locale, 'behavior.copy.fire')}
+            </button>
             {props.testRuns.map((run) => (
               <div class={`plg-panel ${run.status === 'error' ? 'plg-panel--err' : 'plg-panel--ok'}`} key={run.id}>
                 <span class="plg-row__name">
                   {run.actionName}
                   {run.eventSource && (
-                    <span class="plg-note"> · {run.eventSource === 'live' ? t(props.locale, 'behavior.copy.testLive') : t(props.locale, 'behavior.copy.testSample')}</span>
+                    <span class="plg-note"> · {testSourceLabel(props.locale, run.eventSource)}</span>
                   )}
                 </span>
                 <span class="plg-mono">{run.error ?? run.summary}</span>

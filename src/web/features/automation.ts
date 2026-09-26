@@ -29,6 +29,16 @@ export interface AutomationRunsResult {
   runs: BehaviorRun[];
 }
 
+export interface AutomationFireResult {
+  trigger: string;
+  eventSource: 'live' | 'sample' | 'custom';
+  matched: number;
+  draftMatched: boolean;
+  status: 'ok' | 'error';
+  summary: string;
+  durationMs: number;
+}
+
 export interface LastHotkeyEvent {
   key: string;
   modifiers: string;
@@ -229,6 +239,39 @@ export function useAutomation(control: ControlClient) {
   const handleTestEvent = (event: LiveEvent): void => {
     testRecord('event', event);
   };
+  /**
+   * Fires the editor draft through the live pipeline: the draft itself runs
+   * when its trigger and filters match (even unsaved or disabled), other
+   * matching events run too, and every run streams into the runs list. The
+   * fire outcome itself surfaces as a synthetic entry in the test panel
+   * (never as a persisted run), so a zero-match fire reads as feedback.
+   */
+  const handleFireEvent = (event: LiveEvent): void => {
+    clearBehaviorError();
+    behaviorTestRuns.value = [];
+    void control
+      .call<AutomationFireResult>('automation.fire', { trigger: event.trigger, record: event })
+      .then((result) => {
+        behaviorTestRuns.value = [
+          {
+            id: `fire-${Date.now()}`,
+            at: Date.now(),
+            status: result.status,
+            eventName: event.trigger,
+            actionName: event.name,
+            summary: result.summary,
+            durationMs: result.durationMs,
+            test: true,
+            logs: [],
+            eventSource: result.eventSource,
+            ...(result.status === 'error' ? { error: result.summary } : {}),
+          },
+        ];
+      })
+      .catch((failure: unknown) => {
+        behaviorError.value = errorMessage(failure);
+      });
+  };
 
   /**
    * Saves one record and refreshes, awaiting the whole round trip so
@@ -331,6 +374,7 @@ export function useAutomation(control: ControlClient) {
     handleDeleteEvent,
     handleSetEventEnabled,
     handleTestEvent,
+    handleFireEvent,
     handleAnalyzeScript,
     handleApplyRuleTemplate,
     createProfileRecords,

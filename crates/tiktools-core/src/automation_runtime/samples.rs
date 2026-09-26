@@ -55,7 +55,7 @@ fn sample_data_for(event_type: &str) -> (Value, Option<Value>) {
         "tiktok.gift" => (
             sample_data(GiftAutomationData {
                 gift_id: "5655".to_owned(),
-                gift_name: "Rosa".to_owned(),
+                gift_name: "Rose".to_owned(),
                 diamond_count: 1,
                 repeat_count: 1,
                 combo_count: 1,
@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn gift_sample_keeps_the_values_condition_tests_rely_on() {
         let event = sample_automation_event("tiktok.gift");
-        assert_eq!(event["data"]["giftName"], "Rosa");
+        assert_eq!(event["data"]["giftName"], "Rose");
         assert_eq!(event["data"]["giftId"], "5655");
         assert!(event["data"]["diamondCount"].as_u64().unwrap_or_default() >= 1);
     }

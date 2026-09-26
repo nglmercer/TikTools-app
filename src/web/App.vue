@@ -158,6 +158,7 @@ const activePluginBackend = computed(() => {
         :on-delete-event="app.handleDeleteEvent"
         :on-set-event-enabled="app.handleSetEventEnabled"
         :on-test-event="app.handleTestEvent"
+        :on-fire-event="app.handleFireEvent"
         :on-open-plugins="app.openPlugins"
         :on-open-media-picker="app.openMediaPicker"
         :action-options="app.actionOptions"

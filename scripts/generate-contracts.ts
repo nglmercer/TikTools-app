@@ -166,7 +166,7 @@ function sampleForSchema(schema: Schema, root: JsonRecord): unknown {
 
 function sampleForField(name: string, schema: Schema, root: JsonRecord, eventType?: string): unknown {
   switch (name) {
-    case 'giftName': return 'Rosa';
+    case 'giftName': return 'Rose';
     case 'giftId': return '5655';
     case 'comment': return 'Hello there';
     case 'msgId': return '1';

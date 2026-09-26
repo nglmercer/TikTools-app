@@ -313,6 +313,15 @@ impl AppCore {
         self.test_event(record).await
     }
 
+    pub async fn fire_automation_event(
+        self: &Arc<Self>,
+        trigger: &str,
+        event: Option<&Value>,
+        record: Option<&Value>,
+    ) -> Value {
+        self.fire_synthetic_event(trigger, event, record).await
+    }
+
     pub async fn test_automation_action(
         self: &Arc<Self>,
         action: &Value,

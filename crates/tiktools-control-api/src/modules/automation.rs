@@ -97,6 +97,23 @@ pub struct AutomationRunsResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct AutomationFireParams {
+    /// Trigger to fire (`tiktok.gift`, ...). Required: firing needs a type.
+    pub trigger: String,
+    /// Optional custom envelope used as-is (fresh id/timestamp, type forced
+    /// to `trigger`). Absent: last live envelope of the trigger, else the
+    /// per-type sample.
+    #[serde(default)]
+    pub event: Option<Value>,
+    /// Optional editor draft to test-fire: runs when its trigger and
+    /// filters match, even when unsaved or disabled. Its saved twin, if
+    /// any, is skipped so one fire never executes the same event twice.
+    #[serde(default)]
+    pub record: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct AutomationTestParams {
     /// Test a saved record by id...
     #[serde(default)]
@@ -253,6 +270,33 @@ pub fn register(router: &mut ControlRouter) {
                         .await
                 }
             })
+        },
+    );
+    router.register_typed::<AutomationFireParams, Value, _, _>(
+        "automation.fire",
+        "Fires a synthetic event through the live pipeline: really triggers matching events and executes their actions (no dry run)",
+        true,
+        |core: Arc<AppCore>, params: AutomationFireParams| async move {
+            let trigger = params.trigger.trim();
+            if trigger.is_empty() {
+                return Err::<Value, ApiError>(ApiError::invalid_params(
+                    "automation.fire needs a `trigger`",
+                ));
+            }
+            if params.event.as_ref().is_some_and(|event| !event.is_object()) {
+                return Err::<Value, ApiError>(ApiError::invalid_params(
+                    "automation.fire `event` must be an object",
+                ));
+            }
+            if params.record.as_ref().is_some_and(|record| !record.is_object()) {
+                return Err::<Value, ApiError>(ApiError::invalid_params(
+                    "automation.fire `record` must be an object",
+                ));
+            }
+            Ok::<Value, ApiError>(
+                core.fire_automation_event(trigger, params.event.as_ref(), params.record.as_ref())
+                    .await,
+            )
         },
     );
     router.register_typed::<Empty, AutomationNodesResult, _, _>(

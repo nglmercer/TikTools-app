@@ -37,7 +37,7 @@ describe('emulateEventForType', () => {
     const { event, source } = emulateEventForType('tiktok.gift', chat);
     expect(source).toBe('sample');
     expect(event.type).toBe('tiktok.gift');
-    expect((event.data as Record<string, unknown>)['giftName']).toBe('Rosa');
+    expect((event.data as Record<string, unknown>)['giftName']).toBe('Rose');
   });
 });
 

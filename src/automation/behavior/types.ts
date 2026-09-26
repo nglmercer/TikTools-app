@@ -236,8 +236,8 @@ export interface BehaviorRun {
   test: boolean;
   logs: string[];
   error?: string;
-  /** What the test ran against: the last live envelope or a sample. Absent on old hosts. */
-  eventSource?: 'live' | 'sample';
+  /** What the test ran against: last live envelope, sample, or custom JSON. Absent on old hosts. */
+  eventSource?: 'live' | 'sample' | 'custom';
 }
 
 export interface BehaviorSnapshot {

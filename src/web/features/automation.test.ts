@@ -109,6 +109,91 @@ describe('useAutomation live updates', () => {
   });
 });
 
+describe('useAutomation fire event', () => {
+  function fired(result: unknown): { client: ControlClient; calls: Array<{ method: string; params: unknown }> } {
+    const { client } = fakeControl();
+    const calls: Array<{ method: string; params: unknown }> = [];
+    client.call = ((method: string, params: unknown) => {
+      calls.push({ method, params });
+      if (method === 'automation.fire') return Promise.resolve(result);
+      return Promise.reject(new Error(`unexpected call ${method}`));
+    }) as ControlClient['call'];
+    return { client, calls };
+  }
+
+  async function flush(times = 4): Promise<void> {
+    for (let i = 0; i < times; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  const event = {
+    schemaVersion: 1 as const,
+    id: 'evt-1',
+    name: 'Galaxy gate',
+    enabled: true,
+    trigger: 'tiktok.gift',
+    filters: [],
+    cooldownMs: 0,
+    cooldownScope: 'user' as const,
+    actionIds: [],
+    runMode: 'all' as const,
+  };
+
+  test('fires the trigger and surfaces the outcome as a test-panel entry', async () => {
+    const { client, calls } = fired({
+      trigger: 'tiktok.gift',
+      eventSource: 'live',
+      matched: 2,
+      status: 'ok',
+      summary: 'Fired tiktok.gift: 2 events matched, actions executed.',
+      durationMs: 3,
+    });
+    const automation = useAutomation(client);
+    automation.handleFireEvent(event);
+    await flush();
+    expect(calls).toEqual([
+      { method: 'automation.fire', params: { trigger: 'tiktok.gift', record: event } },
+    ]);
+    expect(automation.behaviorError.value).toBe('');
+    expect(automation.behaviorTestRuns.value).toHaveLength(1);
+    expect(automation.behaviorTestRuns.value[0]).toMatchObject({
+      status: 'ok',
+      actionName: 'Galaxy gate',
+      summary: 'Fired tiktok.gift: 2 events matched, actions executed.',
+      eventSource: 'live',
+    });
+  });
+
+  test('zero-match fire surfaces as an error entry without touching the error bar', async () => {
+    const { client } = fired({
+      trigger: 'tiktok.gift',
+      eventSource: 'sample',
+      matched: 0,
+      status: 'error',
+      summary: 'Fired tiktok.gift: no enabled event matched.',
+      durationMs: 1,
+    });
+    const automation = useAutomation(client);
+    automation.handleFireEvent(event);
+    await flush();
+    expect(automation.behaviorError.value).toBe('');
+    expect(automation.behaviorTestRuns.value[0]).toMatchObject({
+      status: 'error',
+      error: 'Fired tiktok.gift: no enabled event matched.',
+    });
+  });
+
+  test('transport failure surfaces in the error bar', async () => {
+    const { client } = fakeControl();
+    const automation = useAutomation(client);
+    automation.handleFireEvent(event);
+    await flush();
+    expect(automation.behaviorError.value).toBe('not stubbed');
+    expect(automation.behaviorTestRuns.value).toEqual([]);
+  });
+});
+
 describe('useAutomation hotkey access request', () => {
   function stubbed(result: unknown): {
     client: ControlClient;

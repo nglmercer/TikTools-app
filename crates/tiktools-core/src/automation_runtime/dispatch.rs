@@ -20,6 +20,106 @@ impl AppCore {
         (event, "sample")
     }
 
+    /// Fires a synthetic event through the full live pipeline so it really
+    /// triggers matching events and executes their actions (no dry run).
+    /// This is the manual "make it happen" twin of the dry-run harness:
+    /// same event resolution (custom JSON, else last live envelope of the
+    /// trigger, else the per-type sample), then real fan-out — domain
+    /// subscribers, enrichment, last-event memory, cooldowns, and execution.
+    ///
+    /// `record` is the editor draft being fired: it runs when its trigger
+    /// and filters match, even when unsaved, edited-but-unsaved, or
+    /// disabled (an explicit fire tests what the operator sees, like the
+    /// dry run does). Its saved twin, if any, is skipped so one fire never
+    /// executes the same event twice.
+    pub(crate) async fn fire_synthetic_event(
+        self: &Arc<Self>,
+        trigger: &str,
+        event_override: Option<&Value>,
+        record: Option<&Value>,
+    ) -> Value {
+        let started = now_millis();
+        let (mut event, source) = match event_override {
+            Some(custom) if custom.is_object() => (custom.clone(), "custom"),
+            _ => self.test_event_for(trigger),
+        };
+        // A fired event is new work: fresh identity and timestamp, and the
+        // fired trigger wins over whatever type a pasted envelope carried.
+        event["id"] = Value::String(format!(
+            "fired-{}-{}",
+            trigger.replace('.', "-"),
+            self.next_sequence()
+        ));
+        event["timestamp"] = Value::from(now_millis());
+        event["type"] = Value::String(trigger.to_owned());
+        // Same order as the live pipeline: domain fan-out first (widgets and
+        // subscribers always see a fired event), then enrichment, then the
+        // match that decides whether any action executes.
+        self.publish_live_domain_event(&event);
+        let enriched = self.enrich_automation_event(event).await;
+        if self.automation.emit_depth(&enriched) >= 3 {
+            return json!({
+                "trigger": trigger,
+                "eventSource": source,
+                "matched": 0,
+                "draftMatched": false,
+                "status": "error",
+                "summary": format!("Fired {trigger}: refused, emit depth limit reached."),
+                "durationMs": now_millis().saturating_sub(started),
+            });
+        }
+        let draft_id = record.and_then(|record| record.get("id").and_then(Value::as_str));
+        let saved: Vec<Value> = self
+            .automation
+            .matching_events(&enriched)
+            .into_iter()
+            .filter(|matched| {
+                draft_id.is_none_or(|id| matched.get("id").and_then(Value::as_str) != Some(id))
+            })
+            .collect();
+        let draft_name = record
+            .and_then(|record| record.get("name").and_then(Value::as_str))
+            .unwrap_or("Event");
+        let draft_matched = record.is_some_and(|record| {
+            record.get("trigger").and_then(Value::as_str) == Some(trigger)
+                && self.automation.event_record_matches(record, &enriched)
+        });
+        self.remember_automation_event(&enriched);
+        let matched = saved.len() + usize::from(draft_matched);
+        if matched == 0 {
+            return fire_no_match(
+                trigger,
+                source,
+                started,
+                record.map(|_| draft_name),
+                &enriched,
+            );
+        }
+        self.run_matched_records(saved, &enriched).await;
+        if draft_matched {
+            if let Some(record) = record {
+                self.run_matched_records(vec![record.clone()], &enriched)
+                    .await;
+            }
+        }
+        let mut summary = format!(
+            "Fired {trigger}: {matched} event{} matched, actions executed.",
+            if matched == 1 { "" } else { "s" },
+        );
+        if draft_matched {
+            summary.push_str(&format!(" Including '{draft_name}' (editor draft)."));
+        }
+        json!({
+            "trigger": trigger,
+            "eventSource": source,
+            "matched": matched,
+            "draftMatched": draft_matched,
+            "status": "ok",
+            "summary": summary,
+            "durationMs": now_millis().saturating_sub(started),
+        })
+    }
+
     pub(crate) async fn test_action(
         self: &Arc<Self>,
         action: &Value,
@@ -146,14 +246,59 @@ impl AppCore {
             matched = matched.len(),
             "automation matching completed"
         );
-        for record in matched {
-            if !self.automation.claim_event(&record, &event, now_millis()) {
+        self.run_matched_records(matched, &event).await;
+    }
+
+    /// Claim + execute loop shared by live fan-out and manual fire: one
+    /// cooldown claim per record, then every referenced action, for real.
+    async fn run_matched_records(self: &Arc<Self>, records: Vec<Value>, event: &Value) {
+        for record in records {
+            if !self.automation.claim_event(&record, event, now_millis()) {
                 continue;
             }
             for action in self.automation.actions_for_event(&record) {
-                self.execute_action(&action, &event, Some(&record), false)
+                self.execute_action(&action, event, Some(&record), false)
                     .await;
             }
         }
     }
+}
+
+/// Zero-match fire outcome. Always names the fired data (truncated) so a
+/// mismatch reads as a data problem — e.g. sample giftName 'Rose' against
+/// a filter for 'Galaxy' — and says so explicitly when a draft was tested.
+fn fire_no_match(
+    trigger: &str,
+    source: &str,
+    started: u64,
+    draft_name: Option<&str>,
+    event: &Value,
+) -> Value {
+    const MAX_PREVIEW: usize = 120;
+    let preview = event.get("data").map(|data| {
+        let text = serde_json::to_string(data).unwrap_or_default();
+        let truncated: String = text.chars().take(MAX_PREVIEW).collect();
+        if text.chars().count() > MAX_PREVIEW {
+            format!("{truncated}…")
+        } else {
+            truncated
+        }
+    });
+    let fired = match preview {
+        Some(preview) if !preview.is_empty() => format!(" (fired data: {preview})"),
+        _ => String::new(),
+    };
+    let summary = match draft_name {
+        Some(name) => format!("Fired {trigger}: '{name}' did not match{fired}."),
+        None => format!("Fired {trigger}: no enabled event matched{fired}."),
+    };
+    json!({
+        "trigger": trigger,
+        "eventSource": source,
+        "matched": 0,
+        "draftMatched": false,
+        "status": "error",
+        "summary": summary,
+        "durationMs": now_millis().saturating_sub(started),
+    })
 }

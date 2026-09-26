@@ -3,8 +3,8 @@
 use serde_json::Value;
 use tiktools_client::{ClientError, TikToolsClient};
 use tiktools_control_api::modules::automation::{
-    AutomationCreateParams, AutomationGetParams, AutomationListParams, AutomationTestParams,
-    AutomationUpdateParams,
+    AutomationCreateParams, AutomationFireParams, AutomationGetParams, AutomationListParams,
+    AutomationTestParams, AutomationUpdateParams,
 };
 
 use super::args::{flag_value, parse_json_value, positional, required_record, split_first};
@@ -47,6 +47,11 @@ pub enum Command {
         record: Option<Value>,
         kind: String,
         trigger: Option<String>,
+    },
+    Fire {
+        trigger: String,
+        event: Option<Value>,
+        record: Option<Value>,
     },
     ModerationPenalty {
         points: f64,
@@ -103,6 +108,23 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
                 record,
                 kind: kind(),
                 trigger: flag_value(rest, "--trigger"),
+            })
+        }
+        "fire" => {
+            let trigger = flag_value(rest, "--trigger").ok_or_else(|| {
+                "automation fire needs --trigger <event-type> (e.g. --trigger tiktok.gift)"
+                    .to_owned()
+            })?;
+            let event = flag_value(rest, "--event")
+                .map(|raw| parse_json_value(&raw))
+                .transpose()?;
+            let record = flag_value(rest, "--record")
+                .map(|raw| parse_json_value(&raw))
+                .transpose()?;
+            Ok(Command::Fire {
+                trigger,
+                event,
+                record,
             })
         }
         "moderation-penalty" => {
@@ -191,6 +213,19 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                     record,
                     kind: Some(kind),
                     trigger,
+                })
+                .await?,
+        ),
+        Command::Fire {
+            trigger,
+            event,
+            record,
+        } => result_value(
+            client
+                .automation_fire(AutomationFireParams {
+                    trigger,
+                    event,
+                    record,
                 })
                 .await?,
         ),

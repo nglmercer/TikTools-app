@@ -1642,7 +1642,7 @@ export const GENERATED_EVENT_REGISTRY = {
         },
         "data": {
           "giftId": "5655",
-          "giftName": "Rosa",
+          "giftName": "Rose",
           "diamondCount": 1,
           "repeatCount": 1,
           "comboCount": 1,
@@ -1767,7 +1767,7 @@ export const GENERATED_EVENT_REGISTRY = {
             "en": "GiftAutomationData.giftName",
             "es": "GiftAutomationData.giftName"
           },
-          "sample": "Rosa",
+          "sample": "Rose",
           "sourceField": "giftName",
           "sourceMethod": "WebcastGiftMessage",
           "sourcePath": "gift.name",

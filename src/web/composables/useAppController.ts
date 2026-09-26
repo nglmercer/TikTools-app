@@ -434,6 +434,7 @@ export function useAppController() {
     handleDeleteEvent: automation.handleDeleteEvent,
     handleSetEventEnabled: automation.handleSetEventEnabled,
     handleTestEvent: automation.handleTestEvent,
+    handleFireEvent: automation.handleFireEvent,
     hotkeyAccessPending: automation.hotkeyAccessPending,
     handleRequestHotkeyAccess: automation.handleRequestHotkeyAccess,
     handleSetPluginInstalled: plugins.handleSetPluginInstalled,

@@ -71,6 +71,6 @@ describe('processor panel helpers', () => {
     // A mismatched live event degrades to the sample of the subscribed type.
     const chat = sampleEventForType('tiktok.chat');
     const fallback = processorPreviewEvent(entry(['tiktok.gift']), chat);
-    expect((fallback.data as Record<string, unknown>)['giftName']).toBe('Rosa');
+    expect((fallback.data as Record<string, unknown>)['giftName']).toBe('Rose');
   });
 });

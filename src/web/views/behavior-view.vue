@@ -52,6 +52,7 @@ type BehaviorViewProps = {
   onDeleteEvent: (id: string) => void;
   onSetEventEnabled: (id: string, enabled: boolean) => void;
   onTestEvent: (event: LiveEvent) => void;
+  onFireEvent: (event: LiveEvent) => void;
   onOpenPlugins: () => void;
   onOpenMediaPicker: OpenMediaPicker;
   /** On-demand option lists keyed by options source. */
@@ -103,6 +104,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     'onDeleteEvent',
     'onSetEventEnabled',
     'onTestEvent',
+    'onFireEvent',
     'onOpenPlugins',
     'onOpenMediaPicker',
     'actionOptions',
@@ -241,6 +243,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
           screen.value = { kind: 'list' };
         }}
         onTest={props.onTestEvent}
+        onFire={props.onFireEvent}
       />
     );
   }

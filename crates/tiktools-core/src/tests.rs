@@ -648,6 +648,195 @@ async fn test_event_replays_last_live_event_of_its_trigger() {
     assert_eq!(result["summary"], "The event has no saved actions to test.");
 }
 
+#[tokio::test]
+async fn fire_synthetic_event_executes_actions_for_real() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    // Unique viewer per run: the points store persists across runs.
+    let unique_id = format!(
+        "fire-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    );
+    core.points_adjust(&unique_id, 1.0)
+        .expect("seeding the viewer works");
+    core.automation.upsert_action(serde_json::json!({
+        "id": "act-fire",
+        "name": "Fire award",
+        "typeId": "core.points",
+        "enabled": true,
+        "config": {"uniqueId": unique_id, "delta": 10}
+    }));
+    core.automation.upsert_event(serde_json::json!({
+        "id": "evt-fire",
+        "name": "Fire chat",
+        "enabled": true,
+        "trigger": "tiktok.chat",
+        "filters": [],
+        "cooldownMs": 0,
+        "actionIds": ["act-fire"],
+        "runMode": "all"
+    }));
+
+    let result = core.fire_synthetic_event("tiktok.chat", None, None).await;
+    assert_eq!(result["status"], "ok");
+    assert_eq!(result["matched"], 1);
+    assert_eq!(result["eventSource"], "sample");
+
+    // The action really ran: a non-test run with the live summary, and the
+    // leaderboard moved. A dry run would record `test: true` and "would award".
+    let runs = core.automation.recent_runs();
+    let run = runs
+        .iter()
+        .find(|run| run.get("actionId").and_then(Value::as_str) == Some("act-fire"))
+        .expect("the fired event produced a run");
+    assert_eq!(run["test"], false);
+    assert_eq!(run["status"], "ok");
+    assert_eq!(
+        run["summary"],
+        serde_json::Value::String(format!("{unique_id} +10"))
+    );
+    let total = core
+        .points
+        .leaderboard(None)
+        .into_iter()
+        .find(|viewer| viewer.get("uniqueId").and_then(Value::as_str) == Some(unique_id.as_str()))
+        .and_then(|viewer| viewer.get("points").and_then(Value::as_f64))
+        .unwrap_or_default();
+    assert_eq!(total, 11.0);
+}
+
+#[tokio::test]
+async fn fire_synthetic_event_reports_zero_matches() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    let result = core.fire_synthetic_event("tiktok.gift", None, None).await;
+    assert_eq!(result["status"], "error");
+    assert_eq!(result["matched"], 0);
+    let summary = result["summary"].as_str().unwrap_or_default();
+    assert!(summary.contains("no enabled event matched"), "{summary}");
+    // The fired data is named so a sample/filter mismatch is diagnosable.
+    assert!(summary.contains("fired data:"), "{summary}");
+    assert!(summary.contains("Rose"), "{summary}");
+}
+
+#[tokio::test]
+async fn fire_synthetic_event_runs_disabled_draft_once() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    let unique_id = format!(
+        "firedraft-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    );
+    core.points_adjust(&unique_id, 1.0)
+        .expect("seeding the viewer works");
+    core.automation.upsert_action(serde_json::json!({
+        "id": "act-draft",
+        "name": "Draft award",
+        "typeId": "core.points",
+        "enabled": true,
+        "config": {"uniqueId": unique_id, "delta": 5}
+    }));
+    // Saved twin is enabled and matches: without twin exclusion the action
+    // would run twice (once stale, once draft).
+    core.automation.upsert_event(serde_json::json!({
+        "id": "evt-draft",
+        "name": "Draft saved",
+        "enabled": true,
+        "trigger": "tiktok.chat",
+        "filters": [],
+        "cooldownMs": 0,
+        "actionIds": ["act-draft"],
+        "runMode": "all"
+    }));
+    // The editor draft: disabled and renamed, as an in-progress edit looks.
+    let draft = serde_json::json!({
+        "id": "evt-draft",
+        "name": "Draft edited",
+        "enabled": false,
+        "trigger": "tiktok.chat",
+        "filters": [],
+        "cooldownMs": 0,
+        "actionIds": ["act-draft"],
+        "runMode": "all"
+    });
+    let result = core
+        .fire_synthetic_event("tiktok.chat", None, Some(&draft))
+        .await;
+    assert_eq!(result["status"], "ok");
+    assert_eq!(result["matched"], 1);
+    assert_eq!(result["draftMatched"], true);
+    let summary = result["summary"].as_str().unwrap_or_default();
+    assert!(summary.contains("Draft edited"), "{summary}");
+    let executions = core
+        .automation
+        .recent_runs()
+        .into_iter()
+        .filter(|run| run.get("actionId").and_then(Value::as_str) == Some("act-draft"))
+        .count();
+    assert_eq!(executions, 1);
+    // Single execution, not twin + draft: 1 seeded + 5, not + 10.
+    let total = core
+        .points
+        .leaderboard(None)
+        .into_iter()
+        .find(|viewer| viewer.get("uniqueId").and_then(Value::as_str) == Some(unique_id.as_str()))
+        .and_then(|viewer| viewer.get("points").and_then(Value::as_f64))
+        .unwrap_or_default();
+    assert_eq!(total, 6.0);
+}
+
+#[tokio::test]
+async fn fire_synthetic_event_names_draft_mismatch() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    let draft = serde_json::json!({
+        "id": "evt-rose-gate",
+        "name": "Rose gate",
+        "enabled": false,
+        "trigger": "tiktok.gift",
+        "filters": [{"path": "event.data.giftName", "operator": "eq", "value": "Galaxy"}],
+        "cooldownMs": 0,
+        "actionIds": [],
+        "runMode": "all"
+    });
+    let result = core
+        .fire_synthetic_event("tiktok.gift", None, Some(&draft))
+        .await;
+    assert_eq!(result["status"], "error");
+    assert_eq!(result["matched"], 0);
+    assert_eq!(result["draftMatched"], false);
+    let summary = result["summary"].as_str().unwrap_or_default();
+    assert!(summary.contains("'Rose gate' did not match"), "{summary}");
+    assert!(summary.contains("fired data:"), "{summary}");
+}
+
+#[tokio::test]
+async fn fire_synthetic_event_refuses_emit_depth_overflow() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    let custom = serde_json::json!({
+        "data": {"emitType": "loop", "depth": 5, "payload": {}}
+    });
+    let result = core
+        .fire_synthetic_event("plugin.emit", Some(&custom), None)
+        .await;
+    assert_eq!(result["status"], "error");
+    assert!(
+        result["summary"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("depth limit"),
+        "{}",
+        result["summary"]
+    );
+}
+
 #[test]
 fn manual_points_adjustment_publishes_points_changed() {
     let emitter = Arc::new(RecordingEmitter::default());
