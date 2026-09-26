@@ -5,15 +5,29 @@ use crate::*;
 
 impl AppCore {
     /// Event the test harness replays for `trigger`: the last live envelope
-    /// of that type when one was observed (real user, real gift, real counts),
-    /// else the declaring plugin's manifest sample, else the per-type sample.
+    /// of that type when it satisfies the record under test (real user, real
+    /// gift, real counts), else the declaring plugin's manifest sample, else
+    /// the per-type sample (which the caller then pins to the record).
     /// Replayed live envelopes keep their payload and get a fresh timestamp.
     /// Returns the event plus where it came from (`live` or `sample`) so the
     /// UI can tell the operator what the test actually ran against.
-    fn test_event_for(&self, trigger: &str) -> (Value, &'static str) {
+    ///
+    /// The compatibility gate matters: without it, one remembered Rose
+    /// would replay forever and a Galaxy draft could never match — every
+    /// probe after the first would show the same stale gift.
+    fn test_event_for(&self, trigger: &str, record: Option<&Value>) -> (Value, &'static str) {
         if let Some(mut event) = self.last_event_for(trigger) {
-            event["timestamp"] = Value::from(now_millis());
-            return (event, "live");
+            let compatible = record.is_none_or(|record| {
+                record
+                    .get("trigger")
+                    .and_then(Value::as_str)
+                    .is_none_or(|record_trigger| record_trigger == trigger)
+                    && self.automation.event_record_matches(record, &event)
+            });
+            if compatible {
+                event["timestamp"] = Value::from(now_millis());
+                return (event, "live");
+            }
         }
         let event = self
             .plugin_event_sample(trigger)
@@ -25,8 +39,9 @@ impl AppCore {
     /// triggers matching events and executes their actions (no dry run).
     /// This is the manual "make it happen" twin of the dry-run harness:
     /// same event resolution (custom JSON, else last live envelope of the
-    /// trigger, else the per-type sample), then real fan-out — domain
-    /// subscribers, enrichment, last-event memory, cooldowns, and execution.
+    /// trigger when it satisfies the draft, else the per-type sample pinned
+    /// to the draft), then real fan-out — domain subscribers, enrichment,
+    /// cooldowns, and execution. Fired events are not stored as last-live.
     ///
     /// `record` is the editor draft being fired: it runs when its trigger
     /// and filters match, even when unsaved, edited-but-unsaved, or
@@ -42,7 +57,7 @@ impl AppCore {
         let started = now_millis();
         let (mut event, source) = match event_override {
             Some(custom) if custom.is_object() => (custom.clone(), "custom"),
-            _ => self.test_event_for(trigger),
+            _ => self.test_event_for(trigger, record),
         };
         // A draft pins its own `eq` filters onto a sample envelope, so firing
         // "giftName = Galaxy" fires a Galaxy with the catalog's id — never
@@ -92,7 +107,9 @@ impl AppCore {
             record.get("trigger").and_then(Value::as_str) == Some(trigger)
                 && self.automation.event_record_matches(record, &enriched)
         });
-        self.remember_automation_event(&enriched);
+        // Deliberately NOT remembered as last-live: a fired synthetic must
+        // never become "live" truth, or the next probe would replay this
+        // fire's gift instead of resolving fresh data for its own draft.
         let matched = saved.len() + usize::from(draft_matched);
         if matched == 0 {
             return fire_no_match(
@@ -139,7 +156,7 @@ impl AppCore {
         trigger: Option<&str>,
     ) -> Value {
         let trigger = trigger.unwrap_or("tiktok.chat");
-        let (event, source) = self.test_event_for(trigger);
+        let (event, source) = self.test_event_for(trigger, None);
         let mut run = self.execute_action(action, &event, None, true).await;
         if let Some(object) = run.as_object_mut() {
             object.insert("eventSource".to_owned(), Value::String(source.to_owned()));
@@ -169,7 +186,7 @@ impl AppCore {
             .get("trigger")
             .and_then(Value::as_str)
             .unwrap_or("tiktok.chat");
-        let (mut event, source) = self.test_event_for(trigger);
+        let (mut event, source) = self.test_event_for(trigger, Some(record));
         let pinned = self.pin_sample_to_record(&mut event, source, record);
 
         if !self.automation.event_record_matches(record, &event) {

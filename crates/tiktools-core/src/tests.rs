@@ -851,6 +851,86 @@ async fn fire_synthetic_event_names_draft_mismatch() {
 }
 
 #[tokio::test]
+async fn fire_prefers_compatible_live_but_falls_back_to_pinned_sample() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    core.remember_automation_event(&serde_json::json!({
+        "id": "live-gift-galaxy",
+        "type": "tiktok.gift",
+        "timestamp": 1,
+        "user": {"uniqueId": "luna_dev", "nickname": "Luna", "secUid": "sec-1", "userId": "7"},
+        "data": {"giftId": "9999", "giftName": "Galaxy", "diamondCount": 1000}
+    }));
+    // Compatible draft replays the real Galaxy, unpinned.
+    let galaxy = serde_json::json!({
+        "id": "evt-galaxy", "name": "Galaxy gate", "enabled": false,
+        "trigger": "tiktok.gift",
+        "filters": [{"path": "event.data.giftName", "operator": "eq", "value": "Galaxy"}],
+        "cooldownMs": 0, "actionIds": [], "runMode": "all"
+    });
+    let result = core
+        .fire_synthetic_event("tiktok.gift", None, Some(&galaxy))
+        .await;
+    assert_eq!(result["eventSource"], "live");
+    assert_eq!(result["draftMatched"], true);
+    assert!(result["pinned"]
+        .as_array()
+        .is_some_and(|pins| pins.is_empty()));
+
+    // Incompatible draft falls back to a sample pinned to Rose instead of
+    // replaying the remembered Galaxy forever.
+    let rose = serde_json::json!({
+        "id": "evt-rose", "name": "Rose gate", "enabled": false,
+        "trigger": "tiktok.gift",
+        "filters": [{"path": "event.data.giftName", "operator": "eq", "value": "Rose"}],
+        "cooldownMs": 0, "actionIds": [], "runMode": "all"
+    });
+    let result = core
+        .fire_synthetic_event("tiktok.gift", None, Some(&rose))
+        .await;
+    assert_eq!(result["eventSource"], "sample");
+    assert_eq!(result["draftMatched"], true);
+    assert_eq!(
+        result["pinned"],
+        serde_json::json!(["event.data.giftName='Rose'"])
+    );
+}
+
+#[tokio::test]
+async fn fired_events_never_become_live_truth() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    let rose = serde_json::json!({
+        "id": "evt-rose", "name": "Rose gate", "enabled": false,
+        "trigger": "tiktok.gift",
+        "filters": [{"path": "event.data.giftName", "operator": "eq", "value": "Rose"}],
+        "cooldownMs": 0, "actionIds": [], "runMode": "all"
+    });
+    let first = core
+        .fire_synthetic_event("tiktok.gift", None, Some(&rose))
+        .await;
+    assert_eq!(first["eventSource"], "sample");
+    assert!(core.last_event_for("tiktok.gift").is_none());
+    // The second probe resolves fresh data for its own draft instead of
+    // replaying the first fire's Rose as fake "live" data.
+    let galaxy = serde_json::json!({
+        "id": "evt-galaxy", "name": "Galaxy gate", "enabled": false,
+        "trigger": "tiktok.gift",
+        "filters": [{"path": "event.data.giftName", "operator": "eq", "value": "Galaxy"}],
+        "cooldownMs": 0, "actionIds": [], "runMode": "all"
+    });
+    let second = core
+        .fire_synthetic_event("tiktok.gift", None, Some(&galaxy))
+        .await;
+    assert_eq!(second["eventSource"], "sample");
+    assert_eq!(second["draftMatched"], true);
+    assert_eq!(
+        second["pinned"],
+        serde_json::json!(["event.data.giftName='Galaxy'"])
+    );
+}
+
+#[tokio::test]
 async fn fire_synthetic_event_refuses_emit_depth_overflow() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter));
