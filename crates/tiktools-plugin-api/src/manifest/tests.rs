@@ -150,6 +150,27 @@ fn omitted_trust_preserves_schema_v2_defaults() {
 }
 
 #[test]
+fn reads_napi_vm_manifest_with_kebab_case_runtime() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"example.plugin","name":"Example","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js","capabilities":[]}"#,
+    )
+    .unwrap();
+    assert_eq!(manifest.runtime, PluginRuntimeKind::NapiVm);
+    assert_eq!(manifest.entry, "dist/index.js");
+    assert_eq!(manifest.trust, PluginTrust::Sandboxed);
+    assert_eq!(manifest.security_model(), PluginSecurityModel::Sandboxed);
+    assert_eq!(manifest.runtime.to_string(), "napi-vm");
+    assert_eq!(
+        PluginRuntimeKind::parse("napi-vm"),
+        Some(PluginRuntimeKind::NapiVm)
+    );
+    let serialized = serde_json::to_value(manifest.runtime).unwrap();
+    assert_eq!(serialized, Value::String("napi-vm".to_owned()));
+    let round_trip: PluginRuntimeKind = serde_json::from_value(serialized).unwrap();
+    assert_eq!(round_trip, PluginRuntimeKind::NapiVm);
+}
+
+#[test]
 fn current_target_is_platform_qualified() {
     assert!(current_target().starts_with(&format!("{}-", current_platform())));
 }
@@ -792,5 +813,456 @@ fn shipped_textintel_example_declares_valid_autocomplete() {
     assert_eq!(manifest.autocomplete.len(), 2);
     for entry in &manifest.autocomplete {
         validate_plugin_autocomplete(&manifest.id, entry).expect("valid contribution");
+    }
+}
+
+#[test]
+fn shipped_hotkeys_example_declares_native_addon() {
+    // Pins the napi-vm hotkeys example to the validator: its id, runtime,
+    // trust, entry, and native declaration must parse, or the reference
+    // native plugin silently stops loading on the next snapshot.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/hotkey-napi-plugin/plugin.json");
+    let input = std::fs::read_to_string(&root).expect("hotkeys manifest");
+    let manifest = PluginManifest::from_json_str(&input).expect("valid manifest");
+    assert_eq!(manifest.id, "hotkeys");
+    assert_eq!(manifest.runtime, PluginRuntimeKind::NapiVm);
+    assert_eq!(manifest.trust, PluginTrust::Trusted);
+    assert_eq!(manifest.native_addons.len(), 1);
+    assert_eq!(manifest.native_addons[0].package, "rdev-node");
+    assert_eq!(manifest.native_addons[0].root, "node_modules/rdev-node");
+    assert_eq!(manifest.native_libs.len(), 1);
+    assert_eq!(manifest.native_libs[0].package, "rdev-node");
+    assert_eq!(manifest.native_libs[0].version, "1.0.5");
+    assert_eq!(manifest.native_libs[0].provider, NativeLibProvider::Npm);
+}
+
+#[test]
+fn parses_simple_native_addon_declarations() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{
+            "schemaVersion": 3,
+            "id": "hotkeys",
+            "name": "Hotkeys",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "apiVersion": 1,
+            "nativeAddons": [
+                {
+                    "package": "rdev-node",
+                    "root": "node_modules/rdev-node"
+                },
+                {
+                    "package": "@scope/other",
+                    "root": "node_modules/@scope/other"
+                }
+            ]
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(manifest.native_addons.len(), 2);
+    assert_eq!(manifest.native_addons[0].package, "rdev-node");
+    assert_eq!(manifest.native_addons[0].root, "node_modules/rdev-node");
+    assert_eq!(manifest.native_addons[1].package, "@scope/other");
+    assert_eq!(manifest.native_addons[1].root, "node_modules/@scope/other");
+    // Absent declarations default to none: the guest stays in the pure VM.
+    let plain = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"xx","name":"X","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js"}"#,
+    )
+    .unwrap();
+    assert!(plain.native_addons.is_empty());
+}
+
+#[test]
+fn rejects_native_addon_traversal_and_bad_names() {
+    for (package, root) in [
+        ("../evil", "node_modules/evil"),
+        ("evil", "../evil"),
+        ("evil", "/absolute"),
+        ("evil", "node_modules/../evil"),
+        ("evil", ""),
+        ("./evil", "node_modules/evil"),
+        ("evil/sub", "node_modules/evil"),
+        ("@scope", "node_modules/evil"),
+        ("@scope/", "node_modules/evil"),
+        ("has space", "node_modules/evil"),
+        ("evil", "node_modules/evil/../sneaky"),
+    ] {
+        let input = serde_json::json!({
+            "schemaVersion": 3,
+            "id": "xx",
+            "name": "X",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "nativeAddons": [{
+                "package": package,
+                "root": root,
+            }],
+        });
+        assert!(
+            matches!(
+                PluginManifest::from_value(input),
+                Err(ManifestError::InvalidField("nativeAddons"))
+            ),
+            "package={package} root={root} should be rejected"
+        );
+    }
+    // Scoped aliases and nested roots are fine.
+    let scoped = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"xx","name":"X","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js","nativeAddons":[{"package":"@scope/pkg","root":"node_modules/@scope/pkg"}]}"#,
+    )
+    .unwrap();
+    assert_eq!(scoped.native_addons[0].package, "@scope/pkg");
+}
+
+#[test]
+fn rejects_native_addon_shape_errors() {
+    let manifest_with = |addons: serde_json::Value| {
+        serde_json::json!({
+            "schemaVersion": 3,
+            "id": "xx",
+            "name": "X",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "nativeAddons": addons,
+        })
+    };
+    // Non-array list, non-object entries, and missing or mistyped fields.
+    for addons in [
+        serde_json::json!("pkg"),
+        serde_json::json!([42]),
+        serde_json::json!([{"package": "pkg"}]),
+        serde_json::json!([{"root": "node_modules/pkg"}]),
+        serde_json::json!([{"package": 42, "root": "node_modules/pkg"}]),
+        serde_json::json!([{"package": "pkg", "root": ["node_modules/pkg"]}]),
+    ] {
+        assert!(
+            matches!(
+                PluginManifest::from_value(manifest_with(addons)),
+                Err(ManifestError::InvalidField("nativeAddons"))
+            ),
+            "malformed nativeAddons should be rejected"
+        );
+    }
+    // Absurd package counts are bounded.
+    let many: Vec<_> = (0..33)
+        .map(|index| {
+            serde_json::json!({"package": format!("pkg{index}"), "root": format!("node_modules/pkg{index}")})
+        })
+        .collect();
+    assert!(matches!(
+        PluginManifest::from_value(manifest_with(serde_json::Value::Array(many))),
+        Err(ManifestError::InvalidField("nativeAddons"))
+    ));
+}
+
+#[test]
+fn rejects_duplicate_native_packages() {
+    let duplicate = serde_json::json!({
+        "schemaVersion": 3,
+        "id": "xx",
+        "name": "X",
+        "version": "1.0.0",
+        "runtime": "napi-vm",
+        "entry": "dist/index.js",
+        "nativeAddons": [
+            {"package": "pkg", "root": "node_modules/a"},
+            {"package": "pkg", "root": "node_modules/b"},
+        ],
+    });
+    assert!(matches!(
+        PluginManifest::from_value(duplicate),
+        Err(ManifestError::InvalidField("nativeAddons"))
+    ));
+}
+
+#[test]
+fn parses_native_lib_declarations_with_npm_default() {
+    let manifest = PluginManifest::from_json_str(
+        r#"{
+            "schemaVersion": 3,
+            "id": "hotkeys",
+            "name": "Hotkeys",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "apiVersion": 1,
+            "nativeLibs": [
+                {"package": "rdev-node", "version": "1.0.1"},
+                {
+                    "package": "other",
+                    "version": "2.0.0-beta.1",
+                    "provider": "npm"
+                },
+                {
+                    "package": "gh-only",
+                    "version": "0.3.0",
+                    "provider": "github",
+                    "repo": "owner/gh-only",
+                    "tag": "v0.3.0",
+                    "binary": "gh-only"
+                }
+            ]
+        }"#,
+    )
+    .unwrap();
+    assert_eq!(manifest.native_libs.len(), 3);
+    assert_eq!(manifest.native_libs[0].package, "rdev-node");
+    assert_eq!(manifest.native_libs[0].version, "1.0.1");
+    assert_eq!(manifest.native_libs[0].provider, NativeLibProvider::Npm);
+    assert_eq!(manifest.native_libs[0].repo, None);
+    assert_eq!(manifest.native_libs[1].provider, NativeLibProvider::Npm);
+    assert_eq!(manifest.native_libs[2].provider, NativeLibProvider::Github);
+    assert_eq!(
+        manifest.native_libs[2].repo.as_deref(),
+        Some("owner/gh-only")
+    );
+    assert_eq!(manifest.native_libs[2].tag.as_deref(), Some("v0.3.0"));
+    assert_eq!(manifest.native_libs[2].binary.as_deref(), Some("gh-only"));
+    // Absent declarations default to none: manually staged trees load.
+    let plain = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"xx","name":"X","version":"1.0.0","runtime":"napi-vm","entry":"dist/index.js"}"#,
+    )
+    .unwrap();
+    assert!(plain.native_libs.is_empty());
+}
+
+#[test]
+fn rejects_native_lib_shape_errors() {
+    let manifest_with = |libs: serde_json::Value| {
+        serde_json::json!({
+            "schemaVersion": 3,
+            "id": "xx",
+            "name": "X",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "nativeLibs": libs,
+        })
+    };
+    // Non-array list, non-object entries, missing or mistyped fields,
+    // version ranges, unknown providers, github entries missing keys,
+    // npm entries carrying github keys, and duplicate packages.
+    let bad = [
+        serde_json::json!("pkg"),
+        serde_json::json!([42]),
+        serde_json::json!([{"package": "pkg"}]),
+        serde_json::json!([{"version": "1.0.0"}]),
+        serde_json::json!([{"package": 42, "version": "1.0.0"}]),
+        serde_json::json!([{"package": "../evil", "version": "1.0.0"}]),
+        serde_json::json!([{"package": "pkg", "version": "^1.0.0"}]),
+        serde_json::json!([{"package": "pkg", "version": "~1.0"}]),
+        serde_json::json!([{"package": "pkg", "version": "latest"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "ftp"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "github"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "github", "repo": "o/p", "tag": "v1"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "github", "repo": "o/p", "tag": "v1.0.0", "binary": "../evil"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "github", "repo": "noslash", "tag": "v1.0.0", "binary": "b"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "provider": "github", "repo": "o/p", "tag": "has space", "binary": "b"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "repo": "o/p"}]),
+        serde_json::json!([{"package": "pkg", "version": "1.0.0", "tag": "v1.0.0"}]),
+        serde_json::json!([
+            {"package": "pkg", "version": "1.0.0"},
+            {"package": "pkg", "version": "2.0.0"},
+        ]),
+    ];
+    for libs in bad {
+        assert!(
+            matches!(
+                PluginManifest::from_value(manifest_with(libs)),
+                Err(ManifestError::InvalidField("nativeLibs"))
+            ),
+            "malformed nativeLibs should be rejected"
+        );
+    }
+    // Absurd library counts are bounded.
+    let many: Vec<_> = (0..33)
+        .map(|index| serde_json::json!({"package": format!("pkg{index}"), "version": "1.0.0"}))
+        .collect();
+    assert!(matches!(
+        PluginManifest::from_value(manifest_with(serde_json::Value::Array(many))),
+        Err(ManifestError::InvalidField("nativeLibs"))
+    ));
+    // Only napi-vm manifests may declare fetch sources.
+    let foreign = serde_json::json!({
+        "schemaVersion": 3,
+        "id": "xx",
+        "name": "X",
+        "version": "1.0.0",
+        "runtime": "process",
+        "entry": "plugin",
+        "nativeLibs": [{"package": "pkg", "version": "1.0.0"}],
+    });
+    assert!(matches!(
+        PluginManifest::from_value(foreign),
+        Err(ManifestError::InvalidField("nativeLibs"))
+    ));
+}
+
+static NATIVE_SELECT_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Scratch package root with `files` written into it. Unique per call so
+/// selection tests can run in parallel.
+fn native_package_fixture(files: &[&str]) -> std::path::PathBuf {
+    let id = NATIVE_SELECT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+    let root = std::env::temp_dir().join(format!(
+        "tiktools-native-select-{}-{id}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    for file in files {
+        let path = root.join(file);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        std::fs::write(path, b"fixture").unwrap();
+    }
+    root
+}
+
+#[test]
+fn select_host_native_binary_picks_exact_host_file() {
+    let target = current_napi_target();
+    let platform = current_platform();
+    let mut files = vec![
+        format!("node-rdev.{target}.node"),
+        // A platform that can never be this host.
+        "node-rdev.fuchsia-arm64.node".to_owned(),
+        // Same infix, wrong extension: never a binary.
+        format!("node-rdev.{target}.node.txt"),
+        format!("node-rdev.{target}.js"),
+    ];
+    // Foreign real targets: every platform but this host's.
+    for (candidate, triple) in [
+        ("win32", "node-rdev.win32-x64-msvc.node"),
+        ("darwin", "node-rdev.darwin-arm64.node"),
+        ("linux", "node-rdev.linux-x64-gnu.node"),
+    ] {
+        if platform != candidate {
+            files.push(triple.to_owned());
+        }
+    }
+    // The same-platform libc twin ships but must never be selected.
+    let twin = if target.ends_with("-gnu") {
+        Some(target.replace("-gnu", "-musl"))
+    } else if target.ends_with("-musl") {
+        Some(target.replace("-musl", "-gnu"))
+    } else {
+        None
+    };
+    if let Some(twin) = &twin {
+        files.push(format!("node-rdev.{twin}.node"));
+    }
+    let root = native_package_fixture(&files.iter().map(String::as_str).collect::<Vec<_>>());
+    // A host-named binary in a subdirectory is not top-level: ignored.
+    std::fs::create_dir_all(root.join("nested")).unwrap();
+    std::fs::write(
+        root.join(format!("nested/node-rdev.{target}.node")),
+        b"fixture",
+    )
+    .unwrap();
+
+    let selected = select_host_native_binary(&root).unwrap();
+    assert_eq!(
+        selected,
+        root.join(format!("node-rdev.{target}.node")),
+        "must select exactly the host file"
+    );
+
+    std::fs::remove_dir_all(&root).ok();
+}
+
+#[test]
+fn select_host_native_binary_rejects_missing_and_multiple() {
+    let target = current_napi_target();
+
+    // Only foreign binaries: nothing to authorize.
+    let foreign = native_package_fixture(&["node-rdev.fuchsia-arm64.node", "index.js"]);
+    let error = select_host_native_binary(&foreign).unwrap_err();
+    assert!(
+        matches!(error, NativeBinarySelectError::NoHostBinary { .. }),
+        "{error}"
+    );
+    assert!(error.to_string().contains(&target), "{error}");
+
+    // Two host-matching binaries: refusing to guess.
+    let double = native_package_fixture(&[
+        &format!("node-rdev.{target}.node"),
+        &format!("other.{target}.node"),
+    ]);
+    let error = select_host_native_binary(&double).unwrap_err();
+    assert!(
+        matches!(error, NativeBinarySelectError::MultipleHostBinaries { .. }),
+        "{error}"
+    );
+
+    // Not a directory at all.
+    let missing = std::env::temp_dir().join(format!(
+        "tiktools-native-select-missing-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&missing);
+    let error = select_host_native_binary(&missing).unwrap_err();
+    assert!(
+        matches!(error, NativeBinarySelectError::NotADirectory(_)),
+        "{error}"
+    );
+
+    std::fs::remove_dir_all(&foreign).ok();
+    std::fs::remove_dir_all(&double).ok();
+}
+
+#[test]
+fn native_addons_rejected_on_non_napi_vm_runtimes() {
+    for runtime in ["native", "process", "wasm", "declarative"] {
+        let manifest = serde_json::json!({
+            "schemaVersion": 3,
+            "id": "xx",
+            "name": "X",
+            "version": "1.0.0",
+            "runtime": runtime,
+            "entry": "dist/index.js",
+            "nativeAddons": [{
+                "package": "pkg",
+                "root": "node_modules/pkg",
+            }],
+        });
+        assert!(
+            matches!(
+                PluginManifest::from_value(manifest),
+                Err(ManifestError::InvalidField("nativeAddons"))
+            ),
+            "runtime {runtime} must reject nativeAddons"
+        );
+    }
+}
+
+#[test]
+fn host_target_reports_real_libc_and_napi_spelling() {
+    // Compile-time libc fact: musl builds report musl, all other Linux
+    // builds report gnu.
+    assert_eq!(is_musl(), cfg!(target_env = "musl"));
+    if current_platform() == "linux" {
+        assert_eq!(
+            current_target(),
+            format!(
+                "linux-{}-{}",
+                current_arch(),
+                if is_musl() { "musl" } else { "gnu" }
+            )
+        );
+    }
+    // The napi-rs spelling matches artifact filenames (`<binary>.<target>.node`),
+    // including un-suffixed darwin triples.
+    let napi = current_napi_target();
+    assert!(!napi.is_empty(), "napi target must not be empty");
+    if current_platform() == "darwin" {
+        assert_eq!(napi, format!("darwin-{}", current_arch()));
+    } else {
+        assert_eq!(napi, current_target());
     }
 }

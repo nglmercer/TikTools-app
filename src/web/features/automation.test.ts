@@ -108,3 +108,146 @@ describe('useAutomation live updates', () => {
     expect(automation.hotkeyStatus.value).toEqual(status);
   });
 });
+
+describe('useAutomation fire event', () => {
+  function fired(result: unknown): { client: ControlClient; calls: Array<{ method: string; params: unknown }> } {
+    const { client } = fakeControl();
+    const calls: Array<{ method: string; params: unknown }> = [];
+    client.call = ((method: string, params: unknown) => {
+      calls.push({ method, params });
+      if (method === 'automation.fire') return Promise.resolve(result);
+      return Promise.reject(new Error(`unexpected call ${method}`));
+    }) as ControlClient['call'];
+    return { client, calls };
+  }
+
+  async function flush(times = 4): Promise<void> {
+    for (let i = 0; i < times; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  const event = {
+    schemaVersion: 1 as const,
+    id: 'evt-1',
+    name: 'Galaxy gate',
+    enabled: true,
+    trigger: 'tiktok.gift',
+    filters: [],
+    cooldownMs: 0,
+    cooldownScope: 'user' as const,
+    actionIds: [],
+    runMode: 'all' as const,
+  };
+
+  test('fires the trigger and surfaces the outcome as a test-panel entry', async () => {
+    const { client, calls } = fired({
+      trigger: 'tiktok.gift',
+      eventSource: 'live',
+      pinned: [],
+      matched: 2,
+      draftMatched: true,
+      status: 'ok',
+      summary: 'Fired tiktok.gift: 2 events matched, actions executed.',
+      durationMs: 3,
+    });
+    const automation = useAutomation(client);
+    automation.handleFireEvent(event);
+    await flush();
+    expect(calls).toEqual([
+      { method: 'automation.fire', params: { trigger: 'tiktok.gift', record: event } },
+    ]);
+    expect(automation.behaviorError.value).toBe('');
+    expect(automation.behaviorTestRuns.value).toHaveLength(1);
+    expect(automation.behaviorTestRuns.value[0]).toMatchObject({
+      status: 'ok',
+      actionName: 'Galaxy gate',
+      summary: 'Fired tiktok.gift: 2 events matched, actions executed.',
+      eventSource: 'live',
+    });
+  });
+
+  test('zero-match fire surfaces as an error entry without touching the error bar', async () => {
+    const { client } = fired({
+      trigger: 'tiktok.gift',
+      eventSource: 'sample',
+      pinned: [],
+      matched: 0,
+      draftMatched: false,
+      status: 'error',
+      summary: 'Fired tiktok.gift: no enabled event matched.',
+      durationMs: 1,
+    });
+    const automation = useAutomation(client);
+    automation.handleFireEvent(event);
+    await flush();
+    expect(automation.behaviorError.value).toBe('');
+    expect(automation.behaviorTestRuns.value[0]).toMatchObject({
+      status: 'error',
+      error: 'Fired tiktok.gift: no enabled event matched.',
+    });
+  });
+
+  test('transport failure surfaces in the error bar', async () => {
+    const { client } = fakeControl();
+    const automation = useAutomation(client);
+    automation.handleFireEvent(event);
+    await flush();
+    expect(automation.behaviorError.value).toBe('not stubbed');
+    expect(automation.behaviorTestRuns.value).toEqual([]);
+  });
+});
+
+describe('useAutomation hotkey access request', () => {
+  function stubbed(result: unknown): {
+    client: ControlClient;
+    calls: string[];
+  } {
+    const { client } = fakeControl();
+    const calls: string[] = [];
+    client.call = ((method: string) => {
+      calls.push(method);
+      if (method === 'system.requestInputAccess') return Promise.resolve(result);
+      if (method === 'automation.runs') return Promise.resolve({ runs: [] });
+      return Promise.resolve({ actions: [], events: [], plugins: [], actionTypes: [], translations: {} });
+    }) as ControlClient['call'];
+    return { client, calls };
+  }
+
+  async function flush(times = 4): Promise<void> {
+    for (let i = 0; i < times; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+
+  test('granted access refreshes and clears the pending flag', async () => {
+    const { client, calls } = stubbed({ granted: true, message: 'granted' });
+    const automation = useAutomation(client);
+    automation.handleRequestHotkeyAccess();
+    expect(automation.hotkeyAccessPending.value).toBe(true);
+    await flush();
+    expect(calls.filter((method) => method === 'system.requestInputAccess')).toHaveLength(1);
+    expect(calls).toContain('automation.snapshot');
+    expect(automation.hotkeyAccessPending.value).toBe(false);
+    expect(automation.behaviorError.value).toBe('');
+  });
+
+  test('denied access surfaces the host message without refreshing', async () => {
+    const { client, calls } = stubbed({ granted: false, message: 'dismissed' });
+    const automation = useAutomation(client);
+    automation.handleRequestHotkeyAccess();
+    await flush();
+    expect(automation.hotkeyAccessPending.value).toBe(false);
+    expect(automation.behaviorError.value).toBe('dismissed');
+    expect(calls).not.toContain('automation.snapshot');
+  });
+
+  test('double clicks issue a single request', async () => {
+    const { client, calls } = stubbed({ granted: true, message: 'granted' });
+    const automation = useAutomation(client);
+    automation.handleRequestHotkeyAccess();
+    automation.handleRequestHotkeyAccess();
+    await flush();
+    expect(calls.filter((method) => method === 'system.requestInputAccess')).toHaveLength(1);
+  });
+});

@@ -16,13 +16,18 @@ pub use processor::{
     PluginProcessorDescriptor, ProcessorFailureMode, ProcessorInputDescriptor, ProcessorStage,
 };
 pub use types::{
-    PluginManifest, PluginRuntimeKind, PluginSecurityModel, PluginTrust,
-    DEFAULT_PLUGIN_ACTION_TIMEOUT_MS, DEFAULT_PLUGIN_PROCESSOR_TIMEOUT_MS,
-    MAX_PLUGIN_ACTION_TIMEOUT_MS, MAX_PLUGIN_PROCESSOR_TIMEOUT_MS,
+    NativeAddonDeclaration, NativeLibDeclaration, NativeLibProvider, PluginManifest,
+    PluginRuntimeKind, PluginSecurityModel, PluginTrust, DEFAULT_PLUGIN_ACTION_TIMEOUT_MS,
+    DEFAULT_PLUGIN_PROCESSOR_TIMEOUT_MS, MAX_PLUGIN_ACTION_TIMEOUT_MS,
+    MAX_PLUGIN_PROCESSOR_TIMEOUT_MS,
 };
 pub use validation::{
-    current_platform, current_target, is_safe_relative_path, is_valid_event_subscription,
-    is_valid_event_type, is_valid_plugin_id, validate_action_type, validate_declarative_action,
-    validate_event_type, validate_http_config, validate_plugin_autocomplete, validate_plugin_page,
-    validate_plugin_template, ManifestError,
+    current_arch, current_napi_target, current_platform, current_target, declared_event_types,
+    is_known_napi_target, is_musl, is_safe_relative_path, is_valid_event_subscription,
+    is_valid_event_type, is_valid_native_lib_binary, is_valid_native_lib_repo,
+    is_valid_native_lib_tag, is_valid_native_lib_version, is_valid_native_package_name,
+    is_valid_plugin_id, select_host_native_binary, validate_action_type,
+    validate_declarative_action, validate_event_type, validate_http_config,
+    validate_plugin_autocomplete, validate_plugin_page, validate_plugin_template, ManifestError,
+    NativeBinarySelectError, NAPI_TARGETS,
 };

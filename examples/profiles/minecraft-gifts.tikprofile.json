@@ -1,0 +1,264 @@
+{
+  "profileVersion": 1,
+  "id": "minecraft-gifts",
+  "name": "Minecraft gifts",
+  "description": "TikTok LIVE gifts drive Minecraft commands through the local CommandAPI (http://127.0.0.1:8080/api/chat). Roses give apples, Galaxies give diamonds, TNT gives TNT, GG grants speed, Hearts heal, and follows post a welcome message. Every rule fires one batched `messages` request: the reward command plus an on-screen title and subtitle announcing the sender. Override commandHost/commandPort once for the whole profile.",
+  "params": {
+    "commandHost": "127.0.0.1",
+    "commandPort": 8080
+  },
+  "templates": [
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-rose-apple",
+        "title": "Rose gives apples",
+        "description": "Every Rose sends one batched request: /give @p minecraft:apple <count> plus an on-screen ROSE! title and thanks subtitle.",
+        "icon": "gift",
+        "params": {
+          "type": "object",
+          "properties": {
+            "commandHost": { "type": "string", "title": "CommandAPI host", "default": "127.0.0.1" },
+            "commandPort": { "type": "number", "title": "CommandAPI port", "default": 8080 }
+          }
+        },
+        "actions": [
+          {
+            "name": "Give apples for Roses",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"messages\": [\"/give @p minecraft:apple {{ event.data.repeatCount }}\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks {{ event.user.nickname }}!\\\",\\\"color\\\":\\\"white\\\"}\", \"/title @a title {\\\"text\\\":\\\"ROSE!\\\",\\\"color\\\":\\\"red\\\",\\\"bold\\\":true}\"]}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft Rose",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "Rose" }],
+          "cooldownMs": 0,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-galaxy-diamond",
+        "title": "Galaxy gives diamonds",
+        "description": "Every Galaxy sends one batched request: /give @p minecraft:diamond <count> plus an on-screen GALAXY! title and thanks subtitle.",
+        "icon": "gift",
+        "params": {
+          "type": "object",
+          "properties": {
+            "commandHost": { "type": "string", "title": "CommandAPI host", "default": "127.0.0.1" },
+            "commandPort": { "type": "number", "title": "CommandAPI port", "default": 8080 }
+          }
+        },
+        "actions": [
+          {
+            "name": "Give diamonds for Galaxies",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"messages\": [\"/give @p minecraft:diamond {{ event.data.repeatCount }}\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks {{ event.user.nickname }}!\\\",\\\"color\\\":\\\"white\\\"}\", \"/title @a title {\\\"text\\\":\\\"GALAXY!\\\",\\\"color\\\":\\\"aqua\\\",\\\"bold\\\":true}\"]}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft Galaxy",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "Galaxy" }],
+          "cooldownMs": 0,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-tnt",
+        "title": "TNT gives TNT",
+        "description": "Every TNT gift sends one batched request: /give @p minecraft:tnt <count> plus an on-screen TNT! title and thanks subtitle.",
+        "icon": "gift",
+        "params": {
+          "type": "object",
+          "properties": {
+            "commandHost": { "type": "string", "title": "CommandAPI host", "default": "127.0.0.1" },
+            "commandPort": { "type": "number", "title": "CommandAPI port", "default": 8080 }
+          }
+        },
+        "actions": [
+          {
+            "name": "Give TNT for TNT gifts",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"messages\": [\"/give @p minecraft:tnt {{ event.data.repeatCount }}\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks {{ event.user.nickname }}!\\\",\\\"color\\\":\\\"white\\\"}\", \"/title @a title {\\\"text\\\":\\\"TNT!\\\",\\\"color\\\":\\\"gold\\\",\\\"bold\\\":true}\"]}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft TNT",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "TNT" }],
+          "cooldownMs": 0,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-gg-speed",
+        "title": "GG grants speed",
+        "description": "Every GG sends one batched request: a 30s speed effect plus an on-screen GG! title and thanks subtitle.",
+        "icon": "live",
+        "params": {
+          "type": "object",
+          "properties": {
+            "commandHost": { "type": "string", "title": "CommandAPI host", "default": "127.0.0.1" },
+            "commandPort": { "type": "number", "title": "CommandAPI port", "default": 8080 }
+          }
+        },
+        "actions": [
+          {
+            "name": "Grant speed for GG",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"messages\": [\"/effect give @p minecraft:speed 30 1\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks {{ event.user.nickname }}!\\\",\\\"color\\\":\\\"white\\\"}\", \"/title @a title {\\\"text\\\":\\\"GG!\\\",\\\"color\\\":\\\"green\\\",\\\"bold\\\":true}\"]}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft GG",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "GG" }],
+          "cooldownMs": 5000,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-heart-heal",
+        "title": "Heart heals",
+        "description": "Every Heart sends one batched request: instant health plus an on-screen HEAL! title and thanks subtitle.",
+        "icon": "heart",
+        "params": {
+          "type": "object",
+          "properties": {
+            "commandHost": { "type": "string", "title": "CommandAPI host", "default": "127.0.0.1" },
+            "commandPort": { "type": "number", "title": "CommandAPI port", "default": 8080 }
+          }
+        },
+        "actions": [
+          {
+            "name": "Heal for Hearts",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"messages\": [\"/effect give @p minecraft:instant_health 1 1\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks {{ event.user.nickname }}!\\\",\\\"color\\\":\\\"white\\\"}\", \"/title @a title {\\\"text\\\":\\\"HEAL!\\\",\\\"color\\\":\\\"light_purple\\\",\\\"bold\\\":true}\"]}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft Heart",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "Heart" }],
+          "cooldownMs": 5000,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-follow-welcome",
+        "title": "Follow welcome message",
+        "description": "Every follow sends one batched request: a welcome chat message plus an on-screen NEW FOLLOWER title and subtitle.",
+        "icon": "follow",
+        "params": {
+          "type": "object",
+          "properties": {
+            "commandHost": { "type": "string", "title": "CommandAPI host", "default": "127.0.0.1" },
+            "commandPort": { "type": "number", "title": "CommandAPI port", "default": 8080 }
+          }
+        },
+        "actions": [
+          {
+            "name": "Welcome new followers",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ params.commandHost }}:{{ params.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"messages\": [\"Welcome {{ event.user.nickname }} to the stream!\", \"/title @a times 10 50 10\", \"/title @a subtitle {\\\"text\\\":\\\"Thanks for following!\\\",\\\"color\\\":\\\"gray\\\"}\", \"/title @a title {\\\"text\\\":\\\"NEW FOLLOWER\\\",\\\"color\\\":\\\"yellow\\\",\\\"bold\\\":true}\"]}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft follow",
+          "enabled": true,
+          "trigger": "tiktok.follow",
+          "filters": [],
+          "cooldownMs": 0,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    }
+  ]
+}

@@ -10,7 +10,10 @@ use std::{
 };
 
 use sha2::{Digest, Sha256};
-use tiktools_plugin_api::manifest::{is_safe_relative_path, PluginManifest};
+use tiktools_plugin_api::{
+    manifest::{is_safe_relative_path, PluginManifest},
+    PluginRuntimeKind,
+};
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 const USAGE: &str =
@@ -128,7 +131,12 @@ fn package(options: Options) -> Result<(), Box<dyn Error>> {
         return Err(invalid("entry must be a regular, non-symlink file"));
     }
     let entry_bytes = fs::read(&options.entry)?;
-    let staged_entry = staged_entry_name(&manifest.entry, options.target.as_deref());
+    let executable = matches!(
+        manifest.runtime,
+        tiktools_plugin_api::PluginRuntimeKind::Native
+            | tiktools_plugin_api::PluginRuntimeKind::Process
+    );
+    let staged_entry = staged_entry_name(&manifest.entry, options.target.as_deref(), executable);
 
     let mut files = BTreeMap::new();
     let mut manifest_value = manifest_value;
@@ -151,10 +159,30 @@ fn package(options: Options) -> Result<(), Box<dyn Error>> {
     insert_file(&mut files, "plugin.json", manifest_bytes)?;
     insert_file(&mut files, &staged_entry, entry_bytes)?;
 
-    for directory in ["assets", "dist", "locales"] {
+    // napi-vm plugins resolve bundled npm packages from `node_modules`
+    // at runtime, including napi-rs `.node` binaries. Whatever the
+    // staging flow placed there ships verbatim: the host selects and
+    // authorizes its exact target file at load, so packaging must never
+    // filter by platform or strip native binaries.
+    let mut directories = vec!["assets", "dist", "locales"];
+    if manifest.runtime == PluginRuntimeKind::NapiVm {
+        directories.push("node_modules");
+    }
+    for directory in directories {
         let source = package_directory.join(directory);
         if source.exists() {
-            collect_directory(&source, directory, &mut files)?;
+            collect_directory(&source, directory, &staged_entry, &mut files)?;
+        }
+    }
+    // A declared native library ships its lockfile alongside the staged
+    // tree: when the tree already carries the install host's binary the
+    // installer ignores it, and when it does not, the installer replays
+    // the pins to fetch exactly that binary. Other runtimes never see
+    // this file even when it is present on disk.
+    if manifest.runtime == PluginRuntimeKind::NapiVm && !manifest.native_libs.is_empty() {
+        let lockfile = package_directory.join("native-libs.lock.json");
+        if lockfile.is_file() && !fs::symlink_metadata(&lockfile)?.file_type().is_symlink() {
+            insert_file(&mut files, "native-libs.lock.json", fs::read(&lockfile)?)?;
         }
     }
 
@@ -184,6 +212,7 @@ fn package(options: Options) -> Result<(), Box<dyn Error>> {
 fn collect_directory(
     directory: &Path,
     archive_prefix: &str,
+    staged_entry: &str,
     files: &mut BTreeMap<String, Vec<u8>>,
 ) -> Result<(), Box<dyn Error>> {
     for entry in fs::read_dir(directory)? {
@@ -205,7 +234,7 @@ fn collect_directory(
                 archive_prefix,
                 relative.to_string_lossy().replace('\\', "/")
             );
-            collect_directory(&path, &prefix, files)?;
+            collect_directory(&path, &prefix, staged_entry, files)?;
         } else if metadata.is_file() {
             let relative = path
                 .strip_prefix(directory)
@@ -215,6 +244,12 @@ fn collect_directory(
                 archive_prefix,
                 relative.to_string_lossy().replace('\\', "/")
             );
+            // The `--entry` bytes are the source of truth for the staged
+            // entry path (napi-vm entries live under `dist/`), so the
+            // on-disk copy is skipped instead of colliding with them.
+            if archive_path == staged_entry {
+                continue;
+            }
             insert_file(files, &archive_path, fs::read(path)?)?;
         } else {
             return Err(invalid(format!(
@@ -256,9 +291,14 @@ fn write_archive(
     Ok(())
 }
 
-fn staged_entry_name(entry: &str, target: Option<&str>) -> String {
+fn staged_entry_name(entry: &str, target: Option<&str>, executable: bool) -> String {
     // The executable suffix derives from the requested packaged target, not
     // the packager's own build platform, so cross-target builds keep `.exe`.
+    // Script entries (napi-vm guests, wasm) never take the suffix: only
+    // compiled native/process executables do.
+    if !executable {
+        return entry.to_owned();
+    }
     let wants_exe = match target {
         Some(value) => value.starts_with("win32-"),
         None => cfg!(target_os = "windows"),
@@ -277,6 +317,10 @@ fn enforce_target_rules(manifest: &PluginManifest, _target: &str) -> Result<(), 
         PluginRuntimeKind::Wasm => Err(invalid(
             "--target must not be used for wasm plugins; keep targets empty for portable WASM",
         )),
+        PluginRuntimeKind::NapiVm if manifest.native_addons.is_empty() => Err(invalid(
+            "--target must not be used for pure-JavaScript napi-vm plugins; keep targets empty for portable JavaScript",
+        )),
+        PluginRuntimeKind::NapiVm => Ok(()),
         PluginRuntimeKind::Declarative => Err(invalid(
             "--target must not be used for declarative plugins; they ship no executable entry",
         )),
@@ -329,17 +373,25 @@ mod tests {
     #[test]
     fn staged_entry_suffix_follows_requested_target() {
         assert_eq!(
-            staged_entry_name("plugin", Some("win32-x64-msvc")),
+            staged_entry_name("plugin", Some("win32-x64-msvc"), true),
             "plugin.exe"
         );
         assert_eq!(
-            staged_entry_name("plugin.exe", Some("win32-x64-msvc")),
+            staged_entry_name("plugin.exe", Some("win32-x64-msvc"), true),
             "plugin.exe"
         );
-        assert_eq!(staged_entry_name("plugin", Some("linux-x64-gnu")), "plugin");
         assert_eq!(
-            staged_entry_name("plugin", Some("darwin-arm64-darwin")),
+            staged_entry_name("plugin", Some("linux-x64-gnu"), true),
             "plugin"
+        );
+        assert_eq!(
+            staged_entry_name("plugin", Some("darwin-arm64-darwin"), true),
+            "plugin"
+        );
+        // Script entries never take the suffix, on any target.
+        assert_eq!(
+            staged_entry_name("dist/index.js", Some("win32-x64-msvc"), false),
+            "dist/index.js"
         );
     }
 
@@ -441,5 +493,229 @@ mod tests {
         assert!(result.is_err());
 
         let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn package_keeps_node_modules_and_all_native_targets_for_napi_vm() {
+        let directory = unique_dir("napi-vm-native");
+        fs::create_dir_all(&directory).unwrap();
+        let manifest = serde_json::json!({
+            "schemaVersion": 3,
+            "id": "native-test",
+            "name": "NativeTest",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "protocolVersion": 1,
+        });
+        let manifest_path = directory.join("plugin.json");
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        // The on-disk entry is stale on purpose: `--entry` bytes win.
+        fs::create_dir_all(directory.join("dist")).unwrap();
+        fs::write(directory.join("dist/index.js"), b"stale").unwrap();
+        let entry_path = directory.join("built-index.js");
+        fs::write(&entry_path, b"fresh").unwrap();
+        // Bundled napi-rs layout: loader plus every platform binary.
+        let package_dir = directory.join("node_modules/rdev-node");
+        fs::create_dir_all(&package_dir).unwrap();
+        fs::write(package_dir.join("index.js"), b"loader").unwrap();
+        for name in [
+            "node-rdev.win32-x64-msvc.node",
+            "node-rdev.linux-x64-gnu.node",
+            "node-rdev.darwin-arm64.node",
+        ] {
+            fs::write(package_dir.join(name), format!("binary:{name}")).unwrap();
+        }
+
+        let output = directory.join("native-test-1.0.0.plugin");
+        package(Options {
+            manifest: manifest_path,
+            entry: entry_path,
+            output: output.clone(),
+            target: None,
+        })
+        .unwrap();
+
+        // No platform is filtered: every `.node` ships in one archive.
+        for name in [
+            "node-rdev.win32-x64-msvc.node",
+            "node-rdev.linux-x64-gnu.node",
+            "node-rdev.darwin-arm64.node",
+        ] {
+            let bytes = read_archive_entry(
+                &output,
+                &format!("native-test/node_modules/rdev-node/{name}"),
+            );
+            assert_eq!(bytes, format!("binary:{name}").into_bytes());
+        }
+        assert_eq!(
+            read_archive_entry(&output, "native-test/node_modules/rdev-node/index.js"),
+            b"loader"
+        );
+        // The staged entry carries the `--entry` bytes, not the stale copy.
+        assert_eq!(
+            read_archive_entry(&output, "native-test/dist/index.js"),
+            b"fresh"
+        );
+        // Checksums cover the native tree.
+        let checksums: serde_json::Value =
+            serde_json::from_slice(&read_archive_entry(&output, "native-test/checksums.json"))
+                .unwrap();
+        let object = checksums.as_object().unwrap();
+        assert!(object.contains_key("node_modules/rdev-node/index.js"));
+        assert!(object.contains_key("node_modules/rdev-node/node-rdev.linux-x64-gnu.node"));
+        assert!(object.contains_key("dist/index.js"));
+
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn package_ignores_node_modules_for_other_runtimes() {
+        let directory = unique_dir("process-no-nodemodules");
+        fs::create_dir_all(&directory).unwrap();
+        let manifest_path = directory.join("plugin.json");
+        fs::write(
+            &manifest_path,
+            serde_json::to_vec_pretty(&test_manifest("process")).unwrap(),
+        )
+        .unwrap();
+        let entry_path = directory.join("built-entry");
+        fs::write(&entry_path, b"binary").unwrap();
+        // A stray node_modules tree must not leak into process archives.
+        let package_dir = directory.join("node_modules/rdev-node");
+        fs::create_dir_all(&package_dir).unwrap();
+        fs::write(package_dir.join("index.js"), b"loader").unwrap();
+
+        let output = directory.join("out.plugin");
+        package(Options {
+            manifest: manifest_path,
+            entry: entry_path,
+            output: output.clone(),
+            target: Some("linux-x64-gnu".to_owned()),
+        })
+        .unwrap();
+
+        let file = File::open(&output).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        let names: Vec<String> = (0..archive.len())
+            .map(|index| archive.by_index(index).unwrap().name().to_owned())
+            .collect();
+        assert!(
+            names.iter().all(|name| !name.contains("node_modules")),
+            "{names:?}"
+        );
+
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn package_ships_lockfile_for_declared_native_libs() {
+        let directory = unique_dir("napi-lockfile");
+        fs::create_dir_all(&directory).unwrap();
+        let manifest = serde_json::json!({
+            "schemaVersion": 3,
+            "id": "native-test",
+            "name": "Native Test",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "nativeAddons": [{"package": "rdev-node", "root": "node_modules/rdev-node"}],
+            "nativeLibs": [{"package": "rdev-node", "version": "1.0.1"}],
+        });
+        fs::write(
+            directory.join("plugin.json"),
+            serde_json::to_vec_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        fs::create_dir_all(directory.join("dist")).unwrap();
+        let entry_path = directory.join("dist/index.js");
+        fs::write(&entry_path, b"fresh").unwrap();
+        fs::write(
+            directory.join("native-libs.lock.json"),
+            br#"{"version":1,"packages":{}}"#,
+        )
+        .unwrap();
+
+        let output = directory.join("out.plugin");
+        package(Options {
+            manifest: directory.join("plugin.json"),
+            entry: entry_path,
+            output: output.clone(),
+            target: Some("linux-x64-gnu".to_owned()),
+        })
+        .unwrap();
+
+        assert_eq!(
+            read_archive_entry(&output, "native-test/native-libs.lock.json"),
+            br#"{"version":1,"packages":{}}"#
+        );
+        let checksums: serde_json::Value =
+            serde_json::from_slice(&read_archive_entry(&output, "native-test/checksums.json"))
+                .unwrap();
+        assert!(checksums
+            .as_object()
+            .unwrap()
+            .contains_key("native-libs.lock.json"));
+
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn package_ignores_lockfile_without_declarations_or_napi_vm() {
+        // Same lockfile on disk, but neither manifest declares native
+        // libraries: nothing ships.
+        for (name, manifest) in [
+            (
+                "plain-napi",
+                serde_json::json!({
+                    "schemaVersion": 3,
+                    "id": "plain",
+                    "name": "Plain",
+                    "version": "1.0.0",
+                    "runtime": "napi-vm",
+                    "entry": "dist/index.js",
+                }),
+            ),
+            ("plain-process", test_manifest("process")),
+        ] {
+            let directory = unique_dir(name);
+            fs::create_dir_all(&directory).unwrap();
+            fs::write(
+                directory.join("plugin.json"),
+                serde_json::to_vec_pretty(&manifest).unwrap(),
+            )
+            .unwrap();
+            let entry_path = directory.join("entry");
+            fs::write(&entry_path, b"entry").unwrap();
+            fs::write(
+                directory.join("native-libs.lock.json"),
+                br#"{"version":1,"packages":{}}"#,
+            )
+            .unwrap();
+            let output = directory.join("out.plugin");
+            package(Options {
+                manifest: directory.join("plugin.json"),
+                entry: entry_path,
+                output: output.clone(),
+                target: None,
+            })
+            .unwrap();
+            let file = File::open(&output).unwrap();
+            let mut archive = zip::ZipArchive::new(file).unwrap();
+            let names: Vec<String> = (0..archive.len())
+                .map(|index| archive.by_index(index).unwrap().name().to_owned())
+                .collect();
+            assert!(
+                names
+                    .iter()
+                    .all(|name| !name.contains("native-libs.lock.json")),
+                "{names:?}"
+            );
+            let _ = fs::remove_dir_all(&directory);
+        }
     }
 }

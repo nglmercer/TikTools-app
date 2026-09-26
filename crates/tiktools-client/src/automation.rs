@@ -3,9 +3,10 @@
 use super::TikToolsClient;
 use serde_json::Value;
 use tiktools_control_api::modules::automation::{
-    AutomationContextResult, AutomationCreateParams, AutomationDeleteResult, AutomationGetParams,
-    AutomationListParams, AutomationListResult, AutomationNodesResult, AutomationRunsResult,
-    AutomationScriptParams, AutomationTestParams, AutomationUpdateParams, ScriptAnalysisResult,
+    AutomationContextParams, AutomationContextResult, AutomationCreateParams,
+    AutomationDeleteResult, AutomationFireParams, AutomationGetParams, AutomationListParams,
+    AutomationListResult, AutomationNodesResult, AutomationRunsResult, AutomationScriptParams,
+    AutomationTestParams, AutomationUpdateParams, ScriptAnalysisResult,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
@@ -23,6 +24,7 @@ pub(crate) const METHODS: &[&str] = &[
     AUTOMATION_DISABLE,
     AUTOMATION_CONTEXT,
     AUTOMATION_TEST,
+    AUTOMATION_FIRE,
     AUTOMATION_NODES_LIST,
     AUTOMATION_SCRIPT_ANALYZE,
     AUTOMATION_RUNS,
@@ -38,6 +40,7 @@ const AUTOMATION_ENABLE: &str = "automation.enable";
 const AUTOMATION_DISABLE: &str = "automation.disable";
 const AUTOMATION_CONTEXT: &str = "automation.context";
 const AUTOMATION_TEST: &str = "automation.test";
+const AUTOMATION_FIRE: &str = "automation.fire";
 const AUTOMATION_NODES_LIST: &str = "automation.nodes.list";
 const AUTOMATION_SCRIPT_ANALYZE: &str = "automation.script.analyze";
 const AUTOMATION_RUNS: &str = "automation.runs";
@@ -100,7 +103,17 @@ impl TikToolsClient {
     /// Last automation event observed, for context panels and previews.
     /// RPC method `automation.context`.
     pub async fn automation_context(&self) -> Result<AutomationContextResult, ClientError> {
-        self.call(AUTOMATION_CONTEXT, Empty::default()).await
+        self.automation_context_for(None).await
+    }
+    /// Last envelope of one event type (`tiktok.gift`, ...), for emulating
+    /// that trigger against real data. `None` returns the global last event.
+    /// RPC method `automation.context`.
+    pub async fn automation_context_for(
+        &self,
+        event_type: Option<String>,
+    ) -> Result<AutomationContextResult, ClientError> {
+        self.call(AUTOMATION_CONTEXT, AutomationContextParams { event_type })
+            .await
     }
     /// Dry-runs a saved (id) or inline (record) event or action.
     /// RPC method `automation.test`.
@@ -109,6 +122,15 @@ impl TikToolsClient {
         params: AutomationTestParams,
     ) -> Result<Value, ClientError> {
         self.call(AUTOMATION_TEST, params).await
+    }
+    /// Fires a synthetic event through the live pipeline: really triggers
+    /// matching events and executes their actions (no dry run).
+    /// RPC method `automation.fire`.
+    pub async fn automation_fire(
+        &self,
+        params: AutomationFireParams,
+    ) -> Result<Value, ClientError> {
+        self.call(AUTOMATION_FIRE, params).await
     }
     /// Built-in node catalog for the workflow graph editor.
     /// RPC method `automation.nodes.list`.

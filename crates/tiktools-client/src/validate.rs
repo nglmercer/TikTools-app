@@ -13,6 +13,9 @@ use tiktools_control_api::modules::automation::{
 };
 use tiktools_control_api::modules::creators::{CreatorGetParams, CreatorsRecentParams};
 use tiktools_control_api::modules::gifts::GiftDebugParams;
+use tiktools_control_api::modules::globals::{
+    GlobalsDeleteParams, GlobalsGetParams, GlobalsSetParams,
+};
 use tiktools_control_api::modules::live::{LiveConnectParams, LivePickParams};
 use tiktools_control_api::modules::media::{MediaPickParams, MediaPlayParams, MediaValidateParams};
 use tiktools_control_api::modules::plugins::{
@@ -85,6 +88,16 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "creators.history.clear" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "gifts.list" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "gifts.debug" => GiftDebugParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "globals.list" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
+        "globals.get" => GlobalsGetParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "globals.set" => GlobalsSetParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "globals.delete" => GlobalsDeleteParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
         "live.connect" => LiveConnectParams::deserialize(params)
@@ -182,6 +195,7 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "system.doctor" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "system.shutdown" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "system.ping" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
+        "system.requestInputAccess" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "widgets.status" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "widgets.copyObsUrl" => WidgetsCopyParams::deserialize(params)
             .map(|_| ())

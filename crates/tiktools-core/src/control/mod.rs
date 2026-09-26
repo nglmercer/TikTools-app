@@ -9,6 +9,7 @@
 
 mod analytics;
 mod automation;
+mod globals;
 mod helpers;
 mod live;
 mod media;
@@ -20,6 +21,7 @@ mod system;
 mod widgets;
 mod workflows;
 
+pub use crate::input_access::InputAccessResult;
 pub use analytics::GiftDebugResult;
 pub use automation::{AutomationKind, ScriptAnalysisResult};
 #[cfg(any(test, feature = "native-tiktok"))]

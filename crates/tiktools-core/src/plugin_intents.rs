@@ -15,6 +15,7 @@ impl AppCore {
         logs: &mut Vec<String>,
         test: bool,
     ) -> Result<Vec<String>, String> {
+        let globals = self.automation_globals();
         let mut parts = Vec::new();
         for intent in intents {
             match intent {
@@ -36,12 +37,18 @@ impl AppCore {
                     let config = config
                         .as_object()
                         .ok_or_else(|| "audio intent must be an object".to_owned())?;
-                    parts.push(self.execute_audio_action(config, event, logs, test).await?);
+                    parts.push(
+                        self.execute_audio_action(config, event, &globals, logs, test)
+                            .await?,
+                    );
                 }
                 tiktools_plugin_sdk::HostIntent::Emit(intent) => {
                     let event_type = normalize_emit_type(&intent.event_type)?;
-                    let payload =
-                        Value::Object(render_json_map(&intent.data, event).into_iter().collect());
+                    let payload = Value::Object(
+                        render_json_map(&intent.data, event, &globals)
+                            .into_iter()
+                            .collect(),
+                    );
                     if let Some(typed) =
                         self.plugin_typed_event(&plugin.manifest, &event_type, &payload, event)?
                     {

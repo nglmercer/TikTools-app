@@ -3,6 +3,7 @@ pub mod app;
 pub mod automation;
 pub mod creators;
 pub mod gifts;
+pub mod globals;
 pub mod live;
 pub mod media;
 pub mod plugins;

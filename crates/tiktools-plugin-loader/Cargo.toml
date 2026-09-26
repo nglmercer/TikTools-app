@@ -7,17 +7,49 @@ rust-version.workspace = true
 description = "Runtime discovery and loading for TikTools plugins"
 
 [features]
-default = ["native-plugins", "plugin-install"]
+default = ["native-plugins", "plugin-install", "napi-vm-node-api", "native-providers"]
 native-plugins = ["dep:libloading"]
 wasm-plugins = []
 plugin-install = ["dep:sha2", "dep:zip"]
+# Declarative native-library fetch at install time: when an archive
+# declares `nativeLibs` plus a lockfile but lacks the install host's
+# `.node` binary, the installer downloads exactly that binary from its
+# pinned provider. Compiled in by default, but never active without a
+# manifest declaration and never used when the tree is already complete.
+native-providers = ["tiktools-plugin-sdk/providers"]
+# In-process `.node` addons for napi-vm plugins (napi-rs). Compiled in by
+# default, but never active without an explicit per-plugin manifest
+# declaration: with no `nativeAddons` entry the guest stays inside the
+# pure-Rust VM with no native code. Native addons are trusted code, never
+# sandboxed; each one must be separately allowlisted with a SHA-256 digest
+# from trusted host metadata.
+napi-vm-node-api = ["napi-vm/node-api-host"]
 
 [dependencies]
 tiktools-plugin-api = { path = "../tiktools-plugin-api" }
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", optional = true }
+napi-vm.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+# Required (not optional): the Tokio→worker call bridge is async end to
+# end — Tokio senders plus oneshot responses — so plugin calls no longer
+# spend a `spawn_blocking` thread per invocation waiting on a blocking
+# queue. Worker threads receive through `blocking_recv`, which needs no
+# runtime context.
+tokio = { workspace = true }
 tracing.workspace = true
 libloading = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
+
+[dev-dependencies]
+# Integration tests hash staged `.node` files and craft `.plugin` archives
+# regardless of which optional features are enabled.
+sha2.workspace = true
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk" }
+zip.workspace = true
+# Installer backfill tests serve npm tarballs from a stub origin.
+tar.workspace = true
+flate2.workspace = true
+base64.workspace = true

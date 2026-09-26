@@ -3,8 +3,8 @@
 use serde_json::Value;
 use tiktools_client::{ClientError, TikToolsClient};
 use tiktools_control_api::modules::automation::{
-    AutomationCreateParams, AutomationGetParams, AutomationListParams, AutomationTestParams,
-    AutomationUpdateParams,
+    AutomationCreateParams, AutomationFireParams, AutomationGetParams, AutomationListParams,
+    AutomationTestParams, AutomationUpdateParams,
 };
 
 use super::args::{flag_value, parse_json_value, positional, required_record, split_first};
@@ -14,7 +14,9 @@ pub enum Command {
     List {
         kind: String,
     },
-    Context,
+    Context {
+        event_type: Option<String>,
+    },
     Get {
         id: String,
         kind: String,
@@ -46,6 +48,11 @@ pub enum Command {
         kind: String,
         trigger: Option<String>,
     },
+    Fire {
+        trigger: String,
+        event: Option<Value>,
+        record: Option<Value>,
+    },
     ModerationPenalty {
         points: f64,
     },
@@ -58,7 +65,9 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
         "list" => Ok(Command::List {
             kind: flag_value(rest, "--kind").unwrap_or_else(|| "all".to_owned()),
         }),
-        "context" => Ok(Command::Context),
+        "context" => Ok(Command::Context {
+            event_type: flag_value(rest, "--event-type"),
+        }),
         "get" => Ok(Command::Get {
             id: positional(rest, 0, "automation get <id> [--kind k]")?,
             kind: kind(),
@@ -101,6 +110,23 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
                 trigger: flag_value(rest, "--trigger"),
             })
         }
+        "fire" => {
+            let trigger = flag_value(rest, "--trigger").ok_or_else(|| {
+                "automation fire needs --trigger <event-type> (e.g. --trigger tiktok.gift)"
+                    .to_owned()
+            })?;
+            let event = flag_value(rest, "--event")
+                .map(|raw| parse_json_value(&raw))
+                .transpose()?;
+            let record = flag_value(rest, "--record")
+                .map(|raw| parse_json_value(&raw))
+                .transpose()?;
+            Ok(Command::Fire {
+                trigger,
+                event,
+                record,
+            })
+        }
         "moderation-penalty" => {
             let raw = flag_value(rest, "--points").ok_or_else(|| {
                 "automation moderation-penalty needs --points <delta> (e.g. --points -10)"
@@ -123,7 +149,9 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                 .automation_list(AutomationListParams { kind: Some(kind) })
                 .await?,
         ),
-        Command::Context => result_value(client.automation_context().await?),
+        Command::Context { event_type } => {
+            result_value(client.automation_context_for(event_type).await?)
+        }
         Command::Get { id, kind } => result_value(
             client
                 .automation_get(AutomationGetParams {
@@ -185,6 +213,19 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                     record,
                     kind: Some(kind),
                     trigger,
+                })
+                .await?,
+        ),
+        Command::Fire {
+            trigger,
+            event,
+            record,
+        } => result_value(
+            client
+                .automation_fire(AutomationFireParams {
+                    trigger,
+                    event,
+                    record,
                 })
                 .await?,
         ),

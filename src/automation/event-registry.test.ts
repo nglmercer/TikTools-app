@@ -65,7 +65,7 @@ describe('event registry', () => {
 
   test('gift sample keeps the values condition tests rely on', () => {
     const sample = sampleEventFor('tiktok.gift');
-    expect(matchesFilter({ path: 'event.data.giftName', operator: 'eq', value: 'Rosa' }, sample)).toBe(true);
+    expect(matchesFilter({ path: 'event.data.giftName', operator: 'eq', value: 'Rose' }, sample)).toBe(true);
     expect(matchesFilter({ path: 'event.data.diamondCount', operator: 'gte', value: '1' }, sample)).toBe(true);
   });
 

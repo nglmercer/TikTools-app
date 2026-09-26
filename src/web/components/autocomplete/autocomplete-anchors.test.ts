@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 
-import { caretAnchorFromMarker, resolveAnchorRect } from './autocomplete-anchors.ts';
+import { caretAnchorFromMarker, resolveAnchorRect, resolveDesiredPopupWidth } from './autocomplete-anchors.ts';
+import { AUTOCOMPLETE_PREFERRED_WIDTH } from './autocomplete-position.ts';
 
 test('mirror metrics become a thin viewport caret rectangle', () => {
   const anchor = caretAnchorFromMarker({
@@ -80,6 +81,16 @@ test('caret mode prefers the caret rect and falls back to the field box', () => 
   expect(resolveAnchorRect({ mode: 'caret', field, caret })).toBe(caret);
   expect(resolveAnchorRect({ mode: 'caret', field, caret: null })).toBe(field);
   expect(resolveAnchorRect({ mode: 'caret', field: null, caret: null })).toBeNull();
+});
+
+test('caret popovers size from the preferred width, not the zero-width point', () => {
+  expect(resolveDesiredPopupWidth({ anchorWidth: 2, mode: 'caret' })).toBe(AUTOCOMPLETE_PREFERRED_WIDTH);
+  expect(resolveDesiredPopupWidth({ anchorWidth: 2, mode: 'caret', preferredWidth: 420 })).toBe(420);
+});
+
+test('field popovers match their control width unless overridden', () => {
+  expect(resolveDesiredPopupWidth({ anchorWidth: 320, mode: 'field' })).toBe(320);
+  expect(resolveDesiredPopupWidth({ anchorWidth: 320, mode: 'field', preferredWidth: 420 })).toBe(420);
 });
 
 test('field mode always uses the control box', () => {

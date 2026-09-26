@@ -29,6 +29,18 @@ export interface AutomationRunsResult {
   runs: BehaviorRun[];
 }
 
+export interface AutomationFireResult {
+  trigger: string;
+  eventSource: 'live' | 'sample' | 'custom';
+  /** `eq` filters pinned onto a sample envelope (`path='value'`). */
+  pinned: string[];
+  matched: number;
+  draftMatched: boolean;
+  status: 'ok' | 'error';
+  summary: string;
+  durationMs: number;
+}
+
 export interface LastHotkeyEvent {
   key: string;
   modifiers: string;
@@ -50,6 +62,7 @@ export function useAutomation(control: ControlClient) {
   const behaviorError = ref('');
   const hotkeyStatus = ref<HotkeyStatusData | null>(null);
   const lastHotkeyEvent = ref<LastHotkeyEvent | null>(null);
+  const hotkeyAccessPending = ref(false);
 
   /** Plugin configuration pages from the behavior snapshot, validated. */
   const pluginPages: ComputedRef<PluginPageDescriptor[]> = computed(() =>
@@ -228,6 +241,107 @@ export function useAutomation(control: ControlClient) {
   const handleTestEvent = (event: LiveEvent): void => {
     testRecord('event', event);
   };
+  /**
+   * Fires the editor draft through the live pipeline: the draft itself runs
+   * when its trigger and filters match (even unsaved or disabled), other
+   * matching events run too, and every run streams into the runs list. The
+   * fire outcome itself surfaces as a synthetic entry in the test panel
+   * (never as a persisted run), so a zero-match fire reads as feedback.
+   */
+  const handleFireEvent = (event: LiveEvent): void => {
+    clearBehaviorError();
+    behaviorTestRuns.value = [];
+    void control
+      .call<AutomationFireResult>('automation.fire', { trigger: event.trigger, record: event })
+      .then((result) => {
+        behaviorTestRuns.value = [
+          {
+            id: `fire-${Date.now()}`,
+            at: Date.now(),
+            status: result.status,
+            eventName: event.trigger,
+            actionName: event.name,
+            summary: result.summary,
+            durationMs: result.durationMs,
+            test: true,
+            logs: [],
+            eventSource: result.eventSource,
+            ...(result.status === 'error' ? { error: result.summary } : {}),
+          },
+        ];
+      })
+      .catch((failure: unknown) => {
+        behaviorError.value = errorMessage(failure);
+      });
+  };
+
+  /**
+   * Saves one record and refreshes, awaiting the whole round trip so
+   * callers can sequence follow-ups (profile adoption). Throws on failure.
+   */
+  const saveRecordAndRefresh = async (
+    kind: AutomationKind,
+    record: LiveAction | LiveEvent,
+  ): Promise<void> => {
+    behaviorError.value = '';
+    try {
+      await saveRecord(kind, record);
+    } catch (failure) {
+      behaviorError.value = errorMessage(failure);
+      throw failure;
+    }
+    await refresh();
+  };
+
+  /** Applies a rule template: creates its actions first, then the linked event. */
+  const handleApplyRuleTemplate = (actions: LiveAction[], event: LiveEvent): void => {
+    void mutate(async () => {
+      for (const action of actions) {
+        await control.call('automation.create', { kind: 'action', record: action });
+      }
+      await control.call('automation.create', { kind: 'event', record: event });
+    });
+  };
+
+  /**
+   * Creates every entry of an applied profile (actions first, then each
+   * linked event), throwing on the first failure without refreshing: the
+   * caller registers the pack and refreshes once. No rollback, matching
+   * the CLI profile import.
+   */
+  const createProfileRecords = async (
+    entries: Array<{ actions: LiveAction[]; event: LiveEvent }>,
+  ): Promise<void> => {
+    for (const entry of entries) {
+      for (const action of entry.actions) {
+        await control.call('automation.create', { kind: 'action', record: action });
+      }
+      await control.call('automation.create', { kind: 'event', record: entry.event });
+    }
+  };
+
+  /** One-click seat access: the host probes, then polkit-prompts at most
+   * once. Guarded against double clicks; the polkit dialog can sit open
+   * a while, so the button stays disabled until the call settles. A
+   * dismissed prompt is an Ok result with `granted: false`, not an
+   * error, so the message surfaces explicitly instead of vanishing. */
+  const handleRequestHotkeyAccess = (): void => {
+    if (hotkeyAccessPending.value) return;
+    hotkeyAccessPending.value = true;
+    clearBehaviorError();
+    void control
+      .call<{ granted: boolean; message: string }>('system.requestInputAccess', {})
+      .then((result) => {
+        if (result.granted) return refresh();
+        behaviorError.value = result.message || 'Access was not granted.';
+      })
+      .catch((failure: unknown) => {
+        behaviorError.value = errorMessage(failure);
+      })
+      .finally(() => {
+        hotkeyAccessPending.value = false;
+      });
+  };
 
   const handleAnalyzeScript = (
     nodeId: string,
@@ -249,6 +363,8 @@ export function useAutomation(control: ControlClient) {
     behaviorError,
     hotkeyStatus,
     lastHotkeyEvent,
+    hotkeyAccessPending,
+    handleRequestHotkeyAccess,
     pluginPages,
     pluginUis,
     clearBehaviorError,
@@ -260,7 +376,11 @@ export function useAutomation(control: ControlClient) {
     handleDeleteEvent,
     handleSetEventEnabled,
     handleTestEvent,
+    handleFireEvent,
     handleAnalyzeScript,
+    handleApplyRuleTemplate,
+    createProfileRecords,
+    saveRecordAndRefresh,
     refresh,
   };
 }

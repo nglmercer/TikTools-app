@@ -12,10 +12,23 @@ impl AppCore {
     }
 
     pub(crate) fn remember_automation_event(&self, event: &serde_json::Value) {
+        let now = now_millis();
         *recover_rwlock_write(&self.automation_state.last_event, "automation event") =
             Some(event.clone());
         *recover_rwlock_write(&self.automation_state.last_event_at, "automation timestamp") =
-            Some(now_millis());
+            Some(now);
+        if let Some(event_type) = event.get("type").and_then(Value::as_str) {
+            recover_rwlock_write(
+                &self.automation_state.last_events,
+                "automation event by type",
+            )
+            .insert(event_type.to_owned(), event.clone());
+            recover_rwlock_write(
+                &self.automation_state.last_events_at,
+                "automation timestamp by type",
+            )
+            .insert(event_type.to_owned(), now);
+        }
         if let Some(event_type) = event.get("type").and_then(Value::as_str) {
             // Any `<namespace>.status` plugin event carries listener health:
             // publish it on the generic status topic. The legacy
@@ -71,6 +84,30 @@ impl AppCore {
             recover_rwlock_read(&self.automation_state.last_event, "automation event").clone();
         let captured_at =
             *recover_rwlock_read(&self.automation_state.last_event_at, "automation timestamp");
+        (event, captured_at)
+    }
+
+    /// Last observed envelope of one event type, if any. The test harness
+    /// prefers this over the generic sample so emulation replays real data.
+    pub(crate) fn last_event_for(&self, event_type: &str) -> Option<Value> {
+        recover_rwlock_read(
+            &self.automation_state.last_events,
+            "automation event by type",
+        )
+        .get(event_type)
+        .cloned()
+    }
+
+    /// Per-type variant of [`AppCore::automation_context`]: the last envelope
+    /// of `event_type` plus when it was captured.
+    pub fn automation_context_for(&self, event_type: &str) -> (Option<Value>, Option<u64>) {
+        let event = self.last_event_for(event_type);
+        let captured_at = recover_rwlock_read(
+            &self.automation_state.last_events_at,
+            "automation timestamp by type",
+        )
+        .get(event_type)
+        .copied();
         (event, captured_at)
     }
 }

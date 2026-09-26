@@ -4,6 +4,7 @@ import type { ActionTypeDefinition } from '../../../automation/behavior/types.ts
 import { getTemplateSuggestions, type TemplateSuggestionScope } from '../node-editor/template-suggestions.ts';
 import type { AutocompleteItem } from '../autocomplete/index.ts';
 import { resolveAutocompleteSources as mergeAutocompleteSources, suggestionsFromObject } from '../autocomplete/index.ts';
+import { globalSuggestionItems } from '../../features/globals.ts';
 import { i18nText, type Locale } from '../../i18n.ts';
 
 export type FieldOption = { value: string; label: string };
@@ -29,6 +30,8 @@ export function resolveAutocompleteSources(args: {
   eventType?: AutomationEventType;
   lastEvent?: AutomationEvent;
   templateSuggestions?: AutocompleteItem[];
+  /** Runtime globals merged as `globals.*` rows (every field can use them). */
+  globals?: Record<string, string>;
 }): (name: string, template: boolean) => AutocompleteItem[] {
   return (name: string, template: boolean): AutocompleteItem[] => {
     const {
@@ -38,6 +41,7 @@ export function resolveAutocompleteSources(args: {
       eventType,
       lastEvent,
       templateSuggestions = [],
+      globals,
     } = args;
     let contextItems: AutocompleteItem[] = [];
     if (suggestionContext !== undefined) {
@@ -51,7 +55,8 @@ export function resolveAutocompleteSources(args: {
     }
     const scope = suggestionScopes[name] ?? defaultScopeFor(name, template);
     const scoped = getTemplateSuggestions(eventType, locale, lastEvent, scope, undefined);
-    return mergeAutocompleteSources(scoped, contextItems, templateSuggestions);
+    const globalItems = globals ? globalSuggestionItems(globals, locale) : undefined;
+    return mergeAutocompleteSources(scoped, contextItems, templateSuggestions, globalItems);
   };
 }
 export function schemaForAction(type: ActionTypeDefinition): { schema: JsonObject; uiHints?: JsonObject } {

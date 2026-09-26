@@ -117,6 +117,29 @@ fn next_startup_wake(now: Instant, deadline: Instant, interval: std::time::Durat
     std::cmp::min(deadline, now + interval)
 }
 
+/// Host action for an OS window focus transition. WebKitGTK child windows do
+/// not always track window focus on X11: without an explicit re-focus, a
+/// field can keep its `:focus` visuals while keyboard focus (caret, typing)
+/// never returns to the page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowFocusAction {
+    /// Move keyboard focus into the page.
+    FocusWebview,
+    /// Keep DOM focus untouched (browser parity); the transition is only logged.
+    Preserve,
+}
+
+/// Pure policy behind the `WindowEvent::Focused` arms: focus gains move
+/// keyboard focus into the WebView, focus losses preserve DOM focus so the
+/// user's place (caret, selection, focused field) survives window switches.
+pub fn window_focus_action(gained: bool) -> WindowFocusAction {
+    if gained {
+        WindowFocusAction::FocusWebview
+    } else {
+        WindowFocusAction::Preserve
+    }
+}
+
 pub fn build_webview(builder: WebViewBuilder<'_>, window: &Window) -> wry::Result<WebView> {
     // `build_as_child` is supported by Wry on Windows, macOS, and Linux/X11.
     // Keeping this call in one platform seam leaves a later Linux Tao/GTK
@@ -171,6 +194,16 @@ mod tests {
         let deadline = now + std::time::Duration::from_millis(20);
         let wake = next_startup_wake(now, deadline, std::time::Duration::from_millis(50));
         assert_eq!(wake, deadline);
+    }
+
+    #[test]
+    fn window_focus_gain_moves_keyboard_focus_into_the_webview() {
+        assert_eq!(window_focus_action(true), WindowFocusAction::FocusWebview);
+    }
+
+    #[test]
+    fn window_focus_loss_preserves_dom_focus() {
+        assert_eq!(window_focus_action(false), WindowFocusAction::Preserve);
     }
 
     #[test]

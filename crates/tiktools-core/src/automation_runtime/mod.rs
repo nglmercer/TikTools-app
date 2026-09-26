@@ -4,13 +4,16 @@
 //! each file owns one responsibility: [`dispatch`](self) holds the test
 //! harnesses and live event fan-out, [`execution`](self) the timeout wrapper
 //! plus run recording and core action-type dispatch, [`media_actions`](self)
-//! local audio playback, and [`http_actions`](self) HTTP actions with the
-//! hardened sender shared by declarative plugin fetches.
+//! local audio playback, [`http_actions`](self) HTTP actions with the
+//! hardened sender shared by declarative plugin fetches, and
+//! [`samples`](self) the per-type sample events the test harness falls
+//! back to when no live event of that type has been seen yet.
 
 mod dispatch;
 mod execution;
 mod http_actions;
 mod media_actions;
+pub(crate) mod samples;
 #[cfg(test)]
 mod tests;
 

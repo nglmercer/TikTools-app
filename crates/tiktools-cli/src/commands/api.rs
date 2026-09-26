@@ -424,6 +424,7 @@ const SMOKE_CALLS: &[(&str, &str)] = &[
     ("gifts.debug", "{}"),
     ("live.status", "{}"),
     ("app.state.get", "{}"),
+    ("globals.list", "{}"),
 ];
 
 /// Default per-call budget for verification. The host budget is 150s;

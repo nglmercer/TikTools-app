@@ -60,7 +60,7 @@ Usage:
 
 Options:
   --plugin <name>   Example directory or manifest id (repeatable)
-  --all             Build every example with a plugin.json + Cargo.toml
+  --all             Build every example with a plugin.json
   --target <triple> Rust target triple (default: host target)
   --host            Build for the host target explicitly
   --out <dir>       Output directory (default: dist/plugins)
@@ -144,6 +144,130 @@ if (!buildAll && selected.length === 0) {
 if (!outDirectory.trim()) fail('output directory must not be empty');
 outDirectory = resolve(repositoryRoot, outDirectory);
 
+type NativeAddonDeclaration = {
+  package?: unknown;
+  root?: unknown;
+};
+
+/// Whether every declared package has a sibling source checkout
+/// beside the repository (a directory carrying its `package.json`).
+async function siblingSourcesPresent(declarations: NativeAddonDeclaration[]): Promise<boolean> {
+  for (const declaration of declarations) {
+    if (typeof declaration.package !== 'string') return false;
+    if (!(await exists(join(repositoryRoot, '..', declaration.package, 'package.json')))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/// Compiles a napi-vm example guest with the repository tsc, stages
+/// each declared native package, and returns the built entry path for
+/// the packager. Staging prefers a sibling source checkout on host
+/// builds (fast, offline, local iteration); otherwise a declared
+/// `nativeLibs` entry plus its committed lockfile is fetched from its
+/// pinned provider — which also unlocks cross-target builds, since the
+/// provider serves every target's binary from one manifest.
+async function buildNapiVmExample(
+  directory: string,
+  manifestPath: string,
+  manifest: ExampleManifest,
+  sourceEntry: string,
+): Promise<string> {
+  const tsconfigPath = join(directory, 'tsconfig.json');
+  if (!(await exists(tsconfigPath))) {
+    fail(`${manifestPath} is napi-vm but has no tsconfig.json`);
+  }
+  runInherit('node', [
+    join(repositoryRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
+    '-p',
+    tsconfigPath,
+  ]);
+  const nativeAddons = Array.isArray(manifest['nativeAddons'])
+    ? (manifest['nativeAddons'] as NativeAddonDeclaration[])
+    : [];
+  if (nativeAddons.length > 0) {
+    const addons = nativeAddons.map((declaration) => {
+      if (typeof declaration.package !== 'string' || typeof declaration.root !== 'string') {
+        fail(`${manifestPath} has a malformed nativeAddons entry`);
+      }
+      return declaration as { package: string; root: string };
+    });
+    runInherit('node', [
+      cargoWrapper,
+      'build',
+      ...(profile === 'release' ? ['--release'] : []),
+      '-p',
+      'tiktools-plugin-sdk',
+      '--features',
+      'providers',
+      '--bin',
+      'tiktools-plugin-stage-native',
+    ]);
+    // The staging tool always runs on this host, even for
+    // cross-target builds, so the suffix follows the host OS.
+    const stageBinary =
+      join(repositoryRoot, 'target', profile, 'tiktools-plugin-stage-native') +
+      (detectHostTarget().os === 'windows' ? '.exe' : '');
+    const crossTarget = selectedTarget.rustTarget !== detectHostTarget().rustTarget;
+    const nativeLibs = manifest['nativeLibs'];
+    const lockfilePath = join(directory, 'native-libs.lock.json');
+    const canFetch =
+      Array.isArray(nativeLibs) && nativeLibs.length > 0 && (await exists(lockfilePath));
+    if (!crossTarget && (await siblingSourcesPresent(addons))) {
+      for (const declaration of addons) {
+        runInherit(stageBinary, [
+          '--package',
+          declaration.package,
+          '--source',
+          join(repositoryRoot, '..', declaration.package),
+          '--plugin-dir',
+          directory,
+          '--root',
+          declaration.root,
+          '--overwrite',
+        ]);
+      }
+    } else if (canFetch) {
+      runInherit(stageBinary, [
+        '--provider',
+        'all',
+        '--manifest',
+        manifestPath,
+        '--plugin-dir',
+        directory,
+        '--lockfile',
+        lockfilePath,
+        '--target',
+        selectedTarget.napiTarget,
+        '--overwrite',
+      ]);
+    } else if (crossTarget) {
+      fail(
+        `${manifestPath} is napi-vm: cross-target builds need per-target native binaries (${selectedTarget.rustTarget} requested on a ${detectHostTarget().rustTarget} host); declare nativeLibs in the manifest and pin native-libs.lock.json with stage-native --pin`,
+      );
+    } else {
+      const missing = (
+        await Promise.all(
+          addons.map(async (declaration) =>
+            !(await exists(join(repositoryRoot, '..', declaration.package, 'package.json')))
+              ? declaration.package
+              : null,
+          ),
+        )
+      ).filter((name): name is string => name !== null);
+      fail(
+        `${manifestPath} needs the ${missing.join(', ')} source checkout beside the repository, or a nativeLibs declaration with native-libs.lock.json to fetch from`,
+      );
+    }
+  }
+  const builtEntryPath = join(directory, sourceEntry);
+  if (!(await exists(builtEntryPath))) {
+    fail(`tsc built ${manifest.id}, but its declared entry was not found at ${builtEntryPath}`);
+  }
+  return builtEntryPath;
+}
+
 type DiscoveredExample = { directory: string; manifestPath: string; manifest: ExampleManifest };
 
 const discovered: DiscoveredExample[] = [];
@@ -151,8 +275,11 @@ for (const entry of await readdir(examplesRoot, { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;
   const directory = join(examplesRoot, entry.name);
   const manifestPath = join(directory, 'plugin.json');
-  if (!(await exists(manifestPath)) || !(await exists(join(directory, 'Cargo.toml')))) continue;
+  if (!(await exists(manifestPath))) continue;
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ExampleManifest;
+  // napi-vm examples ship TypeScript + a staged node_modules tree instead
+  // of a Cargo project; every other runtime needs its Cargo.toml here.
+  if (manifest.runtime !== 'napi-vm' && !(await exists(join(directory, 'Cargo.toml')))) continue;
   discovered.push({ directory, manifestPath, manifest });
 }
 
@@ -176,7 +303,7 @@ if (targets.length === 0) fail('no plugins found under examples/');
 
 await mkdir(outDirectory, { recursive: true });
 
-const VALID_RUNTIMES = new Set(['native', 'process', 'wasm']);
+const VALID_RUNTIMES = new Set(['native', 'process', 'wasm', 'napi-vm']);
 
 const built: string[] = [];
 for (const { directory, manifestPath, manifest } of targets) {
@@ -205,32 +332,44 @@ for (const { directory, manifestPath, manifest } of targets) {
   }
 
   // WASM stays target-independent unless it genuinely needs host WASI;
-  // compiled native/process entries are platform-specific.
+  // compiled native/process entries are platform-specific, as are napi-vm
+  // archives (each carries its target's staged `.node` binaries).
   const packageTarget = runtime === 'wasm' ? null : selectedTarget.pluginTarget;
 
   console.log(
     `Building plugin ${id} (${profile}, ${packageTarget ?? 'target-independent'})...`,
   );
-  runInherit('node', [
-    cargoWrapper,
-    'build',
-    ...(profile === 'release' ? ['--release'] : []),
-    '--target',
-    selectedTarget.rustTarget,
-    '--manifest-path',
-    join(directory, 'Cargo.toml'),
-  ]);
+  let builtEntryPath: string;
+  if (runtime === 'napi-vm') {
+    builtEntryPath = await buildNapiVmExample(directory, manifestPath, manifest, sourceEntry);
+  } else {
+    runInherit('node', [
+      cargoWrapper,
+      'build',
+      ...(profile === 'release' ? ['--release'] : []),
+      '--target',
+      selectedTarget.rustTarget,
+      '--manifest-path',
+      join(directory, 'Cargo.toml'),
+    ]);
 
-  // The executable suffix derives from the requested build target, never
-  // from process.platform, so explicit cross-target builds resolve the
-  // correct Cargo output (e.g. demo.exe on a Linux host).
-  const builtEntryName =
-    selectedTarget.os === 'windows' && !basename(sourceEntry).toLowerCase().endsWith('.exe')
-      ? `${sourceEntry}.exe`
-      : sourceEntry;
-  const builtEntryPath = join(directory, 'target', selectedTarget.rustTarget, profile, builtEntryName);
-  if (!(await exists(builtEntryPath))) {
-    fail(`cargo built ${id}, but its declared entry was not found at ${builtEntryPath}`);
+    // The executable suffix derives from the requested build target, never
+    // from process.platform, so explicit cross-target builds resolve the
+    // correct Cargo output (e.g. demo.exe on a Linux host).
+    const builtEntryName =
+      selectedTarget.os === 'windows' && !basename(sourceEntry).toLowerCase().endsWith('.exe')
+        ? `${sourceEntry}.exe`
+        : sourceEntry;
+    builtEntryPath = join(
+      directory,
+      'target',
+      selectedTarget.rustTarget,
+      profile,
+      builtEntryName,
+    );
+    if (!(await exists(builtEntryPath))) {
+      fail(`cargo built ${id}, but its declared entry was not found at ${builtEntryPath}`);
+    }
   }
 
   const archiveName = artifactFileName(id, version, packageTarget);

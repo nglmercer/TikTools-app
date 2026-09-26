@@ -76,6 +76,9 @@ async function stageExample(exampleDirectory: string): Promise<boolean> {
     }
     return true;
   }
+  if (runtime === 'napi-vm') {
+    return await stageNapiVmExample(exampleDirectory, manifestPath, manifest, id);
+  }
   if (!(await exists(cargoManifestPath))) {
     return false;
   }
@@ -122,6 +125,125 @@ async function stageExample(exampleDirectory: string): Promise<boolean> {
   );
 
   for (const directory of ['assets', 'dist', 'locales']) {
+    const sourceDirectory = join(exampleDirectory, directory);
+    if (await exists(sourceDirectory)) {
+      await cp(sourceDirectory, join(packageDirectory, directory), { recursive: true });
+    }
+  }
+  return true;
+}
+
+type NativeAddonDeclaration = {
+  package?: unknown;
+  root?: unknown;
+};
+
+/// Stages a napi-vm example: compiles the guest with the repository tsc,
+/// stages each declared native package, and copies manifest + dist +
+/// node_modules into `.dev-plugins/<id>`. Native sources prefer
+/// `<root>/../<package>` (the sibling-checkout development layout); when a
+/// checkout is missing but the example declares `nativeLibs` with a
+/// committed lockfile, the host binaries are fetched from their pinned
+/// provider instead. Anything else skips the example with a warning
+/// instead of failing the whole bootstrap.
+async function stageNapiVmExample(
+  exampleDirectory: string,
+  manifestPath: string,
+  manifest: ExampleManifest,
+  id: string,
+): Promise<boolean> {
+  console.log(`Building development plugin ${id}...`);
+  const tsconfigPath = join(exampleDirectory, 'tsconfig.json');
+  if (!(await exists(tsconfigPath))) {
+    throw new Error(`${manifestPath} is napi-vm but has no tsconfig.json`);
+  }
+  run('node', [
+    join(repositoryRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
+    '-p',
+    tsconfigPath,
+  ]);
+
+  const nativeAddons = Array.isArray(manifest['nativeAddons'])
+    ? (manifest['nativeAddons'] as NativeAddonDeclaration[])
+    : [];
+  if (nativeAddons.length > 0) {
+    run('node', [
+      cargoWrapper,
+      'build',
+      '-p',
+      'tiktools-plugin-sdk',
+      '--features',
+      'providers',
+      '--bin',
+      'tiktools-plugin-stage-native',
+    ]);
+    const stageBinary =
+      join(repositoryRoot, 'target', 'debug', 'tiktools-plugin-stage-native') +
+      (process.platform === 'win32' ? '.exe' : '');
+    const lockfilePath = join(exampleDirectory, 'native-libs.lock.json');
+    const canFetch =
+      Array.isArray(manifest['nativeLibs']) &&
+      (manifest['nativeLibs'] as unknown[]).length > 0 &&
+      (await exists(lockfilePath));
+    const addons = nativeAddons.map((declaration) => ({
+      packageName: requiredString(declaration.package, 'nativeAddons[].package', manifestPath),
+      root: requiredString(declaration.root, 'nativeAddons[].root', manifestPath),
+    }));
+    // One flow per example: siblings win only when every checkout is
+    // present, otherwise a single provider fetch stages all libraries.
+    const missingSibling =
+      (
+        await Promise.all(
+          addons.map(async (addon) =>
+            (await exists(join(repositoryRoot, '..', addon.packageName, 'package.json')))
+              ? null
+              : addon.packageName,
+          ),
+        )
+      ).find((name): name is string => name !== null) ?? null;
+    if (missingSibling === null) {
+      for (const addon of addons) {
+        run(stageBinary, [
+          '--package',
+          addon.packageName,
+          '--source',
+          join(repositoryRoot, '..', addon.packageName),
+          '--plugin-dir',
+          exampleDirectory,
+          '--root',
+          addon.root,
+          '--overwrite',
+        ]);
+      }
+    } else if (canFetch) {
+      run(stageBinary, [
+        '--provider',
+        'all',
+        '--manifest',
+        manifestPath,
+        '--plugin-dir',
+        exampleDirectory,
+        '--lockfile',
+        lockfilePath,
+        '--overwrite',
+      ]);
+    } else {
+      console.log(
+        `Skipping ${id}: native package source is missing ${join(repositoryRoot, '..', missingSibling)} (clone ${missingSibling} beside the repository, or declare nativeLibs with native-libs.lock.json to fetch from).`,
+      );
+      return false;
+    }
+  }
+
+  const packageDirectory = join(developmentPluginRoot, id);
+  await rm(packageDirectory, { recursive: true, force: true });
+  await mkdir(packageDirectory, { recursive: true });
+  await writeFile(
+    join(packageDirectory, 'plugin.json'),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    'utf8',
+  );
+  for (const directory of ['assets', 'dist', 'locales', 'node_modules']) {
     const sourceDirectory = join(exampleDirectory, directory);
     if (await exists(sourceDirectory)) {
       await cp(sourceDirectory, join(packageDirectory, directory), { recursive: true });

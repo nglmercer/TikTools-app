@@ -542,6 +542,24 @@ impl PluginUiWindows {
                     }
                 }
             }
+            WindowEvent::Focused(gained) => {
+                tracing::debug!(plugin = %key.0, page = %key.1, gained, "plugin window focus changed");
+                // Closing windows ignore focus: their WebView is about to
+                // be torn down by the deferred close.
+                if platform::window_focus_action(*gained)
+                    == platform::WindowFocusAction::FocusWebview
+                {
+                    if let Some(window) = self
+                        .windows
+                        .get(&key)
+                        .filter(|entry| entry.state == PluginWindowState::Open)
+                    {
+                        if let Err(error) = window.view().focus() {
+                            tracing::debug!(%error, "could not focus plugin WebView");
+                        }
+                    }
+                }
+            }
             _ => {}
         }
         true

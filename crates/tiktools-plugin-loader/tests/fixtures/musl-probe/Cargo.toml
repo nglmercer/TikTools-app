@@ -1,0 +1,9 @@
+[package]
+name = "tiktools-musl-probe"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tiktools-plugin-api = { path = "../../../../tiktools-plugin-api" }
+
+[workspace]

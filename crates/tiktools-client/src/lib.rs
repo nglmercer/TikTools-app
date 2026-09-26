@@ -17,6 +17,7 @@ pub mod app;
 pub mod automation;
 pub mod creators;
 pub mod gifts;
+pub mod globals;
 pub mod live;
 pub mod media;
 pub mod plugins;
@@ -113,6 +114,7 @@ impl TikToolsClient {
             automation::METHODS,
             creators::METHODS,
             gifts::METHODS,
+            globals::METHODS,
             live::METHODS,
             media::METHODS,
             plugins::METHODS,

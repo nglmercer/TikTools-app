@@ -15,8 +15,12 @@ members = [
 exclude = [
     "examples/audio-process-plugin",
     "examples/event-gateway-process-plugin",
-    "examples/hotkey-process-plugin",
     "examples/textintel-process-plugin",
+    # napi-rs fixture for the napi-vm native addon tests. Built on demand by
+    # the integration test with its own lockfile, never by the workspace.
+    "crates/tiktools-plugin-loader/tests/fixtures/native-tsfn",
+    # Musl libc-detection probe, built on demand the same way.
+    "crates/tiktools-plugin-loader/tests/fixtures/musl-probe",
 ]
 resolver = "2"
 
@@ -43,9 +47,18 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["c
 libloading = "0.8.9"
 sha2 = "0.10"
 zip = { version = "4.2", default-features = false, features = ["deflate"] }
+# Declarative native-library providers (npm tarballs, GitHub release
+# assets): pure-Rust download, verify, and extract for build/install
+# tooling. Never linked into plugin guests.
+tar = "0.4"
+flate2 = "1"
+base64 = "0.22"
 rfd = { version = "0.15.4", default-features = false, features = ["xdg-portal", "tokio"] }
 rodio = { version = "0.21.1", features = ["tracing"] }
-napi-vm = { git = "https://github.com/nglmercer/napi-vm", rev = "8a2848d16c5b5039fc1d46cb8979d5897eb5b4d0", default-features = false }
+# Native-addon integration uses `allow_addon` / `allow_addon_alias` plus
+# `node:module` createRequire from napi-vm main. Pinned by rev like the
+# ttl-* deps: a relative path cannot resolve in CI checkouts.
+napi-vm = { git = "https://github.com/nglmercer/napi-vm", rev = "bbe6e1c03c69bcbdc771dd3f6a8e0501a5e96d39", default-features = false }
 
 # The checked-in JavaScript/Bun package was only a compatibility implementation. The desktop
 # host consumes the Rust crates directly from the upstream workspace at a pinned revision.

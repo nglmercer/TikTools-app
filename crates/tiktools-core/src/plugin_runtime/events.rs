@@ -23,7 +23,7 @@ impl AppCore {
                     "id": "sample-event",
                     "type": trigger,
                     "timestamp": now_millis(),
-                    "user": {"uniqueId": "viewer_demo", "nickname": "Viewer Demo", "userId": "1"},
+                    "user": sample_user(),
                     "data": Value::Object(data),
                 }));
             }

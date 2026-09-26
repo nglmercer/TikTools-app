@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 3,
+  "id": "tiktools.napi-vm-echo",
+  "name": "NapiVmEcho",
+  "version": "0.1.0",
+  "description": "Echo fixture for the napi-vm runtime integration test.",
+  "runtime": "napi-vm",
+  "entry": "dist/index.js",
+  "capabilities": [],
+  "apiVersion": 1
+}

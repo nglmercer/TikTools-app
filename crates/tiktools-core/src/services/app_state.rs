@@ -22,4 +22,8 @@ impl AppStateService {
     pub fn set(&self, key: String, value: String) {
         recover_rwlock_write(&self.values, "app state").insert(key, value);
     }
+
+    pub fn remove(&self, key: &str) {
+        recover_rwlock_write(&self.values, "app state").remove(key);
+    }
 }

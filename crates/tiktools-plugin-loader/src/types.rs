@@ -64,4 +64,76 @@ pub trait PluginRuntime: Send + Sync {
         manifest: &PluginManifest,
         directory: &Path,
     ) -> Result<Box<dyn PluginInstance>, PluginLoaderError>;
+    /// Optionally provide a runtime-owned worker thread that serves the
+    /// manager's call queue directly, bypassing the generic
+    /// `run_instance_worker` thread. Runtimes whose state is `!Send`
+    /// (napi-vm) use this so one owner thread per plugin serves calls,
+    /// instead of a generic worker forwarding to a second VM thread.
+    /// `None` (the default) keeps the generic worker.
+    fn spawn_worker(
+        &self,
+        manifest: &PluginManifest,
+        directory: &Path,
+        ctx: &WorkerContext,
+    ) -> Option<Result<ManagedWorker, PluginLoaderError>> {
+        let _ = (manifest, directory, ctx);
+        None
+    }
+}
+
+/// One guest-pushed event waiting on the loader's push bus. Validated at
+/// emit time (shape, declared type, size); core re-validates the publish
+/// grant before delivery.
+#[derive(Debug, Clone)]
+pub struct EmittedEvent {
+    pub plugin_id: String,
+    pub event_type: String,
+    pub data: serde_json::Value,
+}
+
+/// Manager-owned resources a runtime-owned worker needs at spawn. Today
+/// this is the push-bus sender for guest-emitted events; runtimes that
+/// spawn their own worker thread receive it here instead of allocating
+/// per-plugin channels the manager could never drain.
+pub struct WorkerContext {
+    emit_tx: tokio::sync::broadcast::Sender<EmittedEvent>,
+}
+
+impl WorkerContext {
+    pub(crate) fn new(emit_tx: tokio::sync::broadcast::Sender<EmittedEvent>) -> Self {
+        Self { emit_tx }
+    }
+
+    /// Clone the push-bus sender for guest-emitted events. `send` is
+    /// synchronous and never blocks, so owner threads use it directly.
+    pub fn emit_sender(&self) -> tokio::sync::broadcast::Sender<EmittedEvent> {
+        self.emit_tx.clone()
+    }
+}
+
+/// A runtime-owned worker: the manager-facing end of a thread the runtime
+/// spawned itself. Opaque on purpose: only the runtime that spawned the
+/// thread understands its shutdown protocol, which mirrors the generic
+/// worker's (`Shutdown` message, then join).
+pub struct ManagedWorker {
+    tx: tokio::sync::mpsc::UnboundedSender<crate::worker::WorkerMsg>,
+    worker: std::thread::JoinHandle<Result<(), PluginLoaderError>>,
+}
+
+impl ManagedWorker {
+    pub(crate) fn new(
+        tx: tokio::sync::mpsc::UnboundedSender<crate::worker::WorkerMsg>,
+        worker: std::thread::JoinHandle<Result<(), PluginLoaderError>>,
+    ) -> Self {
+        Self { tx, worker }
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        tokio::sync::mpsc::UnboundedSender<crate::worker::WorkerMsg>,
+        std::thread::JoinHandle<Result<(), PluginLoaderError>>,
+    ) {
+        (self.tx, self.worker)
+    }
 }

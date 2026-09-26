@@ -16,6 +16,7 @@ pub mod services;
 mod automation_runtime;
 mod helpers;
 mod hotkey_bindings;
+pub mod input_access;
 mod ipc_handlers;
 mod live_events;
 mod persistence;
@@ -29,6 +30,7 @@ mod runtime_state;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use automation_runtime::samples::{sample_automation_event, sample_user};
 pub(crate) use helpers::*;
 pub(crate) use tiktools_plugin_api::sync::{
     recover_mutex, recover_rwlock_read, recover_rwlock_write,
@@ -337,6 +339,7 @@ impl AppCore {
             plugin_directory: paths.plugins.clone(),
             staging_directory: paths.temp.join("plugin-install"),
             replace_existing,
+            provider_endpoints: None,
         };
         let archive = archive.as_ref();
         let manifest = installer.inspect_manifest(archive)?;

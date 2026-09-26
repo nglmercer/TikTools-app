@@ -4,6 +4,7 @@ export type PluginTargetArch = 'x64' | 'arm64';
 export type PluginBuildTarget = {
   rustTarget: string;
   pluginTarget: string;
+  napiTarget: string;
   os: PluginTargetOs;
   arch: PluginTargetArch;
   executableExtension: string;
@@ -13,6 +14,7 @@ const PLUGIN_BUILD_TARGETS: Record<string, PluginBuildTarget> = {
   'x86_64-pc-windows-msvc': {
     rustTarget: 'x86_64-pc-windows-msvc',
     pluginTarget: 'win32-x64-msvc',
+    napiTarget: 'win32-x64-msvc',
     os: 'windows',
     arch: 'x64',
     executableExtension: '.exe',
@@ -20,6 +22,7 @@ const PLUGIN_BUILD_TARGETS: Record<string, PluginBuildTarget> = {
   'aarch64-pc-windows-msvc': {
     rustTarget: 'aarch64-pc-windows-msvc',
     pluginTarget: 'win32-arm64-msvc',
+    napiTarget: 'win32-arm64-msvc',
     os: 'windows',
     arch: 'arm64',
     executableExtension: '.exe',
@@ -27,6 +30,7 @@ const PLUGIN_BUILD_TARGETS: Record<string, PluginBuildTarget> = {
   'x86_64-unknown-linux-gnu': {
     rustTarget: 'x86_64-unknown-linux-gnu',
     pluginTarget: 'linux-x64-gnu',
+    napiTarget: 'linux-x64-gnu',
     os: 'linux',
     arch: 'x64',
     executableExtension: '',
@@ -34,6 +38,7 @@ const PLUGIN_BUILD_TARGETS: Record<string, PluginBuildTarget> = {
   'aarch64-unknown-linux-gnu': {
     rustTarget: 'aarch64-unknown-linux-gnu',
     pluginTarget: 'linux-arm64-gnu',
+    napiTarget: 'linux-arm64-gnu',
     os: 'linux',
     arch: 'arm64',
     executableExtension: '',
@@ -41,6 +46,7 @@ const PLUGIN_BUILD_TARGETS: Record<string, PluginBuildTarget> = {
   'x86_64-apple-darwin': {
     rustTarget: 'x86_64-apple-darwin',
     pluginTarget: 'darwin-x64-darwin',
+    napiTarget: 'darwin-x64',
     os: 'macos',
     arch: 'x64',
     executableExtension: '',
@@ -48,6 +54,7 @@ const PLUGIN_BUILD_TARGETS: Record<string, PluginBuildTarget> = {
   'aarch64-apple-darwin': {
     rustTarget: 'aarch64-apple-darwin',
     pluginTarget: 'darwin-arm64-darwin',
+    napiTarget: 'darwin-arm64',
     os: 'macos',
     arch: 'arm64',
     executableExtension: '',
@@ -75,6 +82,10 @@ export function resolveRustTarget(rustTarget: string): PluginBuildTarget {
 
 export function pluginTargetFromRustTarget(rustTarget: string): string {
   return resolveRustTarget(rustTarget).pluginTarget;
+}
+
+export function napiTargetFromRustTarget(rustTarget: string): string {
+  return resolveRustTarget(rustTarget).napiTarget;
 }
 
 export function detectHostTarget(

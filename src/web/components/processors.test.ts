@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import type { ProcessorStatusEntry, ProcessorStatusMetrics } from '../../shared/messages.ts';
+import { sampleEventForType } from '../../automation/event-registry.ts';
 import { processorMetricRows, processorPreviewEvent, processorStatusTone } from './processors.ts';
 
 const metrics: ProcessorStatusMetrics = {
@@ -60,5 +61,16 @@ describe('processor panel helpers', () => {
     const unknown = processorPreviewEvent(entry(['plugin.unknown']));
     expect(unknown.type as string).toBe('plugin.unknown');
     expect(unknown.id).toBe('sample-event');
+  });
+
+  test('preview events replay matching live data instead of the sample', () => {
+    const live = sampleEventForType('tiktok.gift');
+    (live.data as Record<string, unknown>)['giftName'] = 'Galaxy';
+    const replay = processorPreviewEvent(entry(['tiktok.gift']), live);
+    expect((replay.data as Record<string, unknown>)['giftName']).toBe('Galaxy');
+    // A mismatched live event degrades to the sample of the subscribed type.
+    const chat = sampleEventForType('tiktok.chat');
+    const fallback = processorPreviewEvent(entry(['tiktok.gift']), chat);
+    expect((fallback.data as Record<string, unknown>)['giftName']).toBe('Rose');
   });
 });

@@ -9,6 +9,8 @@ import type {
   AutomationUser,
   ChatAutomationData,
   ChatAutomationEvent,
+  ConnectionAutomationData,
+  ConnectionAutomationEvent,
   DomainEventEnvelope,
   EventGapData,
   FollowAutomationEvent,
@@ -16,10 +18,19 @@ import type {
   GiftAutomationData,
   GiftAutomationEvent,
   JoinAutomationEvent,
+  LikeAutomationData,
+  LikeAutomationEvent,
   LiveEventPayload,
   MemberAutomationData,
+  PluginEmitAutomationData,
+  PluginEmitAutomationEvent,
+  PointsAwardedAutomationData,
+  PointsAwardedAutomationEvent,
+  RoomStatsAutomationData,
+  RoomStatsAutomationEvent,
   ShareAutomationEvent,
   SocialAutomationData,
+  SocialAutomationEvent,
 } from './event-types.ts';
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -134,6 +145,54 @@ function isGiftAutomationData(value: unknown): value is GiftAutomationData {
   );
 }
 
+function isLikeAutomationData(value: unknown): value is LikeAutomationData {
+  if (!isRecord(value)) return false;
+  return (
+    isNumber(value['count']) &&
+    isNumber(value['total']) &&
+    typeof value['method'] === 'string' &&
+    typeof value['msgId'] === 'string' &&
+    isBoolean(value['isHistory'])
+  );
+}
+
+function isRoomStatsAutomationData(value: unknown): value is RoomStatsAutomationData {
+  if (!isRecord(value)) return false;
+  return (
+    isNumber(value['viewers']) &&
+    isNumber(value['totalUsers']) &&
+    isNumber(value['popularity']) &&
+    isNumber(value['anonymous']) &&
+    typeof value['method'] === 'string' &&
+    typeof value['msgId'] === 'string' &&
+    isBoolean(value['isHistory'])
+  );
+}
+
+function isConnectionAutomationData(value: unknown): value is ConnectionAutomationData {
+  if (!isRecord(value)) return false;
+  return typeof value['uniqueId'] === 'string' && typeof value['roomId'] === 'string';
+}
+
+function isPointsAwardedAutomationData(value: unknown): value is PointsAwardedAutomationData {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value['uniqueId'] === 'string' &&
+    isNumber(value['delta']) &&
+    isNumber(value['totalPoints']) &&
+    isNumber(value['level']) &&
+    typeof value['currencyName'] === 'string' &&
+    typeof value['reason'] === 'string'
+  );
+}
+
+function isPluginEmitAutomationData(value: unknown): value is PluginEmitAutomationData {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value['emitType'] === 'string' && isNumber(value['depth']) && 'payload' in value
+  );
+}
+
 /**
  * Validates a `live.event` envelope into its canonical payload. Returns null
  * for any other topic or malformed shape.
@@ -165,6 +224,35 @@ export function isShareEvent(event: AutomationEventLike): event is ShareAutomati
 
 export function isJoinEvent(event: AutomationEventLike): event is JoinAutomationEvent {
   return event.type === 'tiktok.join' && isMemberAutomationData(event.data);
+}
+
+export function isLikeEvent(event: AutomationEventLike): event is LikeAutomationEvent {
+  return event.type === 'tiktok.like' && isLikeAutomationData(event.data);
+}
+
+export function isSocialEvent(event: AutomationEventLike): event is SocialAutomationEvent {
+  return event.type === 'tiktok.social' && isSocialAutomationData(event.data);
+}
+
+export function isRoomStatsEvent(event: AutomationEventLike): event is RoomStatsAutomationEvent {
+  return event.type === 'tiktok.room_stats' && isRoomStatsAutomationData(event.data);
+}
+
+export function isConnectionEvent(event: AutomationEventLike): event is ConnectionAutomationEvent {
+  return (
+    (event.type === 'tiktok.connected' || event.type === 'tiktok.disconnected') &&
+    isConnectionAutomationData(event.data)
+  );
+}
+
+export function isPointsAwardedEvent(
+  event: AutomationEventLike,
+): event is PointsAwardedAutomationEvent {
+  return event.type === 'points.awarded' && isPointsAwardedAutomationData(event.data);
+}
+
+export function isPluginEmitEvent(event: AutomationEventLike): event is PluginEmitAutomationEvent {
+  return event.type === 'plugin.emit' && isPluginEmitAutomationData(event.data);
 }
 
 export function isHistoryEvent(event: AutomationEventLike): boolean {

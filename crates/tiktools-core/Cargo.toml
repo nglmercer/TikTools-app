@@ -7,8 +7,14 @@ rust-version.workspace = true
 description = "Framework-independent TikTools application core"
 
 [features]
-default = ["native-plugins"]
+default = ["native-plugins", "napi-vm-node-api"]
 native-plugins = ["tiktools-plugin-loader/native-plugins"]
+# In-process `.node` addons for napi-vm plugins. The loader dependency
+# below opts out of loader defaults, so this forwarding (on by default,
+# like `native-plugins`) is what compiles the real addon selection into
+# every host. Without it, napi-vm plugins declaring `nativeAddons` fail
+# closed at load with "this build lacks napi-vm-node-api support".
+napi-vm-node-api = ["tiktools-plugin-loader/napi-vm-node-api"]
 wasm-plugins = ["tiktools-plugin-loader/wasm-plugins"]
 plugin-install = ["tiktools-plugin-loader/plugin-install"]
 persistence = ["dep:rusqlite"]

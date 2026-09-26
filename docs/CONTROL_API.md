@@ -107,7 +107,7 @@ Windows pipes with `TIKTOOLS_IPC_NAME`.
 `plugins.health|options|action.execute`, `plugins.token.provision`,
 `processors.list|status|test`, `live.connect|pick|disconnect|status`,
 `points.config.get|set`, `points.viewer.get`, `points.adjust`,
-`points.leaderboard|reset`, `app.state.get|set`, `creators.get|recent`,
+`points.leaderboard|reset`, `app.state.get|set`, `globals.list|get|set|delete`, `creators.get|recent`,
 `creators.history.clear`, `analytics.summary`, `gifts.list|debug`,
 `workflows.list|get|save|delete|enable|disable`,
 `automation.list|get|create|update|delete|enable|disable|test|context|runs|snapshot`,

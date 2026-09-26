@@ -29,6 +29,7 @@ commands:
        | pick --session-cookie <cookie> | disconnect | status
   points config get | config set k=v... | viewer get <id> | adjust <id> <delta>
        | leaderboard [--limit N] | reset [id]
+  globals list | get <key> | set <key> <value> | delete <key>
   automation list [--kind event|action|all] | get <id> [--kind k]
            | create --record json [--kind k] | update <id> --record json [--kind k]
            | delete <id> [--kind k] | enable <id> [--kind k] | disable <id> [--kind k]
@@ -40,6 +41,12 @@ commands:
   media validate <path> [--kind audio|video|image|other]
       | play <path> [--kind k] [--volume 0..1]
   system info | health | snapshot | doctor
+  template import <file> [--param k=v]... [--event-name n] [--action-name n]
+           [--dry-run] [--no-save] [--disabled]
+         | export --event <id> --out <file> [--title t] [--id template-id]
+         | list | delete <template-id>
+         | profile-import <file> [--param k=v]... [--dry-run] [--no-save] [--disabled]
+         | profile-export --out <file> [--name n]
   api discover [--format json|human]
     | schema <method> [--format json|human]
     | call <method> [params-json] [--timeout SEC] [--dry-run] [--confirm]

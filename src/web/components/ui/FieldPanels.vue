@@ -4,6 +4,7 @@ import type { VNodeChild } from 'vue';
 import { defineVueComponent, defineVueFunctional } from '../../vue/component.ts';
 import type { BehaviorRun } from '../../../automation/behavior/types.ts';
 import { t, type Locale } from '../../i18n.ts';
+import { testSourceLabel } from '../../views/behavior/helpers.vue';
 import { InfoTip } from './InfoTip.vue';
 
 /** Collapsible group for advanced fields, with a count badge + tooltip. */
@@ -111,7 +112,7 @@ export const TestConsole = defineVueComponent<{
       {run && (
         <div class="act-status">
           <span class={`act-pill ${status.ok ? 'is-ok' : 'is-err'}`}>{status.text}</span>
-          <span class="act-ms">{run.durationMs} ms</span>
+          <span class="act-ms">{run.durationMs} ms{run.eventSource ? ` · ${testSourceLabel(locale, run.eventSource)}` : ''}</span>
         </div>
       )}
 

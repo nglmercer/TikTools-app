@@ -1,10 +1,104 @@
-/** Pretty-print JSON; `null` when the text is not valid JSON. */
+export type TemplateSpanMask = { masked: string; spans: { text: string; bare: boolean }[]; sentinel: string };
+
+/**
+ * Mask `{{ ... }}` spans so template-aware JSON stays parseable. A span
+ * outside strings becomes a quoted placeholder (valid bare value or key); a
+ * span inside a string becomes placeholder text that cannot break the string.
+ * Unclosed `{{` (mid-typing) is left literal so the doc stays invalid until
+ * the span is complete. Matches render-then-parse runtime semantics.
+ */
+export function maskTemplateSpans(value: string): TemplateSpanMask {
+  let sentinel = '__TTPL_';
+  while (value.includes(sentinel)) sentinel = `_${sentinel}`;
+  const spans: TemplateSpanMask['spans'] = [];
+  let masked = '';
+  let index = 0;
+  let inString = false;
+  let escaped = false;
+  while (index < value.length) {
+    const char = value[index] as string;
+    if (inString) {
+      if (escaped) {
+        masked += char;
+        escaped = false;
+        index += 1;
+        continue;
+      }
+      if (char === '\\') {
+        masked += char;
+        escaped = true;
+        index += 1;
+        continue;
+      }
+      if (char === '"') {
+        masked += char;
+        inString = false;
+        index += 1;
+        continue;
+      }
+      const end = char === '{' && value[index + 1] === '{' ? value.indexOf('}}', index + 2) : -1;
+      if (end !== -1) {
+        masked += `${sentinel}${spans.length}__`;
+        spans.push({ text: value.slice(index, end + 2), bare: false });
+        index = end + 2;
+        continue;
+      }
+      masked += char;
+      index += 1;
+      continue;
+    }
+    if (char === '"') {
+      masked += char;
+      inString = true;
+      index += 1;
+      continue;
+    }
+    const end = char === '{' && value[index + 1] === '{' ? value.indexOf('}}', index + 2) : -1;
+    if (end !== -1) {
+      masked += `"${sentinel}${spans.length}__"`;
+      spans.push({ text: value.slice(index, end + 2), bare: true });
+      index = end + 2;
+      continue;
+    }
+    masked += char;
+    index += 1;
+  }
+  return { masked, spans, sentinel };
+}
+
+/**
+ * Restore spans masked by {@link maskTemplateSpans} after pretty-printing.
+ * Bare spans restore with their placeholder quotes (back to unquoted template
+ * syntax); in-string spans restore the placeholder text only, so a span that
+ * fills a whole string keeps its quotes. The sentinel is collision-free for
+ * the document, so untouched text never matches.
+ */
+export function unmaskTemplateSpans(formatted: string, mask: TemplateSpanMask): string {
+  let out = formatted;
+  mask.spans.forEach((span, spanIndex) => {
+    const placeholder = `${mask.sentinel}${spanIndex}__`;
+    out = span.bare
+      ? out.split(`"${placeholder}"`).join(span.text)
+      : out.split(placeholder).join(span.text);
+  });
+  return out;
+}
+
+/**
+ * Pretty-print JSON; `null` when the text is not valid JSON. Template spans
+ * are masked before parsing and restored verbatim, so `Formatear` never mangles
+ * `{{ }}` placeholders.
+ */
 export function formatJsonText(value: string): string | null {
+  const mask = maskTemplateSpans(value);
+  let parsed: unknown;
   try {
-    return JSON.stringify(JSON.parse(value) as unknown, null, 2);
+    parsed = JSON.parse(mask.masked) as unknown;
   } catch {
     return null;
   }
+  const formatted = JSON.stringify(parsed, null, 2);
+  return mask.spans.length > 0 ? unmaskTemplateSpans(formatted, mask) : formatted;
 }
 
 export type JsonValidation =
@@ -14,13 +108,16 @@ export type JsonValidation =
 
 /**
  * Lightweight continuous JSON validation for editors. Runs on every keystroke
- * via native `JSON.parse`; callers show the status without blocking input.
+ * via native `JSON.parse` over template-masked text, so inline `{{ }}`
+ * placeholders validate while true syntax errors still report; callers show
+ * the status without blocking input.
  */
 export function validateJsonText(value: string): JsonValidation {
   const trimmed = value.trim();
   if (!trimmed) return { state: 'empty' };
+  const { masked } = maskTemplateSpans(trimmed);
   try {
-    JSON.parse(trimmed);
+    JSON.parse(masked);
     return { state: 'valid' };
   } catch (error) {
     return {

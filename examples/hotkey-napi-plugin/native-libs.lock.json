@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "packages": {
+    "rdev-node": {
+      "version": "1.0.5",
+      "provider": "npm",
+      "tarball": "https://registry.npmjs.org/rdev-node/-/rdev-node-1.0.5.tgz",
+      "integrity": "sha512-3raFSo4Zst+LN3RUxJNtedTYo+3vBrNbYoDNFqzX+Z8ANe28bgJXUc3qAVgrurVvEZxWNOX6VWCsAMfSJG1NiQ==",
+      "assets": {
+        "node-rdev.darwin-arm64.node": "sha256:dedadaa3b623aa7bc7f4062eeaf8216331c33bc7545d7dfcc6449da6e2a48ab5",
+        "node-rdev.darwin-x64.node": "sha256:1e2d7367a33e7e451bbea40fc9e9e07449d08fd17e3f8597fe09b2138707b2b8",
+        "node-rdev.linux-arm-gnueabihf.node": "sha256:3d8b86ddfccf85d94ef6925cec57e515934607e36b6cd8bd4dedbb7653495ef7",
+        "node-rdev.linux-arm64-gnu.node": "sha256:b2757d27f16ff2af07eb8f4896d0d0f813f71f703be20466783757d26b5b4535",
+        "node-rdev.linux-x64-gnu.node": "sha256:3b52b9d2e2ac14e04887c7e0973bb883a6480e7f112c41c1f1a289a9842fe956",
+        "node-rdev.linux-x64-musl.node": "sha256:d52b269a2de4eaa3b8ff7822733474e537c888d39cca43a2f514bd089cdf78fc",
+        "node-rdev.win32-arm64-msvc.node": "sha256:2fc0d79160d5b55001773ff6b2611703a174197461ea67902c2bdf3b2f679503",
+        "node-rdev.win32-ia32-msvc.node": "sha256:062527425f5c06f1a4f2b7342715e1dcddb5ff6f32db8e3b5dd5b65c5f82869d",
+        "node-rdev.win32-x64-msvc.node": "sha256:f53ce517625d488090875291f217543cc6e830596b480be6c97b46f9bbbd9f1f"
+      }
+    }
+  }
+}

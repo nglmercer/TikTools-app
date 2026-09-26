@@ -1,0 +1,56 @@
+{
+  "templateVersion": 1,
+  "id": "minecraft-gift-globals",
+  "title": "Minecraft gift command via globals",
+  "description": "Same as the params example, but the CommandAPI address renders at event time from runtime globals. Set commandHost/commandPort once (CLI `tiktools globals set` or the desktop Settings tab) and every Minecraft restart only needs a value update — no re-import.",
+  "icon": "code",
+  "params": {
+    "type": "object",
+    "properties": {
+      "giftName": {
+        "type": "string",
+        "title": "Gift name",
+        "default": "Rose"
+      },
+      "command": {
+        "type": "string",
+        "title": "Minecraft command",
+        "default": "/give @p minecraft:apple {{ event.data.repeatCount }}"
+      }
+    },
+    "required": ["giftName", "command"]
+  },
+  "actions": [
+    {
+      "name": "Send Minecraft command",
+      "typeId": "core.fetch",
+      "enabled": true,
+      "config": {
+        "method": "POST",
+        "url": "http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"text\": \"{{ params.command }}\"}",
+        "timeoutMs": 5000,
+        "emitResponseAs": "",
+        "allowPrivateNetwork": true
+      }
+    }
+  ],
+  "event": {
+    "name": "Minecraft gift",
+    "enabled": true,
+    "trigger": "tiktok.gift",
+    "filters": [
+      {
+        "path": "event.data.giftName",
+        "operator": "eq",
+        "value": "{{ params.giftName }}"
+      }
+    ],
+    "cooldownMs": 0,
+    "cooldownScope": "global",
+    "runMode": "all"
+  }
+}

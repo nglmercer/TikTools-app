@@ -61,9 +61,10 @@ replacing one.
 Process plugins are standalone executables. The host launches the declared
 entry and exchanges length-prefixed JSON on stdin/stdout. A process crash is
 contained at the process boundary, but the executable still has the normal OS
-permissions of its user and is not a security sandbox. The host does not
-interpret or silently launch JavaScript source files; a JavaScript plugin must
-be packaged as its own executable or use the bounded `napi-vm` automation
+permissions of its user and is not a security sandbox. The process runtime
+does not interpret or silently launch JavaScript source files; a JavaScript
+plugin must be packaged as its own executable, use the `napi-vm` runtime
+(`docs/NAPI_VM_PLUGINS.md`), or use the bounded `napi-vm` automation
 surface.
 
 The example at `examples/audio-process-plugin` demonstrates a complete process
@@ -82,9 +83,21 @@ weaken that boundary. The future direction is the WASM Component Model with
 WASI Preview 2 / WASI 0.2-style interfaces plus TikTools host capabilities.
 
 The low-level API exposes this mapping as `PluginSecurityModel`: native is
-`Trusted`, process is `Isolated`, and WASM is `Sandboxed`. The existing
-manifest `trust` strings remain schema-v2 compatible metadata and are not a
-substitute for the runtime boundary.
+`Trusted`, process is `Isolated`, and WASM and napi-vm are `Sandboxed`. The
+existing manifest `trust` strings remain schema-v2 compatible metadata and
+are not a substitute for the runtime boundary.
+
+### napi-vm
+
+TypeScript-first plugins compiled to JavaScript ahead of time and executed
+through napi-vm's pure-Rust interpreter (`napi_vm::RustPluginHost`), with
+no Node.js dependency and no runtime transpiler. Each instance owns one
+dedicated VM thread; guests speak the unchanged `PluginCall` /
+`PluginCallResult` JSON protocol through a `call(request, context)`
+export. Host capabilities are deny-by-default; `.node` addons stay
+available only through the explicitly trusted, allowlisted, SHA-256
+verified native path. See `docs/NAPI_VM_PLUGINS.md` for the package
+layout, guest interface, and security notes.
 
 ## Capabilities and permissions
 

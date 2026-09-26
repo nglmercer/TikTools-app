@@ -1,10 +1,11 @@
 use std::{
-    sync::{atomic::AtomicBool, mpsc, Mutex},
+    sync::{atomic::AtomicBool, Mutex},
     thread,
     time::{Duration, Instant},
 };
 
 use tiktools_plugin_api::PluginRuntimeKind;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::{PluginInstance, PluginLoaderError};
 
@@ -16,11 +17,17 @@ pub(crate) struct QueuedCall {
     pub(crate) request: Vec<u8>,
     pub(crate) timeout: Duration,
     pub(crate) deadline: Instant,
-    pub(crate) respond: mpsc::Sender<Result<Vec<u8>, PluginLoaderError>>,
+    pub(crate) respond: oneshot::Sender<Result<Vec<u8>, PluginLoaderError>>,
 }
 
 pub(crate) enum WorkerMsg {
     Call(QueuedCall),
+    /// Host-originated work arrived while the owner was idle: pump the VM
+    /// event loop. Only runtimes with threaded host ingress (napi-vm native
+    /// callbacks) register wakes, and only on their own queue; the generic
+    /// worker below ignores it defensively instead of treating it as
+    /// shutdown.
+    HostEvent,
     Shutdown,
 }
 
@@ -30,22 +37,29 @@ pub(crate) enum WorkerMsg {
 /// a newer instance. `kind` drives timeout recovery (process workers kill
 /// their child on the same deadline, native workers keep running), and
 /// `cold` grants the first call of a process generation cold-start grace.
+///
+/// The queue is a Tokio unbounded channel: async callers send without
+/// blocking and await a `oneshot` response, so no `spawn_blocking` thread
+/// is spent per call. Worker threads are plain OS threads that receive
+/// through `blocking_recv`, which needs no runtime context.
 pub(crate) struct RunningInstance {
     pub(crate) token: u64,
     pub(crate) kind: PluginRuntimeKind,
     pub(crate) cold: AtomicBool,
-    pub(crate) tx: mpsc::Sender<WorkerMsg>,
+    pub(crate) tx: mpsc::UnboundedSender<WorkerMsg>,
     pub(crate) worker: Mutex<Option<thread::JoinHandle<Result<(), PluginLoaderError>>>>,
 }
 
 pub(crate) fn run_instance_worker(
     id: String,
     mut instance: Box<dyn PluginInstance>,
-    rx: mpsc::Receiver<WorkerMsg>,
+    mut rx: mpsc::UnboundedReceiver<WorkerMsg>,
 ) -> Result<(), PluginLoaderError> {
-    while let Ok(msg) = rx.recv() {
-        let WorkerMsg::Call(call) = msg else {
-            break;
+    while let Some(msg) = rx.blocking_recv() {
+        let call = match msg {
+            WorkerMsg::Call(call) => call,
+            WorkerMsg::Shutdown => break,
+            WorkerMsg::HostEvent => continue,
         };
         if Instant::now() >= call.deadline {
             let _ = call.respond.send(Err(PluginLoaderError::Timeout(format!(
@@ -58,8 +72,8 @@ pub(crate) fn run_instance_worker(
     }
     // Fail waiters queued behind the shutdown instead of leaving them on
     // their deadlines.
-    for queued in rx.try_iter() {
-        if let WorkerMsg::Call(call) = queued {
+    while let Ok(msg) = rx.try_recv() {
+        if let WorkerMsg::Call(call) = msg {
             let _ = call.respond.send(Err(PluginLoaderError::Runtime(format!(
                 "plugin `{id}` stopped"
             ))));

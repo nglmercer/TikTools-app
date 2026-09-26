@@ -77,6 +77,19 @@ pub fn builtin_action_types() -> Vec<Value> {
             ]
         }),
         json!({
+            "id": "core.points.subtract",
+            "version": 1,
+            "title": text("Subtract points", "automation.action.core.points.subtract.title"),
+            "description": text("Deduct points from the viewer who triggered the event. Balances never drop below zero.", "automation.action.core.points.subtract.description"),
+            "tag": "points",
+            "source": {"kind": "builtin"},
+            "requiredCapabilities": ["points.write"],
+            "fields": [
+                field("uniqueId", "Viewer", "text", "{{ event.user.uniqueId }}", "automation.action.core.points.subtract.field.uniqueId.label", json!({"template": true})),
+                field("amount", "Points to subtract", "number", "10", "automation.action.core.points.subtract.field.amount.label", json!({"min": 0}))
+            ]
+        }),
+        json!({
             "id": "audio.play",
             "version": 1,
             "title": text("Play a sound", "automation.action.audio.play.title"),
@@ -143,6 +156,8 @@ pub fn builtin_translations() -> Value {
             "automation.action.core.emit.description": "Publish an event that other automations can consume.",
             "automation.action.core.points.title": "Give points",
             "automation.action.core.points.description": "Add or subtract points for the viewer who triggered the event.",
+            "automation.action.core.points.subtract.title": "Subtract points",
+            "automation.action.core.points.subtract.description": "Deduct points from the viewer who triggered the event. Balances never drop below zero.",
             "automation.action.audio.play.title": "Play a sound",
             "automation.action.audio.play.description": "Play a local audio file without copying it into TikTools.",
             "automation.action.core.delay.title": "Wait",
@@ -159,6 +174,8 @@ pub fn builtin_translations() -> Value {
             "automation.action.core.emit.description": "Publica un evento para otras automatizaciones.",
             "automation.action.core.points.title": "Sumar puntos",
             "automation.action.core.points.description": "Suma o resta puntos al espectador que disparó el evento.",
+            "automation.action.core.points.subtract.title": "Restar puntos",
+            "automation.action.core.points.subtract.description": "Resta puntos al espectador que disparó el evento. El saldo nunca baja de cero.",
             "automation.action.audio.play.title": "Reproducir un sonido",
             "automation.action.audio.play.description": "Reproduce un archivo de audio local sin copiarlo a TikTools.",
             "automation.action.core.delay.title": "Esperar",
@@ -284,7 +301,7 @@ mod tests {
     #[test]
     fn builtins_are_runtime_neutral_json() {
         let actions = builtin_action_types();
-        assert_eq!(actions.len(), 7);
+        assert_eq!(actions.len(), 8);
         assert_eq!(actions[0]["source"]["kind"], "builtin");
         assert_eq!(
             actions

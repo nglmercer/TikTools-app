@@ -7,6 +7,7 @@ impl AppCore {
         self: &Arc<Self>,
         config: &serde_json::Map<String, Value>,
         event: &Value,
+        globals: &std::collections::BTreeMap<String, String>,
         logs: &mut Vec<String>,
         test: bool,
     ) -> Result<String, String> {
@@ -21,7 +22,7 @@ impl AppCore {
             .and_then(Value::as_str)
             .or_else(|| configured.as_str())
             .ok_or_else(|| "Audio file reference must contain a path.".to_owned())?;
-        let rendered_path = render_template(raw_path, event);
+        let rendered_path = render_template(raw_path, event, globals);
         let file = crate::services::audio_file_ref_from_config(
             &rendered_path,
             self.db.paths().data.as_path(),

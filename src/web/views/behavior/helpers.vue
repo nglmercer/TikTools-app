@@ -58,6 +58,13 @@ export function triggerSelectOptions(locale: Locale, eventTypes: PluginEventType
 }
 
 /** Display label for any trigger: built-in, plugin-declared, or raw fallback. */
+/** Badge label for what a test run executed against (live, sample, or custom JSON). */
+export function testSourceLabel(locale: Locale, source: 'live' | 'sample' | 'custom'): string {
+  if (source === 'live') return t(locale, 'behavior.copy.testLive');
+  if (source === 'custom') return t(locale, 'behavior.copy.testCustom');
+  return t(locale, 'behavior.copy.testSample');
+}
+
 export function triggerLabel(trigger: string, eventTypes: PluginEventType[], locale: Locale): string {
   const builtin = (TRIGGER_LABELS as Partial<Record<string, I18nText>>)[trigger];
   if (builtin) return i18nText(locale, builtin);
@@ -277,6 +284,8 @@ export function describeAction(action: LiveAction): string {
       return `emit ${readString(action.config.type)}`;
     case 'core.points':
       return `${readString(action.config.delta)} · ${readString(action.config.uniqueId)}`;
+    case 'core.points.subtract':
+      return `-${readString(action.config.amount)} · ${readString(action.config.uniqueId)}`;
     case 'core.delay':
       return `${readString(action.config.ms)} ms`;
     case 'core.log':

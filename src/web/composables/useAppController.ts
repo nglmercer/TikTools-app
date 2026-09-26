@@ -12,7 +12,17 @@ import { usePlugins } from '../features/plugins.ts';
 import { usePoints } from '../features/points.ts';
 import { useProcessors } from '../features/processors.ts';
 import { useWidgets } from '../features/widgets.ts';
-import { createControlClient } from '../platform/control-client.ts';
+import { useRuleTemplates } from '../features/rule-templates.ts';
+import {
+  buildProfileDoc,
+  downloadTextFile,
+  resolvedPacks,
+  useRuleProfiles,
+  type RuleProfile,
+} from '../features/rule-profiles.ts';
+import { useGlobals } from '../features/globals.ts';
+import { createControlClient, errorMessage } from '../platform/control-client.ts';
+import type { AppliedRuleTemplate } from '../views/behavior/rule-templates.ts';
 import {
   controlBackend,
   type BrokerBackend,
@@ -70,6 +80,9 @@ export function useAppController() {
   const analytics = useAnalytics(control, () => connection.activeCreator.value);
   const automation = useAutomation(control);
   const widgets = useWidgets(control);
+  const ruleTemplates = useRuleTemplates(control);
+  const ruleProfiles = useRuleProfiles(control);
+  const globals = useGlobals(control);
   const plugins = usePlugins(control, {
     translate,
     refreshBehavior: () => automation.refresh(),
@@ -104,13 +117,15 @@ export function useAppController() {
   // Reliable-gap resync: the host skipped authoritative events this client
   // never saw, so every authoritative snapshot is re-read (live status,
   // points config/leaderboard, creators, automation/workflows including
-  // plugin state, gifts). Missing events are never reconstructed.
+  // plugin state, gifts, globals, profiles). Missing events are never reconstructed.
   control.onGap(() => {
     void connection.refreshStatus();
     void points.refresh();
     void creators.refresh();
     void automation.refresh();
     void live.refresh();
+    void globals.loadGlobals();
+    void ruleProfiles.loadProfiles();
   });
 
   watch(locale, (value) => {
@@ -151,6 +166,8 @@ export function useAppController() {
     void automation.refresh();
     void live.refresh();
     void processors.refresh();
+    void globals.loadGlobals();
+    void ruleProfiles.loadProfiles();
 
     // Keep the saved username in the connect form, but wait for an explicit
     // user action before starting network work on a cold launch.
@@ -177,6 +194,95 @@ export function useAppController() {
   };
   const openPlugins = (): void => {
     activeTab.value = 'plugins';
+  };
+
+  /**
+   * Applies a profile: creates every entry's records, registers the pack
+   * membership, marks it active, then refreshes once. Failures surface on
+   * the profiles error channel; the modal stays open to show them.
+   */
+  const handleApplyRuleProfile = async (
+    profile: RuleProfile,
+    applied: AppliedRuleTemplate[],
+  ): Promise<void> => {
+    try {
+      await automation.createProfileRecords(applied);
+      await ruleProfiles.registerPack(profile, applied);
+      await automation.refresh();
+    } catch (failure) {
+      ruleProfiles.setError(errorMessage(failure));
+      throw failure;
+    }
+  };
+
+  const handleSwitchRuleProfile = async (id: string): Promise<void> => {
+    try {
+      await ruleProfiles.switchProfile(id, {
+        eventIds: automation.behavior.value.events.map((event) => event.id),
+        actionIds: automation.behavior.value.actions.map((action) => action.id),
+      });
+      await automation.refresh();
+    } catch (failure) {
+      ruleProfiles.setError(errorMessage(failure));
+      throw failure;
+    }
+  };
+
+  const handleCreateRuleProfile = async (name: string): Promise<void> => {
+    try {
+      await ruleProfiles.createPack(name);
+    } catch (failure) {
+      ruleProfiles.setError(errorMessage(failure));
+      throw failure;
+    }
+  };
+
+  const handleDeleteRuleProfile = async (id: string): Promise<void> => {
+    try {
+      await ruleProfiles.deletePack(id);
+      await automation.refresh();
+    } catch (failure) {
+      ruleProfiles.setError(errorMessage(failure));
+      throw failure;
+    }
+  };
+
+  const handleExportRuleProfile = (id: string): void => {
+    const pack = resolvedPacks(
+      ruleProfiles.packs.value,
+      automation.behavior.value.events.map((event) => event.id),
+      automation.behavior.value.actions.map((action) => action.id),
+    ).find((entry) => entry.id === id);
+    if (!pack) {
+      ruleProfiles.setError(`unknown profile ${id}`);
+      return;
+    }
+    const exported = buildProfileDoc(pack, automation.behavior.value.events, automation.behavior.value.actions);
+    downloadTextFile(`${pack.id}.tikprofile.json`, `${JSON.stringify(exported.doc, null, 2)}\n`);
+  };
+
+  /** Saves through automation, then adopts the rule into the active pack. */
+  const handleSaveBehaviorAction: typeof automation.handleSaveAction = (action) => {
+    void (async (): Promise<void> => {
+      try {
+        await automation.saveRecordAndRefresh('action', action);
+      } catch {
+        return;
+      }
+      await ruleProfiles.adoptRule('action', action.id);
+    })();
+  };
+
+  /** Saves through automation, then adopts the rule into the active pack. */
+  const handleSaveBehaviorEvent: typeof automation.handleSaveEvent = (event) => {
+    void (async (): Promise<void> => {
+      try {
+        await automation.saveRecordAndRefresh('event', event);
+      } catch {
+        return;
+      }
+      await ruleProfiles.adoptRule('event', event.id);
+    })();
   };
 
   // Grouped services (incremental direction: new call sites consume
@@ -300,14 +406,37 @@ export function useAppController() {
     handleUpdatePointsConfig: points.handleUpdatePointsConfig,
     handleResetPoints: points.handleResetPoints,
     handleAdjustPoints: points.handleAdjustPoints,
-    handleSaveAction: automation.handleSaveAction,
+    handleSaveAction: handleSaveBehaviorAction,
+    handleApplyRuleTemplate: automation.handleApplyRuleTemplate,
+    ruleTemplateCustom: ruleTemplates.custom,
+    ruleTemplateError: ruleTemplates.error,
+    loadRuleTemplateCustom: ruleTemplates.loadCustom,
+    importRuleTemplates: ruleTemplates.importTemplates,
+    deleteRuleTemplateCustom: ruleTemplates.deleteCustom,
+    ruleProfilePacks: ruleProfiles.packs,
+    activeRuleProfileId: ruleProfiles.activeId,
+    ruleProfileError: ruleProfiles.error,
+    loadRuleProfiles: ruleProfiles.loadProfiles,
+    handleApplyRuleProfile,
+    handleSwitchRuleProfile,
+    handleCreateRuleProfile,
+    handleDeleteRuleProfile,
+    handleExportRuleProfile,
+    globals: globals.globals,
+    globalsLoading: globals.loading,
+    globalsError: globals.error,
+    loadGlobals: globals.loadGlobals,
+    saveGlobals: globals.saveGlobals,
     handleDeleteAction: automation.handleDeleteAction,
     handleSetActionEnabled: automation.handleSetActionEnabled,
     handleTestAction: automation.handleTestAction,
-    handleSaveEvent: automation.handleSaveEvent,
+    handleSaveEvent: handleSaveBehaviorEvent,
     handleDeleteEvent: automation.handleDeleteEvent,
     handleSetEventEnabled: automation.handleSetEventEnabled,
     handleTestEvent: automation.handleTestEvent,
+    handleFireEvent: automation.handleFireEvent,
+    hotkeyAccessPending: automation.hotkeyAccessPending,
+    handleRequestHotkeyAccess: automation.handleRequestHotkeyAccess,
     handleSetPluginInstalled: plugins.handleSetPluginInstalled,
     handleUninstallPlugin: plugins.handleUninstallPlugin,
     handleSetPluginEnabled: plugins.handleSetPluginEnabled,

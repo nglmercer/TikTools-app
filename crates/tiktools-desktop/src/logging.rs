@@ -3,7 +3,9 @@
 //! The desktop executable is a Windows GUI subsystem binary in release mode,
 //! so stdout is not a reliable place for startup diagnostics. This module
 //! keeps the existing `tracing` call sites and supplies a small bounded file
-//! writer instead of creating an unbounded log file.
+//! writer instead of creating an unbounded log file. Every line is also
+//! mirrored to stderr (best-effort, ignored when there is no console) so a
+//! terminal launch shows plugin lifecycle and warnings live.
 
 use std::{
     fs::{self, File, OpenOptions},
@@ -49,12 +51,38 @@ impl RotatingLogWriter {
 }
 
 impl<'a> MakeWriter<'a> for RotatingLogWriter {
-    type Writer = LogGuard;
+    type Writer = TeeWriter<LogGuard, io::Stderr>;
 
     fn make_writer(&'a self) -> Self::Writer {
-        LogGuard {
-            state: Arc::clone(&self.state),
+        TeeWriter {
+            primary: LogGuard {
+                state: Arc::clone(&self.state),
+            },
+            secondary: io::stderr(),
         }
+    }
+}
+
+/// Fans one formatted line out to the log file (authoritative) and stderr
+/// (live console mirror). The secondary is strictly best-effort: a missing
+/// console (Windows GUI release) or a closed pipe must never fail or
+/// short-circuit the file write.
+struct TeeWriter<A, B> {
+    primary: A,
+    secondary: B,
+}
+
+impl<A: Write, B: Write> Write for TeeWriter<A, B> {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let written = self.primary.write(bytes)?;
+        let _ = self.secondary.write_all(bytes);
+        Ok(written)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.primary.flush()?;
+        let _ = self.secondary.flush();
+        Ok(())
     }
 }
 
@@ -182,5 +210,39 @@ mod tests {
         assert!(rotated_path(&path, 1).is_file());
         assert!(!rotated_path(&path, MAX_ROTATED_FILES + 1).exists());
         let _ = fs::remove_dir_all(directory);
+    }
+
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _bytes: &[u8]) -> io::Result<usize> {
+            Err(io::Error::other("no console"))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::other("no console"))
+        }
+    }
+
+    #[test]
+    fn tee_writer_mirrors_to_both_and_tolerates_console_failure() {
+        let mut mirror = TeeWriter {
+            primary: Vec::new(),
+            secondary: Vec::new(),
+        };
+        mirror.write_all(b"hello\n").unwrap();
+        mirror.flush().unwrap();
+        assert_eq!(mirror.primary, b"hello\n");
+        assert_eq!(mirror.secondary, b"hello\n");
+
+        // A dead console (Windows GUI release, closed pipe) must never
+        // fail the authoritative file write.
+        let mut no_console = TeeWriter {
+            primary: Vec::new(),
+            secondary: FailingWriter,
+        };
+        no_console.write_all(b"hello\n").unwrap();
+        no_console.flush().unwrap();
+        assert_eq!(no_console.primary, b"hello\n");
     }
 }

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 3,
+  "id": "tiktools.napi-vm-native",
+  "name": "NapiVmNative",
+  "version": "0.1.0",
+  "description": "Native addon fixture for the napi-vm runtime integration test.",
+  "runtime": "napi-vm",
+  "entry": "dist/index.js",
+  "capabilities": [],
+  "trust": "trusted",
+  "apiVersion": 1
+}

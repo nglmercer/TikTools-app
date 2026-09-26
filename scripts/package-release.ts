@@ -1,6 +1,6 @@
 import { chmod, cp, mkdir, readFile, rm, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { resolveRustTarget } from './lib/plugin-targets.ts';
+import { napiTargetFromRustTarget, resolveRustTarget } from './lib/plugin-targets.ts';
 
 const repositoryRoot = resolve(import.meta.dir, '..');
 const cargoWrapper = join(repositoryRoot, 'scripts', 'cargo-with-linker.mjs');
@@ -27,10 +27,34 @@ const supportedPlatforms = {
   },
 } as const;
 
-/** Official built-in process plugins bundled with every release. */
-const BUNDLED_PLUGINS = [
-  { id: 'hotkeys', example: 'hotkey-process-plugin', entry: 'tiktools-hotkey-process-plugin' },
-] as const;
+/**
+ * Official built-in plugins bundled with every release.
+ *
+ * `runtime: 'napi-vm'` entries ship a TypeScript guest plus the release
+ * target's native bindings, fetched from each library's pinned provider
+ * (`nativeLibs` + `native-libs.lock.json` in the example directory) and
+ * verified by the shared stage-native tool. Content pins live in the
+ * lockfile; this script only names the expected staged layout for the
+ * archive verification below.
+ */
+type BundledPlugin =
+  | { id: string; example: string; entry: string; runtime: 'process' }
+  | {
+      id: string;
+      example: string;
+      entry: string;
+      runtime: 'napi-vm';
+      native: { package: string; binary: string };
+    };
+const BUNDLED_PLUGINS: readonly BundledPlugin[] = [
+  {
+    id: 'hotkeys',
+    example: 'hotkey-napi-plugin',
+    entry: 'dist/index.js',
+    runtime: 'napi-vm',
+    native: { package: 'rdev-node', binary: 'node-rdev' },
+  },
+];
 
 type ReleasePlatform = keyof typeof supportedPlatforms;
 
@@ -63,6 +87,79 @@ async function isFile(path: string): Promise<boolean> {
 
 function isSupportedPlatform(value: string): value is ReleasePlatform {
   return Object.hasOwn(supportedPlatforms, value);
+}
+
+/** Plugin-relative files each bundled entry must contribute to the archive. */
+function bundledExpectedFiles(bundled: BundledPlugin, releasePlatform: ReleasePlatform): string[] {
+  if (bundled.runtime === 'napi-vm') {
+    const triple = napiTargetFromRustTarget(supportedPlatforms[releasePlatform].rustTarget);
+    const binding = `${bundled.native.binary}.${triple}.node`;
+    return [
+      'plugin.json',
+      bundled.entry,
+      `node_modules/${bundled.native.package}/package.json`,
+      `node_modules/${bundled.native.package}/index.js`,
+      `node_modules/${bundled.native.package}/index.d.ts`,
+      `node_modules/${bundled.native.package}/${binding}`,
+    ];
+  }
+  return ['plugin.json', `${bundled.entry}${resolveRustTarget(platform.rustTarget).executableExtension}`];
+}
+
+/**
+ * Stage a napi-vm plugin: compile the TypeScript guest, then fetch every
+ * declared native library for the release target from its pinned provider
+ * through the shared stage-native tool, so release layout matches the
+ * dev/packaged flows byte for byte.
+ */
+async function stageNapiVmPlugin(
+  bundled: Extract<BundledPlugin, { runtime: 'napi-vm' }>,
+  exampleDirectory: string,
+  pluginDirectory: string,
+  releasePlatform: ReleasePlatform,
+): Promise<void> {
+  const tsc = join(repositoryRoot, 'node_modules', 'typescript', 'bin', 'tsc');
+  if (!(await isFile(tsc))) {
+    fail(`TypeScript compiler is missing at ${tsc}; run bun ci first`);
+  }
+  run('bun', [tsc, '-p', exampleDirectory]);
+  const builtEntry = join(exampleDirectory, bundled.entry);
+  if (!(await isFile(builtEntry))) {
+    fail(`tsc built ${bundled.id}, but its entry was not found at ${builtEntry}`);
+  }
+  const manifestPath = join(exampleDirectory, 'plugin.json');
+  const lockfilePath = join(exampleDirectory, 'native-libs.lock.json');
+  if (!(await isFile(lockfilePath))) {
+    fail(`bundled plugin ${bundled.id} declares nativeLibs but has no committed ${lockfilePath}`);
+  }
+  await mkdir(pluginDirectory, { recursive: true });
+  run('node', [
+    cargoWrapper,
+    'run',
+    '--release',
+    '--locked',
+    '-p',
+    'tiktools-plugin-sdk',
+    '--features',
+    'providers',
+    '--bin',
+    'tiktools-plugin-stage-native',
+    '--',
+    '--provider',
+    'all',
+    '--manifest',
+    manifestPath,
+    '--plugin-dir',
+    pluginDirectory,
+    '--lockfile',
+    lockfilePath,
+    '--target',
+    napiTargetFromRustTarget(supportedPlatforms[releasePlatform].rustTarget),
+    '--overwrite',
+  ]);
+  await cp(join(exampleDirectory, 'plugin.json'), join(pluginDirectory, 'plugin.json'));
+  await mkdir(join(pluginDirectory, 'dist'), { recursive: true });
+  await cp(builtEntry, join(pluginDirectory, bundled.entry));
 }
 
 const tag = requiredEnvironment('RELEASE_TAG');
@@ -114,6 +211,15 @@ for (const bundled of BUNDLED_PLUGINS) {
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as { id?: unknown };
   if (manifest.id !== bundled.id) {
     fail(`${manifestPath} declares id ${String(manifest.id)}, expected ${bundled.id}`);
+  }
+  if (bundled.runtime === 'napi-vm') {
+    await stageNapiVmPlugin(
+      bundled,
+      exampleDirectory,
+      join(bundleDirectory, 'plugins', bundled.id),
+      platformValue,
+    );
+    continue;
   }
   run('node', [
     cargoWrapper,
@@ -167,10 +273,11 @@ const expectedEntries = [
   `${bundleName}/web/index.html`,
   `${bundleName}/LICENSE`,
   `${bundleName}/README.md`,
-  ...BUNDLED_PLUGINS.flatMap((bundled) => [
-    `${bundleName}/plugins/${bundled.id}/plugin.json`,
-    `${bundleName}/plugins/${bundled.id}/${bundled.entry}${pluginTarget.executableExtension}`,
-  ]),
+  ...BUNDLED_PLUGINS.flatMap((bundled) =>
+    bundledExpectedFiles(bundled, platformValue).map(
+      (relative) => `${bundleName}/plugins/${bundled.id}/${relative}`,
+    ),
+  ),
 ];
 for (const expectedEntry of expectedEntries) {
   if (!listingEntries.some((entry) => entry === expectedEntry)) {
@@ -192,10 +299,11 @@ for (const relative of [
   'web/index.html',
   'LICENSE',
   'README.md',
-  ...BUNDLED_PLUGINS.flatMap((bundled) => [
-    `plugins/${bundled.id}/plugin.json`,
-    `plugins/${bundled.id}/${bundled.entry}${pluginTarget.executableExtension}`,
-  ]),
+  ...BUNDLED_PLUGINS.flatMap((bundled) =>
+    bundledExpectedFiles(bundled, platformValue).map(
+      (relative) => `plugins/${bundled.id}/${relative}`,
+    ),
+  ),
 ]) {
   if (!(await isFile(join(extractedBundle, relative)))) {
     fail(`extracted archive is missing ${bundleName}/${relative}`);

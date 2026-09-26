@@ -11,6 +11,7 @@ impl AppCore {
         self: &Arc<Self>,
         config: &serde_json::Map<String, Value>,
         event: &Value,
+        globals: &std::collections::BTreeMap<String, String>,
         logs: &mut Vec<String>,
         allowed_hosts: Option<&[String]>,
         test: bool,
@@ -19,13 +20,21 @@ impl AppCore {
             .get("url")
             .and_then(Value::as_str)
             .ok_or_else(|| "HTTP action has no URL.".to_owned())?;
-        let configured_url = reqwest::Url::parse(raw_url)
+        // Two-phase render: operator-trusted globals first (so the
+        // configured host is concrete), then untrusted event data. The
+        // rendered host must still match the configured host below, so
+        // event content can never redirect the request elsewhere.
+        let globals_rendered_url = render_globals_only(raw_url, globals);
+        if has_empty_authority(&globals_rendered_url) {
+            return Err("HTTP URL has no host after rendering globals.".to_owned());
+        }
+        let configured_url = reqwest::Url::parse(&globals_rendered_url)
             .map_err(|_| "HTTP URL is invalid before template rendering.".to_owned())?;
         let configured_host = configured_url
             .host_str()
             .map(str::to_ascii_lowercase)
             .ok_or_else(|| "HTTP URL has no host.".to_owned())?;
-        let rendered_url = render_template(raw_url, event);
+        let rendered_url = render_template(&globals_rendered_url, event, globals);
         let url = reqwest::Url::parse(&rendered_url)
             .map_err(|_| "HTTP URL is invalid after template rendering.".to_owned())?;
         let allow_private_network = config
@@ -56,6 +65,7 @@ impl AppCore {
                 let value = value_to_string(&Value::String(render_template(
                     &value_to_string(value),
                     event,
+                    globals,
                 )));
                 if key.eq_ignore_ascii_case("content-type") {
                     content_type = value.clone();
@@ -70,7 +80,7 @@ impl AppCore {
                 Some(
                     value
                         .as_str()
-                        .map(|value| render_template(value, event))
+                        .map(|value| render_template(value, event, globals))
                         .unwrap_or_else(|| value_to_string(value)),
                 )
             }
@@ -150,6 +160,7 @@ impl AppCore {
         self: &Arc<Self>,
         _config: &serde_json::Map<String, Value>,
         _event: &Value,
+        _globals: &std::collections::BTreeMap<String, String>,
         _logs: &mut Vec<String>,
         _allowed_hosts: Option<&[String]>,
         _test: bool,

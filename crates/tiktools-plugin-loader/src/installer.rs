@@ -30,6 +30,12 @@ pub struct PluginInstaller {
     pub plugin_directory: PathBuf,
     pub staging_directory: PathBuf,
     pub replace_existing: bool,
+    /// Override fetch bases for declarative native libraries as
+    /// `(npm_registry, github_base)`. `None` uses the official
+    /// endpoints. Only consulted when an archive declares `nativeLibs`
+    /// but lacks the install host's binary; tests point this at a stub
+    /// origin, mirrors may point it at a local registry.
+    pub provider_endpoints: Option<(String, String)>,
 }
 
 #[derive(Debug, Clone)]
@@ -175,6 +181,7 @@ impl PluginInstaller {
             .validate_compatibility()
             .map_err(|error| PluginLoaderError::Runtime(error.to_string()))?;
         verify_checksums(&root, &manifest)?;
+        self.backfill_native_libs(&manifest, &root, staging)?;
         if root.join("signature.json").is_file() {
             return Err(PluginLoaderError::Runtime(
                 "signed plugin packages require a configured signature verifier".to_owned(),
@@ -222,6 +229,174 @@ impl PluginInstaller {
     fn staging_path(&self) -> PathBuf {
         self.staging_directory
             .join(format!("plugin-{}-{}", std::process::id(), unique_suffix()))
+    }
+
+    /// Complete native trees the archive did not ship. For every
+    /// declared library whose `nativeAddons` root lacks this host's
+    /// `.node` binary, replay the shipped lockfile and fetch exactly
+    /// that binary from its pinned provider. Complete trees are never
+    /// touched (no network, no rewrite); ambiguous or unreadable trees
+    /// are left for the loader's fail-closed selection; libraries
+    /// without an addon twin are ignored here (the staging tool rejects
+    /// them at build time) and stay unloadable as before.
+    #[cfg(feature = "native-providers")]
+    fn backfill_native_libs(
+        &self,
+        manifest: &PluginManifest,
+        staging_root: &Path,
+        staging: &Path,
+    ) -> Result<(), PluginLoaderError> {
+        use tiktools_plugin_api::manifest::{
+            current_napi_target, select_host_native_binary, NativeBinarySelectError,
+        };
+        use tiktools_plugin_sdk::native_providers::{
+            fetch_and_stage_native_libs, provider_client, read_lockfile, FetchAndStage,
+            ProviderEndpoints,
+        };
+
+        if manifest.native_libs.is_empty() {
+            return Ok(());
+        }
+        let mut missing = Vec::new();
+        for declaration in &manifest.native_libs {
+            let Some(addon) = manifest
+                .native_addons
+                .iter()
+                .find(|addon| addon.package == declaration.package)
+            else {
+                continue;
+            };
+            match select_host_native_binary(&staging_root.join(&addon.root)) {
+                Ok(_) => continue,
+                Err(
+                    NativeBinarySelectError::NoHostBinary { .. }
+                    | NativeBinarySelectError::NotADirectory(_),
+                ) => missing.push(declaration.clone()),
+                // Ambiguous or unreadable trees keep today's behavior:
+                // installation succeeds and loading fails closed.
+                Err(_) => continue,
+            }
+        }
+        if missing.is_empty() {
+            return Ok(());
+        }
+        let lockfile_path = staging_root.join("native-libs.lock.json");
+        if !lockfile_path.is_file() {
+            let names: Vec<_> = missing.iter().map(|entry| entry.package.as_str()).collect();
+            return Err(PluginLoaderError::Runtime(format!(
+                "plugin archive ships no {} binary for {} and no native-libs.lock.json to fetch it from",
+                current_napi_target(),
+                names.join(", "),
+            )));
+        }
+        let manifest = PluginManifest {
+            native_libs: missing,
+            ..manifest.clone()
+        };
+        let lockfile = read_lockfile(&lockfile_path)
+            .map_err(|error| PluginLoaderError::Runtime(error.to_string()))?;
+        let endpoints = match &self.provider_endpoints {
+            Some((npm_registry, github_base)) => ProviderEndpoints {
+                npm_registry: npm_registry.clone(),
+                github_base: github_base.clone(),
+            },
+            None => ProviderEndpoints::officials(),
+        };
+        let target = current_napi_target();
+        let staging_root = staging_root.to_owned();
+        let work_dir = staging.to_owned();
+        // Installation is synchronous and may run inside an async
+        // context, so the fetch gets a dedicated thread with its own
+        // current-thread runtime instead of assuming a context.
+        std::thread::scope(|scope| {
+            scope
+                .spawn(|| {
+                    let runtime = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .map_err(|error| {
+                            PluginLoaderError::Runtime(format!(
+                                "cannot start native-library fetch: {error}"
+                            ))
+                        })?;
+                    runtime.block_on(async {
+                        let client = provider_client()
+                            .map_err(|error| PluginLoaderError::Runtime(error.to_string()))?;
+                        fetch_and_stage_native_libs(&FetchAndStage {
+                            client: &client,
+                            endpoints: &endpoints,
+                            manifest: &manifest,
+                            lockfile: &lockfile,
+                            target: &target,
+                            plugin_dir: &staging_root,
+                            work_dir: &work_dir,
+                            overwrite: true,
+                            provider_filter: None,
+                        })
+                        .await
+                        .map_err(|error| PluginLoaderError::Runtime(error.to_string()))?;
+                        // Confirm every backfilled root now selects.
+                        for declaration in &manifest.native_libs {
+                            let addon = manifest
+                                .native_addons
+                                .iter()
+                                .find(|addon| addon.package == declaration.package)
+                                .expect("twin checked above");
+                            select_host_native_binary(&staging_root.join(&addon.root)).map_err(
+                                |error| {
+                                    PluginLoaderError::Runtime(format!(
+                                        "fetched native library failed validation: {error}"
+                                    ))
+                                },
+                            )?;
+                        }
+                        Ok::<(), PluginLoaderError>(())
+                    })
+                })
+                .join()
+                .unwrap_or_else(|_| {
+                    Err(PluginLoaderError::Runtime(
+                        "native-library fetch thread failed".to_owned(),
+                    ))
+                })
+        })
+    }
+
+    /// Builds without the fetch feature install complete trees
+    /// unchanged; archives that need a backfill fail with a clear
+    /// rebuild hint instead of a confusing load-time error.
+    #[cfg(not(feature = "native-providers"))]
+    fn backfill_native_libs(
+        &self,
+        manifest: &PluginManifest,
+        staging_root: &Path,
+        _staging: &Path,
+    ) -> Result<(), PluginLoaderError> {
+        use tiktools_plugin_api::manifest::{select_host_native_binary, NativeBinarySelectError};
+
+        if manifest.native_libs.is_empty() {
+            return Ok(());
+        }
+        for declaration in &manifest.native_libs {
+            let Some(addon) = manifest
+                .native_addons
+                .iter()
+                .find(|addon| addon.package == declaration.package)
+            else {
+                continue;
+            };
+            if matches!(
+                select_host_native_binary(&staging_root.join(&addon.root)),
+                Err(NativeBinarySelectError::NoHostBinary { .. }
+                    | NativeBinarySelectError::NotADirectory(_))
+            ) {
+                return Err(PluginLoaderError::Runtime(format!(
+                    "plugin archive ships no binary for {} and this build disables native-library fetch (rebuild with the native-providers feature)",
+                    declaration.package,
+                )));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -529,6 +704,7 @@ mod tests {
             plugin_directory: root.join("plugins"),
             staging_directory: root.join("staging"),
             replace_existing: false,
+            provider_endpoints: None,
         }
         .install(&archive_path)
         .unwrap();
@@ -563,6 +739,7 @@ mod tests {
             plugin_directory: root.join("plugins"),
             staging_directory: root.join("staging"),
             replace_existing: false,
+            provider_endpoints: None,
         }
         .install(&archive_path);
         assert!(result.is_err());
@@ -585,6 +762,7 @@ mod tests {
             plugin_directory: root.join("plugins"),
             staging_directory: staging.clone(),
             replace_existing: false,
+            provider_endpoints: None,
         }
         .install(&archive_path);
         assert!(result.is_err());
@@ -619,6 +797,7 @@ mod tests {
             plugin_directory: root.join("plugins"),
             staging_directory: root.join("staging"),
             replace_existing: false,
+            provider_endpoints: None,
         }
         .install(&archive_path);
         assert!(result.is_err());
@@ -650,6 +829,7 @@ mod tests {
             plugin_directory: root.join("plugins"),
             staging_directory: root.join("staging"),
             replace_existing: false,
+            provider_endpoints: None,
         }
         .install(&first)
         .unwrap();
@@ -667,6 +847,7 @@ mod tests {
             plugin_directory: root.join("plugins"),
             staging_directory: root.join("staging"),
             replace_existing: false,
+            provider_endpoints: None,
         }
         .install(&second);
         let message = without_replace.unwrap_err().to_string();
@@ -679,6 +860,7 @@ mod tests {
             plugin_directory: root.join("plugins"),
             staging_directory: root.join("staging"),
             replace_existing: true,
+            provider_endpoints: None,
         }
         .install(&second)
         .unwrap();
@@ -686,6 +868,354 @@ mod tests {
         let installed_manifest = fs::read_to_string(root.join("plugins/demo/plugin.json")).unwrap();
         assert!(installed_manifest.contains("2.0.0"));
 
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// Stub npm origin plus a fixture tarball serving this host's
+    /// binary. The backfill tests run on a multi-thread runtime: the
+    /// stub serves on one worker while the synchronous installer (with
+    /// its dedicated fetch thread) runs on another.
+    #[cfg(feature = "native-providers")]
+    struct BackfillFixture {
+        base: String,
+        tarball: Vec<u8>,
+        routes: std::sync::Arc<std::sync::Mutex<std::collections::BTreeMap<String, Vec<u8>>>>,
+        _task: tokio::task::JoinHandle<()>,
+    }
+
+    #[cfg(feature = "native-providers")]
+    impl BackfillFixture {
+        async fn start(host_node: &str, host_bytes: &[u8]) -> Self {
+            use std::collections::BTreeMap;
+            use std::sync::{Arc, Mutex};
+
+            // The tarball always carries a foreign twin the fetch must
+            // drop; it must differ from the host file on every platform.
+            let foreign_node = if host_node.ends_with("win32-x64-msvc.node") {
+                "package/node-stem.linux-x64-gnu.node"
+            } else {
+                "package/node-stem.win32-x64-msvc.node"
+            };
+            let tarball = Self::tarball(host_node, host_bytes, foreign_node);
+            let routes: Arc<Mutex<BTreeMap<String, Vec<u8>>>> =
+                Arc::new(Mutex::new(BTreeMap::new()));
+            let serving = routes.clone();
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            let task = tokio::spawn(async move {
+                loop {
+                    let Ok((mut socket, _)) = listener.accept().await else {
+                        break;
+                    };
+                    let routes = serving.clone();
+                    tokio::spawn(async move {
+                        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                        let mut buffer = vec![0u8; 8192];
+                        let Ok(read) = socket.read(&mut buffer).await else {
+                            return;
+                        };
+                        let request = String::from_utf8_lossy(&buffer[..read]);
+                        let path = request
+                            .lines()
+                            .next()
+                            .and_then(|line| line.split_whitespace().nth(1))
+                            .unwrap_or("/");
+                        let body = routes
+                            .lock()
+                            .ok()
+                            .and_then(|routes| routes.get(path).cloned());
+                        let (status, reason, body) = body.map_or_else(
+                            || (404, "Not Found", b"not found".to_vec()),
+                            |body| (200, "OK", body),
+                        );
+                        let header = format!(
+                            "HTTP/1.1 {status} {reason}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                            body.len()
+                        );
+                        let _ = socket.write_all(header.as_bytes()).await;
+                        let _ = socket.write_all(&body).await;
+                    });
+                }
+            });
+            Self {
+                base,
+                tarball,
+                routes,
+                _task: task,
+            }
+        }
+
+        fn tarball(host_node: &str, host_bytes: &[u8], foreign_node: &str) -> Vec<u8> {
+            let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+            let mut builder = tar::Builder::new(encoder);
+            for (path, bytes) in [
+                (
+                    "package/package.json",
+                    br#"{"name":"fixture-pkg","version":"1.2.3","main":"index.js","files":["index.js","*.node"]}"#.as_slice(),
+                ),
+                ("package/index.js", b"module.exports = {};".as_slice()),
+                (host_node, host_bytes),
+                (foreign_node, b"foreign-bytes".as_slice()),
+            ] {
+                let mut header = tar::Header::new_gnu();
+                header.set_entry_type(tar::EntryType::Regular);
+                header.set_size(bytes.len() as u64);
+                header.set_mode(0o644);
+                header.set_cksum();
+                builder.append_data(&mut header, path, bytes).unwrap();
+            }
+            builder.into_inner().unwrap().finish().unwrap()
+        }
+
+        /// Serve metadata + tarball, then pin through the real provider
+        /// path to build the shipped lockfile.
+        async fn pin_lockfile(&self) -> String {
+            use tiktools_plugin_api::{NativeLibDeclaration, NativeLibProvider};
+            use tiktools_plugin_sdk::native_providers::{
+                pin_native_lib, provider_client, NativeLibsLockfile, ProviderEndpoints,
+                LOCKFILE_VERSION,
+            };
+
+            let integrity = {
+                use base64::Engine;
+                use sha2::Digest;
+                format!(
+                    "sha512-{}",
+                    base64::engine::general_purpose::STANDARD
+                        .encode(sha2::Sha512::digest(&self.tarball))
+                )
+            };
+            self.routes.lock().unwrap().extend([
+                (
+                    "/fixture-pkg/1.2.3".to_owned(),
+                    serde_json::to_vec(&serde_json::json!({
+                        "name": "fixture-pkg",
+                        "version": "1.2.3",
+                        "dist": {
+                            "tarball": format!("{}/t.tgz", self.base),
+                            "integrity": integrity,
+                        },
+                    }))
+                    .unwrap(),
+                ),
+                ("/t.tgz".to_owned(), self.tarball.clone()),
+            ]);
+            let endpoints = ProviderEndpoints {
+                npm_registry: self.base.clone(),
+                github_base: self.base.clone(),
+            };
+            let declaration = NativeLibDeclaration {
+                package: "fixture-pkg".to_owned(),
+                version: "1.2.3".to_owned(),
+                provider: NativeLibProvider::Npm,
+                repo: None,
+                tag: None,
+                binary: None,
+            };
+            let client = provider_client().unwrap();
+            let locked = pin_native_lib(&client, &endpoints, &declaration)
+                .await
+                .unwrap();
+            let lockfile = NativeLibsLockfile {
+                version: LOCKFILE_VERSION,
+                packages: std::collections::BTreeMap::from([("fixture-pkg".to_owned(), locked)]),
+            };
+            serde_json::to_string_pretty(&lockfile).unwrap()
+        }
+    }
+
+    #[cfg(feature = "native-providers")]
+    fn backfill_manifest() -> Vec<u8> {
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "schemaVersion": 3,
+            "id": "backfill",
+            "name": "Backfill",
+            "version": "1.0.0",
+            "runtime": "napi-vm",
+            "entry": "dist/index.js",
+            "nativeAddons": [{"package": "fixture-pkg", "root": "node_modules/fixture-pkg"}],
+            "nativeLibs": [{"package": "fixture-pkg", "version": "1.2.3"}],
+        }))
+        .unwrap()
+    }
+
+    #[cfg(feature = "native-providers")]
+    fn archive_with_checksums(path: &Path, files: &[(&str, &[u8])]) {
+        let checksums: std::collections::BTreeMap<String, String> = files
+            .iter()
+            .map(|(name, bytes)| ((*name).to_owned(), digest_bytes(bytes)))
+            .collect();
+        let checksums = serde_json::to_string_pretty(&checksums).unwrap();
+        let file = File::create(path).unwrap();
+        let mut writer = ZipWriter::new(file);
+        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        for (name, bytes) in files {
+            writer.start_file(*name, options).unwrap();
+            writer.write_all(bytes).unwrap();
+        }
+        writer.start_file("checksums.json", options).unwrap();
+        writer.write_all(checksums.as_bytes()).unwrap();
+        writer.finish().unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[cfg(feature = "native-providers")]
+    async fn installer_backfills_missing_host_binary_from_lockfile() {
+        use tiktools_plugin_api::manifest::current_napi_target;
+
+        let host_node = format!("package/node-stem.{}.node", current_napi_target());
+        let fixture = BackfillFixture::start(&host_node, b"host-bytes").await;
+        let lockfile = fixture.pin_lockfile().await;
+
+        let root = temp_root();
+        fs::create_dir_all(&root).unwrap();
+        let archive_path = root.join("backfill.plugin");
+        let manifest = backfill_manifest();
+        // The shipped tree carries sources but no binary: the hook must
+        // fetch exactly the host file from the stub origin.
+        let package_json =
+            br#"{"name":"fixture-pkg","version":"1.2.3","main":"index.js","files":["index.js","*.node"]}"#;
+        archive_with_checksums(
+            &archive_path,
+            &[
+                ("plugin.json", &manifest),
+                ("dist/index.js", b"export default {};"),
+                (
+                    "node_modules/fixture-pkg/package.json",
+                    package_json as &[u8],
+                ),
+                (
+                    "node_modules/fixture-pkg/index.js",
+                    b"module.exports = {};" as &[u8],
+                ),
+                ("native-libs.lock.json", lockfile.as_bytes()),
+            ],
+        );
+
+        let installed = PluginInstaller {
+            plugin_directory: root.join("plugins"),
+            staging_directory: root.join("staging"),
+            replace_existing: false,
+            provider_endpoints: Some((fixture.base.clone(), fixture.base.clone())),
+        }
+        .install(&archive_path)
+        .unwrap();
+        let tree = installed.directory.join("node_modules/fixture-pkg");
+        let host_file = format!("node-stem.{}.node", current_napi_target());
+        assert_eq!(
+            fs::read(tree.join(&host_file)).unwrap(),
+            b"host-bytes",
+            "host binary was not backfilled"
+        );
+        let foreign_file = if current_napi_target() == "win32-x64-msvc" {
+            "node-stem.linux-x64-gnu.node"
+        } else {
+            "node-stem.win32-x64-msvc.node"
+        };
+        assert!(
+            !tree.join(foreign_file).exists(),
+            "foreign twin must not be staged"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[cfg(feature = "native-providers")]
+    async fn installer_skips_fetch_for_complete_trees() {
+        use tiktools_plugin_api::manifest::current_napi_target;
+
+        let host_node = format!("package/node-stem.{}.node", current_napi_target());
+        let fixture = BackfillFixture::start(&host_node, b"host-bytes").await;
+        let lockfile = fixture.pin_lockfile().await;
+
+        let root = temp_root();
+        fs::create_dir_all(&root).unwrap();
+        let archive_path = root.join("complete.plugin");
+        let manifest = backfill_manifest();
+        let package_json =
+            br#"{"name":"fixture-pkg","version":"1.2.3","main":"index.js","files":["index.js","*.node"]}"#;
+        // Complete tree: the host binary ships, so the dead endpoint
+        // below must never be contacted (any attempt fails the install).
+        let host_name = format!(
+            "node_modules/fixture-pkg/node-stem.{}.node",
+            current_napi_target()
+        );
+        let files: Vec<(&str, &[u8])> = vec![
+            ("plugin.json", &manifest),
+            ("dist/index.js", b"export default {};"),
+            (
+                "node_modules/fixture-pkg/package.json",
+                package_json as &[u8],
+            ),
+            (
+                "node_modules/fixture-pkg/index.js",
+                b"module.exports = {};" as &[u8],
+            ),
+            (host_name.as_str(), b"host-bytes" as &[u8]),
+            ("native-libs.lock.json", lockfile.as_bytes()),
+        ];
+        archive_with_checksums(&archive_path, &files);
+
+        let installed = PluginInstaller {
+            plugin_directory: root.join("plugins"),
+            staging_directory: root.join("staging"),
+            replace_existing: false,
+            provider_endpoints: Some((
+                "http://127.0.0.1:9".to_owned(),
+                "http://127.0.0.1:9".to_owned(),
+            )),
+        }
+        .install(&archive_path)
+        .unwrap();
+        assert_eq!(
+            fs::read(
+                installed
+                    .directory
+                    .join("node_modules/fixture-pkg")
+                    .join(format!("node-stem.{}.node", current_napi_target()))
+            )
+            .unwrap(),
+            b"host-bytes"
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    #[cfg(feature = "native-providers")]
+    fn installer_rejects_missing_binary_without_lockfile() {
+        let root = temp_root();
+        fs::create_dir_all(&root).unwrap();
+        let archive_path = root.join("nolock.plugin");
+        let manifest = backfill_manifest();
+        let package_json =
+            br#"{"name":"fixture-pkg","version":"1.2.3","main":"index.js","files":["index.js","*.node"]}"#;
+        archive_with_checksums(
+            &archive_path,
+            &[
+                ("plugin.json", &manifest),
+                ("dist/index.js", b"export default {};"),
+                (
+                    "node_modules/fixture-pkg/package.json",
+                    package_json as &[u8],
+                ),
+            ],
+        );
+        let result = PluginInstaller {
+            plugin_directory: root.join("plugins"),
+            staging_directory: root.join("staging"),
+            replace_existing: false,
+            provider_endpoints: Some((
+                "http://127.0.0.1:9".to_owned(),
+                "http://127.0.0.1:9".to_owned(),
+            )),
+        }
+        .install(&archive_path);
+        let message = result.unwrap_err().to_string();
+        assert!(
+            message.contains("native-libs.lock.json"),
+            "unexpected error: {message}"
+        );
+        assert!(!root.join("plugins/backfill").exists());
         fs::remove_dir_all(root).unwrap();
     }
 }

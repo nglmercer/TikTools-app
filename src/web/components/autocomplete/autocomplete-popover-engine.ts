@@ -7,6 +7,7 @@ import {
   type PopupSize,
   type ViewportSize,
 } from './autocomplete-position.ts';
+import { resolveDesiredPopupWidth, type AutocompleteAnchorMode } from './autocomplete-anchors.ts';
 
 /**
  * Measured popover lifecycle, DOM-free. The Vue shell owns the real
@@ -39,6 +40,8 @@ export type PopoverEngineEnvironment = {
 export type PopoverEngineOptions = MeasuredPopoverOptions & {
   /** Desired width before clamping (caret/compact anchors). */
   preferredWidth?: number;
+  /** Anchor kind: caret anchors size from the preferred width, field anchors match their control. */
+  anchorMode?: AutocompleteAnchorMode;
 };
 
 export type PopoverEngineSnapshot = {
@@ -103,7 +106,15 @@ export function createMeasuredPopoverEngine(
     const anchor = env.readAnchor();
     const viewport = env.readViewport();
     if (!anchor || !viewport) return false;
-    provisionalWidth = resolvePopupWidth(currentOptions.preferredWidth ?? anchor.width, viewport, currentOptions);
+    provisionalWidth = resolvePopupWidth(
+      resolveDesiredPopupWidth({
+        anchorWidth: anchor.width,
+        mode: currentOptions.anchorMode ?? 'field',
+        preferredWidth: currentOptions.preferredWidth,
+      }),
+      viewport,
+      currentOptions,
+    );
     const size = env.measurePopup(provisionalWidth);
     if (!size) return false;
     const next = placeMeasuredPopover(anchor, { width: provisionalWidth, height: size.height }, viewport, currentOptions);

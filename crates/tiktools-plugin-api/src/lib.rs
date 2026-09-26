@@ -24,7 +24,8 @@ pub use intel::{
     IntelUnicode, IntelUser,
 };
 pub use manifest::{
-    PluginManifest, PluginProcessorDescriptor, PluginRuntimeKind, PluginSecurityModel, PluginTrust,
+    NativeAddonDeclaration, NativeLibDeclaration, NativeLibProvider, PluginManifest,
+    PluginProcessorDescriptor, PluginRuntimeKind, PluginSecurityModel, PluginTrust,
     ProcessorFailureMode, ProcessorInputDescriptor, ProcessorStage,
 };
 pub use media::{

@@ -6,7 +6,8 @@ import type { GatewayStatus } from '../shared/gateway-client.ts';
 import { resolveWidgetDesign, styleVariables, type WidgetStyle, type WidgetTemplate } from './template.ts';
 import type { WidgetClock } from '../shared/clock.ts';
 import type { DomainEventEnvelope } from '../shared/event-types.ts';
-import { makeTestFollowEnvelope, makeTestGiftEnvelope, makeTestGiftCombo, makeTestChatEnvelope, makeTestShareEnvelope, makeTestSubscribeEnvelope, mountWidgetTestHook, WIDGET_TEST_HOOK } from '../shared/test-events.ts';
+import { LastEventCache } from '../shared/last-events.ts';
+import { makeTestFollowEnvelope, makeTestGiftEnvelope, makeTestGiftCombo, makeTestChatEnvelope, makeTestShareEnvelope, makeTestSubscribeEnvelope, makeTestEnvelopeFor, mountWidgetTestHook, WIDGET_TEST_HOOK, type GenericTestOverrides, type WidgetTestApi } from '../shared/test-events.ts';
 
 const props = withDefaults(defineProps<{
   template: WidgetTemplate;
@@ -53,16 +54,25 @@ function start() {
   generation.value += 1;
   const controller = instance.value.controller;
   const inject = (envelope: DomainEventEnvelope) => controller.handleEnvelope(envelope);
+  // Last-live memory for `emitLast`: only real gateway frames are recorded.
+  // Preview samples and hook injections stay synthetic and never pollute it.
+  const lastEvents = new LastEventCache();
   if (props.mode === 'preview') {
     props.template.samples().forEach((sample, index) => {
       timers.push(setTimeout(() => inject(sample), 100 + index * 150));
     });
   } else {
-    runtime = createWidgetRuntime({ onEnvelope: inject, onStatus: (next) => { status.value = next; } });
+    runtime = createWidgetRuntime({
+      onEnvelope: (envelope) => {
+        lastEvents.record(envelope);
+        inject(envelope);
+      },
+      onStatus: (next) => { status.value = next; },
+    });
     runtime.start();
   }
   if (props.testHook) {
-    const api = {
+    const api: WidgetTestApi = {
       emitEnvelope: inject,
       emitTestFollow: (overrides?: Parameters<typeof makeTestFollowEnvelope>[0]) => inject(makeTestFollowEnvelope(overrides)),
       emitTestGift: (overrides?: Parameters<typeof makeTestGiftEnvelope>[0]) => inject(makeTestGiftEnvelope(overrides)),
@@ -70,6 +80,14 @@ function start() {
       emitTestChat: (overrides?: Parameters<typeof makeTestChatEnvelope>[0]) => inject(makeTestChatEnvelope(overrides)),
       emitTestShare: (overrides?: Parameters<typeof makeTestShareEnvelope>[0]) => inject(makeTestShareEnvelope(overrides)),
       emitTestSubscribe: (overrides?: Parameters<typeof makeTestSubscribeEnvelope>[0]) => inject(makeTestSubscribeEnvelope(overrides)),
+      emitSample: (type: string, overrides?: GenericTestOverrides) => inject(makeTestEnvelopeFor(type, overrides)),
+      emitLast: (type: string) => {
+        const replay = lastEvents.replay(type);
+        if (!replay) return false;
+        inject(replay);
+        return true;
+      },
+      lastEventTypes: () => lastEvents.types,
       connectionStatus: () => status.value,
     };
     mountWidgetTestHook(api);

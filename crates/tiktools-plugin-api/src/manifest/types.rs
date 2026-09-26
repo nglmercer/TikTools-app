@@ -23,6 +23,12 @@ pub enum PluginRuntimeKind {
     /// Host-interpreted declarative package (schema v3): HTTP actions,
     /// option sources, templates, and pages with no executable entry.
     Declarative,
+    /// TypeScript-first plugin compiled to JavaScript and executed through
+    /// the `napi-vm` interpreter (`napi_vm::RustPluginHost`). Guest code is
+    /// sandboxed by the VM with deny-by-default capabilities; explicitly
+    /// allowlisted `.node` addons are trusted native code, not sandboxed.
+    #[serde(rename = "napi-vm")]
+    NapiVm,
 }
 
 /// Runtime boundary semantics used for host policy and documentation. This
@@ -43,6 +49,7 @@ impl PluginRuntimeKind {
             "wasm" => Some(Self::Wasm),
             "process" => Some(Self::Process),
             "declarative" => Some(Self::Declarative),
+            "napi-vm" => Some(Self::NapiVm),
             _ => None,
         }
     }
@@ -54,7 +61,10 @@ impl PluginRuntimeKind {
             // no execution boundary applies.
             Self::Native | Self::Declarative => PluginSecurityModel::Trusted,
             Self::Process => PluginSecurityModel::Isolated,
-            Self::Wasm => PluginSecurityModel::Sandboxed,
+            // napi-vm guest JavaScript runs inside the interpreter with
+            // deny-by-default capabilities. Explicitly allowlisted `.node`
+            // addons escape this boundary and are trusted native code.
+            Self::Wasm | Self::NapiVm => PluginSecurityModel::Sandboxed,
         }
     }
 }
@@ -82,10 +92,68 @@ impl PluginTrust {
     pub const fn default_for_runtime(runtime: PluginRuntimeKind) -> Self {
         match runtime {
             PluginRuntimeKind::Native => Self::Trusted,
-            PluginRuntimeKind::Wasm | PluginRuntimeKind::Process => Self::Sandboxed,
+            PluginRuntimeKind::Wasm | PluginRuntimeKind::Process | PluginRuntimeKind::NapiVm => {
+                Self::Sandboxed
+            }
             PluginRuntimeKind::Declarative => Self::Untrusted,
         }
     }
+}
+
+/// One bundled native package a `napi-vm` plugin may load a `.node`
+/// binary from. `package` is the bare specifier guests require
+/// (`rdev-node`); `root` is the package directory relative to the plugin
+/// root (`node_modules/rdev-node`).
+///
+/// There is deliberately no per-target artifact map and no manifest hash:
+/// the host selects the exact binary for its own platform from the
+/// package root at load, and napi-vm allowlists and pins that one file
+/// internally.
+///
+/// Native addons are trusted code with host process privileges, never
+/// sandboxed. This declaration is the authorization boundary: only the
+/// selected binary loads, and every other `.node` file is refused.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NativeAddonDeclaration {
+    pub package: String,
+    pub root: String,
+}
+
+/// Where a `napi-vm` plugin's native library comes from. `npm` is the
+/// default: the pinned tarball is fetched from the registry, its
+/// integrity verified, and the package extracted. `github` fetches the
+/// pinned release assets (`index.js`, `index.d.ts`, plus the target's
+/// `.node`) from a repository's releases page instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NativeLibProvider {
+    Npm,
+    Github,
+}
+
+/// One declarative native-library dependency of a `napi-vm` plugin.
+/// Unlike `nativeAddons` (the load-time authorization boundary), this is
+/// install-time configuration: it tells the staging tool and the plugin
+/// installer where to fetch the package bytes from. `version` is always
+/// an exact pin, never a range; the lockfile carries the verified
+/// content hashes.
+///
+/// `provider` defaults to `npm`. A `github` entry additionally names
+/// the `repo` (`owner/name`), the release `tag`, and the napi `binary`
+/// stem (`node-rdev`) used to build per-target asset names; those keys
+/// are rejected on `npm` entries so a half-migrated declaration fails
+/// instead of silently fetching from the wrong source.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NativeLibDeclaration {
+    pub package: String,
+    pub version: String,
+    pub provider: NativeLibProvider,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary: Option<String>,
 }
 
 /// No structural equality: the typed `ui` fragment carries float bounds and
@@ -154,6 +222,17 @@ pub struct PluginManifest {
     /// or a webview entry. Parsed and validated at discovery, unlike the
     /// raw `pages` compatibility input converted by the host frontend.
     pub ui: Option<crate::ui::PluginUiManifest>,
+    /// Bundled native (`.node`) packages a `napi-vm` plugin may load. Empty
+    /// for every other runtime and for pure-JavaScript plugins: with no
+    /// declaration the guest stays inside the pure-Rust VM.
+    #[serde(rename = "nativeAddons")]
+    pub native_addons: Vec<NativeAddonDeclaration>,
+    /// Declarative native-library sources a `napi-vm` plugin's packages
+    /// are fetched from at install/stage time. Empty for every other
+    /// runtime and for manually staged packages: with no declaration the
+    /// host loads whatever the package roots already contain.
+    #[serde(rename = "nativeLibs")]
+    pub native_libs: Vec<NativeLibDeclaration>,
 }
 impl fmt::Display for PluginRuntimeKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -162,6 +241,7 @@ impl fmt::Display for PluginRuntimeKind {
             Self::Wasm => "wasm",
             Self::Process => "process",
             Self::Declarative => "declarative",
+            Self::NapiVm => "napi-vm",
         })
     }
 }

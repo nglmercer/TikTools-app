@@ -10,6 +10,7 @@ import {
   registryEntryFor,
   type RegistryField,
 } from '../../../automation/event-registry.ts';
+import { matchingLastEvent as selectMatchingLastEvent } from '../../../automation/event-emulation.ts';
 import { mergeSuggestions, suggestionsFromObject, type AutocompleteItem } from '../autocomplete/index.ts';
 import { applyPresetInsert } from '../autocomplete/autocomplete-controller.ts';
 import type { Locale } from '../../i18n.ts';
@@ -53,7 +54,7 @@ export function getTemplateSuggestions(
   extraContext?: JsonValue,
 ): AutocompleteItem[] {
   const definition = TEMPLATE_INPUT_DEFINITIONS[scope];
-  const matchingLastEvent = lastEvent && (!eventType || lastEvent.type === eventType) ? lastEvent : undefined;
+  const matchingLastEvent = selectMatchingLastEvent(eventType, lastEvent);
   const registryFields = eventType ? fieldsForEventType(eventType) : allRegistryFields();
   const base: AutocompleteItem[] = registryFields
     .filter((field) => matchesPathScope(field.path, undefined, definition.observed))

@@ -11,6 +11,9 @@ mod decode;
 mod enrich;
 mod error;
 pub mod native;
+#[cfg(feature = "providers")]
+pub mod native_providers;
+pub mod native_stage;
 mod plugin;
 pub mod process;
 mod results;
