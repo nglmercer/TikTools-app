@@ -2201,6 +2201,7 @@ checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
 [[package]]
 name = "napi-vm"
 version = "0.1.5"
+source = "git+https://github.com/nglmercer/napi-vm?rev=bbe6e1c03c69bcbdc771dd3f6a8e0501a5e96d39#bbe6e1c03c69bcbdc771dd3f6a8e0501a5e96d39"
 dependencies = [
  "corosensei",
  "js-sys",

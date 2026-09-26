@@ -32,6 +32,8 @@ export interface AutomationRunsResult {
 export interface AutomationFireResult {
   trigger: string;
   eventSource: 'live' | 'sample' | 'custom';
+  /** `eq` filters pinned onto a sample envelope (`path='value'`). */
+  pinned: string[];
   matched: number;
   draftMatched: boolean;
   status: 'ok' | 'error';

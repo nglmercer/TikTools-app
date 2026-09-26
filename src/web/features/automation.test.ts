@@ -144,7 +144,9 @@ describe('useAutomation fire event', () => {
     const { client, calls } = fired({
       trigger: 'tiktok.gift',
       eventSource: 'live',
+      pinned: [],
       matched: 2,
+      draftMatched: true,
       status: 'ok',
       summary: 'Fired tiktok.gift: 2 events matched, actions executed.',
       durationMs: 3,
@@ -169,7 +171,9 @@ describe('useAutomation fire event', () => {
     const { client } = fired({
       trigger: 'tiktok.gift',
       eventSource: 'sample',
+      pinned: [],
       matched: 0,
+      draftMatched: false,
       status: 'error',
       summary: 'Fired tiktok.gift: no enabled event matched.',
       durationMs: 1,

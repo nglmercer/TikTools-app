@@ -583,7 +583,7 @@ async fn test_event_names_sample_data_on_mismatch() {
             "name": "Mismatch",
             "enabled": true,
             "trigger": "tiktok.chat",
-            "filters": [{"path": "event.data.comment", "operator": "eq", "value": "zzz-no-match"}],
+            "filters": [{"path": "event.data.comment", "operator": "contains", "value": "zzz-no-match"}],
             "cooldownMs": 0,
             "cooldownScope": "user",
             "actionIds": [],
@@ -792,9 +792,11 @@ async fn fire_synthetic_event_runs_disabled_draft_once() {
 }
 
 #[tokio::test]
-async fn fire_synthetic_event_names_draft_mismatch() {
+async fn fire_synthetic_event_pins_sample_to_draft_filters() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter));
+    // No live gift seen: the sample Rose is pinned to the draft's Galaxy
+    // filter instead of mismatching, and the pinning is reported.
     let draft = serde_json::json!({
         "id": "evt-rose-gate",
         "name": "Rose gate",
@@ -808,11 +810,43 @@ async fn fire_synthetic_event_names_draft_mismatch() {
     let result = core
         .fire_synthetic_event("tiktok.gift", None, Some(&draft))
         .await;
+    assert_eq!(result["status"], "ok");
+    assert_eq!(result["matched"], 1);
+    assert_eq!(result["draftMatched"], true);
+    assert_eq!(result["eventSource"], "sample");
+    assert_eq!(
+        result["pinned"],
+        serde_json::json!(["event.data.giftName='Galaxy'"])
+    );
+    let summary = result["summary"].as_str().unwrap_or_default();
+    assert!(summary.contains("'Rose gate'"), "{summary}");
+    assert!(summary.contains("pinned from filters"), "{summary}");
+}
+
+#[tokio::test]
+async fn fire_synthetic_event_names_draft_mismatch() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    // Ranges never pin: diamondCount stays 1 and the gte filter genuinely
+    // fails, with the fired data named for diagnosis.
+    let draft = serde_json::json!({
+        "id": "evt-whale-gate",
+        "name": "Whale gate",
+        "enabled": false,
+        "trigger": "tiktok.gift",
+        "filters": [{"path": "event.data.diamondCount", "operator": "gte", "value": "99999"}],
+        "cooldownMs": 0,
+        "actionIds": [],
+        "runMode": "all"
+    });
+    let result = core
+        .fire_synthetic_event("tiktok.gift", None, Some(&draft))
+        .await;
     assert_eq!(result["status"], "error");
     assert_eq!(result["matched"], 0);
     assert_eq!(result["draftMatched"], false);
     let summary = result["summary"].as_str().unwrap_or_default();
-    assert!(summary.contains("'Rose gate' did not match"), "{summary}");
+    assert!(summary.contains("'Whale gate' did not match"), "{summary}");
     assert!(summary.contains("fired data:"), "{summary}");
 }
 
