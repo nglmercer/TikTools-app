@@ -2,12 +2,14 @@
 
 Behavior rules (one trigger event plus its actions) can be shared as JSON
 documents: single **templates** (`.tiktemplate.json`) and multi-rule
-**profiles** (`.tikprofile.json`). The CLI owns the full round trip; the
-desktop Behavior tab imports single templates through the Rule templates
-gallery. Both sides parse the same v1 documents
-(`crates/tiktools-core/src/services/templates.rs` and
-`src/web/views/behavior/rule-templates.ts`) and pin their agreement with the
-fixtures under `examples/templates/fixtures/`.
+**profiles** (`.tikprofile.json`). The CLI owns the full round trip
+(import, per-entry options, export); the desktop Behavior tab imports
+single templates through the Rule templates gallery and loads whole
+profiles with default options through the header profile selector, where
+one pack stays active at a time. Both sides parse the same v1
+documents (`crates/tiktools-core/src/services/templates.rs` and
+`src/web/views/behavior/rule-templates.ts`) and pin their agreement with
+the fixtures under `examples/templates/fixtures/`.
 
 ## Template document (v1)
 
@@ -106,6 +108,27 @@ empty, and a URL left host-less after globals render fails closed.
 
 1–32 inline entries. Each entry stays a valid standalone template so it can
 also be imported on its own or from the desktop gallery.
+
+## Active profile (desktop)
+
+The Behavior header shows a profile select next to the Templates button so
+packs switch with one gesture. Pack membership lives in host app.state
+(`behavior.profiles.packs` + `behavior.profiles.active`); records carry no
+profile column. `default` always exists and owns every rule outside the
+stored packs; rules saved by hand while another pack is active are adopted
+into it. Switching enables exactly the target pack's rules and disables
+everything else, and the tables list only the active pack's rules — a fresh
+pack shows empty tables, never foreign rules. Ids whose records were
+deleted prune silently. The selector
+menu creates empty packs, opens the profile import dialog for
+`.tikprofile.json` files (staged preview, default options), exports any pack
+back to a profile file (CLI `profile-export` shape, round-trippable), and
+deletes packs with a confirm — deletion removes the pack's events and
+actions too. Only `default` refuses deletion. Re-applying a profile replaces
+its membership
+(previous records fall back to `default`). Profile params merge as schema
+defaults → profile → entry; per-entry options stay a CLI feature
+(`--param`, `--event-name`, `--disabled`).
 
 ## CLI
 

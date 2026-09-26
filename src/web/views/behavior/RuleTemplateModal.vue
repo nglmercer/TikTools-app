@@ -1,5 +1,5 @@
 <script lang="tsx">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { defineVueComponent } from '../../vue/component.ts';
 
 import type { JsonObject } from '../../../automation/types.ts';
@@ -29,6 +29,7 @@ import {
   type RuleTemplate,
 } from './rule-templates.ts';
 import { parseRuleTemplateImport } from '../../features/rule-templates.ts';
+import { ImportDropzone, StagedTemplateList } from './import-parts.vue';
 
 type RuleTemplateModalProps = {
   locale: Locale;
@@ -71,10 +72,6 @@ export const RuleTemplateModal = defineVueComponent<RuleTemplateModalProps>(
     const importErrors = ref<string[]>([]);
     const importAdded = ref(0);
     const importing = ref(false);
-    const dragActive = ref(false);
-    const fileInput = ref<HTMLInputElement | null>(null);
-    const dropzone = ref<HTMLDivElement | null>(null);
-    const pasteHint = ref('');
 
     const allTemplates = computed<RuleTemplate[]>(() => [...BUILTIN_RULE_TEMPLATES, ...props.customTemplates]);
     const availableTypes = computed(() => availableActionTypes(props.snapshot.plugins, props.snapshot.actionTypes));
@@ -142,7 +139,6 @@ export const RuleTemplateModal = defineVueComponent<RuleTemplateModalProps>(
      * what would be imported. Raw JSON is never typed into the UI. */
     const stageContent = (text: string, source: string): void => {
       importAdded.value = 0;
-      pasteHint.value = '';
       const { templates, errors } = parseRuleTemplateImport(text);
       if (templates.length === 0 && errors.length === 0) {
         staged.value = null;
@@ -151,50 +147,6 @@ export const RuleTemplateModal = defineVueComponent<RuleTemplateModalProps>(
       }
       staged.value = templates.length > 0 ? { source, templates } : null;
       importErrors.value = errors;
-    };
-
-    const readImportFile = (file: File): void => {
-      importErrors.value = [];
-      const reader = new FileReader();
-      reader.onload = () => {
-        stageContent(typeof reader.result === 'string' ? reader.result : '', file.name);
-      };
-      reader.onerror = () => {
-        staged.value = null;
-        importErrors.value = [t(props.locale, 'behavior.copy.tplImportUnreadable')];
-      };
-      reader.readAsText(file);
-    };
-
-    const openFilePicker = (): void => {
-      fileInput.value?.click();
-    };
-
-    // Paste events need no clipboard permission, unlike readText(), which the
-    // desktop webview denies. The document listener covers Ctrl+V anywhere on
-    // the import screen (it holds no text inputs, so nothing is hijacked).
-    const handleDocumentPaste = (event: ClipboardEvent): void => {
-      if (screen.value.kind !== 'import') return;
-      const text = event.clipboardData?.getData('text');
-      if (text) {
-        event.preventDefault();
-        stageContent(text, t(props.locale, 'behavior.copy.tplClipboardSource'));
-      }
-    };
-    onMounted(() => document.addEventListener('paste', handleDocumentPaste));
-    onUnmounted(() => document.removeEventListener('paste', handleDocumentPaste));
-
-    const pasteFromClipboard = async (): Promise<void> => {
-      try {
-        const read = navigator.clipboard?.readText;
-        if (!read) throw new Error('clipboard unavailable');
-        stageContent(await read.call(navigator.clipboard), t(props.locale, 'behavior.copy.tplClipboardSource'));
-      } catch {
-        // Fall back to guided manual paste: focus the dropzone and let the
-        // document paste listener stage whatever the user pastes with Ctrl+V.
-        pasteHint.value = t(props.locale, 'behavior.copy.tplPastePressKeys');
-        dropzone.value?.focus();
-      }
     };
 
     const runImport = async (): Promise<void> => {
@@ -209,6 +161,8 @@ export const RuleTemplateModal = defineVueComponent<RuleTemplateModalProps>(
         const added = await props.onImport(pending.templates);
         importAdded.value = added;
         if (added > 0) staged.value = null;
+      } catch {
+        // Template import failures stay silent, matching the previous behavior.
       } finally {
         importing.value = false;
       }
@@ -219,6 +173,7 @@ export const RuleTemplateModal = defineVueComponent<RuleTemplateModalProps>(
       const current = screen.value;
 
       if (current.kind === 'import') {
+        const pending = staged.value;
         return (
           <Modal
             title={t(locale, 'behavior.copy.tplImportTitle')}
@@ -237,83 +192,31 @@ export const RuleTemplateModal = defineVueComponent<RuleTemplateModalProps>(
             }
           >
             <div class="template-config">
-              <div
-                ref={dropzone}
-                role="group"
-                aria-label={t(locale, 'behavior.copy.tplImportTitle')}
-                tabindex={0}
-                class={`rule-template-dropzone${dragActive.value ? ' is-dragging' : ''}`}
-                onClick={() => openFilePicker()}
-                onKeydown={(event: KeyboardEvent) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    openFilePicker();
-                  }
+              <ImportDropzone
+                locale={locale}
+                title={t(locale, 'behavior.copy.tplDropTitle')}
+                hint={t(locale, 'behavior.copy.tplDropHint')}
+                browseLabel={t(locale, 'behavior.copy.tplBrowse')}
+                pasteLabel={t(locale, 'behavior.copy.tplPaste')}
+                clipboardSource={t(locale, 'behavior.copy.tplClipboardSource')}
+                pastePressKeys={t(locale, 'behavior.copy.tplPastePressKeys')}
+                unreadableMessage={t(locale, 'behavior.copy.tplImportUnreadable')}
+                onContent={(text, source) => stageContent(text, source)}
+                onReadError={(message) => {
+                  staged.value = null;
+                  importErrors.value = [message];
                 }}
-                onDragover={(event: DragEvent) => {
-                  event.preventDefault();
-                  dragActive.value = true;
-                }}
-                onDragleave={() => { dragActive.value = false; }}
-                onDrop={(event: DragEvent) => {
-                  event.preventDefault();
-                  dragActive.value = false;
-                  const file = event.dataTransfer?.files?.[0];
-                  if (file) readImportFile(file);
-                }}
-              >
-                <Icon name="template" size={24} />
-                <p class="rule-template-dropzone__title">{t(locale, 'behavior.copy.tplDropTitle')}</p>
-                <p class="rule-template-dropzone__hint">{t(locale, 'behavior.copy.tplDropHint')}</p>
-                <div class="rule-template-dropzone__actions">
-                  <span onClick={(event) => event.stopPropagation()}>
-                    <Button variant="soft" size="md" onClick={() => openFilePicker()}>
-                      {t(locale, 'behavior.copy.tplBrowse')}
-                    </Button>
-                  </span>
-                  <span onClick={(event) => event.stopPropagation()}>
-                    <Button variant="soft" size="md" onClick={() => void pasteFromClipboard()}>
-                      {t(locale, 'behavior.copy.tplPaste')}
-                    </Button>
-                  </span>
-                </div>
-                <input
-                  ref={fileInput}
-                  type="file"
-                  accept=".json,application/json"
-                  hidden
-                  onChange={(event) => {
-                    const input = event.target as HTMLInputElement;
-                    const file = input.files?.[0];
-                    input.value = '';
-                    if (file) readImportFile(file);
-                  }}
+              />
+              {pending && (
+                <StagedTemplateList
+                  locale={locale}
+                  headline={t(locale, 'behavior.copy.tplStaged', { count: pending.templates.length })}
+                  templates={pending.templates}
+                  source={pending.source}
+                  stagedFrom={t(locale, 'behavior.copy.tplStagedFrom', { source: pending.source })}
+                  clearLabel={t(locale, 'behavior.copy.tplClearStaged')}
+                  onClear={() => { staged.value = null; }}
                 />
-              </div>
-              {staged.value && (
-                <div class="rule-template-staged" role="status">
-                  <div class="rule-template-staged__head">
-                    <strong>{t(locale, 'behavior.copy.tplStaged', { count: staged.value.templates.length })}</strong>
-                    <span class="rule-template-staged__source">
-                      {t(locale, 'behavior.copy.tplStagedFrom', { source: staged.value.source })}
-                    </span>
-                    <Button variant="ghost" size="sm" onClick={() => { staged.value = null; }}>
-                      {t(locale, 'behavior.copy.tplClearStaged')}
-                    </Button>
-                  </div>
-                  <ul>
-                    {staged.value.templates.map((template) => (
-                      <li key={template.id}>
-                        <Icon name={template.icon} size={14} />
-                        <span>{i18nText(locale, template.title)}</span>
-                        <small>{template.event.trigger}</small>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {pasteHint.value && (
-                <p class="rule-template-hint" role="status">{pasteHint.value}</p>
               )}
               {importAdded.value > 0 && (
                 <p class="rule-template-success" role="status">
@@ -515,99 +418,8 @@ export default RuleTemplateModal;
   vertical-align: 1px;
 }
 
-.rule-template-dropzone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 28px 16px;
-  text-align: center;
-  border: 2px dashed var(--tt-border, #34343f);
-  border-radius: 12px;
-  background: var(--tt-bg-soft, #1c1c26);
-  cursor: pointer;
-  outline: none;
-}
-
-.rule-template-dropzone:focus-visible {
-  border-color: var(--tt-accent, #22c55e);
-}
-
-.rule-template-dropzone.is-dragging {
-  border-color: var(--tt-accent, #22c55e);
-  border-style: solid;
-}
-
-.rule-template-dropzone__title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.rule-template-dropzone__hint {
-  margin: 0;
-  font-size: 12px;
-  color: var(--tt-text-dim, #a8a8b8);
-}
-
-.rule-template-dropzone__actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.rule-template-staged {
-  border: 1px solid var(--tt-border, #34343f);
-  border-radius: 12px;
-  padding: 12px;
-  background: var(--tt-bg-soft, #1c1c26);
-}
-
-.rule-template-staged__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.rule-template-staged__source {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--tt-text-dim, #a8a8b8);
-  font-size: 12px;
-}
-
-.rule-template-staged ul {
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.rule-template-staged li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.rule-template-staged li small {
-  margin-left: auto;
-  color: var(--tt-text-dim, #a8a8b8);
-  font-size: 11px;
-}
-
 .rule-template-success {
   color: var(--tt-accent, #22c55e);
-  font-size: 13px;
-}
-
-.rule-template-hint {
-  color: var(--tt-text-dim, #a8a8b8);
   font-size: 13px;
 }
 </style>

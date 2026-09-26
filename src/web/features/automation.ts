@@ -230,6 +230,24 @@ export function useAutomation(control: ControlClient) {
     testRecord('event', event);
   };
 
+  /**
+   * Saves one record and refreshes, awaiting the whole round trip so
+   * callers can sequence follow-ups (profile adoption). Throws on failure.
+   */
+  const saveRecordAndRefresh = async (
+    kind: AutomationKind,
+    record: LiveAction | LiveEvent,
+  ): Promise<void> => {
+    behaviorError.value = '';
+    try {
+      await saveRecord(kind, record);
+    } catch (failure) {
+      behaviorError.value = errorMessage(failure);
+      throw failure;
+    }
+    await refresh();
+  };
+
   /** Applies a rule template: creates its actions first, then the linked event. */
   const handleApplyRuleTemplate = (actions: LiveAction[], event: LiveEvent): void => {
     void mutate(async () => {
@@ -238,6 +256,23 @@ export function useAutomation(control: ControlClient) {
       }
       await control.call('automation.create', { kind: 'event', record: event });
     });
+  };
+
+  /**
+   * Creates every entry of an applied profile (actions first, then each
+   * linked event), throwing on the first failure without refreshing: the
+   * caller registers the pack and refreshes once. No rollback, matching
+   * the CLI profile import.
+   */
+  const createProfileRecords = async (
+    entries: Array<{ actions: LiveAction[]; event: LiveEvent }>,
+  ): Promise<void> => {
+    for (const entry of entries) {
+      for (const action of entry.actions) {
+        await control.call('automation.create', { kind: 'action', record: action });
+      }
+      await control.call('automation.create', { kind: 'event', record: entry.event });
+    }
   };
 
   /** One-click seat access: the host probes, then polkit-prompts at most
@@ -298,6 +333,8 @@ export function useAutomation(control: ControlClient) {
     handleTestEvent,
     handleAnalyzeScript,
     handleApplyRuleTemplate,
+    createProfileRecords,
+    saveRecordAndRefresh,
     refresh,
   };
 }

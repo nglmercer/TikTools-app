@@ -1,0 +1,324 @@
+{
+  "profileVersion": 1,
+  "id": "minecraft-gift-board",
+  "name": "Minecraft gift board",
+  "description": "Nine TikTok LIVE gifts driving Minecraft commands through the local CommandAPI at http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat. TNT gives TNT, Fire gives fire charges, Roses give apples, Crowns grant totems, GG grants speed, Galaxies give diamonds, Hearts heal, Ghosts summon a ghast, and Lions grant a netherite sword. Set commandHost/commandPort once as runtime globals (CLI `tiktools globals set` or the desktop Settings tab) — no re-import when the port changes.",
+  "params": {},
+  "templates": [
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-board-tnt",
+        "title": "TNT gives TNT",
+        "description": "Every TNT gift sends /give @p minecraft:tnt <count> to the local player.",
+        "icon": "gift",
+        "actions": [
+          {
+            "name": "Give TNT for TNT gifts",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"text\": \"/give @p minecraft:tnt {{ event.data.repeatCount }}\"}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft board TNT",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "TNT" }],
+          "cooldownMs": 0,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-board-fire",
+        "title": "Fire gives fire charges",
+        "description": "Every Fire gift sends /give @p minecraft:fire_charge <count> to the local player.",
+        "icon": "gift",
+        "actions": [
+          {
+            "name": "Give fire charges for Fire",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"text\": \"/give @p minecraft:fire_charge {{ event.data.repeatCount }}\"}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft board Fire",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "Fire" }],
+          "cooldownMs": 0,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-board-rose",
+        "title": "Rose gives apples",
+        "description": "Every Rose sends /give @p minecraft:apple <count> to the local player.",
+        "icon": "gift",
+        "actions": [
+          {
+            "name": "Give apples for Roses",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"text\": \"/give @p minecraft:apple {{ event.data.repeatCount }}\"}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft board Rose",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "Rose" }],
+          "cooldownMs": 0,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-board-crown",
+        "title": "Crown grants a totem",
+        "description": "Every Crown sends /give @p minecraft:totem_of_undying 1 to the local player (30s cooldown).",
+        "icon": "trophy",
+        "actions": [
+          {
+            "name": "Grant totem for Crowns",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"text\": \"/give @p minecraft:totem_of_undying 1\"}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft board Crown",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "Crown" }],
+          "cooldownMs": 30000,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-board-gg",
+        "title": "GG grants speed",
+        "description": "Every GG sends /effect give @p minecraft:speed 30 1 to the local player.",
+        "icon": "live",
+        "actions": [
+          {
+            "name": "Grant speed for GG",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"text\": \"/effect give @p minecraft:speed 30 1\"}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft board GG",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "GG" }],
+          "cooldownMs": 5000,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-board-galaxy",
+        "title": "Galaxy gives diamonds",
+        "description": "Every Galaxy sends /give @p minecraft:diamond <count> to the local player.",
+        "icon": "gift",
+        "actions": [
+          {
+            "name": "Give diamonds for Galaxies",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"text\": \"/give @p minecraft:diamond {{ event.data.repeatCount }}\"}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft board Galaxy",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "Galaxy" }],
+          "cooldownMs": 0,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-board-heart",
+        "title": "Heart heals",
+        "description": "Every Heart sends /effect give @p minecraft:instant_health 1 1 to the local player.",
+        "icon": "heart",
+        "actions": [
+          {
+            "name": "Heal for Hearts",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"text\": \"/effect give @p minecraft:instant_health 1 1\"}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft board Heart",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "Heart" }],
+          "cooldownMs": 5000,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-board-ghost",
+        "title": "Ghost summons a ghast",
+        "description": "Every Ghost sends /summon minecraft:ghast above the local player (30s cooldown).",
+        "icon": "gift",
+        "actions": [
+          {
+            "name": "Summon ghast for Ghosts",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"text\": \"/summon minecraft:ghast ~ ~3 ~\"}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft board Ghost",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "Ghost" }],
+          "cooldownMs": 30000,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    },
+    {
+      "template": {
+        "templateVersion": 1,
+        "id": "minecraft-board-lion",
+        "title": "Lion grants a netherite sword",
+        "description": "Every Lion sends /give @p minecraft:netherite_sword 1 to the local player (30s cooldown).",
+        "icon": "trophy",
+        "actions": [
+          {
+            "name": "Grant sword for Lions",
+            "typeId": "core.fetch",
+            "enabled": true,
+            "config": {
+              "method": "POST",
+              "url": "http://{{ globals.commandHost }}:{{ globals.commandPort }}/api/chat",
+              "headers": { "Content-Type": "application/json" },
+              "body": "{\"text\": \"/give @p minecraft:netherite_sword 1\"}",
+              "timeoutMs": 5000,
+              "emitResponseAs": "",
+              "allowPrivateNetwork": true
+            }
+          }
+        ],
+        "event": {
+          "name": "Minecraft board Lion",
+          "enabled": true,
+          "trigger": "tiktok.gift",
+          "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "Lion" }],
+          "cooldownMs": 30000,
+          "cooldownScope": "global",
+          "runMode": "all"
+        }
+      },
+      "params": {}
+    }
+  ]
+}

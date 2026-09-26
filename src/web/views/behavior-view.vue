@@ -5,8 +5,12 @@ import { Icon } from '../components/icons/index.ts';
 import { ActionEditor } from './behavior/action-editor.vue';
 import { ActionPicker } from './behavior/action-picker.vue';
 import { EventEditor } from './behavior/event-editor.vue';
+import { ProfileImportDialog } from './behavior/ProfileImportDialog.vue';
+import { ProfileSelect } from './behavior/ProfileSelect.vue';
 import { RuleTemplateModal } from './behavior/RuleTemplateModal.vue';
-import type { RuleTemplate } from './behavior/rule-templates.ts';
+import type { AppliedRuleTemplate, RuleTemplate } from './behavior/rule-templates.ts';
+import type { ProfilePack, RuleProfile } from '../features/rule-profiles.ts';
+import { resolvedPacks } from '../features/rule-profiles.ts';
 import { ActionsTable } from './behavior/ActionsTable.vue';
 import { EventsTable } from './behavior/EventsTable.vue';
 import { HotkeyFloatBadge } from './behavior/HotkeyFloatBadge.vue';
@@ -61,6 +65,14 @@ type BehaviorViewProps = {
   onLoadRuleTemplateCustom: () => Promise<void>;
   onImportRuleTemplates: (templates: RuleTemplate[]) => Promise<number>;
   onDeleteRuleTemplateCustom: (id: string) => void;
+  ruleProfilePacks: ProfilePack[];
+  activeRuleProfileId: string;
+  ruleProfileError: string | null;
+  onApplyRuleProfile: (profile: RuleProfile, applied: AppliedRuleTemplate[]) => Promise<void>;
+  onSwitchRuleProfile: (id: string) => Promise<void>;
+  onCreateRuleProfile: (name: string) => Promise<void>;
+  onDeleteRuleProfile: (id: string) => Promise<void>;
+  onExportRuleProfile: (id: string) => void;
 };
 
 type Screen =
@@ -102,10 +114,19 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
     'onLoadRuleTemplateCustom',
     'onImportRuleTemplates',
     'onDeleteRuleTemplateCustom',
+    'ruleProfilePacks',
+    'activeRuleProfileId',
+    'ruleProfileError',
+    'onApplyRuleProfile',
+    'onSwitchRuleProfile',
+    'onCreateRuleProfile',
+    'onDeleteRuleProfile',
+    'onExportRuleProfile',
   ],
   (props) => {
   const screen = ref<Screen>({ kind: 'list' });
   const templateModalOpen = ref(false);
+  const profileImportOpen = ref(false);
 
   onMounted(() => {
     void props.onLoadRuleTemplateCustom();
@@ -121,6 +142,30 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
   });
 
   const availableTypes = computed(() => availableActionTypes(props.snapshot.plugins, props.snapshot.actionTypes));
+
+  // The tables list only the active pack's rules, so switching profiles
+  // replaces the whole view instead of showing foreign rules as disabled.
+  // Hidden records stay stored (and disabled) until their pack is active.
+  const resolvedProfiles = computed(() => resolvedPacks(
+    props.ruleProfilePacks,
+    props.snapshot.events.map((event) => event.id),
+    props.snapshot.actions.map((action) => action.id),
+  ));
+  const activePack = computed(() =>
+    resolvedProfiles.value.find((pack) => pack.id === props.activeRuleProfileId) ?? null,
+  );
+  const visibleEvents = computed(() => {
+    const pack = activePack.value;
+    if (!pack) return props.snapshot.events;
+    const ids = new Set(pack.eventIds);
+    return props.snapshot.events.filter((event) => ids.has(event.id));
+  });
+  const visibleActions = computed(() => {
+    const pack = activePack.value;
+    if (!pack) return props.snapshot.actions;
+    const ids = new Set(pack.actionIds);
+    return props.snapshot.actions.filter((action) => ids.has(action.id));
+  });
 
   return () => {
   const locale = props.locale;
@@ -179,7 +224,7 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
         locale={locale}
         event={currentScreen.event}
         isNew={currentScreen.isNew}
-        actions={snapshot.actions}
+        actions={visibleActions.value}
         eventTypes={snapshot.eventTypes ?? []}
         hotkeyStatus={props.hotkeyStatus}
         gifts={props.gifts}
@@ -221,9 +266,20 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                 <span class="plg-section__icon" aria-hidden="true">
                   <Icon name="template" size={16} />
                 </span>
-                <h3>{t(locale, 'behavior.copy.tplTitle')}</h3>
+                <h3>{t(locale, 'behavior.copy.libraryTitle')}</h3>
               </div>
               <div class="rule-template-head-tools">
+                <ProfileSelect
+                  locale={locale}
+                  packs={resolvedProfiles.value}
+                  activeId={props.activeRuleProfileId}
+                  error={props.ruleProfileError ?? ''}
+                  onSwitch={props.onSwitchRuleProfile}
+                  onCreate={props.onCreateRuleProfile}
+                  onDelete={props.onDeleteRuleProfile}
+                  onExport={props.onExportRuleProfile}
+                  onOpenImport={() => { profileImportOpen.value = true; }}
+                />
                 <button
                   type="button"
                   class="plg-btn plg-btn--sm"
@@ -234,11 +290,11 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
                 </button>
               </div>
             </div>
-            <p class="plg-note">{t(locale, 'behavior.copy.tplLead')}</p>
+            <p class="plg-note">{t(locale, 'behavior.copy.libraryLead')}</p>
           </div>
           <ActionsTable
             locale={locale}
-            actions={snapshot.actions}
+            actions={visibleActions.value}
             actionTypes={snapshot.actionTypes}
             availableTypes={availableTypes.value}
             lastRunByAction={lastRunByAction.value}
@@ -249,8 +305,8 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
           />
           <EventsTable
             locale={locale}
-            events={snapshot.events}
-            actions={snapshot.actions}
+            events={visibleEvents.value}
+            actions={visibleActions.value}
             eventTypes={snapshot.eventTypes ?? []}
             onSetEnabled={props.onSetEventEnabled}
             onDelete={props.onDeleteEvent}
@@ -269,6 +325,15 @@ export const BehaviorView = defineVueComponent<BehaviorViewProps>(
           onApply={props.onApplyRuleTemplate}
           onImport={props.onImportRuleTemplates}
           onDeleteCustom={props.onDeleteRuleTemplateCustom}
+        />
+      )}
+
+      {profileImportOpen.value && (
+        <ProfileImportDialog
+          locale={locale}
+          profilesError={props.ruleProfileError ?? ''}
+          onClose={() => { profileImportOpen.value = false; }}
+          onApplyProfile={props.onApplyRuleProfile}
         />
       )}
 
