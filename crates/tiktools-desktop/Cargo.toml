@@ -25,8 +25,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 percent-encoding = "2.3"
 url = "2.5"
 winit = "0.30"
-wry = { version = "0.56", features = ["tracing"] }
-tray-icon = "0.24"
+wry = { version = "0.57", features = ["tracing"] }
+tray-icon = "0.25"
 rfd.workspace = true
 rodio.workspace = true
 
