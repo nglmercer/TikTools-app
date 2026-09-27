@@ -44,17 +44,17 @@ rusqlite = { version = "0.40", default-features = false }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
-libloading = "0.8.9"
-sha2 = "0.10"
-zip = { version = "4.2", default-features = false, features = ["deflate"] }
+libloading = "0.9.0"
+sha2 = "0.11"
+zip = { version = "8.6", default-features = false, features = ["deflate"] }
 # Declarative native-library providers (npm tarballs, GitHub release
 # assets): pure-Rust download, verify, and extract for build/install
 # tooling. Never linked into plugin guests.
 tar = "0.4"
 flate2 = "1"
-base64 = "0.22"
-rfd = { version = "0.15.4", default-features = false, features = ["xdg-portal", "tokio"] }
-rodio = { version = "0.21.1", features = ["tracing"] }
+base64 = "0.23"
+rfd = { version = "0.16.0", default-features = false, features = ["xdg-portal", "tokio"] }
+rodio = { version = "0.22.2", features = ["tracing"] }
 # Native-addon integration uses `allow_addon` / `allow_addon_alias` plus
 # `node:module` createRequire from napi-vm main. Pinned by rev like the
 # ttl-* deps: a relative path cannot resolve in CI checkouts.
