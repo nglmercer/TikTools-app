@@ -10,6 +10,11 @@ const LINUX_LINKER_ENVIRONMENT_PATTERN = /^CARGO_TARGET_.*_LINUX_.*_LINKER$/;
 const RUSTFLAGS_SEPARATOR = '\u001f';
 const MOLD_RUSTFLAG = '-C link-arg=-fuse-ld=mold';
 const ENCODED_MOLD_RUSTFLAGS = `-C${RUSTFLAGS_SEPARATOR}link-arg=-fuse-ld=mold`;
+const KACHE_ENVIRONMENT = 'TIKTOOLS_KACHE';
+const RUSTC_WRAPPER_ENVIRONMENT = 'RUSTC_WRAPPER';
+const KACHE_COMMAND = 'kache';
+const ENABLED_KACHE_VALUES = new Set(['1', 'true', 'yes']);
+const DISABLED_KACHE_VALUES = new Set(['0', 'false', 'no']);
 
 function commandExists(command, platform = process.platform) {
   const lookup = platform === 'win32'
@@ -20,6 +25,28 @@ function commandExists(command, platform = process.platform) {
     stdio: 'ignore',
     windowsHide: true,
   }).status === 0;
+}
+
+function resolveKacheWrapper({ environment, cargoEnvironment, hasCommand, platform }) {
+  if (Object.prototype.hasOwnProperty.call(environment, RUSTC_WRAPPER_ENVIRONMENT)) {
+    return 'preserved';
+  }
+
+  const requested = environment[KACHE_ENVIRONMENT];
+  const normalized = typeof requested === 'string'
+    ? requested.trim().toLowerCase()
+    : '';
+
+  if (DISABLED_KACHE_VALUES.has(normalized)) {
+    return 'disabled';
+  }
+
+  if (!hasCommand(KACHE_COMMAND, platform)) {
+    return ENABLED_KACHE_VALUES.has(normalized) ? 'missing' : 'unavailable';
+  }
+
+  cargoEnvironment.RUSTC_WRAPPER = KACHE_COMMAND;
+  return 'enabled';
 }
 
 function configuredLinuxLinkers(environment) {
@@ -58,22 +85,23 @@ export function resolveCargoEnvironment({
   hasCommand = commandExists,
 } = {}) {
   const cargoEnvironment = { ...environment };
+  const kache = resolveKacheWrapper({ environment, cargoEnvironment, hasCommand, platform });
   if (platform === 'linux') {
     const configuredTargets = configuredLinuxLinkers(environment);
     if (configuredTargets.length > 0 || hasExplicitRustLinker(environment)) {
-      return { environment: cargoEnvironment, linker: 'unchanged', configuredTargets };
+      return { environment: cargoEnvironment, linker: 'unchanged', configuredTargets, kache };
     }
 
     if (!hasCommand('mold', platform)) {
-      return { environment: cargoEnvironment, linker: 'default', configuredTargets };
+      return { environment: cargoEnvironment, linker: 'default', configuredTargets, kache };
     }
 
     addMoldRustFlag(cargoEnvironment);
-    return { environment: cargoEnvironment, linker: 'mold', configuredTargets };
+    return { environment: cargoEnvironment, linker: 'mold', configuredTargets, kache };
   }
 
   if (platform !== 'win32') {
-    return { environment: cargoEnvironment, linker: 'unchanged', configuredTargets: [] };
+    return { environment: cargoEnvironment, linker: 'unchanged', configuredTargets: [], kache };
   }
 
   const unconfiguredTargets = WINDOWS_LINKER_ENVIRONMENTS.filter(
@@ -84,13 +112,13 @@ export function resolveCargoEnvironment({
   );
 
   if (unconfiguredTargets.length === 0 || !hasCommand('lld-link.exe')) {
-    return { environment: cargoEnvironment, linker: 'default', configuredTargets };
+    return { environment: cargoEnvironment, linker: 'default', configuredTargets, kache };
   }
 
   for (const name of unconfiguredTargets) {
     cargoEnvironment[name] = 'lld-link';
   }
-  return { environment: cargoEnvironment, linker: 'lld-link', configuredTargets };
+  return { environment: cargoEnvironment, linker: 'lld-link', configuredTargets, kache };
 }
 
 function main() {
@@ -102,6 +130,19 @@ function main() {
   }
 
   const resolved = resolveCargoEnvironment();
+  if (resolved.kache === 'missing') {
+    console.error('[cargo-with-linker] TIKTOOLS_KACHE is enabled but kache was not found on PATH');
+    console.error('[cargo-with-linker] install kache (https://github.com/kunobi-ninja/kache) or unset TIKTOOLS_KACHE');
+    process.exitCode = 1;
+    return;
+  }
+
+  if (resolved.kache === 'enabled') {
+    console.error('[cargo-with-linker] using kache rustc wrapper');
+  } else if (resolved.kache === 'preserved') {
+    console.error('[cargo-with-linker] preserving existing RUSTC_WRAPPER');
+  }
+
   if (process.platform === 'win32') {
     const preserved = resolved.configuredTargets.length > 0
       ? `; preserved ${resolved.configuredTargets.join(', ')}`

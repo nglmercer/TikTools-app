@@ -22,7 +22,7 @@ points, and runs local automations. Tauri is not used.
 
 Requirements:
 
-- Rust 1.90 or newer and Cargo.
+- Rust 1.95 or newer and Cargo.
 - Bun 1.4.1 for the Vue/Vite development toolchain and frontend asset build.
 - Platform WebView dependencies. Linux uses WebKitGTK; see
   [Getting Started](docs/GETTING_STARTED.md).

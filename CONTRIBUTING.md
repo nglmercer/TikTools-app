@@ -5,7 +5,7 @@ Please keep changes focused and avoid unrelated architecture or UI rewrites.
 
 ## Supported toolchain
 
-- Rust 1.90.0 or newer (the workspace MSRV is 1.90; CI uses Rust 1.98.1).
+- Rust 1.95.0 or newer (the workspace MSRV is 1.95; CI uses Rust 1.98.1).
 - Bun 1.4.1, pinned in `package.json`.
 - MSVC Build Tools are required on Windows.
 - LLVM `lld-link` is optional. When available on `PATH`, Rust commands

@@ -25,6 +25,28 @@ The core checks do not compile Winit, Wry, GTK, or tray integration. The
 workspace feature graph keeps the optional native plugin, persistence, HTTP,
 TikTok, and WASM boundaries explicit.
 
+## Optional build cache (Kache)
+
+Kache is an optional rustc compiler cache that speeds up Rust builds. It is
+a transparent acceleration layer — Cargo calls `kache`, which calls `rustc`
+— and is never a runtime or Cargo dependency of TikTools.
+
+Kache is used automatically whenever it is installed and on `PATH`; no
+configuration is needed. Behavior:
+
+- An existing `RUSTC_WRAPPER` (for example `sccache`) always wins and is
+  never overridden.
+- Set `TIKTOOLS_KACHE=0` to opt out, or `TIKTOOLS_KACHE=1` to require
+  kache — the wrapper fails with a clear error when it is requested but
+  not on `PATH`.
+- Kache composes with the mold and lld-link linker configuration.
+- Install kache from its prebuilt release binary or build it with
+  `cargo install --git https://github.com/kunobi-ninja/kache` (Rust 1.95
+  or newer; the workspace MSRV is 1.95).
+
+`.kache.toml` holds project-safe defaults only; see the file for the rules
+before adding keys.
+
 ## Desktop loop
 
 ```bash

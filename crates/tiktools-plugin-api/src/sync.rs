@@ -19,7 +19,7 @@
 //!   mistaken for a healthy one.
 //!
 //! Poison clearing uses `Mutex::clear_poison` / `RwLock::clear_poison`
-//! (stabilized in Rust 1.77; the workspace MSRV is 1.88, so no fallback
+//! (stabilized in Rust 1.77; the workspace MSRV is 1.95, so no fallback
 //! is needed).
 
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};

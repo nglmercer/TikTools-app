@@ -19,7 +19,7 @@ concurrency:
 env:
   BUN_VERSION: 1.4.1
   RUSTUP_TOOLCHAIN: 1.98.1
-  MSRV_TOOLCHAIN: 1.90.0
+  MSRV_TOOLCHAIN: 1.95.0
 
 jobs:
   frontend:

@@ -1,0 +1,15 @@
+# Kache is an optional rustc cache for TikTools, used automatically
+# whenever it is installed and on PATH.
+#
+# Opt out per invocation with TIKTOOLS_KACHE=0, or require it with
+# TIKTOOLS_KACHE=1, for example:
+#   TIKTOOLS_KACHE=1 bun run start:rust
+#
+# Rules for this file:
+# - Project-safe defaults only: no credentials, no absolute machine
+#   paths, and no remote-cache (S3/R2/MinIO) configuration.
+# - Add keys only after verifying them against kache's documented
+#   configuration schema.
+# - Executable caching stays off until benchmarks show it is useful.
+# - Kache is build tooling only; it is never a runtime or Cargo
+#   dependency of TikTools.

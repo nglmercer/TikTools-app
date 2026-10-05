@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Rust 1.90 or newer with Cargo.
+- Rust 1.95 or newer with Cargo.
 - MSVC Build Tools are required on Windows.
 - LLVM `lld-link` is optional. When available on `PATH`, Rust commands
   automatically use it for faster linking. Otherwise the default MSVC
