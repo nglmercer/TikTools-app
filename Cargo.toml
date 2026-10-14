@@ -47,7 +47,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 libloading = "0.9.0"
 sha2 = "0.11"
-zip = { version = "8.6", default-features = false, features = ["deflate"] }
+zip = { version = "9.0", default-features = false, features = ["deflate"] }
 # Declarative native-library providers (npm tarballs, GitHub release
 # assets): pure-Rust download, verify, and extract for build/install
 # tooling. Never linked into plugin guests.
