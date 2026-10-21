@@ -81,6 +81,19 @@ validation passed. Subsequent Cargo validation is serialized. Temporary preview
 fixtures initially had an invalid VM manifest name; that fixture was corrected
 without changing runtime validation or security checks.
 
+## Browser connection lifecycle follow-up
+
+A source audit found that detaching before a WebSocket opened left its connect
+promise unsettled, and old socket callbacks could arrive after replacement.
+The browser transport now settles cancelled connection attempts, rejects pending
+work when an open connection is replaced, clears old buffered state, and ignores
+stale callbacks. It does not replay accepted operations.
+
+The focused browser transport/control-client regression run passed 25 tests,
+including cancellation, late callbacks and connection replacement. These tests
+are additional evidence for the transport lifecycle, not actual Android browser
+suspension/resume verification.
+
 ## Remaining acceptance work
 
 - Verify actual rendering/pairing/navigation on an Android browser, inline plugin

@@ -11,6 +11,7 @@ export function createBrowserTransport(options: {
   let stopped = false;
   let retry: ReturnType<typeof setTimeout> | undefined;
   let failures = 0;
+  let cancelOpening: (() => void) | undefined;
   let wasConnected = false;
   const initialMessages: string[] = [];
   let initialBytes = 0;
@@ -20,14 +21,28 @@ export function createBrowserTransport(options: {
   let reconnected: (() => void) | undefined;
 
   function connect(): Promise<void> {
+    clearTimeout(retry); retry = undefined;
+    const previous = socket; socket = undefined;
+    if (previous?.readyState === 1) {
+      initialMessages.length = 0; initialBytes = 0; initialGap = true;
+      disconnected?.('connection replaced; accepted operations may still complete');
+    }
+    cancelOpening?.(); cancelOpening = undefined;
+    previous?.close();
     stopped = false;
     options.status?.(wasConnected ? 'Reconnecting to TikTools…' : 'Connecting to TikTools…');
     return new Promise((resolve, reject) => {
       const current = makeSocket(options.url);
       socket = current;
       const deadline = setTimeout(() => current.close(), 10_000);
-      current.onopen = () => {
+      cancelOpening = () => {
         clearTimeout(deadline);
+        reject(new Error('Local browser connection cancelled'));
+      };
+      current.onopen = () => {
+        if (socket !== current || stopped) return;
+        clearTimeout(deadline);
+        cancelOpening = undefined;
         failures = 0;
         options.status?.('Connected');
         if (wasConnected) reconnected?.();
@@ -35,6 +50,7 @@ export function createBrowserTransport(options: {
         resolve();
       };
       current.onmessage = (event) => {
+        if (socket !== current || stopped) return;
         if (typeof event.data !== 'string') { current.close(); return; }
         if (new TextEncoder().encode(event.data).length > 1024 * 1024) { current.close(); return; }
         if (receive) receive(event.data);
@@ -53,13 +69,16 @@ export function createBrowserTransport(options: {
         clearTimeout(deadline);
         if (socket !== current || stopped) return;
         socket = undefined;
+        cancelOpening = undefined;
+        initialMessages.length = 0; initialBytes = 0;
+        if (wasConnected) initialGap = true;
         options.status?.('Disconnected. Reconnecting… If pairing expired, reload to pair again.');
         disconnected?.('connection lost; accepted operations may still complete');
         reject(new Error('Local host unavailable or pairing expired'));
         const delay = Math.min(30_000, 500 * 2 ** Math.min(failures++, 6));
         retry = setTimeout(() => { retry = undefined; void connect().catch(() => {}); }, delay);
       };
-      current.onerror = () => current.close();
+      current.onerror = () => { if (socket === current && !stopped) current.close(); };
     });
   }
   return {
@@ -84,8 +103,9 @@ export function createBrowserTransport(options: {
       stopped = true;
       clearTimeout(retry);
       retry = undefined;
-      socket?.close();
-      socket = undefined;
+      const previous = socket; socket = undefined;
+      cancelOpening?.(); cancelOpening = undefined;
+      previous?.close();
       initialMessages.length = 0; initialBytes = 0; initialGap = false;
       receive = undefined;
       disconnected = undefined;

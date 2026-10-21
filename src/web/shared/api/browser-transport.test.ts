@@ -67,3 +67,48 @@ test('bounds events received before UI attachment and reports a gap', async () =
   expect(receive).toHaveBeenNthCalledWith(1, '44');
   transport.detach();
 });
+
+test('detach settles an opening connection and ignores late callbacks', async () => {
+  vi.useFakeTimers();
+  const socket = new Socket(), status = vi.fn();
+  const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', status, socket: () => socket as unknown as WebSocket });
+  const opening = expect(transport.connect()).rejects.toThrow('cancelled');
+  transport.detach(); await opening;
+  const calls = status.mock.calls.length;
+  socket.open(); socket.onmessage?.({ data: 'stale' });
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(status).toHaveBeenCalledTimes(calls);
+  expect(() => transport.send('request')).toThrow('unavailable');
+});
+
+test('a replacement connection ignores messages from the old socket', async () => {
+  const sockets: Socket[] = [];
+  const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => {
+    const socket = new Socket(); sockets.push(socket); return socket as unknown as WebSocket;
+  } });
+  const old = expect(transport.connect()).rejects.toThrow('cancelled');
+  const opening = transport.connect(); await old;
+  sockets[1]!.open(); await opening;
+  const receive = vi.fn(); transport.attach(receive, vi.fn(), vi.fn());
+  sockets[0]!.open(); sockets[0]!.onmessage?.({ data: 'stale' });
+  sockets[1]!.onmessage?.({ data: 'current' });
+  expect(receive.mock.calls).toEqual([['current']]);
+  transport.detach();
+});
+
+test('replacing an open connection invalidates pending work and old buffered events', async () => {
+  const sockets: Socket[] = [];
+  const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => {
+    const socket = new Socket(); sockets.push(socket); return socket as unknown as WebSocket;
+  } });
+  const opening = transport.connect(); sockets[0]!.open(); await opening;
+  sockets[0]!.onmessage?.({ data: 'old buffered state' });
+  const second = transport.connect(); sockets[1]!.open(); await second;
+  const receive = vi.fn(), gap = vi.fn(), disconnected = vi.fn();
+  transport.attach(receive, disconnected, gap);
+  expect(receive).not.toHaveBeenCalled(); expect(gap).toHaveBeenCalledOnce();
+  const third = transport.connect();
+  expect(disconnected).toHaveBeenCalledWith(expect.stringContaining('connection replaced'));
+  sockets[2]!.open(); await third;
+  transport.detach();
+});
