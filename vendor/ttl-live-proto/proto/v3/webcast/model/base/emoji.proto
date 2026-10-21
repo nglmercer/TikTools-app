@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package webcast.model.base.emoji;
+
+import "webcast/chatroom/api.proto";
+import "webcast/chatroom/api_emote_upload_info.proto";
+import "webcast/model/base/messages.proto";
+import "webcast/model/data/messages.proto";
+
+message EmoteModel {
+  string emote_id = 1;
+  ImageModel image = 2;
+
+  data.AuditStatus audit_status = 3;
+  string uuid = 4;
+
+  data.EmoteType emote_type = 5;
+
+  data.ContentSource content_source = 6;
+
+  data.EmotePrivateType emote_private_type = 7;
+  string package_id = 8;
+  chatroom.api.EmoteModel_AuditInfo audit_info = 9;
+
+  data.RewardCondition reward_condition = 10;
+  chatroom.api.EmoteUploadInfo emote_upload_info = 11;
+  int64 create_time = 12;
+
+  data.EmoteScene emote_scene = 13;
+}
+
+message EmoteWithIndex {
+  int32 index = 1;
+  EmoteModel emote = 2;
+}

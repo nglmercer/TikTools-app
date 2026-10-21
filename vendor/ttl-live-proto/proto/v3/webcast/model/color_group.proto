@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package webcast.model;
+
+import "webcast/model/base/messages.proto";
+import "webcast/model/gift/model.proto";
+import "webcast/model/message/common.proto";
+import "webcast/model/messages.proto";
+
+message Gift {
+  base.ImageModel image = 1;
+  string describe = 2;
+  int32 duration = 4;
+  int64 id = 5;
+  bool for_linkmic = 7;
+  bool combo = 10;
+  int32 type = 11;
+  int32 diamond_count = 12;
+  bool is_displayed_on_panel = 13;
+  int64 primary_effect_id = 14;
+  base.ImageModel gift_label_icon = 15;
+  string name = 16;
+  base.ImageModel icon = 21;
+  string gold_effect = 24;
+  base.ImageModel preview_image = 47;
+  GiftPanelBanner gift_panel_banner = 48;
+  bool is_broadcast_gift = 49;
+  bool is_effect_befview = 50;
+  bool is_random_gift = 51;
+  bool is_box_gift = 52;
+  bool can_put_in_gift_box = 53;
+  GiftBoxInfo gift_box_info = 54;
+  map<string, string> tracker_params = 100;
+  GiftLockInfo lock_info = 101;
+  repeated gift.model.GiftColorInfo color_infos = 102;
+  string gift_rank_recommend_info = 103;
+  GiftRandomEffectInfo random_effect_info = 104;
+  int32 gift_sub_type = 105;
+  repeated int32 gift_vertical_scenarios = 106;
+  int32 group_in_tab = 107;
+  bool is_gallery_gift = 108;
+  GiftSponsorInfo gift_sponsor_info = 109;
+  repeated GiftSkin gift_skins = 110;
+  int32 gift_label_type = 111;
+  repeated GiftText gift_texts = 112;
+  repeated GiftSkinToGiftTextsInfo gift_skin_to_gift_texts_infos = 113;
+  int64 expiration_timestamp = 114;
+  BatchGiftInfo batch_gift_info = 115;
+  bool is_global_gift = 116;
+  bool disable_gallery_banner = 117;
+  UGGiftStructInfo ug_gift_info = 118;
+  CrossScreenEffectInfo cross_screen_effect_info = 119;
+  gift.model.GiftPanelBeaconBubble beacon_bubble = 120;
+  map<string, gift.model.GiftResource> gift_resources = 121;
+  int64 resource_id = 122;
+  map<int64, string> biz_extra = 123;
+  LynxCrossScreenEffectInfo lynx_cross_screen_effect_info = 124;
+  string gift_struct_hash = 125;
+  SchemeInfo scheme_info = 126;
+  GiftSeriesInfo series_info = 127;
+  ColorPickerInfo color_picker_info = 128;
+  MusicGiftInfo music_info = 140;
+  base.ImageModel gift_bottom_right_label_icon = 141;
+  string strategy_event = 201;
+}
+
+message GiftPanelBanner {
+  .webcast.model.message.common.Text display_text = 1;
+  base.ImageModel left_icon = 2;
+  string schema_url = 3;
+  repeated string bg_color_values = 5;
+  string banner_lynx_url = 6;
+  int32 banner_priority = 7;
+  string banner_lynx_extra = 8;
+  base.ImageModel bg_image = 9;
+}
+
+message GiftTrayInfo {
+  base.ImageModel tray_dynamic_img = 1;
+  bool can_mirror = 2;
+  base.ImageModel tray_normal_bg_img = 3;
+  repeated string tray_normal_bg_color = 4;
+  base.ImageModel tray_small_bg_img = 5;
+  repeated string tray_small_bg_color = 6;
+  .webcast.model.message.common.Text right_tag_text = 7;
+  base.ImageModel right_tag_bg_img = 8;
+  repeated string right_tag_bg_color = 9;
+  string tray_name_text_color = 10;
+  string tray_desc_text_color = 11;
+  string right_tag_jump_schema = 12;
+  string gift_tray_jump_schema = 13;
+}

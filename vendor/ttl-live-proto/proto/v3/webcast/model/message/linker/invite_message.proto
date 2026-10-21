@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package webcast.model.message.linker.invite_message;
+
+import "webcast/chatroom/interact_model.proto";
+import "webcast/chatroom/model/interact_messages.proto";
+import "webcast/chatroom/model/multilive.proto";
+import "webcast/model/base/messages.proto";
+import "webcast/model/base/user_2.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/message/invite_top_host_info.proto";
+import "webcast/model/messages.proto";
+import "webcast/shared/messages.proto";
+
+message InviterRivalExtra {
+  int32 texttype = 1;
+  string text = 2;
+  string label = 3;
+  int32 user_count = 4;
+  base.ImageModel avatar_thumb = 5;
+  string display_id = 6;
+  shared.AuthenticationInfo authentication_info = 7;
+  string nickname = 8;
+  int64 follow_status = 9;
+  Hashtag hashtag = 10;
+  int64 user_id = 12;
+  bool is_best_teammate = 13;
+  chatroom.model.interact.OptPairInfo opt_pair_info = 14;
+  int64 follower_count = 15;
+}
+
+message LinkerInviteContent {
+  int64 from_user_id = 1;
+  int64 from_room_id = 2;
+  string to_rtc_ext_info = 3;
+  bool rtc_join_channel = 4;
+  int32 vendor = 5;
+  string sec_from_user_id = 6;
+  string to_linkmic_id_str = 7;
+  base.user.User from_user = 8;
+  int64 required_mic_idx = 9;
+  map<int64, string> rtc_ext_info_map = 10;
+
+  data.LinkmicMultiLiveEnum anchor_multi_live_enum = 11;
+  chatroom.model.multilive.MultiLiveAnchorPanelSettings anchor_setting_info = 12;
+  string inviter_linkmic_id_str = 13;
+  InviteTopHostInfo from_top_host_info = 16;
+  int64 action_id = 17;
+  repeated LinkmicUserInfo linked_users = 18;
+  PerceptionDialogInfo dialog = 19;
+  PunishEventInfo punish_info = 20;
+  int32 from_room_age_restricted = 21;
+  chatroom.interact.model.Tag from_tag = 22;
+  repeated chatroom.model.interact.CohostABTestSetting ab_test_setting = 23;
+  LinkerInviteMessageExtra linker_invite_msg_extra = 101;
+}
+
+message LinkerInviteMessageExtra {
+  int32 match_type = 1;
+  int32 invite_type = 2;
+  int32 sub_type = 3;
+  string theme = 4;
+  int32 duration = 5;
+  int32 layout = 6;
+  string tips = 7;
+  InviterRivalExtra extra = 8;
+  repeated InviterRivalExtra other_users = 9;
+  chatroom.model.interact.CohostTopic topic_info = 10;
+  string algo_request_id = 11;
+}

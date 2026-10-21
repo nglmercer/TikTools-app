@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package webcast.model.linksetting;
+
+import "webcast/chatroom/model/multilive.proto";
+import "webcast/linkmic/common.proto";
+
+message MultiLiveUpdateUserSettingContent {
+  chatroom.model.multilive.MultiLiveAnchorPanelSettings update_user_setting_info = 1;
+  linkmic.common.AnchorLayoutSetting anchor_layout_setting = 2;
+  int32 reset_point_after_leave = 3;
+}

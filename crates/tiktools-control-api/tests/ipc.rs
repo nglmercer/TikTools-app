@@ -32,11 +32,9 @@ fn isolated_home(tag: &str) -> std::path::PathBuf {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
-    let home = std::env::temp_dir().join(format!(
-        "tiktools-ipc-test-{}-{}-{tag}",
-        std::process::id(),
-        unique
-    ));
+    // Termux's private temp prefix is long; leave room for the socket name
+    // within sockaddr_un.sun_path (108 bytes on Android/Linux).
+    let home = std::env::temp_dir().join(format!("tti-{}-{unique:x}", std::process::id()));
     std::env::set_var("TIKTOOLS_HOME", &home);
     std::env::set_var(
         "TIKTOOLS_IPC_NAME",

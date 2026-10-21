@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package webcast.model.rank;
+
+import "webcast/model/data/messages.proto";
+import "webcast/model/message/common.proto";
+
+message ClassInfo {
+
+  data.ClassType class_type = 1;
+  int64 star_count = 2;
+}
+
+message RankTabInfo {
+
+  data.ProfitRankType rank_type = 1;
+
+  string title = 2;
+  .webcast.model.message.common.Text title_text = 3;
+  int64 list_lynx_type = 4;
+}
+
+message SettleInfo {
+  int64 owner_settle_rank = 1;
+  ClassInfo new_class_info = 2;
+  ClassInfo old_class_info = 3;
+  int64 rank_settle_timestamp = 4;
+}
+
+message TeamRankBonusTime {
+
+  bool switch = 1;
+  int64 start_timestamp = 2;
+  int64 end_timestamp = 3;
+  bool show_animation = 4;
+  int64 bonus_rate = 5;
+  int64 bonus_time_gift_id = 6;
+}

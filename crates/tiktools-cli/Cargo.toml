@@ -16,4 +16,4 @@ tiktools-control-api = { path = "../tiktools-control-api", features = ["native-t
 tiktools-core = { path = "../tiktools-core" }
 serde.workspace = true
 serde_json.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["signal"] }

@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package webcast.model.message.ext;
+
+import "webcast/model/data/oec_msg.proto";
+import "webcast/model/message/messages.proto";
+import "webcast/shared/message.proto";
+
+message HotTag {
+  string product_id = 1;
+  int64 hot_count = 2;
+}
+
+message PopProduct {
+  string title = 1;
+  string price = 2;
+  string image_url = 3;
+  string open_url = 4;
+  string product_type = 5;
+  int64 product_id = 6;
+  string source = 7;
+  int32 source_from = 8;
+  string schema = 9;
+  int32 platform = 10;
+  int32 product_status = 11;
+}
+
+message TraceInfo {
+  int64 operate_time = 1;
+  int64 arrival_time = 2;
+  int64 send_time = 3;
+}
+
+message WebcastOecLiveShoppingMessage {
+
+  shared.message.CommonMessageData common = 1;
+  int32 action_type = 2;
+  int32 live_product_number = 3;
+  PopProduct pop_product = 4;
+  TraceInfo trace_info = 5;
+  repeated HotTag hot_tags = 6;
+  AtmosphereTagInfo atmosphere_tag_info = 7;
+  LivePermissionInfo live_permission_info = 8;
+  ProductSnapShot product_snap_shot = 9;
+  int64 pin_card_delay_time = 10;
+  repeated FlashSaleAtmosphereInfo flash_sale_atmosphere_info = 11;
+  int32 card_type = 12;
+  BillboardInfo billboard_info = 13;
+  BillboardDisplayResult billboard_display_result = 14;
+  repeated DispersionInfo dispersion_info = 15;
+  PromotionInfo promotion_info = 16;
+  CampaignBannerDisplayResult campaign_banner_display_result = 17;
+  CampaignBannerDisplay campaign_banner_display = 18;
+  RefreshLiveBagInfo refresh_live_bag_info = 19;
+  int32 anchor_pin_card_reset_type = 20;
+  Voucher voucher = 21;
+  data.oec_msg.OecLiveShoppingMessageV2 oec_live_shopping_message_v2 = 100;
+}

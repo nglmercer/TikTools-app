@@ -13,6 +13,7 @@ pub mod db;
 pub mod events;
 pub mod ipc;
 pub mod paths;
+pub mod platform;
 pub mod services;
 
 mod automation_runtime;
@@ -184,6 +185,8 @@ pub struct AppCore {
         Mutex<BTreeMap<String, crate::plugin_events::fanout::PluginDeliveryStats>>,
     pub(crate) hotkey_sync_state: Mutex<crate::plugin_diagnostics::HotkeySyncState>,
     shutdown_started: AtomicBool,
+    shutdown_finished: AtomicBool,
+    shutdown_complete: tokio::sync::Notify,
     pub(crate) transport_state: TransportHealthState,
 }
 
@@ -251,10 +254,13 @@ impl AppCore {
         let plugin_activation: BTreeMap<String, crate::plugin_runtime::PluginActivation> =
             BTreeMap::new();
         #[cfg(feature = "http")]
-        let (http_client, http_client_error) = match reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-        {
+        let (http_client, http_client_error) = match tiktools_plugin_sdk::http::client_builder()
+            .and_then(|builder| {
+                builder
+                    .redirect(reqwest::redirect::Policy::none())
+                    .build()
+                    .map_err(|error| error.to_string())
+            }) {
             Ok(client) => (Some(client), None),
             Err(error) => {
                 let message = format!(
@@ -326,6 +332,8 @@ impl AppCore {
             plugin_delivery: Mutex::new(BTreeMap::new()),
             hotkey_sync_state: Mutex::new(crate::plugin_diagnostics::HotkeySyncState::default()),
             shutdown_started: AtomicBool::new(false),
+            shutdown_finished: AtomicBool::new(false),
+            shutdown_complete: tokio::sync::Notify::new(),
             transport_state: TransportHealthState::default(),
         };
         #[cfg(feature = "http")]
@@ -515,7 +523,15 @@ impl AppCore {
 
     pub async fn shutdown(self: &Arc<Self>) {
         if self.shutdown_started.swap(true, Ordering::AcqRel) {
-            return;
+            loop {
+                let finished = self.shutdown_complete.notified();
+                tokio::pin!(finished);
+                finished.as_mut().enable();
+                if self.shutdown_finished.load(Ordering::Acquire) {
+                    return;
+                }
+                finished.await;
+            }
         }
         {
             let _operation = self.live_monitor.operation.lock().await;
@@ -577,6 +593,8 @@ impl AppCore {
                 "points writer failed to stop within 30s; durable points work may remain unresolved"
             ),
         }
+        self.shutdown_finished.store(true, Ordering::Release);
+        self.shutdown_complete.notify_waiters();
     }
 }
 

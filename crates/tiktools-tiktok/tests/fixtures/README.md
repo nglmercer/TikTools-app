@@ -1,0 +1,1 @@
+Synthetic protobuf fixtures from nglmercer/tiktok-signer revision 4f9d0b63799c3e23cf20be717779ece507b9eed4, fixtures/events. No real session or user data. Decoded by the existing pinned ttl-live-events implementation.

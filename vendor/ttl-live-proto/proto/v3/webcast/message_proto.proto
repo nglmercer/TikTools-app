@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package webcast.message.proto;
+
+import "webcast/model/base/user.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/shared/messages.proto";
+
+message DisplayControl {
+  int32 priority = 1;
+  int64 duration = 2;
+  map<int32, ShowResult> target_group_show_rst = 3;
+
+  model.data.DisplayControl_HorizontalOnclickTriggerType horizontal_trigger_type = 4;
+}
+
+message EcommerceEntrance {
+
+  model.data.User_EcommerceEntrance_EntranceType entrance_type = 1;
+
+  model.data.User_EcommerceEntrance_CreatorType creator_type = 2;
+  string schema = 3;
+  ShopEntranceInfo shop_entrance_info = 4;
+  ShowcaseEntranceInfo showcase_entrance_info = 5;
+
+  model.data.User_EcommerceEntrance_ViewVersion view_version = 6;
+}
+
+message PerceptionFeedbackOption {
+  int64 id = 1;
+  string content_key = 2;
+}
+
+message RankUserEnigmaInfo {
+  bool is_enigma_mask_on = 1;
+}
+
+message SellingPoint {
+  string show_text = 1;
+
+  model.data.User_EcommerceEntrance_SellingPoint_LiveSellingPointType selling_point_type = 2;
+}
+
+message ShopEntranceInfo {
+  string shop_id = 1;
+  string shop_name = 2;
+  string shop_rating = 3;
+  StoreLabel store_label = 4;
+  string format_sold_count = 5;
+  int64 sold_count = 6;
+  int32 exp_rate_percentile = 7;
+  string exp_rate_top_display = 8;
+  int32 rate_display_style = 9;
+  bool show_rate_not_applicable = 10;
+  repeated SellingPoint selling_point = 11;
+}
+
+message ShowResult {
+  bool banned = 1;
+}
+
+message ShowcaseEntranceInfo {
+  string format_sold_count = 1;
+  int64 sold_count = 2;
+  string showcase_name = 3;
+  repeated SellingPoint selling_point = 11;
+  model.base.user.CreatorScoreProfile creator_score_profile = 12;
+}
+
+message StoreIdentityLabel {
+
+  model.data.User_EcommerceEntrance_ShopEntranceInfo_StoreLabel_ShopIdentityLabelType label_type = 1;
+  string identity_label_text = 2;
+  shared.ShopLabelImage identity_logo_light = 3;
+  shared.ShopLabelImage identity_logo_dark = 4;
+  string identity_label_bg_color_light = 5;
+  string identity_label_bg_color_dark = 6;
+  string identity_label_text_color_light = 7;
+  string identity_label_text_color_dark = 8;
+  string shop_explanation_page_schema = 9;
+  string shop_identity_label_key = 10;
+}
+
+message StoreLabel {
+  StoreOfficialLabel official_label = 1;
+  bool is_bytemall = 2;
+  StoreIdentityLabel shop_identity_label = 3;
+}
+
+message StoreOfficialLabel {
+  shared.ShopLabelImage label_image_light = 1;
+  shared.ShopLabelImage label_image_dark = 2;
+
+  model.data.User_EcommerceEntrance_ShopEntranceInfo_StoreLabel_StoreBrandLabelType label_type = 3;
+  string label_type_str = 4;
+}

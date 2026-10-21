@@ -1,0 +1,1024 @@
+syntax = "proto3";
+
+package webcast.model.data;
+
+enum ActionButtonType {
+  UNKNOWN = 0;
+  FOLLOW = 1;
+  SET_GOAL = 2;
+  START_MATCH = 3;
+  ADD_STICKER = 4;
+  ADD_CRM_STICKER = 5;
+  START_COHOST = 6;
+  INVITE_LEVEL_UP_GAMEPLAY = 7;
+  SEND_GOODY_BAG = 8;
+  PIN_MESSAGE = 9;
+  ACTIVATE_UPGRADE_GIFT_GALLERY = 10;
+  SET_FANS_CLUB_ID = 11;
+  VIEWER_WISH = 12;
+  OPEN_PLAY_BOOK = 13;
+  LIVE_GOAL_PIN = 14;
+  GUESSING_GAME = 15;
+  LAUNCH_GAME_QUIZ = 16;
+  PIN_COMMENT = 17;
+  INVITE_ON_MIC = 18;
+}
+
+enum AffiliatedInfo_StickerShowScene {
+  NORMAL = 0;
+  SETTLING = 1;
+  SETTLED = 2;
+}
+
+enum AuditStatus {
+  AUDIT_STATUS_UNKNOWN = 0;
+  PASS = 1;
+  FAILED = 2;
+  REVIEWING = 3;
+  FORBIDDEN = 4;
+}
+
+enum AuditTaskType {
+  DEFAULT = 0;
+  APPEAL = 1;
+}
+
+enum BadgeDisplayType {
+  BADGE_DISPLAY_TYPE_UNKNOWN = 0;
+  IMAGE = 1;
+  TEXT = 2;
+  STRING = 3;
+  COMBINE = 4;
+}
+
+enum BadgeExhibitionType {
+  BADGE = 0;
+  IDENTITY_LABEL = 1;
+}
+
+enum BadgePriorityType {
+  BADGE_PRIORITY_TYPE_UNKNOWN = 0;
+  STRONG_RELATION = 10;
+  PLATFORM = 20;
+  RELATION = 30;
+  ACTIVITY = 40;
+  RANK_LIST = 50;
+}
+
+enum BadgeSceneType {
+  BADGE_SCENE_TYPE_UNKNOWN = 0;
+  ADMIN = 1;
+  FIRST_RECHARGE = 2;
+  FRIENDS = 3;
+  SUBSCRIBER = 4;
+  BADGE_SCENE_TYPE_ACTIVITY = 5;
+  BADGE_SCENE_TYPE_RANK_LIST = 6;
+  NEW_SUBSCRIBER = 7;
+  USER_GRADE = 8;
+  STATE_CONTROLLED_MEDIA = 9;
+  FANS = 10;
+  LIVE_PRO = 11;
+  ANCHOR = 12;
+  CLASS_RANK = 13;
+  ENIGMA = 14;
+}
+
+enum BadgeTextPosition {
+  BADGE_TEXT_POSITION_UNKNOWN = 0;
+  RIGHT = 1;
+  BELOW = 2;
+}
+
+enum BattleABTestType {
+  UNKNOWN_AB_TEST_TYPE = 0;
+  MEANWHILE_INVITE = 1;
+  SPECIFIED_GIFT = 2;
+  RT_C_MESSAGE_CHANNEL = 3;
+  CONNECTION_TIME_OUT = 4;
+  REMATCH_SKIP_TEAMMATE = 5;
+  OPT_INVITEE_4048 = 6;
+  TIME_CALIBRATE = 7;
+  LIVE_MATCH_IS_PLAY_BOOK_ENABLED = 8;
+  LIVE_MATCH_PLAY_BOOK_IS_DESIGNATED_GIFT_ENABLED = 9;
+  LIVE_MATCH_PLAY_BOOK_IS_PUNISH_EFFECT_ENABLED = 10;
+  MATCH_ICE_SHOWDOWN = 11;
+}
+
+enum BattleInviteType {
+  BATTLE_INVITE_TYPE_NORMAL = 0;
+  AGAIN = 1;
+  TEAM_PAIR_INVITE_R = 2;
+  TEAM_PAIR_QUICK_RECOMMEND_COHOST_INVITEE = 3;
+  TEAM_PAIR_QUICK_RECOMMEND_SOLO_INVITEE = 4;
+}
+
+enum BattleResult_Result {
+  WIN = 0;
+  LOSE = 1;
+  DRAW = 2;
+}
+
+enum BattleScene {
+  BATTLE_SCENE_NORMAL = 0;
+  TEAM_PAIR = 1;
+}
+
+enum BattleSettings_BattleStatus {
+  BATTLE_NOT_STARTED = 0;
+  BATTLE_STARTED = 1;
+  BATTLE_FINISHED = 2;
+  BATTLE_PUNISH_STARTED = 3;
+  BATTLE_PUNISH_FINISHED = 4;
+}
+
+enum BattleType {
+  UNKNOWN_BATTLE_TYPE = 0;
+  NORMAL_BATTLE = 1;
+  TEAM_BATTLE = 2;
+  INDIVIDUAL_BATTLE = 3;
+  NUM_1_VN = 4;
+  TAKE_THE_STAGE = 51;
+  GROUP_SHOW = 52;
+  BEANS = 53;
+  GROUP_RANK_LIST = 54;
+}
+
+enum ClassType {
+  NONE = 0;
+  D_5 = 100;
+  D_4 = 200;
+  D_3 = 300;
+  D_2 = 400;
+  D_1 = 500;
+  C_5 = 600;
+  C_4 = 700;
+  C_3 = 800;
+  C_2 = 900;
+  C_1 = 1000;
+  B_5 = 1100;
+  B_4 = 1200;
+  B_3 = 1300;
+  B_2 = 1400;
+  B_1 = 1500;
+  A_5 = 1600;
+  A_4 = 1700;
+  A_3 = 1800;
+  A_2 = 1900;
+  A_1 = 2000;
+  S = 2100;
+}
+
+enum CoHostPermissoinType {
+  NO_PERM = 0;
+  COHOST_PERM = 1;
+  MULTI_HOST_PERM = 2;
+}
+
+enum CohostABTestType {
+  COHOST_AB_TEST_TYPE_UNKNOWN = 0;
+  LINK_TIME_OUT_STRATEGY = 1;
+  COHOST_RESERVATION = 2;
+  QUICK_PAIR_NEW_ARCH_SWITCH = 3;
+  COHOST_INVITATION_TEXT = 4;
+}
+
+enum CohostLayoutMode {
+  COHOST_LAYOUT_MODE_NORMAL = 0;
+  SCREEN_SHARE = 1;
+}
+
+enum CohostNudgeInfo {
+  COHOST_NUDGE_INFO_NONE = 0;
+  YOUR_NUDGE = 1;
+  NUDGED_YOU = 2;
+}
+
+enum ContentSource {
+  CONTENT_SOURCE_UNKNOWN = 0;
+  CONTENT_SOURCE_NORMAL = 1;
+  CAMERA = 2;
+}
+
+enum DetailBlockReason {
+  BLOCK_REASON_NONE = 0;
+  IN_LINKMIC = 100;
+  MULTI_HOST_FULL = 101;
+  IN_COHOST_LINKMIC = 102;
+  DEAL_OTHER_INVITE = 103;
+  DEAL_OTHER_APPLY = 104;
+  IN_PK_STATUS = 105;
+  SELF_IN_PK_STATUS = 106;
+  IN_COHOST_INVITE_APPLY = 107;
+  IN_AUDIENCE_LINKMIC = 108;
+  WAITING_AUTO_MATCH = 109;
+  INVITE_NEED_TO_JOIN = 110;
+  JOIN_NEED_TO_INVITE = 111;
+  IN_TAKE_THE_STAGE_STATUS = 112;
+  SELF_IN_TAKE_THE_STAGE_STATUS = 113;
+  IN_CATCH_BEANS = 114;
+  SELF_IN_CATCH_BEANS = 115;
+  JOINING_LAST_SEAT = 116;
+  IN_COHOST_X_MULTIGUEST = 117;
+  SELF_IN_COHOST_X_MULTIGUEST = 118;
+  NO_LINKMIC_PERMISSION = 200;
+  ANCHOR_LINKMIC_SETTING_CLOSED = 202;
+  ANCHOR_LINKMIC_REFUSE_NOT_FOLLOWER = 203;
+  ANCHOR_LINKMIC_BLOCK_INVITATION_OF_LIVE = 204;
+  ANCHOR_LINKMIC_REFUSE_FRIEND_INVITE = 205;
+  ANCHOR_LINKMIC_REFUSE_FRIEND_APPLY = 206;
+  ANCHOR_LINKMIC_REFUSE_NOT_FRIEND_INVITE = 207;
+  ANCHOR_LINKMIC_REFUSE_NOT_FRIEND_APPLY = 208;
+  ANCHOR_LINKMIC_BLOCK_INVITATION_OF_MULTI_HOST = 209;
+  ANCHOR_LINKMIC_BLOCK_APPLY_OF_MULTI_HOST = 210;
+  ROOM_PAUSED = 300;
+  LIVE_TYPE_AUDIO = 301;
+  ROOM_INTERACTION_CONFLICT = 302;
+  RIVAL_VERSION_NOT_SUPPORT = 303;
+  SELF_VERSION_NOT_SUPPORT = 304;
+  MATURE_THEME_MISMATCH = 305;
+  SELF_IN_OFFICIAL_CHANNEL = 306;
+  RIVAL_IN_OFFICIAL_CHANNEL = 307;
+  IN_OFFICIAL_BACKUP_CHANNEL = 308;
+  RIVAL_RESERVE_FULL = 309;
+  ANCHOR_NOT_LIVING = 310;
+  ANCHOR_IS_SELF = 311;
+  PRIVATE_ROOM = 312;
+  BLOCKED_BY_RIVAL = 313;
+  SELF_BLOCKED_RIVAL = 314;
+  VIEWER_REGION_NOT_SUPPORT = 315;
+  SUBSCRIBER_ROOM = 316;
+  REGIONAL_BLOCK = 317;
+  PENALTY_BANNED = 318;
+  BLOCK_PROGRAM_LIVE_TAB_ROOM = 319;
+  USER_NOT_ONLINE = 320;
+  IN_LIVE_STUDIO = 321;
+  ANCHOR_NO_FEATURE_ACCESS = 323;
+  NETWORK_ERROR = 400;
+  ROOM_FILTER_ERROR = 401;
+}
+
+enum DisplayControl_HorizontalOnclickTriggerType {
+  ONCLICK_TRIGGER_TYPE_UNKNOWN = 0;
+  ONCLICK_TRIGGER_TYPE_LEFT = 1;
+  ONCLICK_TRIGGER_TYPE_MIDDLE = 2;
+  ONCLICK_TRIGGER_TYPE_RIGHT = 3;
+  ONCLICK_TRIGGER_TYPE_ALL_AREA = 4;
+}
+
+enum DisplayStatus {
+  DISPLAY_STATUS_NORMAL = 0;
+  SHADOW = 1;
+}
+
+enum EmotePrivateType {
+  EMOTE_PRIVATE_TYPE_NORMAL = 0;
+  SUB_WAVE = 1;
+  GUESSING = 101;
+}
+
+enum EmoteScene {
+  SUBSCRIPTION = 0;
+  GAME = 1;
+  FANS_CLUB = 2;
+}
+
+enum EmoteType {
+  EMOTE_TYPE_NORMAL = 0;
+  WITH_STICKER = 1;
+  EMOTE_TYPE_FANS = 2;
+}
+
+enum EntranceGroupType {
+  ENTRANCE_GROUP_TYPE_DEFAULT = 0;
+  GIFT = 1;
+  E_COMMERCE = 2;
+  ENTRANCE_GROUP_TYPE_GAME = 3;
+}
+
+enum EnvelopeBusinessType {
+  BUSINESS_TYPE_UNKNOWN = 0;
+  BUSINESS_TYPE_USER_DIAMOND = 1;
+  BUSINESS_TYPE_PLATFORM_DIAMOND = 2;
+  BUSINESS_TYPE_PLATFORM_SHELL = 3;
+  BUSINESS_TYPE_PORTAL = 4;
+  BUSINESS_TYPE_PLATFORM_MER_CH = 5;
+  BUSINESS_TYPE_E_OY_DIAMOND = 6;
+  BUSINESS_TYPE_FANCLUB_GT_M = 7;
+  BUSINESS_TYPE_PLATFORM_PORTAL = 9;
+  BUSINESS_TYPE_EO_YG_TM_POPULARITY_TICKET = 10;
+  BUSINESS_TYPE_EO_YG_TM_REVENUE_DIAMOND = 11;
+  BUSINESS_TYPE_EO_YG_TM_GAME_DIAMOND = 12;
+  BUSINESS_TYPE_CREATOR_LEAGUE_PROMOTION_GT_M = 13;
+  BUSINESS_TYPE_MOY_GT_M_POPULARITY_TICKET = 14;
+  SUPER_FAN_BOX = 19;
+}
+
+enum EnvelopeDisplay {
+  ENVELOPE_DISPLAY_UNKNOWN = 0;
+  NEW = 1;
+  HIDE = 2;
+}
+
+enum EnvelopeFollowShowStatus {
+  ENVELOPE_FOLLOW_SHOW_UNKNOWN = 0;
+  ENVELOPE_FOLLOW_SHOW = 1;
+  ENVELOPE_FOLLOW_NOT_SHOW = 2;
+}
+
+enum GamepadTaskType {
+  PARTNERSHIP = 0;
+  PUBLISHER = 1;
+  EVENT = 2;
+  ORG = 3;
+}
+
+enum GiftPanelBeaconBubbleType {
+  GIFT_PANEL_BEACON_BUBBLE_TYPE_UNKNOWN = 0;
+  GIFT_PANEL_BEACON_BUBBLE_TYPE_DEFAULT = 1;
+  LYNX_DEFAULT = 2;
+  LIVE_GOAL = 3;
+  GIFT_GALLERY = 4;
+  UG_HIGH_PRIORITY = 5;
+  UG_LOW_PRIORITY = 6;
+  VIEWER_PICKS = 7;
+}
+
+enum GiftPermissionType {
+  UNKNOWN_TYPE = 0;
+  NO_GIFT_PERMISSION = 1;
+  ANCHOR_CLOSE = 2;
+  HAS_GIFT_PERMISSION = 3;
+  ANCHOR_BANNED = 4;
+}
+
+enum GiftShowType {
+  GIFT_SHOW_DEFAULT = 0;
+  GIFT_SHOW_NAME = 1;
+}
+
+enum GiftStruct_SchemeGiftType {
+  SCHEME_GIFT_TYPE_NONE = 0;
+  SCHEME_GIFT_TYPE_MAGIC = 1;
+}
+
+enum GiftTrayStyle {
+  GIFT_TRAY_STYLE_DEFAULT = 0;
+  GALLERY_REPURCHASE_FULL = 1;
+  GALLERY_REPURCHASE_BACKGROUND = 2;
+}
+
+enum GoalMessageSource {
+  GOAL_MESSAGE_SOURCE_UNKNOWN = 0;
+  COMMIT = 1;
+  PROGRESS_UPDATE = 2;
+  PIN = 3;
+  UNPIN = 4;
+  REVIEW_CALLBACK = 5;
+  SUSPEND = 6;
+  CHALLENGE_PROMPT = 7;
+}
+
+enum GuestMicCameraChangeScene {
+  CHANGE_SCENE_UNKNOWN = 0;
+  LIVE_SHOW_BY_ANCHOR_AUTO = 1;
+  LIVE_SHOW_BY_SERVER_NORMAL = 2;
+  LIVE_SHOW_BY_SHOW_END = 3;
+  COHOST_WITH_GUEST = 4;
+}
+
+enum GuestMicCameraManageOp {
+  OPEN_MIC = 0;
+  OPEN_CAMERA = 1;
+  CLOSE_MIC = 2;
+  CLOSE_CAMERA = 3;
+  CLOSE_MIC_PUNISH = 4;
+}
+
+enum HashtagNamespace {
+  GLOBAL = 0;
+  GAMING = 1;
+}
+
+enum HorizontalPaddingRule {
+  USE_MIDDLE_AND_WIDTH = 0;
+  USE_LEFT_AND_MIDDLE_AND_RIGHT = 1;
+}
+
+enum IceShowdownSetting {
+  ICE_SHOWDOWN_OFF = 0;
+  ICE_SHOWDOWN_MANUAL = 1;
+  ICE_SHOWDOWN_SYSTEM = 2;
+}
+
+enum LinkListStatus {
+  STATUS_UN_KOWN = 0;
+  STATUS_WAITING = 1;
+  STATUS_LINKED = 2;
+  STATUS_FINISHED = 3;
+  STATUS_WAITING_OR_LINKED = 4;
+}
+
+enum LinkRoleType {
+  TYPE_ROLE_TYPE_UN_KOWN = 0;
+  TYPE_LEADER = 1;
+  TYPE_PLAYER = 2;
+  TYPE_INVITEE = 3;
+  TYPE_APP_LIER = 4;
+}
+
+enum LinkSilenceStatus {
+  STATUS_UN_SILENCE = 0;
+  STATUS_SILENCE_BY_SELF = 1;
+  STATUS_SILENCE_BY_OWNER = 2;
+}
+
+enum LinkType {
+  TYPE_UNKNOWN = 0;
+  TYPE_VIDEO = 1;
+  TYPE_AUDIO = 2;
+  TYPE_VIRTUAL = 3;
+}
+
+enum LinkUserType {
+  LINK_USER_TYPE_DEFAULT = 0;
+  KARAOKE = 1;
+}
+
+enum LinkmicApplierSortSetting {
+  LINKMIC_APP_LIER_SORT_SETTING_NONE = 0;
+  LINKMIC_APP_LIER_SORT_SETTING_BY_GIFT_SCORE = 1;
+}
+
+enum LinkmicGiftExpressionStrategy {
+  CONTROL_V1 = 0;
+  EXPERIMENT_V1 = 1;
+  EXPERIMENT_V2 = 2;
+}
+
+enum LinkmicMultiLiveEnum {
+  LINKMIC_MULTI_LIVE_ENUM_DEFAULT = 0;
+  ANCHOR_USE_NEW_LAYOUT = 1;
+}
+
+enum LinkmicPlayType {
+  PLAY_TYPE_INVITE = 0;
+  PLAY_TYPE_APPLY = 1;
+  PLAY_TYPE_RESERVE = 2;
+  PLAY_TYPE_OFF_LIVE = 3;
+  PLAY_TYPE_OFFLINE = 4;
+}
+
+enum LinkmicReplyType {
+  RT_UNKNOWN = 0;
+  RT_AGREE = 1;
+  RT_REJECT = 2;
+}
+
+enum LinkmicShareRevenueSetting {
+  LINKMIC_SHARE_REVENUE_NOT_SET = 0;
+  LINKMIC_SHARE_REVENUE_OPEN = 1;
+  LINKMIC_SHARE_REVENUE_CLOSE = 2;
+}
+
+enum LinkmicStatus {
+  DISABLE = 0;
+  ENABLE = 1;
+  JUST_FOLLOWING = 2;
+  MULTI_LINKING = 3;
+  MULTI_LINKING_ONLY_FOLLOWING = 4;
+}
+
+enum LinkmicUserSettingDisableVideoLinkmic {
+  UN_SET = 0;
+  OPEN_AND_SHOW = 1;
+  CLOSE_AND_SHOW = 2;
+  OPEN_AND_HIDE = 3;
+  CLOSE_AND_HIDE = 4;
+}
+
+enum LinkmicUserSettingLayout {
+  GRID = 0;
+  FLOATING = 1;
+}
+
+enum LinkmicUserSettingMultiGuestApplyAutoApprove {
+  NOT_SET = 0;
+  ALL_AUDIENCE = 1;
+  ONLY_FOLLOWER = 2;
+  ONLY_FRIEND = 3;
+  ONLY_GIFT_ER = 4;
+}
+
+enum LinkmicUserSettingShowAction {
+  CHECKED = 0;
+  NOT_CHECKED = 1;
+  LINKMIC_USER_SETTING_SHOW_ACTION_HIDE = 2;
+  OPEN = 3;
+  CLOSE = 4;
+}
+
+enum LinkmicUserStatus {
+  USER_STATUS_NONE = 0;
+  USER_STATUS_LINKED = 1;
+  USER_STATUS_APPLYING = 2;
+  USER_STATUS_INVITING = 3;
+}
+
+enum LiveEventInfo_EventPayMethod {
+  EVENT_PAY_METHOD_INVALID = 0;
+  EVENT_PAY_METHOD_COINS = 1;
+  EVENT_PAY_METHOD_CASH = 2;
+}
+
+enum MatchGameplayOption {
+  MATCH_OPTION_UNKNOWN = 0;
+  MATCH_OPTION_SPECIFIC_GIFT = 1;
+  MATCH_OPTION_ICE_SHOWDOWN = 2;
+}
+
+enum MatchInfo_MultiplierType {
+  UNSPECIFIED = 0;
+  CRITICAL_STRIKE = 1;
+  TOP_2 = 2;
+  TOP_3 = 3;
+  VAULT_GLOVE = 4;
+}
+
+enum MultiGuestOutsideRoomInviteSource {
+  OUTSIDE_ROOM_INVITE_SOURCE_UNKNOWN = 0;
+  OUTSIDE_ROOM_INVITE_SOURCE_PANEL = 1;
+  OUTSIDE_ROOM_INVITE_SOURCE_CAPSULE = 2;
+  OUTSIDE_ROOM_INVITE_SOURCE_EMPTY_POSITION = 3;
+}
+
+enum OptPairStatus {
+  OPT_PAIR_STATUS_UNKNOWN = 0;
+  OFFLINE = 1;
+  FINISHED = 2;
+}
+
+enum PerceptionDialogIconType {
+  ICON_TYPE_NONE = 0;
+  ICON_TYPE_WARNING = 1;
+  ICON_TYPE_LINKMIC = 2;
+  ICON_TYPE_GUEST_LINKMIC = 3;
+  ICON_TYPE_LIVE = 4;
+  ICON_TYPE_TREASURE_BOX = 5;
+  ICON_TYPE_MUTE = 6;
+  ICON_GAMEPAD_ACCESS_REVOKED = 7;
+  ICON_TYPE_BAN_REPORT_LIVE_SINGLE_ROOM = 8;
+  ICON_TYPE_BAN_REPORT_LIVE_ALL_ROOM = 9;
+  ICON_TYPE_BAN_REPORT_LIVE_GREEN_SCREEN = 10;
+  ICON_TYPE_GIFT = 11;
+  ICON_TYPE_APPEAL_SUCCESS = 12;
+  ICON_TYPE_MATCH = 13;
+  ICON_TYPE_LIVE_GOAL = 14;
+  ICON_TYPE_SUBSCRIPTION = 15;
+  ICON_TYPE_STAR_COMMENT = 16;
+  ICON_TYPE_RANKING = 17;
+  ICON_TYPE_COMMON = 18;
+}
+
+enum PinCardType {
+  UNKNOWN_PIN_CARD_TYPE = 0;
+  CUSTOMIZED_BENEFIT_E_NUM = 1;
+  SUB_GOAL_E_NUM = 2;
+  UP_SELL_DM = 3;
+  UP_SELL_LEAD_SGEN = 4;
+  SMB_SUB_PLAN = 5;
+  SMB_COURSE = 6;
+}
+
+enum PollAppealStatus {
+  POLL_APPEAL_STATUS_UNKNOWN = 0;
+  POLL_APPEAL_STATUS_PASS = 1;
+  FAIL = 2;
+}
+
+enum PollEndType {
+  POLL_END_BY_TIME = 0;
+  POLL_END_BY_OWNER = 1;
+  POLL_END_BY_OTHER = 2;
+  POLL_END_BY_ADMIN = 3;
+}
+
+enum PollKind {
+  POLL_KIND_NORMAL = 0;
+  POLL_KIND_GIFT = 1;
+  CUSTOMIZABLE = 2;
+  CUSTOMIZABLE_GIFT = 3;
+  QUICK_GIFT = 4;
+  EMOTE = 5;
+}
+
+enum PollTemplateStatus {
+  TO_BE_REVIEWED = 0;
+  UNDER_REVIEW = 1;
+  REVIEWED = 2;
+  REFUSED = 3;
+}
+
+enum Position {
+  POSITION_UNKNOWN = 0;
+  LEFT = 1;
+  POSITION_RIGHT = 2;
+}
+
+enum ProfitRankType {
+  TYPE_HOURLY_RANK = 0;
+  TYPE_WEEKLY_RANK = 1;
+  TYPE_HOURLY_STAR_RANK = 2;
+  TYPE_WEEKLY_RISING_RANK_ACTIVITY = 3;
+  TYPE_WEEKLY_RISING_RANK = 4;
+  TYPE_WEEKLY_ROOKIE = 5;
+  TYPE_E_COMMERCE_WEEKLY = 6;
+  TYPE_E_COMMERCE_DAILY = 7;
+  TYPE_DAILY_RANK = 8;
+  TYPE_FIRST_GIFT_RANK = 9;
+  TYPE_GAME_RANK = 10;
+  TYPE_DAILY_GAME = 11;
+  TYPE_HALL_OF_FAME_RANK = 12;
+  TYPE_RANK_LEAGUE = 13;
+  DAILY_ROOKIE = 14;
+  TYPE_TEAM_RANK = 15;
+  TYPE_CLASS_RANK = 16;
+  TYPE_DAILY_GAME_PUB_G = 20;
+  TYPE_DAILY_GAME_MLB_B = 21;
+  TYPE_DAILY_GAME_FREE_FIRE = 22;
+  TYPE_WEEKLY_GAME_SUBCATEGORY_ONE = 23;
+  TYPE_WEEKLY_GAME_SUBCATEGORY_TWO = 24;
+  TYPE_WEEKLY_GAME_SUBCATEGORY_THREE = 25;
+  TYPE_WEEKLY_E_COMMERCE_COLLECTIBLES = 26;
+  TYPE_WEEKLY_E_COMMERCE_BEAUTY_PERSONAL_CARE = 27;
+  TYPE_WEEKLY_E_COMMERCE_WOMEN_WEAR_UNDERWEAR = 28;
+  TYPE_CAMPAIGN_LEAGUEMATCH_RANK = 101;
+}
+
+enum PunishTypeId {
+  PUNISH_TYPE_IDUN_KNOWN = 0;
+  BAN_LINKMIC = 9;
+  BAN_GAME_PARTNERSHIP = 25;
+  REMOVE_GAME_PARTNERSHIP = 26;
+  BAN_COHOST_LINKMIC = 55;
+  AUTHORITY_LIMIT_MATCH = 57;
+  BAN_VOICE_CHAT = 59;
+  BAN_LIVE_GOAL = 64;
+  VIEWER_LIMIT = 70;
+  LIVE_CONSOLE_BAN = 76;
+}
+
+enum ReserveReplyStatus {
+  RESERVE_REPLY_STATUS_UNKNOWN = 0;
+  WAIT_FORME = 1;
+}
+
+enum RewardCondition {
+  REWARD_CONDITION_SUBSCRIPTION = 0;
+  SUB_WAVE_CUSTOM = 1;
+  REWARD_CONDITION_FANS_CLUB = 2;
+}
+
+enum RivalExtraInfo_AnchorLayer {
+  ANCHOR_LAYER_UNKNOWN = 0;
+  ANCHOR_LAYER_TOP = 1;
+  ANCHOR_LAYER_SMALL = 2;
+}
+
+enum RivalExtraInfo_BattleInfo_BattleInfoType {
+  BATTLE_INFO_TYPE_NONE = 0;
+  BATTLE_INFO_TYPE_AVERAGE_SCORE = 1;
+  BATTLE_INFO_TYPE_MAX_SCORE = 2;
+  BATTLE_INFO_TYPE_LAST_SCORE = 3;
+  BATTLE_INFO_TYPE_WIN_STREAK = 4;
+}
+
+enum RivalExtraInfo_InviteBlockReason {
+  RIVAL_EXTRA_INFO_INVITE_BLOCK_REASON_NONE = 0;
+  IS_LINKING = 1;
+  INVITATION_DENIED = 2;
+  PERMISSION_DENIED = 3;
+  LOW_CLIENT_VERSION = 4;
+  RIVAL_EXTRA_INFO_INVITE_BLOCK_REASON_ROOM_PAUSED = 5;
+  LINKMIC_FULL = 6;
+  MATURE_THEME_NOT_MATCH = 7;
+  RESERVE_FULL = 8;
+  RIVAL_EXTRA_INFO_INVITE_BLOCK_REASON_REGIONAL_BLOCK = 9;
+}
+
+enum RivalExtraInfo_TextType {
+  TEXT_TYPE_UNKNOWN = 0;
+  CURRO_OMF_AN_TICKET = 1;
+  TOTAL_DIAMOND_COUNT = 2;
+  DISTANCE = 3;
+  DISTANCE_CITY = 4;
+}
+
+enum SOVLockInfoType {
+  SOV_LOCK_INFO_TYPE_NONE = 0;
+  LOCK = 1;
+  PREVIEW = 2;
+}
+
+enum SOVMaskInfoType {
+  SOV_MASK_INFO_TYPE_NONE = 0;
+  SENSITIVE = 1;
+  VIOLATION = 2;
+  MUSIC_COPYRIGHT = 3;
+  UNAVAILABLE = 4;
+}
+
+enum SOVStatus {
+  SOV_STATUS_UNKNOWN = 0;
+  ON = 1;
+  OFF = 2;
+}
+
+enum SubPinCardText_TextType {
+  SUB_PIN_CARD_TEXT_TEXT_TYPE_TEXT_TYPE_UNKNOWN = 0;
+  TEXT_TYPE_ORIGINAL = 1;
+  TEXT_TYPE_STARLING_KEY = 2;
+}
+
+enum SubPinCard_Text_TextType {
+  UNKNOWN_TEXT_TYPE = 0;
+  ORIGINAL_TEXT = 1;
+  STARLING_KEY = 2;
+}
+
+enum SubSplitPeriod {
+  SUB_SPLIT_PERIOD_UNKNOWN = 0;
+  ANNOUNCEMENT = 1;
+  TRANSITION = 2;
+  OFFICIAL = 3;
+}
+
+enum TagType {
+  CREATOR_CRM_TAG_TYPE_UNKNOWN = 0;
+  CREATOR_CRM_TAG_TYPE_USER_GRADE = 1;
+  CREATOR_CRM_TAG_TYPE_FANS_LEVEL = 2;
+  CREATOR_CRM_TAG_TYPE_WATCH_ME_DAYS_AGO = 3;
+  CREATOR_CRM_TAG_TYPE_CUSTOM = 4;
+  CREATOR_CRM_TAG_TYPE_TITLE_GIFT = 5;
+  CREATOR_CRM_TAG_TYPE_FIRST_JOINED_TEAM = 6;
+  CREATOR_CRM_TAG_TYPE_PAY_ACCOMPANY_DAYS = 7;
+  CREATOR_CRM_TAG_TYPE_SPONSOR_GIFT_LAST_ROOM = 8;
+  CREATOR_CRM_TAG_TYPE_MATCH_MVP_LAST_ROOM = 9;
+  CREATOR_CRM_TAG_TYPE_LARGE_AMOUNT_GIFT_LAST_ROOM = 10;
+  CREATOR_CRM_TAG_TYPE_COMMENT_LAST_ROOM = 11;
+  CREATOR_CRM_TAG_TYPE_RECENT_TITLED_GIFT = 12;
+  CREATOR_CRM_TAG_TYPE_MEET_ANNIVERSARY = 13;
+  CREATOR_CRM_TAG_TYPE_FANS_SLEEP = 14;
+  CREATOR_CRM_TAG_TYPE_NOT_SEND_HEART_ME = 15;
+  CREATOR_CRM_TAG_TYPE_NOT_JOIN_TEAM = 16;
+  CREATOR_CRM_TAG_TYPE_FIRST_WATCH_LIVE = 17;
+  CREATOR_CRM_TAG_TYPE_RECENT_COMMENT = 18;
+  CREATOR_CRM_TAG_TYPE_RECENT_GIFT_TIMES = 19;
+  CREATOR_CRM_TAG_TYPE_RECENT_WATCH_LIVE_DURATION = 20;
+  CREATOR_CRM_TAG_TYPE_RECENT_GIFT = 21;
+  CREATOR_CRM_TAG_TYPE_RECENT_LIVE_CONTRIBUTION_TOP = 22;
+  CREATOR_CRM_TAG_TYPE_JUST_UPGRADE = 28;
+  CREATOR_CRM_TAG_TYPE_FAN_TOTAL_WATCH_DURATION = 29;
+  CREATOR_CRM_TAG_TYPE_FAN_TOTAL_COMMENT_NUM = 30;
+  CREATOR_CRM_TAG_TYPE_FAN_TOTAL_GIFT_SENT_NUM = 31;
+  CREATOR_CRM_TAG_TYPE_VAULT_HOLD_INVITATION = 32;
+  CREATOR_CRM_TAG_TYPE_VAULT_GET_INVITATION_FROM_ROOM = 33;
+  CREATOR_CRM_TAG_TYPE_VAULT_USER_RANK_TOP = 34;
+  CREATOR_CRM_TAG_TYPE_VAULT_MOST_EXPENSIVE_GIFT_SENT_ALL_TIME = 35;
+  CREATOR_CRM_TAG_TYPE_VAULT_MOST_EXPENSIVE_GIFT_SENT_LAST_ACTIVITY = 36;
+  CREATOR_CRM_TAG_TYPE_VAULT_GIFT_ER = 37;
+  CREATOR_CRM_TAG_TYPE_E_COMMERCE_TAG = 42;
+  CREATOR_CRM_TAG_TYPE_NOT_FINISH_TICKET_TASK = 43;
+  CREATOR_CRM_TAG_TYPE_GALLERY_PROGRESS = 44;
+  CREATOR_CRM_TAG_TYPE_SEND_GIFT_NOT_FANS = 45;
+  CREATOR_CRM_TAG_TYPE_WATCH_LIVE_NOT_FANS = 46;
+  CREATOR_CRM_TAG_TYPE_TOP_3_NOT_FANS = 47;
+  CREATOR_CRM_TAG_TYPE_UPGRADE_IN_ROOM = 48;
+  CREATOR_CRM_TAG_TYPE_HIGH_VIEW = 51;
+  CREATOR_CRM_TAG_TYPE_HIGH_VIEW_DURATION = 52;
+  CREATOR_CRM_TAG_TYPE_HIGH_ACTIVE = 53;
+  CREATOR_CRM_TAG_TYPE_HIGH_ACTIVE_NO_COMMENT = 54;
+  CREATOR_CRM_TAG_TYPE_HIGH_VIEW_DURATION_NO_ACTIVE = 55;
+  CREATOR_CRM_TAG_TYPE_REP_VIEWER = 56;
+  CREATOR_CRM_TAG_TYPE_HIGH_VIEW_DURATION_THIS_ROOM = 57;
+  CREATOR_CRM_TAG_TYPE_HIGH_ACTIVE_THIS_ROOM = 58;
+  FANS_HIGHLIGHT = 100;
+}
+
+enum TagV2_TagClassification {
+  TAG_V2_TAG_CLASSIFICATION_UNKNOWN = 0;
+  COHOST_HISTORY = 1;
+  FIRST_DEGREE_RELATION = 2;
+  SECOND_DEGREE_RELATION = 3;
+  RANK = 4;
+  SIMILAR_INTERESTS = 5;
+}
+
+enum TimerDetail_AntidirtStatus {
+  TIMER_DETAIL_ANTIDIRT_STATUS_PASS = 0;
+  TIMER_DETAIL_ANTIDIRT_STATUS_FAILED = 1;
+}
+
+enum TimerDetail_AuditStatus {
+  TIMER_DETAIL_AUDIT_STATUS_AUDIT_STATUS_UNKNOWN = 0;
+  AUDIT_STATUS_PASS = 1;
+  AUDIT_STATUS_FAILED = 2;
+  AUDIT_STATUS_REVIEWING = 3;
+  AUDIT_STATUS_FORBIDDEN = 4;
+}
+
+enum TimerDetail_AuditTaskType {
+  AUDIT_TASK_TYPE_DEFAULT = 0;
+  AUDIT_TASK_TYPE_APPEAL = 1;
+}
+
+enum TimerStatus {
+  NOT_STARTED = 0;
+  RUNNING = 1;
+  PAUSED = 2;
+  CANCELLED = 3;
+  TIMER_STATUS_FINISHED = 4;
+}
+
+enum TopicActionType {
+  TOPIC_ACTION_TYPE_UNKNOWN = 0;
+  TOPIC_ACTION_TYPE_FOLLOW = 1;
+}
+
+enum UserEmoteUploadSource {
+  EMOTE_UPLOAD_SOURCE_ANCHOR = 0;
+  EMOTE_UPLOAD_SOURCE_SUBSCRIBER = 1;
+  EMOTE_UPLOAD_SOURCE_MODERATOR = 2;
+  EMOTE_UPLOAD_SOURCE_AI = 3;
+}
+
+enum User_EcommerceEntrance_CreatorType {
+  UNDEFINED = 0;
+  USER_ECOMMERCE_ENTRANCE_CREATOR_TYPE_OFFICIAL = 1;
+  MARKET = 2;
+  USER_ECOMMERCE_ENTRANCE_CREATOR_TYPE_NORMAL = 3;
+}
+
+enum User_EcommerceEntrance_EntranceType {
+  PROFILE = 0;
+  SHOWCASE = 1;
+  SHOP = 2;
+}
+
+enum User_EcommerceEntrance_SellingPoint_LiveSellingPointType {
+  USER_ECOMMERCE_ENTRANCE_SELLING_POINT_LIVE_SELLING_POINT_TYPE_UNDEFINED = 0;
+  QUALITY = 1;
+  SOLD = 2;
+  TRUST_BETTER_THAN_OTHER_SHOP = 3;
+  TRUST_REPLY_IN_TIME = 4;
+  TRUST_CREATE_SHIP_IN_TIME = 5;
+  TRUST_POSITIVE_REVIEW_RATE = 6;
+}
+
+enum User_EcommerceEntrance_ShopEntranceInfo_StoreLabel_ShopIdentityLabelType {
+  USER_ECOMMERCE_ENTRANCE_SHOP_ENTRANCE_INFO_STORE_LABEL_SHOP_IDENTITY_LABEL_TYPE_UNKNOWN = 0;
+  TOP_BRAND = 1;
+  OFFICIAL_SHOP = 2;
+  AUTHORIZED_SHOP = 3;
+  GOLDEN_SHOP = 4;
+  SILVER_SHOP = 5;
+  GB_TOP_BRAND = 51;
+  MALL = 101;
+  TOP_CHOICE = 102;
+  NORMAL_BLUE_V = 1000;
+}
+
+enum User_EcommerceEntrance_ShopEntranceInfo_StoreLabel_StoreBrandLabelType {
+  USER_ECOMMERCE_ENTRANCE_SHOP_ENTRANCE_INFO_STORE_LABEL_STORE_BRAND_LABEL_TYPE_NONE = 0;
+  USER_ECOMMERCE_ENTRANCE_SHOP_ENTRANCE_INFO_STORE_LABEL_STORE_BRAND_LABEL_TYPE_OFFICIAL = 1;
+  AUTHORIZED = 2;
+  STORE_BRAND_LABEL_TYPE_BLUE_V = 3;
+  STORE_BRAND_LABEL_TYPE_TOP_CHOICE = 4;
+  STORE_BRAND_LABEL_TYPE_MALL = 5;
+}
+
+enum User_EcommerceEntrance_ViewVersion {
+  VIEW_VERSION_UNKNOWN = 0;
+  VIEW_VERSION_STAR_SHOP = 1;
+}
+
+enum User_FansClub_FansClubData_UserFansClubStatus {
+  NOT_JOINED = 0;
+  ACTIVE = 1;
+  INACTIVE = 2;
+}
+
+enum User_SubscribeInfo_PayStatus {
+  SUB_STATUS_UNKNOWN = 0;
+  SUB_STATUS_ONE_TIME = 1;
+  SUB_STATUS_AUTO_DEDUCTION = 2;
+  SUB_STATUS_AUTO_DEDUCTION_CANCELED = 3;
+  SUB_STATUS_REVOKE = 4;
+}
+
+enum VerticalPaddingRule {
+  USE_DEFAULT = 0;
+  USE_TOP_AND_BOTTOM = 1;
+}
+
+message DiffInfo {
+  UrlDataStruct diff_url = 1;
+  UrlDataStruct base_url = 2;
+  string extra = 3;
+}
+
+message EffectStruct {
+  string name = 1;
+  string hint = 2;
+  UrlDataStruct hint_icon = 3;
+  string sdk_version = 4;
+  string app_version = 5;
+  UrlDataStruct file_url = 6;
+  UrlDataStruct icon_url = 7;
+  string id = 8;
+  string effect_id = 9;
+  string device_platform = 10;
+  repeated string types = 11;
+  repeated string tags = 12;
+  string tags_updated_at = 13;
+  string parent = 14;
+  repeated string children = 15;
+  int32 effect_type = 16;
+  repeated string music = 17;
+  int32 source = 18;
+  string designer_id = 19;
+  string schema = 20;
+  repeated string requirements = 21;
+  string extra = 22;
+  bool is_busi = 23;
+  string designer_encrypted_id = 26;
+  string sdk_extra = 27;
+  string resource_id = 28;
+  string ad_raw_data = 29;
+  repeated string bind_ids = 30;
+  int64 ptime = 31;
+  string grade_key = 32;
+  string composer_params = 33;
+  UrlDataStruct hint_file = 34;
+  int64 use_number = 35;
+  repeated string types_sec = 36;
+  repeated string requirements_sec = 37;
+  string panel = 38;
+  string model_names = 39;
+  string model_names_sec = 40;
+  int32 hint_file_format = 41;
+  string poi_id = 42;
+  bool is_poi = 43;
+  repeated string challenge = 44;
+  repeated string system_list = 45;
+  string original_effect_id = 46;
+  UrlDataStruct trans_file_url = 47;
+  string template_effect_id = 48;
+  int64 rec_tag = 49;
+  TemplateEffectExtra template_effect_extra = 50;
+  DiffInfo file_diff = 51;
+  int32 provider = 52;
+  int64 package_size = 53;
+  int64 from_app_id = 54;
+}
+
+message EventUserInfo {
+  int64 user_id = 1;
+  string avatar_uri = 2;
+}
+
+message MsgFilter {
+  bool is_gifter = 1;
+  bool is_subscribed_to_anchor = 2;
+}
+
+message PaidEventPreview {
+  int64 allow_preview = 1;
+  int64 allow_preview_time = 2;
+}
+
+message SubSplitStatus {
+  bool is_old_sub_creator = 1;
+
+  SubSplitPeriod cur_period = 2;
+}
+
+message TemplateEffectExtra {
+  string resource_id = 1;
+}
+
+message UrlDataStruct {
+  string uri = 1;
+  repeated string url_list = 2;
+  int32 url_sub_type = 3;
+  string md5 = 4;
+  repeated string url_prefix = 5;
+}
+
+message UserIdentity {
+  bool is_gift_giver_of_anchor = 1;
+  bool is_subscriber_of_anchor = 2;
+  bool is_mutual_following_with_anchor = 3;
+  bool is_follower_of_anchor = 4;
+  bool is_moderator_of_anchor = 5;
+  bool is_anchor = 6;
+}

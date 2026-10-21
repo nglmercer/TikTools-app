@@ -248,8 +248,7 @@ impl AppCore {
             url.push_str("&design=");
             url.push_str(&percent_encode_fragment(&design));
         }
-        copy_text_to_clipboard(&url)
-            .map_err(|_| OperationError::unavailable("could not access the OS clipboard"))?;
+        copy_text_to_clipboard(&url)?;
         tracing::debug!(widget, "widgets OBS URL copied to clipboard");
         Ok(WidgetsCopyResult { ok: true })
     }
@@ -494,9 +493,18 @@ fn percent_encode_fragment(value: &str) -> String {
     encoded
 }
 
-fn copy_text_to_clipboard(text: &str) -> Result<(), arboard::Error> {
-    let mut clipboard = arboard::Clipboard::new()?;
-    clipboard.set_text(text)
+#[cfg(not(target_os = "android"))]
+fn copy_text_to_clipboard(text: &str) -> Result<(), OperationError> {
+    arboard::Clipboard::new()
+        .and_then(|mut clipboard| clipboard.set_text(text))
+        .map_err(|_| OperationError::unavailable("could not access the OS clipboard"))
+}
+
+#[cfg(target_os = "android")]
+fn copy_text_to_clipboard(_text: &str) -> Result<(), OperationError> {
+    Err(OperationError::capability_unavailable(
+        "OS clipboard has no Android backend",
+    ))
 }
 
 async fn probe_gateway(bind: std::net::IpAddr, port: u16) -> ProbeOutcome {
@@ -846,9 +854,12 @@ mod tests {
             }
         } else {
             result.expect("clipboard round-trip");
-            let mut clipboard = arboard::Clipboard::new().expect("clipboard");
-            let pasted = clipboard.get_text().expect("pasted text");
-            assert!(pasted.contains("/widgets/follow/#token="));
+            #[cfg(not(target_os = "android"))]
+            {
+                let mut clipboard = arboard::Clipboard::new().expect("clipboard");
+                let pasted = clipboard.get_text().expect("pasted text");
+                assert!(pasted.contains("/widgets/follow/#token="));
+            }
         }
         std::fs::remove_dir_all(&root).ok();
     }

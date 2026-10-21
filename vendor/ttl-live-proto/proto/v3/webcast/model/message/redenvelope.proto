@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package webcast.model.message.redenvelope;
+
+import "webcast/envelope.proto";
+import "webcast/model/base/messages.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/message/messages.proto";
+import "webcast/shared/message.proto";
+
+message MessageRedEnvelopInfo {
+  string envelope_id = 1;
+
+  data.EnvelopeBusinessType business_type = 2;
+  string envelope_idc = 3;
+  string send_user_name = 4;
+  int32 diamond_count = 5;
+  int32 people_count = 6;
+  int32 unpack_at = 7;
+  string send_user_id = 8;
+  base.ImageModel send_user_avatar = 9;
+  string create_at = 10;
+
+  string room_id = 11;
+
+  data.EnvelopeFollowShowStatus follow_show_status = 12;
+  int32 skin_id = 13;
+  int32 vote_count = 14;
+  envelope.EnvelopeEnigmaInfo sender_enigma_info = 15;
+  int32 super_fan_count = 16;
+}
+
+message WebcastEnvelopeMessage {
+
+  shared.message.CommonMessageData common = 1;
+  MessageRedEnvelopInfo envelope_info = 2;
+
+  data.EnvelopeDisplay display = 3;
+  PublicAreaMessageCommon public_area_msg_common = 4;
+}

@@ -1066,7 +1066,14 @@ async fn failing_processor_does_not_circuit_break_its_sibling() {
     // This fake executes an opaque blocking handler without process I/O
     // cancellation. Model it as native: a real process timeout retires the
     // entire generation and must cancel its queued sibling calls.
-    manifest["runtime"] = json!("native");
+    let runtime_kind = if cfg!(target_os = "android") {
+        // The fake VM handler has the same opaque, non-process cancellation
+        // semantics, without requiring an unavailable Android native backend.
+        tiktools_plugin_api::manifest::PluginRuntimeKind::NapiVm
+    } else {
+        tiktools_plugin_api::manifest::PluginRuntimeKind::Native
+    };
+    manifest["runtime"] = json!(runtime_kind);
     let steady_calls = Arc::new(AtomicU64::new(0));
     let steady_for_handler = Arc::clone(&steady_calls);
     let harness = make_harness_with_kind(
@@ -1087,7 +1094,7 @@ async fn failing_processor_does_not_circuit_break_its_sibling() {
                 json!({}),
             ))
         }),
-        tiktools_plugin_api::manifest::PluginRuntimeKind::Native,
+        runtime_kind,
     );
     let flaky = ProcessorKey::new("pair", "pair.flaky");
     let steady = ProcessorKey::new("pair", "pair.steady");

@@ -130,6 +130,11 @@ impl From<tiktools_plugin_loader::PluginLoaderError> for OperationError {
                 Self::not_found(error.to_string())
             }
             tiktools_plugin_loader::PluginLoaderError::RuntimeUnavailable(_)
+                if cfg!(target_os = "android") =>
+            {
+                Self::capability_unavailable(error.to_string())
+            }
+            tiktools_plugin_loader::PluginLoaderError::RuntimeUnavailable(_)
             | tiktools_plugin_loader::PluginLoaderError::Overloaded(_) => {
                 Self::unavailable(error.to_string())
             }

@@ -1,0 +1,227 @@
+syntax = "proto3";
+
+package webcast.model.data.oec_msg;
+
+import "webcast/model/base/messages.proto";
+import "webcast/shared/messages.proto";
+
+message AtmosphereInfo {
+  repeated Tag tags = 1;
+}
+
+message AtomAction {
+  int32 type = 1;
+  ReqItem request_item = 2;
+}
+
+message AuctionInfo {
+  int64 auction_id = 1;
+  int64 product_id = 2;
+  int64 version_time = 3;
+  int64 start_time = 4;
+  int64 end_time = 5;
+  UserInfo auction_winner = 6;
+  PriceItem winner_bid_price = 7;
+  PriceItem next_bid_price = 8;
+  string suffix = 9;
+  ExtendAuctionCfg extend_auction_cfg = 10;
+  int32 auction_text_type = 11;
+  repeated ScrollElement scroll_element_list = 12;
+  ScrollElement reward_item = 13;
+  int32 drawing_state_text_type = 14;
+  int64 auction_config_id = 15;
+  int32 auction_type = 16;
+  int32 auction_status = 17;
+  bool is_carousel = 18;
+  CarouselCfg carousel_cfg = 19;
+  int32 auction_text_type_int = 20;
+  int32 drawing_state_text_type_int = 21;
+  string version_time_str = 22;
+  map<string, string> trace_time_map = 23;
+  EasterEgg easter_egg = 24;
+  int32 auction_knock_perform_middle_text_type = 25;
+  int32 auction_knock_perform_bottom_right_text_type = 26;
+  string auction_id_str = 27;
+  string auction_config_id_str = 28;
+  int32 auction_card_bottom_text_type = 29;
+  int32 auction_card_title_text_type = 30;
+  int32 surprise_set_remain_item_count = 31;
+  int32 auction_event_type_int = 32;
+  BidPanel bid_panel = 33;
+  string lynx_card_info = 100;
+}
+
+message AuctionWinnerPopup {
+  string auction_id = 1;
+  string winner_user_id = 2;
+  string product_id = 3;
+  int32 notify_type = 4;
+  string payment_expire_timestamp = 5;
+  base.ImageModel product_img = 6;
+  string schema = 7;
+}
+
+message BagIndex {
+  int32 value = 1;
+}
+
+message BidPanel {
+  int32 bid_btn_text_type_int = 1;
+}
+
+message CarouselCfg {
+  int64 interval_ms = 1;
+  repeated int32 text_status_list = 2;
+  int32 times = 3;
+}
+
+message CommerceInfo {
+  map<int64, ProductItem> product_info = 1;
+  PopCardInfo pop_card_info = 2;
+  PopupWindowInfo popup_window_info = 3;
+  map<int64, VoucherItem> voucher_info = 4;
+  AuctionInfo auction_info = 5;
+}
+
+message DispersionParam {
+  int64 max_delay_ms = 1;
+  int64 min_delay_ms = 2;
+}
+
+message EasterEgg {
+  int64 winner_rank = 1;
+  int32 winner_rank_text_type = 2;
+  int64 winner_room_win_cnt = 3;
+  int32 winner_room_win_cnt_text_type = 4;
+  int32 winner_rank_text_type_tail = 5;
+  int32 winner_room_win_cnt_text_type_tail = 6;
+}
+
+message EcomLiveElementActions {
+  repeated AtomAction atom_actions = 1;
+  int64 version = 2;
+}
+
+message ExtendAuctionCfg {
+  bool is_extend_auction_supported = 1;
+  bool should_extend = 2;
+  int64 extend_auction_time = 3;
+}
+
+message FlashSaleEnhancementInfo {
+  int32 stock_show_status = 1;
+  repeated UserInfo buyer_infos = 2;
+  shared.EnhancementTextInfo enhancement_text_info = 3;
+}
+
+message LiveFlashSaleInfo {
+  int64 activity_id = 1;
+  int32 type = 2;
+  int32 status = 3;
+  int32 stock_status = 4;
+  int32 available_stock = 5;
+  int32 total_stock = 6;
+  FlashSaleEnhancementInfo enhancement_info = 7;
+  int32 pdp_viewer_count = 8;
+}
+
+message MsgMeta {
+  int64 source_operate_ms = 1;
+  int64 server_send_ms = 2;
+  repeated string reasons = 3;
+}
+
+message OecLiveShoppingMessageV2 {
+  map<int64, EcomLiveElementActions> actions = 1;
+  CommerceInfo commerce_info = 2;
+  MsgMeta msg_meta = 10;
+}
+
+message PopCardInfo {
+  int64 pop_product_id = 1;
+  int32 pop_card_type = 2;
+  int64 pop_card_id = 3;
+}
+
+message PopupWindowInfo {
+  AuctionWinnerPopup auction_winner_popup = 1;
+}
+
+message PriceHideInfo {
+  string display_text = 1;
+}
+
+message PriceItem {
+  string currency_name = 2;
+  string currency_symbol = 3;
+  int32 symbol_position = 4;
+  string sale_price_decimal = 5;
+  string origin_price_decimal = 6;
+  string sale_price_format = 7;
+  string origin_price_format = 8;
+  string discount_format = 9;
+  string discount_decimal = 10;
+  string price_prefix = 11;
+  string reduce_price_format = 12;
+  string single_product_price_format = 13;
+  bool show_currency_space = 14;
+  int32 currency_show_mode = 15;
+  int32 price_display_mode = 16;
+  PriceHideInfo price_hide_info = 17;
+}
+
+message ProductItem {
+  int64 product_id = 1;
+  BagIndex bag_index = 2;
+  Title title = 3;
+  base.ImageModel cover = 4;
+  AtmosphereInfo atmosphere_info = 5;
+  ShopBrandLogo shop_brand_logo = 6;
+  LiveFlashSaleInfo live_flash_sale_info = 7;
+  AuctionInfo auction_info = 8;
+}
+
+message ReqItem {
+  int32 scene = 1;
+  DispersionParam dispersion_param = 2;
+}
+
+message ScrollElement {
+  string product_title = 1;
+}
+
+message ShopBrandLogo {
+  string seller_name = 1;
+  base.ImageModel seller_logo = 2;
+  base.ImageModel blue_v_image = 3;
+  base.ImageModel dark_blue_v_image = 4;
+  base.ImageModel top_brand_image = 5;
+  base.ImageModel dark_top_brand_image = 6;
+}
+
+message Tag {
+  int32 type = 1;
+  string desc = 2;
+  int64 count = 3;
+  int32 status = 4;
+}
+
+message Title {
+  string text = 1;
+}
+
+message UserInfo {
+  int64 user_id = 1;
+  string nick_name = 2;
+  base.ImageModel avatar = 3;
+  bool is_winner = 4;
+}
+
+message VoucherItem {
+  int64 voucher_type_id = 1;
+  int64 task_id = 2;
+  int32 task_type = 3;
+  int32 live_voucher_type = 4;
+  string creator_operation_unique_id = 5;
+  string voucher_max_face_value = 6;
+}

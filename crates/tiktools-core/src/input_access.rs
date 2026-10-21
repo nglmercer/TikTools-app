@@ -16,6 +16,7 @@
 //! executes a fixed script with absolute paths only, never user input.
 
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "linux")]
 use std::path::{Path, PathBuf};
 
 /// Destination of the installed seat rule (same path the rdev-node setup
@@ -48,6 +49,7 @@ pub struct InputAccessResult {
 }
 
 impl InputAccessResult {
+    #[cfg(not(target_os = "android"))]
     fn granted(message: impl Into<String>) -> Self {
         Self {
             granted: true,
@@ -55,6 +57,7 @@ impl InputAccessResult {
         }
     }
 
+    #[cfg(any(target_os = "linux", target_os = "android"))]
     fn denied(message: impl Into<String>) -> Self {
         Self {
             granted: false,
@@ -78,7 +81,11 @@ pub fn request_input_access() -> InputAccessResult {
             &std::env::var("PATH").unwrap_or_default(),
         )
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "android")]
+    {
+        InputAccessResult::denied("Global input access has no Android backend.")
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
     {
         InputAccessResult::granted(
             "Raw-input seat access is only needed on Linux; nothing to do here.",

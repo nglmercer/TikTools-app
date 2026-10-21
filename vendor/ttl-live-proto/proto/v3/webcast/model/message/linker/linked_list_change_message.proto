@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package webcast.model.message.linker.linked_list_change_message;
+
+import "webcast/model/base/user_2.proto";
+import "webcast/model/data/messages.proto";
+
+message LinkedListChangeContent {
+  repeated ListUser linked_users = 1;
+}
+
+message ListUser {
+  base.user.User user = 1;
+  int64 linkmic_id = 2;
+  string linkmic_id_str = 3;
+
+  data.LinkListStatus link_status = 4;
+
+  data.LinkType link_type = 5;
+  int32 user_position = 6;
+
+  data.LinkSilenceStatus silence_status = 7;
+  int64 modify_time = 8;
+  int64 linker_id = 9;
+
+  data.LinkRoleType role_type = 10;
+}

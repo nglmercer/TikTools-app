@@ -2226,7 +2226,7 @@ async fn hotkey_status_event_reaches_plugin_status_topic() {
 }
 
 #[test]
-fn system_info_advertises_napi_vm_node_api_by_default() {
+fn system_info_advertises_napi_vm_node_api_only_on_supported_targets() {
     // Pins the default feature wiring: the loader dependency opts out of
     // loader defaults, so this forwarding is the only thing compiling the
     // real `.node` selection into every host. If it goes missing, napi-vm
@@ -2236,7 +2236,13 @@ fn system_info_advertises_napi_vm_node_api_by_default() {
     let core = AppCore::new(emitter);
     let info = core.system_info();
     assert_eq!(info["name"], "tiktools");
-    assert_eq!(info["features"]["napiVmNodeApi"], true);
+    assert_eq!(
+        info["features"]["napiVmNodeApi"],
+        cfg!(all(
+            feature = "napi-vm-node-api",
+            not(target_os = "android")
+        ))
+    );
 }
 
 #[tokio::test]
@@ -2326,4 +2332,36 @@ async fn repeated_plugin_observer_lifecycles_reap_completed_tasks() {
     core.shutdown().await;
     assert_eq!(Arc::strong_count(&core), baseline);
     let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn concurrent_shutdown_waits_for_resource_cleanup() {
+    isolated_test_home();
+    let core = Arc::new(AppCore::new(Arc::new(RecordingEmitter::default())));
+    // Hold an actual lifecycle resource so shutdown is deterministically pending.
+    let operation = core.live_monitor.operation.lock().await;
+    let first_core = Arc::clone(&core);
+    let first = tokio::spawn(async move { first_core.shutdown().await });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !core.is_shutdown() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("shutdown starts");
+    let second_core = Arc::clone(&core);
+    let mut second = tokio::spawn(async move { second_core.shutdown().await });
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(30), &mut second)
+            .await
+            .is_err()
+    );
+    drop(operation);
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        first.await.expect("first shutdown");
+        second.await.expect("second shutdown");
+        core.shutdown().await;
+    })
+    .await
+    .expect("all shutdown callers observe completion");
 }

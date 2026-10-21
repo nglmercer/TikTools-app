@@ -59,22 +59,43 @@ pub async fn run_ipc_shared_with_ready<F>(api: Arc<ControlApi>, on_ready: F) -> 
 where
     F: FnOnce() + Send,
 {
-    let _ownership = crate::ownership::acquire_control_host_ownership()?;
-    #[cfg(unix)]
-    {
-        unix::run_ipc_unix_with_ready(api, on_ready).await
+    let ownership = crate::ownership::acquire_control_host_ownership()?;
+    run_ipc_owned(api, ownership, on_ready).await
+}
+
+/// Serves with an ownership guard acquired before runtime initialization.
+/// Headless hosts use this to reject duplicates before constructing AppCore.
+/// The guard remains owned by this future through shutdown completion.
+pub async fn run_ipc_owned<F>(
+    api: Arc<ControlApi>,
+    _ownership: crate::ownership::ControlHostGuard,
+    on_ready: F,
+) -> std::io::Result<()>
+where
+    F: FnOnce() + Send,
+{
+    let result = {
+        #[cfg(unix)]
+        {
+            unix::run_ipc_unix_with_ready(Arc::clone(&api), on_ready).await
+        }
+        #[cfg(windows)]
+        {
+            windows::run_ipc_windows_with_ready(Arc::clone(&api), on_ready).await
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = on_ready;
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "local IPC is only available on Unix and Windows",
+            ))
+        }
+    };
+    if result.is_ok() && api.core().is_shutdown() {
+        // Keep ownership until the existing shutdown caller has flushed
+        // SQLite and stopped plugins, even though the listener has closed.
+        api.core().shutdown().await;
     }
-    #[cfg(windows)]
-    {
-        windows::run_ipc_windows_with_ready(api, on_ready).await
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        let _ = api;
-        let _ = on_ready;
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            "local IPC is only available on Unix and Windows",
-        ))
-    }
+    result
 }

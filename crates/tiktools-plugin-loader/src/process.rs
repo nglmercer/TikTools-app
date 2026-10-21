@@ -225,6 +225,14 @@ pub const FORWARDED_DESKTOP_ENV_KEYS: &[&str] = &[
     "LC_CTYPE",
     "PATH",
     "HOME",
+    // Native Termux SDK clients resolve their CA bundle through PREFIX or
+    // SSL_CERT_FILE. Rust temporary files require the app-private TMPDIR.
+    #[cfg(target_os = "android")]
+    "PREFIX",
+    #[cfg(target_os = "android")]
+    "TMPDIR",
+    #[cfg(target_os = "android")]
+    "SSL_CERT_FILE",
 ];
 
 /// Copies the known desktop-session variables from the host environment into
@@ -588,6 +596,7 @@ mod tests {
             "TIKTOOLS_PLUGIN_STORAGE_FILE",
             "TOKENS",
             "SECRET",
+            "TIKTOOLS_SESSION_COOKIE",
         ] {
             assert!(
                 !FORWARDED_DESKTOP_ENV_KEYS.contains(&forbidden),
@@ -682,11 +691,12 @@ mod tests {
                 .spawn()
                 .unwrap()
         } else {
-            // Reads stdin forever and never writes stdout: the call's frame
-            // I/O thread blocks on the read until the timeout kills the
-            // child and closes the pipe.
+            // Keep stdout open without answering. Termux's shell can exec
+            // a final redirected command directly, so `cat > /dev/null`
+            // closes the response pipe early instead of exercising timeout.
+            // Explicit exec also prevents leaving a sleeping descendant.
             Command::new("sh")
-                .args(["-c", "cat > /dev/null"])
+                .args(["-c", "exec sleep 30"])
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::null())
@@ -711,7 +721,11 @@ mod tests {
             matches!(result, Err(PluginLoaderError::Runtime(_))),
             "a child that never answers must time out, got {result:?}"
         );
-        assert!(instance.terminated, "a timed-out call must kill the child");
+        assert!(
+            instance.terminated,
+            "a timed-out call must kill the child: result={result:?}, status={:?}",
+            instance.child.try_wait()
+        );
         assert!(
             instance.io_thread.is_none(),
             "the timed-out call's I/O thread must be joined (or abandoned), not left owned"

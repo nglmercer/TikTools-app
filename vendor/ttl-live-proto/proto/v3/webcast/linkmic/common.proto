@@ -1,0 +1,483 @@
+syntax = "proto3";
+
+package webcast.linkmic.common;
+
+import "webcast/model/base/messages.proto";
+import "webcast/model/message/linkcore_mic_position_data.proto";
+import "webcast/model/message/linkcore_player.proto";
+
+enum AgreeStatus {
+  AGREE_UNKNOWN = 0;
+  AGREE = 1;
+  REJECT = 2;
+}
+
+enum ContentPositionType {
+  UNKNOWN = 0;
+  STREAM = 1;
+  LIVE_STUDIO_STREAM_PORTRAIT = 2;
+  LIVE_STUDIO_STREAM_LANDSCAPE = 3;
+}
+
+enum GroupStatus {
+  GROUP_STATUS_UNKNOWN = 0;
+  WAITING = 1;
+  LINKED = 3;
+}
+
+enum JoinType {
+  JOIN_TYPE_UNKNOWN = 0;
+  CHANNEL_APPLY = 1;
+  CHANNEL_INVITE = 2;
+  GROUP_APPLY = 100;
+  GROUP_APPLY_FOLLOW = 101;
+  GROUP_INVITE = 102;
+  GROUP_INVITE_FOLLOW = 103;
+  GROUP_OWNER_JOIN = 104;
+}
+
+enum KickoutReason {
+  KICK_OUT_REASON_UNKNOWN = 0;
+  KICK_OUT_REASON_FIRST_FRAME_TIME_OUT = 1;
+  KICK_OUT_REASON_BY_HOST = 2;
+  KICK_OUT_REASON_RTC_LOST_CONNECTION = 3;
+  KICK_OUT_REASON_BY_PUNISH = 4;
+  KICK_OUT_REASON_BY_ADMIN = 5;
+  KICK_OUT_REASON_HOST_REMOVE_ALL_GUESTS = 6;
+  KICK_OUT_REASON_ENIGMA_EXPIRE = 7;
+}
+
+enum LayoutEnlargeStatus {
+  NONE = 0;
+  SINGLE_ENLARGED = 1;
+  DOUBLE_ENLARGED = 2;
+}
+
+enum LayoutStyle {
+  UNDEFINED = 0;
+  OVERLAPPING_FLOW = 1;
+  OVERLAPPING_FIXED = 2;
+  GRID_FLOW = 3;
+  GRID_FIXED = 4;
+}
+
+enum LinkMicUserAdminType {
+  UNDEFINED_TYPE = 0;
+  MANAGER_TYPE = 1;
+  HOST_TYPE = 2;
+}
+
+enum LinkerMode {
+  LINKER_MODE_UNKNOWN = 0;
+  INNER = 1;
+  CROSS = 2;
+  MIXED = 3;
+}
+
+enum LinkerUserType {
+  LINKER_USER_TYPE_UNKNOWN = 0;
+  GUEST = 1;
+  HOST = 2;
+}
+
+enum MediaState {
+  MEDIA_UNDEFINED = 0;
+  MEDIA_NORMAL = 1;
+  MEDIA_MUTED = 2;
+  MEDIA_UN_MUTE_OCCUPIED = 3;
+  MEDIA_MUTED_OCCUPIED = 4;
+}
+
+enum NetworkState {
+  STATE_NETWORK_UNDEFINED = 0;
+  STATE_NETWORK_EXCELLENT = 1;
+  STATE_NETWORK_GOOD = 2;
+  STATE_NETWORK_POOR = 3;
+  STATE_NETWORK_BAD = 4;
+  STATE_NETWORK_VBAD = 5;
+  STATE_NETWORK_DOWN = 6;
+}
+
+enum OnlineUserState {
+  STATE_UNDEFINED = 0;
+  STATE_NORMAL = 1;
+  STATE_PAUSED = 2;
+}
+
+enum PosIdentityType {
+  IDENTITY_EMPTY_SLOT = 0;
+  IDENTITY_RTC_USER_ID = 1;
+  IDENTITY_RTC_STREAM_ID = 2;
+  IDENTITY_LIVE_USER_ID = 3;
+}
+
+enum ReplyStatus {
+  REPLY_STATUS_UNKNOWN = 0;
+  REPLY_STATUS_AGREE = 1;
+  REFUSE_PERSONALLY = 2;
+  REFUSE_TYPE_NOT_SUPPORT = 3;
+  REFUSE_PROCESSING_INVITATION = 4;
+  REFUSE_BY_TIME_OUT = 5;
+  REFUSE_EXCEPTION = 6;
+  REFUSE_SYSTEM_NOT_SUPPORTED = 7;
+  REFUSE_SUBTYPE_DIFFERENCE = 8;
+  REFUSE_IN_MIC_ROOM = 9;
+  REFUSE_NOT_LOAD_PLUGIN = 10;
+  REFUSE_IN_MULTI_GUEST = 11;
+  REFUSE_PAUSE_LIVE = 12;
+  REFUSE_OPEN_CAMERA_DIALOG_SHOWING = 13;
+  REFUSE_DRAW_GUESSING = 14;
+  REFUSE_RANDOM_MATCHING = 15;
+  REFUSE_IN_MATCH_PROCESSING = 16;
+  REFUSE_IN_MIC_ROOM_FOR_MULTI_COHOST = 17;
+  REFUSE_COHOST_FINISHED = 18;
+  REFUSE_NOT_CONNECTED = 19;
+  REFUSE_LINKMIC_FULL = 20;
+  REFUSE_ARC_INCOMPATIBLE = 21;
+  REFUSE_PROCESSING_OTHER_INVITE = 22;
+  REFUSE_PROCESSING_OTHER_APPLY = 23;
+  REFUSE_IN_ANCHOR_COHOST = 24;
+  REFUSE_TOPIC_PAIRING = 25;
+  REFUSE_POSITION_CONFLICT = 26;
+  REFUSE_CONFLICT_QUICK_COHOST = 27;
+  REFUSE_IN_TAKE_STAGE_PROCESSING = 28;
+  REFUSE_IN_CATCH_BEANS_PROCESSING = 29;
+  REFUSE_IN_VIEWER_WISHES_PROCESSING = 30;
+  REFUSE_IN_COHOST_WITH_GUEST = 31;
+}
+
+enum RtcConnectionState {
+  STATE_RTC_UNDEFINED = 0;
+  STATE_RTC_NORMAL = 1;
+  STATE_RTC_DISCONNECT = 2;
+}
+
+enum Scene {
+  SCENE_UNKNOWN = 0;
+  CO_HOST = 2;
+  MULTI_LIVE = 4;
+}
+
+enum SourceType {
+  SOURCE_TYPE_UNKNOWN = 0;
+  FRIEND_LIST = 1;
+  RECOMMEND_LIST = 2;
+  RECENT = 3;
+  OTHER_FOLLOW = 4;
+  QUICK_PAIR = 5;
+  ACTIVITY = 6;
+  QUICK_RECOMMEND = 7;
+  OFFICIAL_CHANNEL = 8;
+  BEST_TEAMMATE = 9;
+  RESERVATION = 10;
+  PAIRING = 11;
+  PAIRING_ON_RESERVATION = 12;
+  TOPIC_QUICK_PAIR = 13;
+  TOPIC_QUICK_RECOMMEND = 14;
+  ONLINE_FRIEND_CAPSULE = 15;
+  WEEKLY_RANK = 20;
+  HOURLY_RANK = 21;
+  WEEKLY_RISING = 23;
+  WEEKLY_ROOKIE = 24;
+  CONNECTION_LIST = 25;
+  DAILY_RANK = 26;
+  DAILY_RANK_HALL_OF_FAME = 27;
+  RESERVATION_BUBBLE = 28;
+  PAIRING_BUBBLE = 29;
+  LEAGUE_PHASE_ONE = 30;
+  LEAGUE_PHASE_TWO = 31;
+  LEAGUE_PHASE_THREE = 32;
+  DAILY_ROOKIE = 33;
+  MAY_KNOW_LIST = 34;
+  BANNER = 35;
+  FANS_TEAM_RANK = 36;
+  SEARCH = 37;
+  EOY_RANK_LIST = 38;
+  LEAGUE_CAMPAIGN_RANK = 39;
+  CREATOR_CLASS_RANK = 40;
+  HISTORY = 41;
+  QUICK_RECOMMEND_DURING_COHOST = 43;
+  GTM_MAINPAGE_1_VN_KING = 44;
+  GTM_MAINPAGE_1_VN_KNIGHT = 45;
+  GTM_RANK_1_VN_KING = 46;
+  GTM_RANK_1_VN_KNIGHT = 47;
+  LEAGUE_RECOMMEND_LIST_SEARCH = 48;
+  LEAGUE_RECOMMEND_LIST_ACTIVITY_PAGE = 49;
+  LEAGUE_MATCH_QUICK_PAIR = 50;
+  LEAGUE_MATCH_QUICK_RECOMMEND = 51;
+  LEAGUE_MATCH_QUICK_RECOMMEND_DURING_COHOST = 52;
+  INVITE_OFF_LIVE_FRIEND = 53;
+  AVAILABLE_FRIEND_CAPULE = 54;
+  RECOMMENDED_FRIEND_CAPULE = 55;
+  USER_SUGGESTED_LIST = 56;
+  TEAM_PAIR_QUICK_PAIR = 57;
+  TEAM_PAIR_QUICK_RECOMMEND_COHOST_ANCHOR = 58;
+  TEAM_PAIR_QUICK_RECOMMEND_SOLO_ANCHOR = 59;
+  BIG_EVENT_PLATFORM = 60;
+  CCPK_ACTIVITY_PAGE = 61;
+  CCPK_QUICK_PAIR = 62;
+  CCPK_QUICK_RE_COMMAND = 63;
+}
+
+enum StateType {
+  STATE_INVALID = 0;
+  STATE_LAYOUT = 1;
+  STATE_ONLINE_USER_STATE = 2;
+  STATE_AUDIO_MUTE = 3;
+  STATE_VIDEO_MUTE = 4;
+  STATE_RTC_CONNECTION = 5;
+  STATE_NETWORK = 6;
+  STATE_BACKGROUND_IMAGE = 7;
+  STATE_SCREEN_ORIENTATION = 8;
+  STATE_AVATAR_ID = 9;
+  STATE_AUDIO_MUTE_CHANNELS = 10;
+  STATE_REQ_BATCH_CHANGE = 100;
+}
+
+message AnchorLayoutSetting {
+
+  LayoutStyle latest_layout_style = 1;
+  repeated AnchorLayoutStyleSetting layout_style_settings = 2;
+  repeated AnchorPanelLayoutTypeSetting panel_layout_type_setting = 3;
+}
+
+message AnchorLayoutStyleSetting {
+
+  LayoutStyle layout_style = 1;
+  int32 max_position = 2;
+}
+
+message AnchorPanelLayoutTypeSetting {
+  int32 panel_layout_type = 1;
+  int32 max_position = 2;
+}
+
+message AvatarState {
+  int64 avatar_id = 1;
+}
+
+message BackGroundImageState {
+  string sticker_id = 1;
+}
+
+message CohostMode {
+  bool is_take_the_stage_v2_supported = 1;
+  int64 highest_take_the_stage_version_supported = 2;
+}
+
+message CohostStreamConfig {
+  string screen_share_stream_id = 1;
+}
+
+message CohostTypeLayoutExtra {
+  int32 is_zoom_layout = 1;
+  int32 offset_y = 2;
+  int32 scene = 3;
+  bool local_layout_only = 4;
+  int32 is_enlarge_mode = 5;
+  bool disable_match_component = 6;
+  int32 rematch_spot_id = 7;
+}
+
+message CohostTypeLayoutNonSeiExtra {
+}
+
+message CohostTypeSpotExtra {
+  bool is_enlarged = 1;
+  int32 content_type = 2;
+  int32 pre_enlarge_spot_id = 3;
+}
+
+message CohostTypeSpotNonSeiExtra {
+}
+
+message CohostUserInfo {
+  int64 permission_type = 1;
+
+  SourceType source_type = 2;
+  bool is_low_version = 3;
+  int64 best_teammate_uid = 4;
+  bool has_topic_perm = 5;
+  CohostStreamConfig stream_config = 6;
+  bool in_different_invite_type_control_group = 7;
+  CohostMode cohost_mode = 8;
+  string nickname = 11;
+  string display_id = 12;
+  model.base.ImageModel avatar_thumb = 13;
+  int64 follow_status = 14;
+  string user_id_str = 15;
+  bool is_enigma = 16;
+}
+
+message ContentPosition {
+  string content_i_d = 1;
+
+  ContentPositionType content_type = 2;
+  model.message.linkcore.MicPositionData pos = 3;
+  string content_linkmic_i_d = 4;
+  int64 start_time_nano = 5;
+}
+
+message GroupPlayer {
+  int64 channel_id = 1;
+  model.message.linkcore.Player user = 2;
+}
+
+message GuestUserInfo {
+  string user_id_str = 1;
+  string nickname = 2;
+  string display_id = 3;
+  model.base.ImageModel avatar_thumb = 4;
+  int64 room_id = 5;
+  string linkmic_id_str = 6;
+  bool is_enigma = 7;
+}
+
+message LayoutData {
+  LayoutState layout = 1;
+  repeated SpotInfo spot_list = 2;
+  int64 version = 3;
+  int64 group_channel_id = 4;
+  repeated PosIdentity ui_pos = 101;
+}
+
+message LayoutState {
+  string layout_id = 1;
+  string layout_key = 2;
+  MultiGuestLayoutExtra multi_guest_layout_extra = 3;
+  MultiGuestLayoutNonSeiExtra multi_guest_layout_non_sei_extra = 4;
+  CohostTypeLayoutExtra cohost_layout_extra = 5;
+  CohostTypeLayoutNonSeiExtra cohost_layout_non_sei_extra = 6;
+}
+
+message LinkEnvelopeMessagePayload {
+  int32 message_type = 1;
+  ResolutionDemandPayload resolution_demand_payload = 100;
+}
+
+message LinkUserIdentity {
+  model.message.linkcore.Player player = 1;
+  string link_mic_id = 2;
+  int64 channel_id = 3;
+}
+
+message LinkUserState {
+  model.message.linkcore.Player user = 1;
+  string linkmic_id = 2;
+  model.message.linkcore.MicPositionData pos = 3;
+  int64 linked_time_nano = 4;
+
+  OnlineUserState online_user_state = 5;
+
+  MediaState audio_muted = 6;
+
+  MediaState video_muted = 7;
+
+  RtcConnectionState rtc_connection = 8;
+
+  NetworkState network_state = 9;
+  AvatarState avatar = 10;
+  string linker_session_id = 11;
+}
+
+message LinkerMediaChangeOperator {
+  int64 user_id = 1;
+
+  LinkMicUserAdminType operator_type = 2;
+  string nick_name = 3;
+  string display_id = 4;
+}
+
+message MigrationDetails {
+  bool is_migrate = 1;
+  int64 source_group_channel_id = 2;
+  int64 target_group_channel_id = 3;
+}
+
+message MultiGuestLayoutExtra {
+
+  LayoutStyle origin_layout_style = 1;
+
+  LayoutStyle current_layout_style = 2;
+  int32 origin_max_position = 3;
+  int32 current_max_position = 4;
+
+  LayoutEnlargeStatus enlarge_status = 5;
+  int32 current_panel_layout_type = 6;
+  SocialGameLayoutExtra social_game = 7;
+}
+
+message MultiGuestLayoutNonSeiExtra {
+  SocialGameLayoutNonSeiExtra social_game = 1;
+}
+
+message MultiGuestSpotExtra {
+  bool is_enlarged = 1;
+  bool is_single_zoom_enabled = 2;
+  bool is_double_zoom_enabled = 3;
+  bool is_switch_spot_enabled = 4;
+  int32 spot_rank = 5;
+  int32 content_position_type = 6;
+  SocialGameUserSpotExtra social_game_user = 7;
+}
+
+message MultiGuestSpotNonSeiExtra {
+  SocialGameUserSpotNonSeiExtra social_game_user = 1;
+}
+
+message PosIdentity {
+
+  PosIdentityType type = 1;
+  string value = 2;
+}
+
+message PosIdentityExtra {
+  string content_linkmic_i_d = 1;
+}
+
+message ResolutionDemandPayload {
+  int32 action = 1;
+  double width_ratio = 2;
+  double height_ratio = 3;
+  string config_id = 4;
+  string layout_key = 5;
+  int64 spot_id = 6;
+  int64 canvas_width = 7;
+  int64 canvas_height = 8;
+  int64 timestamp_ms = 9;
+}
+
+message SocialGameLayoutExtra {
+  int32 game_id = 1;
+  int32 game_just_dance_status = 2;
+  int64 game_session_id = 3;
+  int64 game_start_play_ms = 4;
+  int64 game_option_id = 5;
+  string loki_panel_name = 6;
+  string required_loki_resource_id = 7;
+  string optional_loki_resource_id = 8;
+}
+
+message SocialGameLayoutNonSeiExtra {
+  string just_dance_song_title = 1;
+}
+
+message SocialGameUserSpotExtra {
+  int32 game_just_dance_user_status = 1;
+  bool is_enlarged = 2;
+  bool is_main_content = 3;
+}
+
+message SocialGameUserSpotNonSeiExtra {
+  int32 game_score = 1;
+}
+
+message SpotInfo {
+  int32 spot_id = 1;
+  PosIdentity pos_identity = 2;
+  MultiGuestSpotExtra multi_guest_spot_extra = 3;
+  MultiGuestSpotNonSeiExtra multi_guest_spot_non_sei_extra = 4;
+  CohostTypeSpotExtra cohost_spot_extra = 5;
+  CohostTypeSpotNonSeiExtra cohost_spot_non_sei_extra = 6;
+  PosIdentityExtra pos_identity_extra = 7;
+}

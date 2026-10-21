@@ -8,8 +8,10 @@ description = "Developer-friendly, runtime-neutral SDK for TikTools plugins"
 
 [features]
 default = []
+http-client = ["dep:reqwest"]
 packager = ["dep:sha2", "dep:zip"]
 providers = [
+    "http-client",
     "dep:reqwest",
     "dep:tokio",
     "dep:sha2",

@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package webcast.model.gift.model;
+
+import "webcast/model/gift/assets.proto";
+import "webcast/model/gift/model.proto";
+
+message GiftEffect {
+  repeated assets.AssetsModel assets = 1;
+  GiftEffectSpecs specs = 2;
+  map<string, string> event_tracking_params = 5;
+}

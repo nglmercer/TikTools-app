@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package webcast.model.goal;
+
+message GoalComparison {
+  int64 coins_incr = 1;
+  int64 contributor_incr = 2;
+}
+
+message GoalPinInfo {
+  bool pin = 1;
+  bool unpin = 2;
+  int64 pin_end_time = 3;
+  int64 sub_goal_id = 4;
+  string sub_goal_id_str = 5;
+}
+
+message GoalReward {
+  string reward_content = 1;
+  int32 top_n = 2;
+  bool has_sticker = 3;
+  int32 audit_status = 4;
+}
+
+message GoalStats {
+  int64 total_coins = 1;
+  int64 total_contributor = 2;
+  GoalComparison comparison = 3;
+  int64 total_new_fans = 4;
+}
+
+message SubGoalContribution {
+  string id = 1;
+  int64 contribution_count = 2;
+}
+
+message SubGoalPinInfo {
+  int64 pin_start_time = 1;
+  int64 pin_end_time = 2;
+  int64 pin_ready_time = 3;
+}

@@ -1,0 +1,195 @@
+syntax = "proto3";
+
+package webcast.model.message.linkcore;
+
+import "webcast/linkmic/common.proto";
+import "webcast/model/message/linkcore_mic_position_data.proto";
+import "webcast/model/message/linkcore_player.proto";
+
+message AllListUser {
+  repeated LinkLayerListUser linked_list = 2;
+  repeated LinkLayerListUser applied_list = 3;
+  repeated LinkLayerListUser invited_list = 4;
+  repeated LinkLayerListUser ready_list = 5;
+}
+
+message ApplyContent {
+  Player applier = 1;
+  string applier_link_mic_id = 2;
+  string applier_linker_session_id = 3;
+}
+
+message ByteRTCExtInfo {
+  int32 default_signaling_server_first = 1;
+}
+
+message CancelApplyContent {
+  Player applier = 1;
+  string applier_link_mic_id = 2;
+  string applier_linker_session_id = 3;
+}
+
+message CancelInviteContent {
+  Player invitor = 1;
+  string invitor_link_mic_id = 2;
+  string invitee_link_mic_id = 3;
+  int64 invite_seq_id = 4;
+  Player invitee = 5;
+  string invitee_linker_session_id = 6;
+}
+
+message CreateChannelContent {
+  Player owner = 1;
+  string owner_link_mic_id = 2;
+  string owner_linker_session_id = 3;
+}
+
+message DSLConfig {
+  int32 scene_version = 1;
+  string layout_id = 2;
+}
+
+message FinishChannelContent {
+  Player owner = 1;
+  int64 finish_reason = 2;
+}
+
+message InviteContent {
+  Player invitor = 1;
+  RTCExtraInfo invitee_rtc_ext_info = 2;
+  string invitor_link_mic_id = 3;
+  string invitee_link_mic_id = 4;
+  bool is_owner = 5;
+  MicPositionData pos = 6;
+  DSLConfig dsl = 7;
+  Player invitee = 8;
+  Player operator = 9;
+  string invitee_linker_session_id = 10;
+}
+
+message JoinDirectContent {
+  LinkLayerListUser joiner = 1;
+  AllListUser all_users = 2;
+}
+
+message KickOutContent {
+  Player offliner = 1;
+
+  linkmic.common.KickoutReason kickout_reason = 2;
+  repeated string linked_user_ui_positions = 3;
+  repeated linkmic.common.PosIdentity ui_pos = 4;
+  linkmic.common.LayoutState layout = 5;
+  repeated linkmic.common.SpotInfo spot_list = 6;
+  string offliner_linker_session_id = 7;
+}
+
+message LeaveContent {
+  Player leaver = 1;
+  int64 leave_reason = 2;
+  repeated string linked_user_ui_positions = 3;
+  repeated linkmic.common.PosIdentity ui_pos = 4;
+  linkmic.common.LayoutState layout = 5;
+  repeated linkmic.common.SpotInfo spot_list = 6;
+  string leaver_linker_session_id = 7;
+}
+
+message LinkLayerListUser {
+  Player user = 1;
+  string linkmic_id = 2;
+  MicPositionData pos = 3;
+  int64 linked_time_nano = 4;
+  string app_version = 5;
+
+  linkmic.common.LinkerUserType user_type = 6;
+  string linker_session_id = 7;
+}
+
+message LinkListChangeContent {
+  int32 type = 1;
+  AllListUser list = 2;
+  repeated string linked_user_ui_positions = 3;
+  repeated linkmic.common.ContentPosition content_pos = 4;
+}
+
+message PermitApplyContent {
+  Player permiter = 1;
+  string permiter_link_mic_id = 2;
+  MicPositionData applier_pos = 3;
+
+  linkmic.common.AgreeStatus reply_status = 4;
+  DSLConfig dsl = 5;
+  Player applier = 6;
+  Player operator = 7;
+  string applier_link_mic_id = 8;
+  repeated string linked_user_ui_positions = 9;
+  string applier_rtc_token = 10;
+  repeated linkmic.common.PosIdentity ui_pos = 11;
+  linkmic.common.LayoutState layout = 12;
+  repeated linkmic.common.SpotInfo spot_list = 13;
+  string applier_linker_session_id = 14;
+}
+
+message RTCBitRateMap {
+  int32 xx1 = 1;
+  int32 xx2 = 2;
+  int32 xx3 = 3;
+  int32 xx4 = 4;
+}
+
+message RTCEngineConfig {
+  string rtc_app_id = 1;
+  string rtc_user_id = 2;
+  string rtc_token = 3;
+  int64 rtc_channel_id = 4;
+}
+
+message RTCExtraInfo {
+  RTCEngineConfig live_rtc_engine_config = 1;
+  repeated RTCLiveVideoParam live_rtc_video_param = 2;
+  RTCBitRateMap rtc_bitrate_map = 3;
+  int32 rtc_fps = 4;
+  RTCMixBase rtc_mix_base = 5;
+  ByteRTCExtInfo byte_rtc_ext_info = 6;
+  RTCInfoExtra extra = 7;
+  string rtc_business_id = 8;
+  RTCOther rtc_other = 9;
+  int32 interact_client_type = 10;
+}
+
+message RTCInfoExtra {
+  string version = 1;
+}
+
+message RTCLiveVideoParam {
+  int32 strategy_id = 1;
+  RTCVideoParam params = 2;
+}
+
+message RTCMixBase {
+  int32 bitrate = 1;
+}
+
+message RTCOther {
+  int32 max_transcoding_cb_interval_second = 1;
+}
+
+message RTCVideoParam {
+  int32 width = 1;
+  int32 height = 2;
+  int32 fps = 3;
+  int32 bitrate_kbps = 4;
+}
+
+message ReplyInviteContent {
+  Player invitee = 1;
+
+  linkmic.common.AgreeStatus reply_status = 2;
+  string invitee_link_mic_id = 3;
+  MicPositionData invitee_pos = 4;
+  Player invite_operator_user = 5;
+  repeated string linked_user_ui_positions = 6;
+  repeated linkmic.common.PosIdentity ui_pos = 7;
+  linkmic.common.LayoutState layout = 8;
+  repeated linkmic.common.SpotInfo spot_list = 9;
+  string invitee_linker_session_id = 10;
+}

@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package webcast.model.message;
+
+import "webcast/message_proto.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/message/common.proto";
+
+message InviteTopHostInfo {
+  string rank_type = 1;
+  int64 top_index = 2;
+}
+
+message LinkmicUserInfo {
+  int64 user_id = 1;
+  string linkmic_id_str = 2;
+  int64 room_id = 3;
+  int64 linked_time = 4;
+}
+
+message PerceptionDialogInfo {
+
+  data.PerceptionDialogIconType icon_type = 1;
+  common.Text title = 2;
+  common.Text sub_title = 3;
+  common.Text advice_action_text = 4;
+  common.Text default_action_text = 5;
+  string violation_detail_url = 6;
+  int32 scene = 7;
+  int64 target_user_id = 8;
+  int64 target_room_id = 9;
+  int64 count_down_time = 10;
+  bool show_feedback = 11;
+  repeated .webcast.message.proto.PerceptionFeedbackOption feedback_options = 12;
+  int64 policy_tip = 13;
+  int32 appeal_popup = 14;
+  common.Text close_action_text = 15;
+}
+
+message PunishEventInfo {
+  string punish_type = 1;
+  string punish_reason = 2;
+  string punish_id = 3;
+  int64 violation_uid = 4;
+
+  data.PunishTypeId punish_type_id = 5;
+  int64 duration = 6;
+  string punish_perception_code = 7;
+
+  int64 end_time = 8;
+  string violation_uid_str = 9;
+  string show_reason = 10;
+}

@@ -18,7 +18,7 @@ napi-vm-node-api = ["tiktools-plugin-loader/napi-vm-node-api"]
 wasm-plugins = ["tiktools-plugin-loader/wasm-plugins"]
 plugin-install = ["tiktools-plugin-loader/plugin-install"]
 persistence = ["dep:rusqlite"]
-http = ["dep:reqwest"]
+http = ["dep:reqwest", "tiktools-plugin-sdk/http-client"]
 tiktok-network = ["dep:tokio-tungstenite"]
 native-tiktok = ["dep:tiktools-tiktok"]
 # Explicit synthetic harness only; excluded from normal release artifacts.
@@ -41,8 +41,10 @@ tracing.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 napi-vm.workspace = true
-arboard = { version = "3", default-features = false }
 rusqlite = { workspace = true, optional = true, features = ["bundled"] }
 reqwest = { workspace = true, optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
 url = "2.5"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+arboard = { version = "3", default-features = false }

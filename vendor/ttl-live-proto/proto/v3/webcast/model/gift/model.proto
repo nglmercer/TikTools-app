@@ -1,0 +1,224 @@
+syntax = "proto3";
+
+package webcast.model.gift.model;
+
+import "webcast/model/base/messages.proto";
+import "webcast/model/base/user.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/gift/assets_face_recognition_meta.proto";
+import "webcast/model/goal.proto";
+
+message AssetBase {
+  base.ImageModel url = 2;
+  string md5 = 3;
+  assets.FaceRecognitionMeta face_meta = 4;
+}
+
+message AssetExtra {
+  string effect_starling_key = 1;
+}
+
+message AuditInfo {
+  int64 violation_id = 1;
+  int32 task_type = 2;
+}
+
+message BEFViewRenderSize {
+  int32 w = 1;
+  int32 h = 2;
+}
+
+message DistributionStrategy {
+  AssetBase asset_base = 1;
+  int32 resource_type = 2;
+}
+
+message DynamicRestriction {
+  SceneRestriction scenes = 1;
+  repeated ReceiverRestriction receivers = 2;
+}
+
+message FlyingMicResources {
+  base.ImageModel path_image = 1;
+  base.ImageModel mic_image = 2;
+  repeated TransitionConfig transition_configs = 3;
+}
+
+message GiftColorInfo {
+  int64 color_id = 1;
+  string color_name = 2;
+  repeated string color_values = 3;
+  base.ImageModel color_image = 4;
+  base.ImageModel gift_image = 5;
+  int64 color_effect_id = 6;
+  bool is_default = 7;
+  int64 color_image_size = 8;
+  repeated string color_reason = 9;
+  string color_name_english = 10;
+  string gift_describe = 11;
+}
+
+message GiftEffectCrossScreenStickerSpec {
+  map<int64, int32> single_action_asset_ids = 1;
+  map<int64, int32> action_asset_ids = 2;
+  map<int64, int32> reaction_asset_ids = 3;
+}
+
+message GiftEffectLynxSpec {
+  repeated int64 asset_ids = 1;
+}
+
+message GiftEffectPrefabSpec {
+  int64 template_asset_id = 1;
+  repeated int64 prefab_asset_ids = 2;
+}
+
+message GiftEffectSerialSpec {
+  repeated int64 serial_asset_ids = 2;
+}
+
+message GiftEffectSpecs {
+  GiftEffectCrossScreenStickerSpec cross_screen_sticker = 1;
+  GiftEffectLynxSpec lynx = 2;
+  GiftEffectPrefabSpec prefab = 3;
+  GiftEffectSerialSpec serial_spec = 4;
+  GiftEffectStreamSpec stream_effect_spec = 5;
+}
+
+message GiftEffectStreamSpec {
+  int64 basic_asset_id = 1;
+  repeated int64 extra_asset_ids = 2;
+}
+
+message GiftPanelBeaconBubble {
+  string lynx_url = 1;
+  string lynx_extra = 2;
+
+  data.GiftPanelBeaconBubbleType type = 3;
+}
+
+message GiftResource {
+  int64 id = 1;
+  base.ImageModel image = 2;
+  int64 effect_id = 3;
+}
+
+message LiveStreamGoal {
+  int64 id = 1;
+  int32 type = 2;
+  int32 status = 3;
+  repeated LiveStreamSubGoal sub_goals = 4;
+  string description = 5;
+  int32 audit_status = 6;
+  int32 cycle_type = 7;
+  int64 start_time = 8;
+  int64 expire_time = 9;
+  int64 real_finish_time = 10;
+  repeated LiveStreamGoalContributor contributors = 11;
+  int32 contributors_length = 12;
+  string id_str = 13;
+  string audit_description = 14;
+  goal.GoalStats stats = 15;
+  string goal_extra_info = 16;
+  int32 mode = 17;
+  AuditInfo audit_info = 18;
+  string challenge_type = 20;
+  bool is_uneditable = 21;
+  goal.GoalReward goal_reward = 22;
+  int32 create_source = 23;
+}
+
+message LiveStreamGoalContributor {
+  int64 user_id = 1;
+  base.ImageModel avatar = 2;
+  string display_id = 3;
+  int64 score = 4;
+  string user_id_str = 5;
+  bool in_room = 6;
+  bool is_friend = 7;
+  bool follow_by_owner = 9;
+  bool is_fist_contribute = 10;
+  repeated goal.SubGoalContribution sub_goal_contributions = 11;
+  base.user.EnigmaInfo enigma_info = 12;
+}
+
+message LiveStreamGoalIndicator {
+  string key = 1;
+  int32 op = 2;
+}
+
+message LiveStreamSubGoal {
+  int32 type = 1;
+  int64 id = 2;
+  int64 progress = 3;
+  int64 target = 4;
+  LiveStreamSubGoalGift gift = 5;
+  string id_str = 6;
+  goal.SubGoalPinInfo pin_info = 7;
+  int32 source = 8;
+  string recommended_text = 9;
+  string recommended_header = 10;
+}
+
+message LiveStreamSubGoalGift {
+  string name = 1;
+  base.ImageModel icon = 2;
+  int64 diamond_count = 3;
+  int32 type = 4;
+}
+
+message LokiExtraContent {
+  string gift_type = 1;
+  int64 gift_duration = 2;
+  bool need_screen_shot = 3;
+  bool should_multi_frame = 4;
+  string view_overlay = 5;
+  BEFViewRenderSize bef_view_render_size = 6;
+  int32 bef_view_render_fps = 7;
+  int32 bef_view_fit_mode = 8;
+  string model_names = 9;
+  repeated string requirements = 10;
+}
+
+message LynxGiftExtra {
+  int64 id = 1;
+  int64 code = 2;
+  int64 type = 3;
+  repeated string params = 4;
+  string extra = 5;
+}
+
+message MatchInfo {
+  int64 critical = 1;
+  bool effect_card_in_use = 2;
+
+  data.MatchInfo_MultiplierType multiplier_type = 3;
+  int64 multiplier_value = 4;
+}
+
+message PrefabBundle {
+  repeated int64 prefab_effect_ids = 2;
+}
+
+message ReceiverRestriction {
+  int64 user_id = 1;
+  repeated int64 hidden_gids = 2;
+}
+
+message SceneRestriction {
+  repeated int64 normal_hidden_gids = 1;
+  repeated int64 match_hidden_gids = 2;
+  repeated int64 cohost_hidden_gids = 3;
+  repeated int64 multiguest_hidden_gids = 4;
+}
+
+message SecondaryEffectInfo {
+  repeated int64 effect_ids = 1;
+  repeated string builtin_strings = 2;
+  int64 minute_game_gameplay_id = 3;
+}
+
+message TransitionConfig {
+  int64 config_id = 1;
+  base.ImageModel resource_image = 2;
+}

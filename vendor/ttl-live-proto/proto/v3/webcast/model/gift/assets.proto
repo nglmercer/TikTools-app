@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package webcast.model.gift.assets;
+
+import "webcast/model/gift/assets_face_recognition_meta.proto";
+import "webcast/model/gift/model.proto";
+
+message AssetsModel {
+  string name = 1;
+  string resource_uri = 2;
+  ResourceModel resource_url = 4;
+  string describe = 5;
+  int64 id = 6;
+  int32 resource_type = 7;
+  string md5 = 8;
+  int64 size = 9;
+  model.LokiExtraContent loki_content = 10;
+  int32 download_type = 26;
+  ResourceModel resource_bytevc1_url = 28;
+  string bytevc1_md5 = 29;
+  repeated VideoResource video_resource_list = 30;
+  FaceRecognitionMeta face_recognition_archive_meta = 31;
+  string lynx_url_settings_key = 32;
+  int32 downgrade_resource_type = 33;
+  model.AssetExtra asset_extra = 34;
+  int32 sticker_asset_variant = 35;
+  bool immediate_download = 36;
+  int32 sticker_asset_variant_reason = 37;
+  bool force_use_im_or_resp_asset = 38;
+  repeated model.DistributionStrategy distribution_strategy = 39;
+}
+
+message ResourceModel {
+  repeated string url_list = 1;
+  string uri = 2;
+}
+
+message VideoResource {
+  string video_type_name = 1;
+  ResourceModel video_url = 2;
+  string video_md5 = 3;
+}

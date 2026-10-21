@@ -633,7 +633,8 @@ async fn resolve_session(raw: &str) -> Result<ttl_sign_core::CookieJar, TikTokEr
 }
 
 async fn bootstrap_guest_session() -> Result<ttl_sign_core::CookieJar, TikTokError> {
-    let response = reqwest::Client::builder()
+    let response = tiktools_plugin_sdk::http::client_builder()
+        .map_err(TikTokError::Discovery)?
         .user_agent(default_preset().user_agent())
         .timeout(Duration::from_secs(30))
         .build()
@@ -678,7 +679,8 @@ async fn load_signing_bundle(config: &NativeTikTokConfig) -> Result<String, TikT
             return read_bundle(path).await;
         }
     }
-    let client = reqwest::Client::builder()
+    let client = tiktools_plugin_sdk::http::client_builder()
+        .map_err(TikTokError::Bundle)?
         .user_agent(default_preset().user_agent())
         .timeout(Duration::from_secs(30))
         .build()

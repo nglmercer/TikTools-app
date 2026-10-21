@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package webcast.model.gift.model;
+
+import "webcast/model/base/messages.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/gift/model.proto";
+import "webcast/model/goal.proto";
+import "webcast/shared/message.proto";
+
+message WebcastGoalUpdateMessage {
+
+  shared.message.CommonMessageData common = 1;
+  LiveStreamGoalIndicator indicator = 2;
+  LiveStreamGoal goal = 3;
+  int64 contributor_id = 4;
+  base.ImageModel contributor_avatar = 5;
+  string contributor_display_id = 6;
+  LiveStreamSubGoal contribute_subgoal = 7;
+  int64 contribute_count = 9;
+  int64 contribute_score = 10;
+  int64 gift_repeat_count = 11;
+  string contributor_id_str = 12;
+  goal.GoalPinInfo pin_info = 15;
+
+  data.GoalMessageSource update_source = 16;
+  string goal_extra = 17;
+}

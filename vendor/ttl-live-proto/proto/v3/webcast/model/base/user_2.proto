@@ -1,0 +1,158 @@
+syntax = "proto3";
+
+package webcast.model.base.user;
+
+import "webcast/message_proto.proto";
+import "webcast/model/base/messages.proto";
+import "webcast/model/base/user.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/messages.proto";
+
+message User {
+  int64 id = 1;
+
+  int64 deprecated1 = 2;
+  string nickname = 3;
+
+  int32 deprecated2 = 4;
+
+  string bio_description = 5;
+
+  int32 deprecated3 = 6;
+
+  int64 deprecated4 = 7;
+
+  string deprecated5 = 8;
+  ImageModel avatar_thumb = 9;
+  ImageModel avatar_medium = 10;
+  ImageModel avatar_large = 11;
+  bool verified = 12;
+
+  int32 deprecated6 = 13;
+
+  string deprecated7 = 14;
+  int32 status = 15;
+  int64 create_time = 16;
+  int64 modify_time = 17;
+  int32 secret = 18;
+  string share_qrcode_uri = 19;
+
+  int32 deprecated8 = 20;
+
+  repeated ImageModel badge_image_list = 21;
+  FollowInfo follow_info = 22;
+  UserHonor pay_grade = 23;
+  FansClubMember fans_club = 24;
+  BorderInfo border = 25;
+  string special_id = 26;
+  ImageModel avatar_border = 27;
+  ImageModel medal = 28;
+  repeated ImageModel real_time_icons = 29;
+  repeated ImageModel new_real_time_icons = 30;
+  int32 top_vip_no = 31;
+  UserAttr user_attr = 32;
+  OwnRoom own_room = 33;
+  int64 pay_score = 34;
+  int64 ticket_count = 35;
+  AnchorInfo anchor_info = 36;
+
+  data.LinkmicStatus link_mic_stats = 37;
+  string display_id = 38;
+  bool with_commerce_permission = 39;
+  bool with_fusion_shop_entry = 40;
+  int64 deprecated21 = 41;
+  AnchorLevel webcast_anchor_level = 42;
+  string verified_content = 43;
+  Author author_stats = 44;
+  repeated User top_fans = 45;
+  string sec_uid = 46;
+  int32 user_role = 47;
+
+  bytes deprecated9 = 48;
+  ActivityRewardInfo activity_reward = 49;
+
+  bytes deprecated10 = 50;
+
+  bytes deprecated11 = 51;
+  ImageModel personal_card = 52;
+  AuthenticationInfo authentication_info = 53;
+
+  int32 deprecated12 = 54;
+
+  int32 deprecated13 = 55;
+
+  bytes deprecated14 = 56;
+  repeated ImageModel media_badge_image_list = 57;
+
+  int32 deprecated15 = 58;
+
+  bytes user_vip_info = 59;
+  repeated int64 commerce_webcast_config_ids = 60;
+  repeated BorderInfo border_list = 61;
+  ComboBadgeInfo combo_badge_info = 62;
+  SubscribeInfo subscribe_info = 63;
+  repeated BadgeStruct badge_list = 64;
+  repeated int64 mint_type_label = 65;
+  FansClubInfo fans_club_info = 66;
+
+  bool deprecated19 = 1001;
+  bool allow_find_by_contacts = 1002;
+  bool allow_others_download_video = 1003;
+  bool allow_others_download_when_sharing_video = 1004;
+  bool allow_share_show_profile = 1005;
+  bool allow_show_in_gossip = 1006;
+  bool allow_show_my_action = 1007;
+  bool allow_strange_comment = 1008;
+  bool allow_unfollower_comment = 1009;
+  bool allow_use_linkmic = 1010;
+
+  AnchorLevel anchor_level = 1011;
+  ImageModel avatar_jpg = 1012;
+  string bg_img_url = 1013;
+
+  string deprecated18 = 1014;
+
+  bool deprecated16 = 1015;
+  int32 block_status = 1016;
+  int32 comment_restrict = 1017;
+  string constellation = 1018;
+  int32 disable_ichat = 1019;
+  int64 enable_ichat_img = 1020;
+  int32 exp = 1021;
+
+  int64 fan_ticket_count = 1022;
+  bool fold_stranger_chat = 1023;
+  int64 follow_status = 1024;
+
+  bool deprecated28 = 1025;
+
+  string deprecated29 = 1026;
+  int32 ichat_restrict_type = 1027;
+  string id_str = 1028;
+  bool is_follower = 1029;
+  bool is_following = 1030;
+  bool need_profile_guide = 1031;
+
+  int64 pay_scores = 1032;
+  bool push_comment_status = 1033;
+  bool push_digg = 1034;
+  bool push_follow = 1035;
+  bool push_friend_action = 1036;
+  bool push_ichat = 1037;
+  bool push_status = 1038;
+  bool push_video_post = 1039;
+  bool push_video_recommend = 1040;
+
+  bytes stats = 1041;
+
+  bool deprecated17 = 1042;
+  string verified_reason = 1043;
+  bool with_car_management_permission = 1044;
+  repeated LiveEventInfo upcoming_event_list = 1045;
+  string scm_label = 1046;
+  .webcast.message.proto.EcommerceEntrance ecommerce_entrance = 1047;
+  bool is_block = 1048;
+  bool is_subscribe = 1090;
+  bool is_anchor_marked = 1091;
+  EnigmaInfo enigma_info = 1092;
+}

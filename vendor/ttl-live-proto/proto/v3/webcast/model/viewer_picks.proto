@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package webcast.model.viewer_picks;
+
+import "webcast/model/base/messages.proto";
+
+message ControlChaosInfo {
+  int32 command_type = 1;
+  repeated HotKey hot_keys = 2;
+  int32 action_type = 3;
+}
+
+message GameTricksShortcut {
+  repeated HotKey hot_keys = 1;
+}
+
+message GiftPick {
+  int64 gift_id = 1;
+  string customized_desc = 2;
+  base.ImageModel gift_icon = 3;
+  int64 gift_price = 4;
+  int64 gift_pick_id = 5;
+  string gift_pick_id_str = 6;
+  bool is_priority_request = 7;
+  int32 desc_source = 8;
+  GiftPickExtra extra = 9;
+}
+
+message GiftPickExtra {
+  GiftPickExtraGameTricks game_tricks = 1;
+  GiftPickExtraGameInteraction game_interaction = 2;
+}
+
+message GiftPickExtraGameInteraction {
+  GiftPickExtraGameInteractionStorage storage = 1;
+  GiftPickExtraGameInteractionExternal external = 2;
+}
+
+message GiftPickExtraGameInteractionExternal {
+}
+
+message GiftPickExtraGameInteractionStorage {
+  string instruction = 1;
+  string instruction_desc_key = 2;
+}
+
+message GiftPickExtraGameTricks {
+  GiftPickExtraGameTricksStorage storage = 1;
+  GiftPickExtraGameTricksExternal external = 2;
+}
+
+message GiftPickExtraGameTricksExternal {
+}
+
+message GiftPickExtraGameTricksStorage {
+  int32 game_tricks_type = 1;
+  ControlChaosInfo control_chaos_info = 2;
+}
+
+message GiftPickWithScore {
+  GiftPick gift_pick = 1;
+  int64 score = 2;
+}
+
+message HotKey {
+  int32 key_type = 1;
+  repeated KeyBoardHotKey keyboard_keys = 2;
+  repeated MouseHotKey mouse_keys = 3;
+}
+
+message KeyBoardHotKey {
+  int32 key_code = 1;
+  string key_name = 2;
+}
+
+message MouseHotKey {
+  int32 mouse_type = 1;
+}
+
+message ProfileExtra {
+  ProfileExtraGameTricks game_tricks = 1;
+  ProfileExtraGameInteraction game_interaction = 2;
+}
+
+message ProfileExtraGameInteraction {
+  ProfileExtraGameInteractionStorage storage = 1;
+  ProfileExtraGameInteractionExternal external = 2;
+}
+
+message ProfileExtraGameInteractionExternal {
+  string game_name = 1;
+  string game_name_key = 2;
+  string game_icon_url = 3;
+  string game_tag_id = 4;
+}
+
+message ProfileExtraGameInteractionStorage {
+  string game_id = 1;
+  string template_id = 2;
+}
+
+message ProfileExtraGameTricks {
+  ProfileExtraGameTricksStorage storage = 1;
+  ProfileExtraGameTricksExternal external = 2;
+}
+
+message ProfileExtraGameTricksExternal {
+  string game_name = 1;
+  string game_name_key = 2;
+  string game_icon_url = 3;
+}
+
+message ProfileExtraGameTricksStorage {
+  int32 game_tricks_type = 1;
+  int64 game_tag_id = 2;
+  GameTricksShortcut game_tricks_shortcut = 3;
+}
+
+message ViewerPickAnchorParam {
+  bool viewer_wishes_use_new_setup_process = 1;
+  bool viewer_wishes_queue_mode_enable = 2;
+  bool viewer_wishes_priority_request_enable = 3;
+  bool integrate_vw_into_liveboard = 4;
+}
+
+message ViewerPicksHeaderImage {
+  base.ImageModel image = 1;
+  string schema_url = 2;
+}
+
+message ViewerPicksInfo {
+  int64 viewer_picks_id = 1;
+  repeated GiftPickWithScore gift_pick_list = 2;
+  int32 status = 3;
+  int64 round_duration_sec = 4;
+  int64 start_time_ms = 5;
+  int64 end_time_ms = 6;
+  bool has_duration = 7;
+  bool has_score = 8;
+  bool enable_auto_restart = 9;
+  bool started_from_auto_restart = 10;
+  string viewer_picks_id_str = 11;
+  int32 display_mode = 12;
+  int32 scene = 13;
+  ViewerPicksHeaderImage header_image = 14;
+  ViewerPickAnchorParam anchor_param = 15;
+  ProfileExtra extra = 16;
+  bool started_from_auto_start = 17;
+}

@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package webcast.model.message.linker.listchangemessage;
+
+import "webcast/model/base/messages.proto";
+import "webcast/model/base/user_2.proto";
+
+message LinkListUser {
+  base.user.User user = 1;
+  int64 modify_time = 2;
+  int32 link_type = 3;
+  int32 role_type = 4;
+  string linkmic_id_str = 5;
+  int64 payed_money = 6;
+  int64 fan_ticket = 7;
+  int32 fan_ticket_icon_type = 8;
+  int32 link_user_type = 9;
+  base.ImageModel blurred_avatar = 10;
+}
+
+message LinkerListChangeContent {
+  repeated LinkListUser linked_users = 1;
+  repeated LinkListUser applied_users = 2;
+  repeated LinkListUser connecting_users = 3;
+}

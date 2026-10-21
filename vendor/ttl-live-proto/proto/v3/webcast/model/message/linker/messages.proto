@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package webcast.model.message.linker;
+
+import "webcast/chatroom/model/multilive.proto";
+import "webcast/linkmic/common.proto";
+import "webcast/model/base/user_2.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/message/linker/linked_list_change_message.proto";
+import "webcast/synthetic_enums.proto";
+
+message LinkerAcceptNoticeContent {
+  int64 from_user_id = 1;
+  int64 from_room_id = 2;
+  int64 to_user_id = 3;
+}
+
+message LinkerCancelContent {
+  int64 from_user_id = 1;
+  int64 to_user_id = 2;
+  int32 cancel_type = 3;
+
+  int64 action_id = 4;
+}
+
+message LinkerEnterContent {
+  repeated linked_list_change_message.ListUser linked_users = 1;
+
+  data.LinkmicMultiLiveEnum anchor_multi_live_enum = 2;
+  chatroom.model.multilive.MultiLiveAnchorPanelSettings anchor_setting_info = 3;
+}
+
+message LinkerKickOutContent {
+  int64 from_user_id = 1;
+
+  linkmic.common.KickoutReason kickout_reason = 2;
+}
+
+message LinkerLeaveContent {
+  int64 user_id = 1;
+  string linkmic_id_str = 2;
+  int64 send_leave_uid = 3;
+  int64 leave_reason = 4;
+}
+
+message LinkerMuteContent {
+  int64 user_id = 1;
+
+  im.MuteStatus mute_status = 2;
+}
+
+message LinkerRandomMatchContent {
+  base.user.User user = 1;
+  int64 room_id = 2;
+  int64 invite_type = 3;
+  string match_id = 4;
+  int64 inner_channel_id = 5;
+  int64 source_type = 6;
+  int64 group_channel_id = 7;
+
+  data.LinkmicPlayType play_type = 8;
+  int64 paired_time = 9;
+}

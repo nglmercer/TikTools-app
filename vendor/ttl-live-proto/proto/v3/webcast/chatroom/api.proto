@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package webcast.chatroom.api;
+
+import "webcast/model/base/messages.proto";
+import "webcast/model/data/messages.proto";
+
+message EmoteModel_AuditInfo {
+  int64 violation_id = 1;
+
+  .webcast.model.data.AuditTaskType task_type = 2;
+}
+
+message SOVBriefInfo {
+  .webcast.model.base.ImageModel cover = 1;
+  SOVMaskInfo mask_info = 2;
+
+  .webcast.model.data.SOVLockInfoType lock_info = 3;
+  int64 create_time = 4;
+  string aweme_id = 5;
+}
+
+message SOVMaskInfo {
+
+  .webcast.model.data.SOVMaskInfoType type = 1;
+  string title = 2;
+}
+
+message SOVPinCardInfo {
+  bool recently_updated = 1;
+  SubOnlyVideosBriefInfo sov_info = 2;
+}
+
+message SubGoalPinCard {
+  int64 goal_id = 1;
+  int64 time_to_live = 2;
+  SubPinCardText desc = 3;
+  int64 target = 4;
+  int64 progress = 5;
+}
+
+message SubOnlyVideosBriefInfo {
+  string total_count_str = 1;
+  int32 total_count = 2;
+  repeated SOVBriefInfo sov_brief_info = 3;
+
+  .webcast.model.data.SOVStatus creator_status = 4;
+  string schema = 5;
+  bool is_sov_adjustments_enabled_for_consumer = 6;
+  int32 new_sov_count = 7;
+}
+
+message SubPinCard {
+  int64 time_to_live = 1;
+  Text title = 2;
+  Text desc = 3;
+  .webcast.model.base.ImageModel image = 4;
+
+  .webcast.model.data.PinCardType type = 5;
+  int64 id = 6;
+  int64 template_id = 7;
+  SubGoalPinCard goal_pin_card = 8;
+  string action_schema = 9;
+  int64 last_pin_timestamp = 10;
+  SubPinCardExtra extra_info = 11;
+  int64 highlight_text_num = 12;
+  repeated .webcast.model.base.ImageModel icons = 13;
+  int32 pin_source = 14;
+}
+
+message SubPinCardExtra {
+  SOVPinCardInfo sov_info = 1;
+}
+
+message SubPinCardText {
+
+  .webcast.model.data.SubPinCardText_TextType type = 1;
+  string content = 2;
+}
+
+message Text {
+
+  .webcast.model.data.SubPinCard_Text_TextType type = 1;
+  string content = 2;
+}
+
+message TimerDetail {
+  int64 timer_id = 1;
+  int64 anchor_id = 2;
+  int64 start_timestamp_s = 3;
+  int64 start_countdown_time_s = 4;
+  string anchor_side_title = 5;
+  string user_side_title = 6;
+  int64 time_increase_per_sub_s = 7;
+  int64 time_increase_cap_s = 8;
+  int32 sub_count = 9;
+  bool time_increase_reach_cap = 10;
+  int64 total_pause_time_s = 11;
+  int64 last_pause_timestamp_s = 12;
+  int64 total_time_s = 13;
+  int64 remaining_time_s = 14;
+  int64 timestamp_s = 15;
+  int64 sticker_x = 16;
+  int64 sticker_y = 17;
+  int64 screen_w = 18;
+  int64 screen_h = 19;
+
+  .webcast.model.data.TimerStatus timer_status = 20;
+
+  .webcast.model.data.TimerDetail_AntidirtStatus antidirt_status = 21;
+
+  .webcast.model.data.TimerDetail_AuditStatus audit_status = 22;
+  TimerDetail_AuditInfo audit_info = 23;
+}
+
+message TimerDetail_AuditInfo {
+  int64 violation_id = 1;
+
+  .webcast.model.data.TimerDetail_AuditTaskType task_type = 2;
+}

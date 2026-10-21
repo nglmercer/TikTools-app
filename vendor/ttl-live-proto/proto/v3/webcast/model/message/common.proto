@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package webcast.model.message.common;
+
+import "webcast/model/base/messages.proto";
+import "webcast/model/base/user_2.proto";
+import "webcast/model/data/messages.proto";
+
+message PatternRef {
+  string key = 1;
+  string default_pattern = 2;
+  map<string, string> key_groups = 3;
+}
+
+message Text {
+  string key = 1;
+  string default_pattern = 2;
+  TextFormat default_format = 3;
+  repeated TextPiece pieces = 4;
+}
+
+message TextFormat {
+  string color = 1;
+  bool bold = 2;
+  bool italic = 3;
+  int32 weight = 4;
+  int32 italic_angle = 5;
+  int32 font_size = 6;
+  bool use_heigh_light_color = 7;
+  bool use_remote_clor = 8;
+}
+
+message TextPiece {
+  int32 type = 1;
+  TextFormat format = 2;
+  string string_value = 11;
+  TextPieceUser user_value = 21;
+  TextPieceGift gift_value = 22;
+  TextPieceHeart heart_value = 23;
+  TextPiecePatternRef pattern_ref_value = 24;
+  TextPieceImage image_value = 25;
+}
+
+message TextPieceGift {
+  int64 gift_id = 1;
+  PatternRef name_ref = 2;
+
+  data.GiftShowType show_type = 3;
+  int64 color_id = 4;
+}
+
+message TextPieceHeart {
+  string color = 1;
+}
+
+message TextPieceImage {
+  base.ImageModel image = 1;
+}
+
+message TextPiecePatternRef {
+  string key = 1;
+  string default_pattern = 2;
+}
+
+message TextPieceUser {
+  base.user.User user = 1;
+  bool with_colon = 2;
+}

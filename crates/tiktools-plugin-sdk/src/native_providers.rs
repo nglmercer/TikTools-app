@@ -174,7 +174,11 @@ fn io_error(path: &Path, error: std::io::Error) -> NativeProviderError {
 /// default redirect policy. Integrity pins authenticate every byte, so
 /// transport is untrusted by design.
 pub fn provider_client() -> Result<Client, NativeProviderError> {
-    Client::builder()
+    crate::http::client_builder()
+        .map_err(|message| NativeProviderError::Http {
+            url: String::new(),
+            message,
+        })?
         .timeout(FETCH_TIMEOUT)
         .user_agent(format!(
             "tiktools-native-providers/{}",

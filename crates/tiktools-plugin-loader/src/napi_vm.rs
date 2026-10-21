@@ -853,6 +853,11 @@ fn configure_host_napi_addons(
     if native_addons.is_empty() {
         return Ok(());
     }
+    if cfg!(target_os = "android") {
+        return Err(PluginLoaderError::RuntimeUnavailable(format!(
+            "napi-vm plugin `{name}` requires native .node modules; Android ABI validation is not implemented"
+        )));
+    }
     Err(PluginLoaderError::Runtime(format!(
         "napi-vm plugin `{name}` declares native addons but this build lacks napi-vm-node-api support"
     )))

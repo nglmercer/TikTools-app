@@ -69,6 +69,8 @@ impl AppCore {
 
     pub fn system_info(&self) -> Value {
         json!({
+            "platform": crate::platform::RuntimePlatform::detect(),
+            "platformCapabilities": crate::platform::RuntimePlatform::detect().capabilities(),
             "name": "tiktools",
             "version": env!("CARGO_PKG_VERSION"),
             "features": {
@@ -76,7 +78,7 @@ impl AppCore {
                 "persistence": cfg!(feature = "persistence"),
                 "pluginInstall": cfg!(feature = "plugin-install"),
                 "http": cfg!(feature = "http"),
-                "napiVmNodeApi": cfg!(feature = "napi-vm-node-api"),
+                "napiVmNodeApi": cfg!(all(feature = "napi-vm-node-api", not(target_os = "android"))),
             },
             "home": self.db.paths().root.display().to_string(),
             "dataDir": self.db.paths().data.display().to_string(),
@@ -347,7 +349,7 @@ impl AppCore {
             let connected = self.live.is_connected();
             checks.push(DoctorCheck {
                 id: "live.transport".to_owned(),
-                status: "ok".to_owned(),
+                status: if connected { "ok" } else { "skipped" }.to_owned(),
                 message: Some(
                     if connected {
                         "connected"

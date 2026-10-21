@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package webcast.chatroom.api;
+
+import "webcast/model/base/user_2.proto";
+import "webcast/model/data/messages.proto";
+
+message EmoteUploadInfo {
+  int64 user_id = 1;
+
+  .webcast.model.data.UserEmoteUploadSource emote_upload_source = 2;
+  .webcast.model.base.user.User user_info = 3;
+  string user_id_str = 4;
+}

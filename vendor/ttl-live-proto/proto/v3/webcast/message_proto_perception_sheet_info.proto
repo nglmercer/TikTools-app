@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package webcast.message.proto;
+
+import "webcast/model/data/messages.proto";
+import "webcast/model/message/common.proto";
+
+message PerceptionSheetInfo {
+
+  model.data.PerceptionDialogIconType icon_type = 1;
+  model.message.common.Text title = 2;
+  model.message.common.Text sub_title = 3;
+  model.message.common.Text reason_title = 4;
+  model.message.common.Text reason_info = 5;
+  model.message.common.Text not_allowed_title = 6;
+  model.message.common.Text not_allowed_text = 7;
+  model.message.common.Text default_action_text = 8;
+  int32 scene = 9;
+  int64 target_user_id = 10;
+  int64 target_room_id = 11;
+  int64 count_down_time = 12;
+}

@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package webcast.model.game;
+
+import "webcast/model/message/common.proto";
+import "webcast/model/message/invite_top_host_info.proto";
+import "webcast/shared/message.proto";
+
+message WebcastAccessRecallMessage {
+
+  shared.message.CommonMessageData common = 1;
+  int32 status = 2;
+  int64 duration = 3;
+  int64 end_time = 4;
+  string scene = 5;
+  .webcast.model.message.common.Text notice = 6;
+  .webcast.model.message.common.Text content = 7;
+  .webcast.model.message.PunishEventInfo punish_info = 8;
+}

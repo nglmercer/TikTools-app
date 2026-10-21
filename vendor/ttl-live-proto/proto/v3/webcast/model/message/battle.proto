@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package webcast.model.message.battle;
+
+import "webcast/im.proto";
+import "webcast/model/base/messages.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/live_match.proto";
+
+message BattleDisplayConfig {
+  int32 threshold = 1;
+  string text = 2;
+  int32 diff_threshold = 3;
+  string diff_text = 4;
+  ExemptStrategy exempt_strategy = 5;
+}
+
+message BattleResult {
+  int64 user_id = 1;
+
+  data.BattleResult_Result result = 2;
+  int64 score = 3;
+
+  int64 diamond_score = 4;
+  int64 enigma_score = 5;
+  int64 enigma_uv = 6;
+}
+
+message BattleRewardSettle {
+  live.match.BattlePrompt prompt = 1;
+
+  im.BattleRewardSettle_RewardStatus status = 2;
+}
+
+message BattleSetting {
+  int64 battle_id = 1;
+  int64 start_time_ms = 2;
+  int32 duration = 3;
+  int64 channel_id = 4;
+
+  data.BattleSettings_BattleStatus status = 5;
+
+  data.BattleInviteType invite_type = 6;
+  live.match.GiftModeMeta gift_mode_meta = 7;
+
+  data.BattleType battle_type = 8;
+  int64 extra_duration_second = 9;
+  int64 end_time_ms = 10;
+
+  data.BattleScene scene = 11;
+  int64 source_type = 12;
+
+  data.IceShowdownSetting ice_showdown_setting = 13;
+
+  data.MatchGameplayOption gameplay_option = 14;
+  live.match.GiftModeMetaV2 gift_mode_meta_v2 = 15;
+}
+
+message BattleTaskSettle {
+
+  im.BattleTaskSettle_Result result = 1;
+  int64 reward_start_time = 2;
+  int64 reward_start_timestamp = 3;
+}
+
+message BattleTaskStart {
+  live.match.BattleBonusConfig config = 1;
+}
+
+message BattleTaskUpdate {
+  int64 progress = 1;
+  int64 from_user_id = 2;
+  string prompt_key = 3;
+  string log_id = 21;
+}
+
+message BattleUserArmies {
+  repeated BattleUserArmy user_armies = 1;
+  int64 hostscore = 2;
+  string anchor_id_str = 3;
+  int64 host_enigma_score = 4;
+  int64 host_enigma_uv = 5;
+}
+
+message BattleUserArmy {
+  int64 user_id = 1;
+  int64 score = 2;
+  string nickname = 3;
+  base.ImageModel avatar_thumb = 4;
+  int64 diamond_score = 5;
+  string user_id_str = 6;
+  int64 enigma_score = 7;
+  bool is_enigma = 8;
+}
+
+message BattleUserInfoWrapper {
+  int64 key = 1;
+  live.match.BattleUserInfo value = 2;
+}
+
+message ExemptStrategy {
+  bool exempt_both_host = 1;
+  int32 exempt_audience_top = 2;
+}
+
+message SupportedActionsWrapper {
+  int64 key = 1;
+
+  bool value = 2;
+}
+
+message UserArmiesWrapper {
+  int64 key = 1;
+  BattleUserArmies value = 2;
+}

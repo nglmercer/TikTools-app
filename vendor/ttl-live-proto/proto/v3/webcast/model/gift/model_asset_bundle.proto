@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package webcast.model.gift.model;
+
+import "webcast/model/gift/assets.proto";
+import "webcast/model/gift/model.proto";
+
+message AssetBundle {
+  repeated assets.AssetsModel assets = 1;
+  PrefabBundle prefab_bundle = 2;
+  GiftEffectStreamSpec stream_effect_spec = 3;
+}

@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package webcast.model.message.linkcore;
+
+import "webcast/chatroom/model/multiguestv3.proto";
+import "webcast/im.proto";
+import "webcast/linkmic/common.proto";
+import "webcast/model/message/linkcore.proto";
+import "webcast/shared/message.proto";
+
+message WebcastLinkLayerMessage {
+
+  shared.message.CommonMessageData common = 1;
+
+  im.LinkLayerMessageType message_type = 2;
+  int64 channel_id = 3;
+
+  linkmic.common.Scene scene = 4;
+  string source = 5;
+  string centerized_idc = 6;
+  int64 rtc_room_id = 7;
+  int64 version = 8;
+
+  linkmic.common.LinkerMode linker_mode = 9;
+  bool wait_cross_data = 10;
+  CreateChannelContent create_channel_content = 100;
+  LinkListChangeContent list_change_content = 102;
+  InviteContent invite_content = 103;
+  ApplyContent apply_content = 104;
+  PermitApplyContent permit_apply_content = 105;
+  ReplyInviteContent reply_invite_content = 106;
+  KickOutContent kick_out_content = 107;
+  CancelApplyContent cancel_apply_content = 108;
+  CancelInviteContent cancel_invite_content = 109;
+  LeaveContent leave_content = 110;
+  FinishChannelContent finish_content = 111;
+  JoinDirectContent join_direct_content = 112;
+  im.JoinGroupContent join_group_content = 113;
+  im.PermitJoinGroupContent permit_group_content = 114;
+  im.CancelJoinGroupContent cancel_group_content = 115;
+  im.LeaveJoinGroupContent leave_group_content = 116;
+  im.P2PGroupChangeContent p2p_group_change_content = 117;
+  im.GroupChangeContent group_change_content = 118;
+  im.JoinGroupDirectContent join_group_direct_content = 119;
+  im.JoinRoomDirectContent join_room_direct_content = 120;
+  im.LinkEnvelopeContent link_envelope_content = 150;
+  chatroom.model.multiguestv3.BusinessContent business_content = 200;
+}

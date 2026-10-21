@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package webcast.chatroom.model.multiguestv3;
+
+import "webcast/chatroom/model/interact_messages.proto";
+import "webcast/chatroom/model/multilive.proto";
+import "webcast/im.proto";
+import "webcast/linkmic/common.proto";
+import "webcast/model/base/user_2.proto";
+import "webcast/model/data/messages.proto";
+
+message ApplyBizContent {
+  .webcast.model.base.user.User user = 1;
+}
+
+message BusinessContent {
+  int64 over_length = 1;
+  MultiLiveContent multi_live_content = 100;
+  im.CohostContent cohost_content = 200;
+}
+
+message InviteBizContent {
+  multilive.MultiLiveAnchorPanelSettings anchor_setting_info = 1;
+
+  im.ContentInviteSource invite_source = 2;
+  .webcast.model.base.user.User operator_user_info = 3;
+
+  linkmic.common.LinkMicUserAdminType operator_link_admin_type = 4;
+  .webcast.model.base.user.User invitee_user_info = 5;
+
+  .webcast.model.data.LinkmicShareRevenueSetting share_revenue_setting = 6;
+  interact.LinkmicShareRevenueSettingStruct share_revenue_setting_struct = 7;
+}
+
+message JoinDirectBizContent {
+  int64 reply_im_msg_id = 1;
+
+  .webcast.model.data.MultiGuestOutsideRoomInviteSource outside_room_invite_source = 2;
+  bool is_full_position_pre_approved = 3;
+  int32 mg_source_role = 4;
+}
+
+message MultiLiveContent {
+  ApplyBizContent apply_biz_content = 1;
+  InviteBizContent invite_biz_content = 2;
+  ReplyBizContent reply_biz_content = 3;
+  PermitBizContent permit_biz_content = 4;
+  JoinDirectBizContent join_direct_biz_content = 5;
+  im.KickOutBizContent kick_out_biz_content = 6;
+  im.JoinRoomDirectBizContent join_room_direct_biz_content = 7;
+}
+
+message PermitBizContent {
+  multilive.MultiLiveAnchorPanelSettings anchor_setting_info = 1;
+  int64 expire_timestamp = 2;
+  .webcast.model.base.user.User operator_user_info = 3;
+
+  linkmic.common.LinkMicUserAdminType operator_link_admin_type = 4;
+
+  .webcast.model.data.LinkUserType link_user_type = 5;
+  bool is_apply_auto_approved = 6;
+  int64 link_type_permission = 7;
+  bool is_full_position_pre_approved = 8;
+  bool is_quick_call_auto_approved = 9;
+}
+
+message ReplyBizContent {
+  int32 link_type = 1;
+  int32 is_turn_off_invitation = 2;
+  .webcast.model.base.user.User reply_user_info = 3;
+  bool is_full_position_pre_approved = 4;
+}

@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package webcast.model.gift.assets;
+
+message FaceRecognitionMeta {
+  string version = 1;
+  repeated string requirement = 2;
+  string model_names = 3;
+  string sdk_extra = 4;
+}

@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package webcast.model.message.linker.reply_message;
+
+import "webcast/chatroom/model/multilive.proto";
+import "webcast/model/base/user_2.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/message/invite_top_host_info.proto";
+import "webcast/model/message/linker/mic_update.proto";
+
+message LinkerReplyContent {
+  int64 from_user_id = 1;
+  int64 from_room_id = 2;
+  LinkmicInfo from_user_linkmic_info = 3;
+  int64 to_user_id = 4;
+  LinkmicInfo to_user_linkmic_info = 5;
+  int64 link_type = 6;
+  int32 reply_status = 7;
+  LinkerSetting linker_setting = 8;
+  base.user.User from_user = 9;
+  base.user.User to_user = 10;
+  map<int64, string> rtc_ext_info_map = 11;
+  mic_update.LinkerMicIdxUpdateInfo invitee_mic_idx_update_info = 12;
+  map<int64, int64> applier_mic_idx_info_map = 13;
+
+  data.LinkmicMultiLiveEnum anchor_multi_live_enum = 14;
+  chatroom.model.multilive.MultiLiveAnchorPanelSettings anchor_setting_info = 15;
+  int64 action_id = 16;
+  repeated LinkmicUserInfo linked_users = 17;
+  int64 source_type = 18;
+}
+
+message LinkerSetting {
+  int64 max_member_limit = 1;
+  int64 link_type = 2;
+  int32 scene = 3;
+  int64 owner_user_id = 4;
+  int64 owner_room_id = 5;
+  int32 vendor = 6;
+}
+
+message LinkmicInfo {
+  string access_key = 1;
+  int64 link_mic_id = 2;
+  bool joinable = 3;
+  int32 confluence_type = 4;
+  string rtc_ext_info = 5;
+  string rtc_app_id = 6;
+  string rtc_app_sign = 7;
+  string linkmic_id_str = 8;
+  int32 vendor = 9;
+}

@@ -336,6 +336,10 @@ fn concurrent_award_streams_do_not_lose_increments() {
 }
 
 #[test]
+#[cfg_attr(
+    not(feature = "persistence"),
+    ignore = "requires the persistence (SQLite) feature; exercised by the full CLI capability suite"
+)]
 fn persistence_at_scale_and_restart() {
     let (service, root) = temp_service("persist");
     service.set_cache_capacity(1_000);

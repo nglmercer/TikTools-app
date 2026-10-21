@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package webcast.model.message.linkcore;
+
+import "webcast/model/message/linkcore_link_position.proto";
+
+message MicPositionData {
+  int32 type = 1;
+  LinkPosition link = 2;
+}

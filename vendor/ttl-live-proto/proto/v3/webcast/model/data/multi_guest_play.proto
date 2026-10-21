@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package webcast.model.data.multi_guest_play;
+
+enum PlayScene {
+  UNKNOWN = 0;
+  COUNTDOWN_FOR_ALL = 1;
+  COUNTDOWN_FOR_SINGLE = 2;
+  LIVE_SHOW = 3;
+  AIGC = 4;
+  KARAOKE = 5;
+  DRAW_GUESS = 6;
+  ENLARGE_GRID = 7;
+  GIFT_PRIORITY_LINK = 8;
+  GIFT_THRESHOLD_LINK = 9;
+  NOTICE_BOARD = 10;
+  PLAY_BOOK = 11;
+  GUEST_SHOWDOWN = 12;
+}
+
+enum PlayUserTag {
+  PLAY_USER_TAG_UNKNOWN = 0;
+  GUEST_SHOWDOWN_NORMAL = 1;
+  GUEST_SHOWDOWN_WINNER = 2;
+  GUEST_SHOWDOWN_LOSER = 3;
+}

@@ -1,0 +1,629 @@
+syntax = "proto3";
+
+package webcast.im;
+
+import "webcast/chatroom/interact_model.proto";
+import "webcast/chatroom/model/interact_messages.proto";
+import "webcast/linkmic/common.proto";
+import "webcast/linkmic/common_group_channel_all_user.proto";
+import "webcast/model/base/messages.proto";
+import "webcast/model/base/user_2.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/message/invite_top_host_info.proto";
+import "webcast/model/message/linkcore.proto";
+import "webcast/model/message/linkcore_player.proto";
+import "webcast/model/messages.proto";
+import "webcast/shared/message.proto";
+import "webcast/shared/messages.proto";
+
+enum BarrageMessage_BarrageType {
+  UNKNOWN = 0;
+  E_COM_ORDERING = 1;
+  E_COM_BUYING = 2;
+  NORMAL = 3;
+  SUBSCRIBE = 4;
+  EVENT_VIEW = 5;
+  EVENT_REGISTERED = 6;
+  SUBSCRIBE_GIFT = 7;
+  USER_UPGRADE = 8;
+  GRADE_USER_ENTRANCE_NOTIFICATION = 9;
+  FANS_LEVEL_UPGRADE = 10;
+  FANS_LEVEL_ENTRANCE = 11;
+  GAME_PARTNERSHIP = 12;
+  GIFT_GALLERY = 13;
+  E_COM_BOUGHT = 14;
+  ENIGMA_ENTRANCE = 15;
+  COMMON_BARRAGE = 100;
+}
+
+enum BarrageMessage_IconDisplayType {
+  ICON_DISPLAY_TYPE_IMAGE = 0;
+  ICON_DISPLAY_TYPE_BADGE = 1;
+}
+
+enum BarrageMessage_RenderType {
+  RENDER_TYPE_NATIVE = 0;
+  RENDER_TYPE_HYBRID = 1;
+  RENDER_TYPE_ALPHA = 2;
+}
+
+enum BarrageMessage_ShowType {
+  SHOW_TYPE_NORMAL = 0;
+  SHOW_TYPE_FADE_IN_OUT = 1;
+}
+
+enum BattleCardMsgType {
+  UNKNOWN_CARD_ACTION = 0;
+  CARD_OBTAIN_GUIDE = 1;
+  USE_CRITICAL_STRIKE_CARD = 2;
+  USE_SMOKE_CARD = 3;
+  AWARD_CARD_NOTICE = 4;
+  USE_EXTRA_TIME_CARD = 5;
+  USE_SPECIAL_EFFECT_CARD = 6;
+  USE_POTION_CARD = 7;
+  USE_WAVE_CARD = 8;
+  SPECIAL_EFFECT_NOTICE = 9;
+  USE_TOP_2_CARD = 10;
+  USE_TOP_3_CARD = 11;
+  USE_VAULT_GLOVE_CARD = 12;
+}
+
+enum BattleRewardSettle_RewardStatus {
+  REWARD_STATUS_SUCCEED = 0;
+  REWARD_STATUS_FAILED = 1;
+}
+
+enum BattleTaskMessageType {
+  START = 0;
+  TASK_UPDATE = 1;
+  TASK_SETTLE = 2;
+  REWARD_SETTLE = 3;
+}
+
+enum BattleTaskSettle_Result {
+  SUCCEED = 0;
+  FAILED = 1;
+  BOTH_SUCCEED = 2;
+}
+
+enum BizType {
+  DEFAULT = 0;
+  RETHINK_CHAT = 1;
+  RETHINK_QA = 2;
+  WARNING_TAG_CURRENT_ROOM = 3;
+  WARNING_TAG_COHOST_ROOM = 4;
+  AGS_AT_RISK_OF_UNABLE_TO_COMMENT = 5;
+  PERCEPTION_CENTER = 6;
+}
+
+enum ContentInviteSource {
+  INVITE_SOURCE_UNKNOWN = 0;
+  INVITE_SOURCE_PANEL_GO_LIVE = 1;
+  INVITE_SOURCE_MUTUAL_NOTICE = 2;
+  INVITE_SOURCE_USER_PROFILE = 3;
+  INVITE_SOURCE_RESERVE = 4;
+}
+
+enum DisplayStyle {
+  DISPLAY_STYLE_NORMAL = 0;
+  STAY = 1;
+  CHAT = 2;
+}
+
+enum ExhibitionType {
+  EXHIBITION_TYPE_DEFAULT = 0;
+  FOLD = 1;
+  PUBLIC_SCREEN = 2;
+}
+
+enum GameActionType {
+  SHOW = 0;
+  JUMP = 1;
+  FOLLOW = 2;
+  COMMENT = 3;
+}
+
+enum GameRankNotifyMessage_MsgType {
+  MSG_TYPE_RANK_IN_OUT = 0;
+  MSG_TYPE_RANK_CHANGE = 1;
+  MSG_TYPE_ANCHOR_ENCOURAGE = 2;
+  MSG_TYPE_UN_KNOW = 255;
+}
+
+enum GiftMessageIgnoreConfig {
+  NOT_IGNORE = 0;
+  IGNORE_TRAY = 1;
+  IGNORE_PSM = 2;
+  IGNORE_TRAY_AND_PSM = 3;
+}
+
+enum GiftMessageVersion {
+  NUM_0 = 0;
+  NUM_1 = 1;
+}
+
+enum GiftSource {
+  GIFT_SOURCE_UNKNOWN = 0;
+  PLATFORM = 1;
+  USER_BUY_RANDOM = 2;
+  USER_BUY_SPECIFIC = 3;
+}
+
+enum HitABStatus {
+  NO_HIT = 0;
+  ENTER_FROM_EXTERNAL_LINK_NEW_TEXT = 1;
+  ENTER_FROM_RE_POST_NEW_TEXT = 2;
+}
+
+enum JumpPage {
+  GIFT_GOAL_SOURCE = 0;
+  GIFT_ALERT_SOURCE = 1;
+  COHOST_SETTING = 2;
+  GIFT_ER_RANK_LIST = 3;
+  WEEKLY_GAME_RANK_LIST = 4;
+  FANS_CLUB = 5;
+  GOODY_BAG_SETTING = 6;
+  GAME_GUESS_SETTING = 7;
+  ADMIN_SETTING = 8;
+  GIFT_ALERT_TTS = 9;
+  LIVE_GOAL = 10;
+  TREASURE_BOX = 11;
+  GAME_REWARDS = 12;
+  POLL = 13;
+  SUBSCRIPTION = 14;
+  MONET_IZ_ATION_TIPS_SETTING = 15;
+  EXTENDING_COUNTDOWN = 16;
+  PLAY_TOGETHER = 17;
+  MULTI_GUEST = 18;
+  PARTNERSHIP = 19;
+  GIFT_NOTIFICATION = 20;
+  JUMP_PAGE_GIFT_GALLERY = 21;
+  PK_LTE_2 = 22;
+  COHOST_SETTING_FOR_RANKING = 23;
+  PK_GTE_3 = 24;
+  GIFT_LIST = 25;
+  RANK_STICKER_SETTING = 26;
+}
+
+enum LinkLayerMessageType {
+  LINKER_UNKNOWN = 0;
+  LINKER_CREATE = 1;
+  LINKER_INVITE = 2;
+  LINKER_APPLY = 3;
+  LINKER_PERMIT = 4;
+  LINKER_REPLY = 5;
+  LINKER_KICK_OUT = 6;
+  LINKER_CANCEL_APPLY = 7;
+  LINKER_CANCEL_INVITE = 8;
+  LINKER_LEAVE = 9;
+  LINKER_FINISH = 10;
+  LINKER_LIST_CHANGE = 11;
+  LINKER_JOIN_DIRECT = 12;
+  LINKER_JOIN_GROUP = 13;
+  LINKER_PERMIT_GROUP = 14;
+  LINKER_CANCEL_GROUP = 15;
+  LINKER_LEAVE_GROUP = 16;
+  LINKER_P_2_P_GROUP_CHANGE = 17;
+  LINKER_GROUP_CHANGE = 18;
+}
+
+enum LinkMicArmies_TriggerReason {
+  LINK_MIC_ARMIES_TRIGGER_REASON_UNKNOWN = 0;
+  SCORE_UPDATE = 1;
+  BATTLE_END = 2;
+  OPT_OUT_UPDATE = 3;
+  KEEP_ALIVE = 4;
+  EFFECT_UPDATE = 5;
+}
+
+enum LinkMicBattlePunishFinish_Reason {
+  TIME_UP = 0;
+  CUT_SHORT = 1;
+}
+
+enum LinkMicBattle_BattleAction {
+  LINK_MIC_BATTLE_BATTLE_ACTION_UNKNOWN = 0;
+  INVITE = 1;
+  REJECT = 2;
+  CANCEL = 3;
+  OPEN = 4;
+  FINISH = 5;
+  LINK_MIC_BATTLE_BATTLE_ACTION_CUT_SHORT = 6;
+  ACCEPT = 7;
+  QUIT_APPLY = 8;
+  DECLINE_QUIT = 9;
+  DECLINE_OFF_QUIT = 10;
+  LEAVE_LINKMIC = 11;
+}
+
+enum MessageDisplayStyle {
+  MESSAGE_DISPLAY_STYLE_DEFAULT = 0;
+  POPUP = 1;
+}
+
+enum MessageType {
+  SUB_SUCCESS = 0;
+  ANCHOR_REMINDER = 1;
+  ENTER_ROOM_EXPIRE_SOON = 2;
+  SUB_GOAL_CREATE_TO_ANCHOR = 3;
+  SUB_GOAL_COMPLETE_TO_AUDIENCE = 4;
+  SUB_GOAL_COMPLETE_TO_ANCHOR = 5;
+  SUB_GIFT_TIKTOK_2_USER_NOTICE = 6;
+  SUB_GIFT_TIKTOK_2_ANCHOR_NOTICE = 7;
+  SUB_GIFT_T_RECEIVES_END_NOTICE = 8;
+  SUB_GIFTS_END_SUCCEED_ROOM_MESSAGE = 9;
+  SUB_GIFTS_END_SUCCEED_ANCHOR_NOTICE = 10;
+  SUB_GIFT_LOW_VERSION_UPGRADE_NOTICE = 11;
+  SUB_GIFT_USER_BUY_AU_TH_NOTICE = 12;
+  SUB_COMMON_TEXT_NOTICE = 13;
+  SUB_MODERATOR_PIN_PERK = 14;
+}
+
+enum MicIdxOperation {
+  MIC_IDX_OP_ON = 0;
+  MIC_IDX_OP_OFF = 1;
+}
+
+enum OldSubscribeStatus {
+  FIRST = 0;
+  RESUB = 1;
+  SUB_IN_GRACE_PERIOD = 2;
+  SUB_NOT_IN_GRACE_PERIOD = 3;
+  OLD_SUBSCRIBE_STATUS_DEFAULT = 100;
+}
+
+enum OpType {
+  OP_TYPE_DEFAULT = 0;
+  ADD = 1;
+  REMOVE = 2;
+  RELOAD = 3;
+  BASIC_EFFECT = 4;
+}
+
+enum PartnershipDropsUpdateMessage_ChangeMode {
+  CHANGE_MODE_SHOW = 0;
+  CHANGE_MODE_UPDATE = 1;
+  CHANGE_MODE_CLOSE = 2;
+}
+
+enum PartnershipGameOfflineMessage_OfflineGameInfo_OfflineType {
+  TASK_OFFLINE = 0;
+  EVENT_OFFLINE = 1;
+  DROPS_OFFLINE = 2;
+}
+
+enum PinMessage_actionType {
+  UN_KOWN = 0;
+  PIN = 1;
+  PIN_CANCEL = 2;
+}
+
+enum PublicAreaMessageCommon_CreatorSuccessInfo_Topic_DisplayLocation {
+  DISPLAY_LOCATION_FULL_SCREEN = 0;
+  DISPLAY_LOCATION_PUBLIC_SCREEN = 1;
+  DISPLAY_LOCATION_BOTH = 2;
+}
+
+enum PublicAreaMessageCommon_PortraitInfo_UserMetrics_UserMetricsType {
+  USER_METRICS_TYPE_UNKNOWN = 0;
+  USER_METRICS_TYPE_GRADE = 1;
+  USER_METRICS_TYPE_SUBSCRIBE = 2;
+  USER_METRICS_TYPE_FOLLOW = 3;
+  USER_METRICS_TYPE_FANS_CLUB = 4;
+  USER_METRICS_TYPE_TOP_VIEWER = 5;
+  USER_METRICS_TYPE_GIFT = 6;
+}
+
+enum RankTextMessage_RankTestMessageScene {
+  RANK_TEXT_MESSAGE_RANK_TEST_MESSAGE_SCENE_UNKNOWN = 0;
+  ONLINE_AUDIENCE_TOP_N_UPDATE_PUBLIC_SCREEN = 1;
+  MID_PEAK_MOTIVATION_PUBLIC_SCREEN_TOP = 2;
+  MID_PEAK_MOTIVATION_PUBLIC_SCREEN_ENTER = 3;
+  TILE_REWARD_GUIDE = 4;
+}
+
+enum ScoreType {
+  SCORE_TYPE_UNKNOWN = 0;
+  ALL_FAN_TICKET = 1;
+  PLAY_SCORE = 2;
+}
+
+enum ShowType {
+  HOVER = 0;
+  PLUG = 1;
+}
+
+enum SubPinEventMessage_ActionType {
+  SUB_PIN_EVENT_MESSAGE_ACTION_TYPE_UNKNOWN = 0;
+  SUB_PIN_EVENT_MESSAGE_ACTION_TYPE_PIN = 1;
+  UNPIN = 2;
+}
+
+enum SubscribeType {
+  ONCE = 0;
+  AUTO = 1;
+  SUBSCRIBE_TYPE_DEFAULT = 100;
+}
+
+enum SubscribingStatus {
+  SUBSCRIBING_STATUS_UNKNOWN = 0;
+  SUBSCRIBING_STATUS_ONCE = 1;
+  CIRCLE = 2;
+  CIRCLE_CANCEL = 3;
+  REFUND = 4;
+  IN_GRACE_PERIOD = 5;
+  NOT_IN_GRACE_PERIOD = 6;
+}
+
+enum TextType {
+  DISPLAY_TEXT = 0;
+  CONTENT = 1;
+}
+
+enum UnionAnimationInfoType {
+  NO_UNION_ANIMATION = 0;
+  LOOP = 1;
+  LOCK = 2;
+}
+
+message BizLayoutState {
+  MultiGuestBizLayoutExtra multi_guest_biz_layout_extra = 1;
+  CoHostBizLayoutExtra co_host_biz_layout_extra = 2;
+}
+
+message BizSpotExtra {
+  MultiGuestBizSpotExtra multi_guest_biz_spot_extra = 1;
+  CoHostBizSpotExtra co_host_biz_spot_extra = 2;
+}
+
+message BizSpotInfo {
+  int32 spot_id = 1;
+  linkmic.common.PosIdentity pos_identity = 2;
+  BizSpotExtra biz_spot_extra = 3;
+}
+
+message CancelJoinGroupContent {
+  repeated linkmic.common.GroupPlayer leaver = 1;
+  linkmic.common.GroupPlayer operator = 2;
+
+  linkmic.common.JoinType type = 3;
+  linkmic.common.GroupChannelAllUser group_user = 4;
+}
+
+message CoHostBizLayoutExtra {
+}
+
+message CoHostBizSpotExtra {
+}
+
+message CohostContent {
+  JoinGroupBizContent join_group_biz_content = 1;
+  PermitJoinGroupBizContent permit_join_group_biz_content = 2;
+  ListChangeBizContent list_change_biz_content = 11;
+  JoinGroupDirectBizContent join_group_direct_biz_content = 119;
+}
+
+message GroupChangeContent {
+  linkmic.common.GroupChannelAllUser group_user = 1;
+  repeated string linked_user_ui_positions = 2;
+}
+
+message InvitationReorderExtra {
+  int64 strategy_number = 1;
+  string strategy_name = 2;
+  double strategy_score = 3;
+}
+
+message JoinGroupBizContent {
+  int32 from_room_age_restricted = 1;
+  chatroom.interact.model.Tag from_tag = 2;
+  model.message.PerceptionDialogInfo dialog = 3;
+  model.message.PunishEventInfo punish_info = 4;
+  chatroom.model.interact.CohostTopic topic_info = 5;
+  string algo_request_id = 6;
+
+  model.data.CohostLayoutMode cohost_layout_mode = 7;
+  chatroom.model.interact.TagV2 tag = 8;
+  chatroom.model.interact.RivalsGameTag game_tag = 9;
+  string new_user_education = 11;
+  map<int64, chatroom.model.interact.CohostABInfo> ab_infos = 12;
+  int32 matched_preference_tag = 13;
+  JoinGroupMessageExtra join_group_msg_extra = 101;
+}
+
+message JoinGroupContent {
+  linkmic.common.GroupChannelAllUser group_user = 1;
+  linkmic.common.GroupPlayer join_user = 2;
+
+  linkmic.common.JoinType type = 3;
+  repeated model.message.linkcore.RTCExtraInfo group_ext_info = 4;
+}
+
+message JoinGroupDirectBizContent {
+  chatroom.model.interact.GamePlayContent gameplay_content = 1;
+  chatroom.model.interact.RandomMatchContent random_match_content = 2;
+  bool skip_cancel_match = 3;
+}
+
+message JoinGroupDirectContent {
+  repeated model.message.linkcore.RTCExtraInfo group_ext_info = 1;
+  linkmic.common.GroupChannelAllUser group_user = 2;
+  linkmic.common.MigrationDetails migration_details = 3;
+  repeated linkmic.common.ContentPosition content_pos = 4;
+  linkmic.common.LayoutData cross_room_layout = 5;
+}
+
+message JoinGroupMessageExtra {
+  int64 source_type = 1;
+  RivalExtra extra = 2;
+  repeated RivalExtra other_users = 3;
+  InvitationReorderExtra invitation_reorder_extra = 4;
+  map<int64, RivalGuestExtras> rival_guests_map = 5;
+  bool is_from_cohost_over_issue = 6;
+}
+
+message JoinRoomDirectBizContent {
+  int64 link_type_permission = 1;
+  bool is_full_position_pre_approved = 2;
+}
+
+message JoinRoomDirectContent {
+  model.message.linkcore.Player joiner = 1;
+  string joiner_link_mic_id = 2;
+  model.message.linkcore.RTCExtraInfo joiner_ext_info = 3;
+  linkmic.common.LayoutState layout = 4;
+  repeated linkmic.common.SpotInfo spot_list = 5;
+  repeated linkmic.common.PosIdentity ui_pos = 6;
+}
+
+message JustDanceExtra {
+}
+
+message JustDanceLayoutExtra {
+  string just_dance_song_title = 1;
+}
+
+message KickOutBizContent {
+  model.base.user.User operator_user_info = 1;
+
+  linkmic.common.LinkMicUserAdminType operator_link_admin_type = 2;
+  model.base.user.User kick_player_user_info = 3;
+}
+
+message LeaveJoinGroupContent {
+  linkmic.common.GroupPlayer operator = 1;
+  int64 group_channel_id = 2;
+  string leave_source = 3;
+  repeated string linked_user_ui_positions = 4;
+}
+
+message LinkEnvelopeContent {
+  linkmic.common.LinkUserIdentity sender = 1;
+  linkmic.common.LinkUserIdentity receiver = 2;
+  linkmic.common.LinkEnvelopeMessagePayload message_payload = 10;
+}
+
+message ListChangeBizContent {
+  map<int64, linkmic.common.CohostUserInfo> user_infos = 1;
+  repeated chatroom.model.interact.VirtualWaitingUser waiting_users = 2;
+  map<int64, chatroom.model.interact.CohostABInfo> ab_infos = 3;
+  map<int64, linkmic.common.GuestUserInfo> guest_user_infos = 4;
+  chatroom.model.interact.GamePlayContent gameplay_content = 5;
+}
+
+message MultiGuestBizLayoutExtra {
+  JustDanceLayoutExtra just_dance_layout_extra = 1;
+}
+
+message MultiGuestBizSpotExtra {
+  SoundWareEffectExtra sound_ware_effect_extra = 1;
+  JustDanceExtra just_dance_extra = 2;
+}
+
+message P2PGroupChangeContent {
+  repeated model.message.linkcore.RTCExtraInfo group_ext_info = 1;
+  linkmic.common.GroupChannelAllUser group_user = 2;
+  linkmic.common.MigrationDetails migration_details = 3;
+  repeated linkmic.common.ContentPosition content_pos = 4;
+  linkmic.common.LayoutData cross_room_layout = 5;
+}
+
+message PermitJoinGroupBizContent {
+
+  linkmic.common.ReplyStatus reply_status = 1;
+
+  linkmic.common.SourceType source_type = 2;
+  bool skip_cancel_match = 3;
+  int32 matched_preference_tag = 4;
+  QuickCohostInviteeUserInfo quick_cohost_invitee_user_info = 5;
+}
+
+message PermitJoinGroupContent {
+  linkmic.common.GroupPlayer approver = 1;
+
+  linkmic.common.AgreeStatus agree_status = 2;
+
+  linkmic.common.JoinType type = 3;
+  repeated model.message.linkcore.RTCExtraInfo group_ext_info = 4;
+  linkmic.common.GroupChannelAllUser group_user = 5;
+  linkmic.common.MigrationDetails migration_details = 6;
+  repeated string linked_user_ui_positions = 7;
+  int32 permit_group_type = 8;
+  linkmic.common.LayoutData cross_room_layout = 9;
+}
+
+message QuickCohostInviteeUserInfo {
+  model.base.ImageModel avatar_thumb = 1;
+  string nickname = 2;
+}
+
+message RivalExtra {
+  int64 user_count = 4;
+  model.base.ImageModel avatar_thumb = 5;
+  string display_id = 6;
+  shared.AuthenticationInfo authentication_info = 7;
+  string nickname = 8;
+  int64 follow_status = 9;
+  model.Hashtag hashtag = 10;
+  chatroom.model.interact.TopHostInfo top_host_info = 11;
+  int64 user_id = 12;
+  bool is_best_teammate = 13;
+  chatroom.model.interact.OptPairInfo opt_pair_info = 14;
+  int64 eoy_level = 15;
+
+  model.data.CohostNudgeInfo nudge_info = 16;
+  int64 reservation_id = 17;
+  int64 follower_count = 18;
+  chatroom.model.interact.RivalsGameTag game_tag = 19;
+  chatroom.model.interact.GiftGalleryBadgeInfo gift_gallery_badge_info = 20;
+  int64 room_id = 21;
+  chatroom.model.interact.ActivityBadgeInfo activity_badge_info = 22;
+}
+
+message RivalGuestExtra {
+  int64 user_id = 1;
+  model.base.ImageModel avatar_thumb = 2;
+  string nickname = 3;
+}
+
+message RivalGuestExtras {
+  repeated RivalGuestExtra rival_guests = 1;
+}
+
+message SoundWareEffectExtra {
+  string static_image_name = 1;
+  string dynamic_image_name = 2;
+  int64 user_right_id = 3;
+  int64 right_id = 4;
+}
+
+message WebcastLinkMicLayoutStateMessage {
+
+  shared.message.CommonMessageData common = 1;
+  int64 channel_id = 2;
+  int32 scene = 3;
+  int64 version = 4;
+  BizLayoutState biz_layout_state = 5;
+  repeated BizSpotInfo biz_spot_list = 6;
+}
+
+message WebcastLinkStateMessage {
+
+  shared.message.CommonMessageData common = 1;
+  int64 channel_id = 2;
+
+  linkmic.common.Scene scene = 3;
+  int64 version = 4;
+  int32 need_ack = 5;
+  linkmic.common.LayoutState layout = 6;
+  repeated linkmic.common.LinkUserState user_states = 7;
+  int64 client_send_time = 8;
+
+  linkmic.common.StateType state_type = 9;
+  linkmic.common.BackGroundImageState background = 10;
+  string wallpaper_url = 12;
+  repeated linkmic.common.PosIdentity ui_pos = 13;
+  repeated linkmic.common.SpotInfo spot_list = 14;
+  repeated int64 audio_muted_remote_channels = 15;
+  int32 linker_mode = 16;
+}

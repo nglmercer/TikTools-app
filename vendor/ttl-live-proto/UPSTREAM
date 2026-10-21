@@ -1,0 +1,13 @@
+repository=https://github.com/isaackogan/TikTok-Webcast-Protobuf
+path=src/slim/v3
+commit=cf7bcd49d59926b44c1c4e2632df5558bf3e8169
+date=2026-07-22
+license=AGPL-3.0-only
+license_file=LICENSE.upstream
+
+The contents of `proto/v3/` are copied verbatim from the upstream repository at
+the commit pinned above. They are NOT covered by the MIT license that applies to
+the rest of this workspace; see LICENSE.upstream and README.md in this crate.
+
+To update, run `scripts/update-tiktok-protos.sh <commit>` from the repo root.
+Never fetch schemas from `main` at build time.

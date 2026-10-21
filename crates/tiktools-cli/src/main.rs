@@ -103,7 +103,12 @@ fn run() -> i32 {
             return 3;
         }
     };
-    runtime.block_on(dispatch(args, json_mode, standalone))
+    let code = runtime.block_on(dispatch(args, json_mode, standalone));
+    // Tokio's blocking stdin read cannot be cancelled while a pipe stays
+    // open. Hosts have already awaited AppCore cleanup; do not let idle
+    // stdio keep SIGINT/SIGTERM shutdown waiting forever on runtime drop.
+    runtime.shutdown_timeout(std::time::Duration::from_secs(1));
+    code
 }
 
 async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {

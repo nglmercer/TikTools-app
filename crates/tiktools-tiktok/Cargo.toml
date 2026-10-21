@@ -7,6 +7,7 @@ rust-version.workspace = true
 description = "Desktop-independent TikTok client boundary"
 
 [dependencies]
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", features = ["http-client"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -21,3 +22,7 @@ ttl-live-events.workspace = true
 ttl-live-ws.workspace = true
 ttl-sign-headless.workspace = true
 ttl-sign-embedded.workspace = true
+
+# Android has no shipped QuickJS bindings: generate against native Bionic headers.
+[target.'cfg(target_os = "android")'.dependencies]
+rquickjs = { version = "0.12.2", default-features = false, features = ["bindgen"] }

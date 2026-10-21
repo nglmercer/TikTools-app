@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package webcast.linkmic.common;
+
+import "webcast/linkmic/common.proto";
+import "webcast/model/message/linkcore.proto";
+
+message GroupChannelUser {
+  int64 channel_id = 1;
+
+  GroupStatus status = 2;
+
+  JoinType type = 3;
+  model.message.linkcore.AllListUser all_user = 4;
+  int64 join_time = 5;
+  int64 linked_time = 6;
+  GroupPlayer owner_user = 7;
+  string group_linkmic_id = 8;
+}

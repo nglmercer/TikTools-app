@@ -1,0 +1,318 @@
+syntax = "proto3";
+
+package webcast.model;
+
+import "webcast/model/base/messages.proto";
+import "webcast/model/base/user.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/model/gift/assets.proto";
+import "webcast/model/gift/model.proto";
+
+message ActivityRewardInfo {
+  base.ImageModel badge = 1;
+  base.ImageModel storytag = 2;
+}
+
+message AnchorInfo {
+  int64 level = 1;
+}
+
+message AnchorLevel {
+  int32 level = 1;
+  int64 experience = 2;
+  int64 lowest_experience_this_level = 3;
+  int64 highest_experience_this_level = 4;
+  int64 task_start_experience = 5;
+  int64 task_start_time = 6;
+  int64 task_decrease_experience = 7;
+  int64 task_target_experience = 8;
+  int64 task_end_time = 9;
+  base.ImageModel profile_dialog_bg = 10;
+  base.ImageModel profile_dialog_bg_back = 11;
+  base.ImageModel stage_level = 12;
+  base.ImageModel small_icon = 13;
+}
+
+message AudioResource {
+  string audio_url = 1;
+  string lyrics_url = 2;
+  int64 snippet_id = 3;
+}
+
+message AuthenticationInfo {
+  string custom_verify = 1;
+  string enterprise_verify_reason = 2;
+  base.ImageModel authentication_badge = 3;
+  bool has_cert = 4;
+}
+
+message Author {
+  int64 video_total_count = 1;
+  int64 video_total_play_count = 2;
+  int64 video_total_favorite_count = 6;
+}
+
+message BatchGiftInfo {
+  bool can_batch_send = 1;
+  repeated int64 available_counts = 2;
+}
+
+message BorderInfo {
+  base.ImageModel icon = 1;
+  int64 level = 2;
+  string source = 3;
+  base.ImageModel profile_decoration_ribbon = 4;
+  base.user.PrivilegeLogExtra border_privilege_log_extra = 5;
+  base.user.PrivilegeLogExtra profile_privilege_log_extra = 6;
+  string avatar_background_color = 7;
+  string avatar_background_border_color = 8;
+  string name_starling_key = 9;
+  string desc_starling_key = 10;
+  string name = 11;
+  string description = 12;
+  bool is_taller_avatar_background = 13;
+}
+
+message ColorGroup {
+  string group_name = 1;
+  repeated gift.model.GiftColorInfo color_infos = 2;
+}
+
+message ColorPickerInfo {
+  repeated ColorGroup groups = 1;
+}
+
+message CrossScreenEffectInfo {
+  map<int64, int32> single_action_effect_ids = 1;
+  map<int64, int32> action_effect_ids = 2;
+  map<int64, int32> reaction_effect_ids = 3;
+}
+
+message FansClubData {
+  string club_name = 1;
+  int32 level = 2;
+
+  data.User_FansClub_FansClubData_UserFansClubStatus user_fans_club_status = 3;
+  UserBadge badge = 4;
+  repeated int64 available_gift_ids = 5;
+  int64 anchor_id = 6;
+}
+
+message FansClubMember {
+  FansClubData data = 1;
+  map<int32, FansClubData> prefer_data = 2;
+}
+
+message GiftBoxInfo {
+  int64 capacity = 1;
+  bool is_primary_box = 2;
+  string scheme_url = 3;
+
+  repeated GiftInfoInBox gift_infos_in_box = 4;
+}
+
+message GiftInfoInBox {
+  int64 gift_id = 1;
+  int64 effect_id = 2;
+  int64 color_id = 3;
+  int32 remain_times = 4;
+  gift.assets.AssetsModel asset = 5;
+}
+
+message GiftLockInfo {
+  bool lock = 1;
+  int32 lock_type = 2;
+  int32 gift_level = 3;
+  bool highlight_enabled = 4;
+  string unlock_button_text = 5;
+  string unlock_schema = 6;
+}
+
+message GiftRandomEffectInfo {
+  RandomGiftPanelBanner random_gift_panel_banner = 1;
+  repeated int64 effect_ids = 2;
+  string host_key = 3;
+  string audience_key = 4;
+  RandomGiftBubble random_gift_bubble = 5;
+}
+
+message GiftSeriesInfo {
+  string series_name = 2;
+  repeated int64 gift_ids = 3;
+  bool enabled = 4;
+  base.ImageModel container_background = 5;
+  string send_gift_button_color = 6;
+  string pointing_back_tri_color = 7;
+  string series_name_color = 8;
+  int64 end_time_sec = 9;
+}
+
+message GiftSkin {
+  int64 gift_skin_id = 1;
+  string gift_skin_name = 2;
+  base.ImageModel static_image = 3;
+  base.ImageModel animated_image = 4;
+}
+
+message GiftSkinToGiftTextsInfo {
+  int64 gift_skin_id = 1;
+  repeated int64 gift_text_ids = 2;
+}
+
+message GiftSponsorInfo {
+  int64 sponsor_id = 1;
+  int64 sponsor_count = 2;
+  int64 current_count = 3;
+  int64 left_count_to_sponsor = 4;
+  bool can_sponsor = 5;
+}
+
+message GiftText {
+  int64 gift_text_id = 1;
+  string gift_text_name = 2;
+}
+
+message GiftsBoxInfo {
+  repeated GiftInfoInBox gifts_info_in_box = 1;
+}
+
+message GradeIcon {
+  base.ImageModel icon = 1;
+  int32 icon_diamond = 2;
+  int32 level = 3;
+  string level_str = 4;
+}
+
+message Hashtag {
+  int64 id = 1;
+  string title = 2;
+  base.ImageModel image = 3;
+
+  data.HashtagNamespace namespace = 4;
+}
+
+message LikeEffect {
+  int64 version = 1;
+  int64 effect_cnt = 2;
+  int64 effect_interval_ms = 3;
+  int64 level = 4;
+}
+
+message LiveEventInfo {
+  int64 event_id = 1;
+  int64 start_time = 2;
+  int64 duration = 3;
+  string title = 4;
+  string description = 5;
+  bool has_subscribed = 6;
+  bool is_paid_event = 7;
+  int64 ticket_amount = 8;
+
+  data.LiveEventInfo_EventPayMethod pay_method = 9;
+  map<string, WalletPackage> wallet_pkg_dict = 10;
+  repeated data.EventUserInfo event_user_info = 11;
+  int64 subscribed_count = 12;
+  data.PaidEventPreview paid_event_preview = 13;
+  WalletPackage wallet_package = 14;
+  int64 register_type = 15;
+  string periodic_settings = 16;
+  string periodic_shows = 17;
+}
+
+message LynxCrossScreenEffectInfo {
+  repeated int64 effect_ids = 4;
+}
+
+message MusicGiftInfo {
+  string artist_name = 1;
+  AudioResource resource = 2;
+  int64 song_id = 3;
+  int64 mood_id = 4;
+  string song_name = 5;
+}
+
+message RandomGiftBubble {
+  string display_text = 1;
+  base.ImageModel icon_dynamic_effect = 2;
+}
+
+message RandomGiftPanelBanner {
+
+  base.ImageModel bg_image = 1;
+  base.ImageModel shading_image = 2;
+  int64 target_num = 3;
+  int64 collect_num = 4;
+  string display_text = 5;
+  base.ImageModel left_icon = 6;
+  string schema_url = 7;
+  repeated string bg_color_values = 8;
+  int64 round = 9;
+  int32 banner_priority = 10;
+}
+
+message SchemeInfo {
+
+  data.GiftStruct_SchemeGiftType scheme_gift_type = 1;
+  string scheme_url = 2;
+  string scheme_describe = 3;
+  string scheme_describe_color = 4;
+}
+
+message UGGiftStructInfo {
+  bool is_ug_gift = 1;
+  int64 ug_points_cost = 2;
+}
+
+message UserAttr {
+  bool is_muted = 1;
+  bool is_admin = 2;
+  bool is_super_admin = 3;
+  int64 mute_duration = 4;
+  map<int32, int32> admin_permissions = 5;
+  bool has_voting_function = 6;
+  bool is_channel_admin = 7;
+}
+
+message UserBadge {
+  map<int32, base.ImageModel> icons = 1;
+  string title = 2;
+}
+
+message UserHonor {
+  int64 deprecated20 = 1;
+  base.ImageModel diamond_icon = 2;
+  string name = 3;
+  base.ImageModel icon = 4;
+  string next_name = 5;
+  int32 level = 6;
+  base.ImageModel next_icon = 7;
+  int64 deprecated23 = 9;
+  int64 deprecated24 = 10;
+  int64 deprecated25 = 11;
+  string grade_describe = 13;
+  repeated GradeIcon grade_icon_list = 14;
+  int64 screen_chat_type = 15;
+  base.ImageModel im_icon = 16;
+  base.ImageModel im_icon_with_level = 17;
+  base.ImageModel live_icon = 18;
+  base.ImageModel new_im_icon_with_level = 19;
+  base.ImageModel new_live_icon = 20;
+  int64 upgrade_need_consume = 21;
+  string next_privileges = 22;
+  base.ImageModel background = 23;
+  base.ImageModel background_back = 24;
+  int64 score = 25;
+  string grade_banner = 1001;
+}
+
+message VoteUser {
+  int64 user_id = 1;
+  string nick_name = 2;
+  base.ImageModel avatar_thumb = 3;
+  int64 vote_count = 4;
+}
+
+message WalletPackage {
+  string iap_id = 1;
+  string usd_price_show = 2;
+}

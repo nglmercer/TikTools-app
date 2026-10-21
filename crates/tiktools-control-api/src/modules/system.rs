@@ -100,6 +100,11 @@ pub fn register(router: &mut ControlRouter) {
         "Probe raw-input access; install the seat rule via one polkit prompt when blocked",
         true,
         |core: Arc<AppCore>, _params: Empty| async move {
+            if cfg!(target_os = "android") {
+                return Err(ApiError::capability_unavailable(
+                    "global input access has no Android backend",
+                ));
+            }
             // Subprocesses (polkit prompt) stay off Tokio workers.
             let outcome = crate::modules::blocking_task("system.requestInputAccess", move || {
                 core.request_input_access()

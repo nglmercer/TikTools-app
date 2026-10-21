@@ -42,6 +42,8 @@ pub fn direct_client() -> TikToolsClient {
 /// so a process-wide variable is safe.
 pub struct SandboxHome {
     path: std::path::PathBuf,
+    previous: Vec<(&'static str, Option<std::ffi::OsString>)>,
+    previous_directory: std::path::PathBuf,
 }
 
 impl SandboxHome {
@@ -53,14 +55,46 @@ impl SandboxHome {
         let path =
             std::env::temp_dir().join(format!("tiktools-verify-{}-{unique}", std::process::id()));
         std::fs::create_dir_all(&path)?;
-        std::env::set_var("TIKTOOLS_HOME", &path);
-        Ok(Self { path })
+        let previous_directory = std::env::current_dir()?;
+        // Legacy database migration and development plugin discovery must not
+        // inspect the caller's checkout while verifying a clean sandbox.
+        std::env::set_current_dir(&path)?;
+        let mut previous = Vec::new();
+        for (key, directory) in [
+            ("TIKTOOLS_HOME", "home"),
+            ("TIKTOOLS_DATA_DIR", "data"),
+            ("TIKTOOLS_PLUGINS_DIR", "plugins"),
+            ("TIKTOOLS_PLUGIN_DATA_DIR", "plugin-data"),
+            ("TIKTOOLS_LOG_DIR", "logs"),
+            ("TIKTOOLS_TEMP_DIR", "temp"),
+            ("TIKTOOLS_BUILTIN_PLUGINS_DIR", "builtin-plugins"),
+            ("TIKTOOLS_DEV_PLUGINS_DIR", "development-plugins"),
+        ] {
+            previous.push((key, std::env::var_os(key)));
+            std::env::set_var(key, path.join(directory));
+        }
+        previous.push((
+            "TIKTOOLS_SESSION_COOKIE",
+            std::env::var_os("TIKTOOLS_SESSION_COOKIE"),
+        ));
+        std::env::remove_var("TIKTOOLS_SESSION_COOKIE");
+        Ok(Self {
+            path,
+            previous,
+            previous_directory,
+        })
     }
 }
 
 impl Drop for SandboxHome {
     fn drop(&mut self) {
-        std::env::remove_var("TIKTOOLS_HOME");
+        for (key, previous) in &self.previous {
+            match previous {
+                Some(value) => std::env::set_var(key, value),
+                None => std::env::remove_var(key),
+            }
+        }
+        let _ = std::env::set_current_dir(&self.previous_directory);
         let _ = std::fs::remove_dir_all(&self.path);
     }
 }

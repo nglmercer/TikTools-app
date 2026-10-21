@@ -10,6 +10,8 @@ mod context;
 mod decode;
 mod enrich;
 mod error;
+#[cfg(feature = "http-client")]
+pub mod http;
 pub mod native;
 #[cfg(feature = "providers")]
 pub mod native_providers;

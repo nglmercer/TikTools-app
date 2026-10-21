@@ -1,0 +1,250 @@
+syntax = "proto3";
+
+package webcast.model.base.user;
+
+import "webcast/chatroom/api.proto";
+import "webcast/model/base/messages.proto";
+import "webcast/model/data/messages.proto";
+
+message ArrowConfig {
+  ImageModel icon = 1;
+}
+
+message BadgeStruct {
+
+  data.BadgeDisplayType display_type = 1;
+
+  data.BadgePriorityType priority_type = 2;
+
+  data.BadgeSceneType scene_type = 3;
+
+  data.Position position = 4;
+
+  data.DisplayStatus display_status = 5;
+  int64 greyed_by_client = 6;
+
+  data.BadgeExhibitionType exhibition_type = 7;
+  string openweburl = 10;
+  bool display = 11;
+  PrivilegeLogExtra privilege_log_extra = 12;
+  ImageBadge image = 20;
+  TextBadge text = 21;
+  StringBadge str = 22;
+  CombineBadgeStruct combine = 23;
+  bool is_customized = 24;
+}
+
+message BadgeText {
+  string key = 1;
+  string default_pattern = 2;
+  repeated string pieces = 3;
+}
+
+message CombineBadgeBackground {
+  ImageModel image = 1;
+  string background_color_code = 2;
+  string border_color_code = 3;
+  StretchableBackgroundImage stretchable_background_image = 4;
+  ImageModel left_side_image = 5;
+}
+
+message CombineBadgeStruct {
+  int32 display_type = 1;
+  ImageModel icon = 2;
+  BadgeText text = 3;
+  string str = 4;
+  PaddingInfo padding = 5;
+  FontStyle font_style = 6;
+  ProfileCardPanel profile_card_panel = 7;
+  CombineBadgeBackground background = 11;
+  CombineBadgeBackground background_dark_mode = 12;
+  bool icon_auto_mirrored = 13;
+  bool background_auto_mirrored = 14;
+  int32 public_screen_show_style = 15;
+  int32 personal_card_show_style = 16;
+  int32 ranklist_online_audience_show_style = 17;
+  int32 multi_guest_show_style = 18;
+  ArrowConfig arrow_config = 19;
+  PaddingInfo padding_new_font = 20;
+}
+
+message ComboBadgeInfo {
+  ImageModel icon = 1;
+  int64 combo_count = 2;
+}
+
+message CreatorScoreDisplayInfo {
+  CreatorScoreLabelInfo ecommerce_entrance_label = 1;
+  int32 score_level = 2;
+}
+
+message CreatorScoreLabelInfo {
+  string label_text = 1;
+  string label_text_color_dark = 2;
+  string label_text_color_light = 3;
+  ImageModel logo_dark = 4;
+  ImageModel logo_light = 5;
+  PopUpInfo pop_up_info = 6;
+}
+
+message CreatorScoreProfile {
+  double final_score = 1;
+  string country_code = 3;
+  CreatorScoreDisplayInfo display_info = 4;
+  map<string, string> score_info_extra = 5;
+}
+
+message EnigmaInfo {
+  bool is_enigma_mask_on = 1;
+}
+
+message FansClubInfo {
+  bool is_sleeping = 1;
+  int64 fans_level = 2;
+  int64 fans_score = 3;
+  ImageModel badge = 4;
+  int64 fans_count = 5;
+  string fans_club_name = 6;
+}
+
+message FollowInfo {
+  int64 following_count = 1;
+  int64 follower_count = 2;
+  int64 follow_status = 3;
+  int64 push_status = 4;
+}
+
+message FontStyle {
+  int32 font_size = 1;
+  int32 font_width = 2;
+  string font_color = 3;
+  string border_color = 4;
+}
+
+message IconConfig {
+  ImageModel icon = 1;
+  CombineBadgeBackground background = 2;
+}
+
+message ImageBadge {
+
+  data.BadgeDisplayType display_type = 1;
+  ImageModel image = 2;
+}
+
+message LabelConfig {
+  string label = 1;
+  FontStyle font_style = 2;
+  CombineBadgeBackground background = 3;
+}
+
+message NumberConfig {
+  int64 number = 1;
+  FontStyle font_style = 2;
+  CombineBadgeBackground background = 3;
+}
+
+message OwnRoom {
+  repeated int64 room_ids = 1;
+
+  repeated string room_ids_str = 2;
+}
+
+message PaddingInfo {
+  bool use_specific = 1;
+  int32 middle_padding = 2;
+  int32 badge_width = 3;
+  int32 left_padding = 4;
+  int32 right_padding = 5;
+  int32 icon_top_padding = 6;
+  int32 icon_bottom_padding = 7;
+
+  data.HorizontalPaddingRule horizontal_padding_rule = 8;
+
+  data.VerticalPaddingRule vertical_padding_rule = 9;
+}
+
+message PopUpInfo {
+  string title = 1;
+  string description = 2;
+}
+
+message PrivilegeLogExtra {
+  string data_version = 1;
+  string privilege_id = 2;
+  string privilege_version = 3;
+  string privilege_order_id = 4;
+  string level = 5;
+  int64 start_time = 6;
+  int64 end_time = 7;
+}
+
+message ProfileCardPanel {
+  bool use_new_profile_card_style = 1;
+
+  data.BadgeTextPosition badge_text_position = 2;
+  ProjectionConfig projection_config = 3;
+  ProfileContent profile_content = 4;
+  SeparatorConfig separator_config = 5;
+}
+
+message ProfileContent {
+  bool use_content = 1;
+  repeated IconConfig icon_list = 2;
+  NumberConfig number_config = 3;
+  LabelConfig label_config = 4;
+}
+
+message ProjectionConfig {
+  bool use_projection = 1;
+  ImageModel icon = 2;
+}
+
+message SeparatorConfig {
+  string color = 1;
+}
+
+message StretchableBackgroundImage {
+  ImageModel image = 1;
+  repeated int64 flex_settings = 2;
+}
+
+message StringBadge {
+
+  data.BadgeDisplayType display_type = 1;
+  string str = 2;
+}
+
+message SubscribeBadge {
+  ImageModel origin_img = 3;
+  ImageModel preview_img = 4;
+  bool is_customized = 5;
+}
+
+message SubscribeInfo {
+  bool qualification = 1;
+  bool is_subscribe = 2;
+  SubscribeBadge badge = 3;
+  bool enable_subscription = 4;
+  int32 subscriber_count = 5;
+  bool is_in_grace_period = 6;
+  bool is_subscribed_to_anchor = 7;
+  chatroom.api.TimerDetail timer_detail = 8;
+  bool user_gift_sub_auth = 9;
+  bool anchor_gift_sub_auth = 10;
+
+  data.User_SubscribeInfo_PayStatus status = 11;
+  int64 sub_end_time = 12;
+  string package_id = 13;
+  string sol_room_display_text = 14;
+  bool is_sol_eligible = 15;
+  data.SubSplitStatus sub_split_status = 101;
+}
+
+message TextBadge {
+
+  data.BadgeDisplayType display_type = 1;
+  string key = 2;
+  string default_pattern = 3;
+  repeated string pieces = 4;
+}

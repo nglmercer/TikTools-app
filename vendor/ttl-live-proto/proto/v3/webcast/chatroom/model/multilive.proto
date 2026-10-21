@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package webcast.chatroom.model.multilive;
+
+import "webcast/model/data/messages.proto";
+
+message MultiLiveAnchorPanelSettings {
+  int64 user_id = 1;
+
+  .webcast.model.data.LinkmicUserSettingLayout layout = 2;
+
+  .webcast.model.data.LinkmicUserSettingShowAction fix_mic_num = 3;
+
+  .webcast.model.data.LinkmicUserSettingShowAction allow_request_from_user = 4;
+
+  .webcast.model.data.LinkmicUserSettingShowAction allow_request_from_follower_only = 5;
+
+  .webcast.model.data.LinkmicApplierSortSetting applier_sort_setting = 7;
+  int64 applier_sort_gift_score_threshold = 8;
+
+  .webcast.model.data.LinkmicUserSettingShowAction allow_request_from_friends = 9;
+
+  .webcast.model.data.LinkmicUserSettingShowAction allow_request_from_followers = 10;
+
+  .webcast.model.data.LinkmicUserSettingShowAction allow_request_from_others = 11;
+
+  .webcast.model.data.LinkmicUserSettingShowAction enable_show_multi_guest_layout = 12;
+
+  .webcast.model.data.LinkmicUserSettingDisableVideoLinkmic disable_video_linkmic = 13;
+
+  .webcast.model.data.LinkmicUserSettingMultiGuestApplyAutoApprove multi_guest_apply_auto_approve = 14;
+  int64 multi_guest_share_revenue_info_version = 15;
+  int32 show_available_spot = 16;
+  int32 save_as_default_layout = 17;
+  int32 multi_guest_allow_cohost_invitation = 18;
+  int32 multi_guest_allow_cohost_invitation_once = 19;
+  int32 disable_guest_open_camera = 20;
+}

@@ -1,0 +1,28 @@
+[package]
+name = "ttl-live-proto"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+repository = "https://github.com/nglmercer/tiktok-signer"
+# The vendored `.proto` sources under `proto/v3/` come from
+# isaackogan/TikTok-Webcast-Protobuf under a modified AGPL-3.0 (AGPL plus
+# Section 7 additional permissions). That is not a plain SPDX identifier, so the
+# terms are referenced as a file rather than mislabelled. `publish = false`:
+# read README.md in this crate before redistributing.
+license-file = "LICENSE.upstream"
+description = "Prost bindings for the TikTok Webcast Protobuf v3 schema."
+publish = false
+
+[dependencies]
+prost = "0.14.3"
+
+[build-dependencies]
+prost = "0.14.3"
+prost-build = "0.14.3"
+prost-types = "0.14.3"
+protoc-bin-vendored = "3.2.0"
+
+[dev-dependencies]
+prost-types = "0.14.3"
+prost-build = "0.14.3"
+protoc-bin-vendored = "3.2.0"

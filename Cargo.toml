@@ -14,6 +14,7 @@ members = [
     "plugins/l4d2/backend",
 ]
 exclude = [
+    "vendor/ttl-live-proto",
     "examples/audio-process-plugin",
     "examples/event-gateway-process-plugin",
     "examples/textintel-process-plugin",
@@ -70,3 +71,6 @@ ttl-live-proto = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f
 ttl-live-ws = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f9d0b63799c3e23cf20be717779ece507b9eed4" }
 ttl-sign-headless = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f9d0b63799c3e23cf20be717779ece507b9eed4" }
 ttl-sign-embedded = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f9d0b63799c3e23cf20be717779ece507b9eed4" }
+
+[patch."https://github.com/nglmercer/tiktok-signer"]
+ttl-live-proto = { path = "vendor/ttl-live-proto" }

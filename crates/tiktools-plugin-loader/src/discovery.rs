@@ -35,6 +35,13 @@ pub(crate) fn read_discovered_plugin(
     } else if !manifest.target_matches_current_platform() {
         available = false;
         reason = Some("plugin has no build for this platform".to_owned());
+    } else if cfg!(target_os = "android")
+        && (manifest.runtime == PluginRuntimeKind::Native || !manifest.native_addons.is_empty())
+    {
+        available = false;
+        reason = Some(
+            "native plugins and .node addons unavailable: Android ABI validation is not implemented".to_owned(),
+        );
     } else if manifest.runtime == PluginRuntimeKind::Declarative && manifest.entry.is_empty() {
         // Declarative packages have no executable entry; the manifest alone
         // is the integration, so there is no file to inspect.

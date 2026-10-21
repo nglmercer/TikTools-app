@@ -1,12 +1,16 @@
 # TikTools
 
-TikTools is a Rust desktop host for TikTok LIVE with a Vue WebView. It
+TikTools is a Rust desktop and headless host for TikTok LIVE. The desktop
+client uses a Vue WebView; Android/Termux uses the native `tiktools` CLI. It
 connects to live rooms, displays chat and engagement telemetry, awards viewer
 points, and runs local automations. Tauri is not used.
 
+For native phone development, see [Termux setup and execution](docs/TERMUX.md).
+That workflow builds the Rust CLI directly. Frontend tools are optional.
+
 ## What it includes
 
-- Direct Winit/Wry window and WebView lifecycle, plus a `tray-icon` tray.
+- Desktop Winit/Wry window and WebView lifecycle, plus a `tray-icon` tray.
 - Native Rust TikTok discovery, signing, WebSocket transport, and event decode.
 - One `AppCore` behind a typed JSON-RPC control API shared by the Vue UI,
   the `tiktools` CLI, local IPC, and agents, with `DomainEvent` streaming
@@ -193,6 +197,9 @@ Session cookies stay in memory and must never be committed or logged.
 - [Architecture](docs/ARCHITECTURE.md)
 - [Control API](docs/CONTROL_API.md)
 - [Development Guide](docs/DEVELOPMENT.md)
+- [Native Termux / Android development](docs/TERMUX.md)
+- [Termux agent workflow](docs/TERMUX_AGENT_WORKFLOW.md)
+- [On-device Termux validation](docs/TERMUX_VALIDATION.md)
 - [Contributing](CONTRIBUTING.md)
 - [Automations](docs/AUTOMATIONS.md)
 - [Plugins](docs/PLUGINS.md)

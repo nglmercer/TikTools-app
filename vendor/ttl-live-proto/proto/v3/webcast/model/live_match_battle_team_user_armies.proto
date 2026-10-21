@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package webcast.model.live.match;
+
+import "webcast/model/live_match.proto";
+import "webcast/model/message/battle.proto";
+
+message BattleTeamUserArmies {
+  int64 team_id = 1;
+  repeated BattleTeamUser team_user = 2;
+  int64 team_total_score = 3;
+  .webcast.model.message.battle.BattleUserArmies user_armies = 4;
+  int64 host_rank = 5;
+  int64 team_total_enigma_score = 6;
+  int64 team_total_enigma_uv = 7;
+  map<int64, int64> host_visible_rank_from_team_id = 8;
+}

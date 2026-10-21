@@ -6,11 +6,11 @@ use tiktools_plugin_api::{PluginManifest, PluginRuntimeKind};
 
 use crate::{PluginInstance, PluginLoaderError, PluginRuntime};
 
-#[cfg(feature = "native-plugins")]
+#[cfg(all(feature = "native-plugins", not(target_os = "android")))]
 use libloading::Library;
-#[cfg(feature = "native-plugins")]
+#[cfg(all(feature = "native-plugins", not(target_os = "android")))]
 use std::ffi::c_void;
-#[cfg(feature = "native-plugins")]
+#[cfg(all(feature = "native-plugins", not(target_os = "android")))]
 use tiktools_plugin_api::{
     abi::{PluginInit, PluginStatus, TIKTOOLS_PLUGIN_INIT_SYMBOL},
     TikToolsPluginApi,
@@ -24,18 +24,19 @@ impl PluginRuntime for NativePluginRuntime {
         PluginRuntimeKind::Native
     }
 
-    #[cfg(not(feature = "native-plugins"))]
+    #[cfg(any(not(feature = "native-plugins"), target_os = "android"))]
     fn load(
         &self,
         _manifest: &PluginManifest,
         _directory: &Path,
     ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
         Err(PluginLoaderError::RuntimeUnavailable(
-            "native plugins were disabled at compile time".to_owned(),
+            "native plugins unavailable: this build/platform has no validated native ABI backend"
+                .to_owned(),
         ))
     }
 
-    #[cfg(feature = "native-plugins")]
+    #[cfg(all(feature = "native-plugins", not(target_os = "android")))]
     fn load(
         &self,
         manifest: &PluginManifest,
@@ -81,7 +82,7 @@ impl PluginRuntime for NativePluginRuntime {
     }
 }
 
-#[cfg(feature = "native-plugins")]
+#[cfg(all(feature = "native-plugins", not(target_os = "android")))]
 struct NativePluginInstance {
     id: String,
     // The library must outlive the API table and any plugin context.
@@ -90,12 +91,12 @@ struct NativePluginInstance {
     context: *mut c_void,
 }
 
-#[cfg(feature = "native-plugins")]
+#[cfg(all(feature = "native-plugins", not(target_os = "android")))]
 // Native plugin code is trusted by definition. The host serializes calls and
 // keeps the library alive for the whole instance lifetime.
 unsafe impl Send for NativePluginInstance {}
 
-#[cfg(feature = "native-plugins")]
+#[cfg(all(feature = "native-plugins", not(target_os = "android")))]
 impl PluginInstance for NativePluginInstance {
     fn id(&self) -> &str {
         &self.id
@@ -142,7 +143,7 @@ impl PluginInstance for NativePluginInstance {
     }
 }
 
-#[cfg(feature = "native-plugins")]
+#[cfg(all(feature = "native-plugins", not(target_os = "android")))]
 fn copy_plugin_response(
     response: &tiktools_plugin_api::PluginBuffer,
 ) -> Result<Vec<u8>, PluginLoaderError> {
@@ -163,7 +164,7 @@ fn copy_plugin_response(
     Ok(unsafe { std::slice::from_raw_parts(response.ptr, response.len).to_vec() })
 }
 
-#[cfg(all(test, feature = "native-plugins"))]
+#[cfg(all(test, feature = "native-plugins", not(target_os = "android")))]
 mod tests {
     use super::*;
 

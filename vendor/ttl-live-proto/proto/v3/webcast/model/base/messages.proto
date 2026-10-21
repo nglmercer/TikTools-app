@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package webcast.model.base;
+
+message Content {
+  string name = 1;
+  string font_color = 2;
+  int64 level = 3;
+}
+
+message ImageModel {
+  repeated string url_list = 1;
+  string uri = 2;
+  int32 height = 3;
+  int32 width = 4;
+  string avg_color = 5;
+  int32 image_type = 6;
+  string open_web_url = 7;
+  Content content = 8;
+  bool is_animated = 9;
+}

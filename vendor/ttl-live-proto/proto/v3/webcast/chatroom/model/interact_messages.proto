@@ -1,0 +1,234 @@
+syntax = "proto3";
+
+package webcast.chatroom.model.interact;
+
+import "webcast/model/base/messages.proto";
+import "webcast/model/data/messages.proto";
+import "webcast/shared/messages.proto";
+
+message ActivityBadgeInfo {
+  LinkmicDisplayText badge_text = 1;
+  LinkmicDisplayText badge_text_dark = 2;
+  string background_color = 3;
+  string background_color_dark = 4;
+  map<string, string> event_trace = 5;
+}
+
+message BattleGamePlayContent {
+  int64 battle_id = 1;
+  int64 group_channel_id = 2;
+  repeated TeamUser team_member = 3;
+  int64 source_type = 4;
+  int32 invite_type = 5;
+}
+
+message BattleGamePlayContent_UserInfo {
+  int64 user_id = 1;
+  int64 room_id = 2;
+  int32 invitation_role = 3;
+}
+
+message BattleUserSettings {
+
+  bool is_turn_on = 1;
+
+  bool accept_not_follower_invite = 2;
+
+  bool allow_gift_to_other_anchors = 3;
+}
+
+message CohostABInfo {
+  bool live_match_button_opt = 1;
+  bool is_cohost_multiguest = 2;
+  bool is_match_playbook_enabled = 3;
+  bool is_cohost_during_multiguest_enabled = 4;
+  bool is_match_playbook_optimisation_enabled = 5;
+}
+
+message CohostABTest {
+
+  .webcast.model.data.CohostABTestType ab_test_type = 1;
+  int64 group = 2;
+}
+
+message CohostABTestList {
+  repeated CohostABTest ab_test_list = 1;
+}
+
+message CohostABTestSetting {
+  int64 key = 1;
+  CohostABTestList value = 2;
+}
+
+message CohostListUser {
+  int64 user_id = 1;
+  string nick_name = 2;
+  .webcast.model.base.ImageModel avatar_thumb = 3;
+  int64 linked_time = 4;
+
+  .webcast.model.data.LinkmicPlayType play_type = 5;
+  int64 room_id = 6;
+
+  .webcast.model.data.LinkmicUserStatus linkmic_user_status = 7;
+  int64 link_remaining_time = 8;
+
+  .webcast.model.data.CoHostPermissoinType permission_type = 9;
+  string display_id = 10;
+  int64 follow_status = 11;
+  bool is_low_version = 12;
+  int64 rival_user_id = 13;
+  int64 rival_room_id = 14;
+  bool is_initiator = 15;
+  string linkmic_id_str = 16;
+  int64 best_teammate_uid = 17;
+  bool has_topic_perm = 18;
+  int64 inner_channel_id = 19;
+}
+
+message CohostTopic {
+  int64 id = 1;
+  string title_key = 2;
+  string title_text = 3;
+  bool liked = 21;
+  int64 total_heat = 22;
+  int64 total_rivals = 23;
+  repeated .webcast.model.base.ImageModel rivals_avatar = 24;
+}
+
+message GamePlayContent {
+  BattleGamePlayContent battle_gameplay_content = 1;
+}
+
+message GiftGalleryBadgeInfo {
+  GiftGalleryBadgeSection league_info = 1;
+  GiftGalleryBadgeSection gallery_info = 2;
+  string background_color = 3;
+  string separator_color = 4;
+  string dark_mode_background_color = 5;
+  string league_name = 6;
+  string schema = 7;
+}
+
+message GiftGalleryBadgeSection {
+  .webcast.model.base.ImageModel icon = 1;
+  LinkMicGiftGalleryDisplayText display_text = 2;
+  bool should_show = 3;
+  .webcast.model.base.ImageModel dark_mode_icon = 4;
+}
+
+message LinkMicGiftGalleryDisplayText {
+  string content = 1;
+  string color = 2;
+  string dark_mode_color = 3;
+}
+
+message LinkmicDisplayText {
+  string color = 1;
+  string key = 20;
+  string default_pattern = 21;
+  repeated LinkmicDisplayTextPieces pieces = 22;
+}
+
+message LinkmicDisplayTextPieces {
+  string string_piece = 1;
+}
+
+message LinkmicShareRevenueSettingStruct {
+  int64 share_revenue_setting_version_code = 1;
+  int32 linkmic_share_revenue_setting = 2;
+  int32 linkmic_share_revenue_setting_ratio = 3;
+  bool enable_setting_ratio = 4;
+}
+
+message OptPairInfo {
+  int64 mapping_id = 1;
+  int64 expected_time_sec = 2;
+
+  .webcast.model.data.OptPairStatus opt_pair_status = 3;
+  int64 opt_pair_type = 4;
+  repeated TeamInfo team_info = 5;
+}
+
+message RandomMatchContent {
+  string match_id = 1;
+  int64 source_type = 2;
+  int64 paired_time = 3;
+  repeated UserGroup paired_group_list = 4;
+  int32 matched_preference_tag = 20;
+}
+
+message RandomMatchContent_UserInfo {
+  int64 user_id = 1;
+  int64 room_id = 2;
+  int32 invitation_role_type = 3;
+  .webcast.model.base.ImageModel avatar_thumb = 4;
+  string nickname = 5;
+}
+
+message RivalsGameTag {
+  int64 tag_id = 1;
+  string tag_display_text = 2;
+  int64 gap_time_tag = 3;
+}
+
+message SecondDegreeRelationContent {
+  repeated shared.UserInfo related_users = 1;
+  int64 total_related_user_cnt = 2;
+}
+
+message SimilarInterestContent {
+  int64 content_id = 1;
+  string display_text = 2;
+}
+
+message SubtitleSettings {
+  int32 has_right = 1;
+  int32 temporary_ban = 2;
+  int32 enable = 3;
+  int64 expire_date = 4;
+  string target_language = 5;
+  string label_text = 6;
+}
+
+message TagV2 {
+
+  .webcast.model.data.TagV2_TagClassification tag_classification = 1;
+  int32 tag_type = 2;
+  string tag_value = 3;
+  string starling_key = 4;
+  SecondDegreeRelationContent second_degree_relation_content = 10;
+  int64 cohost_history_day = 11;
+  SimilarInterestContent similar_interest_content = 12;
+}
+
+message TeamInfo {
+  int64 team_id = 1;
+  repeated int64 user_id = 2;
+}
+
+message TeamUser {
+  int64 team_id = 1;
+  repeated int64 user_id = 2;
+  repeated BattleGamePlayContent_UserInfo user_info_list = 3;
+}
+
+message TopHostInfo {
+  string rank_type = 1;
+  int64 top_index = 2;
+}
+
+message UserGroup {
+  repeated RandomMatchContent_UserInfo user_info = 1;
+}
+
+message UserSuggestionInfo {
+  int64 vote_count = 1;
+  repeated shared.UserInfo voter_info_list = 2;
+  string detail_page_lynx = 3;
+}
+
+message VirtualWaitingUser {
+  int64 send_user_id = 1;
+  int64 send_timestamp = 2;
+  repeated .webcast.model.base.ImageModel avatars = 3;
+}
