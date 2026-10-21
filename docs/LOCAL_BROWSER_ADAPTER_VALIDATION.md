@@ -121,6 +121,23 @@ git diff --check
 
 Skipped/unavailable checks above are not counted as passed.
 
+## Six-digit pairing follow-up
+
+Human pairing now uses a uniformly generated six-digit decimal code, including
+leading zeros. Only the human code was shortened: session cookies and plugin
+asset tokens still use independent 256-bit random values. Codes remain one-use,
+expire after five minutes, and share an eight-attempt limit across all clients.
+Malformed/non-string/non-ASCII codes consume attempts and are rejected.
+
+The pairing form uses a text field with numeric input mode, six-digit validation
+and one-time-code autofill. Codes are sent by POST, never in the URL. The native
+CLI regression run passed 26 tests, including leading-zero handling, malformed
+codes, expiry/reuse, attempt limits and unchanged session-token length. The
+expanded isolated HTTP/WebSocket smoke passed with a generated six-digit code,
+verified numeric form attributes and a 64-hex-character session cookie.
+Changed-script ESLint, Rust formatting and whitespace checks also passed.
+Actual Android keyboard rendering remains part of the browser acceptance below.
+
 ## Remaining acceptance work
 
 - Verify actual rendering/pairing/navigation on an Android browser, inline plugin

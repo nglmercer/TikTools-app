@@ -239,7 +239,7 @@ Start the host in one Termux session, then the adapter in another:
 ./target/debug/tiktools web --assets "$PWD/dist/web" --port 8787
 ```
 
-Open `http://127.0.0.1:8787` in the phone browser. Enter the one-use code printed
+Open `http://127.0.0.1:8787` in the phone browser. Enter the six-digit, one-use code printed
 in the adapter terminal; it expires after five minutes and eight unsuccessful
 attempts. The browser receives a port-scoped HttpOnly, SameSite=Strict session cookie valid
 for one hour. Restart the adapter to obtain a new pairing code. Never paste a

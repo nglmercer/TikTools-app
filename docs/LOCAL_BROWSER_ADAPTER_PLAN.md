@@ -98,7 +98,7 @@ this milestone. Validate the exact allowed Host and WebSocket Origin against the
 active endpoint, preventing DNS rebinding and cross-site socket requests. Do not
 enable wildcard CORS. Missing or unexpected browser origins fail closed.
 
-Generate a cryptographically random one-use pairing code, shown only in the
+Generate a cryptographically random six-digit, one-use pairing code, shown only in the
 foreground terminal. Exchange it through a same-origin POST for a short-lived,
 HttpOnly, SameSite=Strict session cookie; rotate/invalidate sessions on restart.
 Use same-origin validation and a session-bound CSRF mechanism for state-changing

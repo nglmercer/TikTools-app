@@ -40,6 +40,12 @@ struct App {
     stopping: tokio::sync::watch::Sender<bool>,
 }
 
+// Short-lived, attempt-limited human pairing only. Session and asset tokens
+// continue to use the independent 256-bit secret() generator below.
+fn pairing_code() -> String {
+    format!("{:06}", rand::rng().random_range(0..1_000_000u32))
+}
+
 fn secret() -> String {
     let bytes: [u8; 32] = rand::rng().random();
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
@@ -151,7 +157,7 @@ async fn start(assets: PathBuf, port: u16) -> Result<(), String> {
             .port()
     );
     let origin = format!("http://{authority}");
-    let pairing = secret();
+    let pairing = pairing_code();
     eprintln!(
         "TikTools local browser: {origin}\nOne-use pairing code (valid 5 minutes): {pairing}"
     );
@@ -241,7 +247,11 @@ async fn pair(
         return StatusCode::UNAUTHORIZED.into_response();
     }
     auth.attempts += 1;
-    if body.get("code").and_then(Value::as_str) != auth.pairing.as_deref() {
+    let candidate = body.get("code").and_then(Value::as_str);
+    if !candidate
+        .is_some_and(|code| code.len() == 6 && code.bytes().all(|byte| byte.is_ascii_digit()))
+        || candidate != auth.pairing.as_deref()
+    {
         return StatusCode::UNAUTHORIZED.into_response();
     }
     auth.pairing = None;
@@ -505,7 +515,7 @@ async fn pair_script() -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "text/javascript")], PAIR_SCRIPT)
 }
 
-const PAIR_PAGE: &str = r#"<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>TikTools pairing</title></head><body><h1>TikTools local browser</h1><p>Enter the one-use pairing code printed by the Termux adapter. It expires after five minutes.</p><form id="pair"><label>Pairing code <input id="code" type="password" autocomplete="off" required></label><button>Connect</button></form><p id="result" role="status"></p><script src="/__local/pair.js" defer></script></body></html>"#;
+const PAIR_PAGE: &str = r#"<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>TikTools pairing</title></head><body><h1>TikTools local browser</h1><p>Enter the six-digit, one-use pairing code printed by the Termux adapter. It expires after five minutes.</p><form id="pair"><label>Pairing code <input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required></label><button>Connect</button></form><p id="result" role="status"></p><script src="/__local/pair.js" defer></script></body></html>"#;
 const PAIR_SCRIPT: &str = r#"document.getElementById('pair').addEventListener('submit',async(event)=>{event.preventDefault();const input=document.getElementById('code');const code=input.value;input.value='';try{const response=await fetch('/__local/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code})});if(response.ok){location.replace('/');return;}document.getElementById('result').textContent='Pairing failed or expired. Restart the adapter for a new code.';}catch{document.getElementById('result').textContent='Adapter unavailable. Check Termux.';}});"#;
 
 #[cfg(test)]
@@ -556,7 +566,7 @@ mod tests {
             origin: "http://127.0.0.1:8787".into(),
             authority: "127.0.0.1:8787".into(),
             auth: Mutex::new(Auth {
-                pairing: Some("test-code".into()),
+                pairing: Some("012345".into()),
                 issued: Instant::now(),
                 session: None,
                 attempts: 0,
@@ -570,6 +580,43 @@ mod tests {
         headers.insert(header::ORIGIN, "http://127.0.0.1:8787".parse().unwrap());
         headers
     }
+    #[test]
+    fn human_pairing_is_six_digits_while_other_secrets_stay_strong() {
+        for _ in 0..64 {
+            let code = pairing_code();
+            assert_eq!(code.len(), 6);
+            assert!(code.bytes().all(|byte| byte.is_ascii_digit()));
+        }
+        assert_eq!(secret().len(), 64);
+    }
+
+    #[tokio::test]
+    async fn malformed_codes_consume_attempts_and_leading_zeros_are_preserved() {
+        let app = state(PathBuf::new());
+        for candidate in [
+            json!(12345),
+            json!("12345"),
+            json!("0123456"),
+            json!("٠١٢٣٤٥"),
+            Value::Null,
+        ] {
+            let response = pair(
+                State(app.clone()),
+                origin(),
+                Json(json!({"code":candidate})),
+            )
+            .await;
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        }
+        assert_eq!(app.auth.lock().unwrap().attempts, 5);
+        assert_eq!(
+            pair(State(app), origin(), Json(json!({"code":"012345"})))
+                .await
+                .status(),
+            StatusCode::OK
+        );
+    }
+
     #[tokio::test]
     async fn pairing_requires_origin_is_one_use_and_cookie_expires() {
         let app = state(PathBuf::new());
@@ -577,7 +624,7 @@ mod tests {
             pair(
                 State(app.clone()),
                 HeaderMap::new(),
-                Json(json!({"code":"test-code"}))
+                Json(json!({"code":"012345"}))
             )
             .await
             .status(),
@@ -589,12 +636,7 @@ mod tests {
                 .status(),
             StatusCode::UNAUTHORIZED
         );
-        let response = pair(
-            State(app.clone()),
-            origin(),
-            Json(json!({"code":"test-code"})),
-        )
-        .await;
+        let response = pair(State(app.clone()), origin(), Json(json!({"code":"012345"}))).await;
         assert_eq!(response.status(), StatusCode::OK);
         let cookie = response
             .headers()
@@ -603,6 +645,9 @@ mod tests {
             .to_str()
             .unwrap();
         assert!(cookie.contains("HttpOnly; SameSite=Strict"));
+        let session_token = cookie.split(';').next().unwrap().split_once('=').unwrap().1;
+        assert_eq!(session_token.len(), 64);
+        assert!(session_token.bytes().all(|byte| byte.is_ascii_hexdigit()));
         let mut headers = HeaderMap::new();
         headers.insert(
             header::COOKIE,
@@ -610,13 +655,9 @@ mod tests {
         );
         assert!(app.authorized(&headers));
         assert_eq!(
-            pair(
-                State(app.clone()),
-                origin(),
-                Json(json!({"code":"test-code"}))
-            )
-            .await
-            .status(),
+            pair(State(app.clone()), origin(), Json(json!({"code":"012345"})))
+                .await
+                .status(),
             StatusCode::UNAUTHORIZED
         );
         app.auth.lock().unwrap().session.as_mut().unwrap().1 = Instant::now() - SESSION_LIFETIME;
@@ -629,19 +670,15 @@ mod tests {
             let _ = pair(State(app.clone()), origin(), Json(json!({"code":"wrong"}))).await;
         }
         assert_eq!(
-            pair(
-                State(app.clone()),
-                origin(),
-                Json(json!({"code":"test-code"}))
-            )
-            .await
-            .status(),
+            pair(State(app.clone()), origin(), Json(json!({"code":"012345"})))
+                .await
+                .status(),
             StatusCode::UNAUTHORIZED
         );
         let app = state(PathBuf::new());
         app.auth.lock().unwrap().issued = Instant::now() - Duration::from_secs(301);
         assert_eq!(
-            pair(State(app), origin(), Json(json!({"code":"test-code"})))
+            pair(State(app), origin(), Json(json!({"code":"012345"})))
                 .await
                 .status(),
             StatusCode::UNAUTHORIZED

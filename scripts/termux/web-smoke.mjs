@@ -86,9 +86,12 @@ try {
   const adapter = start(['web', '--assets', assets, '--port', '0']);
   await waitFor(() => /http:\/\/127\.0\.0\.1:\d+/.test(adapter.output), 'adapter ready');
   const origin = adapter.output.match(/http:\/\/127\.0\.0\.1:\d+/)[0];
-  const code = adapter.output.match(/minutes\): ([a-f0-9]{64})/)[1];
+  const code = adapter.output.match(/minutes\): ([0-9]{6})$/m)[1];
   const wsUrl = origin.replace('http:', 'ws:') + '/__local/ws';
-  assert.match(await (await fetch(origin)).text(), /Pairing code/);
+  const pairingPage = await (await fetch(origin)).text();
+  assert.match(pairingPage, /Pairing code/);
+  assert.match(pairingPage, /inputmode="numeric"/);
+  assert.match(pairingPage, /autocomplete="one-time-code"/);
   const forgedStatus = await new Promise((resolve, reject) => {
     const request = httpRequest(origin, { headers: { Host: 'attacker.example' } }, response => { response.resume(); resolve(response.statusCode); });
     request.on('error', reject); request.end();
@@ -99,6 +102,7 @@ try {
   const paired = await fetch(origin + '/__local/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify({ code }) });
   assert.equal(paired.status, 200);
   const cookie = paired.headers.get('set-cookie').split(';')[0];
+  assert.match(cookie.split('=')[1], /^[a-f0-9]{64}$/);
   assert.equal((await fetch(origin + '/__local/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body: JSON.stringify({ code }) })).status, 401);
   const html = await (await fetch(origin, { headers: { Cookie: cookie } })).text();
   assert.match(html, /tiktools-transport/);
