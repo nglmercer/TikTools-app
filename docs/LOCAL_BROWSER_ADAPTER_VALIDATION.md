@@ -94,11 +94,37 @@ including cancellation, late callbacks and connection replacement. These tests
 are additional evidence for the transport lifecycle, not actual Android browser
 suspension/resume verification.
 
+Follow-up validation commands:
+
+```bash
+env -u LD_LIBRARY_PATH node node_modules/vitest/vitest.mjs run --maxWorkers=2 \
+  src/web/shared/api/browser-transport.test.ts src/web/shared/api/control-client.test.ts
+env -u LD_LIBRARY_PATH node node_modules/vue-tsc/bin/vue-tsc.js --noEmit
+env -u LD_LIBRARY_PATH node node_modules/eslint/bin/eslint.js \
+  src/web/shared/api/browser-transport.ts src/web/shared/api/browser-transport.test.ts --max-warnings=0
+env -u LD_LIBRARY_PATH node node_modules/vite/bin/vite.js build
+git diff --check
+```
+
+## Checks unavailable in this environment
+
+- Windows, Linux and macOS desktop binary builds/runtime checks were not run:
+  this phone's native Rust host is `aarch64-linux-android`. Passing native
+  Control API and default WebView client tests is not a desktop binary result.
+- Bun-specific scripts were not run; Bun is not installed. The listed Node-based
+  typecheck, lint, Vue tests and production asset builds were executed instead.
+- No Android browser-control tool, ADB executable or local Chromium executable
+  is available to this agent. `termux-open-url` can launch a browser but cannot
+  inspect rendering, iframe execution, touch layout or suspension/resume.
+- Authenticated TikTok LIVE remains a separate credentialed integration check;
+  no session cookie was supplied to these local-adapter tests.
+
+Skipped/unavailable checks above are not counted as passed.
+
 ## Remaining acceptance work
 
 - Verify actual rendering/pairing/navigation on an Android browser, inline plugin
   broker behavior, phone viewport, suspension/resume and host/adapter restart.
-- Record exact final commands/results and any unavailable desktop/frontend checks.
 
 No remote access, public binding or Android WebView is implemented. No complete
 browser support or authenticated LIVE connectivity is claimed by this record.
