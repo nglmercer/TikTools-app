@@ -106,7 +106,47 @@ pub struct PluginActionParams {
     pub plugin_id: Option<String>,
 }
 
+/// Validated UI asset root for trusted local transport adapters, not a file API.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginUiAssetsResult {
+    pub plugin_id: String,
+    pub asset_root: String,
+    pub entry_file: String,
+    pub page_ids: Vec<String>,
+}
+
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<PluginIdParams, PluginUiAssetsResult, _, _>(
+        "plugins.ui.assets",
+        "Validated plugin UI assets for local transports",
+        false,
+        |core: Arc<AppCore>, params: PluginIdParams| async move {
+            crate::modules::blocking_task("plugins.ui.assets", move || {
+                let assets = core
+                    .plugin_ui_assets(&params.plugin_id)
+                    .map_err(ApiError::from)?;
+                let directory = std::fs::canonicalize(&assets.directory).map_err(|_| {
+                    ApiError::capability_unavailable("plugin directory is unavailable")
+                })?;
+                let root = std::fs::canonicalize(&assets.asset_root).map_err(|_| {
+                    ApiError::capability_unavailable("plugin UI must be built first")
+                })?;
+                if !root.starts_with(directory) {
+                    return Err(ApiError::invalid_params(
+                        "plugin UI asset root escapes its package",
+                    ));
+                }
+                Ok(PluginUiAssetsResult {
+                    plugin_id: assets.id,
+                    asset_root: root.to_string_lossy().into_owned(),
+                    entry_file: assets.entry_file,
+                    page_ids: assets.page_ids,
+                })
+            })
+            .await?
+        },
+    );
     router.register_typed::<Empty, PluginListResult, _, _>(
         "plugins.list",
         "Safe plugin summaries (never includes settings values)",

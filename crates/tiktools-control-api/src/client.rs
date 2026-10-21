@@ -38,6 +38,7 @@ const CONNECT_RETRY_DELAY: std::time::Duration = std::time::Duration::from_milli
 pub struct ClientError {
     pub code: String,
     pub message: String,
+    pub data: Option<Value>,
 }
 
 impl ClientError {
@@ -45,6 +46,7 @@ impl ClientError {
         Self {
             code: code.into(),
             message: message.into(),
+            data: None,
         }
     }
 
@@ -71,7 +73,11 @@ impl std::error::Error for ClientError {}
 
 impl From<ClientError> for crate::ApiError {
     fn from(error: ClientError) -> Self {
-        Self::new(error.code, error.message)
+        Self {
+            code: error.code,
+            message: error.message,
+            data: error.data,
+        }
     }
 }
 
@@ -157,6 +163,14 @@ pub enum ControlEvent {
     Gap { lost: u64 },
 }
 
+struct ReaderLifetime(tokio::task::AbortHandle);
+
+impl Drop for ReaderLifetime {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
 /// Connected control client.
 ///
 /// One background reader task demultiplexes the IPC stream: responses
@@ -165,6 +179,7 @@ pub enum ControlEvent {
 /// in flight concurrently and events are never discarded to unblock a call.
 #[derive(Clone)]
 pub struct ControlClient {
+    _reader: Arc<ReaderLifetime>,
     writer: Arc<tokio::sync::Mutex<tokio::io::WriteHalf<ClientStream>>>,
     pending: PendingMap,
     events: tokio::sync::broadcast::Sender<ControlEvent>,
@@ -188,24 +203,29 @@ impl ControlClient {
         let (read, write) = tokio::io::split(stream);
         let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
         let (events, _) = tokio::sync::broadcast::channel(EVENT_CHANNEL_CAPACITY);
-        let client = Self {
+        let reader = tokio::spawn(reader_task(
+            BufReader::new(read),
+            Arc::clone(&pending),
+            events.clone(),
+        ));
+        Self {
+            _reader: Arc::new(ReaderLifetime(reader.abort_handle())),
             writer: Arc::new(tokio::sync::Mutex::new(write)),
-            pending: Arc::clone(&pending),
+            pending,
             events,
             next_id: Arc::new(AtomicI64::new(1)),
-        };
-        tokio::spawn(reader_task(
-            BufReader::new(read),
-            pending,
-            client.events.clone(),
-        ));
-        client
+        }
     }
 
     /// Subscribes to the host's event broadcast. The reader task
     /// forwards every `event` notification as [`ControlEvent::Domain`]
     /// and every `event.gap` notification as [`ControlEvent::Gap`]; slow
     /// receivers lag and skip, matching the host bus semantics.
+    /// Whether the IPC reader has stopped (host disconnected or protocol failure).
+    pub fn is_closed(&self) -> bool {
+        self._reader.0.is_finished()
+    }
+
     pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<ControlEvent> {
         self.events.subscribe()
     }
@@ -421,7 +441,11 @@ fn handle_client_line(
             .and_then(Value::as_str)
             .unwrap_or("request failed")
             .to_owned();
-        let _ = sender.send(Err(ClientError::new(code, message)));
+        let _ = sender.send(Err(ClientError {
+            code,
+            message,
+            data: error.get("data").cloned(),
+        }));
     } else if let Some(result) = value.get("result").cloned() {
         let _ = sender.send(Ok(result));
     } else {
@@ -693,5 +717,23 @@ mod client_line_tests {
             .expect("sender alive");
         let error = outcome.expect_err("closed host must fail pending calls");
         assert_eq!(error.code, "transport");
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dropping_last_client_closes_ipc_reader() {
+        let (ours, mut peer) = tokio::net::UnixStream::pair().unwrap();
+        let client = ControlClient::from_stream(ClientStream::Unix(ours));
+        let cloned = client.clone();
+        drop(client);
+        drop(cloned);
+        let mut buffer = [0; 1];
+        let read = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            tokio::io::AsyncReadExt::read(&mut peer, &mut buffer),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(read, 0);
     }
 }

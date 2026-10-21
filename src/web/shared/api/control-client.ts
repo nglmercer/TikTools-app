@@ -1,3 +1,4 @@
+import type { ControlTransport } from './control-transport.ts';
 import type { HostMessage } from '../../../shared/messages.ts';
 
 declare global {
@@ -78,7 +79,8 @@ export interface ControlClient {
   onGap(handler: GapHandler): Unsubscribe;
 }
 
-export function createControlClient(options?: { timeoutMs?: number }): ControlClient {
+export function createControlClient(options?: { timeoutMs?: number; transport?: ControlTransport }): ControlClient {
+  const transport = options?.transport;
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   let nextId = 0;
   const requestPrefix = globalThis.crypto?.randomUUID?.() ??
@@ -235,6 +237,20 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
         });
         longTaskObserver.observe({ entryTypes: ['longtask'] });
       }
+      if (transport) {
+        transport.attach(receive, (reason) => {
+          for (const call of pending.values()) {
+            clearTimeout(call.timer);
+            call.cleanupAbort();
+            call.reject(new ControlCallError('transport', reason));
+          }
+          pending.clear();
+          reportTransportError(reason);
+        }, () => {
+          for (const handler of gaps) { try { handler(0); } catch {} }
+        });
+        return;
+      }
       window.__webview_on_message__ = receive;
       window.__tiktools_receive_batch__ = receiveBatch;
       const queued = window.__tiktools_host_message_queue__ ?? [];
@@ -244,6 +260,7 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
 
     detach(): void {
       detached = true;
+      transport?.detach();
       longTaskObserver?.disconnect();
       longTaskObserver = null;
       if (window.__webview_on_message__ === attachedReceive) {
@@ -280,7 +297,7 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
           reject(error);
           return;
         }
-        if (!window.ipc) {
+        if (!transport && !window.ipc) {
           reject(new ControlCallError('transport', 'native host is unavailable'));
           return;
         }
@@ -328,7 +345,8 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
         signal?.addEventListener('abort', onAbort, { once: true });
         if (signal?.aborted) { onAbort(); return; }
         try {
-          window.ipc.postMessage(payload);
+          if (transport) transport.send(payload);
+          else window.ipc!.postMessage(payload);
         } catch (error) {
           pending.delete(id);
           clearTimeout(timer);
@@ -379,6 +397,8 @@ export function createControlClient(options?: { timeoutMs?: number }): ControlCl
       };
     },
   };
+  // Presentation projection is owned by the desktop window, not the IPC host.
+  if (transport) delete client.setPresentation;
   return client;
 }
 

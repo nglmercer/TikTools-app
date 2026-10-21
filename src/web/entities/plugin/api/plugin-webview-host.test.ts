@@ -304,3 +304,13 @@ test('50 iframe owner disposals cancel client waits without detaching the shared
   }
   control.detach(); delete (globalThis as Record<string, unknown>)['window'];
 });
+
+test('uses the local adapter asset prefix without requiring a desktop host', () => {
+  const meta = document.createElement('meta');
+  meta.name = 'tiktools-plugin-assets'; meta.content = '/__plugins/asset-only-test/';
+  document.head.append(meta);
+  try {
+    expect(pluginUiUrl('portable-plugin', 'ui/dist/index.html', 'settings'))
+      .toBe('/__plugins/asset-only-test/portable-plugin/index.html#page=settings');
+  } finally { meta.remove(); }
+});

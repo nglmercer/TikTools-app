@@ -16,6 +16,7 @@ use tiktools_control_api::ClientError;
 /// through its constant, so the coverage list and the methods
 /// cannot drift apart; the parity test pins the list to the registry.
 pub(crate) const METHODS: &[&str] = &[
+    PLUGINS_UI_ASSETS,
     PLUGINS_LIST,
     PLUGINS_GET,
     PLUGINS_INSTALL,
@@ -33,6 +34,7 @@ pub(crate) const METHODS: &[&str] = &[
     PLUGINS_INSTALL_SET,
 ];
 
+const PLUGINS_UI_ASSETS: &str = "plugins.ui.assets";
 const PLUGINS_LIST: &str = "plugins.list";
 const PLUGINS_GET: &str = "plugins.get";
 const PLUGINS_INSTALL: &str = "plugins.install";
@@ -50,6 +52,13 @@ const PLUGINS_TOKEN_PROVISION: &str = "plugins.token.provision";
 const PLUGINS_INSTALL_SET: &str = "plugins.install.set";
 
 impl TikToolsClient {
+    pub async fn plugins_ui_assets(
+        &self,
+        params: PluginIdParams,
+    ) -> Result<tiktools_control_api::modules::plugins::PluginUiAssetsResult, ClientError> {
+        self.call(PLUGINS_UI_ASSETS, params).await
+    }
+
     /// Imports a token using a native file picker; no path or secret crosses RPC.
     pub async fn plugins_token_import(
         &self,

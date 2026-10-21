@@ -208,3 +208,67 @@ before reconnecting and avoid tight shell retry loops. Existing bounded event
 queues and gap reporting remain authoritative: resync after an event gap.
 Capture diagnostics in a private file if needed, and review for secrets before
 sharing. The CLI does not require a desktop log viewer.
+
+## Local browser adapter (development preview)
+
+The optional `local-web` feature serves the existing Vue UI over loopback HTTP
+and uses an authenticated WebSocket to the existing IPC host. It creates no
+second AppCore. It accepts no LAN/public bind address and provides no remote
+access. Browser/device acceptance is tracked in
+[LOCAL_BROWSER_ADAPTER_VALIDATION.md](LOCAL_BROWSER_ADAPTER_VALIDATION.md).
+
+Build the adapter natively:
+
+```bash
+cargo build -p tiktools-cli --features local-web --locked
+```
+
+Prepare the web assets using the existing frontend build in a compatible
+JavaScript environment (`bun run build:web`). The generated `dist/web` can be
+copied to the phone from that environment. Bun/Node is not needed to run those
+assets or the Rust adapter. On this device, Node with the installed frontend
+dependencies also runs `node node_modules/vite/bin/vite.js build` successfully;
+this does not replace the repository's Bun lockfile or imply every Bun script
+runs under Node. Do not commit an npm-generated lockfile.
+
+Start the host in one Termux session, then the adapter in another:
+
+```bash
+./target/debug/tiktools host --ipc
+# Second session, from the repository root:
+./target/debug/tiktools web --assets "$PWD/dist/web" --port 8787
+```
+
+Open `http://127.0.0.1:8787` in the phone browser. Enter the one-use code printed
+in the adapter terminal; it expires after five minutes and eight unsuccessful
+attempts. The browser receives a port-scoped HttpOnly, SameSite=Strict session cookie valid
+for one hour. Restart the adapter to obtain a new pairing code. Never paste a
+TikTok session cookie into this pairing form. Stop the adapter with Ctrl+C; the
+IPC host remains running and available to the CLI.
+
+The frontend uses the shared Control API for system state, LIVE, automations,
+workflows and plugins. Unsupported Android capabilities remain unavailable.
+Browser disconnect does not undo an accepted operation; the client never
+replays mutations automatically. Reconnection refreshes authoritative state and
+requests bounded feed backfill. An evicted history or restarted host is reported
+as a discontinuity rather than complete event delivery.
+
+Plugin UIs stay in sandboxed iframes and communicate through the existing scoped
+plugin broker. A random asset-only URL prefix allows opaque-origin module loads
+without exposing the control session to the iframe; it expires with the pairing
+session and cannot authorize RPC. It serves only validated plugin UI roots,
+rejects path traversal/symlink escapes, and never serves plugin data directories.
+The WebSocket rejects opaque/plugin origins. External plugin network requests
+from the iframe are restricted; plugin backend actions keep their normal policy.
+
+Development integration probe (requires the installed frontend test toolchain,
+including its `ws` package; these are not Rust runtime dependencies):
+
+```bash
+node scripts/termux/web-smoke.mjs
+```
+
+The probe launches only its own host/adapter under isolated application paths,
+never uses a real cookie, and cleans up its own processes and temporary files.
+Use `env -u LD_LIBRARY_PATH` for Node/Cargo if the agent launcher supplies the
+incompatible library override described earlier.

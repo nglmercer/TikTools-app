@@ -26,6 +26,7 @@ pub mod processors;
 pub mod rpc;
 pub mod settings;
 pub mod system;
+pub mod ui;
 pub mod validate;
 pub mod widgets;
 pub mod workflows;
@@ -123,6 +124,7 @@ impl TikToolsClient {
             rpc::METHODS,
             settings::METHODS,
             system::METHODS,
+            ui::METHODS,
             widgets::METHODS,
             workflows::METHODS,
         ]
@@ -144,7 +146,11 @@ where
         .execute(RpcRequest::new(RpcId::Number(id), method, params))
         .await;
     if let Some(error) = response.error {
-        return Err(ClientError::new(error.code, error.message));
+        return Err(ClientError {
+            code: error.code,
+            message: error.message,
+            data: error.data,
+        });
     }
     Ok(response.result.unwrap_or(Value::Null))
 }

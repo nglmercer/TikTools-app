@@ -206,6 +206,23 @@ impl DomainEvent {
     }
 }
 
+/// Bounded feed replay payload, matching the existing desktop recovery contract.
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FeedBackfill {
+    pub oldest_cursor: u64,
+    pub latest_cursor: u64,
+    pub depth: usize,
+    pub gap: bool,
+    pub truncated: bool,
+    pub events: Vec<FeedEntry>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct FeedEntry {
+    pub cursor: u64,
+    pub event: Value,
+}
+
 #[derive(Clone)]
 struct PublishedEvent {
     event: Arc<DomainEvent>,
@@ -218,6 +235,7 @@ pub struct EventBus {
     lossy: broadcast::Sender<PublishedEvent>,
     ui_sequence: Arc<Mutex<u64>>,
     history_subscribers: Arc<std::sync::atomic::AtomicUsize>,
+    feed_history: Arc<Mutex<std::collections::VecDeque<(u64, Arc<DomainEvent>)>>>,
 }
 
 impl EventBus {
@@ -231,6 +249,7 @@ impl EventBus {
             lossy,
             ui_sequence: Arc::new(Mutex::new(0)),
             history_subscribers: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+            feed_history: Arc::new(Mutex::new(std::collections::VecDeque::new())),
         }
     }
 
@@ -243,8 +262,19 @@ impl EventBus {
             // producers cannot reverse feed sequence order. No wire changes.
             let mut sequence = self.ui_sequence.lock().unwrap_or_else(|e| e.into_inner());
             *sequence += 1;
+            let event = Arc::new(event);
+            {
+                let mut history = self
+                    .feed_history
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner());
+                history.push_back((*sequence, Arc::clone(&event)));
+                while history.len() > 512 {
+                    history.pop_front();
+                }
+            }
             let _ = self.lossy.send(PublishedEvent {
-                event: Arc::new(event),
+                event,
                 ui_sequence: Some(*sequence),
             });
         } else {
@@ -258,6 +288,46 @@ impl EventBus {
             } else {
                 self.reliable.send(published)
             };
+        }
+    }
+
+    /// Read-only bounded recovery shared by headless and browser clients.
+    /// Recording occurs synchronously on the existing bus, without another task.
+    pub fn feed_backfill(&self, after: u64, limit: usize) -> FeedBackfill {
+        let history = self
+            .feed_history
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let oldest = history.front().map(|entry| entry.0).unwrap_or(0);
+        let latest = history.back().map(|entry| entry.0).unwrap_or(0);
+        let events: Vec<FeedEntry> = history
+            .iter()
+            .filter(|entry| entry.0 > after)
+            .take(limit.clamp(1, 512))
+            .filter_map(|(cursor, event)| {
+                if let DomainEvent::LiveUiEvent { event } = event.as_ref() {
+                    Some(FeedEntry {
+                        cursor: *cursor,
+                        event: event.clone(),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let gap = after > latest
+            || (after != 0
+                && events
+                    .first()
+                    .is_some_and(|entry| entry.cursor > after.saturating_add(1)));
+        let last = events.last().map(|entry| entry.cursor).unwrap_or(after);
+        FeedBackfill {
+            oldest_cursor: oldest,
+            latest_cursor: latest,
+            depth: history.len(),
+            gap,
+            truncated: last < latest,
+            events,
         }
     }
 
@@ -781,5 +851,42 @@ mod history_interest_tests {
         drop(second);
         assert!(!bus.history_requested());
         drop(projection);
+    }
+}
+
+#[cfg(test)]
+mod feed_history_tests {
+    use super::*;
+    #[test]
+    fn bounded_recovery_is_ordered_and_reports_eviction_and_restart() {
+        let bus = EventBus::new(2);
+        for n in 0..520 {
+            bus.publish_domain(DomainEvent::LiveUiEvent {
+                event: serde_json::json!({"text":format!("hello 👋 {n}")}),
+            });
+        }
+        let page = bus.feed_backfill(1, 2);
+        assert_eq!(page.depth, 512);
+        assert_eq!(page.oldest_cursor, 9);
+        assert!(page.gap && page.truncated);
+        assert_eq!(page.events[0].cursor, 9);
+        assert_eq!(page.events[0].event["text"], "hello 👋 8");
+        let tail = bus.feed_backfill(519, 512);
+        assert_eq!(tail.events.len(), 1);
+        assert!(!tail.truncated && !tail.gap);
+        assert!(EventBus::new(1).feed_backfill(520, 512).gap);
+    }
+    #[test]
+    fn recovery_does_not_republish_or_execute_events() {
+        let bus = EventBus::new(2);
+        bus.publish_domain(DomainEvent::LiveUiEvent {
+            event: serde_json::json!({"text":"hello"}),
+        });
+        let receiver = bus.subscribe_domain();
+        let before = receiver.ui_sequence();
+        for _ in 0..5 {
+            assert_eq!(bus.feed_backfill(0, 0).events.len(), 1);
+        }
+        assert_eq!(receiver.ui_sequence(), before);
     }
 }

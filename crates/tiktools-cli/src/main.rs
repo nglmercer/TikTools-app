@@ -15,6 +15,8 @@ mod client;
 mod commands;
 mod host;
 mod output;
+#[cfg(feature = "local-web")]
+mod web;
 
 const USAGE: &str = "\
 usage: tiktools [--json] [--standalone] <command> [args]
@@ -58,6 +60,7 @@ commands:
   rpc --stdio [--events]        NDJSON request/response loop on stdio
   host --stdio [--events]       headless host on stdio (streams events with --events)
   host --ipc                    headless host on local IPC (refuses when a host is running)
+  web --assets <directory> [--port N]  local browser adapter (requires local-web feature)
 
 commands run against the running host over local IPC by default; when no
 host is running they fail with host_unavailable instead of starting a
@@ -112,6 +115,15 @@ fn run() -> i32 {
 }
 
 async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
+    if args.first().is_some_and(|arg| arg == "web") {
+        #[cfg(feature = "local-web")]
+        return web::run(&args[1..], standalone).await;
+        #[cfg(not(feature = "local-web"))]
+        {
+            eprintln!("tiktools: local web adapter unavailable; rebuild with --features local-web");
+            return 2;
+        }
+    }
     match commands::serve_plan(&args) {
         Ok(Some(commands::ServeMode::Stdio { events })) => {
             return host::serve_stdio(client::headless_api(), events).await;

@@ -339,3 +339,28 @@ describe('createControlClient', () => {
     });
   });
 });
+
+it('uses the browser transport without native globals and resynchronizes after reconnect', async () => {
+  stubWindow();
+  let receive: (raw: string) => void = () => {};
+  let disconnect: (reason: string) => void = () => {};
+  let reconnect: () => void = () => {};
+  const sent: string[] = [];
+  const detached = vi.fn();
+  const control = createControlClient({ transport: {
+    attach(onMessage, onDisconnect, onReconnect) { receive = onMessage; disconnect = onDisconnect; reconnect = onReconnect; },
+    send(raw) { sent.push(raw); }, detach: detached,
+  } });
+  const gap = vi.fn(); control.onGap(gap); control.attach();
+  expect(control.setPresentation).toBeUndefined();
+  const pending = control.call('system.info');
+  const id = (JSON.parse(sent[0]!) as { id: string }).id;
+  receive(JSON.stringify({ type: 'rpc-response', response: { id, result: { platform: 'AndroidTermux' } } }));
+  await expect(pending).resolves.toEqual({ platform: 'AndroidTermux' });
+  const mutation = control.call('globals.set', { key: 'test', value: 'value' });
+  const rejection = expect(mutation).rejects.toMatchObject({ code: 'transport' });
+  disconnect('connection lost'); await rejection;
+  reconnect(); expect(gap).toHaveBeenCalledWith(0);
+  expect(sent).toHaveLength(2);
+  control.detach(); expect(detached).toHaveBeenCalledOnce();
+});

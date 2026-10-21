@@ -12,6 +12,7 @@ pub mod processors;
 pub mod rpc;
 pub mod settings;
 pub mod system;
+pub mod ui;
 pub mod widgets;
 pub mod workflows;
 

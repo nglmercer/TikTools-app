@@ -1,0 +1,59 @@
+/* Phone layout applies only to the opt-in local browser transport. */
+html[data-tiktools-transport='local-web'] .app-layout {
+  height: 100dvh;
+}
+
+@media (width < 700px) {
+  html[data-tiktools-transport='local-web'] .app-layout__body {
+    flex-direction: column;
+  }
+
+  html[data-tiktools-transport='local-web'] .app-layout__navigation {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    width: 100%;
+    height: auto;
+    padding: 4px;
+    overflow: auto hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  html[data-tiktools-transport='local-web'] .app-navigation__list {
+    flex-direction: row;
+  }
+
+  html[data-tiktools-transport='local-web'] .app-navigation__heading {
+    display: none;
+  }
+
+  html[data-tiktools-transport='local-web'] .app-navigation__link {
+    min-height: 44px;
+    gap: 6px;
+    padding: 0 12px;
+  }
+
+  html[data-tiktools-transport='local-web'] .app-layout__content {
+    overflow: auto;
+  }
+
+  html[data-tiktools-transport='local-web'] .feed-page {
+    position: relative;
+    padding: 8px;
+  }
+
+  html[data-tiktools-transport='local-web'] .feed-page__inspector {
+    position: absolute;
+    inset: 0 0 0 auto;
+    z-index: 5;
+    width: min(340px, 100%);
+    background: var(--color-bg-panel);
+  }
+
+  html[data-tiktools-transport='local-web'] input,
+  html[data-tiktools-transport='local-web'] select,
+  html[data-tiktools-transport='local-web'] textarea {
+    font-size: 16px;
+  }
+}

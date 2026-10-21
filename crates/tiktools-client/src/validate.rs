@@ -43,6 +43,14 @@ use tiktools_control_api::modules::Empty;
 pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), ClientError> {
     let invalid = |error: serde_json::Error| ClientError::new("invalid_params", error.to_string());
     match method {
+        "plugins.ui.assets" => PluginIdParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "ui.feed.backfill" => {
+            tiktools_control_api::modules::ui::FeedBackfillParams::deserialize(params)
+                .map(|_| ())
+                .map_err(invalid)
+        }
         "analytics.summary" => AnalyticsSummaryParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),

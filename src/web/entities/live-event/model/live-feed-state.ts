@@ -232,6 +232,11 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       for (let page = 0; page < 16; page += 1) {
         const result = await control.call<FeedBackfillResult>('ui.feed.backfill', { version: 1, after });
         if (disposed || !presentationActive || generation !== recoveryGeneration) return;
+        if (result.latestCursor < after) {
+          seenCursors.clear(); lastFeedCursor = null; after = 0; recoveryAfter = 0;
+          recoveryGaps += 1; insertDiscontinuity();
+          continue;
+        }
         let recovered = 0;
         let next = after;
         for (const entry of result.events ?? []) {
@@ -256,6 +261,12 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       }
     }
   };
+
+  if (typeof control.onGap === 'function') {
+    unsubscribers.push(control.onGap(() => {
+      if (!disposed && presentationActive) void recoverFeed();
+    }));
+  }
 
   const setPresentationActive = (active: boolean): void => {
     if (disposed || active === presentationActive) return;

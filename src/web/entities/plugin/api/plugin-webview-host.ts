@@ -79,7 +79,8 @@ export function pluginUiUrl(pluginId: string, entry: string, pageId: string): st
   if (!UI_ID_PATTERN.test(page)) return null;
   const scope =
     typeof window === 'undefined' ? undefined : (window as unknown as Record<string, unknown>);
-  const override = scope?.['__TIKTOOLS_PLUGIN_UI_BASE__'];
+  const localBase = typeof document === 'undefined' ? null : document.querySelector('meta[name="tiktools-plugin-assets"]')?.getAttribute('content');
+  const override = localBase ?? scope?.['__TIKTOOLS_PLUGIN_UI_BASE__'];
   if (typeof override === 'string' && override.length > 0) {
     const base = override.endsWith('/') ? override : `${override}/`;
     return `${base}${pluginId}/${file}#page=${encodeURIComponent(page)}`;

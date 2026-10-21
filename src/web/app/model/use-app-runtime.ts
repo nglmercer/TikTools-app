@@ -49,6 +49,7 @@ export function useAppRuntime() {
     resyncInFlight = true;
     resyncAgain = false;
     void Promise.allSettled([
+      processors.refresh(),
       connection.refreshStatus(),
       connection.refreshMonitor(),
       points.refresh(),

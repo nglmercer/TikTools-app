@@ -74,6 +74,7 @@ impl ControlApi {
         modules::creators::register(router);
         modules::analytics::register(router);
         modules::gifts::register(router);
+        modules::ui::register(router);
         modules::widgets::register(router);
         modules::workflows::register(router);
         // Agent-facing risk metadata: destructive ops delete or reset
