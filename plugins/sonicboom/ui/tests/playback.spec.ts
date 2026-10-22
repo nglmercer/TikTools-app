@@ -11,7 +11,7 @@ test('playback tracking is opt-in, renders duration and controls the shared serv
   await page.getByLabel('Track audio for playback controls').check();
   await expect(page.locator('.tts-playback')).toContainText('12.5 s');
   await page.getByRole('button', { name: 'Skip current audio', exact: true }).click();
-  await expect(page.locator('.tts-playback')).toContainText('next-track');
+  await expect(page.locator('.tts-playback__metadata')).toHaveAttribute('title', 'next-track');
   await page.getByRole('button', { name: 'Pause audio', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Resume audio', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Resume audio', exact: true }).click();
@@ -33,7 +33,8 @@ test('unknown duration stays unknown and authentication failures disable control
   await installFakeBroker(page, state);
   await page.goto('/');
   await page.getByLabel('Track audio for playback controls').check();
-  await expect(page.locator('.tts-playback')).toContainText('This server does not report audio duration.');
+  await expect(page.locator('.tts-playback__duration')).toHaveText('—');
+  await expect(page.locator('.tts-playback__duration')).toHaveAttribute('title', /This server does not report audio duration/);
   await page.evaluate(() => { (window as unknown as { __SONICBOOM_STATE__: SonicBoomFakeState }).__SONICBOOM_STATE__.playback!.error = 'unauthorized'; });
   await expect(page.locator('.tts-playback [role="alert"]')).toContainText('Check the API token');
   await expect(page.getByRole('button', { name: 'Skip current audio', exact: true })).toBeDisabled();
@@ -48,5 +49,20 @@ test('failed skip is reported without claiming the track changed', async ({ page
   await expect(page.getByRole('button', { name: 'Skip current audio', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Skip current audio', exact: true }).click();
   await expect(page.locator('.tts-playback [role="alert"]')).toContainText('Playback unavailable');
-  await expect(page.locator('.tts-playback')).toContainText('track-one');
+  await expect(page.locator('.tts-playback__metadata')).toHaveAttribute('title', 'track-one');
+});
+
+test('audio bar stays compact with icon controls and optional details in titles', async ({ page }) => {
+  const state = baseFakeState();
+  state.playback = { currentId: 'private-queue-reference', queueLength: 2, playing: true, paused: false, durationSecs: 12.5 };
+  await installFakeBroker(page, state); await page.goto('/');
+  const card = page.locator('.tts-playback');
+  expect((await card.boundingBox())!.height).toBeLessThan(90);
+  await page.getByRole('checkbox', { name: 'Track audio for playback controls', exact: true }).check();
+  await expect(card).toContainText('12.5 s');
+  expect((await card.boundingBox())!.height).toBeLessThan(100);
+  await expect(card).not.toContainText('private-queue-reference');
+  await expect(card).not.toContainText('Controls affect the shared server queue');
+  await expect(page.getByRole('button', { name: 'Skip current audio', exact: true })).toHaveText('');
+  await expect(page.getByRole('button', { name: 'Skip current audio', exact: true })).toHaveAttribute('title', 'Skip current audio');
 });

@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { PluginBroker } from '../broker.ts';
 import TtsIcon from './TtsIcon.vue';
-import TtsToggle from './TtsToggle.vue';
 import { t, type Locale } from '../i18n/index.ts';
 const props = defineProps<{ broker: PluginBroker; locale: Locale; enabled: boolean; connectionKey: string }>();
 const emit = defineEmits<{ toggle: [enabled: boolean] }>();
@@ -69,28 +68,57 @@ onMounted(() => {
 onBeforeUnmount(() => { disposed = true; epoch++; clearInterval(timer); });
 </script>
 <template>
-  <section class="tts-card tts-playback">
-    <h4 class="tts-card__title"><TtsIcon name="audio"/>{{ t(locale, 'ttsPlayback') }}</h4>
-    <TtsToggle :label="t(locale, 'ttsTrackPlayback')" :hint="t(locale, 'ttsPlaybackScope')" :checked="enabled" @change="emit('toggle', $event)"/>
-    <template v-if="enabled">
-      <p class="tts-hint">{{ t(locale, 'ttsPlaybackScope') }}</p>
-      <p v-if="error || actionError" role="alert" class="plg-alert">{{ error || actionError }}</p>
-      <div v-if="snapshot?.state === 'ready' && fresh" class="tts-playback__status" role="status">
-        <p>{{ t(locale, current ? (snapshot.paused ? 'ttsPlaybackPaused' : snapshot.playing ? 'ttsPlaybackPlaying' : 'ttsPlaybackWaiting') : 'ttsPlaybackIdle') }} <code v-if="current">{{ current }}</code></p>
-        <p>{{ t(locale, 'ttsPlaybackQueue') }}: {{ snapshot.queueLength }} · {{ t(locale, 'ttsPlaybackDuration') }}: {{ seconds(snapshot.durationSecs) }}<template v-if="snapshot.positionSecs != null"> · {{ t(locale, 'ttsPlaybackPosition') }}: {{ seconds(snapshot.positionSecs) }}</template></p>
-        <p v-if="current && snapshot.durationSecs == null" class="tts-hint">{{ t(locale, 'ttsPlaybackDurationUnknown') }}</p>
-      </div>
-      <p v-else-if="!error" role="status">{{ t(locale, 'ttsPlaybackPending') }}</p>
-      <div class="tts-row tts-playback__controls">
-        <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || !current" :title="t(locale, 'ttsSkipAudio')" @click="control('skip')"><TtsIcon name="skip"/>{{ t(locale, 'ttsSkipAudio') }}</button>
-        <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || !current" @click="control(snapshot?.paused ? 'resume' : 'pause')"><TtsIcon :name="snapshot?.paused ? 'play' : 'pause'"/>{{ t(locale, snapshot?.paused ? 'ttsResumeAudio' : 'ttsPauseAudio') }}</button>
-        <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || (!current && !snapshot?.queueLength)" :title="t(locale, 'ttsStopAudio')" @click="control('stop')"><TtsIcon name="stop"/>{{ t(locale, 'ttsStopAudio') }}</button>
-      </div>
-    </template>
+  <section class="tts-card tts-playback" :aria-label="t(locale, 'ttsPlayback')">
+    <div class="tts-playback__bar">
+      <h4 class="tts-playback__title"><TtsIcon name="audio"/>{{ t(locale, 'ttsPlaybackMinimalTitle') }}</h4>
+      <template v-if="enabled">
+        <div v-if="snapshot?.state === 'ready' && fresh" class="tts-playback__metadata" role="status" :title="current || undefined">
+          <span class="tts-playback__state">{{ t(locale, current ? (snapshot.paused ? 'ttsPlaybackPaused' : snapshot.playing ? 'ttsPlaybackPlaying' : 'ttsPlaybackWaiting') : 'ttsPlaybackIdle') }}</span>
+          <span v-if="current" class="tts-playback__duration" :title="t(locale, snapshot.durationSecs == null ? 'ttsPlaybackDurationUnknown' : 'ttsPlaybackDuration')" :aria-label="t(locale, 'ttsPlaybackDuration') + ': ' + seconds(snapshot.durationSecs)"><template v-if="snapshot.positionSecs != null">{{ seconds(snapshot.positionSecs) }} / </template>{{ seconds(snapshot.durationSecs) }}</span>
+          <span v-if="snapshot.queueLength" class="tts-playback__queue" :title="t(locale, 'ttsPlaybackQueue')" :aria-label="t(locale, 'ttsPlaybackQueue') + ': ' + snapshot.queueLength">+{{ snapshot.queueLength }}</span>
+        </div>
+        <span v-else-if="!error" class="tts-playback__state" role="status">{{ t(locale, 'ttsPlaybackConnecting') }}</span>
+        <div class="tts-playback__controls">
+          <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || !current" :title="t(locale, snapshot?.paused ? 'ttsResumeAudio' : 'ttsPauseAudio')" :aria-label="t(locale, snapshot?.paused ? 'ttsResumeAudio' : 'ttsPauseAudio')" @click="control(snapshot?.paused ? 'resume' : 'pause')"><TtsIcon :name="snapshot?.paused ? 'play' : 'pause'"/></button>
+          <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || !current" :title="t(locale, 'ttsSkipAudio')" :aria-label="t(locale, 'ttsSkipAudio')" @click="control('skip')"><TtsIcon name="skip"/></button>
+          <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || (!current && !snapshot?.queueLength)" :title="t(locale, 'ttsStopAudio')" :aria-label="t(locale, 'ttsStopAudio')" @click="control('stop')"><TtsIcon name="stop"/></button>
+        </div>
+      </template>
+      <label class="tts-playback__switch" :title="t(locale, 'ttsTrackPlayback') + ': ' + t(locale, 'ttsPlaybackScope')">
+        <input type="checkbox" :checked="enabled" :aria-label="t(locale, 'ttsTrackPlayback')" :aria-description="t(locale, 'ttsPlaybackScope')" @change="emit('toggle', ($event.target as HTMLInputElement).checked)">
+        <span aria-hidden="true"/>
+      </label>
+    </div>
+    <p v-if="enabled && (error || actionError)" role="alert" class="plg-alert">{{ error || actionError }}</p>
   </section>
 </template>
 <style scoped>
-.tts-playback { margin-bottom: 12px; }
-.tts-playback__toggle { display: flex; align-items: center; gap: 8px; }
-.tts-playback__controls { justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
+.tts-workspace .tts-playback { margin-bottom: 16px; padding: 12px 16px; gap: 10px; }
+.tts-playback__bar { display: flex; align-items: center; gap: 16px; min-height: 34px; flex-wrap: wrap; }
+.tts-playback__title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 600; }
+.tts-playback__title .tts-icon { color: var(--tt-cyan); }
+.tts-playback__metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 12px; min-width: 0; }
+.tts-playback__state { color: var(--text-secondary); font-size: 12px; }
+.tts-playback__duration { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.tts-playback__queue { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.tts-playback__controls { display: flex; gap: 6px; margin-left: auto; }
+.tts-playback__controls .plg-btn { width: 34px; height: 34px; padding: 0; }
+.tts-playback__switch { display: inline-flex; align-items: center; position: relative; width: 30px; height: 24px; margin-left: auto; cursor: pointer; }
+.tts-playback__controls + .tts-playback__switch { margin-left: 0; }
+.tts-playback__switch input { position: absolute; inset: 0; opacity: 0; z-index: 1; margin: 0; width: 100%; height: 100%; cursor: pointer; }
+.tts-playback__switch > span { width: 30px; height: 18px; border: 1px solid var(--text-muted); border-radius: 12px; background: var(--input-bg); }
+.tts-playback__switch > span::after { content: ''; display: block; width: 12px; height: 12px; margin: 2px; border-radius: 50%; background: var(--text-muted); }
+.tts-playback__switch input:checked + span { border-color: var(--tt-cyan); }
+.tts-playback__switch input:checked + span::after { transform: translateX(12px); background: var(--tt-cyan); }
+.tts-playback__switch:has(input:focus-visible) { outline: 2px solid var(--tt-cyan); outline-offset: 3px; border-radius: 12px; }
+@media (max-width: 480px) {
+  .tts-playback__bar { gap: 10px; }
+  .tts-playback__title { flex: 1; }
+  .tts-playback__metadata { order: 3; flex: 1; }
+  .tts-playback__controls { order: 4; margin-left: 0; }
+}
+@media (forced-colors: active) {
+  .tts-playback__switch input { position: static; opacity: 1; appearance: auto; }
+  .tts-playback__switch > span { display: none; }
+}
 </style>

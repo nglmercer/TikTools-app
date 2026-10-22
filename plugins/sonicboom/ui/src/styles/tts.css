@@ -294,7 +294,5 @@
 }
 .tts-toggle.is-hint-dismissed .tts-toggle__hint { opacity: 0; visibility: hidden; }
 .tts-workspace p { margin: 0; line-height: 1.5; }
-.tts-playback__status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
-.tts-playback__status > .tts-hint { width: 100%; }
 .tts-playback code { overflow-wrap: anywhere; }
 .tts-workspace .tts-grid--bottom { grid-template-columns: minmax(0, 1fr); }

@@ -1,6 +1,8 @@
 /** SonicBoom plugin UI strings (moved from the main frontend
  * so no TTS copy ships in the TikTools web bundle). */
 export const spanish = {
+  ttsPlaybackMinimalTitle: "Audio",
+  ttsPlaybackConnecting: "Conectando…",
   ttsWorkspaceTitle: "Tu voz, tus reglas",
   ttsWorkspaceLead: "Elige una voz, decide quién puede hablar y controla el audio.",
   ttsVoiceAdvanced: "Ajustes de voz",
