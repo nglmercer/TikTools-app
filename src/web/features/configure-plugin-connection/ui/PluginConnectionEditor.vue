@@ -295,7 +295,7 @@ onMounted(() => {
       v-if="supportsProvisioning"
       class="connection-editor__actions"
     >
-      <BaseButton @click="provisionOpen = true">
+      <BaseButton :disabled="importDisabled" @click="provisionOpen = true">
         {{ t('plugins.connection.getToken') }}
       </BaseButton>
       <ProvisionTokenDialog

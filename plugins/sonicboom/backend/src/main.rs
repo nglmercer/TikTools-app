@@ -44,6 +44,7 @@
 
 mod config;
 mod emotes;
+mod playback;
 mod policy;
 mod sanitizer;
 mod transport;
@@ -230,6 +231,7 @@ struct SpeechRuntime {
     last_reject_log_ms: AtomicU64,
     diagnostic: std::sync::Mutex<serde_json::Value>,
     catalog_invalidation: AtomicU64,
+    audio_durations: playback::Durations,
 }
 
 impl SpeechRuntime {
@@ -249,6 +251,7 @@ impl SpeechRuntime {
             last_reject_log_ms: AtomicU64::new(0),
             diagnostic: std::sync::Mutex::new(serde_json::json!({"stage":"idle"})),
             catalog_invalidation: AtomicU64::new(0),
+            audio_durations: Default::default(),
         }
     }
 }
@@ -761,7 +764,7 @@ impl SpeechEngine {
                 eprintln!("sonicboom: job {job_id} submitted synthesis_id={id} event={event_ref}");
                 let mut previous_stage = String::new();
                 let mut generating_seen = false;
-                match client.track_observed(&id, budget, cancelled, |stage| {
+                match client.track_with_duration(&id, budget, cancelled, |stage| {
                     if stage != previous_stage {
                         previous_stage = stage.to_owned();
                         if !generating_seen && !matches!(stage, "queued" | "completed" | "failed" | "cancelled") {
@@ -770,7 +773,12 @@ impl SpeechEngine {
                         diagnostic_runtime.diagnostic(stage, "Playback disposition pending.");
                     }
                 }).await {
-                    Ok((state, queue_id)) => {
+                    Ok((state, queue_id, duration)) => {
+                        if let (Some(id), Some(seconds)) = (&queue_id, duration) {
+                            let mut known = diagnostic_runtime.audio_durations.lock().unwrap_or_else(|e| e.into_inner());
+                            if known.len() >= 128 { if let Some(key) = known.keys().next().cloned() { known.remove(&key); } }
+                            known.insert((config.server_url.clone(), config.api_token.clone(), id.clone()), seconds);
+                        }
                         diagnostic_runtime.diagnostic("playback", &format!("{state}; completion unverified"));
                         if state == "queued" { stats.playback_queued.fetch_add(1, Ordering::Relaxed); }
                         if state == "started" { stats.playback_started.fetch_add(1, Ordering::Relaxed); }
@@ -928,6 +936,7 @@ struct SpeechJob {
 }
 
 struct SonicBoom {
+    playback: Option<playback::PlaybackMonitor>,
     settings: config::ConfigCache,
     stats: Arc<SpeechStats>,
     runtime: Arc<SpeechRuntime>,
@@ -1065,6 +1074,7 @@ impl Default for SonicBoom {
             .ok();
 
         Self {
+            playback: None,
             settings: config::ConfigCache::new(),
             stats,
             runtime,
@@ -1197,6 +1207,22 @@ impl Drop for SonicBoom {
 }
 
 impl Plugin for SonicBoom {
+    fn action(&mut self, _context: &PluginContext, call: ActionCall) -> PluginResult<ActionResult> {
+        if call.action_type() != Some("sonicboom.server.playback-status") {
+            return Err(PluginError::unsupported(
+                call.action_type().unwrap_or("unknown"),
+            ));
+        }
+        let config = self.settings.get().clone();
+        let snapshot = self
+            .playback
+            .get_or_insert_with(|| {
+                playback::PlaybackMonitor::new(Arc::clone(&self.runtime.audio_durations))
+            })
+            .refresh(config);
+        Ok(ActionResult::summary(snapshot.to_string()))
+    }
+
     fn poll(&mut self, _context: &PluginContext) -> PluginResult<PollResult> {
         let mut diagnostic = self
             .runtime

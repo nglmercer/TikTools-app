@@ -20,6 +20,7 @@ export interface SonicBoomFakeState {
   outputsSelected: string | null;
   speakOutcome: { ok: boolean; summary: string; logs: string[]; error?: string | null };
   speakDelayMs: number;
+  playback?: { currentId: string | null; queueLength: number; playing: boolean; paused: boolean; durationSecs?: number | null; error?: string };
   locale: string;
   theme: string;
 }
@@ -79,6 +80,16 @@ const INIT_SCRIPT = `
     actions: {
       execute: async (action, config) => {
         calls.push({ method: 'actions.execute', params: { action, config } });
+        if (action === 'sonicboom.server.playback-status') {
+          const playback = state.playback || { currentId: null, queueLength: 0, playing: false, paused: false };
+          return { actionType: action, ok: true, summary: JSON.stringify({ ...playback, state: playback.error ? 'error' : 'ready', observedAt: Date.now() }), logs: [], durationMs: 1 };
+        }
+        if (state.playback && state.speakOutcome.ok) {
+          if (action === 'sonicboom.server.skip') { state.playback.currentId = 'next-track'; state.playback.queueLength = Math.max(0, state.playback.queueLength - 1); }
+          if (action === 'sonicboom.server.pause') state.playback.paused = true;
+          if (action === 'sonicboom.server.resume') state.playback.paused = false;
+          if (action === 'sonicboom.server.stop') { state.playback.currentId = null; state.playback.queueLength = 0; state.playback.playing = false; }
+        }
         const outcome = {
           actionType: action,
           ok: state.speakOutcome.ok,

@@ -4,7 +4,7 @@
   "name": "SonicBoom Server",
   "version": "1.0.0",
   "description": "Speak chat and events through a local or remote SonicBoom TTS server. The plugin owns its backend policy and isolated UI; the host enforces capabilities and ownership.",
-  "longDescription": "Speak chat and events through a local or remote SonicBoom TTS server over plain HTTP. The plugin backend owns TTS policy and the isolated UI; the host interprets HTTP actions and enforces capabilities.\n\n- Voices and audio outputs load live from the server\n- Loopback needs no token; anything beyond it needs one",
+  "longDescription": "Speak chat and events through a local or remote SonicBoom TTS server over plain HTTP. The plugin backend owns TTS policy and the isolated UI; the host interprets HTTP actions and enforces capabilities.\n\n- Voices and audio outputs load live from the server\n- API tokens are required when server authentication is enabled, including loopback\n- Track server playback and skip, pause, resume or clear the queue",
   "icon": "voice",
   "tags": [
     "tts",
@@ -122,9 +122,17 @@
         },
         "body": "{{ config.text }}",
         "defaultsFromSettings": {
-          "provider": ["/tts/providerId"],
-          "voice": ["/tts/defaultVoice", "/defaultVoice"],
-          "language": ["/tts/language", "/defaultLanguage"]
+          "provider": [
+            "/tts/providerId"
+          ],
+          "voice": [
+            "/tts/defaultVoice",
+            "/defaultVoice"
+          ],
+          "language": [
+            "/tts/language",
+            "/defaultLanguage"
+          ]
         },
         "timeoutMs": 15000,
         "timeoutByField": {
@@ -197,6 +205,101 @@
           "timeoutMs": 8000
         }
       }
+    },
+    {
+      "id": "sonicboom.server.skip",
+      "version": 1,
+      "title": {
+        "default": "Skip current audio"
+      },
+      "description": {
+        "default": "Skip current audio on the SonicBoom server."
+      },
+      "tag": "tts",
+      "requiredCapabilities": [
+        "http.request"
+      ],
+      "fields": [],
+      "http": {
+        "method": "POST",
+        "path": "/api/queue/next",
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "sonicboom.server.pause",
+      "version": 1,
+      "title": {
+        "default": "Pause audio"
+      },
+      "description": {
+        "default": "Pause audio on the SonicBoom server."
+      },
+      "tag": "tts",
+      "requiredCapabilities": [
+        "http.request"
+      ],
+      "fields": [],
+      "http": {
+        "method": "POST",
+        "path": "/api/queue/pause",
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "sonicboom.server.resume",
+      "version": 1,
+      "title": {
+        "default": "Resume audio"
+      },
+      "description": {
+        "default": "Resume audio on the SonicBoom server."
+      },
+      "tag": "tts",
+      "requiredCapabilities": [
+        "http.request"
+      ],
+      "fields": [],
+      "http": {
+        "method": "POST",
+        "path": "/api/queue/resume",
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "sonicboom.server.stop",
+      "version": 1,
+      "title": {
+        "default": "Stop and clear audio queue"
+      },
+      "description": {
+        "default": "Stop and clear audio queue on the SonicBoom server."
+      },
+      "tag": "tts",
+      "requiredCapabilities": [
+        "http.request"
+      ],
+      "fields": [],
+      "http": {
+        "method": "POST",
+        "path": "/api/queue/stop",
+        "timeoutMs": 5000
+      }
+    },
+    {
+      "id": "sonicboom.server.playback-status",
+      "version": 1,
+      "title": {
+        "default": "Track server audio playback"
+      },
+      "description": {
+        "default": "Read a sanitized snapshot of the server audio queue."
+      },
+      "tag": "tts",
+      "requiredCapabilities": [
+        "http.request"
+      ],
+      "fields": []
     }
   ],
   "settings": {
@@ -372,7 +475,14 @@
     }
   ],
   "entry": "backend/dist/sonicboom-backend",
-  "eventTypes": [{"type":"sonicboom.speech-status","title":{"default":"Speech diagnostics"}}],
+  "eventTypes": [
+    {
+      "type": "sonicboom.speech-status",
+      "title": {
+        "default": "Speech diagnostics"
+      }
+    }
+  ],
   "eventSubscriptions": [
     "live.ui-event",
     "live.disconnected",

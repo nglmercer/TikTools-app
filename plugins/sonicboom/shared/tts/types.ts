@@ -16,6 +16,7 @@ export type TtsSettings = {
   providerId: string;
   voiceCatalogRevision: string;
   enabled: boolean;
+  trackPlayback: boolean;
   language: string;
   defaultVoice: string;
   randomVoice: boolean;

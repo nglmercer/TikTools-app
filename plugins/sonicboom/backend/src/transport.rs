@@ -126,13 +126,25 @@ impl JobsClient {
     ) -> Result<(String, Option<String>), Failure> {
         self.track_observed(id, budget, cancelled, |_| {}).await
     }
+    #[cfg(test)]
     pub async fn track_observed(
+        &self,
+        id: &str,
+        budget: Duration,
+        cancelled: tokio::sync::watch::Receiver<bool>,
+        on_stage: impl FnMut(&str),
+    ) -> Result<(String, Option<String>), Failure> {
+        self.track_with_duration(id, budget, cancelled, on_stage)
+            .await
+            .map(|(state, id, _)| (state, id))
+    }
+    pub async fn track_with_duration(
         &self,
         id: &str,
         budget: Duration,
         mut cancelled: tokio::sync::watch::Receiver<bool>,
         mut on_stage: impl FnMut(&str),
-    ) -> Result<(String, Option<String>), Failure> {
+    ) -> Result<(String, Option<String>, Option<f64>), Failure> {
         if *cancelled.borrow() {
             self.cancel(id).await;
             return Err(Failure::Cancelled);
@@ -172,6 +184,9 @@ impl JobsClient {
                                 return Ok((
                                     state.to_owned(),
                                     value["playback"]["queue_id"].as_str().map(str::to_owned),
+                                    value["audio_secs"]
+                                        .as_f64()
+                                        .filter(|v| v.is_finite() && *v >= 0.0),
                                 ))
                             }
                             Some("failed" | "skipped") => return Err(Failure::Playback),
@@ -236,6 +251,29 @@ mod tests {
         });
         (url, rx, thread)
     }
+    #[tokio::test]
+    async fn generated_duration_is_preserved_with_the_exact_playback_id() {
+        let (server, _requests, thread) = server(vec![(
+            "200 OK",
+            r#"{"stage":"completed","audio_secs":12.5,"playback":{"state":"queued","queue_id":"audio-duration"}}"#,
+        )]);
+        let client = JobsClient {
+            http: reqwest::Client::new(),
+            server,
+            token: String::new(),
+        };
+        let (_cancel, cancelled) = tokio::sync::watch::channel(false);
+        let result = client
+            .track_with_duration("job", Duration::from_secs(5), cancelled, |_| {})
+            .await
+            .unwrap();
+        assert_eq!(
+            result,
+            ("queued".into(), Some("audio-duration".into()), Some(12.5))
+        );
+        thread.join().unwrap();
+    }
+
     #[tokio::test]
     async fn clones_route_by_profile_and_track_playback_after_synthesis() {
         for provider in ["pocket-tts", "qwen3-gguf"] {

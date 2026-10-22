@@ -17,6 +17,7 @@ import { TtsSettingsPanel } from './components/TtsSettingsPanel.vue';
 import { outputsTarget } from './components/source.ts';
 import { t, type Locale } from './i18n/index.ts';
 import type { ActionOptionItem } from './types.ts';
+import TtsPlayback from './components/TtsPlayback.vue';
 
 const SPEAK_ACTION = 'sonicboom.server.speak';
 const PROVIDERS_SOURCE = 'plugin-action-options:sonicboom.server.speak:provider';
@@ -45,6 +46,7 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
   const voices = computed(() => catalog.value.filter(v => v.value.startsWith(`${settings.value.providerId}:`)));
   const ready = computed(() => providers.value.some(p => p.value === settings.value.providerId && !p.disabled));
   const refreshing = ref(false);
+  const connectionEpoch = ref(0);
   const catalogStatus = ref('');
   let catalogEpoch = 0;
   const voicesError = ref<string | undefined>(undefined);
@@ -87,7 +89,7 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
       if (identity !== serverIdentity(latest)) {
         catalogEpoch += 1;
         catalog.value = []; providers.value = []; refreshing.value = false;
-        fullSettings.value = latest; settings.value = readTtsSettings(latest);
+        connectionEpoch.value++; fullSettings.value = latest; settings.value = readTtsSettings(latest);
         voicesError.value = t(locale.value, 'ttsConnectionChanged');
         return;
       }
@@ -143,6 +145,7 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
       const latest = await broker.getSettings();
       const identity = serverIdentity(latest);
       if (identity !== serverIdentity(fullSettings.value)) {
+        connectionEpoch.value++;
         catalog.value = []; providers.value = [];
         settings.value = readTtsSettings(latest);
       }
@@ -157,6 +160,7 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
       if (epoch !== catalogEpoch) return;
       const connected = await broker.getSettings();
       if (identity !== serverIdentity(connected)) {
+        connectionEpoch.value++;
         catalog.value = []; providers.value = [];
         fullSettings.value = connected;
         settings.value = readTtsSettings(connected);
@@ -209,7 +213,7 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
       catalogEpoch += 1; refreshing.value = false;
       catalog.value = []; providers.value = [];
       if (saveTimer !== undefined) { clearTimeout(saveTimer); saveTimer = undefined; }
-      fullSettings.value = latest; settings.value = readTtsSettings(latest);
+      connectionEpoch.value++; fullSettings.value = latest; settings.value = readTtsSettings(latest);
       void loadCatalog(true);
     } catch { /* A transport interruption keeps the last known connection until retry. */ }
     finally { connectionCheckPending = false; }
@@ -245,7 +249,7 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
     void broker.getSettings().then(latest => {
       if (serverIdentity(latest) !== serverIdentity(fullSettings.value)) {
         catalogEpoch += 1; catalog.value = []; providers.value = []; refreshing.value = false;
-        fullSettings.value = latest; settings.value = readTtsSettings(latest);
+        connectionEpoch.value++; fullSettings.value = latest; settings.value = readTtsSettings(latest);
         throw new Error(t(locale.value, 'ttsConnectionChanged'));
       }
       if (settings.value.providerId !== current.providerId || !ready.value || !voices.value.some(v => v.value === resolvedVoice)) throw new Error(t(locale.value, 'ttsSelectionChanged'));
@@ -325,7 +329,7 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
       // The host emits one event per successful settings write. Consume our own
       // echoes, but refresh on external writes even when secrets remain redacted.
       if (ownSettingsEvents > 0) { ownSettingsEvents -= 1; return; }
-      catalogEpoch += 1; refreshing.value = false;
+      connectionEpoch.value++; catalogEpoch += 1; refreshing.value = false;
       catalog.value = []; providers.value = [];
       void loadCatalog(false);
     });
@@ -401,6 +405,9 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
       </details>
       <label class="tts-card"><input type="checkbox" checked={manualPlayNow.value} onChange={(event: Event) => { manualPlayNow.value = (event.target as HTMLInputElement).checked; }} />{t(locale.value, 'ttsManualInterrupt')}</label>
       </details>
+      <TtsPlayback broker={broker} locale={locale.value} enabled={settings.value.trackPlayback}
+        connectionKey={String(connectionEpoch.value)}
+        onToggle={(trackPlayback: boolean) => handleSettingsChange({ ...settings.value, trackPlayback })}/>
       <TtsSettingsPanel
         locale={locale.value}
         settings={settings.value}

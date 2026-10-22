@@ -3,6 +3,6 @@
  * harness page. Bundled with `bun build --format=iife` by
  * `interop.spec.ts`; never shipped with the plugin package.
  */
-import * as shim from '../../../../src/web/plugin-ui/plugin-webview-host.ts';
+import * as shim from '../../../../src/web/entities/plugin/api/plugin-webview-host.ts';
 
 (window as unknown as { TikToolsShim: typeof shim }).TikToolsShim = shim;

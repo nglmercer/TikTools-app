@@ -58,6 +58,33 @@ pub(crate) fn supports_token_provisioning(manifest: &PluginManifest) -> bool {
         .is_some_and(|setting| !setting.trim().is_empty())
 }
 
+/// Current SonicBoom renders Vue bootstrap JSON in an HTML-escaped data-page
+/// attribute. Decode exactly once (ampersand last), then require an admin page.
+/// Never search executable scripts or arbitrary JSON elsewhere in the document.
+#[cfg_attr(not(feature = "http"), allow(dead_code))]
+fn admin_page_data(html: &str) -> Option<Value> {
+    let start = html.find("data-page=\"")? + "data-page=\"".len();
+    let encoded = html.get(start..)?.split('"').next()?;
+    let decoded = encoded
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&");
+    let data: Value = serde_json::from_str(&decoded).ok()?;
+    (data.get("page").and_then(Value::as_str) == Some("admin")).then_some(data)
+}
+
+#[cfg_attr(not(feature = "http"), allow(dead_code))]
+fn extract_admin_csrf(html: &str) -> Option<String> {
+    if html.contains("data-page=") {
+        let data = admin_page_data(html)?;
+        let csrf = data.get("csrf")?.as_str()?;
+        return is_hex64(csrf).then(|| csrf.to_owned());
+    }
+    extract_hidden_input(html, "csrf_token").filter(|value| is_hex64(value))
+}
+
 /// Extracts `<input ... name="{name}" value="...">` from an admin page.
 /// Bounded string search on the exact markers the server renders; anything
 /// else is a version drift the caller must report, never guess through.
@@ -79,6 +106,11 @@ fn extract_hidden_input(html: &str, name: &str) -> Option<String> {
 /// closed so markup can never become a stored credential.
 #[cfg_attr(not(feature = "http"), allow(dead_code))]
 fn extract_new_token(html: &str) -> Option<String> {
+    if html.contains("data-page=") {
+        let data = admin_page_data(html)?;
+        let token = data.get("newToken")?.as_str()?;
+        return is_hex64(token).then(|| token.to_owned());
+    }
     let section = html.find(r#"<div class="new-token">"#)?;
     let code = html[section..].find("<code>")? + section + "<code>".len();
     let rest = html.get(code..)?;
@@ -327,9 +359,7 @@ impl crate::AppCore {
                 admin.status
             ));
         }
-        let Some(csrf) =
-            extract_hidden_input(&admin.body, "csrf_token").filter(|value| is_hex64(value))
-        else {
+        let Some(csrf) = extract_admin_csrf(&admin.body) else {
             return Err(
                 "Could not read the admin form (unexpected page). Is this a SonicBoom server?"
                     .to_owned(),
@@ -365,6 +395,8 @@ impl crate::AppCore {
             return Err("Token creation succeeded but the new value could not be read (server version mismatch?).".to_owned());
         };
 
+        let logout_csrf = extract_admin_csrf(&created.body).unwrap_or_else(|| csrf.clone());
+
         // Best-effort logout so the admin session does not linger.
         let _ = self
             .provision_send(
@@ -377,7 +409,7 @@ impl crate::AppCore {
                     ),
                     ("cookie".to_owned(), cookie),
                 ],
-                Some(form_body(&[("csrf_token", &csrf)])),
+                Some(form_body(&[("csrf_token", &logout_csrf)])),
             )
             .await;
 
@@ -434,6 +466,165 @@ impl crate::AppCore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "http")]
+    #[tokio::test]
+    async fn current_sonicboom_admin_login_mints_and_saves_a_usable_token() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        struct Emitter;
+        impl crate::HostEmitter for Emitter {
+            fn emit(&self, _: crate::ipc::messages::HostMessage) {}
+        }
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let csrf = "a".repeat(64);
+        let rotated = "c".repeat(64);
+        let token = "b".repeat(64);
+        let expected_token = token.clone();
+        let server = tokio::spawn(async move {
+            for (index, path) in [
+                "/admin/login",
+                "/admin",
+                "/admin/tokens",
+                "/admin/logout",
+                "/ready",
+            ]
+            .iter()
+            .enumerate()
+            {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut bytes = Vec::new();
+                loop {
+                    let mut part = [0; 4096];
+                    let n = socket.read(&mut part).await.unwrap();
+                    assert!(n > 0);
+                    bytes.extend_from_slice(&part[..n]);
+                    if let Some(end) = bytes.windows(4).position(|s| s == b"\r\n\r\n") {
+                        let headers = String::from_utf8_lossy(&bytes[..end]);
+                        let length = headers
+                            .lines()
+                            .find_map(|line| {
+                                line.to_lowercase()
+                                    .strip_prefix("content-length:")
+                                    .map(|s| s.trim().parse::<usize>().unwrap())
+                            })
+                            .unwrap_or(0);
+                        if bytes.len() >= end + 4 + length {
+                            break;
+                        }
+                    }
+                }
+                let request = String::from_utf8(bytes).unwrap();
+                assert!(request
+                    .lines()
+                    .next()
+                    .unwrap()
+                    .contains(&format!(" {path} ")));
+                if index == 0 {
+                    assert!(request.ends_with("id=admin&pw=private-password"));
+                } else if index < 4 {
+                    assert!(request
+                        .to_lowercase()
+                        .contains("cookie: session=test-session"));
+                } else {
+                    assert!(request
+                        .to_lowercase()
+                        .contains(&format!("authorization: bearer {token}")));
+                    assert!(!request.to_lowercase().contains("cookie:"));
+                }
+                if index == 2 {
+                    assert!(request.ends_with(&format!("csrf_token={csrf}&expires_at=")));
+                }
+                if index == 3 {
+                    assert!(request.ends_with(&format!("csrf_token={rotated}")));
+                }
+                let (status, headers, body) = match index {
+                    0 => (
+                        "303 See Other",
+                        "Set-Cookie: session=test-session; HttpOnly\r\nLocation: /admin\r\n",
+                        String::new(),
+                    ),
+                    1 => ("200 OK", "", vue_admin("admin", &csrf, None)),
+                    2 => ("200 OK", "", vue_admin("admin", &rotated, Some(&token))),
+                    3 => ("303 See Other", "Location: /admin\r\n", String::new()),
+                    _ => (
+                        "200 OK",
+                        "Content-Type: application/json\r\n",
+                        r#"{"status":"ready"}"#.to_owned(),
+                    ),
+                };
+                socket.write_all(format!("HTTP/1.1 {status}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+            }
+        });
+        let root = std::env::temp_dir().join(format!("sonicboom-token-{}", fastrand::u64(..)));
+        std::fs::create_dir_all(root.join("demo.prov")).unwrap();
+        let document = serde_json::json!({"schemaVersion":3,"id":"demo.prov","name":"Demo","version":"1.0.0","runtime":"declarative",
+            "http":{"baseUrl":format!("http://{address}"),"auth":{"type":"bearer","tokenSetting":"apiToken"},"tokenProvisioning":{"strategy":"admin-form"},"health":{"path":"/ready"}},
+            "settings":{"schema":{"type":"object","properties":{"apiToken":{"type":"string","secret":true}}}}});
+        std::fs::write(root.join("demo.prov/plugin.json"), document.to_string()).unwrap();
+        let manager =
+            tiktools_plugin_loader::PluginManager::new(vec![tiktools_plugin_loader::PluginRoot {
+                path: root.clone(),
+                source: tiktools_plugin_loader::PluginSource::Development,
+            }]);
+        manager.scan().unwrap();
+        let mut core = crate::AppCore::new(Arc::new(Emitter));
+        core.plugins = Arc::new(manager);
+        core.capabilities = Arc::new(crate::services::capabilities::CapabilityBroker::new(
+            root.join("data"),
+        ));
+        let core = Arc::new(core);
+        core.provision_plugin_token_inner("demo.prov", "admin", "private-password")
+            .await
+            .unwrap();
+        let plugin = core.plugins.get("demo.prov").unwrap();
+        let stored = core
+            .capabilities
+            .load_plugin_settings_raw(&plugin.manifest)
+            .unwrap();
+        assert_eq!(stored["apiToken"], expected_token);
+        assert!(!stored.to_string().contains("private-password"));
+        assert!(core.plugin_connection_check("demo.prov").await.unwrap().ok);
+        server.await.unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    fn vue_admin(page: &str, csrf: &str, token: Option<&str>) -> String {
+        let json =
+            serde_json::json!({"page":page, "csrf":csrf, "newToken":token, "name":"A&B <test>"});
+        let escaped = json
+            .to_string()
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+            .replace('\'', "&#39;");
+        format!("<div id=\"app\" data-page=\"{escaped}\"></div>")
+    }
+
+    #[test]
+    fn vue_bootstrap_supports_csrf_and_one_time_tokens() {
+        let csrf = "a".repeat(64);
+        let token = "b".repeat(64);
+        let page = vue_admin("admin", &csrf, Some(&token));
+        assert_eq!(extract_admin_csrf(&page), Some(csrf.clone()));
+        assert_eq!(extract_new_token(&page), Some(token.clone()));
+        assert!(extract_new_token(&vue_admin("admin", &csrf, None)).is_none());
+        assert!(extract_new_token(&vue_admin("login", &csrf, Some(&token))).is_none());
+        assert!(extract_new_token(&vue_admin("admin", &csrf, Some("invalid"))).is_none());
+        assert!(extract_admin_csrf(&vue_admin("admin", "invalid", Some(&token))).is_none());
+        assert!(extract_admin_csrf("<div data-page=\"bad json\"></div>").is_none());
+        // An invalid current shell must not fall through to legacy token markup.
+        let hostile = format!(
+            "{}<div class=\"new-token\"><code>{token}</code></div>",
+            vue_admin("login", &csrf, None)
+        );
+        assert!(extract_new_token(&hostile).is_none());
+        assert_eq!(
+            extract_admin_csrf(&format!("<input name=\"csrf_token\" value=\"{csrf}\">")),
+            Some(csrf)
+        );
+    }
 
     #[test]
     fn provisioning_needs_a_supported_strategy_and_a_token_setting() {

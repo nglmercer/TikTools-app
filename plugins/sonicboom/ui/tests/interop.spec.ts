@@ -115,7 +115,7 @@ async function installHarness(page: Page, uiUrl: string): Promise<string[]> {
     frame.setAttribute('sandbox', 'allow-scripts');
     frame.src = frameSrc;
     document.getElementById('mount')?.appendChild(frame);
-    const shim = (window as unknown as { TikToolsShim: typeof import('../../../../src/web/plugin-ui/plugin-webview-host.ts') }).TikToolsShim;
+    const shim = (window as unknown as { TikToolsShim: typeof import('../../../../src/web/entities/plugin/api/plugin-webview-host.ts') }).TikToolsShim;
     const host = new shim.PluginWebviewHost(frame.contentWindow, {
       pluginId: 'sonicboom.server',
       backend,
