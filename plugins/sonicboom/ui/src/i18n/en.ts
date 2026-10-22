@@ -1,6 +1,16 @@
 /** SonicBoom plugin UI strings (moved from the main frontend
  * so no TTS copy ships in the TikTools web bundle). */
 export const english = {
+  ttsWorkspaceTitle: "Your voice, your rules",
+  ttsWorkspaceLead: "Choose a voice, decide who can speak, and control the audio.",
+  ttsVoiceAdvanced: "Voice adjustments",
+  ttsAudienceHint: "Everyone can use TTS. Turn this off to choose specific roles or a handle list.",
+  ttsTeamHint: "Allow team members and reveal the minimum team level.",
+  ttsGifterHint: "Allow top gifters and choose how many qualify.",
+  ttsListHint: "Enable a custom list and reveal its user editor.",
+  ttsRandomHint: "Choose a different available voice for each message.",
+  ttsEmoteHint: "Clean known emote codes and reveal how they should be handled.",
+
   ttsPlayback: "Server audio playback",
   ttsTrackPlayback: "Track audio for playback controls",
   ttsPlaybackScope: "Controls affect the shared server queue, including audio from other clients.",

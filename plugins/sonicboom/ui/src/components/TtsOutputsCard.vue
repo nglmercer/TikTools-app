@@ -1,4 +1,5 @@
 <script lang="tsx">
+import TtsIcon from './TtsIcon.vue';
 import { defineVueComponent } from '../vue/component.ts';
 
 import type { ActionOptionItem } from '../types.ts';
@@ -44,14 +45,14 @@ export const TtsOutputsCard = defineVueComponent<TtsOutputsCardProps>(
   const refreshRow = (
     <div class="tts-row">
       <button type="button" class="plg-btn plg-btn--sm" onClick={refresh}>
-        {t(locale, 'ttsRefreshOutputs')}
+        <TtsIcon name="refresh"/>{t(locale, 'ttsRefreshOutputs')}
       </button>
     </div>
   );
   if (state.kind === 'loading') {
     return (
       <section class="tts-card">
-        <h4 class="tts-card__title">{t(locale, 'ttsAudioOutput')}</h4>
+        <h4 class="tts-card__title"><TtsIcon name="audio"/>{t(locale, 'ttsAudioOutput')}</h4>
         <span class="plg-group-note">{t(locale, 'ttsAudioOutputsLoading')}</span>
       </section>
     );
@@ -59,7 +60,7 @@ export const TtsOutputsCard = defineVueComponent<TtsOutputsCardProps>(
   if (state.kind === 'unavailable') {
     return (
       <section class="tts-card">
-        <h4 class="tts-card__title">{t(locale, 'ttsAudioOutput')}</h4>
+        <h4 class="tts-card__title"><TtsIcon name="audio"/>{t(locale, 'ttsAudioOutput')}</h4>
         <div class="plg-alert" role="status">
           {state.unsupported ? t(locale, 'ttsAudioOutputsNoPlayback') : t(locale, 'ttsAudioOutputsUnavailable')}
         </div>
@@ -73,7 +74,7 @@ export const TtsOutputsCard = defineVueComponent<TtsOutputsCardProps>(
   if (state.kind === 'empty') {
     return (
       <section class="tts-card">
-        <h4 class="tts-card__title">{t(locale, 'ttsAudioOutput')}</h4>
+        <h4 class="tts-card__title"><TtsIcon name="audio"/>{t(locale, 'ttsAudioOutput')}</h4>
         <span class="plg-group-note">{t(locale, 'ttsAudioOutputsEmpty')}</span>
         {refreshRow}
       </section>
@@ -84,7 +85,7 @@ export const TtsOutputsCard = defineVueComponent<TtsOutputsCardProps>(
   const switching = !!props.outputsPending;
   return (
     <section class="tts-card">
-      <h4 class="tts-card__title">{t(locale, 'ttsAudioOutput')}</h4>
+      <h4 class="tts-card__title"><TtsIcon name="audio"/>{t(locale, 'ttsAudioOutput')}</h4>
       {props.outputError && <div class="plg-alert" role="status">{props.outputError}</div>}
       <div class="tts-row tts-row--stack">
         <label class="tts-label" for="tts-audio-output">{t(locale, 'ttsAudioOutput')}</label>

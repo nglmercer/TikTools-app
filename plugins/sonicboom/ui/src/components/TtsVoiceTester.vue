@@ -1,5 +1,6 @@
 <script lang="tsx">
 import { ref, watch } from 'vue';
+import TtsIcon from './TtsIcon.vue';
 import { defineVueComponent } from '../vue/component.ts';
 
 import type { ActionOptionItem } from '../types.ts';
@@ -57,7 +58,7 @@ export const TtsVoiceTester = defineVueComponent<TtsVoiceTesterProps>(
   const locale = props.locale;
   return (
     <section class="tts-card">
-      <h4 class="tts-card__title">{t(locale, 'ttsVoiceTester')}</h4>
+      <h4 class="tts-card__title"><TtsIcon name="play"/>{t(locale, 'ttsVoiceTester')}</h4>
       {props.voicesError && <div class="plg-alert" role="status">{props.voicesError}</div>}
       <div class="tts-row tts-row--stack">
         <label class="tts-label" for="tts-tester-voice">{t(locale, 'ttsVoice')}</label>
@@ -90,15 +91,15 @@ export const TtsVoiceTester = defineVueComponent<TtsVoiceTesterProps>(
           disabled={props.unavailable || props.speaking || !testerText.value.trim()}
           onClick={speak}
         >
-          {props.speaking ? t(locale, 'ttsSpeaking') : t(locale, 'ttsPlay')}
+          <TtsIcon name="play"/>{props.speaking ? t(locale, 'ttsSpeaking') : t(locale, 'ttsPlay')}
         </button>
         <button type="button" class="plg-btn plg-btn--sm" disabled={props.refreshing} aria-busy={props.refreshing} onClick={props.onRefreshVoices}>
-          {t(locale, props.refreshing ? 'ttsReloading' : 'ttsRefreshVoices')}
+          <TtsIcon name="refresh"/>{t(locale, props.refreshing ? 'ttsReloading' : 'ttsRefreshVoices')}
         </button>
         <span class="tts-pill">{t(locale, 'ttsVoicesCount', { count: props.voices.length })}</span>
       </div>
       <p class="tts-hint">{t(locale, 'ttsAuthNote')}</p>
-      <h4 class="tts-card__title">{t(locale, 'ttsLogs')}</h4>
+      <h4 class="tts-card__title"><TtsIcon name="play"/>{t(locale, 'ttsLogs')}</h4>
       {props.logs.length === 0 ? (
         <span class="plg-group-note">{t(locale, 'ttsNothingSpoken')}</span>
       ) : (

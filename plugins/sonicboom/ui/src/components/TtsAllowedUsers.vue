@@ -1,5 +1,7 @@
 <script lang="tsx">
 import { ref } from 'vue';
+import TtsIcon from './TtsIcon.vue';
+import TtsToggle from './TtsToggle.vue';
 import { defineVueComponent } from '../vue/component.ts';
 
 import { t, type Locale } from '../i18n/index.ts';
@@ -55,28 +57,13 @@ export const TtsAllowedUsers = defineVueComponent<TtsAllowedUsersProps>(
   const locale = props.locale;
   return (
     <section class="tts-card">
-      <h4 class="tts-card__title">{t(locale, 'ttsAllowedUsers')}</h4>
-      <label class="tts-check">
-        <input type="checkbox" checked={settings.allowAllUsers} onChange={(event) => update({ allowAllUsers: (event.currentTarget as HTMLInputElement).checked })} />
-        {t(locale, 'ttsAllUsers')}
-      </label>
-      <label class="tts-check">
-        <input type="checkbox" checked={settings.allowFollowers} onChange={(event) => update({ allowFollowers: (event.currentTarget as HTMLInputElement).checked })} />
-        {t(locale, 'ttsFollowers')}
-      </label>
-      <label class="tts-check">
-        <input type="checkbox" checked={settings.allowSubscribers} onChange={(event) => update({ allowSubscribers: (event.currentTarget as HTMLInputElement).checked })} />
-        {t(locale, 'ttsSubscribers')}
-      </label>
-      <label class="tts-check">
-        <input type="checkbox" checked={settings.allowModerators} onChange={(event) => update({ allowModerators: (event.currentTarget as HTMLInputElement).checked })} />
-        {t(locale, 'ttsModerators')}
-      </label>
-      <label class="tts-check">
-        <input type="checkbox" checked={settings.allowTeamMembers} onChange={(event) => update({ allowTeamMembers: (event.currentTarget as HTMLInputElement).checked })} />
-        {t(locale, 'ttsTeamMembers')}
-      </label>
-      <div class="tts-row tts-row--stack">
+      <h4 class="tts-card__title"><TtsIcon name="users"/>{t(locale, 'ttsAllowedUsers')}</h4>
+      <TtsToggle label={t(locale, 'ttsAllUsers')} hint={t(locale, 'ttsAudienceHint')} checked={settings.allowAllUsers} onChange={(checked: boolean) => update({ allowAllUsers: checked })}/>
+      {!settings.allowAllUsers && <div class="tts-dependent-group"><TtsToggle label={t(locale, 'ttsFollowers')} hint={t(locale, 'ttsFollowers')} checked={settings.allowFollowers} onChange={(checked: boolean) => update({ allowFollowers: checked })}/>
+      <TtsToggle label={t(locale, 'ttsSubscribers')} hint={t(locale, 'ttsSubscribers')} checked={settings.allowSubscribers} onChange={(checked: boolean) => update({ allowSubscribers: checked })}/>
+      <TtsToggle label={t(locale, 'ttsModerators')} hint={t(locale, 'ttsModerators')} checked={settings.allowModerators} onChange={(checked: boolean) => update({ allowModerators: checked })}/>
+      <TtsToggle label={t(locale, 'ttsTeamMembers')} hint={t(locale, 'ttsTeamHint')} checked={settings.allowTeamMembers} onChange={(checked: boolean) => update({ allowTeamMembers: checked })}/>
+      {settings.allowTeamMembers && (<div class="tts-row tts-row--stack">
         <label class="tts-label" for="tts-team-level">{t(locale, 'ttsMinTeamLevel')}</label>
         <input
           id="tts-team-level"
@@ -88,12 +75,9 @@ export const TtsAllowedUsers = defineVueComponent<TtsAllowedUsersProps>(
           disabled={!settings.allowTeamMembers}
           onInput={(event) => updateNumber('minTeamLevel', (event.currentTarget as HTMLInputElement).value)}
         />
-      </div>
-      <label class="tts-check">
-        <input type="checkbox" checked={settings.allowTopGifters} onChange={(event) => update({ allowTopGifters: (event.currentTarget as HTMLInputElement).checked })} />
-        {t(locale, 'ttsTopGifters')}
-      </label>
-      <div class="tts-row tts-row--stack">
+      </div>)}
+      <TtsToggle label={t(locale, 'ttsTopGifters')} hint={t(locale, 'ttsGifterHint')} checked={settings.allowTopGifters} onChange={(checked: boolean) => update({ allowTopGifters: checked })}/>
+      {settings.allowTopGifters && (<div class="tts-row tts-row--stack">
         <label class="tts-label" for="tts-top-n">{t(locale, 'ttsTopN')}</label>
         <input
           id="tts-top-n"
@@ -105,17 +89,14 @@ export const TtsAllowedUsers = defineVueComponent<TtsAllowedUsersProps>(
           disabled={!settings.allowTopGifters}
           onInput={(event) => updateNumber('topGifterCount', (event.currentTarget as HTMLInputElement).value)}
         />
-      </div>
+      </div>)}
       <p class="tts-hint">{t(locale, 'ttsRolesNote')}</p>
-      <label class="tts-check">
-        <input type="checkbox" checked={settings.allowListedUsers} onChange={(event) => update({ allowListedUsers: (event.currentTarget as HTMLInputElement).checked })} />
-        {t(locale, 'ttsAllowedUsersList')}
-      </label>
-      <div class="tts-add-row">
+      <TtsToggle label={t(locale, 'ttsAllowedUsersList')} hint={t(locale, 'ttsListHint')} checked={settings.allowListedUsers} onChange={(checked: boolean) => update({ allowListedUsers: checked })}/>
+      {settings.allowListedUsers && <div class="tts-dependent-group"><div class="tts-add-row">
         <input
           class="tts-input"
           type="text"
-          placeholder="@handle"
+          aria-label={t(locale, 'ttsAllowedUsersList')} placeholder="@handle"
           value={newAllowedHandle.value}
           onInput={(event) => { newAllowedHandle.value = (event.currentTarget as HTMLInputElement).value; }}
           onKeydown={(event) => { if ((event as KeyboardEvent).key === 'Enter') addAllowedUser(); }}
@@ -138,6 +119,9 @@ export const TtsAllowedUsers = defineVueComponent<TtsAllowedUsersProps>(
           </table>
         </div>
       )}
+      </div>}
+      </div>}
+      {settings.allowAllUsers && <p class="tts-hint">{t(locale, 'ttsAudienceHint')}</p>}
     </section>
   );
   };

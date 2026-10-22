@@ -18,6 +18,8 @@ import { outputsTarget } from './components/source.ts';
 import { t, type Locale } from './i18n/index.ts';
 import type { ActionOptionItem } from './types.ts';
 import TtsPlayback from './components/TtsPlayback.vue';
+import TtsIcon from './components/TtsIcon.vue';
+import TtsToggle from './components/TtsToggle.vue';
 
 const SPEAK_ACTION = 'sonicboom.server.speak';
 const PROVIDERS_SOURCE = 'plugin-action-options:sonicboom.server.speak:provider';
@@ -395,16 +397,8 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
       );
     }
     return (
-      <div>
-      <details class="tts-card"><summary>{t(locale.value, 'ttsAdvanced')}</summary>
-      <details><summary>{t(locale.value, 'ttsDiagnostics')}</summary>
-        <p>{settings.value.providerId} · {ready.value ? t(locale.value, 'ttsReady') : t(locale.value, 'ttsNotReady')} · {settings.value.defaultVoice || '—'}</p>
-        <p>{t(locale.value, 'ttsBackend')}: {String(diagnostic.value.connection ?? '—')} · {t(locale.value, 'ttsQueueDepth')}: {String(diagnostic.value.queueDepth ?? '—')}</p>
-        <p>{String(diagnostic.value.stage ?? '—')} · {String(diagnostic.value.lastResult ?? '—')}</p>
-        <button type="button" onClick={refreshVoices}>{t(locale.value, 'ttsReloadDiagnostics')}</button>
-      </details>
-      <label class="tts-card"><input type="checkbox" checked={manualPlayNow.value} onChange={(event: Event) => { manualPlayNow.value = (event.target as HTMLInputElement).checked; }} />{t(locale.value, 'ttsManualInterrupt')}</label>
-      </details>
+      <div class="tts-workspace">
+      <header class="tts-workspace-heading"><div><span class="tts-eyebrow">SonicBoom · TTS</span><h2><TtsIcon name="voice"/>{t(locale.value, 'ttsWorkspaceTitle')}</h2><p>{t(locale.value, 'ttsWorkspaceLead')}</p></div><span class={['tts-health', { 'is-ready': ready.value }]}><span/>{t(locale.value, ready.value ? 'ttsReady' : 'ttsNotReady')}</span></header>
       <TtsPlayback broker={broker} locale={locale.value} enabled={settings.value.trackPlayback}
         connectionKey={String(connectionEpoch.value)}
         onToggle={(trackPlayback: boolean) => handleSettingsChange({ ...settings.value, trackPlayback })}/>
@@ -432,6 +426,15 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
         onSelectOutput={handleSelectOutput}
         onRefreshOutputs={refreshOutputs}
       />
+      <details class="tts-card tts-advanced"><summary><TtsIcon name="sliders"/>{t(locale.value, 'ttsAdvanced')}</summary>
+      <details><summary>{t(locale.value, 'ttsDiagnostics')}</summary>
+        <p>{settings.value.providerId} · {ready.value ? t(locale.value, 'ttsReady') : t(locale.value, 'ttsNotReady')} · {settings.value.defaultVoice || '—'}</p>
+        <p>{t(locale.value, 'ttsBackend')}: {String(diagnostic.value.connection ?? '—')} · {t(locale.value, 'ttsQueueDepth')}: {String(diagnostic.value.queueDepth ?? '—')}</p>
+        <p>{String(diagnostic.value.stage ?? '—')} · {String(diagnostic.value.lastResult ?? '—')}</p>
+        <button type="button" onClick={refreshVoices}>{t(locale.value, 'ttsReloadDiagnostics')}</button>
+      </details>
+      <TtsToggle label={t(locale.value, 'ttsManualInterrupt')} hint={t(locale.value, 'ttsManualInterrupt')} checked={manualPlayNow.value} onChange={(checked: boolean) => { manualPlayNow.value = checked; }}/>
+      </details>
       </div>
     );
   };

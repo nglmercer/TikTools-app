@@ -1,5 +1,6 @@
 <script lang="tsx">
 import { ref } from 'vue';
+import TtsGroup from './TtsGroup.vue';
 import { defineVueComponent } from '../vue/component.ts';
 
 import type { ActionOptionItem } from '../types.ts';
@@ -60,8 +61,7 @@ export const TtsSpecialUsers = defineVueComponent<TtsSpecialUsersProps>(
   const locale = props.locale;
 
   return (
-    <section class="tts-card">
-      <h4 class="tts-card__title">{t(locale, 'ttsSpecialUsers')}</h4>
+    <TtsGroup title={t(locale, 'ttsSpecialUsers')} icon="users" expanded={props.settings.specialUsers.length > 0}>
       <p class="tts-hint">{t(locale, 'ttsSpecialUsersNote')}</p>
       <div class="tts-add-row">
         <input
@@ -97,7 +97,7 @@ export const TtsSpecialUsers = defineVueComponent<TtsSpecialUsersProps>(
                   <td>
                     <input
                       type="checkbox"
-                      checked={entry.allowed}
+                      aria-label={`${t(locale, 'ttsAllowed')} @${entry.handle}`} title={`${t(locale, 'ttsAllowed')} @${entry.handle}`} checked={entry.allowed}
                       onChange={(event) => patchSpecialUser(entry.handle, { allowed: (event.currentTarget as HTMLInputElement).checked })}
                     />
                   </td>
@@ -163,7 +163,7 @@ export const TtsSpecialUsers = defineVueComponent<TtsSpecialUsersProps>(
           </table>
         </div>
       )}
-    </section>
+    </TtsGroup>
   );
   };
   },

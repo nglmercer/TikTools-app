@@ -1,5 +1,7 @@
 <script lang="tsx">
 import { ref } from 'vue';
+import TtsGroup from './TtsGroup.vue';
+import TtsToggle from './TtsToggle.vue';
 import { defineVueComponent } from '../vue/component.ts';
 
 import { t, type Locale } from '../i18n/index.ts';
@@ -40,41 +42,12 @@ export const TtsTextProcessing = defineVueComponent<TtsTextProcessingProps>(
       const preview = sanitizeTtsText(previewInput.value, sanitizer);
 
       return (
-        <section class="tts-card">
-          <h4 class="tts-card__title">{t(locale, 'ttsTextProcessing')}</h4>
-          <label class="tts-check">
-            <input
-              type="checkbox"
-              checked={sanitizer.removeKnownEmotes}
-              onChange={(event) => update({ removeKnownEmotes: (event.currentTarget as HTMLInputElement).checked })}
-            />
-            {t(locale, 'ttsRemoveEmoteCodes')}
-          </label>
-          <label class="tts-check">
-            <input
-              type="checkbox"
-              checked={sanitizer.removeUnicodeEmoji}
-              onChange={(event) => update({ removeUnicodeEmoji: (event.currentTarget as HTMLInputElement).checked })}
-            />
-            {t(locale, 'ttsRemoveUnicodeEmoji')}
-          </label>
-          <label class="tts-check">
-            <input
-              type="checkbox"
-              checked={sanitizer.removeInvisibleCharacters}
-              onChange={(event) => update({ removeInvisibleCharacters: (event.currentTarget as HTMLInputElement).checked })}
-            />
-            {t(locale, 'ttsRemoveInvisibleCharacters')}
-          </label>
-          <label class="tts-check">
-            <input
-              type="checkbox"
-              checked={sanitizer.collapseWhitespace}
-              onChange={(event) => update({ collapseWhitespace: (event.currentTarget as HTMLInputElement).checked })}
-            />
-            {t(locale, 'ttsCollapseWhitespace')}
-          </label>
-          <div class="tts-row tts-row--stack">
+        <TtsGroup title={t(locale, 'ttsTextProcessing')} icon="sparkle" expanded={false}>
+          <TtsToggle label={t(locale, 'ttsRemoveEmoteCodes')} hint={t(locale, 'ttsEmoteHint')} checked={sanitizer.removeKnownEmotes} onChange={(checked: boolean) => update({ removeKnownEmotes: checked })}/>
+          <TtsToggle label={t(locale, 'ttsRemoveUnicodeEmoji')} hint={t(locale, 'ttsRemoveUnicodeEmoji')} checked={sanitizer.removeUnicodeEmoji} onChange={(checked: boolean) => update({ removeUnicodeEmoji: checked })}/>
+          <TtsToggle label={t(locale, 'ttsRemoveInvisibleCharacters')} hint={t(locale, 'ttsRemoveInvisibleCharacters')} checked={sanitizer.removeInvisibleCharacters} onChange={(checked: boolean) => update({ removeInvisibleCharacters: checked })}/>
+          <TtsToggle label={t(locale, 'ttsCollapseWhitespace')} hint={t(locale, 'ttsCollapseWhitespace')} checked={sanitizer.collapseWhitespace} onChange={(checked: boolean) => update({ collapseWhitespace: checked })}/>
+          {sanitizer.removeKnownEmotes && (<div class="tts-row tts-row--stack">
             <label class="tts-label" for="tts-emote-mode">{t(locale, 'ttsEmoteHandling')}</label>
             <select
               id="tts-emote-mode"
@@ -86,15 +59,8 @@ export const TtsTextProcessing = defineVueComponent<TtsTextProcessingProps>(
               <option value="remove">{t(locale, 'ttsEmoteRemove')}</option>
               <option value="describe">{t(locale, 'ttsEmoteDescribe')}</option>
             </select>
-          </div>
-          <label class="tts-check">
-            <input
-              type="checkbox"
-              checked={sanitizer.skipEmptyMessages}
-              onChange={(event) => update({ skipEmptyMessages: (event.currentTarget as HTMLInputElement).checked })}
-            />
-            {t(locale, 'ttsSkipEmptyMessages')}
-          </label>
+          </div>)}
+          <TtsToggle label={t(locale, 'ttsSkipEmptyMessages')} hint={t(locale, 'ttsSkipEmptyMessages')} checked={sanitizer.skipEmptyMessages} onChange={(checked: boolean) => update({ skipEmptyMessages: checked })}/>
           <p class="tts-hint">{t(locale, 'ttsTextProcessingNote')}</p>
 
           <div class="tts-preview">
@@ -111,7 +77,7 @@ export const TtsTextProcessing = defineVueComponent<TtsTextProcessingProps>(
               {preview || t(locale, 'ttsPreviewEmpty')}
             </p>
           </div>
-        </section>
+        </TtsGroup>
       );
     };
   },

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { PluginBroker } from '../broker.ts';
+import TtsIcon from './TtsIcon.vue';
+import TtsToggle from './TtsToggle.vue';
 import { t, type Locale } from '../i18n/index.ts';
 const props = defineProps<{ broker: PluginBroker; locale: Locale; enabled: boolean; connectionKey: string }>();
 const emit = defineEmits<{ toggle: [enabled: boolean] }>();
@@ -68,21 +70,21 @@ onBeforeUnmount(() => { disposed = true; epoch++; clearInterval(timer); });
 </script>
 <template>
   <section class="tts-card tts-playback">
-    <h4 class="tts-card__title">{{ t(locale, 'ttsPlayback') }}</h4>
-    <label class="tts-playback__toggle"><input type="checkbox" :checked="enabled" @change="emit('toggle', ($event.target as HTMLInputElement).checked)"> {{ t(locale, 'ttsTrackPlayback') }}</label>
+    <h4 class="tts-card__title"><TtsIcon name="audio"/>{{ t(locale, 'ttsPlayback') }}</h4>
+    <TtsToggle :label="t(locale, 'ttsTrackPlayback')" :hint="t(locale, 'ttsPlaybackScope')" :checked="enabled" @change="emit('toggle', $event)"/>
     <template v-if="enabled">
       <p class="tts-hint">{{ t(locale, 'ttsPlaybackScope') }}</p>
       <p v-if="error || actionError" role="alert" class="plg-alert">{{ error || actionError }}</p>
-      <div v-if="snapshot?.state === 'ready' && fresh" role="status">
+      <div v-if="snapshot?.state === 'ready' && fresh" class="tts-playback__status" role="status">
         <p>{{ t(locale, current ? (snapshot.paused ? 'ttsPlaybackPaused' : snapshot.playing ? 'ttsPlaybackPlaying' : 'ttsPlaybackWaiting') : 'ttsPlaybackIdle') }} <code v-if="current">{{ current }}</code></p>
         <p>{{ t(locale, 'ttsPlaybackQueue') }}: {{ snapshot.queueLength }} · {{ t(locale, 'ttsPlaybackDuration') }}: {{ seconds(snapshot.durationSecs) }}<template v-if="snapshot.positionSecs != null"> · {{ t(locale, 'ttsPlaybackPosition') }}: {{ seconds(snapshot.positionSecs) }}</template></p>
         <p v-if="current && snapshot.durationSecs == null" class="tts-hint">{{ t(locale, 'ttsPlaybackDurationUnknown') }}</p>
       </div>
       <p v-else-if="!error" role="status">{{ t(locale, 'ttsPlaybackPending') }}</p>
       <div class="tts-row tts-playback__controls">
-        <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || !current" @click="control('skip')">{{ t(locale, 'ttsSkipAudio') }}</button>
-        <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || !current" @click="control(snapshot?.paused ? 'resume' : 'pause')">{{ t(locale, snapshot?.paused ? 'ttsResumeAudio' : 'ttsPauseAudio') }}</button>
-        <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || (!current && !snapshot?.queueLength)" @click="control('stop')">{{ t(locale, 'ttsStopAudio') }}</button>
+        <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || !current" :title="t(locale, 'ttsSkipAudio')" @click="control('skip')"><TtsIcon name="skip"/>{{ t(locale, 'ttsSkipAudio') }}</button>
+        <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || !current" @click="control(snapshot?.paused ? 'resume' : 'pause')"><TtsIcon :name="snapshot?.paused ? 'play' : 'pause'"/>{{ t(locale, snapshot?.paused ? 'ttsResumeAudio' : 'ttsPauseAudio') }}</button>
+        <button type="button" class="plg-btn plg-btn--sm" :disabled="!canControl || (!current && !snapshot?.queueLength)" :title="t(locale, 'ttsStopAudio')" @click="control('stop')"><TtsIcon name="stop"/>{{ t(locale, 'ttsStopAudio') }}</button>
       </div>
     </template>
   </section>
