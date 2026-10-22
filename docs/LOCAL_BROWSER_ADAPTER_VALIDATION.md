@@ -138,6 +138,24 @@ verified numeric form attributes and a 64-hex-character session cookie.
 Changed-script ESLint, Rust formatting and whitespace checks also passed.
 Actual Android keyboard rendering remains part of the browser acceptance below.
 
+## Pairing-code renewal follow-up
+
+The pairing page can request a replacement code using an origin-checked POST.
+The replacement appears only in the adapter terminal and invalidates the old
+code. A shared 30-second cooldown bounds requests; renewals preserve the shared
+eight-attempt budget and cannot invalidate an active browser session.
+
+Native Termux validation passed:
+
+- `cargo test -p tiktools-cli --features local-web --locked`: 29 test executions.
+- Focused `pair-page.test.ts` Vitest run: four tests, covering renewal, cooldown,
+  lockout, network failure, active sessions and leading-zero form submission.
+- `node scripts/termux/web-smoke.mjs`: isolated HTTP/WebSocket smoke, including
+  origin rejection, replacement-code login, old-code rejection and cooldown.
+- Vue typecheck, changed-file ESLint, Rust formatting and whitespace checks.
+
+These automated results do not establish actual Android browser rendering.
+
 ## Remaining acceptance work
 
 - Verify actual rendering/pairing/navigation on an Android browser, inline plugin

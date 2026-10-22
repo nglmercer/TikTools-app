@@ -242,8 +242,11 @@ Start the host in one Termux session, then the adapter in another:
 Open `http://127.0.0.1:8787` in the phone browser. Enter the six-digit, one-use code printed
 in the adapter terminal; it expires after five minutes and eight unsuccessful
 attempts. The browser receives a port-scoped HttpOnly, SameSite=Strict session cookie valid
-for one hour. Restart the adapter to obtain a new pairing code. Never paste a
-TikTok session cookie into this pairing form. Stop the adapter with Ctrl+C; the
+for one hour. Use **Request new code** on the pairing page to print a replacement
+in the adapter terminal. The previous code stops working immediately. Requests
+are limited to once every 30 seconds and do not reset the eight-attempt limit.
+Restart the adapter after a lockout or to pair another browser while a session
+is active. Never paste a TikTok session cookie into this pairing form. Stop the adapter with Ctrl+C; the
 IPC host remains running and available to the CLI.
 
 The frontend uses the shared Control API for system state, LIVE, automations,

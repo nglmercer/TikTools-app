@@ -21,6 +21,7 @@ use std::{
 use tiktools_control_api::{ControlClient, ControlEvent};
 use tokio::{sync::Semaphore, task::JoinSet};
 
+const PAIRING_RENEW_COOLDOWN: Duration = Duration::from_secs(30);
 const SESSION_LIFETIME: Duration = Duration::from_secs(3600);
 const MAX_FRAME: usize = 1024 * 1024;
 
@@ -29,6 +30,7 @@ struct Auth {
     issued: Instant,
     session: Option<(String, Instant)>,
     attempts: u8,
+    renewed_at: Option<Instant>,
 }
 struct App {
     root: PathBuf,
@@ -171,6 +173,7 @@ async fn start(assets: PathBuf, port: u16) -> Result<(), String> {
             issued: Instant::now(),
             session: None,
             attempts: 0,
+            renewed_at: None,
         }),
         clients: Arc::new(Semaphore::new(8)),
         stopping: tokio::sync::watch::channel(false).0,
@@ -178,6 +181,7 @@ async fn start(assets: PathBuf, port: u16) -> Result<(), String> {
     let shutdown_state = state.clone();
     let router = Router::new()
         .route("/__local/pair", post(pair))
+        .route("/__local/pair/renew", post(renew_pairing))
         .route("/__local/pair.js", get(pair_script))
         .route("/__local/ws", get(upgrade))
         .fallback(get(asset))
@@ -262,6 +266,69 @@ async fn pair(
     );
     auth.session = Some((session, Instant::now()));
     ([(header::SET_COOKIE, cookie)], Json(json!({"ok": true}))).into_response()
+}
+
+// Renewal changes only the human code. It never returns credentials or resets
+// the shared attempt counter, and cannot invalidate a live paired session.
+async fn renew_pairing(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
+    if !app.same_origin(&headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let Ok(mut auth) = app.auth.lock() else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    if auth
+        .session
+        .as_ref()
+        .is_some_and(|(_, issued)| issued.elapsed() < SESSION_LIFETIME)
+    {
+        return (
+            StatusCode::CONFLICT,
+            Json(json!({"error":"already_paired"})),
+        )
+            .into_response();
+    }
+    if auth.attempts >= 8 {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({"error":"pairing_locked"})),
+        )
+            .into_response();
+    }
+    if let Some(renewed) = auth.renewed_at {
+        let remaining = PAIRING_RENEW_COOLDOWN.saturating_sub(renewed.elapsed());
+        if !remaining.is_zero() {
+            let retry_after = remaining.as_secs() + 1;
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                [(header::RETRY_AFTER, retry_after.to_string())],
+                Json(json!({"error":"cooldown", "retryAfterSeconds":retry_after})),
+            )
+                .into_response();
+        }
+    }
+    // Draw uniformly from all values except the previous pending code, so a
+    // successful rotation always invalidates the old code without retry loops.
+    let code = if let Some(previous) = auth
+        .pairing
+        .as_deref()
+        .and_then(|value| value.parse::<u32>().ok())
+        .filter(|value| *value < 1_000_000)
+    {
+        let draw = rand::rng().random_range(0..999_999u32);
+        format!("{:06}", draw + u32::from(draw >= previous))
+    } else {
+        pairing_code()
+    };
+    eprintln!("One-use pairing code (valid 5 minutes): {code}");
+    auth.pairing = Some(code);
+    auth.issued = Instant::now();
+    auth.renewed_at = Some(Instant::now());
+    (
+        StatusCode::OK,
+        Json(json!({"ok":true,"expiresInSeconds":300,"retryAfterSeconds":30})),
+    )
+        .into_response()
 }
 
 async fn upgrade(
@@ -530,10 +597,58 @@ button { display: block; width: 100%; min-height: 48px; margin-top: 20px; paddin
 button:focus-visible { outline: 2px solid #9bb2ff; outline-offset: 4px; }
 button:active { background: #3652b5; }
 @media (hover: hover) { button:hover { background: #5576e5; } }
+#renew { margin-top: 10px; border-color: #555a6a; background: transparent; color: #c5cddd; }
+#renew:hover { background: #31343e; }
+button:disabled { opacity: .55; cursor: default; }
+#result[data-kind="success"] { color: #a5deb6; }
+#result[data-kind="info"] { color: #b3c6ff; }
 #result { min-height: 1.65em; margin-top: 16px; color: #ffb3b8; font-size: 13px; }
 @media (max-width: 360px) { body { padding: 24px; border-radius: 18px; } }
-</style></head><body><h1>TikTools local browser</h1><p>Enter the six-digit, one-use pairing code printed by the Termux adapter. It expires after five minutes.</p><form id="pair"><label>Pairing code <input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required></label><button>Connect</button></form><p id="result" role="status"></p><script src="/__local/pair.js" defer></script></body></html>"#;
-const PAIR_SCRIPT: &str = r#"document.getElementById('pair').addEventListener('submit',async(event)=>{event.preventDefault();const input=document.getElementById('code');const code=input.value;input.value='';try{const response=await fetch('/__local/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code})});if(response.ok){location.replace('/');return;}document.getElementById('result').textContent='Pairing failed or expired. Restart the adapter for a new code.';}catch{document.getElementById('result').textContent='Adapter unavailable. Check Termux.';}});"#;
+</style></head><body><h1>TikTools local browser</h1><p>Enter the six-digit, one-use pairing code printed by the Termux adapter. It expires after five minutes.</p><form id="pair"><label>Pairing code <input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required></label><button>Connect</button></form><button id="renew" type="button">Request new code</button><p id="result" role="status"></p><script src="/__local/pair.js" defer></script></body></html>"#;
+const PAIR_SCRIPT: &str = r#"(() => {
+  const form = document.getElementById('pair');
+  const input = document.getElementById('code');
+  const result = document.getElementById('result');
+  const renew = document.getElementById('renew');
+  let retryTimer;
+  const show = (text, kind = 'error') => { result.textContent = text; result.dataset.kind = kind; };
+  const cooldown = seconds => {
+    clearTimeout(retryTimer);
+    renew.disabled = true;
+    retryTimer = setTimeout(() => { renew.disabled = false; }, Math.min(300, Math.max(1, seconds)) * 1000);
+  };
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const code = input.value; input.value = '';
+    try {
+      const response = await fetch('/__local/pair', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
+      if (response.ok) { location.replace('/'); return; }
+      show('Incorrect or expired code. Try again or request a new code.');
+    } catch { show('Adapter unavailable. Check Termux.'); }
+  });
+  renew.addEventListener('click', async () => {
+    renew.disabled = true; input.value = '';
+    show('Requesting a new code…', 'info');
+    try {
+      const response = await fetch('/__local/pair/renew', { method: 'POST' });
+      const body = await response.json();
+      if (response.ok) {
+        show('New code printed in Termux. Enter it here within five minutes.', 'success');
+        cooldown(30);
+      } else if (body.error === 'cooldown') {
+        const seconds = Number(body.retryAfterSeconds) || 30;
+        show(`Please wait ${seconds} seconds before requesting another code.`, 'info');
+        cooldown(seconds);
+      } else if (body.error === 'pairing_locked') {
+        show('Too many attempts. Restart the adapter in Termux to pair again.');
+      } else if (body.error === 'already_paired') {
+        show('Already paired. Reload this page, or restart the adapter in Termux to pair another browser.');
+      } else {
+        renew.disabled = false; show('Could not request a code. Check Termux.');
+      }
+    } catch { renew.disabled = false; show('Adapter unavailable. Check Termux.'); }
+  });
+})();"#;
 
 #[cfg(test)]
 mod tests {
@@ -587,6 +702,7 @@ mod tests {
                 issued: Instant::now(),
                 session: None,
                 attempts: 0,
+                renewed_at: None,
             }),
             clients: Arc::new(Semaphore::new(8)),
             stopping: tokio::sync::watch::channel(false).0,
@@ -597,6 +713,110 @@ mod tests {
         headers.insert(header::ORIGIN, "http://127.0.0.1:8787".parse().unwrap());
         headers
     }
+    #[tokio::test]
+    async fn renewal_is_origin_checked_and_does_not_return_or_reuse_the_code() {
+        let app = state(PathBuf::new());
+        assert_eq!(
+            renew_pairing(State(app.clone()), HeaderMap::new())
+                .await
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+        let mut foreign = origin();
+        foreign.insert(header::ORIGIN, "https://example.invalid".parse().unwrap());
+        assert_eq!(
+            renew_pairing(State(app.clone()), foreign).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        {
+            let mut auth = app.auth.lock().unwrap();
+            auth.attempts = 2;
+            auth.issued = Instant::now() - Duration::from_secs(301);
+        }
+        let response = renew_pairing(State(app.clone()), origin()).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            body,
+            json!({"ok":true,"expiresInSeconds":300,"retryAfterSeconds":30})
+        );
+        let code = {
+            let auth = app.auth.lock().unwrap();
+            assert_eq!(auth.attempts, 2);
+            assert!(auth.issued.elapsed() < Duration::from_secs(1));
+            auth.pairing.clone().unwrap()
+        };
+        assert_ne!(code, "012345");
+        assert_eq!(code.len(), 6);
+        assert_eq!(
+            pair(State(app.clone()), origin(), Json(json!({"code":"012345"})))
+                .await
+                .status(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            pair(State(app), origin(), Json(json!({"code":code})))
+                .await
+                .status(),
+            StatusCode::OK
+        );
+    }
+
+    #[tokio::test]
+    async fn renewal_cooldown_is_shared_and_cannot_reset_a_lockout() {
+        let app = state(PathBuf::new());
+        let (first, second) = tokio::join!(
+            renew_pairing(State(app.clone()), origin()),
+            renew_pairing(State(app.clone()), origin())
+        );
+        assert_eq!(first.status(), StatusCode::OK);
+        assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(second.headers().contains_key(header::RETRY_AFTER));
+        let code = app.auth.lock().unwrap().pairing.clone();
+        {
+            let mut auth = app.auth.lock().unwrap();
+            auth.attempts = 8;
+            auth.renewed_at = Some(Instant::now() - Duration::from_secs(31));
+        }
+        let response = renew_pairing(State(app.clone()), origin()).await;
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        let body = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&body).unwrap()["error"],
+            "pairing_locked"
+        );
+        assert_eq!(app.auth.lock().unwrap().pairing, code);
+    }
+
+    #[tokio::test]
+    async fn renewal_preserves_a_live_session_and_allows_an_expired_session_to_pair_again() {
+        let app = state(PathBuf::new());
+        assert_eq!(
+            pair(State(app.clone()), origin(), Json(json!({"code":"012345"})))
+                .await
+                .status(),
+            StatusCode::OK
+        );
+        let token = app.auth.lock().unwrap().session.as_ref().unwrap().0.clone();
+        assert_eq!(
+            renew_pairing(State(app.clone()), origin()).await.status(),
+            StatusCode::CONFLICT
+        );
+        assert_eq!(app.auth.lock().unwrap().session.as_ref().unwrap().0, token);
+        app.auth.lock().unwrap().session.as_mut().unwrap().1 = Instant::now() - SESSION_LIFETIME;
+        assert_eq!(
+            renew_pairing(State(app.clone()), origin()).await.status(),
+            StatusCode::OK
+        );
+        assert_eq!(app.auth.lock().unwrap().attempts, 1);
+        assert!(app.auth.lock().unwrap().pairing.is_some());
+    }
+
     #[test]
     fn human_pairing_is_six_digits_while_other_secrets_stay_strong() {
         for _ in 0..64 {
