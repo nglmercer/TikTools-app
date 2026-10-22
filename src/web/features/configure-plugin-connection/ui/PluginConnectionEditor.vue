@@ -241,7 +241,7 @@ onMounted(() => {
         class="connection-editor__details"
         role="status"
       >
-        {{ connection.error }}
+        {{ sonicboom && !connection.reachable && !advanced ? t('plugins.connection.openSonicBoom') : connection.error }}
       </p>
       <BaseSchemaForm
         v-if="settings && !(supportsTokenImport && working)"

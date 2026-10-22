@@ -867,6 +867,7 @@ export default {
       discard: 'Discard changes',
     },
     connection: {
+      openSonicBoom: 'Open SonicBoom on this computer and check the server address, then connect again.',
       saved: 'Connection saved.',
       signInHint: 'Use your SonicBoom administrator account once. TikTools saves the connection; your password is not stored.',
       noPlayback: 'This SonicBoom build has no audio playback. Use its desktop build to hear speech.',

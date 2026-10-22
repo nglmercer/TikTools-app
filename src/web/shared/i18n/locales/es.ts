@@ -869,6 +869,7 @@ export default {
       discard: 'Descartar cambios',
     },
     connection: {
+      openSonicBoom: 'Abre SonicBoom en este equipo y comprueba la dirección del servidor. Después vuelve a conectar.',
       saved: 'Conexión guardada.',
       signInHint: 'Inicia sesión una vez con la cuenta de administrador de SonicBoom. TikTools guarda la conexión; no guarda tu contraseña.',
       noPlayback: 'Esta compilación de SonicBoom no reproduce audio. Usa la versión de escritorio para escuchar las voces.',
