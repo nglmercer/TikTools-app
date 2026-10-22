@@ -515,7 +515,24 @@ async fn pair_script() -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "text/javascript")], PAIR_SCRIPT)
 }
 
-const PAIR_PAGE: &str = r#"<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>TikTools pairing</title></head><body><h1>TikTools local browser</h1><p>Enter the six-digit, one-use pairing code printed by the Termux adapter. It expires after five minutes.</p><form id="pair"><label>Pairing code <input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required></label><button>Connect</button></form><p id="result" role="status"></p><script src="/__local/pair.js" defer></script></body></html>"#;
+const PAIR_PAGE: &str = r#"<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>TikTools pairing</title><style>
+:root { color-scheme: dark; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; background: #17191f; color: #f2f3f5; }
+* { box-sizing: border-box; }
+html { min-height: 100%; display: grid; place-items: center; padding: 32px 16px; }
+body { width: 100%; max-width: 420px; margin: 0; padding: 32px; border: 1px solid #3f4350; border-radius: 24px; background: #25272f; box-shadow: 0 24px 72px rgba(0, 0, 0, .28); }
+h1 { margin: 0 0 12px; font-size: clamp(25px, 6vw, 30px); font-weight: 650; line-height: 1.2; letter-spacing: -.035em; }
+p { margin: 0; color: #b3b7c3; font-size: 14px; line-height: 1.65; }
+form { margin-top: 28px; }
+label { display: block; color: #e0e3eb; font-size: 13px; font-weight: 600; }
+#code { display: block; width: 100%; height: 68px; margin-top: 10px; padding: 14px 10px; border: 1px solid #555a6a; border-radius: 12px; outline: none; background: #1b1d23; color: #fff; font: 500 clamp(24px, 7vw, 32px)/1.2 ui-monospace, monospace; font-variant-numeric: tabular-nums; text-align: center; letter-spacing: .32em; text-indent: .32em; caret-color: #9bb2ff; }
+#code:focus { border-color: #8ba7ff; box-shadow: 0 0 0 3px rgba(109, 140, 240, .2); }
+button { display: block; width: 100%; min-height: 48px; margin-top: 20px; padding: 12px 20px; border: 1px solid #7892ef; border-radius: 12px; background: #4967cf; color: #fff; font-family: inherit; font-size: 15px; font-weight: 600; line-height: 1.4; cursor: pointer; }
+button:focus-visible { outline: 2px solid #9bb2ff; outline-offset: 4px; }
+button:active { background: #3652b5; }
+@media (hover: hover) { button:hover { background: #5576e5; } }
+#result { min-height: 1.65em; margin-top: 16px; color: #ffb3b8; font-size: 13px; }
+@media (max-width: 360px) { body { padding: 24px; border-radius: 18px; } }
+</style></head><body><h1>TikTools local browser</h1><p>Enter the six-digit, one-use pairing code printed by the Termux adapter. It expires after five minutes.</p><form id="pair"><label>Pairing code <input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required></label><button>Connect</button></form><p id="result" role="status"></p><script src="/__local/pair.js" defer></script></body></html>"#;
 const PAIR_SCRIPT: &str = r#"document.getElementById('pair').addEventListener('submit',async(event)=>{event.preventDefault();const input=document.getElementById('code');const code=input.value;input.value='';try{const response=await fetch('/__local/pair',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code})});if(response.ok){location.replace('/');return;}document.getElementById('result').textContent='Pairing failed or expired. Restart the adapter for a new code.';}catch{document.getElementById('result').textContent='Adapter unavailable. Check Termux.';}});"#;
 
 #[cfg(test)]
