@@ -125,3 +125,17 @@ to `test-results`, which can otherwise cause unrelated artifact-deletion failure
 Real-model audible playback, GPU execution and native OS WebView/hardware-device
 verification: **NOT RUN** for this integration. Contract tests use stub audio; this
 work makes no new speech-quality claims and changes no inference engines.
+
+## Connect SonicBoom
+
+1. Start SonicBoom and finish its initial setup.
+2. In TikTools, open the SonicBoom connection page and select **Connect SonicBoom**.
+3. If SonicBoom requires authorization, sign in with its administrator account. TikTools creates and saves the API credential; the administrator password is not stored. No token needs to be copied. Manual entry remains available under **Advanced settings**.
+
+New settings use `http://127.0.0.1:17842`, which avoids ambiguity between IPv4 and IPv6 localhost on Windows. Existing addresses are preserved. If SonicBoom uses another address or port, edit the server URL.
+
+Discovery uses `/api/info` and verifies access through the protected, model-independent provider catalog. Downloading/loading a model does not mean the connection failed. The page refreshes model progress while it is open and reports builds without audio playback separately.
+
+A server already configured with SonicBoom's `local` or `none` authentication mode connects on this computer without a token. TikTools does not disable authentication or change SonicBoom configuration automatically. Remote connections retain the host's network permission, private-network and credential requirements; disabling authentication remotely does not bypass that policy.
+
+Administration responses from current Vue-based servers, older HTML servers and API-only servers are supported. This uses SonicBoom's existing login and token APIs; it does not add a browser-approval pairing endpoint to SonicBoom.

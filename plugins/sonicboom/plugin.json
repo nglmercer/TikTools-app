@@ -30,7 +30,8 @@
       "tokenSetting": "apiToken"
     },
     "health": {
-      "path": "/ready",
+      "path": "/api/info",
+      "strategy": "sonicboom",
       "timeoutMs": 5000
     },
     "tokenProvisioning": {
@@ -311,7 +312,7 @@
           "format": "uri",
           "title": "Server URL",
           "description": "Base URL of the SonicBoom server.",
-          "default": "http://localhost:17842"
+          "default": "http://127.0.0.1:17842"
         },
         "apiToken": {
           "type": "string",
@@ -339,7 +340,7 @@
     "uiHints": {
       "fields": {
         "serverUrl": {
-          "placeholder": "http://localhost:17842"
+          "placeholder": "http://127.0.0.1:17842"
         },
         "apiToken": {
           "secret": true
@@ -378,7 +379,7 @@
           "serverUrl": {
             "type": "string",
             "title": "Server URL",
-            "default": "http://localhost:17842"
+            "default": "http://127.0.0.1:17842"
           },
           "voice": {
             "type": "string",

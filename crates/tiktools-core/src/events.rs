@@ -229,13 +229,15 @@ struct PublishedEvent {
     ui_sequence: Option<u64>,
 }
 
+type FeedHistory = Arc<Mutex<std::collections::VecDeque<(u64, Arc<DomainEvent>)>>>;
+
 #[derive(Clone)]
 pub struct EventBus {
     reliable: broadcast::Sender<PublishedEvent>,
     lossy: broadcast::Sender<PublishedEvent>,
     ui_sequence: Arc<Mutex<u64>>,
     history_subscribers: Arc<std::sync::atomic::AtomicUsize>,
-    feed_history: Arc<Mutex<std::collections::VecDeque<(u64, Arc<DomainEvent>)>>>,
+    feed_history: FeedHistory,
 }
 
 impl EventBus {

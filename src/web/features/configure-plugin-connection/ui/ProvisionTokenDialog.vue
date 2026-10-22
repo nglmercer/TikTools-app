@@ -11,12 +11,13 @@ const props = defineProps<{
   pluginName: string;
   working: boolean;
   result?: { ok: boolean; message: string };
+  simple?: boolean;
 }>();
 
 const emit = defineEmits<{ submit: [username: string, password: string] }>();
 const open = defineModel<boolean>('open', { default: false });
 const { t } = useI18n();
-const username = ref('');
+const username = ref(props.simple ? 'admin' : '');
 const password = ref('');
 const attempted = ref(false);
 
@@ -41,12 +42,12 @@ function submit(): void {
 <template>
   <BaseDialog
     v-model:open="open"
-    :title="t('plugins.provision.title')"
+    :title="t(simple ? 'plugins.connection.authorize' : 'plugins.provision.title')"
     :closable="!working"
     :width="440"
   >
     <p class="provision__lead">
-      {{ t('plugins.provision.lead', { name: pluginName }) }}
+      {{ t(simple ? 'plugins.connection.signInHint' : 'plugins.provision.lead', { name: pluginName }) }}
     </p>
     <p
       v-if="succeeded || failed"
@@ -54,7 +55,7 @@ function submit(): void {
       :class="{ 'provision__result--ok': succeeded }"
       role="status"
     >
-      {{ result?.message }}
+      {{ simple && succeeded ? t('plugins.connection.saved') : result?.message }}
     </p>
     <form
       v-if="!succeeded"
@@ -101,7 +102,7 @@ function submit(): void {
           :disabled="!canSubmit"
           @click="submit"
         >
-          {{ working ? t('plugins.provision.working') : t('plugins.provision.submit') }}
+          {{ working ? t('plugins.provision.working') : t(simple ? 'plugins.connection.connectSonicBoom' : 'plugins.provision.submit') }}
         </BaseButton>
         <BaseButton
           :disabled="working"

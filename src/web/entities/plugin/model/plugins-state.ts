@@ -3,7 +3,7 @@ import { ownControlSubscriptions } from '@/shared/api/control-owner.ts';
 import { ref } from 'vue';
 
 import type { JsonObject } from '../../../../automation/types.ts';
-import type { PluginConnectionState } from '../../../../automation/plugins/declarative.ts';
+import type { PluginConnectionState, SonicBoomConnectionInfo } from '../../../../automation/plugins/declarative.ts';
 import type {
   ActionOptionItem,
   HostMessage,
@@ -31,6 +31,7 @@ export interface PluginOptionsResult {
 }
 
 export interface PluginConnectionResult {
+  serverInfo?: SonicBoomConnectionInfo;
   reachable?: boolean;
   gameplayReady?: boolean;
   details?: string;
@@ -243,6 +244,7 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
             details: result.details,
             reachable: result.reachable,
             gameplayReady: result.gameplayReady,
+            serverInfo: result.serverInfo,
             at: Date.now(),
           },
         };

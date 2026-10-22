@@ -922,3 +922,73 @@ async fn health_reports_api_reachability_separately_from_gameplay_readiness() {
     server.abort();
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[cfg(feature = "http")]
+#[tokio::test]
+async fn sonicboom_discovery_separates_authorization_from_model_readiness() {
+    struct Emitter;
+    impl crate::HostEmitter for Emitter {
+        fn emit(&self, _: crate::ipc::messages::HostMessage) {}
+    }
+    for (required, status, provider_http, expected_ok) in [
+        (false, "downloading", 200, true),
+        (false, "loading", 200, true),
+        (false, "failed", 200, true),
+        (true, "ready", 401, false),
+        (true, "loading", 200, true),
+        (false, "ready", 403, false),
+    ] {
+        let info = json!({"auth":{"required":required}, "setup_complete":true,
+            "model":{"status":status}, "features":{"playback":true}});
+        let (address, server) = stub_server(
+            [
+                ("/api/info".to_owned(), (200, info.to_string())),
+                (
+                    "/api/tts/plugin/providers".to_owned(),
+                    (provider_http, "[]".to_owned()),
+                ),
+            ]
+            .into(),
+        )
+        .await;
+        let root = std::env::temp_dir().join(format!("sonicboom-discovery-{}", fastrand::u64(..)));
+        std::fs::create_dir_all(root.join("sonicboom.server")).unwrap();
+        let document = json!({"schemaVersion":3, "id":"sonicboom.server", "name":"SonicBoom",
+            "version":"1.0.0", "runtime":"declarative", "capabilities":["http.request"],
+            "http":{"baseUrl":format!("http://{address}"), "auth":{"type":"bearer","tokenSetting":"apiToken"},
+                "health":{"strategy":"sonicboom","path":"/api/info"}}});
+        std::fs::write(
+            root.join("sonicboom.server/plugin.json"),
+            document.to_string(),
+        )
+        .unwrap();
+        let manager =
+            tiktools_plugin_loader::PluginManager::new(vec![tiktools_plugin_loader::PluginRoot {
+                path: root.clone(),
+                source: tiktools_plugin_loader::PluginSource::Development,
+            }]);
+        manager.scan().unwrap();
+        let mut core = crate::AppCore::new(Arc::new(Emitter));
+        core.plugins = Arc::new(manager);
+        let check = Arc::new(core)
+            .plugin_connection_check("sonicboom.server")
+            .await
+            .unwrap();
+        assert!(check.reachable);
+        assert_eq!(check.ok, expected_ok);
+        let server_info = check.server_info.unwrap();
+        assert_eq!(server_info["authRequired"], required);
+        assert_eq!(server_info["authorized"], expected_ok);
+        assert_eq!(server_info["modelStatus"], status);
+        assert!(check.gameplay_ready.is_none());
+        if !expected_ok {
+            assert!(check.error.unwrap().contains(if required {
+                "Sign in"
+            } else {
+                "local access"
+            }));
+        }
+        server.abort();
+        let _ = std::fs::remove_dir_all(root);
+    }
+}

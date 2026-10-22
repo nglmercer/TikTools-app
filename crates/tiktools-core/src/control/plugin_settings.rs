@@ -28,6 +28,8 @@ pub struct PluginConnectionResult {
     pub reachable: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gameplay_ready: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_info: Option<Value>,
 }
 
 // ------------------------------------------------------------------
@@ -167,6 +169,7 @@ impl AppCore {
             details: check.details,
             reachable: check.reachable,
             gameplay_ready: check.gameplay_ready,
+            server_info: check.server_info,
         })
     }
 

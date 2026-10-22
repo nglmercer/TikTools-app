@@ -479,8 +479,17 @@ export function isConnectionOnlyPage(page: { sections: readonly { kind: string }
   return hasConnection;
 }
 
+export interface SonicBoomConnectionInfo {
+  authRequired: boolean;
+  authorized: boolean;
+  modelStatus: string;
+  setupComplete: boolean;
+  playback: boolean;
+}
+
 /** Connection probe result held per plugin id by the app controller. */
 export type PluginConnectionState = {
+  serverInfo?: SonicBoomConnectionInfo;
   reachable?: boolean;
   gameplayReady?: boolean;
   details?: string;

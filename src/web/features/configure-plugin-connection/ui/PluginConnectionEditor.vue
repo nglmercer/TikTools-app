@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, toRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { JsonObject } from '../../../../automation/types.ts';
 import type { PluginConnectionState } from '../../../../automation/plugins/declarative.ts';
@@ -46,6 +46,31 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const provisionOpen = ref(false);
+let modelRefresh: ReturnType<typeof setTimeout> | undefined;
+onBeforeUnmount(() => clearTimeout(modelRefresh));
+const advanced = ref(false);
+const connectRequested = ref(false);
+const sonicboom = computed(() => props.pluginId === 'sonicboom.server');
+const serverInfo = computed(() => props.connection?.serverInfo);
+const needsAuthorization = computed(() => serverInfo.value?.authRequired && !serverInfo.value.authorized);
+const visibleSchema = computed(() => {
+  const schema = props.settings?.schema;
+  if (!schema || !sonicboom.value || advanced.value) return schema ?? {};
+  const properties = schema.properties as JsonObject | undefined;
+  return { ...schema, properties: Object.fromEntries(Object.entries(properties ?? {}).filter(([key]) => key !== 'apiToken')) };
+});
+function connect(): void {
+  connectRequested.value = true;
+  test();
+}
+watch(() => props.connection?.at, () => {
+  if (connectRequested.value && needsAuthorization.value) provisionOpen.value = true;
+  connectRequested.value = false;
+  clearTimeout(modelRefresh);
+  if (sonicboom.value && props.connection?.ok && ['idle', 'downloading', 'loading'].includes(serverInfo.value?.modelStatus ?? '')) {
+    modelRefresh = setTimeout(test, 3000);
+  }
+});
 
 const autosave = useConnectionAutosave({
   pluginId: toRef(props, 'pluginId'),
@@ -81,6 +106,8 @@ const statusText = computed(() => {
   if (dirty.value) return t('plugins.connection.testToVerify');
   if (testing.value) return t('plugins.connection.testing');
   if (!connection) return t('connections.servers.notConfigured');
+  if (sonicboom.value && needsAuthorization.value) return t('plugins.connection.authorize');
+  if (sonicboom.value && connection.ok) return t('plugins.connection.connected');
   if (connection.reachable && connection.gameplayReady === false) return t('connections.servers.apiNotReady');
   return connection.ok ? t('connections.servers.connectedIn', { ms: connection.latencyMs }) : t('connections.servers.failed');
 });
@@ -112,6 +139,9 @@ watch(
   () => props.pluginId,
   () => {
     provisionOpen.value = false;
+    advanced.value = false;
+    connectRequested.value = false;
+    clearTimeout(modelRefresh);
     if (!props.settings) emit('loadSettings', props.pluginId);
     requestOptions();
   },
@@ -148,6 +178,20 @@ onMounted(() => {
       >{{ t(`plugins.connection.save.${saveState}`) }}</span>
     </header>
 
+    <p
+      v-if="sonicboom && serverInfo && !dirty"
+      class="connection-editor__note"
+      role="status"
+    >
+      {{ t(`plugins.connection.model.${serverInfo.modelStatus}`) }}
+      <span v-if="!serverInfo.authRequired"> · {{ t('plugins.connection.noTokenNeeded') }}</span>
+    </p>
+    <p
+      v-if="sonicboom && serverInfo && !serverInfo.playback && !dirty"
+      class="connection-editor__note"
+    >
+      {{ t('plugins.connection.noPlayback') }}
+    </p>
     <p
       v-if="connection?.gameplayReady !== undefined && !dirty"
       class="connection-editor__note"
@@ -193,7 +237,7 @@ onMounted(() => {
 
     <template v-else>
       <p
-        v-if="connection && !connection.ok && !dirty && !urlInvalid && connection.error"
+        v-if="connection && !connection.ok && !dirty && !urlInvalid && connection.error && !needsAuthorization"
         class="connection-editor__details"
         role="status"
       >
@@ -202,7 +246,7 @@ onMounted(() => {
       <BaseSchemaForm
         v-if="settings && !(supportsTokenImport && working)"
         v-model="formValues"
-        :schema="settings.schema"
+        :schema="visibleSchema"
         :ui-hints="settings.uiHints"
         :field-options="fieldOptions"
         :field-errors="fieldErrors"
@@ -217,13 +261,22 @@ onMounted(() => {
       <div class="connection-editor__actions">
         <BaseButton
           variant="primary"
-          :disabled="!settings || testing || urlInvalid"
-          @click="test"
+          :disabled="!settings || testing || urlInvalid || (sonicboom && (dirty || saveState === 'saving'))"
+          @click="sonicboom ? connect() : test()"
         >
-          {{ testing ? t('plugins.connection.testing') : t('plugins.connection.test') }}
+          {{ testing ? t('plugins.connection.testing') : t(sonicboom ? 'plugins.connection.connectSonicBoom' : 'plugins.connection.test') }}
         </BaseButton>
       </div>
-      <p class="connection-editor__note">
+      <BaseButton
+        v-if="sonicboom"
+        @click="advanced = !advanced"
+      >
+        {{ t('plugins.connection.advanced') }}
+      </BaseButton>
+      <p
+        v-if="!sonicboom"
+        class="connection-editor__note"
+      >
         {{ url && isLoopbackUrl(url) ? t('plugins.connection.localNote') : t('plugins.connection.hint') }}
       </p>
     </template>
@@ -292,15 +345,19 @@ onMounted(() => {
     </section>
 
     <div
-      v-if="supportsProvisioning"
+      v-if="supportsProvisioning && (!sonicboom || needsAuthorization || advanced)"
       class="connection-editor__actions"
     >
-      <BaseButton :disabled="importDisabled" @click="provisionOpen = true">
-        {{ t('plugins.connection.getToken') }}
+      <BaseButton
+        :disabled="importDisabled"
+        @click="sonicboom ? connect() : provisionOpen = true"
+      >
+        {{ t(sonicboom ? 'plugins.connection.authorize' : 'plugins.connection.getToken') }}
       </BaseButton>
       <ProvisionTokenDialog
         v-model:open="provisionOpen"
         :plugin-name="pluginName"
+        :simple="sonicboom"
         :working="working"
         :result="provisionResult"
         @submit="(username, password) => emit('provision', pluginId, username, password)"

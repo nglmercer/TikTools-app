@@ -11,6 +11,7 @@
 mod diagnostics;
 mod endpoint;
 mod execution;
+mod sonicboom;
 mod template;
 #[cfg(test)]
 mod tests;

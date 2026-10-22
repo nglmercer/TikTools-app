@@ -291,6 +291,7 @@ pub(crate) struct PluginConnectionCheck {
     pub(crate) details: Option<String>,
     pub(crate) reachable: bool,
     pub(crate) gameplay_ready: Option<bool>,
+    pub(crate) server_info: Option<Value>,
 }
 
 impl crate::AppCore {
@@ -306,6 +307,7 @@ impl crate::AppCore {
             details: None,
             reachable: false,
             gameplay_ready: None,
+            server_info: None,
         };
         let plugin = self.plugins.get(id);
         let Some(plugin) = plugin else {
@@ -325,6 +327,9 @@ impl crate::AppCore {
         let Some(health) = health else {
             return failed(format!("Plugin `{id}` declares no health endpoint."));
         };
+        if health.get("strategy").and_then(Value::as_str) == Some("sonicboom") {
+            return self.check_sonicboom_connection(&plugin.manifest).await;
+        }
         let path = health
             .get("path")
             .and_then(Value::as_str)
@@ -366,6 +371,7 @@ impl crate::AppCore {
             latency_ms: crate::helpers::now_millis().saturating_sub(started),
             error: None,
             details,
+            server_info: None,
             reachable: true,
             gameplay_ready: health
                 .get("readinessField")

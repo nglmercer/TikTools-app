@@ -63,6 +63,10 @@ pub(crate) fn supports_token_provisioning(manifest: &PluginManifest) -> bool {
 /// Never search executable scripts or arbitrary JSON elsewhere in the document.
 #[cfg_attr(not(feature = "http"), allow(dead_code))]
 fn admin_page_data(html: &str) -> Option<Value> {
+    if html.trim_start().starts_with('{') {
+        let data: Value = serde_json::from_str(html).ok()?;
+        return (data.get("page").and_then(Value::as_str) == Some("admin")).then_some(data);
+    }
     let start = html.find("data-page=\"")? + "data-page=\"".len();
     let encoded = html.get(start..)?.split('"').next()?;
     let decoded = encoded
@@ -77,7 +81,7 @@ fn admin_page_data(html: &str) -> Option<Value> {
 
 #[cfg_attr(not(feature = "http"), allow(dead_code))]
 fn extract_admin_csrf(html: &str) -> Option<String> {
-    if html.contains("data-page=") {
+    if html.contains("data-page=") || html.trim_start().starts_with('{') {
         let data = admin_page_data(html)?;
         let csrf = data.get("csrf")?.as_str()?;
         return is_hex64(csrf).then(|| csrf.to_owned());
@@ -106,7 +110,7 @@ fn extract_hidden_input(html: &str, name: &str) -> Option<String> {
 /// closed so markup can never become a stored credential.
 #[cfg_attr(not(feature = "http"), allow(dead_code))]
 fn extract_new_token(html: &str) -> Option<String> {
-    if html.contains("data-page=") {
+    if html.contains("data-page=") || html.trim_start().starts_with('{') {
         let data = admin_page_data(html)?;
         let token = data.get("newToken")?.as_str()?;
         return is_hex64(token).then(|| token.to_owned());
@@ -694,5 +698,18 @@ mod tests {
             form_body(&[("id", "admin"), ("pw", "p@ss & word")]),
             "id=admin&pw=p%40ss+%26+word"
         );
+    }
+}
+
+#[cfg(test)]
+mod api_only_tests {
+    #[test]
+    fn reads_api_only_admin_data_without_browser_markup() {
+        let csrf = "a".repeat(64);
+        let token = "b".repeat(64);
+        let body = serde_json::json!({"page":"admin", "csrf":csrf, "newToken":token}).to_string();
+        assert_eq!(super::extract_admin_csrf(&body), Some(csrf));
+        assert_eq!(super::extract_new_token(&body), Some(token));
+        assert!(super::extract_admin_csrf(r#"{"page":"login","csrf":"invalid"}"#).is_none());
     }
 }
