@@ -57,3 +57,144 @@ html[data-tiktools-transport='local-web'] .app-layout {
     font-size: 16px;
   }
 }
+
+/* Keep the local browser layout usable on narrow phone screens. */
+@media (width < 700px) {
+  html[data-tiktools-transport='local-web'] .app-layout__navigation {
+    overscroll-behavior-x: contain;
+  }
+
+  html[data-tiktools-transport='local-web'] .app-navigation__section {
+    flex: none;
+  }
+
+  html[data-tiktools-transport='local-web'] .settings-page {
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  html[data-tiktools-transport='local-web'] .settings-page__sections {
+    flex: none;
+    width: 100%;
+    max-height: 112px;
+  }
+
+  html[data-tiktools-transport='local-web'] .settings-page__content {
+    flex: none;
+    width: 100%;
+    max-width: none;
+    overflow: visible;
+  }
+
+  html[data-tiktools-transport='local-web'] .settings-page .base-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  html[data-tiktools-transport='local-web'] .settings-page .base-form-row__label {
+    justify-self: start;
+    text-align: left;
+  }
+
+  html[data-tiktools-transport='local-web'] .settings-page__control {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  html[data-tiktools-transport='local-web'] .plugins-page {
+    padding: 8px;
+  }
+
+  html[data-tiktools-transport='local-web'] .plugins-page__toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  html[data-tiktools-transport='local-web'] .plugins-page__lead {
+    display: none;
+  }
+
+  /* Grid ignores the desktop split pane's inline flex-basis. */
+  html[data-tiktools-transport='local-web'] .plugins-page__workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(180px, 32dvh) minmax(320px, 54dvh);
+    gap: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  html[data-tiktools-transport='local-web'] .plugins-page__workspace > .base-splitter__pane {
+    width: 100%;
+  }
+
+  html[data-tiktools-transport='local-web'] .plugins-page__workspace > .base-splitter__handle {
+    display: none;
+  }
+
+  html[data-tiktools-transport='local-web'] .plugin-details__header {
+    flex-wrap: wrap;
+    padding: 8px;
+  }
+
+  html[data-tiktools-transport='local-web'] .plugin-details__pane {
+    padding: 12px;
+  }
+
+  html[data-tiktools-transport='local-web'] .plugin-details__facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  html[data-tiktools-transport='local-web'] .feed-page__stream {
+    min-width: 0;
+    width: 100%;
+  }
+
+  html[data-tiktools-transport='local-web'] .live-feed .base-panel__header {
+    flex-wrap: wrap;
+  }
+
+  html[data-tiktools-transport='local-web'] .live-feed .base-panel__actions {
+    flex-wrap: wrap;
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  html[data-tiktools-transport='local-web'] .live-feed .base-segmented {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  html[data-tiktools-transport='local-web'] .live-feed__search {
+    flex: 1 1 140px;
+    width: auto;
+  }
+
+  html[data-tiktools-transport='local-web'] .app-status-bar {
+    gap: 8px;
+    padding: 0 8px;
+  }
+
+  html[data-tiktools-transport='local-web'] .app-status-bar__segment {
+    min-width: 0;
+    max-width: 100px;
+    overflow: hidden;
+    padding-left: 0;
+    border-left: 0;
+    text-overflow: ellipsis;
+  }
+
+  html[data-tiktools-transport='local-web'] .app-status-bar__segment + .app-status-bar__segment {
+    display: none;
+  }
+}
+
+@media (width < 420px) {
+  html[data-tiktools-transport='local-web'] .app-status-bar__segment {
+    display: none;
+  }
+}
