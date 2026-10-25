@@ -11,7 +11,7 @@
 //!
 //! Identity rules, per canonical event type:
 //!
-//! - Key: `(event-type tag, TikTok msg_id)`. Types do not share one ID
+//! - Key: `(creator, room, method, event-type tag, TikTok msg_id)`. Types do not share one ID
 //!   space: a chat and a gift that somehow carried the same numeric ID
 //!   are still distinct events.
 //! - `msg_id == 0` means missing/invalid identity: never suppressed.
@@ -56,8 +56,8 @@ pub(crate) struct LiveDedup {
 
 struct DedupInner {
     scope: Option<(String, String)>,
-    seen: HashMap<(u8, u64), Instant>,
-    order: VecDeque<(u8, u64)>,
+    seen: HashMap<(String, String, String, u8, u64), Instant>,
+    order: VecDeque<(String, String, String, u8, u64)>,
 }
 
 impl LiveDedup {
@@ -82,8 +82,6 @@ impl LiveDedup {
         let mut inner = recover_mutex(&self.inner, "live dedup");
         let scope = (creator.to_owned(), room.to_owned());
         if inner.scope.as_ref() != Some(&scope) {
-            inner.seen.clear();
-            inner.order.clear();
             inner.scope = Some(scope);
         }
     }
@@ -98,8 +96,15 @@ impl LiveDedup {
             // events without IDs always process.
             return false;
         }
-        let key = (event_tag(&event.base), msg_id);
         let mut inner = recover_mutex(&self.inner, "live dedup");
+        let (creator, room) = inner.scope.clone().unwrap_or_default();
+        let key = (
+            creator,
+            room,
+            event.method().to_owned(),
+            event_tag(&event.base),
+            msg_id,
+        );
         if let Some(seen_at) = inner.seen.get(&key).copied() {
             if seen_at.elapsed() < self.ttl {
                 self.duplicates.fetch_add(1, Ordering::Relaxed);
@@ -107,8 +112,8 @@ impl LiveDedup {
             }
             // TTL expired: forget the old occurrence and process this one
             // as new instead of suppressing it forever.
-            inner.order.retain(|entry| *entry != key);
-            inner.seen.insert(key, Instant::now());
+            inner.order.retain(|entry| entry != &key);
+            inner.seen.insert(key.clone(), Instant::now());
             inner.order.push_back(key);
             return false;
         }
@@ -123,14 +128,14 @@ impl LiveDedup {
                 }
             }
         }
-        inner.seen.insert(key, Instant::now());
+        inner.seen.insert(key.clone(), Instant::now());
         inner.order.push_back(key);
         false
     }
 
     fn evict_expired(&self, inner: &mut DedupInner) {
         let now = Instant::now();
-        while let Some(front) = inner.order.front().copied() {
+        while let Some(front) = inner.order.front().cloned() {
             match inner.seen.get(&front) {
                 Some(seen_at) if now.duration_since(*seen_at) < self.ttl => break,
                 _ => {
@@ -304,6 +309,8 @@ mod tests {
         assert!(dedup.check_duplicate(&gift(42, true)));
         dedup.set_scope("alice", "room2");
         assert!(!dedup.check_duplicate(&gift(42, true)));
+        dedup.set_scope("alice", "room1");
+        assert!(dedup.check_duplicate(&gift(42, true)));
     }
 
     #[test]
