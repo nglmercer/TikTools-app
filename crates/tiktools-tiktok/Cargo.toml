@@ -26,3 +26,7 @@ ttl-sign-embedded.workspace = true
 # Android has no shipped QuickJS bindings: generate against native Bionic headers.
 [target.'cfg(target_os = "android")'.dependencies]
 rquickjs = { version = "0.12.2", default-features = false, features = ["bindgen"] }
+
+[dev-dependencies]
+prost = "0.14.3"
+ttl-live-proto.workspace = true

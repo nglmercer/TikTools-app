@@ -4867,6 +4867,7 @@ dependencies = [
 name = "tiktools-tiktok"
 version = "0.3.3"
 dependencies = [
+ "prost",
  "reqwest 0.13.5",
  "rquickjs",
  "rustls",
@@ -4879,6 +4880,7 @@ dependencies = [
  "tracing",
  "ttl-live-discovery",
  "ttl-live-events",
+ "ttl-live-proto",
  "ttl-live-ws",
  "ttl-sign-core",
  "ttl-sign-embedded",
@@ -5297,7 +5299,6 @@ dependencies = [
 [[package]]
 name = "ttl-live-events"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=4f9d0b63799c3e23cf20be717779ece507b9eed4#4f9d0b63799c3e23cf20be717779ece507b9eed4"
 dependencies = [
  "base64 0.22.1",
  "prost",

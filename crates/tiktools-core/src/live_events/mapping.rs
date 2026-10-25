@@ -351,6 +351,47 @@ mod regression_tests {
     }
 
     #[tokio::test]
+    async fn deeply_nested_live_gift_reaches_ui_and_original_automation() {
+        let core = Arc::new(AppCore::new(Arc::new(Emitter)));
+        *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {
+            unique_id: "fixture-creator".into(),
+            room_id: "fixture-room".into(),
+            connection_id: "fixture-connection".into(),
+        });
+        let mut receiver = core.events.subscribe_projection();
+        let events = tiktools_tiktok::events::decode_batch(
+            include_bytes!("../../../tiktools-tiktok/tests/fixtures/deep-gift.batch.pb"),
+            &mut std::collections::HashMap::new(),
+        )
+        .unwrap();
+        assert_eq!(events.len(), 1);
+        core.handle_live_event(events.into_iter().next().unwrap())
+            .await;
+        let mut gift_ui = false;
+        let mut original = false;
+        while let Ok(event) = receiver.try_recv() {
+            match event {
+                crate::events::DomainEvent::LiveUiEvent { event } => {
+                    assert_eq!(event["kind"], "gift");
+                    assert_eq!(event["msgId"], "9007199254740994");
+                    gift_ui = true;
+                }
+                crate::events::DomainEvent::LiveEvent { event_type, .. }
+                    if event_type == "tiktok.gift" =>
+                {
+                    original = true
+                }
+                _ => {}
+            }
+        }
+        assert!(
+            gift_ui && original,
+            "gift reaches both original automation and live.ui-event"
+        );
+        core.shutdown().await;
+    }
+
+    #[tokio::test]
     async fn protobuf_gift_and_emotes_publish_both_ui_and_automation_contracts() {
         let core = Arc::new(AppCore::new(Arc::new(Emitter)));
         *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {

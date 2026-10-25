@@ -112,7 +112,7 @@ número de combos visuales activos; no se inventa precio para regalos sin él.
 | `bun run check:web` | OK: lint, tipos, 291 tests Bun, 477 tests Vitest y build |
 | `bun run check:rust` | OK, workspace locked |
 | `bun run lint:rust` | OK, todos los targets/features, warnings como errores |
-| `bun run test:rust` | OK: 800 tests pasados, 0 fallos, 1 ignorado existente |
+| `bun run test:rust` | OK: 803 tests pasados, 0 fallos, 1 ignorado existente |
 | Tests Rust LIVE específicos tras los últimos ajustes | 34 pasados; además 1 test de cursor a través de IPC tipado |
 | `bun run test:e2e` | 55 pasados, 5 fallos existentes, reproducidos en `4acf53f` |
 | `bun run test:widgets-e2e` | OK: 15 tests visuales/funcionales y 13 con gateway real |
@@ -131,8 +131,8 @@ Los cinco fallos E2E se verificaron en un worktree limpio del HEAD original:
   al texto/botón de monitor presente en el HEAD original (144/297 píxeles).
 
 No se cambian esos tests ni sus referencias para ocultar los fallos. Las
-pruebas nuevas de LIVE y debugger pasan. No se utilizó una cuenta TikTok real
-ni se afirma haber validado una sesión LIVE externa en este entorno.
+pruebas nuevas de LIVE y debugger pasan. La validación inicial no usó una cuenta TikTok real. La corrección posterior
+del decoder sí se comprobó contra el mismo LIVE público del reporte.
 
 Pendientes/límites: corregir esos controles/fixtures de Connections en un
 cambio separado; replay fuera del TTL o sin identidad no puede confirmarse;
@@ -145,8 +145,43 @@ verifican entrega de originales y contabilidad independiente de efectos.
 Las dos referencias visuales del feed se actualizan únicamente por la nueva
 fila Event Debugger, tras inspección de las imágenes generadas.
 
+## Regalos reales todavía invisibles: causa y corrección posterior
+
+El proceso activo mostraba 64 `WebcastGiftMessage` como Unknown y solo 3
+regalos publicados, sin pérdidas, duplicados ni saturación. Una segunda
+conexión pública permitió comprobar un paquete real de 6441 bytes:
+Prost lo decodificaba correctamente (`typed_error=None`), pero la vista
+Full de diagnóstico marcaba `schema.truncated=true` y el SDK convertía el
+regalo válido en Unknown antes del ingreso.
+
+El transporte ahora pide exclusivamente `DecodeMode::Normalized`. Se incluye
+una copia fijada de `ttl-live-events` con una corrección mínima documentada
+en `vendor/ttl-live-events/README.tiktools.md`: el preflight de normalización
+usa la profundidad de Prost, independiente de la vista diagnóstica de ocho
+niveles. Los límites de bytes, mensajes y campos no aumentan. La memoria de
+catálogo se actualiza en orden entre paquetes del mismo batch.
+
+Se obtuvo una estructura de regresión de otro regalo válido, reemplazando
+todos los valores numéricos/texto y eliminando bytes opacos y campos
+desconocidos. El fixture reproduce el fallo del decoder anterior y valida
+el nuevo camino hasta `live.ui-event` y `tiktok.gift`, incluyendo msgId grande,
+metadatos ausentes y aislamiento de paquetes inválidos. No contiene datos
+originales de la sesión. La sonda pública corregida confirmó
+`canonical gift received` desde el mismo LIVE.
+
+Validación posterior: 803 tests Rust del workspace, 17 tests del SDK
+vendorizado, 17 tests de la frontera TikTok, contratos, check:web, check:rust
+y clippy pasan. La prueba SDK aislada requirió reubicar su fixture upstream
+(con sus mismos bytes y aserciones) al directorio del crate vendorizado.
+El desktop debug fue recompilado con la corrección.
+
+El binario desktop está recompilado; un proceso que ya estaba abierto continúa
+usando su decoder anterior hasta que se reinicie TikTools.
+
 ## Archivos modificados
 
+- `Cargo.lock`
+- `Cargo.toml`
 - `crates/tiktools-core/src/automation_runtime/samples.rs`
 - `crates/tiktools-core/src/contracts/mod.rs`
 - `crates/tiktools-core/src/control/system.rs`
@@ -164,6 +199,13 @@ fila Event Debugger, tras inspección de las imágenes generadas.
 - `crates/tiktools-core/src/services/points.rs`
 - `crates/tiktools-desktop/src/window/ipc.rs`
 - `crates/tiktools-desktop/src/window/projection.rs`
+- `crates/tiktools-tiktok/Cargo.toml`
+- `crates/tiktools-tiktok/examples/live_decode_probe.rs`
+- `crates/tiktools-tiktok/src/events.rs`
+- `crates/tiktools-tiktok/src/lib.rs`
+- `crates/tiktools-tiktok/tests/fixtures/README.md`
+- `crates/tiktools-tiktok/tests/fixtures/deep-gift.batch.pb`
+- `crates/tiktools-tiktok/tests/fixtures/deep-gift.pb`
 - `docs/LIVE-EVENT-RELIABILITY.md`
 - `src/automation/behavior/live-goal-templates.test.ts`
 - `src/automation/behavior/live-goal-templates.ts`
@@ -187,3 +229,13 @@ fila Event Debugger, tras inspección de las imágenes generadas.
 - `tests/e2e/live-gifts-emotes-monitor.spec.ts`
 - `tests/e2e/screenshots.spec.ts-snapshots/feed-connected-chromium-linux.png`
 - `tests/e2e/screenshots.spec.ts-snapshots/feed-empty-chromium-linux.png`
+- `vendor/ttl-live-events/.gitignore`
+- `vendor/ttl-live-events/Cargo.toml`
+- `vendor/ttl-live-events/README.tiktools.md`
+- `vendor/ttl-live-events/fixtures/chat.pb`
+- `vendor/ttl-live-events/src/dynamic.rs`
+- `vendor/ttl-live-events/src/event.rs`
+- `vendor/ttl-live-events/src/lib.rs`
+- `vendor/ttl-live-events/src/normalize.rs`
+- `vendor/ttl-live-events/src/social.rs`
+- `vendor/ttl-live-events/src/user.rs`

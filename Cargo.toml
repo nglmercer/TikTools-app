@@ -15,6 +15,7 @@ members = [
 ]
 exclude = [
     "vendor/ttl-live-proto",
+    "vendor/ttl-live-events",
     "examples/audio-process-plugin",
     "examples/event-gateway-process-plugin",
     "examples/textintel-process-plugin",
@@ -74,3 +75,4 @@ ttl-sign-embedded = { git = "https://github.com/nglmercer/tiktok-signer", rev = 
 
 [patch."https://github.com/nglmercer/tiktok-signer"]
 ttl-live-proto = { path = "vendor/ttl-live-proto" }
+ttl-live-events = { path = "vendor/ttl-live-events" }

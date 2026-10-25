@@ -566,18 +566,16 @@ async fn run_connection(
                         bytes = message.payload.len(),
                         "TikTok live frame received"
                     );
-                    match ttl_live_events::decode_batch(&message.payload) {
+                    match events::decode_batch(&message.payload, &mut gifts) {
                     Ok(batch) => {
-                        tracing::debug!(events = batch.events.len(), "TikTok live frame decoded");
-                        for decoded in batch.events {
+                        tracing::debug!(events = batch.len(), "TikTok live frame decoded");
+                        for event in batch {
                             if state.snapshot().generation != connection_generation {
                                 let _ = connection.close().await;
                                 tracing::debug!(connection_generation, "discarding stale TikTok live connection");
                                 return;
                             }
-                            tracing::debug!(method = %decoded.raw.method, "TikTok live event decoded");
-                            let event = events::TikToolsEvent::from_decoded(decoded, &gifts);
-                            event.remember_gift(&mut gifts);
+                            tracing::debug!(method = event.method(), "TikTok live event decoded");
                             event_sender.send(connection_generation, ClientEvent::Event(event));
                         }
                     }

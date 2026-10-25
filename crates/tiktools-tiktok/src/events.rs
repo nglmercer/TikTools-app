@@ -59,8 +59,34 @@ impl TikToolsEvent {
             msg_id: decoded.raw.msg_id,
             is_history: decoded.raw.is_history,
         };
+        Self::enrich(decoded.event, metadata, gifts)
+    }
+
+    fn from_normalized(
+        decoded: ttl_live_events::SelectedEvent,
+        gifts: &HashMap<String, GiftInfo>,
+    ) -> Self {
+        let metadata = EventMetadata {
+            method: decoded.method.clone(),
+            msg_id: decoded.msg_id,
+            is_history: decoded.is_history,
+        };
+        let base = decoded
+            .event
+            .unwrap_or_else(|| CanonicalLiveEvent::Unknown {
+                method: decoded.method,
+                payload: decoded.payload.unwrap_or_default(),
+            });
+        Self::enrich(base, metadata, gifts)
+    }
+
+    fn enrich(
+        base: CanonicalLiveEvent,
+        metadata: EventMetadata,
+        gifts: &HashMap<String, GiftInfo>,
+    ) -> Self {
         let gift =
-            match &decoded.event {
+            match &base {
                 ttl_live_events::LiveEvent::Gift(event) => gifts
                     .get(&event.gift_id.to_string())
                     .map(|gift| GiftEnrichment {
@@ -72,7 +98,7 @@ impl TikToolsEvent {
                 _ => None,
             };
         Self {
-            base: decoded.event,
+            base,
             metadata,
             gift,
         }
@@ -266,5 +292,82 @@ mod tests {
     fn the_table_has_no_counter_inputs() {
         // The signature is the guarantee: only `action` is consulted.
         let _: fn(i64) -> SocialKind = classify_social_action;
+    }
+}
+
+/// Decode only canonical events. Debug/schema presentation limits must not
+/// veto otherwise valid protobuf normalization.
+pub fn decode_batch(
+    payload: &[u8],
+    gifts: &mut HashMap<String, GiftInfo>,
+) -> Result<Vec<TikToolsEvent>, ttl_live_events::EventError> {
+    let batch =
+        ttl_live_events::decode_batch_with_mode(payload, ttl_live_events::DecodeMode::Normalized)?;
+    Ok(batch.events.into_iter().map(|decoded| {
+        if decoded.truncated {
+            tracing::warn!(method = %decoded.method, msg_id = decoded.msg_id, "LIVE packet exceeded normalization limits");
+        }
+        let event = TikToolsEvent::from_normalized(decoded, gifts);
+        event.remember_gift(gifts);
+        event
+    }).collect())
+}
+
+#[cfg(test)]
+mod deep_packet_tests {
+    use super::*;
+    use prost::Message;
+    #[test]
+    fn diagnostic_depth_does_not_hide_real_gifts_or_lose_envelope_identity() {
+        let payload = include_bytes!("../tests/fixtures/deep-gift.pb");
+        // Structurally scrubbed from a real LIVE packet: numbers replaced,
+        // strings replaced with 'fixture', opaque/unknown fields removed.
+        assert!(ttl_live_proto::messages::WebcastGiftMessage::decode(payload.as_slice()).is_ok());
+        let legacy =
+            ttl_live_events::decode_event_envelope("WebcastGiftMessage", 123, true, payload);
+        assert!(legacy.schema.truncated);
+        assert!(matches!(legacy.event, CanonicalLiveEvent::Unknown { .. }));
+        let batch = ttl_live_proto::ProtoMessageFetchResult {
+            messages: vec![
+                ttl_live_proto::BaseProtoMessage {
+                    method: "WebcastGiftMessage".into(),
+                    msg_id: 123,
+                    is_history: true,
+                    payload: payload.to_vec(),
+                    ..Default::default()
+                },
+                ttl_live_proto::BaseProtoMessage {
+                    method: "WebcastGiftMessage".into(),
+                    msg_id: 124,
+                    payload: vec![255],
+                    ..Default::default()
+                },
+                ttl_live_proto::BaseProtoMessage {
+                    method: "WebcastGiftMessage".into(),
+                    msg_id: 125,
+                    payload: ttl_live_proto::messages::WebcastGiftMessage {
+                        gift_id: 1,
+                        repeat_count: 2,
+                        ..Default::default()
+                    }
+                    .encode_to_vec(),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let decoded = decode_batch(&batch, &mut HashMap::new()).unwrap();
+        assert_eq!(decoded.len(), 3);
+        assert!(matches!(decoded[0].base, CanonicalLiveEvent::Gift(_)));
+        assert_eq!(decoded[0].msg_id(), 123);
+        assert!(decoded[0].is_history());
+        assert!(matches!(
+            decoded[1].base,
+            CanonicalLiveEvent::Unknown { .. }
+        ));
+        assert_eq!(decoded[1].msg_id(), 124);
+        assert_eq!(decoded[2].gift_name(), Some("fixture"));
+        assert_eq!(decoded[2].gift_diamond_count(), Some(1));
     }
 }
