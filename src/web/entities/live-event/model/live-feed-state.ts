@@ -34,6 +34,8 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   let recoveryAfter: number | null = null;
   let duplicates = 0;
   let recoveryGaps = 0;
+  let recoveredEvents = 0;
+  let recoveredGaps = 0;
   let unjournaledSuspended = 0;
   let needsCursorSort = false;
   let sessionScope = '';
@@ -235,6 +237,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     if (typeof (control as { call?: unknown }).call !== 'function') { unjournaledSuspended = 0; insertDiscontinuity(); return; }
     const generation = recoveryGeneration;
     recoveryInFlight = true;
+    let recoveredAny = false;
     let after = recoveryAfter ?? lastFeedCursor ?? 0;
     recoveryAfter = after;
     try {
@@ -257,6 +260,11 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
           if (!Number.isSafeInteger(entry?.cursor) || entry.cursor <= after || !entry.event) continue;
           next = Math.max(next, entry.cursor);
           if (pushFeedEvent(entry.event, entry.cursor)) recovered += 1;
+        }
+        if (recovered > 0) {
+          recoveredEvents += recovered;
+          if (!recoveredAny) recoveredGaps += 1;
+          recoveredAny = true;
         }
         droppedUiEvents.value = Math.max(0, droppedUiEvents.value - recovered);
         if (result.gap) { recoveryGaps += 1; insertDiscontinuity(); }
@@ -452,7 +460,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   };
 
   return {
-    diagnostics: () => ({ visible: events.value.length, staged: staged.length, dropped: droppedUiEvents.value, presentationActive, commits, received, duplicates, recoveryGaps, presentationCoalesced, retentionEvicted, identities: seenMsgIds.size, recoveryInFlight, cursor: lastFeedCursor, timers: Number(flushTimer !== null) + Number(scrollTimer !== null) + Number(restoreTimer !== null), frames: Number(flushFrame !== 0) + Number(scrollFrame !== 0) + Number(restoreFrame !== 0) }),
+    diagnostics: () => ({ visible: events.value.length, staged: staged.length, dropped: droppedUiEvents.value, presentationActive, commits, received, duplicates, recoveryGaps, recoveredEvents, recoveredGaps, presentationCoalesced, retentionEvicted, identities: seenMsgIds.size, recoveryInFlight, cursor: lastFeedCursor, timers: Number(flushTimer !== null) + Number(scrollTimer !== null) + Number(restoreTimer !== null), frames: Number(flushFrame !== 0) + Number(scrollFrame !== 0) + Number(restoreFrame !== 0) }),
     events,
     imagesEnabled,
     renderLimit,
