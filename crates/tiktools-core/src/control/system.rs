@@ -211,6 +211,15 @@ impl AppCore {
                 "LIVE points worker abandoned past its join deadline; queued awards may remain unresolved".to_owned(),
             );
         }
+        #[cfg(feature = "native-tiktok")]
+        let live_totals = self.live_totals.diagnostics();
+        #[cfg(feature = "native-tiktok")]
+        if self.live_ingress.effects_dropped.load(Ordering::Relaxed) > 0 {
+            degraded
+                .push("LIVE persistence effects dropped; inspect liveIngress.effects".to_owned());
+        }
+        #[cfg(not(feature = "native-tiktok"))]
+        let live_totals = Value::Null;
         json!({
             "status": if degraded.is_empty() { "ok" } else { "degraded" },
             "reasons": degraded,
@@ -227,6 +236,7 @@ impl AppCore {
             "liveGenerationSeq": live_generation_seq,
             "liveIngress": live_ingress,
             "liveDedup": live_dedup,
+            "liveTotals": live_totals,
             "liveMonitor": self.live_monitor_status(),
             "points": points,
             "memory": memory,

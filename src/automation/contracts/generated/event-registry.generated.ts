@@ -2087,6 +2087,11 @@ export const GENERATED_EVENT_REGISTRY = {
           "avatarUrl": "sample"
         },
         "data": {
+          "aggregation": {
+            "increment": 1,
+            "cumulative": 1,
+            "diamonds": 1
+          },
           "giftId": "5655",
           "giftName": "Rose",
           "diamondCount": 1,
@@ -2177,6 +2182,26 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "AutomationUser.avatarUrl"
           },
           "sample": "sample"
+        },
+        {
+          "path": "event.data.aggregation",
+          "tsType": "{ \"increment\": number; \"cumulative\": number; \"diamonds\": number } | null",
+          "kind": "object",
+          "optional": true,
+          "label": {
+            "en": "Aggregation",
+            "es": "Aggregation"
+          },
+          "hint": {
+            "en": "GiftAutomationData.aggregation",
+            "es": "GiftAutomationData.aggregation"
+          },
+          "sample": {
+            "increment": 1,
+            "cumulative": 1,
+            "diamonds": 1
+          },
+          "sourceField": "aggregation"
         },
         {
           "path": "event.data.giftId",
@@ -2640,6 +2665,11 @@ export const GENERATED_EVENT_REGISTRY = {
       ],
       "sourceFields": [
         {
+          "name": "aggregation",
+          "tsType": "{ \"increment\": number; \"cumulative\": number; \"diamonds\": number } | null",
+          "optional": true
+        },
+        {
           "name": "giftId",
           "tsType": "string",
           "optional": false
@@ -2717,6 +2747,16 @@ export const GENERATED_EVENT_REGISTRY = {
           "avatarUrl": "sample"
         },
         "data": {
+          "aggregation": {
+            "global": {
+              "previous": 1,
+              "total": 1
+            },
+            "user": {
+              "previous": 1,
+              "total": 1
+            }
+          },
           "count": 1,
           "total": 1,
           "method": "WebcastSampleMessage",
@@ -2800,6 +2840,31 @@ export const GENERATED_EVENT_REGISTRY = {
             "es": "AutomationUser.avatarUrl"
           },
           "sample": "sample"
+        },
+        {
+          "path": "event.data.aggregation",
+          "tsType": "{ \"global\": { \"previous\": number; \"total\": number } | null; \"user\": { \"previous\": number; \"total\": number } | null } | null",
+          "kind": "object",
+          "optional": true,
+          "label": {
+            "en": "Aggregation",
+            "es": "Aggregation"
+          },
+          "hint": {
+            "en": "LikeAutomationData.aggregation",
+            "es": "LikeAutomationData.aggregation"
+          },
+          "sample": {
+            "global": {
+              "previous": 1,
+              "total": 1
+            },
+            "user": {
+              "previous": 1,
+              "total": 1
+            }
+          },
+          "sourceField": "aggregation"
         },
         {
           "path": "event.data.count",
@@ -3120,6 +3185,11 @@ export const GENERATED_EVENT_REGISTRY = {
         }
       ],
       "sourceFields": [
+        {
+          "name": "aggregation",
+          "tsType": "{ \"global\": { \"previous\": number; \"total\": number } | null; \"user\": { \"previous\": number; \"total\": number } | null } | null",
+          "optional": true
+        },
         {
           "name": "count",
           "tsType": "number",

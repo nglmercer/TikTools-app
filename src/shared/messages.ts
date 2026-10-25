@@ -76,6 +76,10 @@ export type UiEvent = {
   roomId?: string;
   creatorId?: string;
   sourceType?: string;
+  /** Host correlation ID, also the original automation event ID when mapped. */
+  correlationId?: string;
+  /** Authoritative journal delivery cursor, preserved through browser/CLI IPC. */
+  feedCursor?: number;
   giftDetails?: {
     giftId?: string;
     name: string;

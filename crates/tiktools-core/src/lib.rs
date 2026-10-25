@@ -175,6 +175,8 @@ pub struct AppCore {
     /// design (replays arrive after them); bounded by TTL plus capacity.
     #[cfg(feature = "native-tiktok")]
     pub(crate) live_dedup: crate::live_events::dedup::LiveDedup,
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) live_totals: crate::live_events::totals::LiveTotals,
     option_sources: OptionSourceService,
     pub(crate) plugin_state: PluginRuntimeState,
     pub(crate) processor_state: ProcessorRuntimeState,
@@ -321,6 +323,8 @@ impl AppCore {
             live_ingress: crate::live_events::ingress::LiveIngressStats::default(),
             #[cfg(feature = "native-tiktok")]
             live_dedup: crate::live_events::dedup::LiveDedup::default(),
+            #[cfg(feature = "native-tiktok")]
+            live_totals: crate::live_events::totals::LiveTotals::default(),
             option_sources: OptionSourceService::new(),
             plugin_state: PluginRuntimeState {
                 activation: RwLock::new(plugin_activation),

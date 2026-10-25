@@ -56,6 +56,11 @@ export interface ConnectionAutomationData {
   "roomId": string;
 }
 
+export interface CounterTransition {
+  "previous": number;
+  "total": number;
+}
+
 export interface EmoteChatAutomationData {
   "emotes"?: { "id": string; "shortcode": string | null; "imageUrl": string | null; "index": number | null; "emoteType": number | null; "packageId": string | null }[];
   "method": string;
@@ -70,7 +75,14 @@ export interface EventIntel {
   "providers"?: JsonValue;
 }
 
+export interface GiftAggregation {
+  "increment": number;
+  "cumulative": number;
+  "diamonds": number;
+}
+
 export interface GiftAutomationData {
+  "aggregation"?: { "increment": number; "cumulative": number; "diamonds": number } | null;
   "giftId": string;
   "giftName": string;
   "diamondCount": number;
@@ -196,7 +208,13 @@ export interface IntelUser {
   "uniqueId"?: { "language": { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null; "composition": { "emojiOnly": boolean | null; "emojiCount": number | null; "emojiRatio": number | null; "letters": number | null; "digits": number | null; "allCaps": boolean | null; "elongated": boolean | null; "repetitionScore": number | null; "urls": number | null; "mentions": number | null } | null } | null;
 }
 
+export interface LikeAggregation {
+  "global"?: { "previous": number; "total": number } | null;
+  "user"?: { "previous": number; "total": number } | null;
+}
+
 export interface LikeAutomationData {
+  "aggregation"?: { "global": { "previous": number; "total": number } | null; "user": { "previous": number; "total": number } | null } | null;
   "count": number;
   "total": number;
   "method": string;

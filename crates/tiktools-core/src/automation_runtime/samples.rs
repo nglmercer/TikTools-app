@@ -71,6 +71,7 @@ fn sample_data_for(event_type: &str) -> (Value, Option<Value>) {
         ),
         "tiktok.gift" => (
             sample_data(GiftAutomationData {
+                aggregation: None,
                 gift_id: "5655".to_owned(),
                 gift_name: "Rose".to_owned(),
                 diamond_count: 1,
@@ -88,6 +89,7 @@ fn sample_data_for(event_type: &str) -> (Value, Option<Value>) {
         ),
         "tiktok.like" => (
             sample_data(LikeAutomationData {
+                aggregation: None,
                 count: 1,
                 total: 1,
                 method: method(),

@@ -6,7 +6,8 @@
 //! TikTok WebSocket (broadcast, 512)
 //!   -> pump recv loop (lightweight: stamp generation, admit)
 //!   -> bounded ingress queue (2,048 ordered items, single owner)
-//!   -> ordered worker (canonical processing: analytics, points, …)
+//!   -> fast ordered worker (dedup, counters, originals, UI journal)
+//!   -> bounded effects queue (128, analytics/points, independent future)
 //!   -> independent bounded consumers (automation slots, plugin queues, UI bus)
 //! ```
 //!
@@ -18,11 +19,11 @@
 //! - Lifecycle transitions (connect/disconnect/reconnect/error) apply
 //!   backpressure (`send().await`): they are rare and must never jump the
 //!   queue or vanish.
-//! - Gift finalizations, follows, and shares apply bounded backpressure
+//! - All gift packets, follows, and shares apply bounded backpressure
 //!   (1 s): they produce durable, money-grade side effects. If capacity
 //!   still does not free up, the drop is counted as critical and reported
 //!   as an event gap — never as successful delivery.
-//! - Chat, likes, joins, intermediate gift-streak progress, room stats,
+//! - Chat, likes, joins, room stats,
 //!   and unknown payloads shed immediately (`try_send`) with explicit
 //!   per-class counters. These are high-volume, low-value ticks; blocking
 //!   the pump on them would trade explicit local counters for
@@ -128,6 +129,15 @@ impl IngressLifecycle {
 pub(crate) struct LiveIngressStats {
     /// Items admitted into the ingress queue.
     pub(crate) accepted: AtomicU64,
+    pub(crate) received: AtomicU64,
+    pub(crate) decoded: AtomicU64,
+    pub(crate) effects_queued: AtomicU64,
+    pub(crate) effects_dropped: AtomicU64,
+    pub(crate) effects_rejected: AtomicU64,
+    pub(crate) effects_cancelled: AtomicU64,
+    pub(crate) effects_abandoned: AtomicU64,
+    pub(crate) effects_processed: AtomicU64,
+    pub(crate) effects_in_flight: AtomicU64,
     pub(crate) ui_published: AtomicU64,
     pub(crate) ui_gifts: AtomicU64,
     pub(crate) gifts_without_artwork: AtomicU64,
@@ -169,6 +179,15 @@ impl Default for LiveIngressStats {
     fn default() -> Self {
         Self {
             accepted: AtomicU64::new(0),
+            received: AtomicU64::new(0),
+            decoded: AtomicU64::new(0),
+            effects_queued: AtomicU64::new(0),
+            effects_dropped: AtomicU64::new(0),
+            effects_rejected: AtomicU64::new(0),
+            effects_cancelled: AtomicU64::new(0),
+            effects_abandoned: AtomicU64::new(0),
+            effects_processed: AtomicU64::new(0),
+            effects_in_flight: AtomicU64::new(0),
             ui_published: AtomicU64::new(0),
             ui_gifts: AtomicU64::new(0),
             gifts_without_artwork: AtomicU64::new(0),
@@ -237,6 +256,7 @@ impl LiveIngressStats {
     pub(crate) fn diagnostics(&self) -> Value {
         let samples = self.processing_samples.load(Ordering::Relaxed);
         json!({
+            "effects": { "capacity": 128, "queued": self.effects_queued.load(Ordering::Relaxed), "dropped": self.effects_dropped.load(Ordering::Relaxed), "rejected": self.effects_rejected.load(Ordering::Relaxed), "cancelled": self.effects_cancelled.load(Ordering::Relaxed), "abandoned": self.effects_abandoned.load(Ordering::Relaxed), "processed": self.effects_processed.load(Ordering::Relaxed), "inFlight": self.effects_in_flight.load(Ordering::Relaxed) },
             "capacity": INGRESS_QUEUE_CAPACITY,
             "lifecycle": self.lifecycle().as_str(),
             "queued": self.queued.load(Ordering::Relaxed),
@@ -244,6 +264,8 @@ impl LiveIngressStats {
             "cancelled": self.cancelled.load(Ordering::Relaxed),
             "abandoned": self.abandoned.load(Ordering::Relaxed),
             "admissionCancelled": self.admission_cancelled.load(Ordering::Relaxed),
+            "received": self.received.load(Ordering::Relaxed),
+            "decoded": self.decoded.load(Ordering::Relaxed),
             "accepted": self.accepted.load(Ordering::Relaxed),
             "uiPublished": self.ui_published.load(Ordering::Relaxed),
             "uiGifts": self.ui_gifts.load(Ordering::Relaxed),
@@ -296,16 +318,9 @@ pub(crate) enum DataClass {
 pub(crate) fn classify_data_event(event: &NativeLiveEvent) -> DataClass {
     use tiktools_tiktok::events::CanonicalLiveEvent;
     match &event.base {
-        CanonicalLiveEvent::Gift(gift) => {
-            // Streak intermediates carry no durable change (points are
-            // awarded once at finalization, and the final count covers the
-            // whole streak); finals and non-streakable gifts do.
-            if event.gift_streakable() && !gift.repeat_end {
-                DataClass::Sheddable
-            } else {
-                DataClass::Critical
-            }
-        }
+        // Every gift packet can contribute a monetary increment. Protect
+        // progress as well as finals with the existing bounded backpressure.
+        CanonicalLiveEvent::Gift(_) => DataClass::Critical,
         CanonicalLiveEvent::Social(social) => {
             match tiktools_tiktok::events::classify_social_action(social.action) {
                 tiktools_tiktok::events::SocialKind::Follow
@@ -353,6 +368,10 @@ pub(crate) async fn admit_stamped_event(
 ) {
     let tiktools_tiktok::StampedClientEvent { generation, event } = stamped;
     let stats = &core.live_ingress;
+    stats.received.fetch_add(1, Ordering::Relaxed);
+    if matches!(&event, ClientEvent::Event(_)) {
+        stats.decoded.fetch_add(1, Ordering::Relaxed);
+    }
     if core.live_admission.is_cancelled() {
         stats.admission_cancelled.fetch_add(1, Ordering::Relaxed);
         return;
@@ -472,8 +491,94 @@ async fn admit_full(
 #[cfg(feature = "native-tiktok")]
 pub(crate) async fn run_ingress_worker(
     core: Arc<AppCore>,
+    receiver: tokio::sync::mpsc::Receiver<IngressItem>,
+    emergency: tokio_util::sync::CancellationToken,
+) {
+    let (sender, mut effects) = tokio::sync::mpsc::channel::<super::handlers::LiveEffect>(128);
+    let dispatch = run_ingress_dispatch(Arc::clone(&core), receiver, emergency.clone(), sender);
+    let persist = async {
+        let _pending_guard = PendingEffectsGuard(&core.live_ingress);
+        loop {
+            let effect = tokio::select! {
+                biased;
+                () = emergency.cancelled() => break,
+                effect = effects.recv() => effect,
+            };
+            let Some(effect) = effect else {
+                break;
+            };
+            core.live_ingress
+                .effects_queued
+                .fetch_sub(1, Ordering::Relaxed);
+            core.live_ingress
+                .effects_in_flight
+                .fetch_add(1, Ordering::Relaxed);
+            let mut guard = EffectGuard {
+                stats: &core.live_ingress,
+                complete: false,
+            };
+            core.apply_live_effect(effect).await;
+            guard.complete = true;
+            core.live_ingress
+                .effects_processed
+                .fetch_add(1, Ordering::Relaxed);
+        }
+        effects.close();
+        while effects.try_recv().is_ok() {
+            core.live_ingress
+                .effects_queued
+                .fetch_sub(1, Ordering::Relaxed);
+            core.live_ingress
+                .effects_dropped
+                .fetch_add(1, Ordering::Relaxed);
+            core.live_ingress
+                .effects_cancelled
+                .fetch_add(1, Ordering::Relaxed);
+            core.record_event_gap();
+        }
+    };
+    // Both futures belong to this worker. Emergency abort drops both; no
+    // detached task or per-event task can outlive the ingress owner.
+    tokio::join!(dispatch, persist);
+    core.live_ingress
+        .advance_lifecycle(IngressLifecycle::Stopped);
+}
+struct PendingEffectsGuard<'a>(&'a LiveIngressStats);
+impl Drop for PendingEffectsGuard<'_> {
+    fn drop(&mut self) {
+        let queued = self.0.effects_queued.swap(0, Ordering::Relaxed);
+        if queued > 0 {
+            self.0.effects_dropped.fetch_add(queued, Ordering::Relaxed);
+            self.0
+                .effects_cancelled
+                .fetch_add(queued, Ordering::Relaxed);
+            tracing::error!(
+                queued,
+                "queued LIVE persistence effects cancelled during shutdown"
+            );
+        }
+    }
+}
+struct EffectGuard<'a> {
+    stats: &'a LiveIngressStats,
+    complete: bool,
+}
+impl Drop for EffectGuard<'_> {
+    fn drop(&mut self) {
+        self.stats.effects_in_flight.fetch_sub(1, Ordering::Relaxed);
+        if !self.complete {
+            self.stats.effects_dropped.fetch_add(1, Ordering::Relaxed);
+            self.stats.effects_abandoned.fetch_add(1, Ordering::Relaxed);
+            tracing::error!("LIVE persistence effect abandoned during shutdown; outcome unknown");
+        }
+    }
+}
+#[cfg(feature = "native-tiktok")]
+async fn run_ingress_dispatch(
+    core: Arc<AppCore>,
     mut receiver: tokio::sync::mpsc::Receiver<IngressItem>,
     emergency: tokio_util::sync::CancellationToken,
+    effects: tokio::sync::mpsc::Sender<super::handlers::LiveEffect>,
 ) {
     loop {
         let item = tokio::select! {
@@ -510,7 +615,31 @@ pub(crate) async fn run_ingress_worker(
                 .store(item.generation, Ordering::Release);
         }
         let started = now_millis();
-        core.handle_native_event(item.event).await;
+        if let ClientEvent::Event(event) = item.event {
+            if let Some(effect) = core.prepare_live_event(event) {
+                // Reserve synchronously: storage can never hold ingress hostage.
+                match effects.try_reserve() {
+                    Ok(permit) => {
+                        core.live_ingress
+                            .effects_queued
+                            .fetch_add(1, Ordering::Relaxed);
+                        permit.send(effect);
+                    }
+                    Err(error) => {
+                        core.live_ingress
+                            .effects_rejected
+                            .fetch_add(1, Ordering::Relaxed);
+                        core.live_ingress
+                            .effects_dropped
+                            .fetch_add(1, Ordering::Relaxed);
+                        core.record_event_gap();
+                        tracing::error!(%error, msg_id = %effect.event.msg_id(), method = effect.event.method(), "LIVE persistence effects discarded; original event delivered");
+                    }
+                }
+            }
+        } else {
+            core.handle_native_event(item.event).await;
+        }
         core.live_ingress.in_flight.fetch_sub(1, Ordering::Relaxed);
         core.live_ingress.processed.fetch_add(1, Ordering::Relaxed);
         core.live_ingress
@@ -530,8 +659,6 @@ pub(crate) async fn run_ingress_worker(
         core.live_ingress.queued.fetch_sub(1, Ordering::Relaxed);
         core.live_ingress.cancelled.fetch_add(1, Ordering::Relaxed);
     }
-    core.live_ingress
-        .advance_lifecycle(IngressLifecycle::Stopped);
     tracing::info!(
         lifecycle = core.live_ingress.lifecycle().as_str(),
         "live ingress worker stopped"
@@ -659,11 +786,8 @@ mod tests {
     fn critical_events_cover_gifts_follows_and_shares() {
         assert_eq!(classify_data_event(&gift_final()), DataClass::Critical);
         assert_eq!(classify_data_event(&follow()), DataClass::Critical);
-        // Streak progress, chat, likes, and room stats shed under overload.
-        assert_eq!(
-            classify_data_event(&gift_streak_mid()),
-            DataClass::Sheddable
-        );
+        // Chat, likes, and room stats shed under overload; gift progress is protected.
+        assert_eq!(classify_data_event(&gift_streak_mid()), DataClass::Critical);
         assert_eq!(classify_data_event(&chat()), DataClass::Sheddable);
         assert_eq!(
             classify_data_event(&wrap(
@@ -1169,5 +1293,79 @@ mod tests {
         assert_eq!(taken, accepted, "every accepted event was consumed");
         assert_eq!(core.live_ingress.queued.load(Ordering::Relaxed), 0);
         assert_eq!(core.live_ingress.outstanding(), 0);
+    }
+}
+
+#[cfg(test)]
+mod effects_tests {
+    use super::*;
+    use tiktools_tiktok::events::{CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser};
+    struct Emitter;
+    impl HostEmitter for Emitter {
+        fn emit(&self, _: HostMessage) {}
+    }
+    #[tokio::test]
+    async fn stalled_persistence_never_hides_originals_and_saturation_is_accounted() {
+        let core = Arc::new(AppCore::new(Arc::new(Emitter)));
+        core.live_points_work
+            .stall_for_test(Duration::from_millis(200));
+        let (sender, receiver) = tokio::sync::mpsc::channel(INGRESS_QUEUE_CAPACITY);
+        for id in 1..=300 {
+            admit_stamped_event(
+                &core,
+                &sender,
+                tiktools_tiktok::StampedClientEvent {
+                    generation: 0,
+                    event: ClientEvent::Event(NativeLiveEvent {
+                        base: CanonicalLiveEvent::Chat(ChatEvent {
+                            user: EventUser {
+                                id: 1,
+                                unique_id: "effects-test".into(),
+                                ..Default::default()
+                            },
+                            comment: "same".into(),
+                            ..Default::default()
+                        }),
+                        metadata: EventMetadata {
+                            method: "WebcastChatMessage".into(),
+                            msg_id: id,
+                            is_history: false,
+                        },
+                        gift: None,
+                    }),
+                },
+            )
+            .await;
+        }
+        drop(sender);
+        let worker = tokio::spawn(run_ingress_worker(
+            Arc::clone(&core),
+            receiver,
+            tokio_util::sync::CancellationToken::new(),
+        ));
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while core.live_ingress.ui_published.load(Ordering::Relaxed) < 300 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        assert!(core.live_ingress.effects_dropped.load(Ordering::Relaxed) > 0);
+        core.live_points_work.stall_for_test(Duration::ZERO);
+        tokio::time::timeout(Duration::from_secs(5), worker)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            core.live_ingress.effects_processed.load(Ordering::Relaxed)
+                + core.live_ingress.effects_dropped.load(Ordering::Relaxed),
+            300
+        );
+        assert_eq!(core.live_ingress.effects_queued.load(Ordering::Relaxed), 0);
+        assert_eq!(
+            core.live_ingress.effects_in_flight.load(Ordering::Relaxed),
+            0
+        );
+        core.shutdown().await;
     }
 }

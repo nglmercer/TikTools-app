@@ -220,7 +220,7 @@ impl AnalyticsEventRecord {
             }
             CanonicalLiveEvent::Like(like) => {
                 record.like_events = 1;
-                record.likes = (like.count.max(1)) as i64;
+                record.likes = like.count as i64;
             }
             CanonicalLiveEvent::Member(_) => {
                 record.joins = 1;

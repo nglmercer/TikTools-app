@@ -2,11 +2,25 @@ use crate::*;
 
 impl AppCore {
     #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
-    pub(crate) async fn record_analytics_event(self: &Arc<Self>, event: &NativeLiveEvent) {
-        let Some(record) = crate::db::AnalyticsEventRecord::from_canonical_event(event) else {
+    pub(crate) async fn record_analytics_event(
+        self: &Arc<Self>,
+        event: &NativeLiveEvent,
+        totals: &Value,
+        creator: Option<String>,
+    ) {
+        let Some(mut record) = crate::db::AnalyticsEventRecord::from_canonical_event(event) else {
             return;
         };
-        let Some(creator) = self.current_creator_unique_id() else {
+        if matches!(
+            event.base,
+            tiktools_tiktok::events::CanonicalLiveEvent::Gift(_)
+        ) {
+            record.gifts =
+                i64::try_from(totals["increment"].as_u64().unwrap_or(0)).unwrap_or(i64::MAX);
+            record.diamonds =
+                i64::try_from(totals["diamonds"].as_u64().unwrap_or(0)).unwrap_or(i64::MAX);
+        }
+        let Some(creator) = creator else {
             return;
         };
         self.submit_analytics(crate::db::AnalyticsWrite::Event {
@@ -19,8 +33,12 @@ impl AppCore {
     }
 
     #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
-    pub(crate) async fn record_analytics_viewers(self: &Arc<Self>, viewers: u64) {
-        let Some(creator) = self.current_creator_unique_id() else {
+    pub(crate) async fn record_analytics_viewers_for(
+        self: &Arc<Self>,
+        viewers: u64,
+        creator: Option<String>,
+    ) {
+        let Some(creator) = creator else {
             return;
         };
         self.submit_analytics(crate::db::AnalyticsWrite::Viewers {

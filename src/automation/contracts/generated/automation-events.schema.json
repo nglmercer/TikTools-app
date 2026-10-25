@@ -952,6 +952,16 @@
     "GiftAutomationData": {
       "type": "object",
       "properties": {
+        "aggregation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GiftAggregation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "giftId": {
           "type": "string",
           "x-native-source": {
@@ -1076,9 +1086,44 @@
       ],
       "x-native-method": "WebcastGiftMessage"
     },
+    "GiftAggregation": {
+      "type": "object",
+      "properties": {
+        "increment": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "cumulative": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "diamonds": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "increment",
+        "cumulative",
+        "diamonds"
+      ]
+    },
     "LikeAutomationData": {
       "type": "object",
       "properties": {
+        "aggregation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LikeAggregation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "count": {
           "type": "integer",
           "format": "uint64",
@@ -1125,6 +1170,51 @@
         "isHistory"
       ],
       "x-native-method": "WebcastLikeMessage"
+    },
+    "LikeAggregation": {
+      "type": "object",
+      "properties": {
+        "global": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CounterTransition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CounterTransition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "CounterTransition": {
+      "description": "Observed cumulative transition; a goal T crosses iff previous < T <= total.",
+      "type": "object",
+      "properties": {
+        "previous": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "previous",
+        "total"
+      ]
     },
     "SocialAutomationData": {
       "type": "object",

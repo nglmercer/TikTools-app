@@ -68,7 +68,7 @@ impl AppCore {
                 let gift_name = event.gift_name().unwrap_or("Gift");
                 let diamond_count = event.gift_diamond_count().unwrap_or(gift.diamond_count);
                 let count = gift.repeat_count.max(gift.combo_count).max(1);
-                let diamonds = diamond_count.max(1);
+                let diamonds = diamond_count;
                 let total_diamonds = diamonds.saturating_mul(count);
                 let mut options = base_options();
                 if !event.gift_streakable() || gift.repeat_end {
@@ -92,7 +92,7 @@ impl AppCore {
                 Some((event, PointAction::Gift, options, "gift"))
             }
             tiktools_tiktok::events::CanonicalLiveEvent::Like(like) => {
-                let count = like.count.max(1);
+                let count = like.count;
                 let mut options = base_options();
                 options.count = Some(count as f64);
                 Some((
@@ -221,6 +221,7 @@ impl AppCore {
             tiktools_tiktok::events::CanonicalLiveEvent::Gift(gift) => (
                 "tiktok.gift",
                 serde_json::to_value(crate::contracts::GiftAutomationData {
+                    aggregation: None,
                     gift_id: gift.gift_id.to_string(),
                     gift_name: event.gift_name().unwrap_or("Gift").to_owned(),
                     diamond_count: event.gift_diamond_count().unwrap_or(gift.diamond_count),
@@ -240,6 +241,7 @@ impl AppCore {
             tiktools_tiktok::events::CanonicalLiveEvent::Like(like) => (
                 "tiktok.like",
                 serde_json::to_value(crate::contracts::LikeAutomationData {
+                    aggregation: None,
                     count: like.count,
                     total: like.total,
                     method: event.method().to_owned(),

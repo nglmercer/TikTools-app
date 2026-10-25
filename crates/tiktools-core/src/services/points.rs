@@ -1007,10 +1007,10 @@ impl PointsService {
             PointAction::Manual => options.custom_amount.unwrap_or_default(),
             PointAction::Chat if config.points_per_chat_enabled => config.points_per_chat,
             PointAction::Gift if config.points_per_coin_enabled => {
-                positive_or_one(options.diamond_count.or(options.count)) * config.points_per_coin
+                nonnegative_or_one(options.diamond_count.or(options.count)) * config.points_per_coin
             }
             PointAction::Like if config.points_per_like_enabled => {
-                positive_or_one(options.count) * config.points_per_like
+                nonnegative_or_one(options.count) * config.points_per_like
             }
             PointAction::Share if config.points_per_share_enabled => config.points_per_share,
             PointAction::Follow if config.points_per_follow_enabled => config.points_per_follow,
@@ -1402,9 +1402,9 @@ fn clean_unique_id(value: &str) -> Option<String> {
     (!value.is_empty()).then_some(value.to_owned())
 }
 
-fn positive_or_one(value: Option<f64>) -> f64 {
+fn nonnegative_or_one(value: Option<f64>) -> f64 {
     value
-        .filter(|value| value.is_finite() && *value > 0.0)
+        .filter(|value| value.is_finite() && *value >= 0.0)
         .unwrap_or(1.0)
 }
 
@@ -1441,12 +1441,12 @@ fn update_existing_viewer(
     if action == PointAction::Gift {
         state.total_coins = state
             .total_coins
-            .saturating_add(positive_or_one(options.diamond_count).round() as i64);
+            .saturating_add(nonnegative_or_one(options.diamond_count).round() as i64);
     }
     if action == PointAction::Like {
         state.total_likes = state
             .total_likes
-            .saturating_add(positive_or_one(options.count).round() as i64);
+            .saturating_add(nonnegative_or_one(options.count).round() as i64);
     }
     if action == PointAction::Share {
         state.total_shares = state.total_shares.saturating_add(1);

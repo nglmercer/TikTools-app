@@ -116,9 +116,32 @@ pub struct ChatAutomationEmote {
     pub package_id: Option<String>,
 }
 
+/// Observed cumulative transition; a goal T crosses iff previous < T <= total.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CounterTransition {
+    pub previous: u64,
+    pub total: u64,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LikeAggregation {
+    pub global: Option<CounterTransition>,
+    pub user: Option<CounterTransition>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct GiftAggregation {
+    pub increment: u64,
+    pub cumulative: u64,
+    pub diamonds: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GiftAutomationData {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aggregation: Option<GiftAggregation>,
     pub gift_id: String,
     pub gift_name: String,
     pub diamond_count: u64,
@@ -136,6 +159,8 @@ pub struct GiftAutomationData {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct LikeAutomationData {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aggregation: Option<LikeAggregation>,
     pub count: u64,
     pub total: u64,
     pub method: String,

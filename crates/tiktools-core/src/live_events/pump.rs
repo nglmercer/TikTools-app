@@ -400,13 +400,15 @@ mod tests {
         core.live_points_work
             .stall_for_test(std::time::Duration::from_secs(3));
         let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(INGRESS_QUEUE_CAPACITY);
-        for _ in 0..4 {
+        for msg_id in 4242..4246 {
+            let mut event = chat();
+            event.metadata.msg_id = msg_id;
             admit_stamped_event(
                 &core,
                 &sender,
                 tiktools_tiktok::StampedClientEvent {
                     generation: 0,
-                    event: ClientEvent::Event(chat()),
+                    event: ClientEvent::Event(event),
                 },
             )
             .await;
@@ -423,15 +425,17 @@ mod tests {
             "shutdown took {elapsed:?}"
         );
         assert_eq!(core.live_ingress.accepted.load(Ordering::Relaxed), 4);
+        // Originals now finish before persistence. Shutdown accounts for
+        // the independently queued effects, including the uncertain award.
+        assert_eq!(core.live_ingress.processed.load(Ordering::Relaxed), 4);
+        assert_eq!(core.live_ingress.ui_published.load(Ordering::Relaxed), 4);
+        assert_eq!(core.live_ingress.cancelled.load(Ordering::Relaxed), 0);
+        assert_eq!(core.live_ingress.abandoned.load(Ordering::Relaxed), 0);
+        assert_eq!(core.live_ingress.effects_dropped.load(Ordering::Relaxed), 4);
+        assert_eq!(core.live_ingress.effects_queued.load(Ordering::Relaxed), 0);
         assert_eq!(
-            core.live_ingress.cancelled.load(Ordering::Relaxed),
-            3,
-            "queued payloads are released and counted"
-        );
-        assert_eq!(
-            core.live_ingress.abandoned.load(Ordering::Relaxed),
-            1,
-            "the in-flight award reports an unknown outcome, never a clean cancel"
+            core.live_ingress.effects_in_flight.load(Ordering::Relaxed),
+            0
         );
         assert_eq!(core.live_ingress.outstanding(), 0);
         assert_eq!(core.live_ingress.lifecycle(), IngressLifecycle::Stopped);

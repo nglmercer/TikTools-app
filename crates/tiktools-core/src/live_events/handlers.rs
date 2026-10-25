@@ -176,144 +176,168 @@ impl AppCore {
     }
     #[cfg(feature = "native-tiktok")]
     pub(crate) async fn handle_live_event(self: &Arc<Self>, event: NativeLiveEvent) {
-        // Canonical replay guard: one choke point before points,
-        // analytics, automation, and UI fan out, so a replay is either
-        // fully applied or fully skipped everywhere. The frontend keeps
-        // its own guard as defense in depth.
-        if self.live_dedup.check_duplicate(&event) {
-            tracing::debug!(
-                msg_id = event.msg_id(),
-                "skipping replayed live event; no side effects applied"
-            );
-            return;
+        if let Some(effect) = self.prepare_live_event(event) {
+            self.apply_live_effect(effect).await;
         }
-        let automation_event = self.normalize_native_event(&event);
-        let Some((mut ui_event, action, options, reason)) = self.ui_event_and_points(&event) else {
-            if let Some(event) = automation_event {
-                self.queue_automation_event(event);
+    }
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) fn prepare_live_event(
+        self: &Arc<Self>,
+        event: NativeLiveEvent,
+    ) -> Option<LiveEffect> {
+        if self.live_dedup.check_duplicate(&event) {
+            return None;
+        }
+        let context = recover_rwlock_read(&self.connection_context, "connection context").clone();
+        let totals = self.live_totals.observe(&event, context.as_ref());
+        if totals.is_null()
+            && matches!(
+                &event.base,
+                tiktools_tiktok::events::CanonicalLiveEvent::Gift(_)
+            )
+        {
+            self.record_event_gap();
+            tracing::warn!(msg_id = %event.msg_id(), "gift aggregate capacity exhausted; original preserved without guessing quantities");
+        }
+        let mut automation = self.normalize_native_event(&event);
+        let correlation = automation
+            .as_ref()
+            .and_then(|event| event["id"].as_str())
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("live-{}", self.next_sequence()));
+        if let Some(automation) = automation.as_mut() {
+            if !totals.is_null() {
+                automation["data"]["aggregation"] = totals.clone();
             }
+        }
+        // Originals are delivered before any persistence work. Backfill only
+        // reads their journal; it never calls this admission path again.
+        if let Some(automation) = automation {
+            self.queue_automation_event(automation);
+        }
+        let points = if let Some((mut ui, action, mut options, reason)) =
+            self.ui_event_and_points(&event)
+        {
+            ui["correlationId"] = json!(correlation);
+            let author = ui["author"].as_str().unwrap_or("viewer").to_owned();
+            let should_award = match &event.base {
+                tiktools_tiktok::events::CanonicalLiveEvent::EmoteChat(_) => false,
+                tiktools_tiktok::events::CanonicalLiveEvent::Gift(_) => {
+                    options.diamond_count = totals["diamonds"].as_u64().map(|n| n as f64);
+                    totals["increment"].as_u64().unwrap_or(0) > 0
+                        || totals["diamonds"].as_u64().unwrap_or(0) > 0
+                }
+                _ => true,
+            };
+            self.live_ingress
+                .ui_published
+                .fetch_add(1, Ordering::Relaxed);
+            if ui["kind"] == "gift" {
+                self.live_ingress.ui_gifts.fetch_add(1, Ordering::Relaxed);
+                if !ui["giftDetails"]["imageUrl"].is_string() {
+                    self.live_ingress
+                        .gifts_without_artwork
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            tracing::debug!(method = event.method(), msg_id = %event.msg_id(), correlation_id = %correlation, "publishing LIVE UI event");
+            self.events
+                .publish_domain(crate::events::DomainEvent::LiveUiEvent { event: ui });
+            should_award.then_some((author, action, options, reason))
+        } else {
             if let tiktools_tiktok::events::CanonicalLiveEvent::RoomUser(room) = &event.base {
-                // Upstream fills both rank lists from the same contributors;
-                // prefer `top_viewers`, fall back to `ranked_viewers`.
                 let ranked = if room.top_viewers.is_empty() {
                     &room.ranked_viewers
                 } else {
                     &room.top_viewers
                 };
-                let top_viewers = ranked
-                    .iter()
-                    .take(25)
-                    .map(top_viewer_value)
-                    .collect::<Vec<_>>();
                 self.events
                     .publish_domain(crate::events::DomainEvent::RoomStats {
                         viewers: room.total,
                         total_users: room.total_user,
-                        top_viewers,
+                        top_viewers: ranked.iter().take(25).map(top_viewer_value).collect(),
                     });
-                #[cfg(feature = "persistence")]
-                self.record_analytics_viewers(room.total).await;
             }
-            return;
-        };
-
-        #[cfg(feature = "persistence")]
-        self.record_analytics_event(&event).await;
-
-        let should_award = match &event.base {
-            tiktools_tiktok::events::CanonicalLiveEvent::EmoteChat(_) => false,
-            tiktools_tiktok::events::CanonicalLiveEvent::Gift(gift)
-                if event.gift_streakable() && !gift.repeat_end =>
-            {
-                false
-            }
-            _ => true,
-        };
-        let point_award = if should_award {
-            let unique_id = ui_event["author"].as_str().unwrap_or("viewer").to_owned();
-            match self
-                .live_points_work
-                .award(unique_id, action, options)
-                .await
-            {
-                Ok(award) => award,
-                Err(error) => {
-                    tracing::error!(%error, "LIVE points work was not completed");
-                    self.record_event_gap();
-                    None
-                }
-            }
-        } else {
             None
         };
-        if let Some(award) = point_award.as_ref() {
-            if let Some(object) = ui_event.as_object_mut() {
-                object.insert("points".to_owned(), json!(award.total_points));
-                object.insert("level".to_owned(), json!(award.level));
-                object.insert("pointsDelta".to_owned(), json!(award.delta));
+        Some(LiveEffect {
+            correlation,
+            event,
+            totals,
+            context,
+            points,
+        })
+    }
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) async fn apply_live_effect(self: &Arc<Self>, effect: LiveEffect) {
+        #[cfg(feature = "persistence")]
+        {
+            if let tiktools_tiktok::events::CanonicalLiveEvent::RoomUser(room) = &effect.event.base
+            {
+                self.record_analytics_viewers_for(
+                    room.total,
+                    effect.context.as_ref().map(|c| c.unique_id.clone()),
+                )
+                .await;
+            } else {
+                self.record_analytics_event(
+                    &effect.event,
+                    &effect.totals,
+                    effect.context.as_ref().map(|c| c.unique_id.clone()),
+                )
+                .await;
             }
-            // Live awards publish the same topic as manual/automation/plugin
-            // adjustments so every origin converges on `points.changed`.
-            // The legacy push was removed with the migrated duplicates.
-            self.events
-                .publish_domain(crate::events::DomainEvent::PointsChanged {
-                    unique_id: award.unique_id.clone(),
-                    delta: award.delta,
-                    total_points: award.total_points,
-                    level: award.level,
-                });
         }
-        if let Some(event) = automation_event {
-            let mut event = event;
-            if let Some(award) = point_award.as_ref() {
-                if let Some(object) = event.as_object_mut() {
-                    object.insert(
-                        "points".to_owned(),
-                        serde_json::to_value(crate::contracts::AutomationPoints {
-                            delta: award.delta,
-                            total: award.total_points,
-                            level: award.level,
-                        })
-                        .expect("automation points must serialize"),
-                    );
-                }
-            }
-            self.queue_automation_event(event);
-            if let Some(award) = point_award.as_ref().filter(|award| award.delta != 0.0) {
-                self.queue_automation_event(
-                    self.make_automation_event(
-                        "points.awarded",
+        let Some((author, action, options, reason)) = effect.points else {
+            return;
+        };
+        match self.live_points_work.award(author, action, options).await {
+            Ok(Some(award)) => {
+                self.events
+                    .publish_domain(crate::events::DomainEvent::PointsChanged {
+                        unique_id: award.unique_id.clone(),
+                        delta: award.delta,
+                        total_points: award.total_points,
+                        level: award.level,
+                    });
+                if award.delta != 0.0 {
+                    let data =
                         serde_json::to_value(crate::contracts::PointsAwardedAutomationData {
-                            unique_id: award.unique_id.clone(),
+                            unique_id: award.unique_id,
                             delta: award.delta,
                             total_points: award.total_points,
                             level: award.level,
-                            currency_name: award.currency_name.clone(),
+                            currency_name: award.currency_name,
                             reason: reason.to_owned(),
                         })
-                        .expect("points awarded automation data must serialize"),
-                        None,
-                    ),
-                );
+                        .expect("points awarded data");
+                    let mut event = match effect.context.as_ref() {
+                        Some(context) => self.make_automation_event_with_context(
+                            "points.awarded",
+                            data,
+                            None,
+                            context,
+                        ),
+                        None => self.make_automation_event("points.awarded", data, None),
+                    };
+                    event["id"] = json!(format!("points-awarded-{}", effect.correlation));
+                    self.queue_automation_event(event);
+                }
+                self.emit_leaderboard_if_due();
+            }
+            Ok(None) => {}
+            Err(error) => {
+                tracing::error!(%error, msg_id = %effect.event.msg_id(), correlation_id = %effect.correlation, "LIVE points work failed");
+                self.record_event_gap();
             }
         }
-        // The UI-ready event goes out on the domain bus (authoritative for
-        // WebView/IPC/CLI); the legacy push was removed with the migrated
-        // duplicates.
-        self.live_ingress
-            .ui_published
-            .fetch_add(1, Ordering::Relaxed);
-        if ui_event["kind"] == "gift" {
-            self.live_ingress.ui_gifts.fetch_add(1, Ordering::Relaxed);
-            if !ui_event["giftDetails"]["imageUrl"].is_string() {
-                self.live_ingress
-                    .gifts_without_artwork
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-        }
-        tracing::debug!(method = event.method(), msg_id = %event.msg_id(), ui_kind = %ui_event["kind"], "publishing LIVE UI event");
-        self.events
-            .publish_domain(crate::events::DomainEvent::LiveUiEvent { event: ui_event });
-        self.emit_leaderboard_if_due();
     }
+}
+#[cfg(feature = "native-tiktok")]
+pub(crate) struct LiveEffect {
+    pub(crate) correlation: String,
+    pub(crate) event: NativeLiveEvent,
+    pub(crate) totals: Value,
+    pub(crate) context: Option<LiveContext>,
+    points: Option<(String, PointAction, AwardOptions, &'static str)>,
 }
