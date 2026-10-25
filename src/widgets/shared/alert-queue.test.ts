@@ -74,3 +74,14 @@ describe('reconnect delay', () => {
     expect(computeReconnectDelay(-3, { random: () => 0 })).toBe(500);
   });
 });
+
+
+test('widget identity memory expires with the backend replay window', () => {
+  let now = 0;
+  const recent = new RecentEventIds(2, () => now);
+  expect(recent.add('packet')).toBe(true);
+  expect(recent.add('packet')).toBe(false);
+  now = 300_000;
+  expect(recent.add('packet')).toBe(true);
+  expect(recent.size).toBe(1);
+});

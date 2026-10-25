@@ -1,3 +1,4 @@
+import { LIVE_IDENTITY_TTL_MS } from '../../shared/live-identity.ts';
 /**
  * Bounded alert queue plus bounded duplicate-protection cache. Neither
  * structure is allowed to grow without limit during event bursts.
@@ -50,21 +51,23 @@ export class AlertQueue<T> {
  * evicted first once capacity is reached.
  */
 export class RecentEventIds {
-  private readonly ids = new Map<string, true>();
+  private readonly ids = new Map<string, number>();
 
-  constructor(private readonly capacity: number = 1000) {}
+  constructor(private readonly capacity: number = 1000, private readonly now: () => number = Date.now) {}
 
   get size(): number {
     return this.ids.size;
   }
 
   has(id: string): boolean {
-    return this.ids.has(id);
+    const seen = this.ids.get(id);
+    return seen !== undefined && this.now() - seen < LIVE_IDENTITY_TTL_MS;
   }
 
   add(id: string): boolean {
-    if (this.ids.has(id)) return false;
-    this.ids.set(id, true);
+    if (this.has(id)) return false;
+    this.ids.delete(id);
+    this.ids.set(id, this.now());
     while (this.ids.size > this.capacity) {
       const oldest = this.ids.keys().next().value as string | undefined;
       if (oldest === undefined) break;

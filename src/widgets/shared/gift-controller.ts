@@ -66,7 +66,7 @@ export function giftCounts(data: GiftAutomationData): {
   totalDiamonds: number;
 } {
   const count = Math.max(Math.floor(data.repeatCount), Math.floor(data.comboCount), 1);
-  const diamondsEach = Math.max(Math.floor(data.diamondCount), 1);
+  const diamondsEach = Math.max(Math.floor(data.diamondCount), 0);
   return { count, diamondsEach, totalDiamonds: diamondsEach * count };
 }
 
@@ -133,7 +133,12 @@ export class GiftController {
       giftIconUrl: event.data.giftIconUrl ?? null,
     };
 
-    if (!event.data.streakable) {
+    const group = event.data.groupId.trim();
+    const sender = event.user?.userId || event.user?.uniqueId;
+    const hasGroup = group !== '' && !/^0+$/.test(group) && Boolean(sender) && event.data.giftId !== '' && event.data.giftId !== '0';
+    const aggregate = event.data.aggregation;
+    const backendCombo = aggregate != null && Number.isFinite(aggregate.cumulative);
+    if (!hasGroup || (!event.data.streakable && !backendCombo)) {
       if (totalDiamonds < this.minimumDiamonds) return 'filtered';
       this.completed.enqueue({ ...base, key: event.id, streaking: false });
       const wasIdle = this.current === null;
@@ -141,16 +146,19 @@ export class GiftController {
       return wasIdle ? 'shown' : 'queued';
     }
 
-    const key = event.data.groupId !== '' ? event.data.groupId : event.id;
+    const key = JSON.stringify([event.creator?.uniqueId ?? '', event.creator?.roomId ?? '', sender, event.data.giftId, group]);
     const previous = this.active.get(key);
-    if (previous && previous.giftId !== event.data.giftId) {
-      // Defensive: a group id must not change gifts mid-streak. Finalize the
-      // stale combo instead of merging two different gifts.
-      this.finalizeCombo(key);
+    if (!previous && backendCombo && aggregate.increment === 0) return 'ignored';
+    if (!previous && this.active.size >= DEFAULT_QUEUE_CAPACITY) {
+      const oldest = this.active.keys().next().value;
+      if (oldest !== undefined) this.finalizeCombo(oldest);
+      log.warn('active combo capacity reached; finalized oldest combo');
     }
     if (previous) this.clock.clearTimeout(previous.timer);
     const combo: ActiveGiftCombo = {
       ...base,
+      count: Math.max(base.count, previous?.count ?? 0),
+      totalDiamonds: Math.max(base.totalDiamonds, previous?.totalDiamonds ?? 0),
       key,
       streaking: true,
       timer: this.clock.setTimeout(() => this.finalizeCombo(key), this.comboTimeoutMs),

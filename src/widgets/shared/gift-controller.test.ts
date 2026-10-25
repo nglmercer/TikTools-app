@@ -57,11 +57,11 @@ describe('gift counts', () => {
     });
   });
 
-  test('floors zero counts and diamonds at one', () => {
+  test('defaults counts to one without inventing an unknown diamond price', () => {
     expect(giftCounts(giftData({ repeatCount: 0, comboCount: 0, diamondCount: 0 }))).toEqual({
       count: 1,
-      diamondsEach: 1,
-      totalDiamonds: 1,
+      diamondsEach: 0,
+      totalDiamonds: 0,
     });
   });
 });
@@ -283,4 +283,18 @@ describe('gift controller', () => {
     expect(controller.currentAlert).toBeNull();
     expect(controller.queueSize).toBe(0);
   });
+});
+
+
+test('missing group IDs stay independent and identical groups from different senders never merge', () => {
+  const { controller } = setup();
+  controller.handleEnvelope(makeTestGiftEnvelope({ groupId: '0', streakable: true }));
+  controller.handleEnvelope(makeTestGiftEnvelope({ groupId: '0', streakable: true }));
+  expect(controller.activeCount).toBe(0);
+  expect(controller.queueSize).toBe(1);
+  controller.clear();
+  controller.handleEnvelope(makeTestGiftEnvelope({ groupId: 'same', streakable: true, user: { uniqueId: 'a', userId: '1' } }));
+  controller.handleEnvelope(makeTestGiftEnvelope({ groupId: 'same', streakable: true, user: { uniqueId: 'b', userId: '2' } }));
+  expect(controller.activeCount).toBe(2);
+  controller.dispose();
 });
