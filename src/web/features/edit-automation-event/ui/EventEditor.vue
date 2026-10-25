@@ -5,6 +5,7 @@ import {
   conditionTemplatesFor,
   type ConditionTemplate,
 } from '../../../../automation/behavior/condition-templates.ts';
+import { registerLiveGoalTemplates } from '../../../../automation/behavior/live-goal-templates.ts';
 import { registerModerationTemplates } from '../../../../automation/behavior/moderation-templates.ts';
 import type { BehaviorRun, LiveAction, LiveEvent, PluginEventType } from '../../../../automation/behavior/types.ts';
 import type { HotkeyStatusData } from '../../../../shared/messages.ts';
@@ -57,6 +58,7 @@ const emit = defineEmits<{
 const dirty = defineModel<boolean>('dirty', { default: false });
 
 registerModerationTemplates();
+registerLiveGoalTemplates();
 
 const { t, triggers, sentence } = useAutomationText();
 const id = useId();
