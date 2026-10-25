@@ -232,6 +232,7 @@ const INIT_SCRIPT = `
       return { pluginId: id, ok: true, error: null };
     },
     'plugins.token.provision': (params) => ({ pluginId: params.pluginId, ok: true, error: null }),
+    'system.health': () => ({ liveIngress: { received: 12, decoded: 12, accepted: 11, processed: 11, effects: { queued: 0, dropped: 0 } }, liveDedup: { duplicates: 1 }, liveTotals: { unknownMethods: {} } }),
     'ui.feed.backfill': (params) => {
       const journal = state.feedJournal || [];
       const selected = journal.filter((entry) => entry.cursor > params.after).slice(0, 300);

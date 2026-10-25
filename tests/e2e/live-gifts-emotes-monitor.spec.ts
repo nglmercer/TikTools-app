@@ -59,3 +59,29 @@ test('monitor configuration survives page navigation and stops through the host'
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
+
+test('visible feed fills journal holes without artwork or a page visibility transition', async ({ page }) => {
+  const capture = await installFakeHost(page, emptyState());
+  await page.goto('/');
+  await waitForFrontend(page);
+  const gift = { kind: 'gift', author: 'alice', text: 'Uncatalogued gift', msgId: '0' };
+  await emitTopic(page, 'live.ui-event', { event: { ...gift, feedCursor: 1 } });
+  await writeHostState(page, { ...await readHostState(page), feedJournal: [{ cursor: 2, event: gift }, { cursor: 3, event: gift }] });
+  await emitTopic(page, 'live.ui-event', { event: { ...gift, feedCursor: 3 } });
+  await expect(page.locator('.event-row--gift')).toHaveCount(3);
+  await assertNoUnhandledCalls(page);
+  capture.assertClean();
+});
+
+
+test('event debugger exposes host accounting and correlation metadata', async ({ page }) => {
+  const capture = await installFakeHost(page, emptyState());
+  await page.goto('/');
+  await waitForFrontend(page);
+  await emitTopic(page, 'live.ui-event', { cursor: 1, event: { kind: 'gift', author: 'alice', text: 'Gift', correlationId: 'gift-trace-1', msgId: '0' } });
+  await page.getByText('Event Debugger', { exact: true }).click();
+  await expect(page.locator('.event-debugger pre')).toContainText('gift-trace-1');
+  await expect(page.locator('.event-debugger pre')).toContainText('"decoded": 12');
+  await assertNoUnhandledCalls(page);
+  capture.assertClean();
+});
