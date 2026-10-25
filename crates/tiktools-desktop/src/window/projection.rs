@@ -4,9 +4,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tiktools_core::events::DomainEvent;
 
-/// Bounded native feed history. Holds the most recent render events so a
-/// hidden or reconnected page can request a cursor backfill instead of only
-/// a discontinuity marker. Memory is constant regardless of viewer count or
+/// Bounded diagnostic mirror of events observed by the desktop subscriber.
+/// Recovery reads the core EventBus journal through the Control API; this
+/// mirror can contain subscriber gaps and is not authoritative. Memory is constant regardless of viewer count or
 /// burst size: oldest entries are evicted first. Replay is read-only — the
 /// journal performs no TTS/points/automation side effects.
 pub(crate) const FEED_JOURNAL_CAPACITY: usize = 512;
@@ -47,6 +47,7 @@ impl FeedJournal {
     }
 
     /// Entries strictly newer than `after`, oldest first, at most `limit`.
+    #[cfg(test)]
     fn select(&self, after: u64, limit: usize) -> Vec<(u64, Arc<DomainEvent>)> {
         self.entries
             .iter()
@@ -162,6 +163,7 @@ impl MainPageProjection {
     /// retained entry are no longer available (evicted or bus-dropped);
     /// `truncated` reports that more entries remain beyond `limit`. Neither
     /// key pretends the returned set is complete.
+    #[cfg(test)]
     pub fn feed_backfill(&self, after: u64, limit: usize) -> serde_json::Value {
         let journal = self
             .feed_journal

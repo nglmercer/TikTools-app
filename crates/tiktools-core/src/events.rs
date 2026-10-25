@@ -258,12 +258,20 @@ impl EventBus {
     /// Publishes to the reliable or lossy lane by event class. Like
     /// `broadcast::send`, this never blocks and never fails for a slow
     /// subscriber: laggards skip on their own cursor only.
-    pub fn publish_domain(&self, event: DomainEvent) {
+    pub fn publish_domain(&self, mut event: DomainEvent) {
         if matches!(event, DomainEvent::LiveUiEvent { .. }) {
             // Serialize sequence assignment with publication, so concurrent
             // producers cannot reverse feed sequence order. No wire changes.
             let mut sequence = self.ui_sequence.lock().unwrap_or_else(|e| e.into_inner());
             *sequence += 1;
+            // Preserve the authoritative cursor through typed IPC clients and
+            // browser adapters, which reserialize DomainEvent and retain only
+            // the UI event payload. Desktop also sends the outer cursor.
+            if let DomainEvent::LiveUiEvent { event: payload } = &mut event {
+                if let Some(payload) = payload.as_object_mut() {
+                    payload.insert("feedCursor".into(), serde_json::json!(*sequence));
+                }
+            }
             let event = Arc::new(event);
             {
                 let mut history = self
@@ -877,6 +885,20 @@ mod feed_history_tests {
         assert_eq!(tail.events.len(), 1);
         assert!(!tail.truncated && !tail.gap);
         assert!(EventBus::new(1).feed_backfill(520, 512).gap);
+    }
+    #[test]
+    fn journal_cursor_survives_typed_ipc_reserialization() {
+        let bus = EventBus::new(2);
+        let mut receiver = bus.subscribe_domain();
+        bus.publish_domain(DomainEvent::LiveUiEvent {
+            event: serde_json::json!({"kind": "gift", "msgId": "0"}),
+        });
+        let event = receiver.try_recv().unwrap();
+        let wire = serde_json::to_value(&event).unwrap();
+        let decoded: DomainEvent = serde_json::from_value(wire).unwrap();
+        let wire = serde_json::to_value(decoded).unwrap();
+        assert_eq!(wire["data"]["event"]["feedCursor"], 1);
+        assert_eq!(bus.feed_backfill(0, 1).events[0].event["feedCursor"], 1);
     }
     #[test]
     fn recovery_does_not_republish_or_execute_events() {

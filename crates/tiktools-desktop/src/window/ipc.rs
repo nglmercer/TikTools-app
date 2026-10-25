@@ -144,13 +144,6 @@ pub(crate) async fn handle_webview_ipc_message(
             let response = configure_projection(&value, emitter, generation);
             emit_rpc_response_for_generation(emitter, generation, &response);
         }
-        InboundRoute::Control(value)
-            if value.get("method").and_then(serde_json::Value::as_str)
-                == Some("ui.feed.backfill") =>
-        {
-            let response = feed_backfill(&value, emitter);
-            emit_rpc_response_for_generation(emitter, generation, &response);
-        }
         InboundRoute::Control(value) => {
             // A deadline reports uncertain completion; it never cancels an
             // irreversible operation or releases its permit early. The owned
@@ -261,41 +254,6 @@ fn configure_projection(
         id,
         serde_json::json!({"version": 1, "generation": generation, "revision": revision, "stats": emitter.projection.diagnostics()}),
     )
-}
-
-/// Read-only bounded replay of retained feed events after a cursor. Shares
-/// the main-page generation fence but not the projection revision fence: it
-/// changes no view state, so a page may request it without advancing its
-/// presentation revision. `after` is required; `limit` is optional and
-/// clamped to the journal capacity.
-fn feed_backfill(
-    value: &serde_json::Value,
-    emitter: &crate::event::EventLoopEmitter,
-) -> tiktools_control_api::RpcResponse {
-    let id = tiktools_control_api::RpcId::extract(value);
-    let params = &value["params"];
-    if params["version"].as_u64() != Some(1) {
-        return tiktools_control_api::RpcResponse::error(
-            id,
-            tiktools_control_api::ApiError::invalid_params(
-                "ui.feed.backfill requires version 1 and an integer after cursor",
-            ),
-        );
-    }
-    let Some(after) = params["after"].as_u64() else {
-        return tiktools_control_api::RpcResponse::error(
-            id,
-            tiktools_control_api::ApiError::invalid_params(
-                "ui.feed.backfill requires version 1 and an integer after cursor",
-            ),
-        );
-    };
-    let capacity = crate::window::projection::FEED_JOURNAL_CAPACITY as u64;
-    let limit = params["limit"]
-        .as_u64()
-        .unwrap_or(capacity)
-        .clamp(1, capacity) as usize;
-    tiktools_control_api::RpcResponse::success(id, emitter.projection.feed_backfill(after, limit))
 }
 
 /// Desktop-level plugin UI commands from the main frontend

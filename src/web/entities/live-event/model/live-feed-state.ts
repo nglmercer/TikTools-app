@@ -34,6 +34,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   let recoveryAfter: number | null = null;
   let duplicates = 0;
   let recoveryGaps = 0;
+  let unjournaledSuspended = 0;
   let needsCursorSort = false;
   let sessionScope = '';
   let sessionRoom = '';
@@ -72,6 +73,8 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   let presentationActive = true;
   let commits = 0;
   let received = 0;
+  let presentationCoalesced = 0;
+  let retentionEvicted = 0;
   let lastHostSuspended: number | null = null;
   let lastHostBusDropped: number | null = null;
   let lastDeliverySequence: number | null = null;
@@ -93,6 +96,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     if (staged.length > MAX_STAGED_EVENTS) {
       const shed = staged.length - MAX_STAGED_EVENTS;
       staged.splice(0, shed);
+      presentationCoalesced += shed;
       droppedUiEvents.value += shed;
     }
     if (!flushQueued && !disposed) {
@@ -122,6 +126,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       for (let i = 0; i < combined.length; i += 1) if (combined[i]!.feedCursor !== undefined) combined[i] = ordered[position++]!;
       needsCursorSort = false;
     }
+    retentionEvicted += Math.max(0, combined.length - MAX_VISIBLE_FEED);
     events.value = combined.slice(-MAX_VISIBLE_FEED);
     if (!autoScroll.value) unreadCount.value += batch.length;
     if (autoScroll.value) queueScroll();
@@ -187,7 +192,11 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   const pushFeedEvent = (event: UiEvent, cursor?: number): boolean => {
     if (disposed) return false;
     received += 1;
-    if (!presentationActive) { droppedUiEvents.value += 1; return false; }
+    if (!presentationActive) {
+      droppedUiEvents.value += 1;
+      if (cursor === undefined) unjournaledSuspended += 1;
+      return false;
+    }
     if ((event.roomId && sessionRoom && event.roomId !== sessionRoom) || (event.creatorId && sessionCreator && event.creatorId !== sessionCreator)) return false;
     if (cursor !== undefined) {
       if (seenCursors.has(cursor)) { duplicates += 1; return false; }
@@ -196,7 +205,9 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       if (lastFeedCursor !== null && cursor < lastFeedCursor) needsCursorSort = true;
       lastFeedCursor = Math.max(lastFeedCursor ?? 0, cursor);
     }
-    const identity = liveMessageIdentity(event.sourceType ?? event.kind, event.msgId, event.roomId ?? sessionRoom, event.creatorId ?? sessionCreator);
+    // A journal cursor identifies an accepted backend delivery. Never let a
+    // second, expiring message cache contradict that authoritative decision.
+    const identity = cursor === undefined ? liveMessageIdentity(event.sourceType ?? event.kind, event.msgId, event.roomId ?? sessionRoom, event.creatorId ?? sessionCreator) : null;
     if (identity !== null) {
       const now = Date.now();
       const seen = seenMsgIds.get(identity);
@@ -221,7 +232,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
 
   const recoverFeed = async (): Promise<void> => {
     if (recoveryInFlight) { recoveryRequested = true; return; }
-    if (typeof (control as { call?: unknown }).call !== 'function') { insertDiscontinuity(); return; }
+    if (typeof (control as { call?: unknown }).call !== 'function') { unjournaledSuspended = 0; insertDiscontinuity(); return; }
     const generation = recoveryGeneration;
     recoveryInFlight = true;
     let after = recoveryAfter ?? lastFeedCursor ?? 0;
@@ -237,6 +248,9 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
           recoveryGaps += 1; insertDiscontinuity();
           continue;
         }
+        if (unjournaledSuspended > 0) {
+          unjournaledSuspended = 0; recoveryGaps += 1; insertDiscontinuity();
+        }
         let recovered = 0;
         let next = after;
         for (const entry of result.events ?? []) {
@@ -246,7 +260,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
         }
         droppedUiEvents.value = Math.max(0, droppedUiEvents.value - recovered);
         if (result.gap) { recoveryGaps += 1; insertDiscontinuity(); }
-        if (!result.truncated) { recoveryAfter = null; break; }
+        if (!result.truncated) { if (!recoveryRequested) recoveryAfter = null; break; }
         if (next <= after || page === 15) { recoveryGaps += 1; insertDiscontinuity(); break; }
         after = next;
         recoveryAfter = after;
@@ -301,12 +315,14 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   unsubscribers.push(control.onTopic<{ feedSuspended: number; feedBusDropped?: number; feedForwarded?: number }>('ui.projection.stats', (data) => {
     if (!Number.isFinite(data.feedSuspended)) return;
     if (lastDeliverySequence === null && typeof data.feedForwarded === 'number') lastDeliverySequence = data.feedForwarded;
+    if (lastDeliverySequence !== null && typeof data.feedForwarded === 'number' && data.feedForwarded > lastDeliverySequence && presentationActive) void recoverFeed();
     const previous = lastHostSuspended ?? data.feedSuspended;
     droppedUiEvents.value += Math.max(0, data.feedSuspended - previous);
     lastHostSuspended = data.feedSuspended;
     if (typeof data.feedBusDropped === 'number' && Number.isFinite(data.feedBusDropped)) {
       const previousDropped = lastHostBusDropped ?? data.feedBusDropped;
       droppedUiEvents.value += Math.max(0, data.feedBusDropped - previousDropped);
+      if (data.feedBusDropped > previousDropped && presentationActive) void recoverFeed();
       lastHostBusDropped = data.feedBusDropped;
     }
   }));
@@ -320,6 +336,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       sessionRoom = data.roomId ?? '';
       sessionCreator = data.uniqueId ?? '';
       recoveryGeneration += 1;
+      recoveryAfter = null;
     }
   }));
   unsubscribers.push(control.onTopic<{ event: UiEvent; sequence?: number; cursor?: number }>('live.ui-event', (data) => {
@@ -327,8 +344,13 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       if (lastDeliverySequence !== null) droppedUiEvents.value += Math.max(0, data.sequence - lastDeliverySequence - 1);
       lastDeliverySequence = Math.max(lastDeliverySequence ?? 0, data.sequence);
     }
-    const cursor = typeof data.cursor === 'number' && Number.isSafeInteger(data.cursor) ? data.cursor : undefined;
+    const deliveredCursor = data.cursor ?? data.event.feedCursor;
+    const cursor = typeof deliveredCursor === 'number' && Number.isSafeInteger(deliveredCursor) ? deliveredCursor : undefined;
+    const previousCursor = lastFeedCursor;
+    const gap = cursor !== undefined && previousCursor !== null && cursor > previousCursor + 1;
+    if (gap) recoveryAfter = Math.min(recoveryAfter ?? previousCursor ?? 0, previousCursor ?? 0);
     pushFeedEvent(data.event, cursor);
+    if (gap && presentationActive) void recoverFeed();
   }));
   unsubscribers.push(control.onTopic<{ viewers: number; totalUsers: number; topViewers: TopViewerPayload[] }>(
     'room.stats',
@@ -353,6 +375,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
 
   const refresh = async (): Promise<void> => {
     const revision = ++refreshRevision;
+    if (lastFeedCursor === null) void recoverFeed();
     try {
       const result = await control.call<GiftCatalogResult>('gifts.list', {});
       if (!disposed && revision === refreshRevision) giftCatalog.value = result.gifts;
@@ -429,7 +452,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   };
 
   return {
-    diagnostics: () => ({ visible: events.value.length, staged: staged.length, dropped: droppedUiEvents.value, presentationActive, commits, received, duplicates, recoveryGaps, identities: seenMsgIds.size, recoveryInFlight, cursor: lastFeedCursor, timers: Number(flushTimer !== null) + Number(scrollTimer !== null) + Number(restoreTimer !== null), frames: Number(flushFrame !== 0) + Number(scrollFrame !== 0) + Number(restoreFrame !== 0) }),
+    diagnostics: () => ({ visible: events.value.length, staged: staged.length, dropped: droppedUiEvents.value, presentationActive, commits, received, duplicates, recoveryGaps, presentationCoalesced, retentionEvicted, identities: seenMsgIds.size, recoveryInFlight, cursor: lastFeedCursor, timers: Number(flushTimer !== null) + Number(scrollTimer !== null) + Number(restoreTimer !== null), frames: Number(flushFrame !== 0) + Number(scrollFrame !== 0) + Number(restoreFrame !== 0) }),
     events,
     imagesEnabled,
     renderLimit,
