@@ -23,3 +23,13 @@ describe('connection status', () => {
     expect(isConnectionBusy('connected')).toBe(false);
   });
 });
+
+
+describe('retry delays', () => {
+  it('reports the configured wait without assuming the rate-limit attempt budget', () => {
+    expect(connectionStatusLabel('retrying', 1, 5, 30500)).toEqual({
+      key: 'connection.status.retryingDelay', params: { attempt: 1, seconds: 31 },
+    });
+    expect(connectionStatusLabel('retrying', 1, 5, Number.NaN).key).toBe('connection.status.retryingAttempt');
+  });
+});

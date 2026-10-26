@@ -56,6 +56,7 @@ watch([useCookie, expandedServers], persist, { deep: true });
         :recents="connection.recents"
         :error="connection.error"
         :reconnect-attempt="connection.reconnectAttempt"
+        :reconnect-delay-ms="connection.reconnectDelayMs"
         :max-reconnect-attempts="connection.maxReconnectAttempts"
         @start-monitor="connection.startMonitor(connection.uniqueId, connection.cookie)"
         @stop-monitor="connection.stopMonitor()"

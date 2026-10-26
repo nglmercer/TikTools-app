@@ -9,6 +9,7 @@ defineProps<{
   creator: string;
   viewers: number;
   reconnectAttempt?: number | null;
+  reconnectDelayMs?: number | null;
   maxReconnectAttempts?: number;
 }>();
 
@@ -26,6 +27,7 @@ const { t, n } = useI18n();
     <ConnectionIndicator
       :status="status"
       :reconnect-attempt="reconnectAttempt"
+      :reconnect-delay-ms="reconnectDelayMs"
       :max-reconnect-attempts="maxReconnectAttempts"
     />
     <span

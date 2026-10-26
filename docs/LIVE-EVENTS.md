@@ -1,10 +1,11 @@
 # LIVE event delivery and creator monitoring
 
 The native SDK remains pinned to `tiktok-signer` commit
-`4f9d0b63799c3e23cf20be717779ece507b9eed4`. Its emote JSON uses camelCase
+`9b4f344d105c62e23bf3a883c7a35066e001e078`. Its emote JSON uses camelCase
 (`imageUrl`, `emoteType`, `packageId`); raw protobuf indices do not declare an
 offset unit. The synthetic regression fixtures in `crates/tiktools-core/tests/fixtures/live`
-come from that exact revision. They are not captured LIVE traffic.
+were originally copied from revision `4f9d0b63799c3e23cf20be717779ece507b9eed4`
+and remain synthetic. They are not captured LIVE traffic.
 
 ## Event paths and fixes
 

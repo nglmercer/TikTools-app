@@ -32,3 +32,6 @@ playwright/.cache/
 
 # Python profiler/test bytecode.
 __pycache__/
+
+# Lockfile left by the retired standalone decoder checkout.
+/vendor/ttl-live-events/Cargo.lock

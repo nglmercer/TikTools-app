@@ -41,6 +41,7 @@ export default {
       connecting: 'Connecting…',
       connected: 'Live',
       retrying: 'Reconnecting…',
+      retryingDelay: 'Waiting {seconds}s before retry {attempt}…',
       retryingAttempt: 'Reconnecting {attempt}/{max}…',
       disconnected: 'Offline',
       error: 'Connection error',

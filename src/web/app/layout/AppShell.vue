@@ -36,7 +36,7 @@ const router = useRouter();
 const navigation = useNavigationStore();
 const { activeTab } = storeToRefs(navigation);
 const connection = useConnectionStore();
-const { status, activeCreator, uniqueId, reconnectAttempt } = storeToRefs(connection);
+const { status, activeCreator, uniqueId, reconnectAttempt, reconnectDelayMs } = storeToRefs(connection);
 const { liveViewers } = storeToRefs(useLiveFeedStore());
 const plugins = usePluginsStore();
 const { pluginProgress } = storeToRefs(plugins);
@@ -137,6 +137,7 @@ function connect(): void {
       :creator="activeCreator"
       :viewers="liveViewers"
       :reconnect-attempt="reconnectAttempt"
+      :reconnect-delay-ms="reconnectDelayMs"
       :max-reconnect-attempts="connection.maxReconnectAttempts"
       @connect="connect"
       @disconnect="connection.handleDisconnect()"

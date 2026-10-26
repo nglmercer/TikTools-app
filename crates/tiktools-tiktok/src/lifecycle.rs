@@ -65,7 +65,7 @@ impl EventSender {
 #[derive(Clone)]
 pub(super) struct LifecycleState(watch::Sender<ConnectionSnapshot>);
 impl LifecycleState {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self(
             watch::channel(ConnectionSnapshot {
                 generation: 0,
@@ -229,7 +229,7 @@ pub(super) async fn interruptible<T>(
     tokio::select! {
         biased;
         () = stop.cancelled() => Err(TikTokError::Task("connection superseded".into())),
-        result = tokio::time::timeout(NETWORK_DEADLINE, future) => result.unwrap_or_else(|_| Err(TikTokError::Transport("connection network deadline exceeded".into()))),
+        result = tokio::time::timeout(NETWORK_DEADLINE, future) => result.unwrap_or_else(|_| Err(TikTokError::RetryableTransport("connection network deadline exceeded".into()))),
     }
 }
 

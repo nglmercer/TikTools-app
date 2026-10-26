@@ -43,6 +43,7 @@ export default {
       connecting: 'Conectando…',
       connected: 'En vivo',
       retrying: 'Reconectando…',
+      retryingDelay: 'Esperando {seconds}s antes del reintento {attempt}…',
       retryingAttempt: 'Reconectando {attempt}/{max}…',
       disconnected: 'Desconectado',
       error: 'Error de conexión',

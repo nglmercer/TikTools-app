@@ -323,10 +323,13 @@ mod deep_packet_tests {
         // Structurally scrubbed from a real LIVE packet: numbers replaced,
         // strings replaced with 'fixture', opaque/unknown fields removed.
         assert!(ttl_live_proto::messages::WebcastGiftMessage::decode(payload.as_slice()).is_ok());
-        let legacy =
-            ttl_live_events::decode_event_envelope("WebcastGiftMessage", 123, true, payload);
-        assert!(legacy.schema.truncated);
-        assert!(matches!(legacy.event, CanonicalLiveEvent::Unknown { .. }));
+        let full = ttl_live_events::decode_event_envelope("WebcastGiftMessage", 123, true, payload);
+        assert!(full.schema.truncated);
+        assert!(matches!(full.event, CanonicalLiveEvent::Gift(_)));
+        assert_eq!(
+            full.normalization_status,
+            ttl_live_events::NormalizationStatus::Normalized
+        );
         let batch = ttl_live_proto::ProtoMessageFetchResult {
             messages: vec![
                 ttl_live_proto::BaseProtoMessage {

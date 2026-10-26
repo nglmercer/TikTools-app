@@ -7,7 +7,7 @@
 //! * `ttl-live-discovery` resolves rooms and reads room/gift metadata;
 //! * `ttl-sign-embedded` signs the direct socket query in-process;
 //! * `ttl-sign-headless` builds the transport backend;
-//! * `ttl-live-ws` owns heartbeats, acknowledgements, and reconnection; and
+//! * `ttl-live-ws` owns socket framing, heartbeats, and acknowledgements; and
 //! * `ttl-live-events` normalises protobuf payloads into stable event values.
 //!
 //! Bun, Node, and a browser are not part of the live connection path.
@@ -24,6 +24,7 @@ use thiserror::Error;
 use tokio::sync::broadcast;
 
 mod lifecycle;
+mod retry;
 pub use lifecycle::{ConnectionSnapshot, ConnectionState, StampedClientEvent};
 
 pub mod discovery;
@@ -84,6 +85,8 @@ pub struct NativeTikTokConfig {
     /// Cache location used when the bundle is downloaded from `bundle_url`.
     pub bundle_cache_path: Option<PathBuf>,
     pub bundle_url: String,
+    /// Application retry budget for transient network failures. Rate limits
+    /// use at most two retries and a separate conservative cooldown.
     pub reconnect: ttl_live_ws::ReconnectPolicy,
 }
 
@@ -112,6 +115,10 @@ pub enum TikTokError {
     EmptySession,
     #[error("TikTok discovery failed: {0}")]
     Discovery(String),
+    #[error("TikTok rate limit (HTTP 429); wait before reconnecting")]
+    RateLimited { retry_after: Option<Duration> },
+    #[error("TikTok temporary transport failure: {0}")]
+    RetryableTransport(String),
     #[error("TikTok signing bundle failed: {0}")]
     Bundle(String),
     #[error("TikTok signer failed: {0}")]
@@ -120,6 +127,138 @@ pub enum TikTokError {
     Transport(String),
     #[error("TikTok client task failed: {0}")]
     Task(String),
+}
+
+impl TikTokError {
+    fn from_discovery(error: ttl_live_discovery::DiscoveryError) -> Self {
+        use ttl_live_discovery::DiscoveryError;
+        match &error {
+            DiscoveryError::Status { status: 429 } => Self::RateLimited { retry_after: None },
+            DiscoveryError::Transport(_) | DiscoveryError::Status { status: 500..=599 } => {
+                Self::RetryableTransport(error.to_string())
+            }
+            DiscoveryError::Refused(text) if discovery::is_rate_limit_refusal(text) => {
+                Self::RateLimited { retry_after: None }
+            }
+            _ => Self::Discovery(error.to_string()),
+        }
+    }
+
+    fn from_socket(error: ttl_live_ws::WsError) -> Self {
+        use ttl_live_ws::WsError;
+        match &error {
+            WsError::HttpStatus(429) => Self::RateLimited { retry_after: None },
+            WsError::Transport(_) | WsError::Closed(_) | WsError::HttpStatus(500..=599) => {
+                Self::RetryableTransport(error.to_string())
+            }
+            _ => Self::Transport(error.to_string()),
+        }
+    }
+}
+
+// Only the application retries. Every attempt asks the upstream signer for a
+// fresh URL; the SDK still owns framing, ACKs, heartbeats, and socket cleanup.
+async fn open_socket(
+    backend: &dyn ttl_sign_core::SignerBackend,
+    room_id: &str,
+) -> Result<ttl_live_ws::LiveConnection, TikTokError> {
+    let signed = match backend
+        .transport(ttl_sign_core::TransportRequest::new(room_id))
+        .await
+    {
+        ttl_sign_core::SignOutcome::Ok(signed) => signed,
+        ttl_sign_core::SignOutcome::Rejected(ttl_sign_core::RejectReason::HttpStatus(429)) => {
+            return Err(TikTokError::RateLimited { retry_after: None })
+        }
+        ttl_sign_core::SignOutcome::Rejected(ttl_sign_core::RejectReason::HttpStatus(
+            status @ 500..=599,
+        )) => {
+            return Err(TikTokError::RetryableTransport(format!(
+                "signing endpoint returned HTTP {status}"
+            )))
+        }
+        ttl_sign_core::SignOutcome::Rejected(reason) => {
+            return Err(TikTokError::Signer(reason.to_string()))
+        }
+        ttl_sign_core::SignOutcome::Transport(ttl_sign_core::SignError::Transport(message)) => {
+            return Err(TikTokError::RetryableTransport(message))
+        }
+        ttl_sign_core::SignOutcome::Transport(error) => {
+            return Err(TikTokError::Signer(error.to_string()))
+        }
+    };
+    ttl_live_ws::LiveConnection::open_uri(
+        &signed.signed_url,
+        &signed.cookies,
+        &signed.user_agent,
+        "",
+        &ttl_live_ws::ConnectConfig::default(),
+    )
+    .await
+    .map_err(TikTokError::from_socket)
+}
+
+struct ManagedConnection {
+    connection: Option<ttl_live_ws::LiveConnection>,
+    backend: Arc<dyn ttl_sign_core::SignerBackend>,
+    room_id: String,
+    retry: retry::RetryContext,
+    info: ConnectionInfo,
+}
+
+impl ManagedConnection {
+    async fn next_message(&mut self) -> Option<Result<ttl_live_ws::LiveMessage, TikTokError>> {
+        loop {
+            let current = self.connection.as_mut()?;
+            let cause = match current.next_message().await {
+                Some(Ok(message)) => return Some(Ok(message)),
+                Some(Err(error)) => TikTokError::from_socket(error),
+                None => TikTokError::RetryableTransport("socket closed".into()),
+            };
+            self.connection.take();
+            if !matches!(
+                cause,
+                TikTokError::RetryableTransport(_) | TikTokError::RateLimited { .. }
+            ) {
+                return Some(Err(cause));
+            }
+            let mut first = Some(cause);
+            let result = self
+                .retry
+                .run(|| {
+                    let initial = first.take();
+                    let backend = &self.backend;
+                    let room_id = &self.room_id;
+                    async move {
+                        if let Some(error) = initial {
+                            Err(error)
+                        } else {
+                            open_socket(backend.as_ref(), room_id).await
+                        }
+                    }
+                })
+                .await;
+            match result {
+                Ok(connection) => {
+                    self.connection = Some(connection);
+                    self.retry
+                        .state
+                        .transition(self.retry.generation, ConnectionState::Connected);
+                    self.retry.events.send(
+                        self.retry.generation,
+                        ClientEvent::Connected(self.info.clone()),
+                    );
+                }
+                Err(error) => return Some(Err(error)),
+            }
+        }
+    }
+
+    async fn close(mut self) {
+        if let Some(connection) = self.connection.take() {
+            connection.close().await;
+        }
+    }
 }
 
 /// Events emitted by the native client. The core consumes this stream and
@@ -157,6 +296,7 @@ pub struct NativeTikTokClient {
     config: NativeTikTokConfig,
     events: lifecycle::EventSender,
     owner: lifecycle::ConnectionOwner,
+    cooldown: retry::Cooldown,
 }
 
 impl NativeTikTokClient {
@@ -167,19 +307,42 @@ impl NativeTikTokClient {
             config,
             events,
             owner: lifecycle::ConnectionOwner::new(),
+            cooldown: retry::Cooldown::default(),
+        }
+    }
+
+    async fn check_cooldown(&self) -> Result<(), TikTokError> {
+        if let Some(remaining) = self.cooldown.remaining().await {
+            return Err(TikTokError::RateLimited {
+                retry_after: Some(remaining),
+            });
+        }
+        Ok(())
+    }
+
+    async fn remember_failure(&self, error: &TikTokError) {
+        if let TikTokError::RateLimited { retry_after } = error {
+            self.cooldown
+                .extend(retry_after.unwrap_or(Duration::from_secs(30)))
+                .await;
         }
     }
 
     /// Reuses the SDK's unsigned, browser-free room lookup. Offline is a
     /// normal observation; transport/auth failures remain errors.
     pub async fn creator_live_room(&self, creator: &str) -> Result<Option<String>, TikTokError> {
+        self.check_cooldown().await?;
         let creator = clean_unique_id(creator).ok_or(TikTokError::InvalidCreator)?;
         let discovery = ttl_live_discovery::DiscoveryClient::new(&default_preset())
-            .map_err(|error| TikTokError::Discovery(error.to_string()))?;
+            .map_err(TikTokError::from_discovery)?;
         match discovery.room_lookup(&creator).await {
             Ok(room) => Ok(room.is_live().then_some(room.room_id)),
             Err(ttl_live_discovery::DiscoveryError::NoRoom(_)) => Ok(None),
-            Err(error) => Err(TikTokError::Discovery(error.to_string())),
+            Err(error) => {
+                let error = TikTokError::from_discovery(error);
+                self.remember_failure(&error).await;
+                Err(error)
+            }
         }
     }
 
@@ -198,47 +361,61 @@ impl NativeTikTokClient {
         &self,
         request: ConnectRequest,
     ) -> Result<(u64, ConnectionInfo), TikTokError> {
-        self.connect_selected(async move { Ok(request) }).await
+        self.connect_selected(|_| async move { Ok(request) }).await
     }
 
     pub async fn pick_generation(
         &self,
         session_cookie: String,
     ) -> Result<(u64, ConnectionInfo), TikTokError> {
-        self.connect_selected(async move {
-            let cookies = resolve_session(&session_cookie).await?;
+        self.connect_selected(move |retry| async move {
+            let cookies = retry.run(|| resolve_session(&session_cookie)).await?;
             let client = ttl_live_discovery::DiscoveryClient::new(&default_preset())
-                .map_err(|error| TikTokError::Discovery(error.to_string()))?
+                .map_err(TikTokError::from_discovery)?
                 .with_session(cookies.to_cookie_string());
-            let rooms = client
-                .live_channels("live")
-                .await
-                .map_err(|error| TikTokError::Discovery(error.to_string()))?;
+            let rooms = retry
+                .run(|| async {
+                    client
+                        .live_channels("live")
+                        .await
+                        .map_err(TikTokError::from_discovery)
+                })
+                .await?;
             let room = rooms
                 .into_iter()
                 .next()
                 .ok_or_else(|| TikTokError::Discovery("TikTok returned no live rooms".into()))?;
             Ok(ConnectRequest {
                 unique_id: room.unique_id,
-                session_cookie,
+                session_cookie: cookies.to_cookie_string(),
                 room_id: Some(room.room_id),
             })
         })
         .await
     }
 
-    async fn connect_selected(
+    async fn connect_selected<F>(
         &self,
-        selection: impl std::future::Future<Output = Result<ConnectRequest, TikTokError>>
-            + Send
-            + 'static,
-    ) -> Result<(u64, ConnectionInfo), TikTokError> {
+        selection: impl FnOnce(retry::RetryContext) -> F + Send + 'static,
+    ) -> Result<(u64, ConnectionInfo), TikTokError>
+    where
+        F: std::future::Future<Output = Result<ConnectRequest, TikTokError>> + Send + 'static,
+    {
         let config = self.config.clone();
         let events = self.events.clone();
+        let cooldown = self.cooldown.clone();
         self.owner
             .connect(move |generation, stop, state, ready| async move {
-                let initialized = match lifecycle::interruptible(&stop, selection).await {
-                    Ok(request) => initialize_connection(config, request, &stop).await,
+                let retry = retry::RetryContext {
+                    cooldown,
+                    policy: config.reconnect.clone(),
+                    stop: stop.clone(),
+                    events: events.clone(),
+                    state: state.clone(),
+                    generation,
+                };
+                let initialized = match selection(retry.clone()).await {
+                    Ok(request) => initialize_connection(config, request, retry).await,
                     Err(error) => Err(error),
                 };
                 match initialized {
@@ -323,17 +500,27 @@ impl NativeTikTokClient {
         keyword: &str,
         offset: usize,
     ) -> Result<Vec<discovery::LiveRoom>, discovery::DiscoveryFailure> {
-        let cookies = resolve_session(session_cookie)
-            .await
-            .map_err(session_failure)?;
+        self.check_cooldown().await.map_err(session_failure)?;
+        let cookies = match resolve_session(session_cookie).await {
+            Ok(cookies) => cookies,
+            Err(error) => {
+                self.remember_failure(&error).await;
+                return Err(session_failure(error));
+            }
+        };
         let client = ttl_live_discovery::DiscoveryClient::new(&default_preset())
             .map_err(discovery::DiscoveryFailure::from_error)?
             .with_session(cookies.to_cookie_string());
-        client
-            .live_channels_page(keyword, offset)
-            .await
-            .map(|rooms| rooms.into_iter().map(Into::into).collect())
-            .map_err(discovery::DiscoveryFailure::from_error)
+        match client.live_channels_page(keyword, offset).await {
+            Ok(rooms) => Ok(rooms.into_iter().map(Into::into).collect()),
+            Err(error) => {
+                let failure = discovery::DiscoveryFailure::from_error(error);
+                if failure.kind == discovery::DiscoveryFailureKind::RateLimited {
+                    self.cooldown.extend(Duration::from_secs(30)).await;
+                }
+                Err(failure)
+            }
+        }
     }
 }
 
@@ -360,17 +547,18 @@ impl TikTokClient for NativeTikTokClient {
         request: ConnectRequest,
     ) -> BoxFuture<'a, Result<DiscoveryResult, TikTokError>> {
         Box::pin(async move {
+            self.check_cooldown().await?;
             let unique_id =
                 clean_unique_id(&request.unique_id).ok_or(TikTokError::InvalidCreator)?;
             let cookies = resolve_session(&request.session_cookie).await?;
             let preset = default_preset();
             let client = ttl_live_discovery::DiscoveryClient::new(&preset)
-                .map_err(|error| TikTokError::Discovery(error.to_string()))?
+                .map_err(TikTokError::from_discovery)?
                 .with_session(cookies.to_cookie_string());
             let lookup = client
                 .room_lookup(&unique_id)
                 .await
-                .map_err(|error| TikTokError::Discovery(error.to_string()))?;
+                .map_err(TikTokError::from_discovery)?;
             let creator = client.room_info(&lookup.room_id).await.ok().map(|info| {
                 serde_json::json!({
                     "roomId": info.room_id,
@@ -408,71 +596,110 @@ impl TikTokClient for NativeTikTokClient {
 async fn initialize_connection(
     config: NativeTikTokConfig,
     request: ConnectRequest,
-    stop: &tokio_util::sync::CancellationToken,
-) -> Result<(ttl_live_ws::ReconnectingConnection, ConnectionInfo), TikTokError> {
-    let (unique_id, cookies, preset, lookup, room_id, room_info, gifts, bundle, profile) =
-        lifecycle::interruptible(stop, async {
-        let unique_id = clean_unique_id(&request.unique_id).ok_or(TikTokError::InvalidCreator)?;
-        tracing::info!(creator = %unique_id, requested_room = ?request.room_id, "starting native TikTok connection");
-        let cookies = resolve_session(&request.session_cookie).await?;
-        tracing::debug!(creator = %unique_id, "TikTok session resolved");
-        let preset = default_preset();
-        let discovery = ttl_live_discovery::DiscoveryClient::new(&preset)
-            .map_err(|error| TikTokError::Discovery(error.to_string()))?
-            .with_session(cookies.to_cookie_string());
+    retry: retry::RetryContext,
+) -> Result<(ManagedConnection, ConnectionInfo), TikTokError> {
+    let unique_id = clean_unique_id(&request.unique_id).ok_or(TikTokError::InvalidCreator)?;
+    tracing::info!(creator = %unique_id, requested_room = ?request.room_id, "starting native TikTok connection");
+    let cookies = retry
+        .run(|| resolve_session(&request.session_cookie))
+        .await?;
+    tracing::debug!(creator = %unique_id, "TikTok session resolved");
+    let preset = default_preset();
+    let discovery = ttl_live_discovery::DiscoveryClient::new(&preset)
+        .map_err(TikTokError::from_discovery)?
+        .with_session(cookies.to_cookie_string());
 
-        let lookup = match request
-            .room_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-        {
-            Some(room_id) => {
-                if !ttl_sign_core::room::is_usable_room_id(room_id) {
-                    return Err(TikTokError::Discovery("room id is invalid".to_owned()));
-                }
-                None
+    let lookup = match request
+        .room_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    {
+        Some(room_id) => {
+            if !ttl_sign_core::room::is_usable_room_id(room_id) {
+                return Err(TikTokError::Discovery("room id is invalid".to_owned()));
             }
-            None => Some(
-                discovery
-                    .room_lookup(&unique_id)
-                    .await
-                    .map_err(|error| TikTokError::Discovery(error.to_string()))?,
-            ),
-        };
-        if let Some(lookup) = lookup.as_ref() {
-            if !lookup.is_live() {
-                return Err(TikTokError::Discovery(format!(
-                    "@{} is not live (status {})",
-                    unique_id, lookup.status
-                )));
-            }
+            None
         }
-        let room_id = request
-            .room_id
-            .as_deref()
-            .map(str::trim)
-            .filter(|id| !id.is_empty())
-            .map(ToOwned::to_owned)
-            .or_else(|| lookup.as_ref().map(|room| room.room_id.clone()))
-            .ok_or_else(|| TikTokError::Discovery("TikTok did not return a room id".to_owned()))?;
-        tracing::info!(creator = %unique_id, room_id = %room_id, "TikTok room resolved");
+        None => Some(
+            retry
+                .run(|| async {
+                    discovery
+                        .room_lookup(&unique_id)
+                        .await
+                        .map_err(TikTokError::from_discovery)
+                })
+                .await?,
+        ),
+    };
+    if let Some(lookup) = lookup.as_ref() {
+        if !lookup.is_live() {
+            return Err(TikTokError::Discovery(format!(
+                "@{} is not live (status {})",
+                unique_id, lookup.status
+            )));
+        }
+    }
+    let room_id = request
+        .room_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(ToOwned::to_owned)
+        .or_else(|| lookup.as_ref().map(|room| room.room_id.clone()))
+        .ok_or_else(|| TikTokError::Discovery("TikTok did not return a room id".to_owned()))?;
+    tracing::info!(creator = %unique_id, room_id = %room_id, "TikTok room resolved");
 
-        // Metadata and gifts are useful but should not make a valid socket
-        // unavailable when one of TikTok's JSON endpoints is temporarily
-        // refused. The stream itself remains the source of live events.
-        let room_info = discovery.room_info(&room_id).await.ok();
-        let gifts = discovery.gift_list(&room_id).await.unwrap_or_default();
-        tracing::debug!(room_id = %room_id, gifts = gifts.len(), "TikTok room metadata loaded");
-        let bundle = load_signing_bundle(&config).await?;
-        tracing::debug!(room_id = %room_id, "TikTok signing bundle loaded");
-        let profile = ttl_sign_embedded::Profile {
-            user_agent: Some(preset.user_agent()),
-            cookie: Some(cookies.to_cookie_string()),
-            ..ttl_sign_embedded::Profile::default()
-        };
-        Ok::<_, TikTokError>((unique_id, cookies, preset, lookup, room_id, room_info, gifts, bundle, profile))
-        }).await?;
+    // Metadata and gifts are useful but should not make a valid socket
+    // unavailable when one of TikTok's JSON endpoints is temporarily
+    // refused. The stream itself remains the source of live events.
+    let room_info = match lifecycle::interruptible(&retry.stop, async {
+        discovery
+            .room_info(&room_id)
+            .await
+            .map_err(TikTokError::from_discovery)
+    })
+    .await
+    {
+        Ok(info) => Some(info),
+        Err(TikTokError::RateLimited { retry_after }) => {
+            retry
+                .cooldown
+                .extend(retry_after.unwrap_or(Duration::from_secs(30)))
+                .await;
+            None
+        }
+        Err(TikTokError::Task(message)) => return Err(TikTokError::Task(message)),
+        Err(_) => None,
+    };
+    retry.run(|| async { Ok(()) }).await?;
+    let gifts = match lifecycle::interruptible(&retry.stop, async {
+        discovery
+            .gift_list(&room_id)
+            .await
+            .map_err(TikTokError::from_discovery)
+    })
+    .await
+    {
+        Ok(gifts) => gifts,
+        Err(TikTokError::RateLimited { retry_after }) => {
+            retry
+                .cooldown
+                .extend(retry_after.unwrap_or(Duration::from_secs(30)))
+                .await;
+            Vec::new()
+        }
+        Err(TikTokError::Task(message)) => return Err(TikTokError::Task(message)),
+        Err(_) => Vec::new(),
+    };
+    tracing::debug!(room_id = %room_id, gifts = gifts.len(), "TikTok room metadata loaded");
+    let bundle = retry.run(|| load_signing_bundle(&config)).await?;
+    tracing::debug!(room_id = %room_id, "TikTok signing bundle loaded");
+    let profile = ttl_sign_embedded::Profile {
+        user_agent: Some(preset.user_agent()),
+        cookie: Some(cookies.to_cookie_string()),
+        ..ttl_sign_embedded::Profile::default()
+    };
     let signer = tokio::task::spawn_blocking(move || {
         ttl_sign_embedded::EmbeddedSigner::new(bundle, profile)
             .map_err(|error| TikTokError::Signer(error.to_string()))
@@ -484,17 +711,10 @@ async fn initialize_connection(
         Box::new(signer),
     )
     .map_err(|error| TikTokError::Signer(error.to_string()))?;
-    let connection = lifecycle::interruptible(stop, async {
-        ttl_live_ws::ReconnectingConnection::open(
-            Arc::new(backend),
-            &room_id,
-            ttl_live_ws::ConnectConfig::default(),
-            config.reconnect.clone(),
-        )
-        .await
-        .map_err(|error| TikTokError::Transport(error.to_string()))
-    })
-    .await?;
+    let backend: Arc<dyn ttl_sign_core::SignerBackend> = Arc::new(backend);
+    let connection = retry
+        .run(|| open_socket(backend.as_ref(), &room_id))
+        .await?;
     tracing::info!(room_id = %room_id, "TikTok live WebSocket connected");
 
     let info = ConnectionInfo {
@@ -533,11 +753,20 @@ async fn initialize_connection(
         gifts: gifts.into_iter().map(gift_info).collect(),
     };
 
-    Ok((connection, info))
+    Ok((
+        ManagedConnection {
+            connection: Some(connection),
+            backend,
+            room_id,
+            retry,
+            info: info.clone(),
+        },
+        info,
+    ))
 }
 
 async fn run_connection(
-    mut connection: ttl_live_ws::ReconnectingConnection,
+    mut connection: ManagedConnection,
     stop: tokio_util::sync::CancellationToken,
     event_sender: lifecycle::EventSender,
     state: lifecycle::LifecycleState,
@@ -551,6 +780,7 @@ async fn run_connection(
         .collect::<std::collections::HashMap<_, _>>();
     loop {
         tokio::select! {
+            biased;
             _ = stop.cancelled() => {
                 if tokio::time::timeout(Duration::from_secs(3), connection.close()).await.is_err() {
                     event_sender.send(connection_generation, ClientEvent::Error { phase: ErrorPhase::Live, message: "transport close deadline exceeded; socket released".into() });
@@ -611,6 +841,7 @@ async fn run_connection(
 fn session_failure(error: TikTokError) -> discovery::DiscoveryFailure {
     let kind = match &error {
         TikTokError::EmptySession => discovery::DiscoveryFailureKind::AuthRequired,
+        TikTokError::RateLimited { .. } => discovery::DiscoveryFailureKind::RateLimited,
         _ => discovery::DiscoveryFailureKind::Transport,
     };
     discovery::DiscoveryFailure {
@@ -636,13 +867,21 @@ async fn bootstrap_guest_session() -> Result<ttl_sign_core::CookieJar, TikTokErr
         .user_agent(default_preset().user_agent())
         .timeout(Duration::from_secs(30))
         .build()
-        .map_err(|error| TikTokError::Discovery(error.to_string()))?
+        .map_err(|error| TikTokError::RetryableTransport(error.to_string()))?
         .get("https://www.tiktok.com/live")
         .header("accept-language", "en-US,en;q=0.9")
         .send()
         .await
-        .map_err(|error| TikTokError::Discovery(error.to_string()))?;
+        .map_err(|error| TikTokError::RetryableTransport(error.to_string()))?;
     let status = response.status();
+    if status.as_u16() == 429 {
+        return Err(TikTokError::RateLimited {
+            retry_after: retry::retry_after(
+                response.headers().get(reqwest::header::RETRY_AFTER),
+                std::time::SystemTime::now(),
+            ),
+        });
+    }
     let mut cookies = Vec::new();
     for value in response.headers().get_all(reqwest::header::SET_COOKIE) {
         if let Ok(value) = value.to_str() {
@@ -654,6 +893,12 @@ async fn bootstrap_guest_session() -> Result<ttl_sign_core::CookieJar, TikTokErr
     // The bootstrap response body is not used. Dropping the response avoids
     // buffering an attacker-controlled document merely to collect cookies.
     drop(response);
+    if status.is_server_error() {
+        return Err(TikTokError::RetryableTransport(format!(
+            "guest bootstrap returned HTTP {}",
+            status.as_u16()
+        )));
+    }
     if !status.is_success() {
         return Err(TikTokError::Discovery(format!(
             "guest bootstrap returned HTTP {}",
@@ -688,6 +933,20 @@ async fn load_signing_bundle(config: &NativeTikTokConfig) -> Result<String, TikT
         .send()
         .await
         .map_err(|error| TikTokError::Bundle(error.to_string()))?;
+    if response.status().as_u16() == 429 {
+        return Err(TikTokError::RateLimited {
+            retry_after: retry::retry_after(
+                response.headers().get(reqwest::header::RETRY_AFTER),
+                std::time::SystemTime::now(),
+            ),
+        });
+    }
+    if response.status().is_server_error() {
+        return Err(TikTokError::RetryableTransport(format!(
+            "bundle endpoint returned HTTP {}",
+            response.status().as_u16()
+        )));
+    }
     if !response.status().is_success() {
         return Err(TikTokError::Bundle(format!(
             "bundle download returned HTTP {}",

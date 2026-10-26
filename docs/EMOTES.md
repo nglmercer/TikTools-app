@@ -15,7 +15,7 @@ TikTok carries graphical emotes in two forms:
    `WebcastEmoteChatMessage.emote_list` event.
 
 The app pins all `tiktok-signer` crates to
-`4f9d0b63799c3e23cf20be717779ece507b9eed4`. That revision adds bounded
+`9b4f344d105c62e23bf3a883c7a35066e001e078`. That revision adds bounded
 `LiveEmote` metadata to inline chat and a separate normalized event for
 emote-only messages.
 

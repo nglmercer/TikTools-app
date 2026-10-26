@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const expectedRevision = '4f9d0b63799c3e23cf20be717779ece507b9eed4';
+const expectedRevision = '9b4f344d105c62e23bf3a883c7a35066e001e078';
 const cargo = await readFile(resolve(import.meta.dir, '..', 'Cargo.toml'), 'utf8');
 const requiredCrates = [
   'ttl-sign-core',
@@ -18,6 +18,10 @@ const mismatches = requiredCrates.flatMap((crate) => {
   const revision = line?.match(/\brev\s*=\s*"([0-9a-f]+)"/)?.[1];
   return revision === expectedRevision ? [] : [`${crate}: ${revision ?? 'missing'}`];
 });
+
+if (/^ttl-live-events\s*=\s*\{[^\n]*path\s*=/m.test(cargo)) {
+  mismatches.push('ttl-live-events must use upstream, without a local patch');
+}
 
 if (mismatches.length) {
   console.error(`tiktok-signer revision check failed (expected ${expectedRevision}):`);

@@ -85,9 +85,9 @@ impl DiscoveryFailure {
 /// being guessed into a retryable bucket.
 fn classify_refusal(text: &str) -> DiscoveryFailureKind {
     let lowered = text.to_ascii_lowercase();
-    if lowered.contains("rate")
+    if (lowered.contains("rate limit") || lowered.contains("rate_limit"))
         || lowered.contains("too many")
-        || lowered.contains("frequen")
+        || (lowered.contains("too frequent") || lowered.contains("frequent requests"))
         || lowered.contains("slow down")
     {
         return DiscoveryFailureKind::RateLimited;
@@ -96,6 +96,10 @@ fn classify_refusal(text: &str) -> DiscoveryFailureKind {
         return DiscoveryFailureKind::AuthRequired;
     }
     DiscoveryFailureKind::Refused
+}
+
+pub(super) fn is_rate_limit_refusal(text: &str) -> bool {
+    classify_refusal(text) == DiscoveryFailureKind::RateLimited
 }
 
 /// Pull the numeric webcast status code out of a refusal message such as

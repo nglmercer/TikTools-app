@@ -71,6 +71,7 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
   subscribe<{ attempt: number; delayMs: number }>('live.reconnecting', (data) => {
     revision += 1;
     status.value = 'retrying';
+    error.value = '';
     reconnectAttempt.value = Number.isFinite(data?.attempt) ? data.attempt : null;
     reconnectDelayMs.value = Number.isFinite(data?.delayMs) ? data.delayMs : null;
   });
@@ -83,12 +84,13 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
   subscribe<{ uniqueId?: string | null }>('live.connected', (data) => {
     revision += 1;
     status.value = 'connected';
+    error.value = '';
     clearReconnect();
     if (data.uniqueId) noteCreatorSeen(normalizeUsername(data.uniqueId), false);
   });
   subscribe('live.disconnected', () => {
     revision += 1;
-    status.value = 'disconnected';
+    if (status.value !== 'error') status.value = 'disconnected';
     clearReconnect();
   });
 

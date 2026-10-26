@@ -15,7 +15,6 @@ members = [
 ]
 exclude = [
     "vendor/ttl-live-proto",
-    "vendor/ttl-live-events",
     "examples/audio-process-plugin",
     "examples/event-gateway-process-plugin",
     "examples/textintel-process-plugin",
@@ -65,14 +64,13 @@ napi-vm = { git = "https://github.com/nglmercer/napi-vm", rev = "881cc8f1cec2620
 
 # The checked-in JavaScript/Bun package was only a compatibility implementation. The desktop
 # host consumes the Rust crates directly from the upstream workspace at a pinned revision.
-ttl-sign-core = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f9d0b63799c3e23cf20be717779ece507b9eed4" }
-ttl-live-discovery = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f9d0b63799c3e23cf20be717779ece507b9eed4" }
-ttl-live-events = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f9d0b63799c3e23cf20be717779ece507b9eed4" }
-ttl-live-proto = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f9d0b63799c3e23cf20be717779ece507b9eed4" }
-ttl-live-ws = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f9d0b63799c3e23cf20be717779ece507b9eed4" }
-ttl-sign-headless = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f9d0b63799c3e23cf20be717779ece507b9eed4" }
-ttl-sign-embedded = { git = "https://github.com/nglmercer/tiktok-signer", rev = "4f9d0b63799c3e23cf20be717779ece507b9eed4" }
+ttl-sign-core = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
+ttl-live-discovery = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
+ttl-live-events = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
+ttl-live-proto = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
+ttl-live-ws = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
+ttl-sign-headless = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
+ttl-sign-embedded = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
 
 [patch."https://github.com/nglmercer/tiktok-signer"]
 ttl-live-proto = { path = "vendor/ttl-live-proto" }
-ttl-live-events = { path = "vendor/ttl-live-events" }

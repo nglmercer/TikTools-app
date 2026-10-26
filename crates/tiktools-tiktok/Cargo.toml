@@ -12,6 +12,8 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+fastrand.workspace = true
+httpdate = "1"
 tokio.workspace = true
 tokio-util.workspace = true
 reqwest.workspace = true
@@ -28,5 +30,6 @@ ttl-sign-embedded.workspace = true
 rquickjs = { version = "0.12.2", default-features = false, features = ["bindgen"] }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 prost = "0.14.3"
 ttl-live-proto.workspace = true

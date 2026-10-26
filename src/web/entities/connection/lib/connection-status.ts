@@ -18,7 +18,11 @@ export function connectionStatusLabel(
   status: ConnectionStatus,
   attempt?: number | null,
   maxAttempts = 5,
+  delayMs?: number | null,
 ): ConnectionStatusLabel {
+  if (status === 'retrying' && typeof attempt === 'number' && typeof delayMs === 'number' && Number.isFinite(delayMs) && delayMs >= 0) {
+    return { key: 'connection.status.retryingDelay', params: { attempt, seconds: Math.ceil(delayMs / 1000) } };
+  }
   if (status === 'retrying' && typeof attempt === 'number') {
     return { key: 'connection.status.retryingAttempt', params: { attempt, max: maxAttempts } };
   }

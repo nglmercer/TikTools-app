@@ -23,6 +23,7 @@ const props = defineProps<{
   recents: readonly string[];
   error: string;
   reconnectAttempt?: number | null;
+  reconnectDelayMs?: number | null;
   maxReconnectAttempts?: number;
   monitorEnabled?: boolean;
   monitorPhase?: string;
@@ -73,6 +74,7 @@ function onRecent(action: MenuAction): void {
       <ConnectionIndicator
         :status="status"
         :reconnect-attempt="reconnectAttempt"
+        :reconnect-delay-ms="reconnectDelayMs"
         :max-reconnect-attempts="maxReconnectAttempts"
       />
     </template>

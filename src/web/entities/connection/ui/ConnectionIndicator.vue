@@ -7,13 +7,14 @@ import { connectionStatusLabel, connectionTone } from '../lib/connection-status.
 const props = defineProps<{
   status: ConnectionStatus;
   reconnectAttempt?: number | null;
+  reconnectDelayMs?: number | null;
   maxReconnectAttempts?: number;
 }>();
 
 const { t } = useI18n();
 const tone = computed(() => connectionTone(props.status));
 const label = computed(() => {
-  const { key, params } = connectionStatusLabel(props.status, props.reconnectAttempt, props.maxReconnectAttempts);
+  const { key, params } = connectionStatusLabel(props.status, props.reconnectAttempt, props.maxReconnectAttempts, props.reconnectDelayMs);
   return t(key, params ?? {});
 });
 </script>

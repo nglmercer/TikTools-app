@@ -388,3 +388,26 @@ describe('useConnection cancellation', () => {
     connection.dispose();
   });
 });
+
+describe('useConnection terminal transport failures', () => {
+  test('a disconnected notification preserves the final error until recovery', () => {
+    const topics = new Map<string, (data: never) => void>();
+    const control = stubControl({
+      onTopic: (<T,>(topic: string, handler: (data: T) => void): (() => void) => {
+        topics.set(topic, handler as (data: never) => void);
+        return () => {};
+      }) as ControlClient['onTopic'],
+    });
+    const connection = useConnection(control, callbacks);
+    topics.get('live.error')?.({ phase: 'live', message: 'TikTok rate limit (HTTP 429)' } as never);
+    topics.get('live.disconnected')?.({} as never);
+    expect(connection.status.value).toBe('error');
+    expect(connection.error.value).toContain('429');
+    topics.get('live.reconnecting')?.({ attempt: 1, delayMs: 30000 } as never);
+    expect(connection.status.value).toBe('retrying');
+    expect(connection.error.value).toBe('');
+    topics.get('live.connected')?.({ uniqueId: 'alice' } as never);
+    expect(connection.status.value).toBe('connected');
+    expect(connection.reconnectDelayMs.value).toBeNull();
+  });
+});
