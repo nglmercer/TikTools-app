@@ -28,6 +28,21 @@ fn matches_filter(filter: &Value, event: &Value) -> bool {
         .and_then(Value::as_str)
         .unwrap_or("eq")
     {
+        // Periodic goals use a COUNTER TRANSITION, never one raw batch count.
+        // Division avoids modulo-on-total: 14 -> 16 must cross the 15 goal.
+        // This matches once per incoming packet even if it crosses several
+        // milestones; the automation engine executes one action set per packet.
+        "crosses-multiple" => {
+            let Some(step) = right.parse::<u64>().ok().filter(|step| *step > 0) else {
+                return false;
+            };
+            let Some((previous, total)) = raw.and_then(|value| {
+                Some((value.get("previous")?.as_u64()?, value.get("total")?.as_u64()?))
+            }) else {
+                return false;
+            };
+            total > previous && total / step > previous / step
+        },
         "gte" => numeric && left_number >= right_number,
         "gt" => numeric && left_number > right_number,
         "lte" => numeric && left_number <= right_number,
@@ -109,4 +124,54 @@ pub(crate) fn number_u64(value: &Value) -> Option<u64> {
                 .map(|value| value as u64)
         })
         .or_else(|| value.as_str()?.parse().ok())
+}
+
+#[cfg(test)]
+mod like_goal_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn matches(previous: u64, total: u64, step: &str) -> bool {
+        event_record_matches(
+            &json!({"filters": [{
+                "path": "event.data.aggregation.global",
+                "operator": "crosses-multiple",
+                "value": step
+            }]}),
+            &json!({"type": "tiktok.like", "data": {
+                "aggregation": {"global": {"previous": previous, "total": total}}
+            }}),
+        )
+    }
+
+    #[test]
+    fn periodic_goal_repeats_at_every_multiple_and_handles_batched_crossings() {
+        assert!(!matches(0, 14, "15"));
+        assert!(matches(14, 15, "15"));
+        assert!(!matches(15, 15, "15"));
+        assert!(!matches(15, 29, "15"));
+        assert!(matches(29, 30, "15"));
+        assert!(matches(30, 45, "15"));
+        assert!(matches(0, 45, "15"));
+        assert!(!matches(45, 30, "15"));
+    }
+
+    #[test]
+    fn periodic_goal_fails_closed_for_invalid_steps_or_missing_transitions() {
+        for step in ["", "0", "-15", "1.5", "not-a-number"] {
+            assert!(!matches(14, 30, step));
+        }
+        let record = json!({"filters": [{
+            "path": "event.data.aggregation.user",
+            "operator": "crosses-multiple",
+            "value": "15"
+        }]});
+        assert!(!event_record_matches(&record, &json!({
+            "type": "tiktok.like", "data": {"count": 15, "aggregation": {"user": null}}
+        })));
+        assert!(event_record_matches(&record, &json!({
+            "type": "tiktok.like", "data": {"count": 30,
+                "aggregation": {"user": {"previous": 12, "total": 42}}}
+        })));
+    }
 }
