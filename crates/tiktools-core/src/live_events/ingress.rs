@@ -145,6 +145,10 @@ pub(crate) struct LiveIngressStats {
     pub(crate) processed: AtomicU64,
     /// Data events shed immediately on a full queue.
     pub(crate) dropped_data: AtomicU64,
+    /// Dropped like packets and their reported like units. Both are
+    /// lower-bound loss measurements, not a way to reconstruct missed events.
+    pub(crate) dropped_like_batches: AtomicU64,
+    pub(crate) dropped_like_units: AtomicU64,
     /// Critical events shed after the backpressure timeout.
     pub(crate) dropped_critical: AtomicU64,
     /// Upstream broadcast lag reports observed by the pump.
@@ -193,6 +197,8 @@ impl Default for LiveIngressStats {
             gifts_without_artwork: AtomicU64::new(0),
             processed: AtomicU64::new(0),
             dropped_data: AtomicU64::new(0),
+            dropped_like_batches: AtomicU64::new(0),
+            dropped_like_units: AtomicU64::new(0),
             dropped_critical: AtomicU64::new(0),
             lagged: AtomicU64::new(0),
             stale: AtomicU64::new(0),
@@ -272,6 +278,8 @@ impl LiveIngressStats {
             "giftsWithoutArtwork": self.gifts_without_artwork.load(Ordering::Relaxed),
             "processed": self.processed.load(Ordering::Relaxed),
             "droppedData": self.dropped_data.load(Ordering::Relaxed),
+            "droppedLikeBatches": self.dropped_like_batches.load(Ordering::Relaxed),
+            "droppedLikeUnits": self.dropped_like_units.load(Ordering::Relaxed),
             "droppedCritical": self.dropped_critical.load(Ordering::Relaxed),
             "broadcastLagged": self.lagged.load(Ordering::Relaxed),
             "staleFenced": self.stale.load(Ordering::Relaxed),
@@ -446,6 +454,15 @@ async fn admit_full(
         _ => false,
     };
     if !critical {
+        if let ClientEvent::Event(data) = &item.event {
+            if let tiktools_tiktok::events::CanonicalLiveEvent::Like(like) = &data.base {
+                stats.dropped_like_batches.fetch_add(1, Ordering::Relaxed);
+                stats.dropped_like_units.fetch_add(like.count, Ordering::Relaxed);
+                // Like goals can no longer claim an exact observed count:
+                // distinguish this gap from a rule whose filter did not match.
+                core.record_event_gap();
+            }
+        }
         stats.dropped_data.fetch_add(1, Ordering::Relaxed);
         stats.note_overload("shedding live data event on saturated ingress");
         return;
@@ -828,6 +845,26 @@ mod tests {
             before + 1,
             "shed data must be counted, never silently lost"
         );
+        // Like drops are still non-blocking, but goal reliability degrades.
+        // The packet count is the number of likes lost (not just one).
+        let like_gaps_before = core.event_gap_stats().0;
+        admit_event(
+            &core,
+            &sender,
+            ClientEvent::Event(wrap(
+                CanonicalLiveEvent::Like(LikeEvent {
+                    user: user(),
+                    count: 15,
+                    total: 1_000,
+                }),
+                None,
+            )),
+        )
+        .await;
+        assert_eq!(core.live_ingress.dropped_like_batches.load(Ordering::Relaxed), 1);
+        assert_eq!(core.live_ingress.dropped_like_units.load(Ordering::Relaxed), 15);
+        assert_eq!(core.event_gap_stats().0, like_gaps_before + 1);
+        assert_eq!(core.live_ingress.diagnostics()["droppedLikeUnits"], 15);
         // Critical data on a full queue applies bounded backpressure and,
         // when capacity cannot free up, reports a gap instead of success.
         let gaps_before = core.event_gap_stats().0;
