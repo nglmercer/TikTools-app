@@ -169,6 +169,35 @@ mod like_tests {
     use super::*;
     use tiktools_tiktok::events::{EventMetadata, EventUser, LikeEvent};
     #[test]
+    fn like_batches_contribute_packet_count_not_room_cumulative_total() {
+        let totals = LiveTotals::default();
+        let mut event = NativeLiveEvent {
+            base: CanonicalLiveEvent::Like(LikeEvent {
+                user: EventUser { id: 11, ..Default::default() },
+                count: 15,
+                total: 1000,
+            }),
+            metadata: EventMetadata {
+                method: "WebcastLikeMessage".into(),
+                msg_id: 101,
+                is_history: false,
+            },
+            gift: None,
+        };
+        let first = totals.observe(&event, None);
+        assert_eq!(first["global"], json!({"previous": 0, "total": 15}));
+        assert_eq!(first["user"], json!({"previous": 0, "total": 15}));
+        if let CanonicalLiveEvent::Like(like) = &mut event.base {
+            like.user.id = 12;
+            like.total = 1015;
+            like.count = 15;
+        }
+        let second = totals.observe(&event, None);
+        assert_eq!(second["global"], json!({"previous": 15, "total": 30}));
+        assert_eq!(second["user"], json!({"previous": 0, "total": 15}));
+    }
+
+    #[test]
     fn repeated_packets_accumulate_global_and_user_scopes_without_nickname_identity() {
         let totals = LiveTotals::default();
         let mut event = NativeLiveEvent {
