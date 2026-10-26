@@ -33,30 +33,30 @@ license = "MIT"
 rust-version = "1.95"
 
 [workspace.dependencies]
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-schemars = "1.2.2"
-thiserror = "2.0"
-unicode-segmentation = "1.13"
-tracing = "0.1"
-fastrand = "2.5"
-tokio-util = "0.7"
-tokio = { version = "1.48", features = ["rt-multi-thread", "sync", "macros", "time", "net", "io-util", "io-std", "fs"] }
-rusqlite = { version = "0.40", default-features = false }
-reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
-rustls = { version = "0.23", default-features = false, features = ["ring"] }
-tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+schemars = "1.2.3"
+thiserror = "2.0.21"
+unicode-segmentation = "1.13.3"
+tracing = "0.1.44"
+fastrand = "2.5.0"
+tokio-util = "0.7.20"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "sync", "macros", "time", "net", "io-util", "io-std", "fs"] }
+rusqlite = { version = "0.41.0", default-features = false }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 libloading = "0.9.0"
-sha2 = "0.11"
-zip = { version = "8.6", default-features = false, features = ["deflate"] }
+sha2 = "0.11.1"
+zip = { version = "9.1.2", default-features = false, features = ["deflate"] }
 # Declarative native-library providers (npm tarballs, GitHub release
 # assets): pure-Rust download, verify, and extract for build/install
 # tooling. Never linked into plugin guests.
-tar = "0.4"
-flate2 = "1"
-base64 = "0.23"
-rfd = { version = "0.16.0", default-features = false, features = ["xdg-portal", "tokio"] }
-rodio = { version = "0.22.2", features = ["tracing"] }
+tar = "0.4.46"
+flate2 = "1.1.10"
+base64 = "0.23.1"
+rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }
+rodio = { version = "0.23.0", features = ["tracing"] }
 # Native-addon integration uses `allow_addon` / `allow_addon_alias` plus
 # `node:module` createRequire from napi-vm main. Pinned by rev like the
 # ttl-* deps: a relative path cannot resolve in CI checkouts.
@@ -64,13 +64,13 @@ napi-vm = { git = "https://github.com/nglmercer/napi-vm", rev = "881cc8f1cec2620
 
 # The checked-in JavaScript/Bun package was only a compatibility implementation. The desktop
 # host consumes the Rust crates directly from the upstream workspace at a pinned revision.
-ttl-sign-core = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
-ttl-live-discovery = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
-ttl-live-events = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
-ttl-live-proto = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
-ttl-live-ws = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
-ttl-sign-headless = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
-ttl-sign-embedded = { git = "https://github.com/nglmercer/tiktok-signer", rev = "9b4f344d105c62e23bf3a883c7a35066e001e078" }
+ttl-sign-core = { git = "https://github.com/nglmercer/tiktok-signer", rev = "141d39ea795536190fcf26b9dcab60c50637417b" }
+ttl-live-discovery = { git = "https://github.com/nglmercer/tiktok-signer", rev = "141d39ea795536190fcf26b9dcab60c50637417b" }
+ttl-live-events = { git = "https://github.com/nglmercer/tiktok-signer", rev = "141d39ea795536190fcf26b9dcab60c50637417b" }
+ttl-live-proto = { git = "https://github.com/nglmercer/tiktok-signer", rev = "141d39ea795536190fcf26b9dcab60c50637417b" }
+ttl-live-ws = { git = "https://github.com/nglmercer/tiktok-signer", rev = "141d39ea795536190fcf26b9dcab60c50637417b" }
+ttl-sign-headless = { git = "https://github.com/nglmercer/tiktok-signer", rev = "141d39ea795536190fcf26b9dcab60c50637417b" }
+ttl-sign-embedded = { git = "https://github.com/nglmercer/tiktok-signer", rev = "141d39ea795536190fcf26b9dcab60c50637417b" }
 
 [patch."https://github.com/nglmercer/tiktok-signer"]
 ttl-live-proto = { path = "vendor/ttl-live-proto" }

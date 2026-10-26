@@ -23,12 +23,12 @@ serde.workspace = true
 tokio.workspace = true
 rustls.workspace = true
 tracing.workspace = true
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-percent-encoding = "2.3"
-url = "2.5"
-winit = "0.30"
-wry = { version = "0.57", features = ["tracing"] }
-tray-icon = "0.26"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+percent-encoding = "2.3.2"
+url = "2.5.8"
+winit = "0.30.13"
+wry = { version = "0.57.1", features = ["tracing"] }
+tray-icon = "0.26.1"
 rfd.workspace = true
 rodio.workspace = true
 
@@ -36,9 +36,10 @@ rodio.workspace = true
 tiktools-plugin-loader = { path = "../tiktools-plugin-loader" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-gtk = "0.18"
+# Wry 0.57 / WebKitGTK 2.0 require the GTK 0.18 ABI; 0.19 conflicts on gdk-3.
+gtk = "0.18.2"
 webkit2gtk = "2.0.2"
-x11-dl = "2.21"
+x11-dl = "2.21.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61.2", features = [

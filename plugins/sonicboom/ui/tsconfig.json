@@ -1,4 +1,4 @@
 {
   "extends": "../../../tsconfig.json",
-  "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts", "playwright.config.ts", "tests/**/*.ts"]
+  "include": ["../../../src/web/env.d.ts", "src/**/*.ts", "src/**/*.vue", "vite.config.ts", "playwright.config.ts", "tests/**/*.ts"]
 }

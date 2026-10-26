@@ -11,7 +11,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use rand::Rng;
+use rand::RngExt;
 use serde_json::{json, Value};
 use std::{
     path::PathBuf,

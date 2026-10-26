@@ -8,8 +8,12 @@ updates:
       dependencies:
         patterns:
           - "*"
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/"
+    # Vue/ESLint still need the TS 6 API; @typescript/native tracks TS 7.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
     schedule:
       interval: "weekly"
     groups:

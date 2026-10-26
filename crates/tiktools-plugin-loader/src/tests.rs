@@ -9,6 +9,17 @@ use tiktools_plugin_api::{PluginManifest, PluginRuntimeKind};
 
 use super::*;
 
+// These lifecycle mocks execute no native library. Keep native coverage on
+// supported desktops, and use the other in-process kind on Android so the
+// real ABI admission guard does not prevent the mocked worker from starting.
+fn in_process_test_kind() -> PluginRuntimeKind {
+    if cfg!(target_os = "android") {
+        PluginRuntimeKind::NapiVm
+    } else {
+        PluginRuntimeKind::Native
+    }
+}
+
 struct TestRuntime;
 
 struct TestInstance {
@@ -234,7 +245,7 @@ struct ErrShutdownInstance {
 
 impl PluginRuntime for ErrShutdownRuntime {
     fn kind(&self) -> PluginRuntimeKind {
-        PluginRuntimeKind::Native
+        in_process_test_kind()
     }
 
     fn load(
@@ -354,13 +365,13 @@ async fn worker_discards_calls_that_expire_while_queued() {
 
 #[tokio::test]
 async fn timeout_keeps_a_healthy_instance_running() {
-    // Native workers run plugin code synchronously and never
+    // In-process workers run plugin code synchronously and never
     // self-terminate on a manager timeout, so the instance stays usable.
     // (Process workers kill their child on the same deadline instead;
     // see process_timeout_retires_the_instance_so_next_start_is_fresh.)
     let (manager, root) = scripted_manager_with_kind(
         &["slow"],
-        PluginRuntimeKind::Native,
+        in_process_test_kind(),
         Arc::new(|_| {
             std::thread::sleep(Duration::from_millis(100));
             Ok(b"null".to_vec())
@@ -509,7 +520,7 @@ fn cold_start_claim_extends_exactly_one_caller_per_generation() {
 
     let (native, native_root) = scripted_manager_with_kind(
         &["inproc"],
-        PluginRuntimeKind::Native,
+        in_process_test_kind(),
         Arc::new(|_| Ok(b"null".to_vec())),
     );
     native.start("inproc").unwrap();
@@ -762,7 +773,7 @@ fn stop_all_recovers_from_a_poisoned_worker_lock() {
 async fn one_broken_plugin_does_not_block_sibling_shutdown() {
     let root = temp_root();
     write_plugin_with_runtime(&root, "doomed", "process");
-    write_plugin_with_runtime(&root, "flaky", "native");
+    write_plugin_with_runtime(&root, "flaky", &in_process_test_kind().to_string());
     write_plugin_with_runtime(&root, "healthy", "wasm");
     let mut runtimes = RuntimeRegistry::default();
     runtimes.register(Arc::new(PanicShutdownRuntime) as Arc<dyn PluginRuntime>);
@@ -933,7 +944,7 @@ struct WedgedShutdownInstance {
 
 impl PluginRuntime for WedgedShutdownRuntime {
     fn kind(&self) -> PluginRuntimeKind {
-        PluginRuntimeKind::Native
+        in_process_test_kind()
     }
 
     fn load(
@@ -971,7 +982,7 @@ impl PluginInstance for WedgedShutdownInstance {
 async fn stop_abandons_a_wedged_worker_after_the_deadline_instead_of_hanging() {
     let gate = ShutdownGate::new();
     let root = temp_root();
-    write_plugin_with_runtime(&root, "wedged", "native");
+    write_plugin_with_runtime(&root, "wedged", &in_process_test_kind().to_string());
     let mut runtimes = RuntimeRegistry::default();
     runtimes.register(Arc::new(WedgedShutdownRuntime {
         gate: ShutdownGate(std::sync::Arc::clone(&gate.0)),
@@ -1022,7 +1033,7 @@ struct DeadWorkerThenGenericRuntime {
 
 impl PluginRuntime for DeadWorkerThenGenericRuntime {
     fn kind(&self) -> PluginRuntimeKind {
-        PluginRuntimeKind::Native
+        in_process_test_kind()
     }
 
     fn load(
@@ -1061,7 +1072,7 @@ impl PluginRuntime for DeadWorkerThenGenericRuntime {
 #[tokio::test]
 async fn start_retires_a_dead_but_mapped_worker_and_spawns_a_fresh_generation() {
     let root = temp_root();
-    write_plugin_with_runtime(&root, "demo", "native");
+    write_plugin_with_runtime(&root, "demo", &in_process_test_kind().to_string());
     let mut runtimes = RuntimeRegistry::default();
     runtimes.register(Arc::new(DeadWorkerThenGenericRuntime {
         spawns: std::sync::atomic::AtomicUsize::new(0),

@@ -3,7 +3,7 @@
   "version": "0.3.3",
   "type": "module",
   "private": true,
-  "packageManager": "bun@1.4.1",
+  "packageManager": "bun@1.4.4",
   "scripts": {
     "start": "bun run scripts/start-dev.ts",
     "start:packaged": "bun run scripts/start-packaged.ts",
@@ -62,25 +62,26 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.63.0",
-    "@types/bun": "1.4.2",
-    "@vitejs/plugin-vue": "^6.0.8",
+    "@playwright/test": "^1.64.1",
+    "@types/bun": "1.4.4",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "@vitejs/plugin-vue": "^6.0.10",
     "@vitejs/plugin-vue-jsx": "^5.1.6",
     "@vue/test-utils": "^2.5.1",
-    "eslint": "^10.10.0",
-    "eslint-plugin-vue": "^10.10.0",
-    "globals": "^17.12.0",
-    "happy-dom": "^21.0.3",
-    "typescript": "^5.7.2",
-    "typescript-eslint": "^8.69.0",
-    "vite": "^8.2.2",
+    "eslint": "^10.13.0",
+    "eslint-plugin-vue": "^10.12.0",
+    "globals": "^17.13.0",
+    "happy-dom": "^21.0.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vite": "^8.3.5",
     "vitest": "^5.0.5",
     "vue-eslint-parser": "^10.4.1",
-    "vue-tsc": "^3.3.11"
+    "vue-tsc": "^3.3.13"
   },
   "dependencies": {
     "pinia": "^4.1.0",
-    "vue": "^3.5.42",
+    "vue": "^3.5.44",
     "vue-i18n": "^11.4.16",
     "vue-router": "^5.4.0"
   }
