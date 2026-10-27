@@ -80,6 +80,30 @@ describe('FeedPage', () => {
     expect(wrapper.findAll('.event-row').map((row) => row.text())).toEqual([expect.stringContaining('hola a todos')]);
   });
 
+  it('switches spectator rankings to core like totals and opens the viewer', async () => {
+    const { wrapper, emit } = await mountFeed();
+    emit('live.connected', { uniqueId: 'luna', roomId: 'room-42' });
+    emit('live.likes-ranking', {
+      creatorId: 'luna',
+      roomId: 'room-42',
+      leaders: [
+        { rank: 1, score: 164, uniqueId: 'alice', nickname: 'Alice', userId: '101' },
+        { rank: 2, score: 100, uniqueId: 'bob', nickname: 'Bob', userId: '102' },
+      ],
+    });
+    await nextTick();
+    expect(wrapper.find('.top-likes__row').exists()).toBe(false);
+    const likesFilter = wrapper.findAll('.feed-inspector__viewer-filter button')
+      .find((button) => button.text() === 'Likes');
+    expect(likesFilter).toBeDefined();
+    await likesFilter!.trigger('click');
+    expect(wrapper.findAll('.top-likes__row')).toHaveLength(2);
+    expect(wrapper.find('.top-likes__row').text()).toContain('164');
+    await wrapper.find('.top-likes__row').trigger('click');
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Profile');
+    expect(wrapper.text()).toContain('Alice');
+  });
+
   it('opens event details and the author profile in the inspector', async () => {
     const { wrapper, push } = await mountFeed();
     await push({ kind: 'chat', author: 'luna', nickname: 'Luna', text: 'first', msgId: 'a' });
