@@ -34,3 +34,37 @@ cargo fmt --all -- --check
 ```
 
 CI and local re-runs of these commands are required before merging.
+
+
+## Feed presentation: one visible row for a short like burst
+
+The native backend publishes each `live.ui-event` unchanged **except** for two
+new optional, presentation-only fields when the per-user counter is available:
+
+- `likeUserTotal`: observed cumulative likes from this viewer in the current creator/room session (not TikTok's room `total` snapshot).
+- `likeViewerKey`: a stable viewer ID, used to avoid grouping different viewers.
+
+The original `likeCount` and `i18nParams.count` remain the incoming packet size.
+No data is dropped from the authoritative feed history or the automation, points
+or analytics pipeline.
+
+The frontend displays the viewer's `likeUserTotal` and folds **visual-only**
+rows for the same viewer and room when packets arrive within three seconds.
+It updates the latest timestamp/message ID, preserves the original row ID,
+and moves the row to the latest visible position. After three seconds of no
+updates, a new row may appear but still displays the cumulative viewer total.
+Rows without a reliable viewer identity or a safe cumulative total are not
+merged and display their original per-packet count.
+
+Likes are **not** TikTok gift streak/combo events. Existing gift grouping
+remains unchanged. The inspector distinguishes the last packet count from the
+session viewer total.
+
+Visual regression coverage: `src/web/entities/live-event/model/live-feed-state.test.ts`
+and `src/web/entities/live-event/lib/event-text.test.ts`. The native E2E
+test also checks the UI projection reports `45, 105, 150, 450` alongside
+the untouched packet sizes `45, 60, 45, 300`.
+
+```sh
+bun test src/web/entities/live-event/model/live-feed-state.test.ts src/web/entities/live-event/lib/event-text.test.ts
+```
