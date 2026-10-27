@@ -145,6 +145,14 @@ impl AppCore {
                 unique_id: Some(info.unique_id.clone()),
                 room_id: Some(info.room_id.clone()),
             });
+        // Re-send a snapshot when attaching to an existing LIVE room so
+        // reconnects restore its ranking without replaying every like.
+        self.events
+            .publish_domain(crate::events::DomainEvent::LiveLikesRanking {
+                creator_id: context.unique_id.clone(),
+                room_id: context.room_id.clone(),
+                leaders: self.live_totals.like_leaderboard(&context),
+            });
         self.events
             .publish_domain(crate::events::DomainEvent::CreatorChanged {
                 unique_id: Some(info.unique_id.clone()),
@@ -258,6 +266,19 @@ impl AppCore {
             tracing::debug!(method = event.method(), msg_id = %event.msg_id(), correlation_id = %correlation, "publishing LIVE UI event");
             self.events
                 .publish_domain(crate::events::DomainEvent::LiveUiEvent { event: ui });
+            if matches!(
+                &event.base,
+                tiktools_tiktok::events::CanonicalLiveEvent::Like(_)
+            ) {
+                if let Some(context) = context.as_ref() {
+                    self.events
+                        .publish_domain(crate::events::DomainEvent::LiveLikesRanking {
+                            creator_id: context.unique_id.clone(),
+                            room_id: context.room_id.clone(),
+                            leaders: self.live_totals.like_leaderboard(context),
+                        });
+                }
+            }
             should_award.then_some((author, action, options, reason))
         } else {
             if let tiktools_tiktok::events::CanonicalLiveEvent::RoomUser(room) = &event.base {
