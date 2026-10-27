@@ -439,6 +439,19 @@ mod regression_tests {
             assert_eq!(row.event["likeViewerKey"], "8877123");
         }
 
+        // The top-likes ranking is maintained by the native core even
+        // though the visible feed can fold or discard individual rows.
+        let context = LiveContext {
+            unique_id: "batch-test-creator".into(),
+            room_id: "batch-test-room".into(),
+            connection_id: "batch-test-connection".into(),
+        };
+        let leaders = core.live_totals.like_leaderboard(&context);
+        assert_eq!(leaders.len(), 1);
+        assert_eq!(leaders[0]["rank"], 1);
+        assert_eq!(leaders[0]["score"], 450);
+        assert_eq!(leaders[0]["userId"], "8877123");
+
         let runs = tokio::time::timeout(std::time::Duration::from_secs(5), async {
             loop {
                 let runs = core.automation.recent_runs();
