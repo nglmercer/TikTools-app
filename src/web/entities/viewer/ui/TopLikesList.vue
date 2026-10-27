@@ -106,7 +106,7 @@ const { t, locale } = useI18n();
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-weight: var(--font-weight-medium);
+  font-weight: var(--font-weight-semibold);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
