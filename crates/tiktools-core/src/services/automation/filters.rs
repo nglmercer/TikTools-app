@@ -210,6 +210,31 @@ mod like_goal_tests {
     }
 
     #[test]
+    fn batch_execution_count_preserves_legacy_rules_and_caps_large_bursts() {
+        let recurring = json!({"filters": [{
+            "path": "event.data.aggregation.global",
+            "operator": "crosses-multiple",
+            "value": "150"
+        }]});
+        let legacy = json!({"filters": [
+            {"path": "event.data.aggregation.global.previous", "operator": "lt", "value": "150"},
+            {"path": "event.data.aggregation.global.total", "operator": "gte", "value": "150"}
+        ]});
+        let batch = |previous: u64, total: u64| json!({
+            "type": "tiktok.like",
+            "data": {"aggregation": {"global": {"previous": previous, "total": total}}}
+        });
+        assert_eq!(event_record_repeat_count(&recurring, &batch(0, 149)), 0);
+        assert_eq!(event_record_repeat_count(&recurring, &batch(0, 150)), 1);
+        assert_eq!(event_record_repeat_count(&recurring, &batch(150, 450)), 2);
+        assert_eq!(event_record_repeat_count(&legacy, &batch(0, 450)), 1);
+        assert_eq!(event_record_repeat_count(&legacy, &batch(150, 450)), 0);
+        assert_eq!(event_record_repeat_count(&recurring, &batch(0, 150 * 1000)),
+                   MAX_LIKE_ACTION_REPEATS_PER_PACKET);
+        assert_eq!(event_record_repeat_count(&json!({"filters": []}), &batch(0, 150)), 1);
+    }
+
+    #[test]
     fn periodic_goal_fails_closed_for_invalid_steps_or_missing_transitions() {
         for step in ["", "0", "-15", "1.5", "not-a-number"] {
             assert!(!matches(14, 30, step));
