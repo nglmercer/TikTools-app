@@ -307,6 +307,9 @@ export default {
     viewers: {
       live: '{count} watching now',
       empty: 'No contributors yet.',
+      filterTop: 'General',
+      filterLikes: 'Likes',
+      emptyLikes: 'No likes received yet.',
     },
     details: {
       kind: 'Type',
