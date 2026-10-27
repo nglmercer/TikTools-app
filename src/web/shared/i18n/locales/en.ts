@@ -587,6 +587,7 @@ export default {
       'starts-with': 'starts with',
       'is-true': 'is true',
       'is-false': 'is false',
+      'crosses-multiple': 'each multiple of',
     },
     triggers: {
       'tiktok-chat': 'Someone comments',
