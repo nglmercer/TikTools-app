@@ -1,7 +1,7 @@
 import { liveMessageIdentity, LIVE_IDENTITY_CAPACITY, LIVE_IDENTITY_TTL_MS } from '../../../../shared/live-identity.ts';
 import { ref, shallowRef, watch } from 'vue';
 
-import type { GiftCatalogEntry, UiEvent } from '../../../../shared/messages.ts';
+import type { GiftCatalogEntry, LikeLeaderPayload, UiEvent } from '../../../../shared/messages.ts';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import type { DisplayEvent, EventFilter, TopViewerPayload } from '@/types.ts';
@@ -48,6 +48,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   const renderLimit = ref(100);
   const searchQuery = ref(savedFeed?.searchQuery ?? '');
   const topViewers = shallowRef<TopViewerPayload[]>([]);
+  const likeLeaders = shallowRef<LikeLeaderPayload[]>([]);
   const liveViewers = ref(0);
   const giftCatalog = shallowRef<GiftCatalogEntry[]>([]);
   const autoScroll = ref(savedFeed?.autoScroll ?? true);
@@ -264,6 +265,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     unreadCount.value = 0;
     droppedUiEvents.value = 0;
     topViewers.value = [];
+    likeLeaders.value = [];
     liveViewers.value = 0;
   };
 
@@ -468,6 +470,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     if (scope !== sessionScope) {
       seenMsgIds.clear();
       seenCursors.clear();
+      likeLeaders.value = [];
       sessionScope = scope;
       sessionRoom = data.roomId ?? '';
       sessionCreator = data.uniqueId ?? '';
@@ -487,6 +490,21 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     if (gap) recoveryAfter = Math.min(recoveryAfter ?? previousCursor ?? 0, previousCursor ?? 0);
     pushFeedEvent(data.event, cursor);
     if (gap && presentationActive) void recoverFeed();
+  }));
+  unsubscribers.push(control.onTopic<{
+    creatorId: string;
+    roomId: string;
+    leaders: LikeLeaderPayload[];
+  }>('live.likes-ranking', (data) => {
+    if ((sessionCreator && data.creatorId !== sessionCreator) ||
+        (sessionRoom && data.roomId !== sessionRoom)) return;
+    if (!Array.isArray(data.leaders)) return;
+    // The core owns the ranking, and the UI never re-aggregates folded rows.
+    // Bound and validate snapshots from all transports before display.
+    likeLeaders.value = data.leaders
+      .filter((leader) => leader && typeof leader.uniqueId === 'string' &&
+        typeof leader.score === 'number' && Number.isSafeInteger(leader.score) && leader.score > 0)
+      .slice(0, 10);
   }));
   unsubscribers.push(control.onTopic<{ viewers: number; totalUsers: number; topViewers: TopViewerPayload[] }>(
     'room.stats',
@@ -595,6 +613,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     filter,
     searchQuery,
     topViewers,
+    likeLeaders,
     liveViewers,
     giftCatalog,
     autoScroll,
