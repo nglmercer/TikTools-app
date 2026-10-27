@@ -35,7 +35,7 @@ schemars.workspace = true
 ttl-live-events.workspace = true
 ttl-live-proto.workspace = true
 fastrand.workspace = true
-getrandom = "0.3"
+getrandom = "0.4.3"
 thiserror.workspace = true
 tracing.workspace = true
 tokio.workspace = true
@@ -44,7 +44,7 @@ napi-vm.workspace = true
 rusqlite = { workspace = true, optional = true, features = ["bundled"] }
 reqwest = { workspace = true, optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
-url = "2.5"
+url = "2.5.8"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
-arboard = { version = "3", default-features = false }
+arboard = { version = "3.7.0", default-features = false }

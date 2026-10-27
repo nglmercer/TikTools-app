@@ -61,7 +61,8 @@ impl PluginInstaller {
         let mut manifest_bytes = None;
         for index in 0..archive.len().min(MAX_FILES) {
             let entry = archive.by_index(index).map_err(zip_error)?;
-            let Some(relative) = normalized_archive_path(entry.name())? else {
+            let name = entry.name().map_err(zip_error)?;
+            let Some(relative) = normalized_archive_path(&name)? else {
                 continue;
             };
             let is_manifest = relative.file_name().and_then(|name| name.to_str())
@@ -142,7 +143,8 @@ impl PluginInstaller {
         let mut extracted_paths = BTreeSet::new();
         for index in 0..archive.len() {
             let mut entry = archive.by_index(index).map_err(zip_error)?;
-            let Some(relative) = normalized_archive_path(entry.name())? else {
+            let name = entry.name().map_err(zip_error)?;
+            let Some(relative) = normalized_archive_path(&name)? else {
                 // Some ZIP writers (including bsdtar) include the archive's
                 // current-directory marker as `./`. It is not package data.
                 continue;
@@ -150,7 +152,7 @@ impl PluginInstaller {
             if !extracted_paths.insert(relative.clone()) {
                 return Err(PluginLoaderError::Runtime(format!(
                     "plugin archive contains a duplicate path: {}",
-                    entry.name()
+                    name
                 )));
             }
             let destination = staging.join(&relative);
@@ -739,6 +741,38 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_utf8_archive_names_before_extraction() {
+        let root = temp_root();
+        fs::create_dir_all(&root).unwrap();
+        let archive_path = root.join("invalid-name.plugin");
+        write_archive(&archive_path, &[("plugin.json", b"{}")]);
+
+        let mut bytes = fs::read(&archive_path).unwrap();
+        // Mark both filename copies as UTF-8, then corrupt their first byte.
+        // Filename bytes are outside the payload CRC, isolating decoding.
+        for (signature, flags_offset, name_offset) in
+            [(&b"PK\x03\x04"[..], 6, 30), (&b"PK\x01\x02"[..], 8, 46)]
+        {
+            let header = bytes.windows(4).position(|part| part == signature).unwrap();
+            bytes[header + flags_offset + 1] |= 0x08;
+            bytes[header + name_offset] = 0xff;
+        }
+        fs::write(&archive_path, bytes).unwrap();
+
+        let installer = PluginInstaller {
+            plugin_directory: root.join("plugins"),
+            staging_directory: root.join("staging"),
+            replace_existing: false,
+            provider_endpoints: None,
+        };
+        assert!(installer.inspect_manifest(&archive_path).is_err());
+        assert!(installer.install(&archive_path).is_err());
+        assert_eq!(fs::read_dir(root.join("plugins")).unwrap().count(), 0);
+        assert_eq!(fs::read_dir(root.join("staging")).unwrap().count(), 0);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn installs_checksum_checked_package_atomically() {
         let root = temp_root();
         fs::create_dir_all(&root).unwrap();
@@ -1202,14 +1236,24 @@ mod tests {
             ],
         );
 
-        let installed = PluginInstaller {
+        let installation = PluginInstaller {
             plugin_directory: root.join("plugins"),
             staging_directory: root.join("staging"),
             replace_existing: false,
             provider_endpoints: Some((fixture.base.clone(), fixture.base.clone())),
         }
-        .install(&archive_path)
-        .unwrap();
+        .install(&archive_path);
+        if cfg!(target_os = "android") {
+            // Android deliberately has no supported native-addon target.
+            // Verify that backfill rejects it without installing a package.
+            let error = installation.unwrap_err().to_string();
+            assert!(error.contains("unknown napi target android-"), "{error}");
+            assert_eq!(fs::read_dir(root.join("plugins")).unwrap().count(), 0);
+            assert_eq!(fs::read_dir(root.join("staging")).unwrap().count(), 0);
+            fs::remove_dir_all(root).unwrap();
+            return;
+        }
+        let installed = installation.unwrap();
         let tree = installed.directory.join("node_modules/fixture-pkg");
         let host_file = format!("node-stem.{}.node", current_napi_target());
         assert_eq!(

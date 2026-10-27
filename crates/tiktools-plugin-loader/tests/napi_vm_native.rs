@@ -18,7 +18,12 @@
 //! const { startListener, stopListener } = require('rdev-node');
 //! ```
 
-#![cfg(feature = "napi-vm-node-api")]
+// Match the production backend's platform support. Android's rejection
+// contract is exercised in napi_vm.rs rather than staging desktop binaries.
+#![cfg(all(
+    feature = "napi-vm-node-api",
+    any(target_os = "linux", target_os = "macos", target_os = "windows")
+))]
 
 use std::{
     fs,

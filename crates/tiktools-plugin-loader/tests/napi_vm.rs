@@ -293,3 +293,53 @@ fn missing_entry_fails_load() {
 
     fs::remove_dir_all(&root).ok();
 }
+
+#[cfg(target_os = "android")]
+#[test]
+fn android_rejects_native_addons_at_discovery_and_direct_load() {
+    let root = staged_root();
+    let directory = root.join("napi-vm-echo");
+    let manifest_path = directory.join("plugin.json");
+    let mut json: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    json["trust"] = json!("trusted");
+    json["nativeAddons"] = json!([{
+        "package": "fixture-pkg",
+        "root": "node_modules/fixture-pkg"
+    }]);
+    fs::write(&manifest_path, serde_json::to_vec(&json).unwrap()).unwrap();
+    let manifest = PluginManifest::from_json_str(&json.to_string()).unwrap();
+    manifest.validate_compatibility().unwrap();
+
+    let manager = PluginManager::new(vec![PluginRoot {
+        path: root.clone(),
+        source: PluginSource::Development,
+    }]);
+    let plugins = manager.scan().unwrap();
+    let plugin = plugins
+        .iter()
+        .find(|plugin| plugin.manifest.id == manifest.id)
+        .unwrap();
+    assert!(!plugin.available);
+    assert!(plugin
+        .reason
+        .as_deref()
+        .unwrap()
+        .contains("Android ABI validation is not implemented"));
+    assert!(manager
+        .start(&manifest.id)
+        .unwrap_err()
+        .to_string()
+        .contains("Android ABI validation is not implemented"));
+
+    let error = NapiVmPluginRuntime
+        .load(&manifest, &directory)
+        .err()
+        .expect("direct loads must reject native addons on Android too");
+    assert!(
+        error
+            .to_string()
+            .contains("Android ABI validation is not implemented"),
+        "{error}"
+    );
+    fs::remove_dir_all(root).unwrap();
+}

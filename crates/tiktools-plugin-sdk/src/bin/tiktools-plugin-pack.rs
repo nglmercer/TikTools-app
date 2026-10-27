@@ -655,7 +655,14 @@ mod tests {
         let file = File::open(&output).unwrap();
         let mut archive = zip::ZipArchive::new(file).unwrap();
         let names: Vec<String> = (0..archive.len())
-            .map(|index| archive.by_index(index).unwrap().name().to_owned())
+            .map(|index| {
+                archive
+                    .by_index(index)
+                    .unwrap()
+                    .name()
+                    .unwrap()
+                    .into_owned()
+            })
             .collect();
         assert!(
             names.iter().all(|name| !name.contains("node_modules")),
@@ -760,7 +767,14 @@ mod tests {
             let file = File::open(&output).unwrap();
             let mut archive = zip::ZipArchive::new(file).unwrap();
             let names: Vec<String> = (0..archive.len())
-                .map(|index| archive.by_index(index).unwrap().name().to_owned())
+                .map(|index| {
+                    archive
+                        .by_index(index)
+                        .unwrap()
+                        .name()
+                        .unwrap()
+                        .into_owned()
+                })
                 .collect();
             assert!(
                 names
