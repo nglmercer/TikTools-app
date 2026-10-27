@@ -173,7 +173,10 @@ mod like_tests {
         let totals = LiveTotals::default();
         let mut event = NativeLiveEvent {
             base: CanonicalLiveEvent::Like(LikeEvent {
-                user: EventUser { id: 11, ..Default::default() },
+                user: EventUser {
+                    id: 11,
+                    ..Default::default()
+                },
                 count: 15,
                 total: 1000,
             }),
