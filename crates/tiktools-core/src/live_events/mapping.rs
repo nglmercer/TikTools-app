@@ -399,7 +399,10 @@ mod regression_tests {
         for (index, count) in [45_u64, 60, 45, 300].into_iter().enumerate() {
             let event = NativeLiveEvent {
                 base: CanonicalLiveEvent::Like(LikeEvent {
-                    user: EventUser { id: 8877123, ..Default::default() },
+                    user: EventUser {
+                        id: 8877123,
+                        ..Default::default()
+                    },
                     count,
                     total: 50_000 + count,
                 }),
@@ -417,22 +420,39 @@ mod regression_tests {
         let runs = tokio::time::timeout(std::time::Duration::from_secs(5), async {
             loop {
                 let runs = core.automation.recent_runs();
-                if runs.len() >= 5 { break runs; }
+                if runs.len() >= 5 {
+                    break runs;
+                }
                 tokio::task::yield_now().await;
             }
         })
         .await
         .expect("native like batches must execute all five configured actions");
 
-        let count_runs = |id: &str| runs.iter()
-            .filter(|run| run["eventId"] == id && run["status"] == "ok" && run["test"] == false)
-            .count();
-        assert_eq!(count_runs("recurring"), 3, "150, 300 and 450 are three milestones");
-        assert_eq!(count_runs("legacy-once"), 1, "old goal fires only at first 150");
-        assert_eq!(count_runs("legacy-count"), 1, "old packet filter still sees count=300");
+        let count_runs = |id: &str| {
+            runs.iter()
+                .filter(|run| run["eventId"] == id && run["status"] == "ok" && run["test"] == false)
+                .count()
+        };
+        assert_eq!(
+            count_runs("recurring"),
+            3,
+            "150, 300 and 450 are three milestones"
+        );
+        assert_eq!(
+            count_runs("legacy-once"),
+            1,
+            "old goal fires only at first 150"
+        );
+        assert_eq!(
+            count_runs("legacy-count"),
+            1,
+            "old packet filter still sees count=300"
+        );
 
         // Exact duplicate packets must not trigger already reached milestones.
-        core.handle_live_event(last_event.expect("simulated batch")).await;
+        core.handle_live_event(last_event.expect("simulated batch"))
+            .await;
         let stable = core.automation.recent_runs();
         assert_eq!(stable.len(), 5, "replayed message id must not double-count");
         core.shutdown().await;
