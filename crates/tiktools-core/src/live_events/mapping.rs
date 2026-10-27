@@ -353,6 +353,91 @@ mod regression_tests {
         fn emit(&self, _: HostMessage) {}
     }
 
+    /// Full native path: TikTok LikeEvent -> dedup -> packet delta totals ->
+    /// normalized tiktok.like -> filter/cooldown -> REAL core.log action.
+    /// No browser mock and no LIVE network connection required.
+    #[tokio::test]
+    async fn e2e_batched_likes_trigger_saved_150_goals_without_breaking_old_templates() {
+        use tiktools_tiktok::events::{CanonicalLiveEvent, EventMetadata, EventUser, LikeEvent};
+
+        let core = Arc::new(AppCore::new(Arc::new(Emitter)));
+        *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {
+            unique_id: "batch-test-creator".into(),
+            room_id: "batch-test-room".into(),
+            connection_id: "batch-test-connection".into(),
+        });
+        core.automation.replace_snapshot(&json!({
+            "actions": [
+                {"id": "log-recurring", "name": "Recurring", "enabled": true,
+                 "typeId": "core.log", "config": {"message": "every 150 likes"}},
+                {"id": "log-once", "name": "Once", "enabled": true,
+                 "typeId": "core.log", "config": {"message": "first 150 likes"}},
+                {"id": "log-old", "name": "Old packet", "enabled": true,
+                 "typeId": "core.log", "config": {"message": "large like batch"}}
+            ],
+            "events": [
+                {"id": "recurring", "name": "Every 150", "enabled": true,
+                 "trigger": "tiktok.like", "cooldownMs": 0, "actionIds": ["log-recurring"],
+                 "filters": [{"path": "event.data.aggregation.global",
+                              "operator": "crosses-multiple", "value": "150"}]},
+                {"id": "legacy-once", "name": "First 150", "enabled": true,
+                 "trigger": "tiktok.like", "cooldownMs": 0, "actionIds": ["log-once"],
+                 "filters": [
+                    {"path": "event.data.aggregation.global.previous", "operator": "lt", "value": "150"},
+                    {"path": "event.data.aggregation.global.total", "operator": "gte", "value": "150"}
+                 ]},
+                {"id": "legacy-count", "name": "Packet count", "enabled": true,
+                 "trigger": "tiktok.like", "cooldownMs": 0, "actionIds": ["log-old"],
+                 "filters": [{"path": "event.data.count", "operator": "gte", "value": "150"}]}
+            ]
+        }));
+
+        // 45+60+45=150: exactly one milestone. The next batch of 300
+        // crosses 300 and 450 at once and must execute TWO actions.
+        // Room-wide total is intentionally unrelated and must not be added.
+        let mut last_event = None;
+        for (index, count) in [45_u64, 60, 45, 300].into_iter().enumerate() {
+            let event = NativeLiveEvent {
+                base: CanonicalLiveEvent::Like(LikeEvent {
+                    user: EventUser { id: 8877123, ..Default::default() },
+                    count,
+                    total: 50_000 + count,
+                }),
+                metadata: EventMetadata {
+                    method: "WebcastLikeMessage".into(),
+                    msg_id: 900_001 + index as u64,
+                    is_history: false,
+                },
+                gift: None,
+            };
+            last_event = Some(event.clone());
+            core.handle_live_event(event).await;
+        }
+
+        let runs = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let runs = core.automation.recent_runs();
+                if runs.len() >= 5 { break runs; }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("native like batches must execute all five configured actions");
+
+        let count_runs = |id: &str| runs.iter()
+            .filter(|run| run["eventId"] == id && run["status"] == "ok" && run["test"] == false)
+            .count();
+        assert_eq!(count_runs("recurring"), 3, "150, 300 and 450 are three milestones");
+        assert_eq!(count_runs("legacy-once"), 1, "old goal fires only at first 150");
+        assert_eq!(count_runs("legacy-count"), 1, "old packet filter still sees count=300");
+
+        // Exact duplicate packets must not trigger already reached milestones.
+        core.handle_live_event(last_event.expect("simulated batch")).await;
+        let stable = core.automation.recent_runs();
+        assert_eq!(stable.len(), 5, "replayed message id must not double-count");
+        core.shutdown().await;
+    }
+
     #[tokio::test]
     async fn deeply_nested_live_gift_reaches_ui_and_original_automation() {
         let core = Arc::new(AppCore::new(Arc::new(Emitter)));
