@@ -1,0 +1,28 @@
+{
+  "templateVersion": 1,
+  "id": "likes-every-150-global",
+  "title": "Cada 150 likes (global)",
+  "description": "Opt-in: corre una vez por cada bloque observado de 150 likes, incluso cuando un batch cruza varios bloques. No modifica templates existentes.",
+  "actions": [
+    {
+      "name": "Verificar objetivo de 150 likes",
+      "typeId": "core.log",
+      "config": {
+        "message": "150 likes acumulados: acción ejecutada"
+      }
+    }
+  ],
+  "event": {
+    "name": "Cada 150 likes",
+    "trigger": "tiktok.like",
+    "cooldownMs": 0,
+    "cooldownScope": "global",
+    "filters": [
+      {
+        "path": "event.data.aggregation.global",
+        "operator": "crosses-multiple",
+        "value": "150"
+      }
+    ]
+  }
+}
