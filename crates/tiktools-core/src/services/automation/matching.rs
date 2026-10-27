@@ -30,10 +30,6 @@ impl AutomationService {
         event_record_matches(record, event)
     }
 
-    pub fn event_record_repeat_count(&self, record: &Value, event: &Value) -> usize {
-        super::filters::event_record_repeat_count(record, event)
-    }
-
     /// Revalidates a previously matched record against live state just
     /// before execution. Records are matched, then queued behind bounded
     /// admission; in between, the operator may disable the record or its

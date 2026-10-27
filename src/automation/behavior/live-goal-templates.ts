@@ -12,19 +12,4 @@ export function liveGoalTemplates(): ConditionTemplate[] {
     ],
   }));
 }
-// Opt-in recurring variants. Do not change the two existing one-shot
-// template IDs or their previous<goal<=total meaning: imported/saved rules
-// must behave exactly as they did before this feature.
-export function recurringLikeGoalTemplates(): ConditionTemplate[] {
-  return ['global', 'user'].map((scope) => ({
-    id: `likes-every-goal-${scope}`,
-    title: { default: `Every X likes (${scope})`, i18key: '' },
-    description: { default: 'Repeats once per crossed X-like milestone, even when multiple milestones arrive in one batch.', i18key: '' },
-    triggers: ['tiktok.like'],
-    params: [{ key: 'goal', label: { default: 'Likes per action', i18key: '' }, kind: 'number', default: '150', min: 1, step: 1 }],
-    rows: [{ path: `event.data.aggregation.${scope}`, operator: 'crosses-multiple', value: { param: 'goal' } }],
-  }));
-}
-export function registerLiveGoalTemplates(): void {
-  registerConditionTemplates([...liveGoalTemplates(), ...recurringLikeGoalTemplates()]);
-}
+export function registerLiveGoalTemplates(): void { registerConditionTemplates(liveGoalTemplates()); }

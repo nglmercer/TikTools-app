@@ -35,7 +35,6 @@ const OPERATORS: &[&str] = &[
     "in",
     "is-true",
     "is-false",
-    "crosses-multiple",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -714,19 +713,6 @@ mod tests {
         assert_eq!(template.event.cooldown_scope, "global");
         assert_eq!(template.event.run_mode, "all");
         assert!(template.event.filters.is_empty());
-    }
-
-    #[test]
-    fn recurring_like_goal_template_accepts_native_periodic_operator() {
-        let mut template = minimal_doc();
-        template["event"]["trigger"] = json!("tiktok.like");
-        template["event"]["filters"] = json!([{
-            "path": "event.data.aggregation.user",
-            "operator": "crosses-multiple",
-            "value": "15"
-        }]);
-        let parsed = parse_rule_template(&template).expect("periodic like goal must import");
-        assert_eq!(parsed.event.filters[0].operator, "crosses-multiple");
     }
 
     #[test]

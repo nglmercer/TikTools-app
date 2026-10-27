@@ -110,20 +110,6 @@ export function fieldsForTrigger(trigger: string): EventFieldDefinition[] {
     else if (field.path.startsWith('event.user.')) identity.push(definition);
     else intel.push(definition);
   }
-  // Counter-transition paths are objects, not scalar registry entries.
-  // Surface the existing native fields specifically for recurring goals,
-  // without modifying the event contract or existing scalar like fields.
-  if (trigger === 'tiktok.like') {
-    for (const scope of ['global', 'user']) {
-      data.push({
-        path: `event.data.aggregation.${scope}`,
-        label: { default: scope === 'global' ? 'Every X likes (all viewers)' : 'Every X likes (viewer)', i18key: '' },
-        hint: { default: 'Repeat for every observed X-like milestone, including multiple goals in one batch.', i18key: '' },
-        kind: 'number',
-        icon: 'hash',
-      });
-    }
-  }
   // Enrichment evidence last: optional fields that only exist while a
   // processor is installed and the event flowed through it.
   return [...data, ...identity, ...intel];
@@ -141,10 +127,6 @@ export function findField(trigger: string, path: string): EventFieldDefinition |
  * the boolean assertions, so an untyped path can still assert truthiness.
  */
 export function operatorsForPath(trigger: string, path: string): FilterOperator[] {
-  if (trigger === 'tiktok.like' &&
-      ['event.data.aggregation.global', 'event.data.aggregation.user'].includes(path)) {
-    return ['crosses-multiple'];
-  }
   const field = findField(trigger, path);
   if (field) return operatorsFor(field.kind);
   return [...operatorsFor('text'), 'is-true', 'is-false'];

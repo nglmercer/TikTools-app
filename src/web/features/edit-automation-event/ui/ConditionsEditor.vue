@@ -219,7 +219,7 @@ onBeforeUnmount(stopRecording);
             v-else
             :model-value="row.filter.value"
             size="sm"
-            :invalid="row.missing || (row.filter.operator === 'crosses-multiple' && (!Number.isSafeInteger(Number(row.filter.value)) || Number(row.filter.value) <= 0)) || (row.kind === 'number' && row.filter.value.trim() !== '' && Number.isNaN(Number(row.filter.value)))"
+            :invalid="row.missing || (row.kind === 'number' && row.filter.value.trim() !== '' && Number.isNaN(Number(row.filter.value)))"
             :aria-label="t('automations.conditions.value')"
             :inputmode="row.kind === 'number' ? 'decimal' : undefined"
             @update:model-value="setValue(row.index, $event)"

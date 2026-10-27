@@ -368,33 +368,37 @@ mod regression_tests {
         });
         core.automation.replace_snapshot(&json!({
             "actions": [
-                {"id": "log-recurring", "name": "Recurring", "enabled": true,
-                 "typeId": "core.log", "config": {"message": "every 150 likes"}},
-                {"id": "log-once", "name": "Once", "enabled": true,
-                 "typeId": "core.log", "config": {"message": "first 150 likes"}},
-                {"id": "log-old", "name": "Old packet", "enabled": true,
-                 "typeId": "core.log", "config": {"message": "large like batch"}}
+                {"id": "log-global", "name": "Global goal", "enabled": true,
+                 "typeId": "core.log", "config": {"message": "150 observed room likes"}},
+                {"id": "log-user", "name": "Viewer goal", "enabled": true,
+                 "typeId": "core.log", "config": {"message": "150 observed viewer likes"}},
+                {"id": "log-packet", "name": "Legacy packet", "enabled": true,
+                 "typeId": "core.log", "config": {"message": "one batch of 150+ likes"}}
             ],
             "events": [
-                {"id": "recurring", "name": "Every 150", "enabled": true,
-                 "trigger": "tiktok.like", "cooldownMs": 0, "actionIds": ["log-recurring"],
-                 "filters": [{"path": "event.data.aggregation.global",
-                              "operator": "crosses-multiple", "value": "150"}]},
-                {"id": "legacy-once", "name": "First 150", "enabled": true,
-                 "trigger": "tiktok.like", "cooldownMs": 0, "actionIds": ["log-once"],
+                {"id": "goal-global", "name": "First 150 global", "enabled": true,
+                 "trigger": "tiktok.like", "cooldownMs": 0, "actionIds": ["log-global"],
                  "filters": [
                     {"path": "event.data.aggregation.global.previous", "operator": "lt", "value": "150"},
                     {"path": "event.data.aggregation.global.total", "operator": "gte", "value": "150"}
                  ]},
-                {"id": "legacy-count", "name": "Packet count", "enabled": true,
-                 "trigger": "tiktok.like", "cooldownMs": 0, "actionIds": ["log-old"],
-                 "filters": [{"path": "event.data.count", "operator": "gte", "value": "150"}]}
+                {"id": "goal-user", "name": "First 150 viewer", "enabled": true,
+                 "trigger": "tiktok.like", "cooldownMs": 0, "actionIds": ["log-user"],
+                 "filters": [
+                    {"path": "event.data.aggregation.user.previous", "operator": "lt", "value": "150"},
+                    {"path": "event.data.aggregation.user.total", "operator": "gte", "value": "150"}
+                 ]},
+                {"id": "legacy-count", "name": "Original packet count", "enabled": true,
+                 "trigger": "tiktok.like", "cooldownMs": 0, "actionIds": ["log-packet"],
+                 "filters": [
+                    {"path": "event.data.count", "operator": "gte", "value": "150"}
+                 ]}
             ]
         }));
 
-        // 45+60+45=150: exactly one milestone. The next batch of 300
-        // crosses 300 and 450 at once and must execute TWO actions.
-        // Room-wide total is intentionally unrelated and must not be added.
+        // TikTok deltas: 45 + 60 + 45 reaches the first 150-like
+        // milestone; a later batch of 300 must not refire one-shot
+        // goals. TikTok's independent room snapshot is not summed.
         let mut last_event = None;
         for (index, count) in [45_u64, 60, 45, 300].into_iter().enumerate() {
             let event = NativeLiveEvent {
@@ -420,14 +424,14 @@ mod regression_tests {
         let runs = tokio::time::timeout(std::time::Duration::from_secs(5), async {
             loop {
                 let runs = core.automation.recent_runs();
-                if runs.len() >= 5 {
+                if runs.len() >= 3 {
                     break runs;
                 }
                 tokio::task::yield_now().await;
             }
         })
         .await
-        .expect("native like batches must execute all five configured actions");
+        .expect("native like batches must execute the three legacy actions");
 
         let count_runs = |id: &str| {
             runs.iter()
@@ -435,26 +439,26 @@ mod regression_tests {
                 .count()
         };
         assert_eq!(
-            count_runs("recurring"),
-            3,
-            "150, 300 and 450 are three milestones"
+            count_runs("goal-global"),
+            1,
+            "global 150-like goal runs once when accumulated likes reach 150"
         );
         assert_eq!(
-            count_runs("legacy-once"),
+            count_runs("goal-user"),
             1,
-            "old goal fires only at first 150"
+            "per-viewer 150-like goal runs once when this viewer reaches 150"
         );
         assert_eq!(
             count_runs("legacy-count"),
             1,
-            "old packet filter still sees count=300"
+            "legacy count >= 150 filter runs for the final 300-like batch"
         );
 
-        // Exact duplicate packets must not trigger already reached milestones.
+        // Replaying the same TikTok packet never double-counts.
         core.handle_live_event(last_event.expect("simulated batch"))
             .await;
         let stable = core.automation.recent_runs();
-        assert_eq!(stable.len(), 5, "replayed message id must not double-count");
+        assert_eq!(stable.len(), 3, "replayed message id must not double-count");
         core.shutdown().await;
     }
 

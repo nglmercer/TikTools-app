@@ -320,27 +320,21 @@ impl AppCore {
     /// distinguishable from plugin failures.
     async fn run_matched_records(self: &Arc<Self>, records: Vec<Value>, event: &Value) {
         for record in records {
-            // Existing rules run once per matched packet. Only explicit
-            // crosses-multiple filters opt into one execution per milestone.
-            let repeats = self.automation.event_record_repeat_count(&record, event);
-            if repeats == 0 || !self.automation.claim_event(&record, event, now_millis()) {
+            if !self.automation.claim_event(&record, event, now_millis()) {
                 continue;
             }
-            let actions = self.automation.actions_for_event(&record);
-            for _ in 0..repeats {
-                for action in &actions {
-                    let run = self
-                        .execute_action(action, event, Some(&record), false)
-                        .await;
-                    if run.get("status").and_then(Value::as_str) == Some("ok") {
-                        self.automation_state
-                            .actions_ok
-                            .fetch_add(1, Ordering::Relaxed);
-                    } else {
-                        self.automation_state
-                            .actions_failed
-                            .fetch_add(1, Ordering::Relaxed);
-                    }
+            for action in self.automation.actions_for_event(&record) {
+                let run = self
+                    .execute_action(&action, event, Some(&record), false)
+                    .await;
+                if run.get("status").and_then(Value::as_str) == Some("ok") {
+                    self.automation_state
+                        .actions_ok
+                        .fetch_add(1, Ordering::Relaxed);
+                } else {
+                    self.automation_state
+                        .actions_failed
+                        .fetch_add(1, Ordering::Relaxed);
                 }
             }
         }
