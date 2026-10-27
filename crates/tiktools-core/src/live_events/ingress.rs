@@ -457,7 +457,9 @@ async fn admit_full(
         if let ClientEvent::Event(data) = &item.event {
             if let tiktools_tiktok::events::CanonicalLiveEvent::Like(like) = &data.base {
                 stats.dropped_like_batches.fetch_add(1, Ordering::Relaxed);
-                stats.dropped_like_units.fetch_add(like.count, Ordering::Relaxed);
+                stats
+                    .dropped_like_units
+                    .fetch_add(like.count, Ordering::Relaxed);
                 // Like goals can no longer claim an exact observed count:
                 // distinguish this gap from a rule whose filter did not match.
                 core.record_event_gap();
@@ -861,8 +863,16 @@ mod tests {
             )),
         )
         .await;
-        assert_eq!(core.live_ingress.dropped_like_batches.load(Ordering::Relaxed), 1);
-        assert_eq!(core.live_ingress.dropped_like_units.load(Ordering::Relaxed), 15);
+        assert_eq!(
+            core.live_ingress
+                .dropped_like_batches
+                .load(Ordering::Relaxed),
+            1
+        );
+        assert_eq!(
+            core.live_ingress.dropped_like_units.load(Ordering::Relaxed),
+            15
+        );
         assert_eq!(core.event_gap_stats().0, like_gaps_before + 1);
         assert_eq!(core.live_ingress.diagnostics()["droppedLikeUnits"], 15);
         // Critical data on a full queue applies bounded backpressure and,
