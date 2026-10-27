@@ -11,6 +11,22 @@ export function matchesFilter(filter: EventFilter, event: AutomationEvent): bool
   const numeric = Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && filter.value.trim() !== '';
 
   switch (filter.operator) {
+    case 'crosses-multiple': {
+      // An explicit opt-in for recurring milestones on observed counter
+      // transitions, never on the TikTok room-wide total snapshot.
+      if (event.type !== 'tiktok.like' ||
+          !['event.data.aggregation.global', 'event.data.aggregation.user'].includes(filter.path) ||
+          !/^[1-9][0-9]*$/.test(filter.value)) return false;
+      const step = Number(filter.value);
+      if (!Number.isSafeInteger(step) || !raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+      const transition = raw as Record<string, unknown>;
+      const previous = transition.previous;
+      const total = transition.total;
+      return typeof previous === 'number' && typeof total === 'number' &&
+        Number.isSafeInteger(previous) && Number.isSafeInteger(total) &&
+        previous >= 0 && total > previous &&
+        Math.floor(total / step) > Math.floor(previous / step);
+    }
     case 'gte': return numeric && leftNumber >= rightNumber;
     case 'gt': return numeric && leftNumber > rightNumber;
     case 'lte': return numeric && leftNumber <= rightNumber;
