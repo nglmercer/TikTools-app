@@ -289,7 +289,7 @@ export default {
       giftSent: 'sent {count}× {giftName}',
       likeSentOne: 'sent {count} like',
       likeSentMany: 'sent {count} likes',
-      likeSentTotal: 'has sent {count} likes this LIVE',
+      likeSentTotal: 'sent {count} likes',
       joined: 'joined the LIVE',
       followed: 'followed the creator',
       shared: 'shared the LIVE',
