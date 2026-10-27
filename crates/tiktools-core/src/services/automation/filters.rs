@@ -70,7 +70,6 @@ fn matches_filter(filter: &Value, event: &Value) -> bool {
     }
 }
 
-
 /**
  * New opt-in recurring likes policy. Existing filters never become recurring.
  * A packet may cross multiple milestones; the caller executes actions that
@@ -82,7 +81,10 @@ fn periodic_like_crossings(filter: &Value, event: &Value) -> usize {
     if event.get("type").and_then(Value::as_str) != Some("tiktok.like") {
         return 0;
     }
-    let scope = filter.get("path").and_then(Value::as_str).unwrap_or_default();
+    let scope = filter
+        .get("path")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     if scope != "event.data.aggregation.global" && scope != "event.data.aggregation.user" {
         return 0;
     }
@@ -94,11 +96,15 @@ fn periodic_like_crossings(filter: &Value, event: &Value) -> usize {
     else {
         return 0;
     };
-    let Some(raw) = read_event_path(event, scope) else { return 0 };
+    let Some(raw) = read_event_path(event, scope) else {
+        return 0;
+    };
     let (Some(previous), Some(total)) = (
         raw.get("previous").and_then(Value::as_u64),
         raw.get("total").and_then(Value::as_u64),
-    ) else { return 0 };
+    ) else {
+        return 0;
+    };
     if total <= previous {
         return 0;
     }
@@ -205,7 +211,13 @@ mod like_goal_tests {
         assert!(matches(29, 30, "15"));
         assert!(matches(30, 45, "15"));
         assert!(matches(0, 45, "15"));
-        assert_eq!(periodic_like_crossings(&json!({"path": "event.data.aggregation.global", "value": "15"}), &json!({"type": "tiktok.like", "data": {"aggregation": {"global": {"previous": 0, "total": 45}}}})), 3);
+        assert_eq!(
+            periodic_like_crossings(
+                &json!({"path": "event.data.aggregation.global", "value": "15"}),
+                &json!({"type": "tiktok.like", "data": {"aggregation": {"global": {"previous": 0, "total": 45}}}})
+            ),
+            3
+        );
         assert!(!matches(45, 30, "15"));
     }
 
@@ -220,18 +232,25 @@ mod like_goal_tests {
             {"path": "event.data.aggregation.global.previous", "operator": "lt", "value": "150"},
             {"path": "event.data.aggregation.global.total", "operator": "gte", "value": "150"}
         ]});
-        let batch = |previous: u64, total: u64| json!({
-            "type": "tiktok.like",
-            "data": {"aggregation": {"global": {"previous": previous, "total": total}}}
-        });
+        let batch = |previous: u64, total: u64| {
+            json!({
+                "type": "tiktok.like",
+                "data": {"aggregation": {"global": {"previous": previous, "total": total}}}
+            })
+        };
         assert_eq!(event_record_repeat_count(&recurring, &batch(0, 149)), 0);
         assert_eq!(event_record_repeat_count(&recurring, &batch(0, 150)), 1);
         assert_eq!(event_record_repeat_count(&recurring, &batch(150, 450)), 2);
         assert_eq!(event_record_repeat_count(&legacy, &batch(0, 450)), 1);
         assert_eq!(event_record_repeat_count(&legacy, &batch(150, 450)), 0);
-        assert_eq!(event_record_repeat_count(&recurring, &batch(0, 150 * 1000)),
-                   MAX_LIKE_ACTION_REPEATS_PER_PACKET);
-        assert_eq!(event_record_repeat_count(&json!({"filters": []}), &batch(0, 150)), 1);
+        assert_eq!(
+            event_record_repeat_count(&recurring, &batch(0, 150 * 1000)),
+            MAX_LIKE_ACTION_REPEATS_PER_PACKET
+        );
+        assert_eq!(
+            event_record_repeat_count(&json!({"filters": []}), &batch(0, 150)),
+            1
+        );
     }
 
     #[test]
@@ -244,12 +263,18 @@ mod like_goal_tests {
             "operator": "crosses-multiple",
             "value": "15"
         }]});
-        assert!(!event_record_matches(&record, &json!({
-            "type": "tiktok.like", "data": {"count": 15, "aggregation": {"user": null}}
-        })));
-        assert!(event_record_matches(&record, &json!({
-            "type": "tiktok.like", "data": {"count": 30,
-                "aggregation": {"user": {"previous": 12, "total": 42}}}
-        })));
+        assert!(!event_record_matches(
+            &record,
+            &json!({
+                "type": "tiktok.like", "data": {"count": 15, "aggregation": {"user": null}}
+            })
+        ));
+        assert!(event_record_matches(
+            &record,
+            &json!({
+                "type": "tiktok.like", "data": {"count": 30,
+                    "aggregation": {"user": {"previous": 12, "total": 42}}}
+            })
+        ));
     }
 }
