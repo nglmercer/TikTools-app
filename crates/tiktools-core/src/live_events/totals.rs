@@ -280,6 +280,78 @@ mod like_tests {
     }
 
     #[test]
+    fn like_leaderboard_ranks_only_observed_packet_deltas_per_room() {
+        let totals = LiveTotals::default();
+        let room_a = LiveContext {
+            unique_id: "creator".into(),
+            room_id: "room-a".into(),
+            connection_id: "session-a".into(),
+        };
+        let room_b = LiveContext {
+            unique_id: "creator".into(),
+            room_id: "room-b".into(),
+            connection_id: "session-b".into(),
+        };
+        let mut event = NativeLiveEvent {
+            base: CanonicalLiveEvent::Like(LikeEvent {
+                user: EventUser {
+                    id: 1,
+                    unique_id: "alice".into(),
+                    nickname: "Alice".into(),
+                    ..Default::default()
+                },
+                count: 15,
+                total: 50_000,
+            }),
+            metadata: EventMetadata {
+                method: "WebcastLikeMessage".into(),
+                msg_id: 41,
+                is_history: false,
+            },
+            gift: None,
+        };
+        totals.observe(&event, Some(&room_a));
+        if let CanonicalLiveEvent::Like(like) = &mut event.base {
+            like.count = 10;
+            like.total = 60_000;
+            like.user.id = 2;
+            like.user.unique_id = "bob".into();
+            like.user.nickname = "Bob".into();
+        }
+        totals.observe(&event, Some(&room_a));
+        if let CanonicalLiveEvent::Like(like) = &mut event.base {
+            like.count = 20;
+            like.user.id = 2;
+        }
+        totals.observe(&event, Some(&room_a));
+
+        let leaders = totals.like_leaderboard(&room_a);
+        assert_eq!(leaders.len(), 2);
+        assert_eq!(leaders[0]["rank"], 1);
+        assert_eq!(leaders[0]["uniqueId"], "bob");
+        assert_eq!(leaders[0]["score"], 30);
+        assert_eq!(leaders[1]["rank"], 2);
+        assert_eq!(leaders[1]["uniqueId"], "alice");
+        assert_eq!(leaders[1]["score"], 15);
+        assert!(totals.like_leaderboard(&room_b).is_empty());
+
+        // Same viewer can independently rank within another room.
+        totals.observe(&event, Some(&room_b));
+        let other = totals.like_leaderboard(&room_b);
+        assert_eq!(other.len(), 1);
+        assert_eq!(other[0]["score"], 20);
+
+        // A missing stable identity must never enter the ranked leaderboard.
+        if let CanonicalLiveEvent::Like(like) = &mut event.base {
+            like.user.id = 0;
+            like.user.unique_id.clear();
+            like.count = 9;
+        }
+        totals.observe(&event, Some(&room_a));
+        assert_eq!(totals.like_leaderboard(&room_a).len(), 2);
+    }
+
+    #[test]
     fn repeated_packets_accumulate_global_and_user_scopes_without_nickname_identity() {
         let totals = LiveTotals::default();
         let mut event = NativeLiveEvent {
