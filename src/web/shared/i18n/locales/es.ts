@@ -291,7 +291,7 @@ export default {
       giftSent: 'envió {count}× {giftName}',
       likeSentOne: 'envió {count} me gusta',
       likeSentMany: 'envió {count} me gusta',
-      likeSentTotal: 'ha enviado {count} me gusta en este LIVE',
+      likeSentTotal: 'envió {count} me gusta',
       joined: 'se unió al LIVE',
       followed: 'siguió al creador',
       shared: 'compartió el LIVE',
