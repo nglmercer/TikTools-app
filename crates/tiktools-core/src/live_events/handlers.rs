@@ -266,16 +266,27 @@ impl AppCore {
             tracing::debug!(method = event.method(), msg_id = %event.msg_id(), correlation_id = %correlation, "publishing LIVE UI event");
             self.events
                 .publish_domain(crate::events::DomainEvent::LiveUiEvent { event: ui });
-            if matches!(
-                &event.base,
-                tiktools_tiktok::events::CanonicalLiveEvent::Like(_)
-            ) {
-                if let Some(context) = context.as_ref() {
+            if let tiktools_tiktok::events::CanonicalLiveEvent::Like(like) = &event.base
+                && like.count > 0
+                && let Some(context) = context.as_ref()
+            {
+                let leaders = self.live_totals.like_leaderboard(context);
+                let user_key = if like.user.id != 0 {
+                    like.user.id.to_string()
+                } else {
+                    like.user.unique_id.clone()
+                };
+                // When a viewer is outside the top ten, their packet
+                // changes no visible ranking: avoid another broadcast.
+                if leaders
+                    .iter()
+                    .any(|leader| leader["userId"].as_str() == Some(user_key.as_str()))
+                {
                     self.events
                         .publish_domain(crate::events::DomainEvent::LiveLikesRanking {
                             creator_id: context.unique_id.clone(),
                             room_id: context.room_id.clone(),
-                            leaders: self.live_totals.like_leaderboard(context),
+                            leaders,
                         });
                 }
             }
