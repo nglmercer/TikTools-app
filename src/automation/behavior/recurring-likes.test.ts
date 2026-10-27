@@ -37,7 +37,7 @@ describe('backwards-compatible like goal templates', () => {
 
   test('offers a new opt-in recurring 150-like goal and preserves it on edit', () => {
     const recurring = recurringLikeGoalTemplates()[0]!;
-    const [filter] = applyConditionTemplate(recurring, { goal: '150' });
+    const filter = applyConditionTemplate(recurring, { goal: '150' })[0]!;
     expect(filter).toEqual({
       path: 'event.data.aggregation.global',
       operator: 'crosses-multiple',
