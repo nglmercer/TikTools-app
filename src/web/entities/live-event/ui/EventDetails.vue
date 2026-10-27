@@ -34,7 +34,12 @@ const rows = computed(() => {
     if (event.giftDetails?.name) entries.push(['giftName', event.giftDetails.name]);
     entries.push(['giftCount', value(event.giftDetails?.count)], ['giftDiamonds', value(event.giftDetails?.diamonds)]);
   }
-  if (event.kind === 'like') entries.push(['likeCount', value(event.likeCount)]);
+  if (event.kind === 'like') {
+    entries.push(['likeCount', value(event.likeCount)]);
+    if (event.likeUserTotal !== undefined) {
+      entries.push(['likeUserTotal', value(event.likeUserTotal)]);
+    }
+  }
   if (typeof event.level === 'number') entries.push(['level', value(event.level)]);
   entries.push([
     'points',
