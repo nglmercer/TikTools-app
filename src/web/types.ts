@@ -1,5 +1,6 @@
 import type {
   CreatorRecord,
+  LikeLeaderPayload,
   PointsConfig,
   TopViewerPayload,
   UiEvent,
@@ -78,4 +79,4 @@ export type PluginSettingsState = {
   values: JsonObject;
 };
 
-export type { CreatorRecord, PointsConfig, TopViewerPayload, ViewerRecord };
+export type { CreatorRecord, LikeLeaderPayload, PointsConfig, TopViewerPayload, ViewerRecord };
