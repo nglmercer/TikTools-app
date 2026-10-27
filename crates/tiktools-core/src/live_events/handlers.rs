@@ -219,6 +219,21 @@ impl AppCore {
             self.ui_event_and_points(&event)
         {
             ui["correlationId"] = json!(correlation);
+            // Presentation-only snapshot: automation and points still consume
+            // the original LikeEvent.count for every admitted packet.
+            if let tiktools_tiktok::events::CanonicalLiveEvent::Like(like) = &event.base {
+                if let Some(total) = totals["user"]["total"].as_u64() {
+                    ui["likeUserTotal"] = json!(total);
+                    let identity = if like.user.id != 0 {
+                        Some(like.user.id.to_string())
+                    } else {
+                        clean_unique_id(&like.user.unique_id)
+                    };
+                    if let Some(identity) = identity {
+                        ui["likeViewerKey"] = json!(identity);
+                    }
+                }
+            }
             let author = ui["author"].as_str().unwrap_or("viewer").to_owned();
             let should_award = match &event.base {
                 tiktools_tiktok::events::CanonicalLiveEvent::EmoteChat(_) => false,
