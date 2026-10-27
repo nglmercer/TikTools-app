@@ -31,9 +31,11 @@ Received deltas: `45, 60, 45, 300`. Observed totals: `45, 105, 150, 450`.
 
 The Rust `e2e_batched_likes_trigger_saved_150_goals_without_breaking_old_templates` test sends synthetic native `LikeEvent`s through the production deduplication, observation, normalization and automation dispatch code, asserting real (non-dry-run) `core.log` action history. The TS `recurring-likes.test.ts` test verifies existing templates, the optional new condition, editor normalization and web template parsing.
 
+The E2E regression requires the optional `native-tiktok` Cargo feature. Without it, Cargo reports `0 passed` because the test module is behind `#[cfg(feature = "native-tiktok")]`; a zero-test success is **not** validation. CI now checks that the native test is registered and executes it explicitly.
+
 Run:
 ```sh
-cargo test -p tiktools-core --locked e2e_batched_likes_trigger_saved_150_goals_without_breaking_old_templates
+cargo test -p tiktools-core --locked --features native-tiktok --lib e2e_batched_likes_trigger_saved_150_goals_without_breaking_old_templates -- --nocapture
 cargo test -p tiktools-core --locked like_goal_tests
 bun test src/automation/behavior/recurring-likes.test.ts
 bun run typecheck
