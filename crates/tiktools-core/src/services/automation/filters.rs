@@ -28,21 +28,7 @@ fn matches_filter(filter: &Value, event: &Value) -> bool {
         .and_then(Value::as_str)
         .unwrap_or("eq")
     {
-        // Periodic goals use a COUNTER TRANSITION, never one raw batch count.
-        // Division avoids modulo-on-total: 14 -> 16 must cross the 15 goal.
-        // This matches once per incoming packet even if it crosses several
-        // milestones; the automation engine executes one action set per packet.
-        "crosses-multiple" => {
-            let Some(step) = right.parse::<u64>().ok().filter(|step| *step > 0) else {
-                return false;
-            };
-            let Some((previous, total)) = raw.and_then(|value| {
-                Some((value.get("previous")?.as_u64()?, value.get("total")?.as_u64()?))
-            }) else {
-                return false;
-            };
-            total > previous && total / step > previous / step
-        },
+        "crosses-multiple" => periodic_like_crossings(filter, event) > 0,
         "gte" => numeric && left_number >= right_number,
         "gt" => numeric && left_number > right_number,
         "lte" => numeric && left_number <= right_number,
@@ -82,6 +68,72 @@ fn matches_filter(filter: &Value, event: &Value) -> bool {
         }
         _ => false,
     }
+}
+
+
+/**
+ * New opt-in recurring likes policy. Existing filters never become recurring.
+ * A packet may cross multiple milestones; the caller executes actions that
+ * many times, within an explicit per-packet safety limit.
+ */
+pub(crate) const MAX_LIKE_ACTION_REPEATS_PER_PACKET: usize = 64;
+
+fn periodic_like_crossings(filter: &Value, event: &Value) -> usize {
+    if event.get("type").and_then(Value::as_str) != Some("tiktok.like") {
+        return 0;
+    }
+    let scope = filter.get("path").and_then(Value::as_str).unwrap_or_default();
+    if scope != "event.data.aggregation.global" && scope != "event.data.aggregation.user" {
+        return 0;
+    }
+    let Some(step) = filter
+        .get("value")
+        .and_then(Value::as_str)
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|value| *value > 0)
+    else {
+        return 0;
+    };
+    let Some(raw) = read_event_path(event, scope) else { return 0 };
+    let (Some(previous), Some(total)) = (
+        raw.get("previous").and_then(Value::as_u64),
+        raw.get("total").and_then(Value::as_u64),
+    ) else { return 0 };
+    if total <= previous {
+        return 0;
+    }
+    let crossed = total / step - previous / step;
+    if crossed > MAX_LIKE_ACTION_REPEATS_PER_PACKET as u64 {
+        tracing::warn!(
+            crossed,
+            cap = MAX_LIKE_ACTION_REPEATS_PER_PACKET,
+            "like milestone batch exceeded safe action execution budget"
+        );
+    }
+    crossed.min(MAX_LIKE_ACTION_REPEATS_PER_PACKET as u64) as usize
+}
+
+/// Execute once for old configurations; only an explicit recurring filter
+/// changes the number of executions. All filters must pass before dispatch.
+/// If more than one periodic filter exists, use the smaller crossing count.
+pub(crate) fn event_record_repeat_count(record: &Value, event: &Value) -> usize {
+    if !event_record_matches(record, event) {
+        return 0;
+    }
+    record
+        .get("filters")
+        .and_then(Value::as_array)
+        .map(|filters| {
+            filters
+                .iter()
+                .filter(|filter| {
+                    filter.get("operator").and_then(Value::as_str) == Some("crosses-multiple")
+                })
+                .map(|filter| periodic_like_crossings(filter, event))
+                .min()
+                .unwrap_or(1)
+        })
+        .unwrap_or(1)
 }
 
 /// Reads one `event.*` path with the shared filter/template path language
@@ -153,6 +205,7 @@ mod like_goal_tests {
         assert!(matches(29, 30, "15"));
         assert!(matches(30, 45, "15"));
         assert!(matches(0, 45, "15"));
+        assert_eq!(periodic_like_crossings(&json!({"path": "event.data.aggregation.global", "value": "15"}), &json!({"type": "tiktok.like", "data": {"aggregation": {"global": {"previous": 0, "total": 45}}}})), 3);
         assert!(!matches(45, 30, "15"));
     }
 
