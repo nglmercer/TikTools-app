@@ -101,40 +101,40 @@ impl LiveTotals {
                 // Update only ten candidates (O(10), not a scan of every
                 // viewer) on every accepted packet. No ranking is inferred
                 // from the room-wide TikTok total or nicknames.
-                if like.count > 0 {
-                    if let Some(total) = totals.get(1).and_then(|value| value["total"].as_u64()) {
-                        let user_key = if like.user.id != 0 {
-                            like.user.id.to_string()
-                        } else {
-                            like.user.unique_id.clone()
-                        };
-                        if !user_key.is_empty() {
-                            let leaders = state.like_leaders.entry((creator, room)).or_default();
-                            let unique_id = clean_unique_id(&like.user.unique_id)
-                                .unwrap_or_else(|| user_key.clone());
-                            if let Some(leader) =
-                                leaders.iter_mut().find(|leader| leader.user_key == user_key)
-                            {
-                                leader.score = total;
-                                leader.unique_id = unique_id;
-                                leader.nickname = like.user.nickname.clone();
-                                leader.avatar_url = like.user.avatar_url.clone();
-                            } else if leaders.len() < LIKE_LEADERBOARD_LIMIT
-                                || leaders.last().is_some_and(|last| total > last.score)
-                            {
-                                leaders.push(LikeLeader {
-                                    user_key,
-                                    unique_id,
-                                    nickname: like.user.nickname.clone(),
-                                    avatar_url: like.user.avatar_url.clone(),
-                                    score: total,
-                                });
-                            }
-                            leaders.sort_unstable_by(|a, b| {
-                                b.score.cmp(&a.score).then_with(|| a.user_key.cmp(&b.user_key))
+                if like.count > 0
+                    && let Some(total) = totals.get(1).and_then(|value| value["total"].as_u64())
+                {
+                    let user_key = if like.user.id != 0 {
+                        like.user.id.to_string()
+                    } else {
+                        like.user.unique_id.clone()
+                    };
+                    if !user_key.is_empty() {
+                        let leaders = state.like_leaders.entry((creator, room)).or_default();
+                        let unique_id = clean_unique_id(&like.user.unique_id)
+                            .unwrap_or_else(|| user_key.clone());
+                        if let Some(leader) =
+                            leaders.iter_mut().find(|leader| leader.user_key == user_key)
+                        {
+                            leader.score = total;
+                            leader.unique_id = unique_id;
+                            leader.nickname = like.user.nickname.clone();
+                            leader.avatar_url = like.user.avatar_url.clone();
+                        } else if leaders.len() < LIKE_LEADERBOARD_LIMIT
+                            || leaders.last().is_some_and(|last| total > last.score)
+                        {
+                            leaders.push(LikeLeader {
+                                user_key,
+                                unique_id,
+                                nickname: like.user.nickname.clone(),
+                                avatar_url: like.user.avatar_url.clone(),
+                                score: total,
                             });
-                            leaders.truncate(LIKE_LEADERBOARD_LIMIT);
                         }
+                        leaders.sort_unstable_by(|a, b| {
+                            b.score.cmp(&a.score).then_with(|| a.user_key.cmp(&b.user_key))
+                        });
+                        leaders.truncate(LIKE_LEADERBOARD_LIMIT);
                     }
                 }
                 json!({"global": totals[0], "user": totals.get(1)})
