@@ -26,6 +26,7 @@ export const OPERATOR_CODE: Record<FilterOperator, string> = {
   'starts-with': '^=',
   'is-true': '= true',
   'is-false': '= false',
+  'crosses-multiple': '× N',
 };
 
 function language(locale: string): Language {
@@ -86,7 +87,7 @@ export function newFilter(trigger: string): EventFilter {
 
 export function withField(trigger: string, filter: EventFilter, path: string | null): EventFilter {
   if (path === null) return { path: '', operator: 'eq', value: '', values: undefined };
-  const operators = operatorsFor(fieldKind(trigger, path));
+  const operators = operatorsForPath(trigger, path);
   const operator = operators.includes(filter.operator) ? filter.operator : operators[0]!;
   return {
     path,
