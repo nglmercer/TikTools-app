@@ -22,7 +22,7 @@ const MAX_ACTIONS = 8;
 const MAX_FILTERS = 12;
 
 const OPERATORS: readonly FilterOperator[] = [
-  'gte', 'gt', 'lte', 'lt', 'eq', 'neq', 'contains', 'starts-with', 'in', 'is-true', 'is-false',
+  'gte', 'gt', 'lte', 'lt', 'eq', 'neq', 'contains', 'starts-with', 'in', 'is-true', 'is-false', 'crosses-multiple',
 ];
 
 const PARAMS_PATTERN = /\{\{\s*params\.([a-zA-Z0-9_.]+)\s*\}\}/g;
