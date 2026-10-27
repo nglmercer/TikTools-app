@@ -68,3 +68,34 @@ the untouched packet sizes `45, 60, 45, 300`.
 ```sh
 bun test src/web/entities/live-event/model/live-feed-state.test.ts src/web/entities/live-event/lib/event-text.test.ts
 ```
+
+
+## Live likes leaderboard
+
+The core maintains a separate, bounded **top-ten likes** ranking for each
+creator and room. Only admitted `LikeEvent.count` increments contribute,
+including multiple packets from the same stable viewer identity. TikTok's
+room-wide `LikeEvent.total` is never added as a delta. Duplicate replay
+is rejected before tallying.
+
+- New lossy domain topic: `live.likes-ranking`, carrying `creatorId`,
+  `roomId`, and a sorted `leaders` array with `rank`, `score`,
+  `uniqueId`, `nickname`, `userId`, and optional `avatarUrl`.
+- A snapshot is published on room connection/reconnection and when a
+  viewer inside the top ten changes score. This is independent of UI
+  rendering, points, and existing automation templates.
+- The `Espectadores` panel supports **General / Me gusta**; the latter
+  displays the core ranking and can open a viewer profile.
+- Counts are observed **per live room**, not an all-time account tally.
+  Rankings do not mix different creators or rooms.
+- The feed text uses short copy (`envió 35 me gusta`), but preserves
+  the last packet count separately in the event inspector.
+
+Regression tests are in `live_events/totals.rs`,
+`live_events/mapping.rs`, `live-feed-state.test.ts`, and
+`FeedPage.test.ts`.
+
+```sh
+cargo test -p tiktools-core --locked --features native-tiktok --lib like_leaderboard_ranks_only_observed_packet_deltas_per_room
+bun test src/web/entities/live-event/model/live-feed-state.test.ts src/web/pages/feed/ui/FeedPage.test.ts
+```
