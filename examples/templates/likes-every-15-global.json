@@ -2,7 +2,7 @@
   "templateVersion": 1,
   "id": "likes-every-15-global",
   "title": "Every 15 observed likes (global)",
-  "description": "Runs once per incoming like batch that crosses a new multiple of 15; unlike the one-shot 15-like goal, this can fire again at 30, 45, 60, etc.",
+  "description": "Runs once per crossed 15-like milestone, including multiple executions if one TikTok like batch crosses several multiples; existing one-shot templates stay unchanged.",
   "actions": [
     {
       "name": "Log recurring like milestone",
