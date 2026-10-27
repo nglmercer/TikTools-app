@@ -589,6 +589,7 @@ export default {
       'starts-with': 'empieza por',
       'is-true': 'es verdadero',
       'is-false': 'es falso',
+      'crosses-multiple': 'cada múltiplo de',
     },
     triggers: {
       'tiktok-chat': 'Alguien comenta',
