@@ -238,6 +238,16 @@ export type GiftCatalogEntry = {
   iconUrl?: string;
 };
 
+/** Core-owned ranking of observed likes in one live room (not points). */
+export type LikeLeaderPayload = {
+  rank: number;
+  score: number;
+  uniqueId: string;
+  nickname: string;
+  avatarUrl?: string;
+  userId: string;
+};
+
 export type TopViewerPayload = {
   rank: number;
   score: number;
