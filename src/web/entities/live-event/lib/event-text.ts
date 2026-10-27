@@ -13,6 +13,12 @@ export function eventText(event: DisplayEvent, t: Translate): string {
         diamonds: params.diamonds ?? event.giftDetails?.diamonds ?? 1,
       });
     case 'likeSent': {
+      // The backend counter describes likes observed from this viewer during
+      // this LIVE, not the incoming packet's (unchanged) likeCount.
+      const total = event.likeUserTotal;
+      if (typeof total === 'number' && Number.isSafeInteger(total) && total > 0) {
+        return t('feed.events.likeSentTotal', { count: total });
+      }
       const count = Number(params.count ?? event.likeCount ?? 1);
       return t(count === 1 ? 'feed.events.likeSentOne' : 'feed.events.likeSentMany', { count });
     }
