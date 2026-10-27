@@ -164,6 +164,62 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     return false;
   };
 
+  // A like is not a TikTok gift combo. Only coalesce its visual rows when
+  // the backend supplies a reliable per-viewer total and stable viewer key.
+  // The feed journal, automation rules, points and analytics retain each packet.
+  const LIKE_BURST_WINDOW_MS = 3_000;
+  const likeGroupKey = (event: UiEvent): string | null => {
+    if (event.kind !== 'like' || !event.likeViewerKey ||
+        !Number.isSafeInteger(event.likeUserTotal) || (event.likeUserTotal ?? 0) <= 0) return null;
+    return JSON.stringify([
+      event.creatorId ?? sessionCreator,
+      event.roomId ?? sessionRoom,
+      event.likeViewerKey,
+    ]);
+  };
+
+  const tryMergeLikeBurst = (event: UiEvent, cursor?: number): boolean => {
+    const key = likeGroupKey(event);
+    if (key === null) return false;
+    const now = Date.now();
+    const canMerge = (candidate: DisplayEvent): boolean => {
+      const elapsed = now - candidate.receivedAt;
+      return likeGroupKey(candidate) === key &&
+        elapsed >= 0 && elapsed <= LIKE_BURST_WINDOW_MS &&
+        candidate.likeUserTotal !== undefined &&
+        event.likeUserTotal! > candidate.likeUserTotal;
+    };
+    const updatedRow = (candidate: DisplayEvent): DisplayEvent => ({
+      ...candidate,
+      ...event,
+      id: candidate.id,
+      feedCursor: cursor ?? event.feedCursor ?? candidate.feedCursor,
+      receivedAt: now,
+    });
+
+    for (let i = staged.length - 1; i >= 0; i -= 1) {
+      const candidate = staged[i]!;
+      if (!canMerge(candidate)) continue;
+      staged.splice(i, 1);
+      staged.push(updatedRow(candidate));
+      presentationCoalesced += 1;
+      return true;
+    }
+
+    const committed = events.value;
+    for (let i = committed.length - 1; i >= 0; i -= 1) {
+      const candidate = committed[i]!;
+      if (!canMerge(candidate)) continue;
+      // Re-stage the existing row after any already staged events to reflect
+      // the latest activity without duplicating the user's row.
+      events.value = [...committed.slice(0, i), ...committed.slice(i + 1)];
+      stageEvent(updatedRow(candidate));
+      presentationCoalesced += 1;
+      return true;
+    }
+    return false;
+  };
+
   const evictToVisibleLimit = (combined: DisplayEvent[]): void => {
     // Chat floods must never push gifts out of the Regalos tab: evict the
     // oldest non-gift rows first. Gifts are only evicted once no other kind
@@ -289,6 +345,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     // `repeatEnd` packet sharing one groupId. Fold them into a single live
     // row that updates in place instead of flooding Regalos with duplicates.
     if (tryMergeGiftStreak(event)) return true;
+    if (tryMergeLikeBurst(event, cursor)) return true;
     stageEvent({ ...event, feedCursor: cursor, id: nextEventId++, receivedAt: Date.now() });
     return true;
   };
