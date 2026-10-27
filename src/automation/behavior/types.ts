@@ -172,7 +172,8 @@ export type FilterOperator =
   | 'starts-with'
   | 'in'
   | 'is-true'
-  | 'is-false';
+  | 'is-false'
+  | 'crosses-multiple';
 
 export interface EventFilter {
   /** Dotted path resolved against `{ event, data, user }`. */
