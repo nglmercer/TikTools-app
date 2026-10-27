@@ -595,7 +595,14 @@ describe('authoritative core likes ranking', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('system'));
     try {
+      // Ranking may arrive on the lossy lane before the reliable
+      // live.connected notification.
+      const preconnectLeader = { rank: 1, score: 5, uniqueId: 'early', nickname: 'Early', userId: '9' };
+      harness.emit('live.likes-ranking', {
+        creatorId: 'creator', roomId: 'room-a', leaders: [preconnectLeader],
+      } as never);
       harness.emit('live.connected', { uniqueId: 'creator', roomId: 'room-a' } as never);
+      expect(live.likeLeaders.value).toEqual([preconnectLeader]);
       const alice = { rank: 1, score: 150, uniqueId: 'alice', nickname: 'Alice', userId: '1' };
       const bob = { rank: 2, score: 90, uniqueId: 'bob', nickname: 'Bob', userId: '2' };
       harness.emit('live.likes-ranking', {
