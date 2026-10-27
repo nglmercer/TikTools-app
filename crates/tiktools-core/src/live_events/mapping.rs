@@ -421,6 +421,24 @@ mod regression_tests {
             core.handle_live_event(event).await;
         }
 
+        // Feed rows carry the authoritative viewer total while preserving
+        // the original packet size in likeCount and translation parameters.
+        // The feed is a projection: none of these visual fields rewrites the
+        // raw automation events or points accounting.
+        let feed = core.events.feed_backfill(0, 32);
+        assert_eq!(feed.events.len(), 4);
+        for (row, (delta, cumulative)) in feed
+            .events
+            .iter()
+            .zip([(45_u64, 45_u64), (60, 105), (45, 150), (300, 450)])
+        {
+            assert_eq!(row.event["kind"], "like");
+            assert_eq!(row.event["likeCount"], delta);
+            assert_eq!(row.event["i18nParams"]["count"], delta);
+            assert_eq!(row.event["likeUserTotal"], cumulative);
+            assert_eq!(row.event["likeViewerKey"], "8877123");
+        }
+
         let runs = tokio::time::timeout(std::time::Duration::from_secs(5), async {
             loop {
                 let runs = core.automation.recent_runs();
