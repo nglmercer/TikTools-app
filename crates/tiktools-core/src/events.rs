@@ -82,6 +82,14 @@ pub enum DomainEvent {
     /// legacy `live-event` push without depending on automation capacity.
     #[serde(rename = "live.ui-event", rename_all = "camelCase")]
     LiveUiEvent { event: serde_json::Value },
+    /// Bounded per-room likes ranking calculated from accepted native
+    /// deltas, not UI feed rows, room snapshots or points.
+    #[serde(rename = "live.likes-ranking", rename_all = "camelCase")]
+    LiveLikesRanking {
+        creator_id: String,
+        room_id: String,
+        leaders: Vec<Value>,
+    },
     #[serde(rename = "room.stats", rename_all = "camelCase")]
     RoomStats {
         viewers: u64,
@@ -135,6 +143,7 @@ impl DomainEvent {
             Self::LiveMonitorChanged { .. } => "live.monitor",
             Self::LiveEvent { .. } => "live.event",
             Self::LiveUiEvent { .. } => "live.ui-event",
+            Self::LiveLikesRanking { .. } => "live.likes-ranking",
             Self::RoomStats { .. } => "room.stats",
             Self::GiftsCatalog { .. } => "gifts.catalog",
             Self::LiveReconnecting { .. } => "live.reconnecting",
@@ -198,6 +207,7 @@ impl DomainEvent {
             self,
             Self::LiveEvent { .. }
                 | Self::LiveUiEvent { .. }
+                | Self::LiveLikesRanking { .. }
                 | Self::RoomStats { .. }
                 | Self::AnalyticsUpdated { .. }
                 | Self::GiftsCatalog { .. }
