@@ -309,6 +309,9 @@ export default {
     viewers: {
       live: '{count} viendo ahora',
       empty: 'Aún no hay colaboradores.',
+      filterTop: 'General',
+      filterLikes: 'Me gusta',
+      emptyLikes: 'Aún no se registraron me gusta.',
     },
     details: {
       kind: 'Tipo',
