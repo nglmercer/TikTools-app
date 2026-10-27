@@ -23,6 +23,7 @@ const OPERATORS: FilterOperator[] = [
   'in',
   'is-true',
   'is-false',
+  'crosses-multiple',
 ];
 
 const MAX_CODE = 20_000;
