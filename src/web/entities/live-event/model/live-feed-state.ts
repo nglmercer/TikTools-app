@@ -41,6 +41,8 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   let sessionScope = '';
   let sessionRoom = '';
   let sessionCreator = '';
+  let rankingCreator = '';
+  let rankingRoom = '';
   const savedFeed = loadViewState().feed;
   const events = shallowRef<DisplayEvent[]>([]);
   const filter = ref<EventFilter>(savedFeed?.filter ?? 'all');
@@ -470,7 +472,10 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     if (scope !== sessionScope) {
       seenMsgIds.clear();
       seenCursors.clear();
-      likeLeaders.value = [];
+      // Lossy ranking snapshots can be delivered before reliable
+      // live.connected. Preserve a snapshot from the SAME room in that case.
+      if (rankingCreator !== (data.uniqueId ?? '') ||
+          rankingRoom !== (data.roomId ?? '')) likeLeaders.value = [];
       sessionScope = scope;
       sessionRoom = data.roomId ?? '';
       sessionCreator = data.uniqueId ?? '';
@@ -501,6 +506,8 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     if (!Array.isArray(data.leaders)) return;
     // The core owns the ranking, and the UI never re-aggregates folded rows.
     // Bound and validate snapshots from all transports before display.
+    rankingCreator = data.creatorId;
+    rankingRoom = data.roomId;
     likeLeaders.value = data.leaders
       .filter((leader) => leader && typeof leader.uniqueId === 'string' &&
         typeof leader.score === 'number' && Number.isSafeInteger(leader.score) && leader.score > 0)
