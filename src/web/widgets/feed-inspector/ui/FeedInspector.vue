@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { eventText, formatEventTime } from '@/entities/live-event/lib/event-text.ts';
 import EventDetails from '@/entities/live-event/ui/EventDetails.vue';
 import type { ViewerIdentity } from '@/entities/viewer/lib/viewer-profile.ts';
 import TopViewersList from '@/entities/viewer/ui/TopViewersList.vue';
+import TopLikesList from '@/entities/viewer/ui/TopLikesList.vue';
 import ViewerProfile from '@/entities/viewer/ui/ViewerProfile.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import IconClose from '@/shared/ui/icon/icons/IconClose.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
+import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
-import type { DisplayEvent, TopViewerPayload, UserCardUser, ViewerRecord } from '@/types.ts';
+import type { DisplayEvent, LikeLeaderPayload, TopViewerPayload, UserCardUser, ViewerRecord } from '@/types.ts';
 import type { InspectorTab } from '../model/inspector-tab.ts';
 
 const props = withDefaults(
@@ -19,6 +21,7 @@ const props = withDefaults(
     viewer: UserCardUser | null;
     messages: readonly DisplayEvent[];
     topViewers: readonly TopViewerPayload[];
+    likeLeaders: readonly LikeLeaderPayload[];
     leaderboard: readonly ViewerRecord[];
     liveViewers: number;
     images?: boolean;
@@ -35,6 +38,11 @@ const emit = defineEmits<{
 }>();
 
 const { t, locale } = useI18n();
+const viewerMode = ref<'top' | 'likes'>('top');
+const viewerModes = computed(() => [
+  { value: 'top' as const, label: t('feed.viewers.filterTop') },
+  { value: 'likes' as const, label: t('feed.viewers.filterLikes') },
+]);
 
 const tabs = computed(() => [
   { value: 'viewers' as const, label: t('feed.inspector.viewers') },
@@ -65,14 +73,28 @@ const tabs = computed(() => [
     >
       <template #default="{ value }">
         <div class="feed-inspector__body">
-          <TopViewersList
-            v-if="value === 'viewers'"
-            :top-viewers="topViewers"
-            :leaderboard="leaderboard"
-            :live-viewers="liveViewers"
-            :images="images"
-            @select="emit('open-viewer', $event)"
-          />
+          <template v-if="value === 'viewers'">
+            <BaseSegmented
+              v-model="viewerMode"
+              class="feed-inspector__viewer-filter"
+              :options="viewerModes"
+              size="sm"
+            />
+            <TopLikesList
+              v-if="viewerMode === 'likes'"
+              :leaders="likeLeaders"
+              :images="images"
+              @select="emit('open-viewer', $event)"
+            />
+            <TopViewersList
+              v-else
+              :top-viewers="topViewers"
+              :leaderboard="leaderboard"
+              :live-viewers="liveViewers"
+              :images="images"
+              @select="emit('open-viewer', $event)"
+            />
+          </template>
           <template v-else-if="value === 'event'">
             <EventDetails
               v-if="event"
@@ -147,6 +169,10 @@ const tabs = computed(() => [
   height: 100%;
   padding: var(--space-4);
   overflow-y: auto;
+}
+
+.feed-inspector__viewer-filter {
+  margin-bottom: var(--space-3);
 }
 
 .feed-inspector__empty {
