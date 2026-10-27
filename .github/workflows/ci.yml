@@ -126,6 +126,17 @@ jobs:
 
       - name: Test Rust workspace
         run: node scripts/cargo-with-linker.mjs test --workspace --locked
+
+      # Native TikTok is deliberately optional in tiktools-core, so default
+      # workspace tests otherwise report 0 executed batched-like E2E tests.
+      - name: Test native TikTok batched likes end to end
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/cargo-with-linker.mjs test -p tiktools-core --locked --features native-tiktok --lib -- --list |
+            grep -F 'e2e_batched_likes_trigger_saved_150_goals_without_breaking_old_templates'
+          node scripts/cargo-with-linker.mjs test -p tiktools-core --locked --features native-tiktok --lib e2e_batched_likes_trigger_saved_150_goals_without_breaking_old_templates -- --nocapture
+
       - name: Test optional local browser adapter
         run: node scripts/cargo-with-linker.mjs test -p tiktools-cli --features local-web --locked
 
