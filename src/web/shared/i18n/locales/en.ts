@@ -902,6 +902,9 @@ export default {
       save: 'Save',
       saved: 'Settings saved.',
       discard: 'Discard changes',
+      test: 'Test connection',
+      testing: 'Testing…',
+      saveFirst: 'Save changes to test the connection',
     },
     connection: {
       openSonicBoom: 'Open SonicBoom on this computer and check the server address, then connect again.',

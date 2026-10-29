@@ -11,17 +11,25 @@ import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
 import { withSchemaDefaults } from '@/shared/ui/schema-form/lib/schema-fields.ts';
 import type { PluginSettingsState } from '@/types.ts';
 
-const props = defineProps<{
-  pluginId: string;
-  settings?: PluginSettingsState;
-  actionOptions: Readonly<Record<string, ActionOptionItem[]>>;
-  openMediaPicker?: OpenMediaPicker;
-}>();
+const props = withDefaults(
+  defineProps<{
+    pluginId: string;
+    settings?: PluginSettingsState;
+    actionOptions: Readonly<Record<string, ActionOptionItem[]>>;
+    openMediaPicker?: OpenMediaPicker;
+    /** Id of the plugin's `*.test_connection` action; null hides the check button. */
+    testActionId?: string | null;
+    testing?: boolean;
+    testResult?: { ok: boolean; text: string } | null;
+  }>(),
+  { settings: undefined, openMediaPicker: undefined, testActionId: null, testing: false, testResult: null },
+);
 
 const emit = defineEmits<{
   loadSettings: [pluginId: string];
   loadOptions: [source: string];
   save: [pluginId: string, values: PluginSettingValues];
+  test: [pluginId: string];
 }>();
 
 const { t } = useI18n();
@@ -88,6 +96,20 @@ onMounted(() => {
         :open-media-picker="openMediaPicker"
       />
       <div class="plugin-settings__actions">
+        <BaseButton
+          v-if="testActionId"
+          :disabled="dirty || testing"
+          :title="dirty ? t('plugins.settings.saveFirst') : ''"
+          @click="emit('test', pluginId)"
+        >
+          {{ testing ? t('plugins.settings.testing') : t('plugins.settings.test') }}
+        </BaseButton>
+        <span
+          v-if="testResult"
+          class="plugin-settings__test-result"
+          :class="testResult.ok ? 'plugin-settings__test-result--ok' : 'plugin-settings__test-result--error'"
+          role="status"
+        >{{ testResult.text }}</span>
         <span
           v-if="savedAt && !dirty"
           class="plugin-settings__saved"
@@ -139,5 +161,22 @@ onMounted(() => {
 .plugin-settings__saved {
   color: var(--color-success);
   font-size: var(--font-size-sm);
+}
+
+.plugin-settings__test-result {
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-settings__test-result--ok {
+  color: var(--color-success);
+}
+
+.plugin-settings__test-result--error {
+  color: var(--color-danger);
 }
 </style>

@@ -904,6 +904,9 @@ export default {
       save: 'Guardar',
       saved: 'Ajustes guardados.',
       discard: 'Descartar cambios',
+      test: 'Probar conexión',
+      testing: 'Probando…',
+      saveFirst: 'Guarda los cambios para probar la conexión',
     },
     connection: {
       openSonicBoom: 'Abre SonicBoom en este equipo y comprueba la dirección del servidor. Después vuelve a conectar.',

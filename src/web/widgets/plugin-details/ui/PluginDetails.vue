@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import type { ActionTypeDefinition, LiveAction, PluginStatus } from '../../../../automation/behavior/types.ts';
 import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-controls.ts';
 import { pluginActionUsage, pluginState } from '@/entities/plugin/lib/plugin-catalog.ts';
+import { findTestConnectionAction } from '@/entities/plugin/lib/plugin-test-action.ts';
 import PluginStateBadge from '@/entities/plugin/ui/PluginStateBadge.vue';
 import PluginConnectionEditor from '@/features/configure-plugin-connection/ui/PluginConnectionEditor.vue';
 import PluginSettingsEditor from '@/features/configure-plugin-settings/ui/PluginSettingsEditor.vue';
@@ -59,6 +60,26 @@ const enabled = computed({
   get: () => props.plugin.enabled,
   set: (value: boolean) => plugins.setEnabled(id.value, value),
 });
+
+/** One-click self-check: the plugin's `*.test_connection` action run live, no automation needed. */
+const testActionId = computed(() => findTestConnectionAction(props.actionTypes, id.value));
+const testing = ref(false);
+const testResult = ref<{ ok: boolean; text: string } | null>(null);
+
+async function runTestConnection(): Promise<void> {
+  if (!testActionId.value || testing.value) return;
+  testing.value = true;
+  testResult.value = null;
+  try {
+    const outcome = await plugins.executeAction(id.value, testActionId.value, {}, true);
+    testResult.value = {
+      ok: outcome.ok,
+      text: outcome.ok ? outcome.summary : (outcome.error ?? outcome.summary),
+    };
+  } finally {
+    testing.value = false;
+  }
+}
 
 watch(
   [hasSettings, hasConnection],
@@ -199,9 +220,13 @@ function uninstall(): void {
             :settings="plugins.settings.value[id]"
             :action-options="plugins.actionOptions.value"
             :open-media-picker="plugins.openMediaPicker"
+            :test-action-id="testActionId"
+            :testing="testing"
+            :test-result="testResult"
             @load-settings="plugins.loadSettings"
             @load-options="plugins.loadOptions"
             @save="plugins.saveSettings"
+            @test="runTestConnection"
           />
           <PluginConnectionEditor
             v-else

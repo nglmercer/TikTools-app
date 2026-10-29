@@ -23,6 +23,7 @@ export function usePluginControls() {
     saveSettings: store.handleSavePluginSettings,
     loadOptions: (source: string) => store.handleGetActionOptions(source),
     testConnection: store.handleTestPluginConnection,
+    executeAction: store.executeAction,
     importToken: store.handleImportPluginToken,
     provisionToken: store.handleProvisionPluginToken,
     setInstalled: store.handleSetPluginInstalled,
