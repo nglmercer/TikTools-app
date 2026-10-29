@@ -135,6 +135,35 @@ Give the server box a DHCP reservation so the LAN IP is stable.
 On Windows the loopback path is untested — if `connect 127.0.0.1`
 fails there the same way, use the LAN IP as well.
 
+## 3c. Windows machines (RCON path — verified protocol, Windows steps pending evidence)
+
+The RCON transport is plain TCP and platform-independent; only the
+addresses change. Status honesty: everything below follows the same
+protocol verified live on Linux — the Windows end-to-end run itself is
+still pending your evidence.
+
+1. **Server:** keep SRCDS where it is (Linux here), or run SRCDS on
+   Windows — either is reachable over TCP. No server change needed.
+   Private server + modded clients: `sv_consistency 0` (already set on
+   the test server); stock server + modded clients: disable/quarantine
+   the colliding addons (see §3b and `scan_addon_conflicts`).
+2. **TikTools Desktop on Windows:** install, enable L4D2 Interactive,
+   set RCON host to the **server's LAN IP** (e.g. `192.168.18.130`),
+   port `27015`, password. Press **Probar conexión** — expect
+   `Connected: map c1m1_hotel (...)`. RCON host `127.0.0.1` only works
+   when TikTools and SRCDS share the same box.
+3. **Game client on Windows:** Steam → L4D2 → enable the developer
+   console → `connect <server LAN IP>:27015`. Pick a survivor so spawns
+   have an anchor (`NO_SURVIVOR` otherwise — correct, not an error).
+4. **Spawn test (either OS):** `tiktools plugin action
+   l4d2.spawn_common --config '{"count":3}' --live`, or the automation
+   of your choice. Expect `game confirmed 3/3` and the horde in view.
+
+The L4D2api local-host path (no RCON, no dedicated server) is a separate
+prototype and is NOT runnable yet — its Windows flow stays gated in that
+repo. Do not build it expecting a playable integration: `cargo test`
+already proves what the workspace guarantees.
+
 ## 4. Protocol reference
 
 Engine commands (server console / RCON only; players cannot run them):
