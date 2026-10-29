@@ -104,12 +104,36 @@ Left4DHooks fails to load), `spawn_infected_nolimit`:
    `127.0.0.1`), **RCON port** (default `27015`), and the
    **RCON password** (secret field, never logged). Timeouts and the
    per-minute rate limit live under Advanced.
-3. Run **Test connection** as a *live* action (dry-run test consoles
-   never call plugin backends by design). Expect a summary like
+3. Press **Probar conexión** in the same Ajustes tab for a one-click
+   live check (no automation needed; uses the saved settings — save
+   first if you edited them). Or run **Test connection** as a *live*
+   action (dry-run test consoles never call plugin backends by
+   design). Expect a summary like
    `Connected: map c1m1_hotel (4 survivors, 12 commons, 812/2048 entities).`
 
 > Import note: templates/profiles referencing `l4d2.*` actions refuse
 > with a clear error unless this plugin is installed and enabled.
+
+## 3b. Same-machine clients: prefer the LAN IP over loopback
+
+Measured on Linux (2026-10-29, kernel packet log + full 2×2
+source/destination matrix against `srcds_linux` bound to `0.0.0.0:27015`):
+
+- UDP game packets with a **loopback source** (`127.0.0.0/8`) reach the
+  server socket but are **never answered**; the same packets with a **LAN
+  source** get a challenge reply within the same second.
+- TCP/RCON is unaffected: `127.0.1.1:27015` authenticates fine (the RCON
+  listener binds that address; `127.0.0.1:27015` and the LAN IP refuse
+  TCP — point TikTools at `127.0.1.1` when both run on this box).
+- Firewall tables (`filter`/`nat`/`mangle`/`raw`) are all ACCEPT and the
+  engine ban lists are empty — the drop is the dedicated-server binary
+  ignoring loopback-sourced game traffic, not your network.
+
+Practical rule: **game client connects via the server's LAN IP**
+(`connect 192.168.18.130:27015`), **TikTools RCON via `127.0.1.1`**.
+Give the server box a DHCP reservation so the LAN IP is stable.
+On Windows the loopback path is untested — if `connect 127.0.0.1`
+fails there the same way, use the LAN IP as well.
 
 ## 4. Protocol reference
 
