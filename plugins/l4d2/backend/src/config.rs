@@ -1,145 +1,91 @@
-//! Host-managed settings for the RCON backend.
-//!
-//! The host writes `<TIKTOOLS_PLUGIN_DATA_DIR>/<plugin-id>/settings.json`
-//! from the settings UI (same contract as every process plugin); the
-//! backend re-reads it on every action so host/port/password edits apply
-//! without a restart. The password is a `secret` schema field: the real
-//! value lives only in that file, and this module is careful never to
-//! let it reach logs, errors, or Debug output.
-
-use std::path::PathBuf;
+//! Optional L4D2api settings. Old RCON credentials are ignored, not required.
+use std::path::{Path, PathBuf};
 use std::time::Duration;
-
 use serde_json::Value;
+use tiktools_plugin_sdk::{PluginError, PluginResult};
 
-const DEFAULT_PLUGIN_ID: &str = "l4d2.interactive";
-const MIN_TIMEOUT_MS: u64 = 2000;
-const MAX_TIMEOUT_MS: u64 = 12000;
-const MIN_PER_MINUTE: u64 = 1;
-const MAX_PER_MINUTE: u64 = 120;
-/// Connect budget stays small so a dead server fails fast; the rest of
-/// the action timeout stays available for auth plus one command.
-const CONNECT_TIMEOUT_MS: u64 = 3000;
-
-/// No Debug impl on purpose: the only printable view is [`L4d2Settings::redacted`].
-#[derive(Clone)]
-pub struct L4d2Settings {
-    pub host: String,
-    pub port: u16,
-    password: String,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Settings {
+    pub game_dir: Option<PathBuf>,
     pub timeout: Duration,
     pub max_per_minute: u64,
 }
 
-impl L4d2Settings {
-    pub fn password(&self) -> &str {
-        &self.password
+impl Default for Settings {
+    fn default() -> Self {
+        Self { game_dir: None, timeout: Duration::from_secs(5), max_per_minute: 30 }
     }
 }
 
-/// Debug deliberately omits the password: a stray `{:?}` in a log line
-/// must never exfiltrate the RCON credential.
-impl std::fmt::Debug for RedactedSettings {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("L4d2Settings")
-            .field("host", &self.0.host)
-            .field("port", &self.0.port)
-            .field("password", &"[redacted]")
-            .field("timeout", &self.0.timeout)
-            .field("max_per_minute", &self.0.max_per_minute)
-            .finish()
-    }
+fn settings_path() -> Option<PathBuf> {
+    let root = std::env::var_os("TIKTOOLS_PLUGIN_DATA_DIR")?;
+    let plugin_id = std::env::var_os("TIKTOOLS_PLUGIN_ID")
+        .unwrap_or_else(|| "l4d2.interactive".into());
+    Some(PathBuf::from(root).join(plugin_id).join("settings.json"))
 }
 
-/// Redacted Debug view; use `settings.redacted()` anywhere a value might
-/// be logged.
-pub struct RedactedSettings(L4d2Settings);
-
-impl std::fmt::Display for RedactedSettings {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.0.host, self.0.port)
-    }
-}
-
-impl L4d2Settings {
-    pub fn redacted(&self) -> RedactedSettings {
-        RedactedSettings(self.clone())
-    }
-}
-
-fn settings_path() -> PathBuf {
-    let root = std::env::var("TIKTOOLS_PLUGIN_DATA_DIR").unwrap_or_else(|_| ".".to_owned());
-    let id = std::env::var("TIKTOOLS_PLUGIN_ID").unwrap_or_else(|_| DEFAULT_PLUGIN_ID.to_owned());
-    PathBuf::from(root).join(id).join("settings.json")
-}
-
-/// Loads settings from the host-managed path for this process.
-pub fn load() -> Result<L4d2Settings, String> {
-    load_from_file(&settings_path())
-}
-
-/// Loads settings from an explicit file (tests and tooling).
-pub fn load_from_file(path: &std::path::Path) -> Result<L4d2Settings, String> {
-    let raw = std::fs::read_to_string(path)
-        .map_err(|_| "L4D2 settings are missing: open the plugin settings and save the RCON host, port, and password.".to_owned())?;
-    parse(&raw)
-}
-
-fn text_field(value: &Value, key: &str) -> Option<String> {
-    value
-        .get(key)
-        .and_then(Value::as_str)
-        .map(|text| text.trim().to_owned())
-        .filter(|text| !text.is_empty())
-}
-
-fn int_field(value: &Value, key: &str) -> Option<i64> {
-    value.get(key).and_then(Value::as_i64)
-}
-
-fn parse(raw: &str) -> Result<L4d2Settings, String> {
-    let value: Value = serde_json::from_str(raw).map_err(|_| {
-        "L4D2 settings are not valid JSON; re-save them in the plugin settings.".to_owned()
-    })?;
-    let host = text_field(&value, "host").ok_or_else(|| "L4D2 RCON host is missing.".to_owned())?;
-    if host.len() > 253
-        || host.contains(char::is_whitespace)
-        || host.contains("://")
-        || host.contains('\0')
-    {
-        return Err("L4D2 RCON host must be a plain hostname or IP (no scheme, no spaces).".into());
-    }
-    let port = int_field(&value, "port")
-        .filter(|port| (1..=65535).contains(port))
-        .ok_or_else(|| "L4D2 RCON port must be 1..65535.".to_owned())? as u16;
-    let password = text_field(&value, "password")
-        .filter(|password| password.len() <= 256)
-        .ok_or_else(|| "L4D2 RCON password is missing.".to_owned())?;
-    let timeout_ms = int_field(&value, "timeoutMs")
-        .filter(|timeout| (MIN_TIMEOUT_MS as i64..=MAX_TIMEOUT_MS as i64).contains(timeout))
-        .ok_or_else(|| {
-            format!("L4D2 RCON timeout must be {MIN_TIMEOUT_MS}..{MAX_TIMEOUT_MS} ms.")
-        })? as u64;
-    let max_per_minute = int_field(&value, "maxPerMinute")
-        .filter(|rate| (MIN_PER_MINUTE as i64..=MAX_PER_MINUTE as i64).contains(rate))
-        .ok_or_else(|| {
-            format!("L4D2 rate limit must be {MIN_PER_MINUTE}..{MAX_PER_MINUTE} per minute.")
-        })? as u64;
-    Ok(L4d2Settings {
-        host,
-        port,
-        password,
-        timeout: Duration::from_millis(timeout_ms),
-        max_per_minute,
-    })
-}
-
-impl L4d2Settings {
-    pub fn rcon_timeouts(&self) -> crate::rcon::RconTimeouts {
-        crate::rcon::RconTimeouts {
-            connect: Duration::from_millis(CONNECT_TIMEOUT_MS.min(self.timeout.as_millis() as u64)),
-            io: self.timeout,
+impl Settings {
+    pub fn parse(raw: &str) -> PluginResult<Self> {
+        let value: Value = serde_json::from_str(raw)
+            .map_err(|_| PluginError::invalid_request("L4D2 settings are not valid JSON"))?;
+        if !value.is_object() {
+            return Err(PluginError::invalid_request("L4D2 settings must be an object"));
         }
+        let mut settings = Self::default();
+        if let Some(value) = value.get("gameDir") {
+            let dir = value.as_str().ok_or_else(|| PluginError::invalid_request("gameDir must be a string"))?.trim();
+            if !dir.is_empty() {
+                settings.game_dir = Some(PathBuf::from(dir));
+            }
+        }
+        if let Some(value) = value.get("timeoutMs") {
+            let ms = value.as_u64().filter(|n| (1000..=12000).contains(n))
+                .ok_or_else(|| PluginError::invalid_request("timeoutMs must be 1000..12000"))?;
+            settings.timeout = Duration::from_millis(ms);
+        }
+        if let Some(value) = value.get("maxPerMinute") {
+            settings.max_per_minute = value.as_u64().filter(|n| (1..=120).contains(n))
+                .ok_or_else(|| PluginError::invalid_request("maxPerMinute must be 1..120"))?;
+        }
+        Ok(settings)
+    }
+
+    pub fn load() -> PluginResult<Self> {
+        let Some(path) = settings_path() else { return Ok(Self::default()); };
+        match std::fs::read_to_string(path) {
+            Ok(raw) => Self::parse(&raw),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
+            Err(_) => Err(PluginError::other("Unable to read L4D2 plugin settings")),
+        }
+    }
+
+    /// Read-only Steam discovery from upstream, never installation or repair.
+    pub fn resolve_game_dir(&self) -> PluginResult<PathBuf> {
+        if let Some(dir) = &self.game_dir {
+            l4d2api_installer::validate_game_dir(dir).map_err(|_| {
+                PluginError::invalid_request("Invalid L4D2 gameDir; select the directory containing left4dead2.exe")
+            })?;
+            return Ok(dir.clone());
+        }
+        let roots = l4d2api_installer::candidate_steam_roots(None);
+        let installs = l4d2api_installer::find_l4d2_installs(&roots);
+        match installs.as_slice() {
+            [] => Err(PluginError::other("Left 4 Dead 2 not found in Steam. Set gameDir in plugin settings. Install the addon with the upstream L4D2api installer.")),
+            [only] => Ok(only.clone()),
+            many => {
+                let active: Vec<&PathBuf> = many.iter()
+                    .filter(|dir| Self::ipc_dir(dir).join(l4d2api_client::HEARTBEAT_FILE).is_file())
+                    .collect();
+                match active.as_slice() {
+                    [only] => Ok((*only).clone()),
+                    _ => Err(PluginError::invalid_request("Multiple Left 4 Dead 2 installations detected; set gameDir explicitly")),
+                }
+            }
+        }
+    }
+
+    pub fn ipc_dir(game_dir: &Path) -> PathBuf {
+        game_dir.join("left4dead2").join("ems").join("tiktools_l4d2")
     }
 }
 
@@ -147,74 +93,27 @@ impl L4d2Settings {
 mod tests {
     use super::*;
 
-    fn write_settings(contents: &str) -> (tempfile_guard::Guard, PathBuf) {
-        // No tempfile dependency: unique sibling under the OS temp dir.
-        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let id = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let path = std::env::temp_dir().join(format!("tiktools-l4d2-settings-{id}.json"));
-        std::fs::write(&path, contents).expect("fixture");
-        (tempfile_guard::Guard(path.clone()), path)
-    }
-
-    /// Minimal RAII cleanup without adding a dependency.
-    mod tempfile_guard {
-        pub struct Guard(pub std::path::PathBuf);
-        impl Drop for Guard {
-            fn drop(&mut self) {
-                let _ = std::fs::remove_file(&self.0);
-            }
-        }
-    }
-
-    const VALID: &str = r#"{"host":"127.0.0.1","port":27015,"password":"s3cret","timeoutMs":8000,"maxPerMinute":30}"#;
-
     #[test]
-    fn loads_valid_settings() {
-        let (_guard, path) = write_settings(VALID);
-        let settings = load_from_file(&path).expect("valid");
-        assert_eq!(settings.host, "127.0.0.1");
-        assert_eq!(settings.port, 27015);
-        assert_eq!(settings.password(), "s3cret");
-        assert_eq!(settings.timeout, Duration::from_millis(8000));
-        assert_eq!(settings.max_per_minute, 30);
-        assert_eq!(
-            settings.rcon_timeouts().connect,
-            Duration::from_millis(3000)
-        );
+    fn missing_settings_use_defaults() {
+        assert_eq!(Settings::parse("{}").unwrap(), Settings::default());
     }
 
     #[test]
-    fn missing_file_points_at_the_settings_ui() {
-        let error = load_from_file(std::path::Path::new(
-            "/nonexistent/tiktools-l4d2-settings.json",
-        ))
-        .map(|_| ())
-        .expect_err("must fail");
-        assert!(error.contains("plugin settings"), "{error}");
+    fn old_rcon_settings_do_not_block_ipc() {
+        let settings = Settings::parse(r#"{"host":"127.0.0.1","port":27015,"password":"old","timeoutMs":5000,"maxPerMinute":30}"#).unwrap();
+        assert_eq!(settings, Settings::default());
     }
 
     #[test]
-    fn rejects_bad_host_port_and_password() {
-        for raw in [
-            r#"{"host":"","port":27015,"password":"x","timeoutMs":8000,"maxPerMinute":30}"#,
-            r#"{"host":"http://x/","port":27015,"password":"x","timeoutMs":8000,"maxPerMinute":30}"#,
-            r#"{"host":"a b","port":27015,"password":"x","timeoutMs":8000,"maxPerMinute":30}"#,
-            r#"{"host":"127.0.0.1","port":0,"password":"x","timeoutMs":8000,"maxPerMinute":30}"#,
-            r#"{"host":"127.0.0.1","port":99999,"password":"x","timeoutMs":8000,"maxPerMinute":30}"#,
-            r#"{"host":"127.0.0.1","port":27015,"password":"","timeoutMs":8000,"maxPerMinute":30}"#,
-            r#"{"host":"127.0.0.1","port":27015,"password":"x","timeoutMs":500,"maxPerMinute":30}"#,
-            r#"{"host":"127.0.0.1","port":27015,"password":"x","timeoutMs":8000,"maxPerMinute":0}"#,
-            "not json",
-        ] {
-            assert!(parse(raw).is_err(), "{raw}");
+    fn rejects_invalid_limits() {
+        for raw in [r#"{"timeoutMs":0}"#, r#"{"timeoutMs":12001}"#, r#"{"maxPerMinute":0}"#, r#"{"gameDir":12}"#] {
+            assert!(Settings::parse(raw).is_err(), "{raw}");
         }
     }
 
     #[test]
-    fn debug_output_redacts_the_password() {
-        let settings = parse(VALID).expect("valid");
-        let rendered = format!("{:?}", settings.redacted());
-        assert!(rendered.contains("127.0.0.1"));
-        assert!(!rendered.contains("s3cret"), "{rendered}");
+    fn custom_game_dir_must_be_valid() {
+        let config = Settings::parse(r#"{"gameDir":"not-a-game-install"}"#).unwrap();
+        assert!(config.resolve_game_dir().is_err());
     }
 }

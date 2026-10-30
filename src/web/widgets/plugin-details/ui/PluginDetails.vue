@@ -76,10 +76,18 @@ async function runTestConnection(): Promise<void> {
       ok: outcome.ok,
       text: outcome.ok ? outcome.summary : (outcome.error ?? outcome.summary),
     };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    testResult.value = { ok: false, text: message };
   } finally {
     testing.value = false;
   }
 }
+
+// A completed check belongs to the selected plugin and the saved settings.
+// Never display a previous plugin's connection result after switching.
+watch(id, () => { testResult.value = null; });
+watch(() => plugins.settings.value[id.value]?.values, () => { testResult.value = null; });
 
 watch(
   [hasSettings, hasConnection],

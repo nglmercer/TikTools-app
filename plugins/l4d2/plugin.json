@@ -2,11 +2,16 @@
   "schemaVersion": 3,
   "id": "l4d2.interactive",
   "name": "L4D2 Interactive",
-  "version": "0.1.0",
-  "description": "Drive a Left 4 Dead 2 dedicated server over RCON: connection check, common hordes, special infected, and items. No plugin UI code runs in the host beyond this manifest: the process backend owns the RCON protocol.",
-  "longDescription": "Drive a Left 4 Dead 2 dedicated server over RCON: test the connection, spawn common hordes, spawn special infected (tank, witch, smoker, boomer, hunter, spitter, jockey, charger), and drop items.\n\n- Direct RCON path only: no game-server mods beyond the SourceMod adapter (verified live on SRCDS; see integrations/l4d2/README.md for the gate evidence and the hibernation boundary)\n- Strict allowlists and bounds on every action; the RCON password stays in host-managed settings and never appears in logs\n- Rate limited with per-action timeouts; spawn outcomes report what the game confirmed, never just what was sent",
-  "icon": "server",
-  "tags": ["l4d2", "game", "rcon", "server"],
+  "version": "0.2.0",
+  "description": "Control a local Left 4 Dead 2 campaign through the separately installed L4D2api VScript addon and file IPC. No RCON or dedicated server.",
+  "longDescription": "Drive your locally hosted L4D2 campaign using the L4D2api game addon. Install the VPK once with the upstream l4d2api-installer.exe, then start the game and test the connection. The plugin uses local file IPC without a server or password. Available: items, weapons, and experimental common infected. Special infected remain unavailable until the addon advertises support.",
+  "icon": "gamepad-2",
+  "tags": [
+    "l4d2",
+    "game",
+    "local",
+    "ipc"
+  ],
   "runtime": "process",
   "entry": "tiktools-l4d2",
   "protocolVersion": 1,
@@ -16,8 +21,12 @@
     {
       "id": "l4d2.test_connection",
       "version": 1,
-      "title": {"default": "Test connection"},
-      "description": {"default": "Authenticate over RCON and read game state. No spawns, no side effects."},
+      "title": {
+        "default": "Test connection"
+      },
+      "description": {
+        "default": "Check the local L4D2api addon, heartbeat, host authority and active round. No gameplay side effects."
+      },
       "tag": "l4d2",
       "icon": "connected",
       "category": "Connection",
@@ -28,8 +37,12 @@
     {
       "id": "l4d2.spawn_common",
       "version": 1,
-      "title": {"default": "Spawn common horde"},
-      "description": {"default": "Spawn common infected near the survivors."},
+      "title": {
+        "default": "Spawn common horde"
+      },
+      "description": {
+        "default": "Spawn a small group of common infected in a local L4D2 campaign (experimental; capability gated)."
+      },
       "tag": "l4d2",
       "icon": "users",
       "category": "Spawning",
@@ -38,20 +51,28 @@
       "fields": [
         {
           "key": "count",
-          "label": {"default": "Count"},
+          "label": {
+            "default": "Count"
+          },
           "kind": "number",
           "value": "5",
           "min": 1,
-          "max": 25,
-          "hint": {"default": "The game adapter enforces its own cap (default 10) and reports how many actually spawned."}
+          "max": 10,
+          "hint": {
+            "default": "L4D2api allows 1–10 common infected per request and applies cooldowns."
+          }
         }
       ]
     },
     {
       "id": "l4d2.spawn_infected",
       "version": 1,
-      "title": {"default": "Spawn special infected"},
-      "description": {"default": "Spawn one special infected type near the survivors."},
+      "title": {
+        "default": "Spawn special infected"
+      },
+      "description": {
+        "default": "Reserved for future L4D2api special infected support. Reports unsupported until advertised by the game addon."
+      },
       "tag": "l4d2",
       "icon": "warning",
       "category": "Spawning",
@@ -60,36 +81,86 @@
       "fields": [
         {
           "key": "class",
-          "label": {"default": "Class"},
+          "label": {
+            "default": "Class"
+          },
           "kind": "select",
           "value": "tank",
           "options": [
-            {"value": "tank", "label": {"default": "Tank"}},
-            {"value": "witch", "label": {"default": "Witch"}},
-            {"value": "smoker", "label": {"default": "Smoker"}},
-            {"value": "boomer", "label": {"default": "Boomer"}},
-            {"value": "hunter", "label": {"default": "Hunter"}},
-            {"value": "spitter", "label": {"default": "Spitter"}},
-            {"value": "jockey", "label": {"default": "Jockey"}},
-            {"value": "charger", "label": {"default": "Charger"}}
+            {
+              "value": "tank",
+              "label": {
+                "default": "Tank"
+              }
+            },
+            {
+              "value": "witch",
+              "label": {
+                "default": "Witch"
+              }
+            },
+            {
+              "value": "smoker",
+              "label": {
+                "default": "Smoker"
+              }
+            },
+            {
+              "value": "boomer",
+              "label": {
+                "default": "Boomer"
+              }
+            },
+            {
+              "value": "hunter",
+              "label": {
+                "default": "Hunter"
+              }
+            },
+            {
+              "value": "spitter",
+              "label": {
+                "default": "Spitter"
+              }
+            },
+            {
+              "value": "jockey",
+              "label": {
+                "default": "Jockey"
+              }
+            },
+            {
+              "value": "charger",
+              "label": {
+                "default": "Charger"
+              }
+            }
           ]
         },
         {
           "key": "count",
-          "label": {"default": "Count"},
+          "label": {
+            "default": "Count"
+          },
           "kind": "number",
           "value": "1",
           "min": 1,
           "max": 8,
-          "hint": {"default": "Tanks are limited to 1 per call with a cooldown between calls."}
+          "hint": {
+            "default": "Tanks are limited to 1 per call with a cooldown between calls."
+          }
         }
       ]
     },
     {
       "id": "l4d2.spawn_item",
       "version": 1,
-      "title": {"default": "Spawn item"},
-      "description": {"default": "Drop an item near the survivors."},
+      "title": {
+        "default": "Spawn item"
+      },
+      "description": {
+        "default": "Spawn a stock pickup near the local host survivor through L4D2api."
+      },
       "tag": "l4d2",
       "icon": "gift",
       "category": "Items",
@@ -98,21 +169,212 @@
       "fields": [
         {
           "key": "item",
-          "label": {"default": "Item"},
+          "label": {
+            "default": "Item"
+          },
           "kind": "select",
           "value": "first_aid_kit",
           "options": [
-            {"value": "first_aid_kit", "label": {"default": "First aid kit"}},
-            {"value": "pain_pills", "label": {"default": "Pain pills"}},
-            {"value": "adrenaline", "label": {"default": "Adrenaline"}},
-            {"value": "pipe_bomb", "label": {"default": "Pipe bomb"}},
-            {"value": "molotov", "label": {"default": "Molotov"}},
-            {"value": "defibrillator", "label": {"default": "Defibrillator"}}
+            {
+              "value": "first_aid_kit",
+              "label": {
+                "default": "First aid kit"
+              }
+            },
+            {
+              "value": "pain_pills",
+              "label": {
+                "default": "Pain pills"
+              }
+            },
+            {
+              "value": "adrenaline",
+              "label": {
+                "default": "Adrenaline"
+              }
+            },
+            {
+              "value": "pipe_bomb",
+              "label": {
+                "default": "Pipe bomb"
+              }
+            },
+            {
+              "value": "molotov",
+              "label": {
+                "default": "Molotov"
+              }
+            },
+            {
+              "value": "defibrillator",
+              "label": {
+                "default": "Defibrillator"
+              }
+            }
           ]
         },
         {
           "key": "count",
-          "label": {"default": "Count"},
+          "label": {
+            "default": "Count"
+          },
+          "kind": "number",
+          "value": "1",
+          "min": 1,
+          "max": 5
+        }
+      ]
+    },
+    {
+      "id": "l4d2.spawn_weapon",
+      "version": 1,
+      "title": {
+        "default": "Spawn weapon"
+      },
+      "description": {
+        "default": "Spawn a stock L4D2 weapon near a survivor using L4D2api file IPC."
+      },
+      "tag": "l4d2",
+      "icon": "target",
+      "category": "Items",
+      "requiredCapabilities": [],
+      "timeoutMs": 15000,
+      "fields": [
+        {
+          "key": "weapon",
+          "label": {
+            "default": "Weapon"
+          },
+          "kind": "select",
+          "value": "weapon_rifle_ak47",
+          "options": [
+            {
+              "value": "weapon_pistol",
+              "label": {
+                "default": "pistol"
+              }
+            },
+            {
+              "value": "weapon_pistol_magnum",
+              "label": {
+                "default": "pistol magnum"
+              }
+            },
+            {
+              "value": "weapon_smg",
+              "label": {
+                "default": "smg"
+              }
+            },
+            {
+              "value": "weapon_smg_silenced",
+              "label": {
+                "default": "smg silenced"
+              }
+            },
+            {
+              "value": "weapon_smg_mp5",
+              "label": {
+                "default": "smg mp5"
+              }
+            },
+            {
+              "value": "weapon_rifle",
+              "label": {
+                "default": "rifle"
+              }
+            },
+            {
+              "value": "weapon_rifle_desert",
+              "label": {
+                "default": "rifle desert"
+              }
+            },
+            {
+              "value": "weapon_rifle_ak47",
+              "label": {
+                "default": "rifle ak47"
+              }
+            },
+            {
+              "value": "weapon_rifle_sg552",
+              "label": {
+                "default": "rifle sg552"
+              }
+            },
+            {
+              "value": "weapon_shotgun_chrome",
+              "label": {
+                "default": "shotgun chrome"
+              }
+            },
+            {
+              "value": "weapon_shotgun_spas",
+              "label": {
+                "default": "shotgun spas"
+              }
+            },
+            {
+              "value": "weapon_pumpshotgun",
+              "label": {
+                "default": "pumpshotgun"
+              }
+            },
+            {
+              "value": "weapon_autoshotgun",
+              "label": {
+                "default": "autoshotgun"
+              }
+            },
+            {
+              "value": "weapon_hunting_rifle",
+              "label": {
+                "default": "hunting rifle"
+              }
+            },
+            {
+              "value": "weapon_sniper_military",
+              "label": {
+                "default": "sniper military"
+              }
+            },
+            {
+              "value": "weapon_sniper_awp",
+              "label": {
+                "default": "sniper awp"
+              }
+            },
+            {
+              "value": "weapon_sniper_scout",
+              "label": {
+                "default": "sniper scout"
+              }
+            },
+            {
+              "value": "weapon_grenade_launcher",
+              "label": {
+                "default": "grenade launcher"
+              }
+            },
+            {
+              "value": "weapon_chainsaw",
+              "label": {
+                "default": "chainsaw"
+              }
+            },
+            {
+              "value": "weapon_melee_spawn",
+              "label": {
+                "default": "melee spawn"
+              }
+            }
+          ]
+        },
+        {
+          "key": "count",
+          "label": {
+            "default": "Count"
+          },
           "kind": "number",
           "value": "1",
           "min": 1,
@@ -125,56 +387,35 @@
     "schema": {
       "type": "object",
       "properties": {
-        "host": {
+        "gameDir": {
           "type": "string",
-          "title": "RCON host",
-          "description": "Game server address. Prefer 127.0.0.1 (same machine); RCON has no encryption.",
-          "default": "127.0.0.1"
-        },
-        "port": {
-          "type": "integer",
-          "title": "RCON port",
-          "description": "Server RCON port (default 27015).",
-          "minimum": 1,
-          "maximum": 65535,
-          "default": 27015
-        },
-        "password": {
-          "type": "string",
-          "title": "RCON password",
-          "description": "Server rcon_password. Stored in host-managed settings and never logged.",
-          "secret": true
+          "title": "Game directory (optional)",
+          "description": "Leave empty to discover Left 4 Dead 2 in Steam. Set only if auto-discovery fails.",
+          "default": ""
         },
         "timeoutMs": {
           "type": "integer",
-          "title": "RCON timeout (ms)",
-          "description": "Per-operation socket timeout. Keep well under the 15s action timeout.",
-          "minimum": 2000,
+          "title": "IPC timeout (ms)",
+          "description": "Time to wait for a reply from the game; timed-out actions are never retried automatically.",
+          "minimum": 1000,
           "maximum": 12000,
-          "default": 8000
+          "default": 5000
         },
         "maxPerMinute": {
           "type": "integer",
           "title": "Max actions per minute",
-          "description": "Global RCON rate limit across all L4D2 actions.",
+          "description": "Upper limit for gameplay actions (the game enforces additional caps and cooldowns).",
           "minimum": 1,
           "maximum": 120,
           "default": 30
         }
       },
-      "required": ["host", "port", "password"]
+      "required": []
     },
     "uiHints": {
       "fields": {
-        "host": {
-          "placeholder": "127.0.0.1"
-        },
-        "port": {
-          "placeholder": "27015"
-        },
-        "password": {
-          "secret": true,
-          "placeholder": "rcon_password value"
+        "gameDir": {
+          "placeholder": "Auto-detect Steam installation"
         },
         "timeoutMs": {
           "advanced": true

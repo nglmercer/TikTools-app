@@ -1,9 +1,9 @@
 [package]
 name = "tiktools-l4d2"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
-description = "L4D2 Interactive plugin backend: Source RCON client driving the TikTools game adapter"
+description = "L4D2 Interactive plugin: local L4D2api file IPC client"
 
 [[bin]]
 name = "tiktools-l4d2"
@@ -12,3 +12,6 @@ path = "src/main.rs"
 [dependencies]
 serde_json.workspace = true
 tiktools-plugin-sdk = { path = "../../../crates/tiktools-plugin-sdk" }
+l4d2api-client = { git = "https://github.com/nglmercer/L4D2api", rev = "e67ad301db3cd9e897afb693bb015b55de7eb895" }
+l4d2api-protocol = { git = "https://github.com/nglmercer/L4D2api", rev = "e67ad301db3cd9e897afb693bb015b55de7eb895" }
+l4d2api-installer = { git = "https://github.com/nglmercer/L4D2api", rev = "e67ad301db3cd9e897afb693bb015b55de7eb895" }
