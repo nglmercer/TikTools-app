@@ -1,10 +1,10 @@
 //! One L4D2api IPC transaction per action. Game installation is managed externally.
-use std::time::Duration;
-use l4d2api_client::{Client, Error as IpcError, Health};
-use tiktools_plugin_sdk::{PluginError, PluginResult, ActionResult};
 use crate::command::ParsedAction;
 use crate::config::Settings;
 use crate::result;
+use l4d2api_client::{Client, Error as IpcError, Health};
+use std::time::Duration;
+use tiktools_plugin_sdk::{ActionResult, PluginError, PluginResult};
 
 fn map_ipc_error(error: IpcError) -> PluginError {
     match error {
@@ -18,10 +18,18 @@ fn map_ipc_error(error: IpcError) -> PluginError {
 fn ensure_gameplay_ready(health: Health) -> PluginResult<()> {
     match health {
         Health::GameplayReady => Ok(()),
-        Health::Connected => Err(PluginError::other("L4D2api is connected, but start an active local campaign before testing or spawning")),
-        Health::NotReady { reason } => Err(PluginError::other(format!("L4D2api not ready: {reason}"))),
-        Health::Disconnected => Err(PluginError::other("L4D2api disconnected: no valid heartbeat. Check addon installation and start L4D2.")),
-        Health::Stale { reason } => Err(PluginError::other(format!("L4D2api heartbeat stale: {reason}; restart the game and test again"))),
+        Health::Connected => Err(PluginError::other(
+            "L4D2api is connected, but start an active local campaign before testing or spawning",
+        )),
+        Health::NotReady { reason } => {
+            Err(PluginError::other(format!("L4D2api not ready: {reason}")))
+        }
+        Health::Disconnected => Err(PluginError::other(
+            "L4D2api disconnected: no valid heartbeat. Check addon installation and start L4D2.",
+        )),
+        Health::Stale { reason } => Err(PluginError::other(format!(
+            "L4D2api heartbeat stale: {reason}; restart the game and test again"
+        ))),
     }
 }
 

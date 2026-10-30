@@ -1,5 +1,8 @@
 #![forbid(unsafe_code)]
-#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
 //! L4D2 Interactive: only local L4D2api file IPC. No RCON/server/installer.
 mod command;
 mod config;
@@ -7,10 +10,10 @@ mod ratelimit;
 mod result;
 mod session;
 
+use ratelimit::RateLimiter;
 use serde_json::Value;
 use std::time::Instant;
 use tiktools_plugin_sdk::prelude::*;
-use ratelimit::RateLimiter;
 
 #[derive(Default)]
 struct L4d2Plugin {
@@ -19,12 +22,17 @@ struct L4d2Plugin {
 
 impl L4d2Plugin {
     fn check_rate(&mut self, max_per_minute: u64) -> PluginResult<()> {
-        let limiter = self.limiter.get_or_insert_with(|| RateLimiter::new(max_per_minute));
+        let limiter = self
+            .limiter
+            .get_or_insert_with(|| RateLimiter::new(max_per_minute));
         if limiter.max_per_minute() != max_per_minute {
             *limiter = RateLimiter::new(max_per_minute);
         }
         limiter.check(Instant::now()).map_err(|delay| {
-            PluginError::other(format!("L4D2 action rate limit reached; retry in {}s", delay.as_secs().max(1)))
+            PluginError::other(format!(
+                "L4D2 action rate limit reached; retry in {}s",
+                delay.as_secs().max(1)
+            ))
         })
     }
 
@@ -41,7 +49,10 @@ impl L4d2Plugin {
 
 impl Plugin for L4d2Plugin {
     fn action(&mut self, _context: &PluginContext, call: ActionCall) -> PluginResult<ActionResult> {
-        self.run_action(call.action_type().unwrap_or_default(), &Value::Object(call.config().clone()))
+        self.run_action(
+            call.action_type().unwrap_or_default(),
+            &Value::Object(call.config().clone()),
+        )
     }
 }
 
@@ -54,12 +65,18 @@ mod tests {
 
     #[test]
     fn unsupported_action_fails_without_settings() {
-        assert!(matches!(L4d2Plugin::default().run_action("l4d2.invalid", &json!({})), Err(PluginError::UnsupportedAction(_))));
+        assert!(matches!(
+            L4d2Plugin::default().run_action("l4d2.invalid", &json!({})),
+            Err(PluginError::UnsupportedAction(_))
+        ));
     }
 
     #[test]
     fn invalid_count_fails_without_game() {
-        assert!(matches!(L4d2Plugin::default().run_action(command::COMMON, &json!({"count":25})), Err(PluginError::InvalidRequest(_))));
+        assert!(matches!(
+            L4d2Plugin::default().run_action(command::COMMON, &json!({"count":25})),
+            Err(PluginError::InvalidRequest(_))
+        ));
     }
 
     #[test]

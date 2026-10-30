@@ -16,19 +16,27 @@ pub struct ParsedAction {
 }
 
 fn count(config: &Value, max: u32) -> PluginResult<u32> {
-    let n = config.get("count").and_then(Value::as_u64)
+    let n = config
+        .get("count")
+        .and_then(Value::as_u64)
         .ok_or_else(|| PluginError::invalid_request("count must be a positive integer"))?;
     if n == 0 || n > u64::from(max) {
-        return Err(PluginError::invalid_request(format!("count must be 1..={max}")));
+        return Err(PluginError::invalid_request(format!(
+            "count must be 1..={max}"
+        )));
     }
     Ok(n as u32)
 }
 
 fn token<'a>(config: &'a Value, key: &str, allowed: &[&str]) -> PluginResult<&'a str> {
-    let name = config.get(key).and_then(Value::as_str)
+    let name = config
+        .get(key)
+        .and_then(Value::as_str)
         .ok_or_else(|| PluginError::invalid_request(format!("{key} must be a string")))?;
     if !allowed.contains(&name) {
-        return Err(PluginError::invalid_request(format!("unsupported {key} value")));
+        return Err(PluginError::invalid_request(format!(
+            "unsupported {key} value"
+        )));
     }
     Ok(name)
 }
@@ -36,23 +44,55 @@ fn token<'a>(config: &'a Value, key: &str, allowed: &[&str]) -> PluginResult<&'a
 impl ParsedAction {
     pub fn parse(id: &str, config: &Value) -> PluginResult<Self> {
         if !config.is_object() {
-            return Err(PluginError::invalid_request("action config must be an object"));
+            return Err(PluginError::invalid_request(
+                "action config must be an object",
+            ));
         }
         let (action, label) = match id {
             TEST => (proto::Action::TestConnection, "Connection"),
-            COMMON => (proto::Action::SpawnCommon { count: count(config, proto::COMMON_MAX)? }, "Common infected"),
+            COMMON => (
+                proto::Action::SpawnCommon {
+                    count: count(config, proto::COMMON_MAX)?,
+                },
+                "Common infected",
+            ),
             SPECIAL => {
                 let class = token(config, "class", &proto::INFECTED_ALLOWLIST)?;
-                let n = count(config, if class == "tank" { 1 } else { proto::SPECIAL_MAX })?;
-                (proto::Action::SpawnInfected { class: class.to_owned(), count: n }, "Special infected")
+                let n = count(
+                    config,
+                    if class == "tank" {
+                        1
+                    } else {
+                        proto::SPECIAL_MAX
+                    },
+                )?;
+                (
+                    proto::Action::SpawnInfected {
+                        class: class.to_owned(),
+                        count: n,
+                    },
+                    "Special infected",
+                )
             }
             ITEM => {
                 let item = token(config, "item", &proto::ITEM_ALLOWLIST)?;
-                (proto::Action::SpawnItem { item: item.to_owned(), count: count(config, proto::ITEM_MAX)? }, "Item")
+                (
+                    proto::Action::SpawnItem {
+                        item: item.to_owned(),
+                        count: count(config, proto::ITEM_MAX)?,
+                    },
+                    "Item",
+                )
             }
             WEAPON => {
                 let weapon = token(config, "weapon", &proto::WEAPON_ALLOWLIST)?;
-                (proto::Action::SpawnWeapon { weapon: weapon.to_owned(), count: count(config, proto::WEAPON_MAX)? }, "Weapon")
+                (
+                    proto::Action::SpawnWeapon {
+                        weapon: weapon.to_owned(),
+                        count: count(config, proto::WEAPON_MAX)?,
+                    },
+                    "Weapon",
+                )
             }
             _ => return Err(PluginError::unsupported(id)),
         };
