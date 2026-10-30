@@ -29,7 +29,7 @@ ttl-sign-embedded.workspace = true
 # Match ttl-sign-embedded's rquickjs 0.12 so bindgen is enabled on its engine.
 # A standalone 0.14 dependency would not enable bindgen for the signer.
 [target.'cfg(target_os = "android")'.dependencies]
-rquickjs = { version = "0.12.2", default-features = false, features = ["bindgen"] }
+rquickjs = { version = "0.14.0", default-features = false, features = ["bindgen"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
