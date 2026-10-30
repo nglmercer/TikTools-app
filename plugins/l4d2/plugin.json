@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "description": "Control a local Left 4 Dead 2 campaign through the separately installed L4D2api VScript addon and file IPC. No RCON or dedicated server.",
   "longDescription": "Drive your locally hosted L4D2 campaign using the L4D2api game addon. Install the VPK once with the upstream l4d2api-installer.exe, then start the game and test the connection. The plugin uses local file IPC without a server or password. Available: items, weapons, and experimental common infected. Special infected remain unavailable until the addon advertises support.",
-  "icon": "gamepad-2",
+  "icon": "server",
   "tags": [
     "l4d2",
     "game",

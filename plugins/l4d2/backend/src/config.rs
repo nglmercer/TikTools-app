@@ -77,7 +77,7 @@ impl Settings {
                     .filter(|dir| Self::ipc_dir(dir).join(l4d2api_client::HEARTBEAT_FILE).is_file())
                     .collect();
                 match active.as_slice() {
-                    [only] => Ok((*only).clone()),
+                    [only] => Ok((**only).clone()),
                     _ => Err(PluginError::invalid_request("Multiple Left 4 Dead 2 installations detected; set gameDir explicitly")),
                 }
             }

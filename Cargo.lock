@@ -2428,6 +2428,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "l4d2api-client"
+version = "0.1.0"
+source = "git+https://github.com/nglmercer/L4D2api?rev=e67ad301db3cd9e897afb693bb015b55de7eb895#e67ad301db3cd9e897afb693bb015b55de7eb895"
+dependencies = [
+ "l4d2api-protocol",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "l4d2api-installer"
+version = "0.1.0"
+source = "git+https://github.com/nglmercer/L4D2api?rev=e67ad301db3cd9e897afb693bb015b55de7eb895#e67ad301db3cd9e897afb693bb015b55de7eb895"
+dependencies = [
+ "l4d2api-pack",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "l4d2api-pack"
+version = "0.1.0"
+source = "git+https://github.com/nglmercer/L4D2api?rev=e67ad301db3cd9e897afb693bb015b55de7eb895#e67ad301db3cd9e897afb693bb015b55de7eb895"
+dependencies = [
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "l4d2api-protocol"
+version = "0.1.0"
+source = "git+https://github.com/nglmercer/L4D2api?rev=e67ad301db3cd9e897afb693bb015b55de7eb895#e67ad301db3cd9e897afb693bb015b55de7eb895"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+
+[[package]]
 name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5394,8 +5431,11 @@ dependencies = [
 
 [[package]]
 name = "tiktools-l4d2"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "l4d2api-client",
+ "l4d2api-installer",
+ "l4d2api-protocol",
  "serde_json",
  "tiktools-plugin-sdk",
 ]
