@@ -2,8 +2,7 @@
 
 import type { JsonValue } from './json-value.ts';
 
-export interface ActionStatus {
-}
+export type ActionStatus = "pending" | "running" | "completed" | "failed" | "uncertain";
 
 export interface AutomationCreator {
   "uniqueId": string;
@@ -273,8 +272,7 @@ export interface RoomStatsAutomationData {
   "isHistory": boolean;
 }
 
-export interface SelectionMode {
-}
+export type SelectionMode = "highest_score" | "uniform_random" | "weighted_random";
 
 export interface SocialAutomationData {
   "action": number;

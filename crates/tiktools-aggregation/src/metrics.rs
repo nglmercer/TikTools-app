@@ -81,6 +81,24 @@ pub fn descriptors() -> Vec<MetricDescriptor> {
             "events",
         ),
         (
+            "points.awarded",
+            "points.delta",
+            "Whole points granted by committed LIVE awards",
+            "points",
+        ),
+        (
+            "plugin.event",
+            "event.count",
+            "Plugin-reported ranking contributions (rankings.contribute)",
+            "events",
+        ),
+        (
+            "plugin.event",
+            "value",
+            "Plugin-reported integer contribution value (rankings.contribute)",
+            "units",
+        ),
+        (
             "tiktok.join",
             "event.count",
             "Accepted member join events",

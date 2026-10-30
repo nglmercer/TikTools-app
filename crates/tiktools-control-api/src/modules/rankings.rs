@@ -8,6 +8,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 pub use tiktools_aggregation::{metrics::MetricDescriptor, model::Definition, Snapshot};
+pub use tiktools_core::control::{ContributionOutcome, ExternalContribution};
 use tiktools_core::AppCore;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -102,6 +103,18 @@ pub fn register(router: &mut ControlRouter) {
             })
             .await?
             .map(|_| OkResult::ok())
+            .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<ExternalContribution, ContributionOutcome, _, _>(
+        "rankings.contribute",
+        "Apply an idempotent plugin or custom ranking contribution",
+        true,
+        |core: Arc<AppCore>, params| async move {
+            crate::modules::blocking_task("rankings.contribute", move || {
+                core.ranking_contribute(params)
+            })
+            .await?
             .map_err(ApiError::from)
         },
     );

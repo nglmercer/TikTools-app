@@ -23,6 +23,8 @@ pub(crate) struct CompetitionService {
     pub(crate) timer_started: std::sync::atomic::AtomicBool,
     #[cfg(feature = "persistence")]
     pub(crate) action_worker: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    #[cfg(feature = "persistence")]
+    pub(crate) action_inflight: Mutex<Option<(String, u64)>>,
 }
 impl CompetitionService {
     pub(crate) fn diagnostics(&self) -> serde_json::Value {

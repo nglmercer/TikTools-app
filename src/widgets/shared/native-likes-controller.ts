@@ -1,5 +1,6 @@
 /** Renders the native, locally observed like leaderboard; never sums events. */
 import { isRecord } from './event-parser.ts';
+import { safeImageUrl } from './ranking-controller.ts';
 import type { LikeBoardEntry, LikesControllerHandlers } from './likes-controller.ts';
 
 export class NativeLikesController {
@@ -17,7 +18,7 @@ export class NativeLikesController {
         || typeof entry['uniqueId'] !== 'string' || typeof entry['nickname'] !== 'string'
         || (entry['avatarUrl'] != null && typeof entry['avatarUrl'] !== 'string')) return 'ignored';
       keys.add(entry['userId']);
-      entries.push({ uniqueId: entry['uniqueId'], displayName: entry['nickname'] || entry['uniqueId'], avatarUrl: entry['avatarUrl'] ?? null, total: entry['score'] });
+      entries.push({ userId: entry['userId'], uniqueId: entry['uniqueId'], displayName: entry['nickname'] || entry['uniqueId'], avatarUrl: safeImageUrl(entry['avatarUrl']) ?? null, total: entry['score'] });
     }
     this.handlers.onBoard(entries.slice(0, this.maxEntries));
     this.onIntegrity?.(data['integrityStatus'] === 'degraded');

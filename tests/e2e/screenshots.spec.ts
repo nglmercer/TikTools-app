@@ -132,7 +132,7 @@ test('plugin connection error', async ({ page }) => {
   await freezeClock(page);
   await page.getByRole('link', { name: 'Connections' }).click();
   await page.getByRole('button', { name: /SonicBoom Server/ }).click();
-  await page.getByRole('button', { name: 'Test connection' }).click();
+  await page.getByRole('button', { name: 'Connect SonicBoom' }).click();
   await expect(page.getByRole('button', { name: /connection refused/ })).toBeVisible();
   await expect(page.getByText('connection refused', { exact: false }).first()).toBeVisible();
   await expect(page).toHaveScreenshot('plugin-connection-error.png', { fullPage: true });

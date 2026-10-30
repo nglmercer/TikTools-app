@@ -60,6 +60,10 @@ pub(crate) struct AutomationRuntimeState {
     /// are occupied are intentionally dropped; live delivery must remain
     /// responsive and disposable events must not create an unbounded task
     /// backlog.
+    #[cfg_attr(
+        not(any(feature = "native-tiktok", feature = "persistence")),
+        allow(dead_code)
+    )]
     pub(crate) slots: Arc<tokio::sync::Semaphore>,
     /// Saturation diagnostics: admitted vs. rejected automation work.
     pub(crate) admitted: AtomicU64,
@@ -145,6 +149,10 @@ pub(crate) struct ProcessorRuntimeState {
     pub(crate) metrics: Mutex<BTreeMap<ProcessorKey, ProcessorMetrics>>,
     pub(crate) settings: ProcessorSettingsStore,
     pub(crate) index: RwLock<ContributionIndex>,
+    #[cfg_attr(
+        not(any(feature = "native-tiktok", feature = "persistence")),
+        allow(dead_code)
+    )]
     pub(crate) slots: Arc<tokio::sync::Semaphore>,
 }
 

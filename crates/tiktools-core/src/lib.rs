@@ -620,20 +620,19 @@ impl AppCore {
         {
             let core = Arc::clone(self);
             let checkpoint = tokio::task::spawn_blocking(move || {
-                services::competitions::CompetitionService::checkpoint_shutdown(&core)
+                services::competitions::CompetitionService::checkpoint_shutdown(&core)?;
+                services::aggregations::AggregationService::checkpoint_shutdown(&core)
             });
             // The checkpoint owner fences a late write after a newer host starts.
             match tokio::time::timeout(std::time::Duration::from_secs(5), checkpoint).await {
                 Ok(Ok(Ok(()))) => {}
                 Ok(Ok(Err(error))) => {
-                    tracing::error!(%error, "competition integrity checkpoint failed")
+                    tracing::error!(%error, "ranking or competition checkpoint failed")
                 }
                 Ok(Err(error)) => {
-                    tracing::error!(%error, "competition integrity checkpoint worker failed")
+                    tracing::error!(%error, "checkpoint worker failed")
                 }
-                Err(_) => tracing::error!(
-                    "competition integrity checkpoint timed out; restart may be degraded"
-                ),
+                Err(_) => tracing::error!("checkpoint timed out; restart may be degraded"),
             }
         }
         self.shutdown_finished.store(true, Ordering::Release);

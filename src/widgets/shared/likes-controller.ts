@@ -21,6 +21,7 @@ import { createLogger } from './logger.ts';
 const log = createLogger('likes');
 
 export interface LikeBoardEntry {
+  userId?: string;
   uniqueId: string;
   displayName: string;
   avatarUrl: string | null;

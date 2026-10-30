@@ -35,6 +35,11 @@ impl AppCore {
         self.remember_automation_event(&enriched);
         Box::pin(self.run_automation_event(enriched)).await;
     }
+    // Only native LIVE ingestion and persisted competitions queue events.
+    #[cfg_attr(
+        not(any(feature = "native-tiktok", feature = "persistence")),
+        allow(dead_code)
+    )]
     pub(crate) fn queue_automation_event(self: &Arc<Self>, event: serde_json::Value) {
         // Control/UI delivery must never depend on automation capacity.
         self.publish_live_domain_event(&event);

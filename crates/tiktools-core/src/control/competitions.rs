@@ -3,6 +3,31 @@ use super::OperationError;
 use crate::{recover_mutex, AppCore};
 use tiktools_competitions::Definition;
 
+/// Presentation transports have a per-message limit. Preserve accounting
+/// totals and order while dropping optional artwork/identity first, then
+/// reducing the visible prefix if unusually escaped text remains too large.
+pub(crate) fn bound_ranking_presentation(
+    mut snapshot: tiktools_aggregation::Snapshot,
+) -> tiktools_aggregation::Snapshot {
+    const BUDGET: usize = 512 * 1024;
+    let fits = |value: &tiktools_aggregation::Snapshot| {
+        serde_json::to_vec(value).is_ok_and(|bytes| bytes.len() <= BUDGET)
+    };
+    if fits(&snapshot) {
+        return snapshot;
+    }
+    for entry in &mut snapshot.entries {
+        entry.metadata = Default::default();
+    }
+    if fits(&snapshot) {
+        return snapshot;
+    }
+    while !snapshot.entries.is_empty() && !fits(&snapshot) {
+        snapshot.entries.truncate(snapshot.entries.len() / 2);
+    }
+    snapshot
+}
+
 impl AppCore {
     /// Starts one host-owned deadline worker. It uses weak ownership so it
     /// cannot keep an otherwise stopped AppCore alive.
@@ -15,6 +40,8 @@ impl AppCore {
         }
         #[cfg(feature = "persistence")]
         self.start_competition_action_worker();
+        #[cfg(feature = "persistence")]
+        crate::services::aggregations::AggregationService::start_checkpoints(self);
         let weak = std::sync::Arc::downgrade(self);
         let interval_ms = std::env::var("TIKTOOLS_RANKING_PUBLISH_INTERVAL_MS")
             .ok()
@@ -54,7 +81,10 @@ impl AppCore {
                         let mut snapshots = Vec::new();
                         for (id, instance, revision) in tokens {
                             if published.get(&id) != Some(&(instance, revision)) {
-                                if let Some(snapshot) = engine.snapshot_unranked(&id) {
+                                // Browser widgets render at most 100 rows; keep
+                                // presentation traffic bounded independently of
+                                // the complete control API and selection state.
+                                if let Some(snapshot) = engine.snapshot_unranked_capped(&id, 100) {
                                     snapshots.push(snapshot);
                                     published.insert(id, (instance, revision));
                                 }
@@ -67,7 +97,7 @@ impl AppCore {
                 for (snapshot, limit) in snapshots {
                     core.events
                         .publish_domain(crate::events::DomainEvent::RankingUpdated {
-                            snapshot: snapshot.rank(limit),
+                            snapshot: bound_ranking_presentation(snapshot.rank(limit)),
                         });
                 }
                 #[cfg(feature = "native-tiktok")]
@@ -163,7 +193,7 @@ impl AppCore {
         // Presentation refresh must not block host-owned deadlines
         // or winner finalization when a stored result is corrupt.
         if refresh_due && self.events.has_domain_subscribers() {
-            match self.db.latest_competition_results() {
+            match self.db.latest_competition_results_for_presentation() {
                 Ok(results) => {
                     for result in results {
                         match result.reveal_snapshot() {
@@ -206,13 +236,16 @@ impl AppCore {
             CompetitionKind::Poll
                 | CompetitionKind::WeightedPoll
                 | CompetitionKind::TeamBattle
+                | CompetitionKind::Roulette
                 | CompetitionKind::RandomDraw
                 | CompetitionKind::WeightedDraw
+                | CompetitionKind::LeaderboardChallenge
         ) {
             return Err(OperationError::conflict(
                 "competition kind cannot yet be finalized",
             ));
         }
+        let challenge = definition.kind == CompetitionKind::LeaderboardChallenge;
         let participant_draw = matches!(
             definition.kind,
             CompetitionKind::RandomDraw | CompetitionKind::WeightedDraw
@@ -228,19 +261,30 @@ impl AppCore {
             ));
         }
         let ranking = self.ranking_get(&definition.ranking_id)?;
-        if !ranking
-            .sources
-            .iter()
-            .any(|source| source.source == "competition.vote")
+        // Challenges rank an ordinary (checkpointed) ranking; every other
+        // kind requires the durable command-vote projection.
+        if challenge
+            == ranking
+                .sources
+                .iter()
+                .any(|source| source.source == "competition.vote")
         {
-            return Err(OperationError::conflict(
-                "competition ranking is not a durable vote projection",
-            ));
+            return Err(OperationError::conflict(if challenge {
+                "leaderboard challenges require an ordinary ranking"
+            } else {
+                "competition ranking is not a durable vote projection"
+            }));
         }
-        let participants = self
-            .db
-            .competition_participant_count(id, state.generation)
-            .map_err(|_| OperationError::unavailable("participant count unavailable"))?;
+        let participants = if challenge {
+            recover_mutex(&self.aggregations.engine, "aggregations")
+                .selection_snapshot(&definition.ranking_id)
+                .map(|snapshot| snapshot.total_participants as u64)
+                .unwrap_or(0)
+        } else {
+            self.db
+                .competition_participant_count(id, state.generation)
+                .map_err(|_| OperationError::unavailable("participant count unavailable"))?
+        };
         if participants < definition.minimum_participants {
             return Err(OperationError::conflict(
                 "minimum participation not reached",
@@ -270,6 +314,11 @@ impl AppCore {
             snapshot
                 .entries
                 .into_iter()
+                .filter(|entry| {
+                    definition
+                        .target_score
+                        .is_none_or(|target| entry.score >= target)
+                })
                 .map(|entry| Candidate {
                     key: entry.key,
                     weight: entry.score,
@@ -289,6 +338,13 @@ impl AppCore {
                     "manual selection requires a manual highest-score tie",
                 ))
             }
+            // A challenge nobody reached closes with an explicit no-winner result.
+            None if challenge && candidates.is_empty() => Ok(tiktools_competitions::Selection {
+                mode: definition.selection_mode,
+                tie_policy: definition.tie_policy,
+                eligible: Vec::new(),
+                winner: None,
+            }),
             None => tiktools_competitions::select(
                 candidates,
                 definition.selection_mode,
@@ -298,16 +354,24 @@ impl AppCore {
         .map_err(|error| {
             OperationError::conflict(format!("winner selection unavailable: {error:?}"))
         })?;
-        let action = (!participant_draw)
-            .then_some(selection.winner.as_ref())
-            .flatten()
-            .and_then(|winner| {
-                definition
-                    .options
-                    .iter()
-                    .find(|option| &option.id == winner)
-            })
-            .and_then(|option| option.on_win.as_ref());
+        let user_winner = participant_draw || challenge;
+        let action = if user_winner {
+            selection
+                .winner
+                .as_ref()
+                .and(definition.on_user_win.as_ref())
+        } else {
+            selection
+                .winner
+                .as_ref()
+                .and_then(|winner| {
+                    definition
+                        .options
+                        .iter()
+                        .find(|option| &option.id == winner)
+                })
+                .and_then(|option| option.on_win.as_ref())
+        };
         let result = ResultRecord {
             schema_version: 1,
             competition_id: id.to_owned(),
@@ -334,7 +398,7 @@ impl AppCore {
                 data.selection_id =
                     serde_json::to_string(&("competition-winner", id, stored.generation)).ok();
                 data.winner_id = stored.selection.winner.clone();
-                data.option_id = if participant_draw {
+                data.option_id = if user_winner {
                     None
                 } else {
                     data.winner_id.clone()
@@ -374,12 +438,16 @@ impl AppCore {
                 tiktools_competitions::CompetitionKind::Poll
                     | tiktools_competitions::CompetitionKind::WeightedPoll
                     | tiktools_competitions::CompetitionKind::TeamBattle
+                    | tiktools_competitions::CompetitionKind::Roulette
                     | tiktools_competitions::CompetitionKind::RandomDraw
                     | tiktools_competitions::CompetitionKind::WeightedDraw
-            ) || !ranking
-                .sources
-                .iter()
-                .any(|source| source.source == "competition.vote")
+                    | tiktools_competitions::CompetitionKind::LeaderboardChallenge
+            ) || (definition.kind
+                == tiktools_competitions::CompetitionKind::LeaderboardChallenge)
+                == ranking
+                    .sources
+                    .iter()
+                    .any(|source| source.source == "competition.vote")
             {
                 return Err(OperationError::conflict(
                     "competition kind or ranking cannot yet be finalized",
@@ -433,29 +501,34 @@ impl AppCore {
             tiktools_competitions::CompetitionKind::Poll
                 | tiktools_competitions::CompetitionKind::WeightedPoll
                 | tiktools_competitions::CompetitionKind::TeamBattle
-        ) || !ranking
-            .sources
-            .iter()
-            .any(|source| source.source == "competition.vote")
+                | tiktools_competitions::CompetitionKind::Roulette
+                | tiktools_competitions::CompetitionKind::LeaderboardChallenge
+        ) || (definition.kind == tiktools_competitions::CompetitionKind::LeaderboardChallenge)
+            == ranking
+                .sources
+                .iter()
+                .any(|source| source.source == "competition.vote")
         {
             return Err(OperationError::conflict(
                 "competition ranking cannot yet be finalized",
             ));
         }
+        let snapshot = recover_mutex(&self.aggregations.engine, "aggregations")
+            .selection_snapshot(&definition.ranking_id)
+            .ok_or_else(|| OperationError::not_found("ranking not found"))?;
         #[cfg(feature = "persistence")]
-        if self
-            .db
-            .competition_participant_count(id, state.generation)
-            .map_err(|_| OperationError::unavailable("participant count unavailable"))?
-            < definition.minimum_participants
+        if (if definition.kind == tiktools_competitions::CompetitionKind::LeaderboardChallenge {
+            snapshot.total_participants as u64
+        } else {
+            self.db
+                .competition_participant_count(id, state.generation)
+                .map_err(|_| OperationError::unavailable("participant count unavailable"))?
+        }) < definition.minimum_participants
         {
             return Err(OperationError::conflict(
                 "minimum participation not reached",
             ));
         }
-        let snapshot = recover_mutex(&self.aggregations.engine, "aggregations")
-            .selection_snapshot(&definition.ranking_id)
-            .ok_or_else(|| OperationError::not_found("ranking not found"))?;
         if snapshot.integrity_status == "degraded" {
             return Err(OperationError::conflict("ranking integrity is degraded"));
         }
@@ -516,6 +589,16 @@ impl AppCore {
         let ranking = self
             .ranking_get(&definition.ranking_id)
             .map_err(|_| OperationError::invalid("ranking not found"))?;
+        if definition.kind == tiktools_competitions::CompetitionKind::LeaderboardChallenge
+            && ranking
+                .sources
+                .iter()
+                .any(|source| source.source == "competition.vote")
+        {
+            return Err(OperationError::invalid(
+                "leaderboard challenges require an ordinary ranking",
+            ));
+        }
         if ranking
             .sources
             .iter()
@@ -581,8 +664,18 @@ impl AppCore {
                 "competition definitions unavailable",
             ));
         }
-        if self.ranking_get(&definition.ranking_id).is_err() {
-            return Err(OperationError::invalid("ranking not found"));
+        let ranking = self
+            .ranking_get(&definition.ranking_id)
+            .map_err(|_| OperationError::invalid("ranking not found"))?;
+        if ranking
+            .sources
+            .iter()
+            .any(|source| source.source == "competition.vote")
+            && self.ranking_snapshot(&ranking.id)?.total_score != 0
+        {
+            return Err(OperationError::conflict(
+                "reset the vote ranking before updating a competition",
+            ));
         }
         if !recover_mutex(&self.competitions.definitions, "competition definitions")
             .contains_key(&definition.id)
@@ -798,6 +891,22 @@ impl AppCore {
         }
         #[cfg(feature = "persistence")]
         {
+            // Hold the same guard used by the worker from before claiming
+            // until execution ends, preventing recovery of a live invocation.
+            let in_flight = recover_mutex(
+                &self.competitions.action_inflight,
+                "competition action in flight",
+            );
+            if in_flight
+                .as_ref()
+                .is_some_and(|(active_id, active_generation)| {
+                    active_id == id && *active_generation == generation
+                })
+            {
+                return Err(OperationError::conflict(
+                    "competition action is still executing",
+                ));
+            }
             let changed = self
                 .db
                 .mark_competition_action_uncertain(

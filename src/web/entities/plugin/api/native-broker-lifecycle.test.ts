@@ -51,7 +51,8 @@ test('native broker bounds admission and rejects all pending requests on teardow
   listeners.get('pagehide')!();
   expect((await Promise.all(pending)).every((result) => String(result).includes('closed'))).toBe(true);
   expect(timers.size).toBe(0);
-  expect(listeners.size).toBe(0);
+  // Only the page-level shortcut listener (F5/F12) outlives the broker.
+  expect([...listeners.keys()]).toEqual(['keydown']);
   window.__tiktools_broker_dispose__();
   expect(await window.tiktools.settings.get().catch((error: Error) => error.message)).toContain('closed');
 });

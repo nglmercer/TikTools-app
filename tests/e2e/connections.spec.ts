@@ -76,7 +76,8 @@ test('server connection failure shows the error without an app-wide crash', asyn
 
   // Explicit probe; the inline card keeps the form visible and reports the
   // host error on the server head (accessible name) plus a status line.
-  await page.getByRole('button', { name: 'Test connection' }).click();
+  // SonicBoom cards label the probe as a connect action.
+  await page.getByRole('button', { name: 'Connect SonicBoom' }).click();
   await expect(page.getByRole('button', { name: /connection refused/ })).toBeVisible();
   await expect(page.getByText('connection refused', { exact: false }).first()).toBeVisible();
 

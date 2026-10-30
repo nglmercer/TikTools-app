@@ -89,6 +89,16 @@ fn webview_coalesce_key(value: &serde_json::Value) -> Option<String> {
         .get("params")
         .and_then(|params| params.get("topic"))
         .and_then(serde_json::Value::as_str)?;
+    if topic == "ranking.updated" {
+        let ranking = value.pointer("/params/data/snapshot/rankingId")?.as_str()?;
+        return Some(format!("domain:{topic}:{ranking}"));
+    }
+    if topic == "competition.result" {
+        let competition = value
+            .pointer("/params/data/result/competitionId")?
+            .as_str()?;
+        return Some(format!("domain:{topic}:{competition}"));
+    }
     if topic == "plugin.progress" {
         let plugin = value
             .get("params")
@@ -123,6 +133,10 @@ fn classify_value(value: &serde_json::Value) -> WebviewMessageClass {
             "room.stats"
             | "analytics.updated"
             | "gifts.catalog"
+            | "ranking.updated"
+            | "competition.result"
+            | "live.likes-ranking"
+            | "live.likes-ranking-full"
             | "ui.points.snapshot"
             | "ui.automation.runs"
             | "ui.projection.stats" => WebviewMessageClass::Coalescable,
@@ -154,6 +168,10 @@ pub(crate) struct QueuedWebviewMessage {
     pub(crate) javascript_literal: Option<std::sync::Arc<str>>,
     class: WebviewMessageClass,
     coalesce_key: Option<String>,
+    /// Persisted competition generation, used only for committed reveals.
+    coalesce_generation: Option<u64>,
+    /// Revisions are comparable only within the same ranking instance.
+    ranking_revision: Option<(String, u64)>,
     pub(crate) plugin: Option<PluginRoute>,
 }
 
@@ -178,6 +196,7 @@ impl QueuedWebviewMessage {
                 .as_ref()
                 .map_or(0, |value| value.len())
             + self.coalesce_key.as_ref().map_or(0, String::len)
+            + self.ranking_revision.as_ref().map_or(0, |(id, _)| id.len())
             + self
                 .plugin
                 .as_ref()
@@ -209,6 +228,33 @@ impl QueuedWebviewMessage {
             javascript_literal: Some(javascript_literal.into()),
             class: classify_value(value),
             coalesce_key: webview_coalesce_key(value),
+            coalesce_generation: (value
+                .pointer("/params/topic")
+                .and_then(serde_json::Value::as_str)
+                == Some("competition.result"))
+            .then(|| {
+                value
+                    .pointer("/params/data/result/generation")
+                    .and_then(serde_json::Value::as_u64)
+            })
+            .flatten(),
+            ranking_revision: (value
+                .pointer("/params/topic")
+                .and_then(serde_json::Value::as_str)
+                == Some("ranking.updated"))
+            .then(|| {
+                let id = value
+                    .pointer("/params/data/snapshot/instanceId")?
+                    .as_str()?;
+                if id.len() != 32 || !id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                    return None;
+                }
+                Some((
+                    id.to_owned(),
+                    value.pointer("/params/data/snapshot/revision")?.as_u64()?,
+                ))
+            })
+            .flatten(),
             plugin,
         })
     }
@@ -390,6 +436,8 @@ impl WebviewOutbox {
                     javascript_literal: Some(literal.into()),
                     class: WebviewMessageClass::Critical,
                     coalesce_key: None,
+                    coalesce_generation: None,
+                    ranking_revision: None,
                     plugin: None,
                 }),
                 Err(_) => self.fail(),
@@ -408,6 +456,8 @@ impl WebviewOutbox {
             javascript_literal: None,
             class: WebviewMessageClass::Critical,
             coalesce_key: None,
+            coalesce_generation: None,
+            ranking_revision: None,
             plugin: None,
         });
     }
@@ -422,6 +472,28 @@ impl WebviewOutbox {
             return;
         }
         if let Some(key) = message.coalesce_key.as_deref() {
+            if let Some((instance, revision)) = &message.ranking_revision {
+                if self.lossy.iter().any(|queued| {
+                    queued.coalesce_key.as_deref() == Some(key)
+                        && queued.ranking_revision.as_ref().is_some_and(
+                            |(prior_instance, prior_revision)| {
+                                prior_instance == instance && prior_revision > revision
+                            },
+                        )
+                }) {
+                    return;
+                }
+            }
+            if let Some(generation) = message.coalesce_generation {
+                if self.lossy.iter().any(|queued| {
+                    queued.coalesce_key.as_deref() == Some(key)
+                        && queued
+                            .coalesce_generation
+                            .is_some_and(|prior| prior > generation)
+                }) {
+                    return;
+                }
+            }
             self.lossy.retain(|queued| {
                 let keep = queued.coalesce_key.as_deref() != Some(key);
                 if !keep {

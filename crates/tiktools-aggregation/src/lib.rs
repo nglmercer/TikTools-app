@@ -98,6 +98,9 @@ pub struct Snapshot {
     pub room_id: String,
     pub window: model::Window,
     pub revision: u64,
+    /// Opaque identity of this ranking instance, retained by clean checkpoints.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instance_id: Option<String>,
     /// Accounting completeness cannot be inferred from local state alone.
     pub integrity_status: String,
     pub rejected: u64,
@@ -310,6 +313,7 @@ impl Aggregation {
             room_id: String::new(),
             window: model::Window::Session,
             revision: self.revision,
+            instance_id: None,
             integrity_status: "unknown".into(),
             rejected: 0,
             dropped: 0,
@@ -412,6 +416,192 @@ mod tests {
 mod engine_tests {
     use crate::engine::Engine;
     use crate::model::{Contribution, Definition, SourceRule};
+    #[test]
+    fn daily_window_resets_at_local_midnight() {
+        use crate::model::Window;
+        const DAY: u64 = 86_400_000;
+        let mut engine = Engine::default();
+        engine
+            .create(Definition {
+                schema_version: 1,
+                id: "daily".into(),
+                creator_id: "c".into(),
+                room_id: "r".into(),
+                group_by: Default::default(),
+                // UTC-5: local midnight is 05:00 UTC.
+                window: Window::Daily {
+                    utc_offset_minutes: -300,
+                },
+                user_limits: None,
+                capacity: 3,
+                limit: 3,
+                sources: vec![SourceRule {
+                    source: "like".into(),
+                    metric: "count".into(),
+                    weight: 1,
+                    enabled: true,
+                    gift_multipliers: Default::default(),
+                }],
+            })
+            .unwrap();
+        let event = Contribution {
+            creator_id: "c",
+            room_id: "r",
+            source: "like",
+            user: Some("u"),
+            gift: None,
+            option: None,
+            team: None,
+            custom_key: None,
+            metrics: &[("count", 3)],
+        };
+        let base = 10 * DAY + 3_600_000; // 01:00 UTC = 20:00 local, previous day.
+        engine.apply_at(&event, base);
+        engine.apply_at(&event, base + 3_000_000); // 01:50 UTC, same local day.
+        assert_eq!(engine.snapshot("daily").unwrap().total_score, 6);
+        engine.expire_at(base + 4 * 3_600_000 + 1); // 05:00 UTC: local midnight.
+        assert_eq!(engine.snapshot("daily").unwrap().total_score, 0);
+        engine.apply_at(&event, base + 5 * 3_600_000);
+        assert_eq!(engine.snapshot("daily").unwrap().total_score, 3);
+    }
+    #[test]
+    fn checkpoint_preserves_rolling_expiry_and_user_limits() {
+        use crate::model::{UserLimits, Window};
+        let definition = Definition {
+            schema_version: 1,
+            id: "rolling".into(),
+            creator_id: "c".into(),
+            room_id: "r".into(),
+            group_by: Default::default(),
+            window: Window::Rolling {
+                duration_ms: 100,
+                max_events: 4,
+            },
+            user_limits: Some(UserLimits {
+                max_contributions: Some(2),
+                cooldown_ms: Some(20),
+                max_users: 3,
+            }),
+            capacity: 3,
+            limit: 3,
+            sources: vec![SourceRule {
+                source: "like".into(),
+                metric: "count".into(),
+                weight: 1,
+                enabled: true,
+                gift_multipliers: Default::default(),
+            }],
+        };
+        let mut source = Engine::default();
+        source.create(definition.clone()).unwrap();
+        let event = Contribution {
+            creator_id: "c",
+            room_id: "r",
+            source: "like",
+            user: Some("u"),
+            gift: None,
+            option: None,
+            team: None,
+            custom_key: None,
+            metrics: &[("count", 3)],
+        };
+        source.apply_at(&event, 100);
+        let checkpoint = source.session_checkpoint("rolling").unwrap();
+        let mut restored = Engine::default();
+        restored.create(definition).unwrap();
+        restored.restore_session_checkpoint(&checkpoint).unwrap();
+        restored.apply_at(&event, 110);
+        assert_eq!(restored.snapshot("rolling").unwrap().cooldown_rejected, 1);
+        restored.apply_at(&event, 120);
+        assert_eq!(restored.snapshot("rolling").unwrap().total_score, 6);
+        restored.expire_at(200);
+        assert_eq!(restored.snapshot("rolling").unwrap().total_score, 3);
+        restored.apply_at(&event, 220);
+        assert_eq!(restored.snapshot("rolling").unwrap().limited, 1);
+        assert_eq!(restored.snapshot("rolling").unwrap().total_score, 0);
+    }
+    #[test]
+    fn session_checkpoint_restores_full_ranking_and_rejects_corruption_atomically() {
+        let definition = Definition {
+            schema_version: 1,
+            id: "rank".into(),
+            creator_id: "c".into(),
+            room_id: "r".into(),
+            group_by: Default::default(),
+            window: Default::default(),
+            user_limits: None,
+            capacity: 3,
+            limit: 1,
+            sources: vec![SourceRule {
+                source: "like".into(),
+                metric: "count".into(),
+                weight: 1,
+                enabled: true,
+                gift_multipliers: Default::default(),
+            }],
+        };
+        let mut source = Engine::default();
+        source.create(definition.clone()).unwrap();
+        for user in ["a", "b"] {
+            assert!(source
+                .apply(&Contribution {
+                    creator_id: "c",
+                    room_id: "r",
+                    source: "like",
+                    user: Some(user),
+                    gift: None,
+                    option: None,
+                    team: None,
+                    custom_key: None,
+                    metrics: &[("count", 3)]
+                })
+                .is_empty());
+        }
+        let checkpoint = source.session_checkpoint("rank").unwrap();
+        assert_eq!(checkpoint.snapshot.entries.len(), 2);
+        let (presentation, limit) = source.snapshot_unranked_capped("rank", 1).unwrap();
+        assert_eq!(presentation.rank(limit).entries.len(), 1);
+        assert_eq!(source.selection_snapshot("rank").unwrap().entries.len(), 2);
+        let mut target = Engine::default();
+        target.create(definition.clone()).unwrap();
+        let fresh_identity = target.snapshot("rank").unwrap().instance_id.unwrap();
+        assert_ne!(
+            Some(&fresh_identity),
+            checkpoint.snapshot.instance_id.as_ref()
+        );
+        let mut corrupt = checkpoint.clone();
+        corrupt.snapshot.total_score += 1;
+        assert_eq!(
+            target.restore_session_checkpoint(&corrupt),
+            Err(crate::Error::IncompatibleDefinition)
+        );
+        assert_eq!(target.snapshot("rank").unwrap().total_score, 0);
+        let mut legacy = checkpoint.clone();
+        legacy.snapshot.instance_id = None;
+        let mut legacy_target = Engine::default();
+        legacy_target.create(definition).unwrap();
+        let legacy_identity = legacy_target.snapshot("rank").unwrap().instance_id;
+        legacy_target.restore_session_checkpoint(&legacy).unwrap();
+        assert_eq!(
+            legacy_target.snapshot("rank").unwrap().instance_id,
+            legacy_identity
+        );
+        target.restore_session_checkpoint(&checkpoint).unwrap();
+        assert_eq!(
+            target.selection_snapshot("rank"),
+            source.selection_snapshot("rank")
+        );
+        target.set_paused("rank", true).unwrap().unwrap();
+        target.mark_recovery_gap("rank").unwrap();
+        assert_eq!(
+            target.snapshot("rank").unwrap().integrity_status,
+            "degraded"
+        );
+        assert_eq!(
+            target.restore_session_checkpoint(&checkpoint),
+            Err(crate::Error::IncompatibleDefinition)
+        );
+    }
     #[test]
     fn presentation_metadata_follows_accepted_scores_and_expires() {
         use crate::{model::Window, EntryMetadata};

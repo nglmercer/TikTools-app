@@ -11,6 +11,7 @@ pub(crate) struct GiftDelta {
     pub diamonds: Option<u64>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn advance_combo(
     tx: &Transaction<'_>,
     competition: &str,

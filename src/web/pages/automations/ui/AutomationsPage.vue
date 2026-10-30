@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { routeLocationKey, routerKey } from 'vue-router';
 import type { ActionTypeDefinition, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { useAutomationControls } from '@/features/manage-automations/model/use-automation-controls.ts';
 import {
@@ -158,13 +159,25 @@ function onSheetKeydown(event: KeyboardEvent): void {
   closeEditor();
 }
 
-function newEvent(): void {
+function newEvent(trigger?: string): void {
   guard(() => {
     tab.value = 'events';
     const record = createEvent(t('automations.editor.newEventName'));
+    if (trigger) record.trigger = trigger;
     selected.value = record.id;
     draft.value = { kind: 'event', record, isNew: true };
   });
+}
+
+// Other pages link here with `?trigger=<event type>` to start a rule for it.
+// Optional injections: the page also renders without a router (tests, embeds).
+const route = inject(routeLocationKey, null);
+const router = inject(routerKey, null);
+function openRequestedTrigger(): void {
+  const trigger = route?.query.trigger;
+  if (typeof trigger !== 'string' || !/^[a-z][a-z0-9_.-]{0,127}$/.test(trigger)) return;
+  newEvent(trigger);
+  void router?.replace({ query: {} });
 }
 
 function newAction(type: ActionTypeDefinition): void {
@@ -242,6 +255,7 @@ const persist = debounce(() => {
 watch([tab, selected, eventQuery, eventSort, actionQuery, actionSort], persist);
 
 onMounted(() => {
+  openRequestedTrigger();
   void automation.loadCustomTemplates();
   window.addEventListener('keydown', onSheetKeydown);
 });

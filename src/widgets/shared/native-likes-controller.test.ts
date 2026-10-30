@@ -19,6 +19,7 @@ describe('native likes snapshot', () => {
     ] } };
     expect(controller.handleEnvelope(snapshot)).toBe('updated');
     expect(board.map((entry) => entry.total)).toEqual([15, 10]);
+    expect(board.map((entry) => entry.userId)).toEqual(['1', '2']);
     expect(controller.handleEnvelope(snapshot)).toBe('updated');
     expect(board.map((entry) => entry.total)).toEqual([15, 10]);
     expect(controller.handleEnvelope({ topic: 'live.likes-ranking-full', data: { creatorId: 'c', roomId: 'new', leaders: [] } })).toBe('updated');
@@ -39,5 +40,15 @@ describe('native likes snapshot', () => {
     const controller = new NativeLikesController({ onBoard: () => { calls += 1; } }, 10);
     expect(controller.handleEnvelope({ topic: 'live.likes-ranking-full', data: { creatorId: 'c', roomId: 'r', leaders: [{ userId: '1', uniqueId: 'a', nickname: 'A', rank: 1, score: Number.MAX_SAFE_INTEGER + 1 }] } })).toBe('ignored');
     expect(calls).toBe(0);
+  });
+  test('omits unsafe or credential-bearing avatar URLs', () => {
+    let board: LikeBoardEntry[] = [];
+    const controller = new NativeLikesController({ onBoard: (entries) => { board = entries; } }, 10);
+    const leaders = [
+      { userId: '1', uniqueId: 'a', nickname: 'A', rank: 1, score: 2, avatarUrl: 'https://user:secret@example.com/image' },
+      { userId: '2', uniqueId: 'b', nickname: 'B', rank: 2, score: 1, avatarUrl: 'javascript:alert(1)' },
+    ];
+    expect(controller.handleEnvelope({ topic: 'live.likes-ranking-full', data: { creatorId: 'c', roomId: 'r', leaders } })).toBe('updated');
+    expect(board.map((entry) => entry.avatarUrl)).toEqual([null, null]);
   });
 });

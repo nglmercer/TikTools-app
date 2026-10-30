@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { mount } from '@vue/test-utils';
 import RankingWidget from './RankingWidget.vue';
 import type { RankingSnapshot } from '../shared/ranking-controller.ts';
-const snapshot: RankingSnapshot = { rankingId: 'r', schemaVersion: 1, creatorId: 'c', roomId: 'room', revision: 1, integrityStatus: 'degraded', paused: true, entries: [{ key: 'user-1', label: 'Alice', avatarUrl: 'https://cdn.example/alice.png', rank: 1, score: 10 }, { key: 'user-2', label: 'Bob', rank: 2, score: 5 }], totalScore: 15, totalParticipants: 2 };
+const snapshot: RankingSnapshot = { rankingId: 'r', schemaVersion: 1, creatorId: 'c', roomId: 'room', revision: 1, integrityStatus: 'degraded', paused: true, rejected: 1, dropped: 0, limited: 0, cooldownRejected: 0, entries: [{ key: 'user-1', label: 'Alice', avatarUrl: 'https://cdn.example/alice.png', rank: 1, score: 10 }, { key: 'user-2', label: 'Bob', rank: 2, score: 5 }], totalScore: 15, totalParticipants: 2 };
 describe('ranking widget', () => {
   test('accounts for scores outside the displayed entries and offers chart controls', async () => {
     const partial = { ...snapshot, totalScore: 20, totalParticipants: 3 };

@@ -13,6 +13,7 @@ import IconCopy from '@/shared/ui/icon/icons/IconCopy.vue';
 import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
+import RankingSourceOptions, { type RankingSourceSettings } from './RankingSourceOptions.vue';
 
 const COPIED_MS = 2_000;
 
@@ -41,7 +42,14 @@ onMounted(() => {
 const template = computed(() => widgetTemplates[props.kind]);
 const port = computed(() => store.status?.port ?? GATEWAY_DEFAULT_PORT);
 const url = computed(() => redactedSourceUrl(port.value, props.kind));
-const copyReady = computed(() => canCopySourceUrl(store.status?.state ?? null) && !store.refreshing);
+const rankingSource = ref<RankingSourceSettings>({ rankingId: '', visualization: 'ranking', competitionId: '', showLabels: true, showPercentages: false, showLegend: true });
+const copyReady = computed(() => canCopySourceUrl(store.status?.state ?? null) && !store.refreshing && (props.kind !== 'ranking' || !!rankingSource.value.rankingId));
+
+function rankingOptions(): Record<string, unknown> {
+  const source = rankingSource.value;
+  if (source.visualization === 'roulette') return { rankingId: source.rankingId, visualization: 'roulette', ...(source.competitionId ? { competitionId: source.competitionId } : {}) };
+  return { rankingId: source.rankingId, visualization: source.visualization, showLabels: source.showLabels, showPercentages: source.showPercentages, showLegend: source.showLegend };
+}
 
 function clearCopied(): void {
   if (copiedTimer !== null) clearTimeout(copiedTimer);
@@ -52,7 +60,7 @@ function clearCopied(): void {
 async function copy(): Promise<void> {
   clearCopied();
   copyError.value = null;
-  const outcome = await store.copySourceUrl(props.kind);
+  const outcome = await store.copySourceUrl(props.kind, props.kind === 'ranking' ? rankingOptions() : {});
   if (!outcome.ok) {
     copyError.value = outcome.message || null;
     return;
@@ -112,6 +120,10 @@ onBeforeUnmount(() => {
     </div>
     <template #footer>
       <div class="overlay-preview__source">
+        <RankingSourceOptions
+          v-if="kind === 'ranking'"
+          v-model="rankingSource"
+        />
         <label
           class="overlay-preview__label"
           for="overlay-source-url"

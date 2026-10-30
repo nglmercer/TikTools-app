@@ -257,6 +257,7 @@ impl DomainEvent {
                 | Self::LiveLikesRanking { .. }
                 | Self::LiveLikesRankingFull { .. }
                 | Self::RankingUpdated { .. }
+                | Self::CompetitionResult { .. }
                 | Self::RoomStats { .. }
                 | Self::AnalyticsUpdated { .. }
                 | Self::GiftsCatalog { .. }
@@ -614,6 +615,61 @@ impl DomainSubscription {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bounded_ranking_event_fits_plugin_frame_with_maximum_escaped_metadata() {
+        use tiktools_aggregation::{Entry, EntryMetadata, Snapshot};
+        let escaped = "\u{0001}".repeat(512);
+        let image = "\u{0001}".repeat(2048);
+        let entries = (0..100)
+            .map(|index| Entry {
+                key: format!("{index:03}{}", &escaped[..509]),
+                rank: index + 1,
+                score: 1,
+                label: escaped.clone(),
+                metadata: EntryMetadata {
+                    label: None,
+                    user_id: Some(escaped.clone()),
+                    unique_id: Some(escaped.clone()),
+                    nickname: Some(escaped.clone()),
+                    avatar_url: Some(image.clone()),
+                    gift_id: Some(escaped.clone()),
+                    icon_url: Some(image.clone()),
+                },
+            })
+            .collect();
+        let snapshot = Snapshot {
+            ranking_id: "r".into(),
+            schema_version: 1,
+            creator_id: "c".into(),
+            room_id: "room".into(),
+            window: Default::default(),
+            revision: 1,
+            instance_id: None,
+            integrity_status: "unknown".into(),
+            rejected: 0,
+            dropped: 0,
+            limited: 0,
+            cooldown_rejected: 0,
+            paused: false,
+            entries,
+            total_score: 100,
+            total_participants: 100,
+        };
+        let snapshot = crate::control::bound_ranking_presentation(snapshot);
+        assert_eq!(snapshot.total_score, 100);
+        assert_eq!(snapshot.total_participants, 100);
+        let envelope = DomainEvent::RankingUpdated { snapshot }
+            .to_envelope()
+            .unwrap();
+        // Include a conservative JSON-RPC wrapper around the event payload.
+        let frame = serde_json::to_vec(
+            &serde_json::json!({"jsonrpc":"2.0","method":"event","params":envelope}),
+        )
+        .unwrap();
+        assert!(frame.len() < tiktools_plugin_api::MAX_FRAME_BYTES);
+        assert!(frame.len() < 1024 * 1024);
+    }
 
     /// One representative value per variant plus its stable topic and a
     /// data-shape assertion. Adding a variant without extending this table

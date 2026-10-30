@@ -8,6 +8,7 @@ export const textDefaults = {
   gift: { name: '{{name}}', message: 'sent {{gift}}', count: '×{{count}}', diamonds: '{{diamonds}} diamonds' },
   chat: { name: '{{name}}', message: '{{message}}' },
   likes: { title: 'Top likes', name: '{{name}}', handle: '{{username}}', count: '×{{count}}' },
+  ranking: { title: 'Ranking', name: '{{name}}', handle: '{{username}}', count: '{{count}}' },
 } as const;
 export type TextField = 'title' | 'streakTitle' | 'name' | 'handle' | 'message' | 'count' | 'diamonds';
 export const textFields: TextField[] = ['title', 'streakTitle', 'name', 'handle', 'message', 'count', 'diamonds'];
@@ -27,6 +28,7 @@ export const coreTextFields: Record<keyof typeof textDefaults, TextField[]> = {
   gift: ['name', 'message', 'count'],
   chat: ['name', 'message'],
   likes: ['title', 'name', 'handle', 'count'],
+  ranking: ['title', 'name', 'handle', 'count'],
 };
 
 export function isHiddenField(design: WidgetStyle | undefined, field: TextField): boolean {

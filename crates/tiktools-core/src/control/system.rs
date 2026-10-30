@@ -220,6 +220,11 @@ impl AppCore {
         }
         #[cfg(not(feature = "native-tiktok"))]
         let live_totals = Value::Null;
+        let aggregation_health =
+            recover_mutex(&self.aggregations.engine, "aggregations").diagnostics();
+        if aggregation_health.degraded > 0 {
+            degraded.push("ranking accounting degraded; inspect ranking snapshots".to_owned());
+        }
         json!({
             "status": if degraded.is_empty() { "ok" } else { "degraded" },
             "reasons": degraded,
@@ -236,6 +241,7 @@ impl AppCore {
             "liveGenerationSeq": live_generation_seq,
             "liveIngress": live_ingress,
             "competitionParticipation": self.competitions.diagnostics(),
+            "aggregations": aggregation_health,
             "liveDedup": live_dedup,
             "liveTotals": live_totals,
             "liveMonitor": self.live_monitor_status(),
@@ -469,6 +475,8 @@ mod tests {
         assert!(health["status"].is_string());
         assert!(health["plugins"]["eventWorkers"].is_u64());
         assert!(health["automationActiveTasks"].is_u64());
+        assert!(health["aggregations"]["rankings"].is_u64());
+        assert!(health["aggregations"]["degraded"].is_u64());
         // LIVE staged-ingestion matrix (native transport only; the keys
         // are explicit nulls without it).
         if cfg!(feature = "native-tiktok") {

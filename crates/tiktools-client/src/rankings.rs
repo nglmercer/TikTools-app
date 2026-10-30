@@ -2,7 +2,10 @@
 use super::TikToolsClient;
 use tiktools_control_api::{
     modules::{
-        rankings::{Definition, MetricList, RankingId, RankingList, RankingUpdate, Snapshot},
+        rankings::{
+            ContributionOutcome, Definition, ExternalContribution, MetricList, RankingId,
+            RankingList, RankingUpdate, Snapshot,
+        },
         Empty, OkResult,
     },
     ClientError,
@@ -18,6 +21,7 @@ pub(crate) const METHODS: &[&str] = &[
     "rankings.reset",
     "rankings.pause",
     "rankings.resume",
+    "rankings.contribute",
 ];
 impl TikToolsClient {
     pub async fn rankings_metrics(&self) -> Result<MetricList, ClientError> {
@@ -49,5 +53,11 @@ impl TikToolsClient {
     }
     pub async fn rankings_resume(&self, id: RankingId) -> Result<OkResult, ClientError> {
         self.call("rankings.resume", id).await
+    }
+    pub async fn rankings_contribute(
+        &self,
+        contribution: ExternalContribution,
+    ) -> Result<ContributionOutcome, ClientError> {
+        self.call("rankings.contribute", contribution).await
     }
 }

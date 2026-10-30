@@ -22,7 +22,7 @@ const failedAvatars = ref<Record<string, boolean>>({});
 const title = computed(() => text('title', null));
 
 function showAvatar(entry: LikeBoardEntry): boolean {
-  return !!entry.avatarUrl && !failedAvatars.value[entry.uniqueId];
+  return !!entry.avatarUrl && !failedAvatars.value[entry.userId || entry.uniqueId];
 }
 
 function initialsFor(entry: LikeBoardEntry): string {
@@ -44,7 +44,7 @@ function rowText(field: 'name' | 'count', entry: LikeBoardEntry): string {
       <ol class="likes-list">
         <li
           v-for="(entry, index) in props.entries"
-          :key="entry.uniqueId || entry.displayName"
+          :key="entry.userId || entry.uniqueId || entry.displayName"
           class="likes-row"
         >
           <span class="likes-rank" aria-hidden="true">{{ index + 1 }}</span>
@@ -55,7 +55,7 @@ function rowText(field: 'name' | 'count', entry: LikeBoardEntry): string {
               :alt="entry.displayName"
               referrerpolicy="no-referrer"
               loading="lazy"
-              @error="failedAvatars[entry.uniqueId] = true"
+              @error="failedAvatars[entry.userId || entry.uniqueId] = true"
             />
             <span v-else>{{ initialsFor(entry) }}</span>
           </span>

@@ -158,6 +158,8 @@ fn pending_poisoned() -> ClientError {
 /// state (live status, points, plugins, creators, workflows) instead of
 /// reconstructing the missing events.
 #[derive(Debug, Clone, PartialEq)]
+// Events are short-lived on a bounded channel; boxing would churn the public API.
+#[allow(clippy::large_enum_variant)]
 pub enum ControlEvent {
     Domain(tiktools_core::events::DomainEvent),
     Gap { lost: u64 },

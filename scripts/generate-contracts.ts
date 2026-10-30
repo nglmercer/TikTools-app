@@ -79,6 +79,10 @@ function typeNameFromSchema(schema: Schema, root: JsonRecord): string {
 }
 
 function interfaceForDefinition(name: string, schema: SchemaObject, root: JsonRecord): string {
+  // Enums and unions have no properties: emit a type alias, never an empty interface.
+  if (!schema.properties && (schema.enum?.length || schema.anyOf || schema.oneOf)) {
+    return `export type ${name} = ${typeNameFromSchema(schema, root)};\n`;
+  }
   const properties = schema.properties ?? {};
   const required = new Set(schema.required ?? []);
   const lines = [`export interface ${name} {`];

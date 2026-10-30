@@ -34,7 +34,9 @@ use tiktools_control_api::modules::points::{
     PointsViewerParams,
 };
 use tiktools_control_api::modules::processors::ProcessorTestParams;
-use tiktools_control_api::modules::rankings::{Definition, RankingId, RankingUpdate};
+use tiktools_control_api::modules::rankings::{
+    Definition, ExternalContribution, RankingId, RankingUpdate,
+};
 use tiktools_control_api::modules::rpc::SchemaParams;
 use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsSet};
 use tiktools_control_api::modules::system::SaveFileParams;
@@ -221,6 +223,9 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
             .map(|_| ())
             .map_err(invalid),
         "rankings.create" => Definition::deserialize(params).map(|_| ()).map_err(invalid),
+        "rankings.contribute" => ExternalContribution::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
         "rankings.update" => RankingUpdate::deserialize(params)
             .map(|_| ())
             .map_err(invalid),

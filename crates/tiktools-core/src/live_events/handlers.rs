@@ -218,6 +218,19 @@ impl AppCore {
                         vec![("like.count", like.count), ("event.count", 1)],
                     )
                 }
+                CanonicalLiveEvent::Gift(gift)
+                    if !totals.is_null()
+                        && ((gift.group_id != 0 && (gift.user.id == 0 || gift.gift_id == 0))
+                            || (gift.group_id == 0
+                                && (event.gift_streakable()
+                                    || gift.repeat_count > 1
+                                    || gift.combo_count > 1))) =>
+                {
+                    self.aggregations
+                        .mark_gap(&context.unique_id, &context.room_id, "tiktok.gift");
+                    tracing::warn!(msg_id = %event.msg_id(), "ambiguous gift streak identity; ranking contribution rejected");
+                    ("", String::new(), None, Vec::new())
+                }
                 CanonicalLiveEvent::Gift(gift) if !totals.is_null() => {
                     let user = if gift.user.id != 0 {
                         gift.user.id.to_string()
@@ -230,11 +243,19 @@ impl AppCore {
                     let count = gift.repeat_count.max(gift.combo_count).max(1);
                     let mut metrics = vec![
                         ("gift.count", increment),
-                        ("event.count", u64::from(increment > 0 || diamonds > 0)),
+                        ("event.count", u64::from(increment > 0)),
                     ];
-                    if price > 0 && count.checked_mul(price).is_some() {
+                    // A newly discovered price can make LiveTotals' cumulative
+                    // diamond high-water jump for quantities already observed.
+                    // Do not credit that retroactive amount or a zero-delta final.
+                    let max_incremental = increment.checked_mul(price);
+                    if price > 0
+                        && count.checked_mul(price).is_some()
+                        && max_incremental.is_some_and(|maximum| diamonds <= maximum)
+                        && increment > 0
+                    {
                         metrics.push(("gift.diamonds", diamonds));
-                    } else if increment > 0 || count.checked_mul(price).is_none() {
+                    } else if increment > 0 || diamonds > 0 || count.checked_mul(price).is_none() {
                         self.aggregations.metric_gap(
                             &context.unique_id,
                             &context.room_id,
@@ -985,6 +1006,60 @@ impl AppCore {
                 .mark_gap(&context.unique_id, &context.room_id, "competition.vote");
         }
     }
+    /// `points.awarded` / `points.delta`: whole points granted by one
+    /// committed award, keyed like native user sources so it can share a
+    /// ranking with likes or gifts. Fractions are truncated, never rounded up.
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) fn observe_points_award(
+        &self,
+        event: &NativeLiveEvent,
+        context: &LiveContext,
+        delta: f64,
+    ) {
+        if !(delta.is_finite() && delta >= 1.0) {
+            return;
+        }
+        let Some(user) = crate::helpers::native_user(event) else {
+            self.aggregations
+                .mark_gap(&context.unique_id, &context.room_id, "points.awarded");
+            return;
+        };
+        let key = if user.id != 0 {
+            user.id.to_string()
+        } else {
+            user.unique_id.clone()
+        };
+        if key.is_empty() || event.msg_id() == 0 || event.metadata.is_history {
+            self.aggregations
+                .mark_gap(&context.unique_id, &context.room_id, "points.awarded");
+            return;
+        }
+        let nickname = (!user.nickname.is_empty()).then(|| user.nickname.clone());
+        let unique_id = crate::helpers::clean_unique_id(&user.unique_id);
+        let metadata = tiktools_aggregation::EntryMetadata {
+            label: nickname.clone().or_else(|| unique_id.clone()),
+            user_id: (user.id != 0).then(|| user.id.to_string()),
+            unique_id,
+            nickname,
+            ..Default::default()
+        };
+        let metrics = [("points.delta", delta.min(u64::MAX as f64) as u64)];
+        self.aggregations.observe(
+            tiktools_aggregation::model::Contribution {
+                creator_id: &context.unique_id,
+                room_id: &context.room_id,
+                source: "points.awarded",
+                user: Some(&key),
+                gift: None,
+                option: None,
+                team: None,
+                custom_key: None,
+                metrics: &metrics,
+            },
+            Some(&metadata),
+            None,
+        );
+    }
     #[cfg(feature = "native-tiktok")]
     pub(crate) async fn apply_live_effect(self: &Arc<Self>, effect: LiveEffect) {
         #[cfg(feature = "persistence")]
@@ -1017,6 +1092,9 @@ impl AppCore {
                         total_points: award.total_points,
                         level: award.level,
                     });
+                if let Some(context) = effect.context.as_ref() {
+                    self.observe_points_award(&effect.event, context, award.delta);
+                }
                 if award.delta != 0.0 {
                     let data =
                         serde_json::to_value(crate::contracts::PointsAwardedAutomationData {
@@ -1046,6 +1124,13 @@ impl AppCore {
             Err(error) => {
                 tracing::error!(%error, msg_id = %effect.event.msg_id(), correlation_id = %effect.correlation, "LIVE points work failed");
                 self.record_event_gap();
+                if let Some(context) = effect.context.as_ref() {
+                    self.aggregations.mark_gap(
+                        &context.unique_id,
+                        &context.room_id,
+                        "points.awarded",
+                    );
+                }
             }
         }
     }

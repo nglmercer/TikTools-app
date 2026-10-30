@@ -1,6 +1,6 @@
 /** Presentation-only adapter for committed Rust results. It never draws. */
 import { isRecord } from './event-parser.ts';
-export interface RevealResult { competitionId: string; rankingId: string; generation: number; winner: string | null; mode: 'highest_score' | 'uniform_random' | 'weighted_random'; eligible: { key: string; weight: number }[] }
+export interface RevealResult { competitionId: string; rankingId: string; generation: number; winner: string | null; mode: 'highest_score' | 'uniform_random' | 'weighted_random'; eligible: { key: string; weight: number }[]; eligibleCount: number; otherWeight: number }
 export function parseRevealResult(envelope: unknown): RevealResult | null {
   if (!isRecord(envelope) || envelope['topic'] !== 'competition.result' || !isRecord(envelope['data'])) return null;
   const result = envelope['data']['result'];
@@ -14,7 +14,12 @@ export function parseRevealResult(envelope: unknown): RevealResult | null {
     keys.add(entry['key']); eligible.push({ key: entry['key'], weight: entry['weight'] as number });
   }
   if (selection['winner'] !== null && !keys.has(selection['winner'] as string)) return null;
-  return { competitionId: result['competitionId'], rankingId: result['rankingId'], generation: result['generation'] as number, winner: selection['winner'] as string | null, mode: selection['mode'] as RevealResult['mode'], eligible };
+  const eligibleCount = result['eligibleCount'] ?? eligible.length;
+  const otherWeight = result['otherWeight'] ?? 0;
+  if (!Number.isSafeInteger(eligibleCount) || (eligibleCount as number) < eligible.length || !Number.isSafeInteger(otherWeight) || (otherWeight as number) < 0) return null;
+  const total = eligible.reduce((sum, entry) => sum + (selection['mode'] === 'weighted_random' ? entry.weight : 1), otherWeight as number);
+  if (!Number.isSafeInteger(total) || total <= 0 || (selection['mode'] === 'weighted_random' && selection['winner'] !== null && !eligible.find((entry) => entry.key === selection['winner'])?.weight)) return null;
+  return { competitionId: result['competitionId'], rankingId: result['rankingId'], generation: result['generation'] as number, winner: selection['winner'] as string | null, mode: selection['mode'] as RevealResult['mode'], eligible, eligibleCount: eligibleCount as number, otherWeight: otherWeight as number };
 }
 export class RevealController {
   private current: RevealResult | null = null;

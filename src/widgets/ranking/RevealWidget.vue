@@ -10,7 +10,7 @@ const colors = ['#fb7185', '#38bdf8', '#a78bfa', '#fbbf24', '#34d399', '#f472b6'
 const slices = computed(() => {
   const eligible = props.result?.eligible ?? [];
   const weights = eligible.map((entry) => props.result?.mode === 'weighted_random' ? entry.weight : 1);
-  const total = weights.reduce((sum, value) => sum + value, 0);
+  const total = weights.reduce((sum, value) => sum + value, props.result?.otherWeight ?? 0);
   if (!total || !Number.isSafeInteger(total)) return null;
   let at = 0; let winnerMidpoint = 0;
   const segments = eligible.map((entry, index) => {
@@ -18,6 +18,7 @@ const slices = computed(() => {
     if (entry.key === props.result?.winner) winnerMidpoint = (start + at) / 2;
     return `${colors[index % colors.length]} ${start}deg ${at}deg`;
   });
+  if (props.result?.otherWeight) segments.push(`#71717a ${at}deg 360deg`);
   return { gradient: `conic-gradient(${segments.join(', ')})`, rotation: 1800 - winnerMidpoint };
 });
 </script>
@@ -32,6 +33,7 @@ const slices = computed(() => {
         <div v-if="slices" :key="`${result.competitionId}:${result.generation}`" class="wheel" :style="{ background: slices.gradient, '--rotation': `${slices.rotation}deg` }" aria-hidden="true" @animationend="revealed = true"></div>
         <p v-if="revealed || !slices">Winner: <strong>{{ result.winner }}</strong></p>
         <p v-else>Revealing winner…</p>
+        <p v-if="result.eligibleCount > result.eligible.length">Other: {{ result.eligibleCount - result.eligible.length }} participants</p>
       </template>
     </section>
   </WidgetStage>

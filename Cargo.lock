@@ -5317,6 +5317,7 @@ dependencies = [
 name = "tiktools-aggregation"
 version = "0.3.3"
 dependencies = [
+ "getrandom 0.4.3",
  "schemars",
  "serde",
 ]

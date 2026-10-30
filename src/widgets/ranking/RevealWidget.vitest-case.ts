@@ -34,4 +34,11 @@ describe('committed result reveal', () => {
     expect(parseRevealResult({ ...event, data: { result: { ...event.data.result, selection: { ...event.data.result.selection, winner: 'missing' } } } })).toBeNull();
     expect(parseRevealResult({ ...event, data: { result: { ...event.data.result, selection: { ...event.data.result.selection, eligible: [{ key: 'a', weight: Number.MAX_SAFE_INTEGER + 1 }] } } } })).toBeNull();
   });
+  test('includes omitted candidates in the wheel without changing the stored winner', () => {
+    const result = parseRevealResult({ ...event, data: { result: { ...event.data.result, eligibleCount: 4, otherWeight: 6 } } })!;
+    const wrapper = mount(RevealWidget, { props: { result, status: 'connected', debug: false } });
+    expect(wrapper.find('.wheel').attributes('style')).toContain('--rotation: 1710deg');
+    expect(wrapper.text()).toContain('Other: 2 participants');
+    expect(parseRevealResult({ ...event, data: { result: { ...event.data.result, eligibleCount: 1, otherWeight: 6 } } })).toBeNull();
+  });
 });

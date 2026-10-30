@@ -55,9 +55,10 @@ export const useOverlaysStore = defineStore('overlays', () => {
     return probe();
   }
 
-  async function copySourceUrl(kind: WidgetKind): Promise<CopyOutcome> {
+  /** Ranking widgets also need their ranking and visualization options. */
+  async function copySourceUrl(kind: WidgetKind, options: Record<string, unknown> = {}): Promise<CopyOutcome> {
     try {
-      const result = await client.call<{ ok?: unknown }>('widgets.copyObsUrl', { widget: kind });
+      const result = await client.call<{ ok?: unknown }>('widgets.copyObsUrl', { ...options, widget: kind });
       return { ok: result?.ok === true, message: '' };
     } catch (failure) {
       return { ok: false, message: errorMessage(failure) };

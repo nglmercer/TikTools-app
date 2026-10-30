@@ -78,20 +78,178 @@ fn ranking_definitions_survive_reopen_and_delete() {
         }],
     };
     db.insert_aggregation_definition(&definition).unwrap();
+    let mut engine = tiktools_aggregation::engine::Engine::default();
+    engine.create(definition.clone()).unwrap();
+    let checkpoint = engine.session_checkpoint("likes").unwrap();
+    db.claim_aggregation_checkpoints("owner").unwrap();
+    db.save_aggregation_checkpoint(&checkpoint, "owner")
+        .unwrap();
     let reopened = DatabaseManager::new(paths.clone());
     assert_eq!(
         reopened.load_aggregation_definitions().unwrap(),
         vec![definition.clone()]
     );
+    // Loading does not consume: a crash before the next write keeps it.
+    for _ in 0..2 {
+        assert!(reopened
+            .load_aggregation_checkpoint("likes", "owner")
+            .unwrap()
+            .is_some());
+    }
+    reopened.clear_aggregation_checkpoint("likes").unwrap();
+    assert!(reopened
+        .load_aggregation_checkpoint("likes", "owner")
+        .unwrap()
+        .is_none());
+    reopened
+        .save_aggregation_checkpoint(&checkpoint, "owner")
+        .unwrap();
+    reopened.claim_aggregation_checkpoints("new-owner").unwrap();
+    assert!(db
+        .save_aggregation_checkpoint(&checkpoint, "owner")
+        .is_err());
     let mut updated = definition;
     updated.limit = 5;
     assert!(reopened.update_aggregation_definition(&updated).unwrap());
+    assert!(reopened
+        .load_aggregation_checkpoint("likes", "new-owner")
+        .unwrap()
+        .is_none());
+    assert!(reopened
+        .save_aggregation_checkpoint(&checkpoint, "new-owner")
+        .is_err());
     assert_eq!(
         reopened.load_aggregation_definitions().unwrap(),
         vec![updated]
     );
     assert!(reopened.delete_aggregation_definition("likes").unwrap());
     assert!(reopened.load_aggregation_definitions().unwrap().is_empty());
+    let _ = fs::remove_dir_all(paths.root);
+}
+
+#[test]
+fn runtime_checkpoint_survives_unclean_exit() {
+    use tiktools_aggregation::engine::Engine;
+    use tiktools_aggregation::model::{Contribution, Definition, SourceRule};
+    let paths = paths();
+    paths.ensure_directories().unwrap();
+    let db = DatabaseManager::new(paths.clone());
+    let definition = Definition {
+        schema_version: 1,
+        id: "gifts".into(),
+        creator_id: "creator".into(),
+        room_id: "room".into(),
+        group_by: Default::default(),
+        window: Default::default(),
+        user_limits: None,
+        capacity: 10,
+        limit: 10,
+        sources: vec![SourceRule {
+            source: "tiktok.gift".into(),
+            metric: "gift.diamonds".into(),
+            weight: 1,
+            enabled: true,
+            gift_multipliers: Default::default(),
+        }],
+    };
+    db.insert_aggregation_definition(&definition).unwrap();
+    db.claim_aggregation_checkpoints("crashed").unwrap();
+    let mut engine = Engine::default();
+    engine.create(definition.clone()).unwrap();
+    let event = Contribution {
+        creator_id: "creator",
+        room_id: "room",
+        source: "tiktok.gift",
+        user: Some("user"),
+        gift: None,
+        option: None,
+        team: None,
+        custom_key: None,
+        metrics: &[("gift.diamonds", 30)],
+    };
+    assert!(engine.apply_at(&event, 1).is_empty());
+    // Runtime write, then the process dies without finishing the run.
+    db.save_aggregation_checkpoint(&engine.session_checkpoint("gifts").unwrap(), "crashed")
+        .unwrap();
+    let reopened = DatabaseManager::new(paths.clone());
+    assert!(!reopened.claim_aggregation_checkpoints("next").unwrap());
+    let checkpoint = reopened
+        .load_aggregation_checkpoint("gifts", "next")
+        .unwrap()
+        .unwrap();
+    let mut restored = Engine::default();
+    restored.create(definition).unwrap();
+    restored.restore_session_checkpoint(&checkpoint).unwrap();
+    restored.mark_recovery_gap("gifts").unwrap();
+    let snapshot = restored.snapshot("gifts").unwrap();
+    assert_eq!(snapshot.total_score, 30);
+    assert_eq!(snapshot.integrity_status, "degraded");
+    let _ = fs::remove_dir_all(paths.root);
+}
+
+#[test]
+fn rolling_checkpoint_survives_sqlite_and_preserves_limits() {
+    use tiktools_aggregation::engine::Engine;
+    use tiktools_aggregation::model::{Contribution, Definition, SourceRule, UserLimits, Window};
+    let paths = paths();
+    paths.ensure_directories().unwrap();
+    let db = DatabaseManager::new(paths.clone());
+    let definition = Definition {
+        schema_version: 1,
+        id: "rolling".into(),
+        creator_id: "creator".into(),
+        room_id: "room".into(),
+        group_by: Default::default(),
+        window: Window::Rolling {
+            duration_ms: 100,
+            max_events: 10,
+        },
+        user_limits: Some(UserLimits {
+            max_contributions: Some(1),
+            cooldown_ms: None,
+            max_users: 10,
+        }),
+        capacity: 10,
+        limit: 10,
+        sources: vec![SourceRule {
+            source: "tiktok.like".into(),
+            metric: "like.count".into(),
+            weight: 1,
+            enabled: true,
+            gift_multipliers: Default::default(),
+        }],
+    };
+    db.insert_aggregation_definition(&definition).unwrap();
+    db.claim_aggregation_checkpoints("owner").unwrap();
+    let mut engine = Engine::default();
+    engine.create(definition.clone()).unwrap();
+    let event = Contribution {
+        creator_id: "creator",
+        room_id: "room",
+        source: "tiktok.like",
+        user: Some("user"),
+        gift: None,
+        option: None,
+        team: None,
+        custom_key: None,
+        metrics: &[("like.count", 7)],
+    };
+    assert!(engine.apply_at(&event, 100).is_empty());
+    db.save_aggregation_checkpoint(&engine.session_checkpoint("rolling").unwrap(), "owner")
+        .unwrap();
+    db.finish_aggregation_checkpoints("owner").unwrap();
+    assert!(db.claim_aggregation_checkpoints("next").unwrap());
+    let checkpoint = db
+        .load_aggregation_checkpoint("rolling", "next")
+        .unwrap()
+        .unwrap();
+    let mut restored = Engine::default();
+    restored.create(definition).unwrap();
+    restored.restore_session_checkpoint(&checkpoint).unwrap();
+    restored.expire_at(200);
+    assert_eq!(restored.snapshot("rolling").unwrap().total_score, 0);
+    assert!(restored.apply_at(&event, 201).is_empty());
+    assert_eq!(restored.snapshot("rolling").unwrap().limited, 1);
     let _ = fs::remove_dir_all(paths.root);
 }
 
@@ -140,6 +298,8 @@ fn competition_result_is_immutable_across_retry_and_reopen() {
         vote_limit: 1,
         allow_switch: false,
         minimum_participants: 1,
+        target_score: None,
+        on_user_win: None,
     })
     .unwrap();
     db.transition_competition("poll", Transition::Start, 100)
@@ -223,6 +383,36 @@ fn competition_result_is_immutable_across_retry_and_reopen() {
     let connection = db.open(&db.automation_path()).unwrap();
     let status: String = connection.query_row("SELECT status FROM competition_action_outbox WHERE competition_id = 'poll' AND generation = 1", [], |row| row.get(0)).unwrap();
     assert_eq!(status, "pending");
+    let mut corrupt = serde_json::to_value(&result).unwrap();
+    corrupt["selection"]["winner"] = json!("missing");
+    connection.execute("UPDATE competition_results SET result_json=?1 WHERE competition_id='poll' AND generation=1", [corrupt.to_string()]).unwrap();
+    assert!(db.load_competition_result("poll", 1).is_err());
+    assert!(db.list_competition_results("poll", None, 1).is_err());
+    assert!(db.latest_competition_results().is_err());
+    assert!(db.store_competition_result(&result, Some(&action)).is_err());
+    corrupt = serde_json::to_value(&result).unwrap();
+    corrupt["competitionId"] = json!("other");
+    connection.execute("UPDATE competition_results SET result_json=?1 WHERE competition_id='poll' AND generation=1", [corrupt.to_string()]).unwrap();
+    assert!(db.load_competition_result("poll", 1).is_err());
+    connection.execute("UPDATE competition_results SET result_json=?1 WHERE competition_id='poll' AND generation=1", [serde_json::to_string(&result).unwrap()]).unwrap();
+    connection.execute("UPDATE competition_action_outbox SET action_json='invalid' WHERE competition_id='poll' AND generation=1", []).unwrap();
+    connection.execute_batch("CREATE TRIGGER reject_invalid_outbox BEFORE INSERT ON competition_action_diagnostics BEGIN SELECT RAISE(ABORT, 'injected failure'); END;").unwrap();
+    assert!(db.claim_competition_action("poll", 1, 124).is_err());
+    assert_eq!(
+        db.competition_action("poll", 1).unwrap().unwrap().status,
+        tiktools_competitions::ActionStatus::Pending
+    );
+    connection
+        .execute_batch("DROP TRIGGER reject_invalid_outbox")
+        .unwrap();
+    assert!(
+        matches!(db.claim_competition_action_detailed("poll", 1, 124).unwrap(), ActionClaimOutcome::Invalid { action_id } if action_id == "winner-action")
+    );
+    let invalid = db.competition_action("poll", 1).unwrap().unwrap();
+    assert_eq!(invalid.status, tiktools_competitions::ActionStatus::Failed);
+    assert_eq!(invalid.reason.as_deref(), Some("invalid_outbox_record"));
+    connection.execute("UPDATE competition_action_outbox SET action_json=?1,status='pending' WHERE competition_id='poll' AND generation=1", [serde_json::to_string(&action).unwrap()]).unwrap();
+    connection.execute("DELETE FROM competition_action_diagnostics WHERE competition_id='poll' AND generation=1", []).unwrap();
     drop(connection);
     let claim = db
         .claim_competition_action("poll", 1, 124)
@@ -261,10 +451,24 @@ fn competition_result_is_immutable_across_retry_and_reopen() {
         .claim_competition_action("poll", 1, 125)
         .unwrap()
         .is_none());
+    assert!(db
+        .mark_competition_action_uncertain("poll", 1, 126)
+        .unwrap());
+    assert_eq!(
+        db.competition_action("poll", 1)
+            .unwrap()
+            .unwrap()
+            .reason
+            .as_deref(),
+        Some("operator_marked_uncertain")
+    );
+    assert!(!db
+        .mark_competition_action_uncertain("poll", 1, 126)
+        .unwrap());
     assert_eq!(
         db.mark_interrupted_competition_actions_uncertain(126)
             .unwrap(),
-        1
+        0
     );
     assert!(db
         .claim_competition_action("poll", 1, 127)
@@ -346,6 +550,8 @@ fn competition_definition_survives_reopen() {
         vote_limit: 1,
         allow_switch: false,
         minimum_participants: 1,
+        target_score: None,
+        on_user_win: None,
     };
     db.insert_aggregation_definition(&tiktools_aggregation::model::Definition {
         schema_version: 1,
@@ -426,6 +632,8 @@ fn competition_deadline_expiry_is_durable_and_idempotent() {
         vote_limit: 1,
         allow_switch: false,
         minimum_participants: 1,
+        target_score: None,
+        on_user_win: None,
     };
     db.insert_competition_definition(&definition).unwrap();
     db.transition_competition("timer", Transition::Start, 100)
@@ -475,6 +683,8 @@ fn competition_command_votes_are_transactional_scoped_and_replay_safe() {
         vote_limit: 2,
         allow_switch: true,
         minimum_participants: 1,
+        target_score: None,
+        on_user_win: None,
     };
     db.insert_aggregation_definition(&tiktools_aggregation::model::Definition {
         schema_version: 1,
@@ -989,6 +1199,8 @@ fn competition_gift_admission_commits_identity_combo_and_score_together() {
         vote_limit: 1,
         allow_switch: false,
         minimum_participants: 0,
+        target_score: None,
+        on_user_win: None,
     })
     .unwrap();
     db.transition_competition_owned("poll", Transition::Start, 100, Some("owner"))

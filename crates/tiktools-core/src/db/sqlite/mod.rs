@@ -9,7 +9,9 @@ mod aggregations;
 mod behavior;
 mod competitions;
 mod gift_accounting;
-pub(crate) use competitions::{GiftInput, GiftOutcome, ScoredInput, ScoredOutcome};
+pub(crate) use competitions::{
+    ActionClaimOutcome, GiftInput, GiftOutcome, ScoredInput, ScoredOutcome,
+};
 mod meta;
 mod points;
 mod schema;

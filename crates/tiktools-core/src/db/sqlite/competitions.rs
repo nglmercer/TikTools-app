@@ -6,10 +6,48 @@ use tiktools_competitions::{
     Lifecycle, LifecycleState, ParticipationOutcome, ResultRecord, Transition, WinnerAction,
 };
 
+pub(crate) enum ActionClaimOutcome {
+    Missing,
+    Invalid { action_id: String },
+    Claimed(ActionClaim),
+}
+
+fn decode_result(
+    id: &str,
+    generation: i64,
+    ranking: &str,
+    created_at: i64,
+    json: &str,
+) -> Result<ResultRecord, DatabaseError> {
+    let result: ResultRecord = serde_json::from_str(json)?;
+    if result.schema_version != 1
+        || id.is_empty()
+        || id.len() > 128
+        || ranking.is_empty()
+        || ranking.len() > 128
+        || generation <= 0
+        || created_at < 0
+        || result.competition_id != id
+        || result.ranking_id != ranking
+        || result.generation != generation as u64
+        || result.finalized_at != created_at as u64
+    {
+        return Err(DatabaseError::Invalid(
+            "stored competition result identity mismatch".into(),
+        ));
+    }
+    result
+        .selection
+        .validate()
+        .map_err(|_| DatabaseError::Invalid("invalid stored competition selection".into()))?;
+    Ok(result)
+}
+
 /// Retain the identity of a recognized but ineligible command while its
 /// generation can become active again. Otherwise replay after resume or a
 /// later option switch could turn an ignored event into a vote. Receipts
 /// share the generation's existing bounded contribution budget.
+#[allow(clippy::too_many_arguments)]
 fn record_ignored_command(
     tx: rusqlite::Transaction<'_>,
     competition: &str,
@@ -166,6 +204,7 @@ impl DatabaseManager {
             .map(|json| serde_json::from_str(&json).map_err(DatabaseError::from))
             .transpose()
     }
+    #[cfg(test)]
     pub(crate) fn transition_competition(
         &self,
         id: &str,
@@ -261,6 +300,7 @@ impl DatabaseManager {
     /// Persist a command vote and its replay identity in one transaction.
     /// The store fails closed at its fixed generation capacity: it never evicts
     /// identities while the generation can still accept contributions.
+    #[cfg(test)]
     pub(crate) fn route_competition_command(
         &self,
         id: &str,
@@ -872,6 +912,7 @@ impl DatabaseManager {
     }
     /// Atomically advance expired active competitions. A bounded number of
     /// definitions is allowed by the host, so this scan stays bounded.
+    #[cfg(test)]
     pub(crate) fn expire_due_competitions(&self, now: u64) -> Result<usize, DatabaseError> {
         self.expire_due_competitions_owned(now, None)
     }
@@ -917,6 +958,7 @@ impl DatabaseManager {
     }
     /// Inserts at most one result for a competition generation. A retry reads
     /// the committed record, even if the retry proposes a different draw.
+    #[cfg(test)]
     pub(crate) fn store_competition_result(
         &self,
         result: &ResultRecord,
@@ -938,7 +980,6 @@ impl DatabaseManager {
             || result.ranking_id.len() > 128
             || result.generation > i64::MAX as u64
             || result.finalized_at > i64::MAX as u64
-            || result.selection.eligible.is_empty()
             || result.selection.eligible.len() > 100_000
         {
             return Err(DatabaseError::Invalid("invalid competition result".into()));
@@ -957,12 +998,18 @@ impl DatabaseManager {
         }
         let mut connection = self.open(&self.automation_path())?;
         let tx = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let existing: Option<String> = tx.query_row(
-            "SELECT result_json FROM competition_results WHERE competition_id=?1 AND generation=?2",
-            params![result.competition_id, result.generation as i64], |row| row.get(0),
+        let existing: Option<(String, i64, String)> = tx.query_row(
+            "SELECT ranking_id,created_at,result_json FROM competition_results WHERE competition_id=?1 AND generation=?2",
+            params![result.competition_id, result.generation as i64], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         ).optional()?;
-        if let Some(json) = existing {
-            let stored = serde_json::from_str(&json)?;
+        if let Some((ranking, created_at, json)) = existing {
+            let stored = decode_result(
+                &result.competition_id,
+                result.generation as i64,
+                &ranking,
+                created_at,
+                &json,
+            )?;
             tx.commit()?;
             return Ok((stored, false));
         }
@@ -1042,9 +1089,11 @@ impl DatabaseManager {
         let generation = i64::try_from(generation)
             .map_err(|_| DatabaseError::Invalid("invalid generation".into()))?;
         let connection = self.open(&self.automation_path())?;
-        let json: Option<String> = connection.query_row("SELECT result_json FROM competition_results WHERE competition_id=?1 AND generation=?2", params![competition_id, generation], |row| row.get(0)).optional()?;
-        json.map(|json| serde_json::from_str(&json).map_err(DatabaseError::from))
-            .transpose()
+        let row: Option<(String, i64, String)> = connection.query_row("SELECT ranking_id,created_at,result_json FROM competition_results WHERE competition_id=?1 AND generation=?2", params![competition_id, generation], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?))).optional()?;
+        row.map(|(ranking, created_at, json)| {
+            decode_result(competition_id, generation, &ranking, created_at, &json)
+        })
+        .transpose()
     }
     /// Read only committed results, newest generation first. The cursor is
     /// exclusive, and the caller bounds page size before reaching SQLite.
@@ -1063,27 +1112,65 @@ impl DatabaseManager {
             .map_err(|_| DatabaseError::Invalid("invalid result cursor".into()))?;
         let connection = self.open(&self.automation_path())?;
         let mut statement = connection.prepare(
-            "SELECT result_json FROM competition_results WHERE competition_id=?1 AND (?2 IS NULL OR generation < ?2) ORDER BY generation DESC LIMIT ?3"
+            "SELECT generation,ranking_id,created_at,result_json FROM competition_results WHERE competition_id=?1 AND (?2 IS NULL OR generation < ?2) ORDER BY generation DESC LIMIT ?3"
         )?;
         let rows = statement.query_map(params![competition_id, cursor, limit as i64], |row| {
-            row.get::<_, String>(0)
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, String>(3)?,
+            ))
         })?;
-        rows.map(|row| Ok(serde_json::from_str(&row?)?)).collect()
+        rows.map(|row| {
+            let (generation, ranking, created_at, json) = row?;
+            decode_result(competition_id, generation, &ranking, created_at, &json)
+        })
+        .collect()
     }
     /// Latest committed results only; drafts and in-progress selections have
     /// no row and cannot leak random state to read-only presentation clients.
+    #[cfg(test)]
     pub(crate) fn latest_competition_results(&self) -> Result<Vec<ResultRecord>, DatabaseError> {
+        self.latest_competition_results_impl(false)
+    }
+    /// A corrupt result must not prevent other finished competitions from
+    /// refreshing read-only widgets. Invalid rows remain errors in history API.
+    pub(crate) fn latest_competition_results_for_presentation(
+        &self,
+    ) -> Result<Vec<ResultRecord>, DatabaseError> {
+        self.latest_competition_results_impl(true)
+    }
+    fn latest_competition_results_impl(
+        &self,
+        skip_invalid: bool,
+    ) -> Result<Vec<ResultRecord>, DatabaseError> {
         let connection = self.open(&self.automation_path())?;
-        let mut statement = connection.prepare("SELECT r.result_json FROM competition_results r JOIN competition_state s ON s.competition_id=r.competition_id WHERE json_extract(s.state_json,'$.lifecycle')='finished' AND r.generation=json_extract(s.state_json,'$.generation') ORDER BY r.competition_id LIMIT 129")?;
-        let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+        let mut statement = connection.prepare("SELECT r.competition_id,r.generation,r.ranking_id,r.created_at,r.result_json FROM competition_results r JOIN competition_state s ON s.competition_id=r.competition_id WHERE json_extract(s.state_json,'$.lifecycle')='finished' AND r.generation=json_extract(s.state_json,'$.generation') ORDER BY r.competition_id LIMIT 129")?;
+        let rows = statement.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, String>(4)?,
+            ))
+        })?;
         let mut results = Vec::new();
-        for row in rows {
-            if results.len() >= 128 {
+        for (index, row) in rows.enumerate() {
+            if index >= 128 {
                 return Err(DatabaseError::Invalid(
                     "competition result capacity exceeded".into(),
                 ));
             }
-            results.push(serde_json::from_str(&row?)?);
+            let (id, generation, ranking, created_at, json) = row?;
+            match decode_result(&id, generation, &ranking, created_at, &json) {
+                Ok(result) => results.push(result),
+                Err(error) if skip_invalid => {
+                    tracing::error!(%error, competition_id = %id, generation, "invalid competition result omitted from presentation")
+                }
+                Err(error) => return Err(error),
+            }
         }
         Ok(results)
     }
@@ -1175,6 +1262,9 @@ impl DatabaseManager {
                     | "preparation_interrupted"
                     | "execution_failed"
                     | "execution_interrupted"
+                    | "operator_marked_uncertain"
+                    | "invalid_outbox_record"
+                    | "action_reference_mismatch"
             )
         }) {
             return Err(DatabaseError::Invalid("invalid action reason".into()));
@@ -1212,35 +1302,72 @@ impl DatabaseManager {
         generation: u64,
         now: i64,
     ) -> Result<bool, DatabaseError> {
-        let generation = i64::try_from(generation)
-            .map_err(|_| DatabaseError::Invalid("invalid generation".into()))?;
-        let connection = self.open(&self.automation_path())?;
-        Ok(connection.execute("UPDATE competition_action_outbox SET status='uncertain',updated_at=?3 WHERE competition_id=?1 AND generation=?2 AND status='running'", params![id, generation, now])? == 1)
+        self.record_competition_action_outcome(
+            id,
+            generation,
+            ActionStatus::Uncertain,
+            Some("operator_marked_uncertain"),
+            now,
+        )
     }
     /// Atomically claims one pending action. A running or uncertain action
     /// cannot be claimed automatically, even if a caller retries.
+    #[cfg(test)]
     pub(crate) fn claim_competition_action(
         &self,
         competition_id: &str,
         generation: u64,
         now: i64,
     ) -> Result<Option<ActionClaim>, DatabaseError> {
+        Ok(
+            match self.claim_competition_action_detailed(competition_id, generation, now)? {
+                ActionClaimOutcome::Claimed(claim) => Some(claim),
+                ActionClaimOutcome::Missing | ActionClaimOutcome::Invalid { .. } => None,
+            },
+        )
+    }
+    pub(crate) fn claim_competition_action_detailed(
+        &self,
+        competition_id: &str,
+        generation: u64,
+        now: i64,
+    ) -> Result<ActionClaimOutcome, DatabaseError> {
         let generation = i64::try_from(generation)
             .map_err(|_| DatabaseError::Invalid("invalid generation".into()))?;
-        let connection = self.open(&self.automation_path())?;
-        let row: Option<(String, String)> = connection.query_row(
-            "UPDATE competition_action_outbox SET status='running', updated_at=?3 WHERE competition_id=?1 AND generation=?2 AND status='pending' RETURNING idempotency_key, action_json",
-            params![competition_id, generation, now], |row| Ok((row.get(0)?, row.get(1)?)),
+        let mut connection = self.open(&self.automation_path())?;
+        let tx = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let row: Option<(String, String, String)> = tx.query_row(
+            "SELECT idempotency_key,action_id,action_json FROM competition_action_outbox WHERE competition_id=?1 AND generation=?2 AND status='pending'",
+            params![competition_id, generation], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         ).optional()?;
-        row.map(|(idempotency_key, json)| {
-            Ok(ActionClaim {
-                competition_id: competition_id.to_owned(),
-                generation: generation as u64,
-                idempotency_key,
-                action: serde_json::from_str(&json)?,
-            })
-        })
-        .transpose()
+        let Some((idempotency_key, action_id, json)) = row else {
+            return Ok(ActionClaimOutcome::Missing);
+        };
+        let expected_key =
+            serde_json::to_string(&("competition-winner", competition_id, generation as u64))?;
+        let action: Option<WinnerAction> = serde_json::from_str(&json).ok();
+        if action.as_ref().is_none_or(|action| {
+            action.action_id != action_id || action_id.is_empty() || action_id.len() > 128
+        }) || idempotency_key != expected_key
+        {
+            tx.execute("UPDATE competition_action_outbox SET status='failed',updated_at=?3 WHERE competition_id=?1 AND generation=?2 AND status='pending'", params![competition_id, generation, now])?;
+            tx.execute("INSERT INTO competition_action_diagnostics(competition_id,generation,reason,updated_at) VALUES (?1,?2,'invalid_outbox_record',?3) ON CONFLICT(competition_id,generation) DO UPDATE SET reason=excluded.reason,updated_at=excluded.updated_at", params![competition_id,generation,now])?;
+            tx.commit()?;
+            tracing::error!(
+                competition_id,
+                generation,
+                "invalid competition action outbox record"
+            );
+            return Ok(ActionClaimOutcome::Invalid { action_id });
+        }
+        tx.execute("UPDATE competition_action_outbox SET status='running',updated_at=?3 WHERE competition_id=?1 AND generation=?2 AND status='pending'", params![competition_id,generation,now])?;
+        tx.commit()?;
+        Ok(ActionClaimOutcome::Claimed(ActionClaim {
+            competition_id: competition_id.to_owned(),
+            generation: generation as u64,
+            idempotency_key,
+            action: action.expect("validated action"),
+        }))
     }
     /// On restart, running actions may have executed externally. Never retry
     /// them automatically without an explicit, action-specific recovery rule.
@@ -1251,6 +1378,7 @@ impl DatabaseManager {
         let connection = self.open(&self.automation_path())?;
         Ok(connection.execute("UPDATE competition_action_outbox SET status='uncertain', updated_at=?1 WHERE status='running'", [now])?)
     }
+    #[cfg(test)]
     pub(crate) fn complete_competition_action(
         &self,
         competition_id: &str,

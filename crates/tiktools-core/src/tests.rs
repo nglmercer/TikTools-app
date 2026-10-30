@@ -2365,3 +2365,161 @@ async fn concurrent_shutdown_waits_for_resource_cleanup() {
     .await
     .expect("all shutdown callers observe completion");
 }
+
+#[tokio::test]
+async fn external_ranking_contribution_is_idempotent_and_grouped_by_team() {
+    use tiktools_aggregation::model::{Definition, GroupBy, SourceRule};
+    let (core, root) = private_core("external-contribution");
+    let id = format!("teams-{}", now_millis());
+    core.ranking_create(Definition {
+        schema_version: 1,
+        id: id.clone(),
+        creator_id: "creator".into(),
+        room_id: "room".into(),
+        group_by: GroupBy::Team,
+        window: Default::default(),
+        user_limits: None,
+        capacity: 10,
+        limit: 10,
+        sources: vec![SourceRule {
+            source: "plugin.quiz.answer".into(),
+            metric: "value".into(),
+            weight: 2,
+            enabled: true,
+            gift_multipliers: Default::default(),
+        }],
+    })
+    .unwrap();
+    let input = control::ExternalContribution {
+        event_id: format!("{id}-1"),
+        creator_id: "creator".into(),
+        room_id: "room".into(),
+        source: "plugin.quiz.answer".into(),
+        user: Some("u1".into()),
+        label: None,
+        team: Some("red".into()),
+        custom_key: None,
+        option: None,
+        metrics: [("value".to_owned(), 5)].into(),
+    };
+    assert!(!core.ranking_contribute(input.clone()).unwrap().duplicate);
+    assert!(core.ranking_contribute(input.clone()).unwrap().duplicate);
+    let snapshot = core.ranking_snapshot(&id).unwrap();
+    assert_eq!(snapshot.total_score, 10);
+    assert_eq!(snapshot.entries[0].key, "red");
+    assert!(core
+        .ranking_contribute(control::ExternalContribution {
+            source: "tiktok.like".into(),
+            ..input
+        })
+        .is_err());
+    core.ranking_delete(&id).unwrap();
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(feature = "persistence")]
+#[tokio::test]
+async fn leaderboard_challenge_selects_ranking_leader_above_target() {
+    use tiktools_aggregation::model::{Definition as Ranking, SourceRule};
+    use tiktools_competitions::{
+        CompetitionKind, Definition, SelectionMode, TiePolicy, Transition,
+    };
+    let (core, root) = private_core("leaderboard-challenge");
+    let suffix = now_millis();
+    let ranking = format!("challenge-rank-{suffix}");
+    core.ranking_create(Ranking {
+        schema_version: 1,
+        id: ranking.clone(),
+        creator_id: "creator".into(),
+        room_id: "room".into(),
+        group_by: Default::default(),
+        window: Default::default(),
+        user_limits: None,
+        capacity: 10,
+        limit: 10,
+        sources: vec![SourceRule {
+            source: "custom.score".into(),
+            metric: "value".into(),
+            weight: 1,
+            enabled: true,
+            gift_multipliers: Default::default(),
+        }],
+    })
+    .unwrap();
+    let challenge = |id: String, target| Definition {
+        schema_version: 1,
+        id,
+        name: "Top gifter".into(),
+        kind: CompetitionKind::LeaderboardChallenge,
+        ranking_id: ranking.clone(),
+        options: Vec::new(),
+        selection_mode: SelectionMode::HighestScore,
+        tie_policy: TiePolicy::Stable,
+        duration_ms: None,
+        vote_limit: 1,
+        allow_switch: false,
+        minimum_participants: 1,
+        target_score: Some(target),
+        on_user_win: None,
+    };
+    let id = format!("challenge-{suffix}");
+    let missed = format!("challenge-missed-{suffix}");
+    core.competition_create(challenge(id.clone(), 50)).unwrap();
+    core.competition_create(challenge(missed.clone(), 500))
+        .unwrap();
+    for (n, (user, value)) in [("alice", 40u64), ("bob", 60)].into_iter().enumerate() {
+        core.ranking_contribute(control::ExternalContribution {
+            event_id: format!("{suffix}-{n}"),
+            creator_id: "creator".into(),
+            room_id: "room".into(),
+            source: "custom.score".into(),
+            user: Some(user.into()),
+            label: None,
+            team: None,
+            custom_key: None,
+            option: None,
+            metrics: [("value".to_owned(), value)].into(),
+        })
+        .unwrap();
+    }
+    for competition in [&id, &missed] {
+        core.competition_transition(competition, Transition::Start)
+            .unwrap();
+    }
+    let result = core.competition_finish(&id).unwrap();
+    assert_eq!(result.selection.winner.as_deref(), Some("bob"));
+    assert_eq!(result.selection.eligible.len(), 1);
+    assert_eq!(
+        core.competition_finish(&missed).unwrap().selection.winner,
+        None
+    );
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+/// Private data root for tests that persist rankings or competitions, so
+/// unclean state never leaks into the shared isolated home.
+fn private_core(name: &str) -> (Arc<AppCore>, PathBuf) {
+    let root = std::env::temp_dir().join(format!(
+        "tiktools-{name}-{}-{}",
+        std::process::id(),
+        now_millis()
+    ));
+    let paths = crate::paths::AppPaths {
+        data: root.join("data"),
+        plugins: root.join("plugins"),
+        plugin_data: root.join("plugin-data"),
+        builtin_plugins: root.join("builtin"),
+        development_plugins: None,
+        logs: root.join("logs"),
+        temp: root.join("temp"),
+        root: root.clone(),
+    };
+    let core = Arc::new(AppCore::with_paths(
+        Arc::new(RecordingEmitter::default()),
+        Arc::new(NoopMediaHost),
+        paths,
+    ));
+    (core, root)
+}

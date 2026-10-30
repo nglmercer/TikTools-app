@@ -84,6 +84,30 @@ CREATE TABLE IF NOT EXISTS aggregation_definitions (
   definition_json TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_aggregation_scope ON aggregation_definitions(creator_id, room_id);
+-- Latest ranking snapshot per definition, rewritten periodically while running
+-- and at clean shutdown. Rows only ever lag live state (undercount, never replay);
+-- aggregation_checkpoint_run records whether the last run closed cleanly.
+CREATE TABLE IF NOT EXISTS aggregation_session_checkpoints (
+  ranking_id TEXT PRIMARY KEY,
+  schema_version INTEGER NOT NULL,
+  checkpoint_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS aggregation_checkpoint_owner (
+  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+  owner TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS aggregation_checkpoint_run (
+  singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+  status TEXT NOT NULL CHECK(status IN ('open', 'clean'))
+);
+-- Idempotency keys for externally reported ranking contributions (plugins,
+-- agents). A key is recorded before the score is applied: a retry after a
+-- crash undercounts at most once and can never double count.
+CREATE TABLE IF NOT EXISTS aggregation_external_events (
+  event_id TEXT PRIMARY KEY,
+  accepted_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_aggregation_external_age ON aggregation_external_events(accepted_at);
 CREATE TABLE IF NOT EXISTS competition_definitions (
   id TEXT PRIMARY KEY,
   ranking_id TEXT NOT NULL,

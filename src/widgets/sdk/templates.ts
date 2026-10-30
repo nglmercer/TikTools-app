@@ -183,9 +183,23 @@ export const likesTemplate = defineWidget({
   },
 });
 
+// Rankings render a title and rows, not alert layers: offer only the
+// title text and card controls the ranking widget actually applies.
+const rankingBase = templateSchema('ranking', alertDesign('#fb7185', { padding: 18, width: 420 }), ['name', 'count']);
+const rankingSchema: WidgetTemplateSchema = {
+  ...rankingBase,
+  defaultLayers: [{ id: 'field:title', kind: 'text', field: 'title' }],
+  textFields: ['title'],
+  requiredTextFields: [],
+  editorSections: [
+    { id: 'text', groups: [{ title: 'fields', controls: ['textFields'] }, { title: 'textAppearance', controls: ['textColor'] }] },
+    ...rankingBase.editorSections.filter((section) => section.id === 'card'),
+  ],
+};
+
 export const rankingTemplate = defineWidget({
   id: 'ranking',
-  schema: likesSchema,
+  schema: rankingSchema,
   topics: ['ranking.updated', 'competition.result', 'event.gap'],
   resetOnDisconnect: true,
   samples: () => [{ topic: 'ranking.updated', data: { snapshot: { rankingId: 'preview', schemaVersion: 1, creatorId: 'preview', roomId: 'preview', revision: 1, integrityStatus: 'unknown', paused: false, entries: [{ key: 'Ana', rank: 1, score: 125 }, { key: 'Ben', rank: 2, score: 80 }, { key: 'Cid', rank: 3, score: 45 }], totalScore: 250, totalParticipants: 3 } } }],
@@ -208,7 +222,7 @@ export const rankingTemplate = defineWidget({
   },
 });
 
-export const widgetTemplates = { follow: followTemplate, gift: giftTemplate, chat: chatTemplate, share: shareTemplate, subscribe: subscribeTemplate, likes: likesTemplate };
+export const widgetTemplates = { follow: followTemplate, gift: giftTemplate, chat: chatTemplate, share: shareTemplate, subscribe: subscribeTemplate, likes: likesTemplate, ranking: rankingTemplate };
 export type WidgetKind = keyof typeof widgetTemplates;
-/** Standalone registry also includes visualizations that do not use the alert editor. */
-export const standaloneWidgetTemplates = { ...widgetTemplates, ranking: rankingTemplate };
+/** Standalone registry; ranking visualizations share the editor design schema. */
+export const standaloneWidgetTemplates = { ...widgetTemplates };

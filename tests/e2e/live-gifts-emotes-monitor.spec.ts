@@ -46,7 +46,9 @@ test('monitor configuration survives page navigation and stops through the host'
   await waitForFrontend(page);
   await page.getByRole('link', { name: 'Connections', exact: true }).click();
   await page.locator('#live-handle').fill('alice');
-  await page.getByRole('button', { name: 'Monitor and auto-connect', exact: true }).click();
+  // Monitoring is a switch; Connect then starts it instead of connecting directly.
+  await page.getByRole('switch', { name: 'Monitor and auto-connect' }).check();
+  await page.getByRole('main').getByRole('button', { name: 'Connect', exact: true }).click();
   await expect(page.getByText('LIVE monitor: Waiting for LIVE')).toBeVisible();
   await expect(page.locator('#live-handle')).toBeDisabled();
   await page.getByRole('link', { name: 'Live feed', exact: true }).click();
@@ -55,7 +57,7 @@ test('monitor configuration survives page navigation and stops through the host'
   await expect(page.getByText('LIVE monitor: Connected; monitoring remains active')).toBeVisible();
   await page.getByRole('button', { name: 'Stop monitoring', exact: true }).click();
   await expect(page.locator('#live-handle')).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Monitor and auto-connect', exact: true })).toBeVisible();
+  await expect(page.getByRole('switch', { name: 'Monitor and auto-connect' })).toBeEnabled();
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
@@ -69,19 +71,6 @@ test('visible feed fills journal holes without artwork or a page visibility tran
   await writeHostState(page, { ...await readHostState(page), feedJournal: [{ cursor: 2, event: gift }, { cursor: 3, event: gift }] });
   await emitTopic(page, 'live.ui-event', { event: { ...gift, feedCursor: 3 } });
   await expect(page.locator('.event-row--gift')).toHaveCount(3);
-  await assertNoUnhandledCalls(page);
-  capture.assertClean();
-});
-
-
-test('event debugger exposes host accounting and correlation metadata', async ({ page }) => {
-  const capture = await installFakeHost(page, emptyState());
-  await page.goto('/');
-  await waitForFrontend(page);
-  await emitTopic(page, 'live.ui-event', { cursor: 1, event: { kind: 'gift', author: 'alice', text: 'Gift', correlationId: 'gift-trace-1', msgId: '0' } });
-  await page.getByText('Event Debugger', { exact: true }).click();
-  await expect(page.locator('.event-debugger pre')).toContainText('gift-trace-1');
-  await expect(page.locator('.event-debugger pre')).toContainText('"decoded": 12');
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });

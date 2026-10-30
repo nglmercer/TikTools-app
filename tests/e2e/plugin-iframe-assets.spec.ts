@@ -126,6 +126,8 @@ async function expectScrollableInlineUi(
   await page.goto('/');
   await waitForFrontend(page);
 
+  // Narrow windows collapse navigation into the sidebar drawer.
+  await page.getByRole('button', { name: 'Toggle sidebar' }).click();
   const tab = page.getByRole('link', { name: 'Text to Speech' });
   await expect(tab).toBeVisible();
   await tab.click();

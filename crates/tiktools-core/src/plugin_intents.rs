@@ -49,19 +49,21 @@ impl AppCore {
                             .into_iter()
                             .collect(),
                     );
-                    if let Some(typed) =
+                    let published = if let Some(typed) =
                         self.plugin_typed_event(&plugin.manifest, &event_type, &payload, event)?
                     {
-                        if !test {
-                            self.publish_automation_event(typed).await;
-                        }
-                    } else if !test {
-                        self.publish_automation_event(self.make_internal_automation_event(
-                            event,
+                        typed
+                    } else {
+                        self.make_internal_automation_event(event, &event_type, payload.clone())
+                    };
+                    if !test {
+                        self.observe_plugin_ranking_event(
+                            &plugin.manifest.id,
                             &event_type,
-                            payload,
-                        ))
-                        .await;
+                            &payload,
+                            &published,
+                        );
+                        self.publish_automation_event(published).await;
                     }
                     parts.push(if test {
                         format!("would emit {event_type}")
@@ -72,6 +74,64 @@ impl AppCore {
             }
         }
         Ok(parts)
+    }
+
+    /// Plugin emits feed rankings through `plugin.<pluginId>.<eventType>`
+    /// (`event.count`, plus `value` when the payload carries a positive
+    /// integer). Keys come from `user`/`userId`, `team` and `key`. The host
+    /// event id makes delivery idempotent; without a LIVE context the event is
+    /// not attributable to a ranking scope and is skipped.
+    pub(crate) fn observe_plugin_ranking_event(
+        &self,
+        plugin_id: &str,
+        event_type: &str,
+        payload: &Value,
+        published: &Value,
+    ) {
+        let Some(event_id) = published.get("id").and_then(Value::as_str) else {
+            return;
+        };
+        let Some((creator_id, room_id)) =
+            recover_rwlock_read(&self.connection_context, "connection context")
+                .as_ref()
+                .map(|context| (context.unique_id.clone(), context.room_id.clone()))
+        else {
+            return;
+        };
+        let text = |names: &[&str]| {
+            names.iter().find_map(|name| match payload.get(*name) {
+                Some(Value::String(value)) if !value.is_empty() => Some(value.clone()),
+                Some(Value::Number(value)) => Some(value.to_string()),
+                _ => None,
+            })
+        };
+        let mut metrics = std::collections::BTreeMap::from([("event.count".to_owned(), 1)]);
+        if let Some(value) = payload
+            .get("value")
+            .and_then(Value::as_u64)
+            .filter(|v| *v > 0)
+        {
+            metrics.insert("value".to_owned(), value);
+        }
+        let source = format!("plugin.{plugin_id}.{event_type}");
+        if source.len() > 128 {
+            return;
+        }
+        let result = self.ranking_contribute(crate::control::ExternalContribution {
+            event_id: event_id.to_owned(),
+            creator_id,
+            room_id,
+            source,
+            user: text(&["userId", "user", "uniqueId"]),
+            label: text(&["nickname", "label", "uniqueId"]),
+            team: text(&["team"]),
+            custom_key: text(&["key"]),
+            option: None,
+            metrics,
+        });
+        if let Err(error) = result {
+            tracing::debug!(plugin = %plugin_id, %event_type, ?error, "plugin ranking contribution skipped");
+        }
     }
 
     /// Builds a typed event for one of the calling plugin's declared event

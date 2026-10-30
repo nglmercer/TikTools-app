@@ -2,6 +2,35 @@ use crate::model::{Contribution, Definition, GroupBy, Window};
 use crate::{Aggregation, EntryMetadata, Error, Snapshot};
 use std::collections::{HashMap, VecDeque};
 
+/// Complete session state for persistence. The definition is included so a
+/// checkpoint cannot be restored against changed scoring or scope settings.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCheckpoint {
+    pub schema_version: u32,
+    pub definition: Definition,
+    pub snapshot: Snapshot,
+    #[serde(default)]
+    window_events: Vec<(u64, String, u64)>,
+    #[serde(default)]
+    last_time: u64,
+    #[serde(default)]
+    users: HashMap<String, UserState>,
+}
+
+/// Bounded aggregate health counters; no participant identities are exposed.
+#[derive(Clone, Debug, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Diagnostics {
+    pub rankings: usize,
+    pub paused: usize,
+    pub degraded: usize,
+    pub rejected: u64,
+    pub dropped: u64,
+    pub limited: u64,
+    pub cooldown_rejected: u64,
+}
+
 /// Indexed definitions and bounded ranking state. Callers serialize updates
 /// and supply only events already admitted and deduplicated by ingress.
 #[derive(Default)]
@@ -13,6 +42,7 @@ pub struct Engine {
 struct Ranking {
     definition: Definition,
     instance: u64,
+    instance_id: String,
     state: Aggregation,
     paused: bool,
     rejected: u64,
@@ -23,6 +53,7 @@ struct Ranking {
     limited: u64,
     cooldown_rejected: u64,
 }
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 struct UserState {
     count: u64,
     last_time: u64,
@@ -43,9 +74,149 @@ pub enum DefinitionError {
     NotPaused,
     ResetRequired,
     RevisionOverflow,
+    IdentityUnavailable,
 }
 
 impl Engine {
+    pub fn diagnostics(&self) -> Diagnostics {
+        let mut result = Diagnostics {
+            rankings: self.rankings.len(),
+            ..Default::default()
+        };
+        for ranking in self.rankings.values() {
+            result.paused += usize::from(ranking.paused);
+            result.degraded += usize::from(ranking.rejected > 0 || ranking.dropped > 0);
+            result.rejected = result.rejected.saturating_add(ranking.rejected);
+            result.dropped = result.dropped.saturating_add(ranking.dropped);
+            result.limited = result.limited.saturating_add(ranking.limited);
+            result.cooldown_rejected = result
+                .cooldown_rejected
+                .saturating_add(ranking.cooldown_rejected);
+        }
+        result
+    }
+    /// Export all bounded accounting state, including rolling expiry and limits.
+    pub fn session_checkpoint(&self, id: &str) -> Result<SessionCheckpoint, Error> {
+        let ranking = self.rankings.get(id).ok_or(Error::NotFound)?;
+        Ok(SessionCheckpoint {
+            schema_version: 1,
+            definition: ranking.definition.clone(),
+            snapshot: self.selection_snapshot(id).ok_or(Error::NotFound)?,
+            window_events: ranking.window_events.iter().cloned().collect(),
+            last_time: ranking.last_time,
+            users: ranking.users.clone(),
+        })
+    }
+
+    /// Restore an entire checkpoint atomically into a fresh ranking instance.
+    /// A caller must separately prove the checkpoint includes all accepted
+    /// contributions before relying on its integrity for winner selection.
+    pub fn restore_session_checkpoint(
+        &mut self,
+        checkpoint: &SessionCheckpoint,
+    ) -> Result<(), Error> {
+        let ranking = self
+            .rankings
+            .get_mut(&checkpoint.definition.id)
+            .ok_or(Error::NotFound)?;
+        let snapshot = &checkpoint.snapshot;
+        if checkpoint.schema_version != 1
+            || ranking.definition != checkpoint.definition
+            || ranking.state.revision() != 0
+            || snapshot.schema_version != 1
+            || snapshot.ranking_id != ranking.definition.id
+            || snapshot.creator_id != ranking.definition.creator_id
+            || snapshot.room_id != ranking.definition.room_id
+            || snapshot.window != ranking.definition.window
+            || snapshot.instance_id.as_ref().is_some_and(|id| {
+                id.len() != 32 || !id.bytes().all(|byte| byte.is_ascii_hexdigit())
+            })
+            || snapshot.entries.len() != snapshot.total_participants
+            || snapshot.entries.len() > ranking.definition.capacity
+            || !matches!(snapshot.integrity_status.as_str(), "unknown" | "degraded")
+            || (snapshot.integrity_status == "unknown"
+                && (snapshot.rejected != 0 || snapshot.dropped != 0))
+            || (snapshot.integrity_status == "degraded"
+                && snapshot.rejected == 0
+                && snapshot.dropped == 0)
+        {
+            return Err(Error::IncompatibleDefinition);
+        }
+        let mut state = Aggregation::new(ranking.definition.capacity);
+        let mut seen = std::collections::HashSet::new();
+        for entry in &snapshot.entries {
+            if entry.score == 0 || !seen.insert(&entry.key) {
+                return Err(Error::InvalidKey);
+            }
+            state.apply(&entry.key, entry.score, 1)?;
+            let mut metadata = entry.metadata.clone();
+            metadata.label = Some(entry.label.clone());
+            state.update_metadata(&entry.key, &metadata);
+        }
+        if state.total != snapshot.total_score || snapshot.revision < state.revision() {
+            return Err(Error::IncompatibleDefinition);
+        }
+        match ranking.definition.window {
+            Window::Session | Window::Daily { .. } if !checkpoint.window_events.is_empty() => {
+                return Err(Error::IncompatibleDefinition)
+            }
+            Window::Rolling { max_events, .. } => {
+                if checkpoint.window_events.len() > max_events {
+                    return Err(Error::IncompatibleDefinition);
+                }
+                let mut totals = HashMap::<&str, u64>::new();
+                let mut last = 0;
+                for (time, key, score) in &checkpoint.window_events {
+                    if *time < last || *time > checkpoint.last_time || *score == 0 {
+                        return Err(Error::IncompatibleDefinition);
+                    }
+                    last = *time;
+                    let total = totals.entry(key).or_default();
+                    *total = total.checked_add(*score).ok_or(Error::Overflow)?;
+                }
+                if totals.len() != state.scores.len()
+                    || state
+                        .scores
+                        .iter()
+                        .any(|(key, score)| totals.get(key.as_str()) != Some(score))
+                {
+                    return Err(Error::IncompatibleDefinition);
+                }
+            }
+            _ => {}
+        }
+        match &ranking.definition.user_limits {
+            None if !checkpoint.users.is_empty() => return Err(Error::IncompatibleDefinition),
+            Some(limits)
+                if checkpoint.users.len() > limits.max_users
+                    || (!state.scores.is_empty() && checkpoint.users.is_empty())
+                    || checkpoint.users.iter().any(|(key, user)| {
+                        key.is_empty()
+                            || key.len() > 512
+                            || user.count == 0
+                            || user.last_time > checkpoint.last_time
+                            || limits.max_contributions.is_some_and(|max| user.count > max)
+                    }) =>
+            {
+                return Err(Error::IncompatibleDefinition)
+            }
+            _ => {}
+        }
+        state.revision = snapshot.revision;
+        ranking.state = state;
+        ranking.paused = snapshot.paused;
+        ranking.rejected = snapshot.rejected;
+        ranking.dropped = snapshot.dropped;
+        ranking.limited = snapshot.limited;
+        ranking.cooldown_rejected = snapshot.cooldown_rejected;
+        ranking.window_events = checkpoint.window_events.iter().cloned().collect();
+        ranking.last_time = checkpoint.last_time;
+        ranking.users = checkpoint.users.clone();
+        if let Some(instance_id) = &snapshot.instance_id {
+            ranking.instance_id = instance_id.clone();
+        }
+        Ok(())
+    }
     pub fn create(&mut self, definition: Definition) -> Result<(), DefinitionError> {
         if self.rankings.len() >= 128 {
             return Err(DefinitionError::Capacity);
@@ -62,6 +233,7 @@ impl Engine {
             || definition.capacity == 0
             || definition.limit == 0
             || matches!(&definition.window, Window::Rolling { duration_ms, max_events } if *duration_ms == 0 || *max_events == 0 || *max_events > 100_000)
+            || matches!(&definition.window, Window::Daily { utc_offset_minutes } if !(-840..=840).contains(utc_offset_minutes))
             || definition.user_limits.as_ref().is_some_and(|limits| {
                 limits.max_users == 0
                     || limits.max_users > 100_000
@@ -92,6 +264,12 @@ impl Engine {
         if self.rankings.contains_key(&definition.id) {
             return Err(DefinitionError::Duplicate);
         }
+        let mut identity = [0u8; 16];
+        getrandom::fill(&mut identity).map_err(|_| DefinitionError::IdentityUnavailable)?;
+        let instance_id = identity
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
         for source in &definition.sources {
             let ids = self.by_source.entry(source.source.clone()).or_default();
             if !ids.contains(&definition.id) {
@@ -109,6 +287,7 @@ impl Engine {
             Ranking {
                 definition,
                 instance,
+                instance_id,
                 state,
                 paused: false,
                 rejected: 0,
@@ -526,6 +705,24 @@ impl Engine {
         Ok(UserDecision::Allowed)
     }
     fn expire_ranking(ranking: &mut Ranking, now: u64) -> Result<(), Error> {
+        if let Window::Daily { utc_offset_minutes } = ranking.definition.window {
+            let day = |time: u64| {
+                (time.min(i64::MAX as u64) as i64)
+                    .saturating_add(i64::from(utc_offset_minutes) * 60_000)
+                    .div_euclid(86_400_000)
+            };
+            let previous = ranking.last_time;
+            ranking.last_time = previous.max(now);
+            if previous != 0 && day(ranking.last_time) != day(previous) {
+                ranking.state.reset()?;
+                ranking.users.clear();
+                ranking.rejected = 0;
+                ranking.dropped = 0;
+                ranking.limited = 0;
+                ranking.cooldown_rejected = 0;
+            }
+            return Ok(());
+        }
         ranking.last_time = ranking.last_time.max(now);
         let Window::Rolling { duration_ms, .. } = ranking.definition.window else {
             return Ok(());
@@ -557,6 +754,13 @@ impl Engine {
         }
     }
     /// Mark rankings whose accepted input could not be accounted for.
+    /// Recovery gaps apply even when the restored ranking is paused.
+    pub fn mark_recovery_gap(&mut self, id: &str) -> Result<(), Error> {
+        let ranking = self.rankings.get_mut(id).ok_or(Error::NotFound)?;
+        ranking.rejected = ranking.rejected.saturating_add(1);
+        ranking.state.touch()?;
+        Ok(())
+    }
     pub fn mark_gap(&mut self, creator: &str, room: &str, source: &str) {
         if let Some(ids) = self.by_source.get(source) {
             for id in ids {
@@ -620,6 +824,10 @@ impl Engine {
             let _ = ranking.state.touch();
         }
     }
+    /// Whether any ranking consumes `source`; lets adapters skip unused work.
+    pub fn has_source(&self, source: &str) -> bool {
+        self.by_source.contains_key(source)
+    }
     /// Small change tokens used by coalesced presentation publishers.
     pub fn change_tokens(&self) -> Vec<(String, u64, u64)> {
         self.rankings
@@ -637,9 +845,15 @@ impl Engine {
         definitions
     }
     pub fn snapshot_unranked(&self, id: &str) -> Option<(Snapshot, usize)> {
+        self.snapshot_unranked_capped(id, usize::MAX)
+    }
+    /// Bounded presentation snapshot; control retrieval retains the configured limit.
+    pub fn snapshot_unranked_capped(&self, id: &str, cap: usize) -> Option<(Snapshot, usize)> {
         self.rankings.get(id).map(|r| {
-            let mut snapshot = r.state.snapshot_candidates(r.definition.limit);
+            let limit = r.definition.limit.min(cap);
+            let mut snapshot = r.state.snapshot_candidates(limit);
             snapshot.ranking_id = r.definition.id.clone();
+            snapshot.instance_id = Some(r.instance_id.clone());
             snapshot.creator_id = r.definition.creator_id.clone();
             snapshot.room_id = r.definition.room_id.clone();
             snapshot.window = r.definition.window.clone();
@@ -651,7 +865,7 @@ impl Engine {
             if r.rejected > 0 || r.dropped > 0 {
                 snapshot.integrity_status = "degraded".into();
             }
-            (snapshot, r.definition.limit)
+            (snapshot, limit)
         })
     }
     /// All eligible entries for a bounded ranking, independent of display limit.
@@ -661,6 +875,7 @@ impl Engine {
                 .state
                 .snapshot_candidates(ranking.definition.capacity);
             snapshot.ranking_id = ranking.definition.id.clone();
+            snapshot.instance_id = Some(ranking.instance_id.clone());
             snapshot.creator_id = ranking.definition.creator_id.clone();
             snapshot.room_id = ranking.definition.room_id.clone();
             snapshot.window = ranking.definition.window.clone();

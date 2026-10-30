@@ -59,6 +59,12 @@ pub enum Window {
         duration_ms: u64,
         max_events: usize,
     },
+    /// Accumulates for one calendar day at `utc_offset_minutes` (-840..=840)
+    /// and resets scores, limits and integrity counters at local midnight.
+    Daily {
+        #[serde(default)]
+        utc_offset_minutes: i32,
+    },
 }
 
 /// Available grouping keys. Missing keys are rejected, never guessed.

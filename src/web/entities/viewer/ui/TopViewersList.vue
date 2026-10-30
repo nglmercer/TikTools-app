@@ -27,7 +27,10 @@ const entries = computed(() => rankedViewers(props.topViewers, props.leaderboard
     <p class="top-viewers__live">
       {{ t('feed.viewers.live', { count: formatCount(liveViewers, locale) }) }}
     </p>
-    <p v-if="entries.length" class="top-viewers__source">
+    <p
+      v-if="entries.length"
+      class="top-viewers__source"
+    >
       {{ t(entries[0]?.provenance === 'tiktok_room' ? 'feed.viewers.sourceTikTok' : 'feed.viewers.sourcePoints') }}
     </p>
     <ul

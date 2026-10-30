@@ -158,6 +158,79 @@ fn domain_snapshots_coalesce_but_feed_and_lifecycle_do_not() {
 }
 
 #[test]
+fn ranking_snapshots_coalesce_per_ranking_without_losing_other_rankings() {
+    let mut outbox = WebviewOutbox::new();
+    outbox.push(domain_event(
+        "ranking.updated",
+        r#"{"snapshot":{"rankingId":"a","revision":1}}"#,
+    ));
+    outbox.push(domain_event(
+        "ranking.updated",
+        r#"{"snapshot":{"rankingId":"b","revision":1}}"#,
+    ));
+    outbox.push(domain_event(
+        "ranking.updated",
+        r#"{"snapshot":{"rankingId":"a","revision":2}}"#,
+    ));
+    assert!(outbox.reliable.is_empty());
+    assert_eq!(outbox.lossy.len(), 2);
+    assert!(outbox
+        .lossy
+        .iter()
+        .any(|item| item.body.contains(r#""rankingId":"a","revision":2"#)));
+    assert!(outbox
+        .lossy
+        .iter()
+        .any(|item| item.body.contains(r#""rankingId":"b","revision":1"#)));
+}
+
+#[test]
+fn ranking_coalescing_compares_revisions_only_within_an_instance() {
+    let mut outbox = WebviewOutbox::new();
+    outbox.push(domain_event("ranking.updated", r#"{"snapshot":{"rankingId":"a","instanceId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","revision":9}}"#));
+    outbox.push(domain_event("ranking.updated", r#"{"snapshot":{"rankingId":"a","instanceId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","revision":3}}"#));
+    assert!(outbox.lossy[0].contains(r#""revision":9"#));
+    outbox.push(domain_event("ranking.updated", r#"{"snapshot":{"rankingId":"a","instanceId":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","revision":1}}"#));
+    assert_eq!(outbox.lossy.len(), 1);
+    assert!(outbox.lossy[0].contains(r#""revision":1"#));
+}
+
+#[test]
+fn committed_reveals_coalesce_per_competition_but_lifecycle_remains_reliable() {
+    let mut outbox = WebviewOutbox::new();
+    outbox.push(domain_event(
+        "competition.result",
+        r#"{"result":{"competitionId":"a","generation":1}}"#,
+    ));
+    outbox.push(domain_event(
+        "competition.result",
+        r#"{"result":{"competitionId":"b","generation":1}}"#,
+    ));
+    outbox.push(domain_event(
+        "competition.result",
+        r#"{"result":{"competitionId":"a","generation":2}}"#,
+    ));
+    outbox.push(domain_event(
+        "competition.result",
+        r#"{"result":{"competitionId":"a","generation":1}}"#,
+    ));
+    outbox.push(domain_event(
+        "competition.finished",
+        r#"{"competitionId":"a"}"#,
+    ));
+    assert_eq!(outbox.lossy.len(), 2);
+    assert_eq!(outbox.reliable.len(), 1);
+    assert!(outbox
+        .lossy
+        .iter()
+        .any(|item| item.body.contains(r#""competitionId":"a","generation":2"#)));
+    assert!(outbox
+        .lossy
+        .iter()
+        .any(|item| item.body.contains(r#""competitionId":"b","generation":1"#)));
+}
+
+#[test]
 fn lossy_lane_never_exceeds_bound() {
     let mut outbox = WebviewOutbox::new();
     for index in 0..(MAX_PENDING_WEBVIEW_MESSAGES + 50) {

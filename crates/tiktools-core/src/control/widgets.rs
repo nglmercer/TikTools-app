@@ -257,6 +257,7 @@ impl AppCore {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn widgets_copy_obs_url_with_competition(
         &self,
         widget: &str,

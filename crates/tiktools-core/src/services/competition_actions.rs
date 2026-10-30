@@ -17,6 +17,29 @@ impl AppCore {
         }
         let weak = Arc::downgrade(self);
         *slot = Some(tokio::spawn(async move {
+            // Nothing has been claimed by this process yet, so any `running`
+            // row belongs to a host that died mid-action. Its side effect may
+            // or may not have happened: mark it uncertain for explicit
+            // resolution, never re-run it automatically.
+            if let Some(core) = weak.upgrade() {
+                let db = core.db.clone();
+                let now = crate::now_millis().min(i64::MAX as u64) as i64;
+                match tokio::task::spawn_blocking(move || {
+                    db.mark_interrupted_competition_actions_uncertain(now)
+                })
+                .await
+                {
+                    Ok(Ok(0)) => {}
+                    Ok(Ok(count)) => tracing::warn!(
+                        count,
+                        "interrupted competition actions marked uncertain; resolve them explicitly"
+                    ),
+                    Ok(Err(error)) => {
+                        tracing::error!(%error, "cannot recover interrupted competition actions")
+                    }
+                    Err(error) => tracing::error!(%error, "action recovery worker failed"),
+                }
+            }
             loop {
                 let Some(core) = weak.upgrade() else {
                     break;
@@ -33,10 +56,14 @@ impl AppCore {
                             if core.shutdown_started.load(Ordering::Acquire) {
                                 break;
                             }
+                            *recover_mutex(
+                                &core.competitions.action_inflight,
+                                "competition action in flight",
+                            ) = Some((id.clone(), generation));
                             let db = core.db.clone();
                             let claim_id = id.clone();
                             let claimed = tokio::task::spawn_blocking(move || {
-                                db.claim_competition_action(
+                                db.claim_competition_action_detailed(
                                     &claim_id,
                                     generation,
                                     crate::now_millis().min(i64::MAX as u64) as i64,
@@ -44,8 +71,23 @@ impl AppCore {
                             })
                             .await;
                             match claimed {
-                                Ok(Ok(Some(claim))) => core.execute_competition_action(claim).await,
-                                Ok(Ok(None)) => {}
+                                Ok(Ok(crate::db::ActionClaimOutcome::Claimed(claim))) => {
+                                    core.execute_competition_action(claim).await
+                                }
+                                Ok(Ok(crate::db::ActionClaimOutcome::Missing)) => {}
+                                Ok(Ok(crate::db::ActionClaimOutcome::Invalid { action_id })) => {
+                                    if let Some(mut data) =
+                                        core.competition_context(&id, generation)
+                                    {
+                                        data.action_id = Some(action_id);
+                                        data.action_status =
+                                            Some(tiktools_competitions::ActionStatus::Failed);
+                                        core.publish_competition_event(
+                                            "competition.action.failed",
+                                            data,
+                                        );
+                                    }
+                                }
                                 Ok(Err(error)) => {
                                     tracing::error!(%error, "competition action claim failed")
                                 }
@@ -53,6 +95,10 @@ impl AppCore {
                                     tracing::error!(%error, "competition action claim worker failed")
                                 }
                             }
+                            *recover_mutex(
+                                &core.competitions.action_inflight,
+                                "competition action in flight",
+                            ) = None;
                         }
                     }
                     Ok(Err(error)) => tracing::error!(%error, "competition outbox read failed"),
@@ -70,6 +116,8 @@ impl AppCore {
         let prepared = tokio::task::spawn_blocking(move || -> Result<_, &'static str> {
             let result = core.db.load_competition_result(&lookup.competition_id, lookup.generation).map_err(|_| "result_unavailable")?.ok_or("result_unavailable")?;
             let definition = core.competition_get(&lookup.competition_id).map_err(|_| "competition_unavailable")?;
+            let winner = result.selection.winner.clone().ok_or("winner_unavailable")?;
+            if definition.options.iter().find(|option| option.id == winner).and_then(|option| option.on_win.as_ref()) != Some(&lookup.action) { return Err("action_reference_mismatch"); }
             let ranking = core.ranking_get(&definition.ranking_id).map_err(|_| "ranking_unavailable")?;
             let mut action = core.automation_get(crate::control::AutomationKind::Action, &lookup.action.action_id).map_err(|_| "action_unavailable")?;
             if action.get("enabled").and_then(serde_json::Value::as_bool) == Some(false) { return Err("action_disabled"); }
@@ -81,7 +129,6 @@ impl AppCore {
             let object = action.as_object_mut().ok_or("invalid_action")?;
             let config = object.entry("config").or_insert_with(|| serde_json::json!({})).as_object_mut().ok_or("invalid_action")?;
             config.extend(inputs);
-            let winner = result.selection.winner.clone().ok_or("winner_unavailable")?;
             let score = result.selection.eligible.iter().find(|candidate| candidate.key == winner).ok_or("winner_unavailable")?.weight;
             let event = serde_json::json!({"id": lookup.idempotency_key, "type": "competition.winner.selected", "timestamp": result.finalized_at,
                 "creator": {"uniqueId": ranking.creator_id, "roomId": ranking.room_id},
@@ -219,5 +266,9 @@ impl AppCore {
                 tracing::error!("competition action worker stopped with an unknown outcome; inspect running actions");
             }
         }
+        *recover_mutex(
+            &self.competitions.action_inflight,
+            "competition action in flight",
+        ) = None;
     }
 }

@@ -5,7 +5,9 @@ use super::{
 };
 use serde_json::Value;
 use tiktools_client::{ClientError, TikToolsClient};
-use tiktools_control_api::modules::rankings::{Definition, RankingId, RankingUpdate};
+use tiktools_control_api::modules::rankings::{
+    Definition, ExternalContribution, RankingId, RankingUpdate,
+};
 
 pub enum Command {
     List,
@@ -18,11 +20,12 @@ pub enum Command {
     Reset(String),
     Pause(String),
     Resume(String),
+    Contribute(ExternalContribution),
 }
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
     let (verb, rest) = split_first(
         args,
-        "ranking <list|metrics|create|update|get|snapshot|delete|reset|pause|resume>",
+        "ranking <list|metrics|create|update|get|snapshot|delete|reset|pause|resume|contribute>",
     )?;
     Ok(match verb {
         "list" if rest.is_empty() => Command::List,
@@ -41,6 +44,10 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
         "reset" => Command::Reset(one_arg(rest, "ranking reset <id>")?),
         "pause" => Command::Pause(one_arg(rest, "ranking pause <id>")?),
         "resume" => Command::Resume(one_arg(rest, "ranking resume <id>")?),
+        "contribute" => Command::Contribute(typed_params(required_record(
+            rest,
+            "ranking contribute --record <json|@file>",
+        )?)?),
         _ => return Err(format!("invalid ranking command `{verb}`").into()),
     })
 }
@@ -56,5 +63,6 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
         Command::Reset(id) => result_value(client.rankings_reset(RankingId { id }).await?),
         Command::Pause(id) => result_value(client.rankings_pause(RankingId { id }).await?),
         Command::Resume(id) => result_value(client.rankings_resume(RankingId { id }).await?),
+        Command::Contribute(c) => result_value(client.rankings_contribute(c).await?),
     }
 }
