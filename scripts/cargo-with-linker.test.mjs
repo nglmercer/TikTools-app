@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { resolveCargoEnvironment } from './cargo-with-linker.mjs';
+import {
+  mergeEnvironment,
+  parseEnvironmentDump,
+  resolveCargoEnvironment,
+  resolveMsvcEnvironment,
+} from './cargo-with-linker.mjs';
 
 const X64_LINKER = 'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER';
 const ARM64_LINKER = 'CARGO_TARGET_AARCH64_PC_WINDOWS_MSVC_LINKER';
@@ -330,4 +335,70 @@ test('accepts alternative kache values', () => {
     assert.equal(optedOut.kache, 'disabled');
     assert.equal(Object.hasOwn(optedOut.environment, 'RUSTC_WRAPPER'), false);
   }
+});
+
+test('loads the MSVC developer environment when INCLUDE is missing on Windows', () => {
+  let capturedArchitecture;
+  const resolved = resolveMsvcEnvironment({
+    environment: { Path: 'C:\\bin' },
+    platform: 'win32',
+    architecture: 'x64',
+    findDevCmd: () => 'C:\\VS\\VsDevCmd.bat',
+    captureEnvironment: (_devCmd, architecture) => {
+      capturedArchitecture = architecture;
+      return 'INCLUDE=C:\\include\r\nPath=C:\\msvc;C:\\bin\r\n';
+    },
+  });
+
+  assert.equal(capturedArchitecture, 'x64');
+  assert.equal(resolved.status, 'loaded');
+  assert.equal(resolved.environment.INCLUDE, 'C:\\include');
+});
+
+test('keeps an existing Developer prompt environment', () => {
+  const resolved = resolveMsvcEnvironment({
+    environment: { INCLUDE: 'C:\\include' },
+    platform: 'win32',
+    findDevCmd: () => {
+      throw new Error('Visual Studio detection must not run inside a Developer prompt');
+    },
+  });
+
+  assert.equal(resolved.status, 'preserved');
+});
+
+test('skips MSVC environment loading outside Windows', () => {
+  const resolved = resolveMsvcEnvironment({ environment: {}, platform: 'linux' });
+
+  assert.equal(resolved.status, 'unchanged');
+});
+
+test('reports MSVC environment as unavailable without Visual Studio', () => {
+  const resolved = resolveMsvcEnvironment({
+    environment: {},
+    platform: 'win32',
+    architecture: 'x64',
+    findDevCmd: () => undefined,
+  });
+
+  assert.equal(resolved.status, 'unavailable');
+});
+
+test('reports a failed MSVC environment capture without INCLUDE', () => {
+  const resolved = resolveMsvcEnvironment({
+    environment: {},
+    platform: 'win32',
+    architecture: 'x64',
+    findDevCmd: () => 'C:\\VS\\VsDevCmd.bat',
+    captureEnvironment: () => 'Path=C:\\bin',
+  });
+
+  assert.equal(resolved.status, 'failed');
+});
+
+test('parses environment dumps and merges them case-insensitively', () => {
+  const loaded = parseEnvironmentDump('Path=C:\\msvc\r\nINCLUDE=C:\\a=b\r\n\r\n');
+  const merged = mergeEnvironment({ PATH: 'C:\\old', KEEP: '1' }, loaded);
+
+  assert.deepEqual(merged, { KEEP: '1', Path: 'C:\\msvc', INCLUDE: 'C:\\a=b' });
 });

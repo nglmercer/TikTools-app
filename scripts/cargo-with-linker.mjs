@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 const WINDOWS_LINKER_ENVIRONMENTS = [
   'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER',
@@ -15,6 +16,8 @@ const RUSTC_WRAPPER_ENVIRONMENT = 'RUSTC_WRAPPER';
 const KACHE_COMMAND = 'kache';
 const ENABLED_KACHE_VALUES = new Set(['1', 'true', 'yes']);
 const DISABLED_KACHE_VALUES = new Set(['0', 'false', 'no']);
+const VSWHERE_PATH = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe';
+const MSVC_ARCHITECTURES = { x64: 'x64', arm64: 'arm64', ia32: 'x86' };
 
 function commandExists(command, platform = process.platform) {
   const lookup = platform === 'win32'
@@ -121,6 +124,87 @@ export function resolveCargoEnvironment({
   return { environment: cargoEnvironment, linker: 'lld-link', configuredTargets, kache };
 }
 
+function findVsDevCmd() {
+  if (!existsSync(VSWHERE_PATH)) {
+    return undefined;
+  }
+
+  const result = spawnSync(VSWHERE_PATH, [
+    '-latest',
+    '-products', '*',
+    '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+    '-property', 'installationPath',
+  ], { encoding: 'utf8', windowsHide: true });
+  const installationPath = result.status === 0 ? result.stdout.trim().split(/\r?\n/)[0] : '';
+  if (!installationPath) {
+    return undefined;
+  }
+
+  const devCmd = join(installationPath, 'Common7', 'Tools', 'VsDevCmd.bat');
+  return existsSync(devCmd) ? devCmd : undefined;
+}
+
+function captureVsDevCmdEnvironment(devCmd, architecture) {
+  const result = spawnSync('cmd.exe', [
+    '/d', '/s', '/c',
+    `""${devCmd}" -no_logo -arch=${architecture} -host_arch=${architecture} && set"`,
+  ], { encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true });
+  return result.status === 0 ? result.stdout : undefined;
+}
+
+export function parseEnvironmentDump(output) {
+  const environment = {};
+  for (const line of output.split(/\r?\n/)) {
+    const separator = line.indexOf('=');
+    if (separator > 0) {
+      environment[line.slice(0, separator)] = line.slice(separator + 1);
+    }
+  }
+  return environment;
+}
+
+export function mergeEnvironment(target, source) {
+  for (const [name, value] of Object.entries(source)) {
+    for (const existing of Object.keys(target)) {
+      if (existing.toLowerCase() === name.toLowerCase()) {
+        delete target[existing];
+      }
+    }
+    target[name] = value;
+  }
+  return target;
+}
+
+export function resolveMsvcEnvironment({
+  environment = process.env,
+  platform = process.platform,
+  architecture = process.arch,
+  findDevCmd = findVsDevCmd,
+  captureEnvironment = captureVsDevCmdEnvironment,
+} = {}) {
+  if (platform !== 'win32') {
+    return { status: 'unchanged' };
+  }
+
+  if (environment.INCLUDE || environment.VSCMD_VER) {
+    return { status: 'preserved' };
+  }
+
+  const msvcArchitecture = MSVC_ARCHITECTURES[architecture];
+  const devCmd = msvcArchitecture ? findDevCmd() : undefined;
+  if (!devCmd) {
+    return { status: 'unavailable' };
+  }
+
+  const output = captureEnvironment(devCmd, msvcArchitecture);
+  if (!output) {
+    return { status: 'failed', devCmd };
+  }
+
+  const loaded = parseEnvironmentDump(output);
+  return loaded.INCLUDE ? { status: 'loaded', devCmd, environment: loaded } : { status: 'failed', devCmd };
+}
+
 function main() {
   const cargoArguments = process.argv.slice(2);
   if (cargoArguments.length === 0) {
@@ -141,6 +225,16 @@ function main() {
     console.error('[cargo-with-linker] using kache rustc wrapper');
   } else if (resolved.kache === 'preserved') {
     console.error('[cargo-with-linker] preserving existing RUSTC_WRAPPER');
+  }
+
+  const msvc = resolveMsvcEnvironment({ environment: resolved.environment });
+  if (msvc.status === 'loaded') {
+    mergeEnvironment(resolved.environment, msvc.environment);
+    console.error(`[cargo-with-linker] loaded MSVC developer environment from ${msvc.devCmd}`);
+  } else if (msvc.status === 'failed') {
+    console.error(`[cargo-with-linker] failed to load MSVC developer environment from ${msvc.devCmd}`);
+  } else if (msvc.status === 'unavailable') {
+    console.error('[cargo-with-linker] Visual Studio C++ build tools not found; C build scripts may fail outside a Developer prompt');
   }
 
   if (process.platform === 'win32') {
