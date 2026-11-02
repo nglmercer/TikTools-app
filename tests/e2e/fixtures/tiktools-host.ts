@@ -180,6 +180,9 @@ const INIT_SCRIPT = `
       state.appState[params.key] = params.value;
       return { ok: true };
     },
+    'plugins.packages.receipts': () => ({ receipts: [] }),
+    'plugins.jobs.list': () => ({ jobs: [] }),
+    'plugins.updates.list': () => ({ updates: [], checkedAt: 0, errors: [] }),
     'plugins.settings.get': (params) => {
       const stored = state.pluginSettings[params.pluginId];
       if (!stored) throw new Error('unknown plugin settings: ' + params.pluginId);

@@ -65,7 +65,7 @@ function ensureGatewayBinary(): string {
 function ensureWidgetBundles(): string {
   // E2E bundles enable the page test hook via a build-time flag. Production
   // `bun scripts/task.ts widgets` leaves the hook disabled.
-  runOrThrow('bun', ['run', 'build:widgets'], REPOSITORY_ROOT, {
+  runOrThrow('bun', ['scripts/task.ts', 'widgets'], REPOSITORY_ROOT, {
     VITE_TIKTOOLS_WIDGET_TEST_HOOK: '1',
   });
   return join(REPOSITORY_ROOT, 'dist', 'widgets');
