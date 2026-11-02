@@ -13,6 +13,7 @@ pub mod competitions;
 pub mod globals;
 pub mod live;
 pub mod media;
+pub mod packages;
 pub mod plugins;
 pub mod points;
 pub mod processors;
@@ -51,6 +52,7 @@ impl From<ClientError> for CommandError {
 /// typed call.
 pub enum Plan {
     Plugins(plugins::Command),
+    Registry(packages::Command),
     Processors(processors::Command),
     Live(live::Command),
     Points(points::Command),
@@ -129,6 +131,7 @@ pub fn parse_command(args: &[String]) -> Result<Plan, CommandError> {
     let rest = &args[1..];
     let plan = match head {
         "plugin" => Plan::Plugins(plugins::parse(rest)?),
+        "registry" => Plan::Registry(packages::parse_registry(rest)?),
         "processor" | "processors" => Plan::Processors(processors::parse(rest)?),
         "live" => Plan::Live(live::parse(rest)?),
         "points" => Plan::Points(points::parse(rest)?),
@@ -156,6 +159,10 @@ pub async fn execute_plan(client: &TikToolsClient, plan: Plan) -> Result<Output,
         Plan::Plugins(command) => Ok(Output::new(
             "plugin",
             plugins::execute(client, command).await?,
+        )),
+        Plan::Registry(command) => Ok(Output::new(
+            "registry",
+            packages::execute(client, command).await?,
         )),
         Plan::Processors(command) => Ok(Output::new(
             "processor",

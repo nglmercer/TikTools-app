@@ -7,8 +7,6 @@
 
 mod declarative;
 mod discovery;
-#[cfg(feature = "plugin-install")]
-mod installer;
 mod manager;
 mod napi_vm;
 mod native;
@@ -21,8 +19,6 @@ mod worker;
 
 pub use declarative::DeclarativePluginRuntime;
 pub use discovery::plugin_roots;
-#[cfg(feature = "plugin-install")]
-pub use installer::{InstalledPluginPackage, PluginInstaller};
 pub use manager::{PluginManager, RuntimeRegistry};
 pub use napi_vm::{native_addons_allowed, NapiVmPluginRuntime};
 pub use native::NativePluginRuntime;

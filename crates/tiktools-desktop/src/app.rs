@@ -49,7 +49,7 @@ fn install_plugin_argument() -> Result<Option<std::path::PathBuf>, Box<dyn std::
             let archive = args.next().ok_or_else(|| {
                 std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    "--install-plugin requires a .plugin path",
+                    "--install-plugin requires a .plugin path, plugin id, or https URL",
                 )
             })?;
             return Ok(Some(archive.into()));
@@ -64,7 +64,7 @@ fn replace_plugin_argument() -> bool {
 
 #[cfg(feature = "plugin-install")]
 fn install_plugin(
-    archive: std::path::PathBuf,
+    spec: std::path::PathBuf,
     replace_existing: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     struct NullEmitter;
@@ -72,15 +72,63 @@ fn install_plugin(
         fn emit(&self, _message: tiktools_core::ipc::messages::HostMessage) {}
     }
 
-    let core = AppCore::new(Arc::new(NullEmitter));
-    let installed = core.install_plugin(archive, replace_existing)?;
-    println!(
-        "Installed {}@{} in {}",
-        installed.manifest.id,
-        installed.manifest.version,
-        installed.directory.display()
-    );
-    Ok(())
+    let core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let spec = spec.to_string_lossy().into_owned();
+    let lower = spec.to_ascii_lowercase();
+    let remote = lower.starts_with("https://")
+        || lower.starts_with("http://")
+        || (!lower.ends_with(".plugin") && !spec.contains(['/', '\\']));
+    if !remote {
+        let outcome = core
+            .install_plugin(spec.trim_start_matches("file:"), replace_existing)
+            .map_err(|error| std::io::Error::other(error.message))?;
+        println!(
+            "Installed {}@{} in {}",
+            outcome.receipt.id, outcome.receipt.version, outcome.directory
+        );
+        return Ok(());
+    }
+    let allow_unsigned = env::args().any(|argument| argument == "--allow-unsigned");
+    let runtime = Builder::new_current_thread().enable_all().build()?;
+    let job = runtime.block_on(async {
+        use tiktools_core::plugin_installer::PackageSpecInput;
+        let preview = core
+            .plugin_package_inspect(PackageSpecInput::Spec { spec: spec.clone() })
+            .await?;
+        if let Some(incompatibility) = &preview.incompatibility {
+            return Err(tiktools_core::control::OperationError::invalid(
+                incompatibility.to_string(),
+            ));
+        }
+        if preview.requires_sideload_consent && !allow_unsigned {
+            return Err(tiktools_core::control::OperationError::invalid(format!(
+                "{} is not signed by a trusted publisher; pass --allow-unsigned to install it anyway",
+                preview.id
+            )));
+        }
+        let mut job = core.plugin_package_install(
+            PackageSpecInput::Spec { spec },
+            preview.consent_token,
+            None,
+        )?;
+        while !job.status.is_finished() {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            job = core.plugin_job(&job.id)?;
+        }
+        Ok(job)
+    })
+    .map_err(|error| std::io::Error::other(error.message))?;
+    match job.error {
+        Some(error) => Err(std::io::Error::other(error.message).into()),
+        None => {
+            println!(
+                "Installed {}@{}",
+                job.plugin_id.unwrap_or_default(),
+                job.to_version.unwrap_or_default()
+            );
+            Ok(())
+        }
+    }
 }
 
 #[cfg(not(feature = "plugin-install"))]

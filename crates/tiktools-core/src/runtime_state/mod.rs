@@ -117,8 +117,6 @@ pub(crate) struct PluginRuntimeState {
     pub(crate) observer_shutdown: tokio_util::sync::CancellationToken,
     pub(crate) observer_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     pub(crate) observer_worker_count: AtomicU64,
-    #[cfg(feature = "plugin-install")]
-    pub(crate) install_lock: Mutex<()>,
 }
 
 impl Default for PluginRuntimeState {
@@ -137,8 +135,6 @@ impl Default for PluginRuntimeState {
             observer_shutdown: tokio_util::sync::CancellationToken::new(),
             observer_task: Mutex::new(None),
             observer_worker_count: AtomicU64::new(0),
-            #[cfg(feature = "plugin-install")]
-            install_lock: Mutex::new(()),
         }
     }
 }

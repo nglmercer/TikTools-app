@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-controls.ts';
+import InstallPluginDialog from '@/features/install-plugin/ui/InstallPluginDialog.vue';
 import type { PluginCatalogTab } from '@/entities/plugin/lib/plugin-catalog.ts';
+import { parseRemoteSelection } from '@/entities/plugin-package/lib/package-format.ts';
+import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import { useMediaQuery } from '@/shared/lib/media-query.ts';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
+import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
@@ -14,12 +18,15 @@ import BaseSplitter from '@/shared/ui/splitter/BaseSplitter.vue';
 import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
 import type { PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
 import PluginDetails from '@/widgets/plugin-details/ui/PluginDetails.vue';
+import PluginJobsPanel from '@/widgets/plugin-jobs/ui/PluginJobsPanel.vue';
 import ProcessorsPanel from '@/widgets/plugin-processors/ui/ProcessorsPanel.vue';
+import RemotePluginDetails from '@/widgets/plugin-remote-details/ui/RemotePluginDetails.vue';
 
 type PluginsView = 'plugins' | 'processors';
 
 const { t } = useI18n();
 const plugins = usePluginControls();
+const packages = usePackagesStore();
 const saved = loadViewState().plugins;
 
 const view = ref<PluginsView>(saved?.view ?? 'plugins');
@@ -38,10 +45,27 @@ function openPlugin(id: string): void {
 }
 
 const behavior = computed(() => plugins.behavior.value);
-const installState = computed(() => plugins.installState.value);
 const selectedPlugin = computed(
   () => behavior.value.plugins.find((plugin) => plugin.descriptor.id === selected.value) ?? null,
 );
+const selectedRemote = computed(() => parseRemoteSelection(selected.value));
+const updateEntries = computed(() => packages.updates?.updates ?? []);
+const remoteEntries = computed(() => packages.searchResults?.entries ?? []);
+
+function search(): void {
+  void packages.search();
+}
+
+function openCatalogTab(next: PluginCatalogTab): void {
+  if (next === 'browse' && !packages.searchResults && !packages.searching) search();
+}
+
+onMounted(() => {
+  void packages.initialize();
+  openCatalogTab(catalog.value);
+});
+
+watch(catalog, openCatalogTab);
 const views = computed(() => [
   { value: 'plugins' as const, label: t('plugins.views.plugins') },
   { value: 'processors' as const, label: t('plugins.views.processors') },
@@ -55,7 +79,7 @@ watch(
   () => selectedPlugin.value?.installed,
   (installed) => {
     if (installed === undefined) return;
-    const tab: PluginCatalogTab = installed ? 'installed' : 'available';
+    const tab: PluginCatalogTab = installed ? 'installed' : 'browse';
     if (catalog.value !== tab && !query.value.trim()) catalog.value = tab;
   },
 );
@@ -83,13 +107,13 @@ watch([view, catalog, query, selected, detailsTab], persist);
       <span class="plugins-page__lead">{{ t('plugins.lead') }}</span>
       <BaseButton
         variant="primary"
-        :disabled="installState.installing"
+        :disabled="packages.review.open"
         @click="plugins.installPackage()"
       >
         <template #icon>
           <IconPlus />
         </template>
-        {{ installState.installing ? t('plugins.install.installing') : t('plugins.install.package') }}
+        {{ t('plugins.install.package') }}
       </BaseButton>
     </header>
 
@@ -100,42 +124,12 @@ watch([view, catalog, query, selected, detailsTab], persist);
     >
       {{ plugins.behaviorError.value }}
     </p>
-    <p
-      v-if="installState.success"
-      class="plugins-page__banner plugins-page__banner--ok"
-      role="status"
-    >
-      {{ installState.success }}
-    </p>
-    <div
-      v-if="installState.needsReplace"
-      class="plugins-page__banner plugins-page__banner--warning"
-      role="alert"
-    >
-      <span>{{ t('plugins.install.replaceConfirm') }}</span>
-      <BaseButton
-        size="sm"
-        variant="primary"
-        :disabled="installState.installing"
-        @click="plugins.confirmReplace()"
-      >
-        {{ t('plugins.install.replace') }}
-      </BaseButton>
-      <BaseButton
-        size="sm"
-        :disabled="installState.installing"
-        @click="plugins.cancelReplace()"
-      >
-        {{ t('common.cancel') }}
-      </BaseButton>
-    </div>
-    <p
-      v-else-if="installState.error"
-      class="plugins-page__banner plugins-page__banner--error"
-      role="alert"
-    >
-      {{ installState.error }}
-    </p>
+    <BaseAlert
+      v-if="packages.updatesError"
+      :title="packages.updatesError"
+      compact
+    />
+    <PluginJobsPanel />
 
     <BaseSplitter
       v-if="view === 'plugins' && !isNarrow"
@@ -149,10 +143,21 @@ watch([view, catalog, query, selected, detailsTab], persist);
         <PluginCatalog
           v-model:tab="catalog"
           v-model:query="query"
+          v-model:remote-query="packages.searchQuery"
           v-model:selected="selected"
           :plugins="behavior.plugins"
           :action-types="behavior.actionTypes"
+          :remote="remoteEntries"
+          :updates="updateEntries"
+          :searching="packages.searching"
+          :search-error="packages.searchError"
+          :checking-updates="packages.checkingUpdates"
           @install-package="plugins.installPackage()"
+          @install-spec="plugins.installSpec"
+          @search="search"
+          @check-updates="packages.checkUpdates()"
+          @update="(id, version) => packages.updatePlugin(id, version)"
+          @update-all="packages.updateAll()"
           @open="openPlugin"
         />
       </template>
@@ -164,6 +169,12 @@ watch([view, catalog, query, selected, detailsTab], persist);
           :plugin="selectedPlugin"
           :actions="behavior.actions"
           :action-types="behavior.actionTypes"
+        />
+        <RemotePluginDetails
+          v-else-if="selectedRemote"
+          :key="selected ?? ''"
+          :registry="selectedRemote.registry"
+          :plugin-id="selectedRemote.id"
         />
         <div
           v-else
@@ -181,7 +192,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
       v-else-if="view === 'plugins'"
       class="plugins-page__mobile"
     >
-      <template v-if="mobileDetailsOpen && selectedPlugin">
+      <template v-if="mobileDetailsOpen && (selectedPlugin || selectedRemote)">
         <BaseButton
           class="plugins-page__back"
           @click="mobileDetailsOpen = false"
@@ -189,21 +200,39 @@ watch([view, catalog, query, selected, detailsTab], persist);
           ← {{ t('common.back') }}
         </BaseButton>
         <PluginDetails
+          v-if="selectedPlugin"
           :key="selectedPlugin.descriptor.id"
           v-model:tab="detailsTab"
           :plugin="selectedPlugin"
           :actions="behavior.actions"
           :action-types="behavior.actionTypes"
         />
+        <RemotePluginDetails
+          v-else-if="selectedRemote"
+          :key="selected ?? ''"
+          :registry="selectedRemote.registry"
+          :plugin-id="selectedRemote.id"
+        />
       </template>
       <PluginCatalog
         v-else
         v-model:tab="catalog"
         v-model:query="query"
+        v-model:remote-query="packages.searchQuery"
         v-model:selected="selected"
         :plugins="behavior.plugins"
         :action-types="behavior.actionTypes"
+        :remote="remoteEntries"
+        :updates="updateEntries"
+        :searching="packages.searching"
+        :search-error="packages.searchError"
+        :checking-updates="packages.checkingUpdates"
         @install-package="plugins.installPackage()"
+        @install-spec="plugins.installSpec"
+        @search="search"
+        @check-updates="packages.checkUpdates()"
+        @update="(id, version) => packages.updatePlugin(id, version)"
+        @update-all="packages.updateAll()"
         @open="openPlugin"
       />
     </div>
@@ -212,6 +241,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
       v-model:query="processorQuery"
       :plugins="behavior.plugins"
     />
+    <InstallPluginDialog />
   </div>
 </template>
 
@@ -252,19 +282,6 @@ watch([view, catalog, query, selected, detailsTab], persist);
   padding: var(--space-3) var(--space-4);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
-}
-
-.plugins-page__banner > span {
-  flex: 1;
-}
-
-.plugins-page__banner--ok {
-  border-color: var(--color-success);
-  color: var(--color-success);
-}
-
-.plugins-page__banner--warning {
-  border-color: var(--color-warning);
 }
 
 .plugins-page__banner--error {

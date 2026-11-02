@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 
-import { PluginBroker } from './broker.ts';
+import { createBrokerClient, PluginBroker } from './broker.ts';
 
 type FakeWindow = {
   parent: unknown;
@@ -74,9 +74,8 @@ test('native injection wins over every other transport', async () => {
   expect(broker.usesNativeTransport()).toBe(true);
   expect(await broker.getSettings()).toEqual({ voice: 'M1' });
   expect(await broker.getLocale()).toBe('en');
-  const outcome = await broker.executeAction('sonicboom.server.speak', { text: 'hi' });
+  const outcome = await broker.executeAction('acme.demo.speak', { text: 'hi' });
   expect(outcome.ok).toBe(true);
-  // Native calls never touch the frame transport.
   expect(posted).toHaveLength(0);
   broker.dispose();
 });
@@ -100,7 +99,6 @@ test('embedded frame without native injection uses postMessage', async () => {
   expect(posted).toHaveLength(1);
   expect(posted[0]).toMatchObject({ apiVersion: 1, method: 'settings.get' });
   const id = posted[0]?.id as string;
-  // The host answers through the listener the broker installed.
   expect(listeners).toHaveLength(1);
   listeners[0]?.({ data: { apiVersion: 1, id, ok: true, result: { voice: 'F2' } } });
   expect(await pending).toEqual({ voice: 'F2' });
@@ -116,8 +114,6 @@ test('top-level page with no native host fails explicitly and never self-posts',
     },
     removeEventListener: () => undefined,
   } as unknown as FakeWindow & { parent: unknown };
-  // A top-level page: `window.parent === window`, and any post would echo
-  // the request back to the page itself.
   fake.parent = fake;
   (fake as unknown as Record<string, unknown>)['postMessage'] = () => {
     posts += 1;
@@ -128,10 +124,9 @@ test('top-level page with no native host fails explicitly and never self-posts',
   expect(broker.transport()).toBe('unavailable');
   expect(broker.usesNativeTransport()).toBe(false);
   await expect(broker.getSettings()).rejects.toThrow('native plugin broker is unavailable');
-  await expect(broker.getOptions('sonicboom.server.speak:voice')).rejects.toThrow(
+  await expect(broker.getOptions('acme.demo.speak:voice')).rejects.toThrow(
     'native plugin broker is unavailable',
   );
-  // Subscribing is a silent no-op (nothing to notify, nothing to leak).
   const unsubscribe = broker.subscribe('plugin.event', () => undefined);
   unsubscribe();
   expect(posts).toBe(0);
@@ -150,5 +145,13 @@ test('partial native injection is rejected and stays explicit at top level', asy
   const broker = new PluginBroker();
   expect(broker.transport()).toBe('unavailable');
   await expect(broker.getTheme()).rejects.toThrow('native plugin broker is unavailable');
+  broker.dispose();
+});
+
+test('createBrokerClient builds a broker for the current window', () => {
+  installWindow({ parent: undefined, tiktools: nativeTikTools(), addEventListener: () => undefined, removeEventListener: () => undefined });
+  const broker = createBrokerClient();
+  expect(broker).toBeInstanceOf(PluginBroker);
+  expect(broker.transport()).toBe('native');
   broker.dispose();
 });

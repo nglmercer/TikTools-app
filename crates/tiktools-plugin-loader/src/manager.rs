@@ -248,7 +248,8 @@ impl PluginManager {
                     }
                 };
                 let directory = entry.path();
-                if !entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
+                let hidden = entry.file_name().to_string_lossy().starts_with('.');
+                if hidden || !entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
                     continue;
                 }
                 match read_discovered_plugin(&directory, root.source) {

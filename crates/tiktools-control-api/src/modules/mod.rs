@@ -7,10 +7,14 @@ pub mod gifts;
 pub mod globals;
 pub mod live;
 pub mod media;
+#[cfg(feature = "plugin-install")]
+pub mod packages;
 pub mod plugins;
 pub mod points;
 pub mod processors;
 pub mod rankings;
+#[cfg(feature = "plugin-install")]
+pub mod registry;
 pub mod rpc;
 pub mod settings;
 pub mod system;

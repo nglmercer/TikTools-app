@@ -115,6 +115,9 @@ async function frontendLint(): Promise<void> {
     '--max-warnings=0',
   );
   await tool('vue-tsc', '--noEmit', '-p', 'plugins/sonicboom/ui/tsconfig.json');
+  await tool('eslint', 'packages', '--max-warnings=0');
+  await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-sdk/tsconfig.json');
+  await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-ui/tsconfig.json');
 }
 
 async function rustLint(): Promise<void> {

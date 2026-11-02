@@ -273,20 +273,15 @@ impl AppCore {
                 "plugin archive path must be 1..=4096 characters",
             ));
         }
-        let installed = self
+        let outcome = self
             .install_plugin(std::path::Path::new(trimmed), replace_existing)
-            .map_err(|error| OperationError::internal(error.to_string()))?;
-        self.start_enabled_event_subscribers();
-        self.refresh_automation_snapshot();
-        let id = installed.manifest.id.clone();
-        self.events.publish_domain(DomainEvent::PluginInstalled {
-            plugin_id: id.clone(),
-        });
+            .map_err(OperationError::install)?;
+        self.after_package_change(&outcome);
         Ok(PluginInstallResult {
-            id,
-            version: installed.manifest.version.clone(),
-            directory: installed.directory.display().to_string(),
-            replaced: replace_existing,
+            id: outcome.receipt.id,
+            version: outcome.receipt.version,
+            directory: outcome.directory,
+            replaced: outcome.previous_version.is_some(),
         })
     }
 
@@ -302,11 +297,11 @@ impl AppCore {
     }
 
     #[cfg(feature = "plugin-install")]
-    pub fn plugin_uninstall(&self, id: &str) -> Result<(), OperationError> {
+    pub fn plugin_uninstall(&self, id: &str, purge_data: bool) -> Result<(), OperationError> {
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
-        self.uninstall_plugin(&id)
-            .map_err(|error| OperationError::internal(error.to_string()))?;
+        self.uninstall_plugin(&id, purge_data)
+            .map_err(OperationError::install)?;
         self.refresh_automation_snapshot();
         self.events
             .publish_domain(DomainEvent::PluginUninstalled { plugin_id: id });
@@ -314,7 +309,7 @@ impl AppCore {
     }
 
     #[cfg(not(feature = "plugin-install"))]
-    pub fn plugin_uninstall(&self, _id: &str) -> Result<(), OperationError> {
+    pub fn plugin_uninstall(&self, _id: &str, _purge_data: bool) -> Result<(), OperationError> {
         Err(OperationError::unavailable(
             "plugin installation was disabled in this build",
         ))

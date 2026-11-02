@@ -11,6 +11,10 @@ members = [
     "crates/tiktools-plugin-sdk",
     "crates/tiktools-plugin-macros",
     "crates/tiktools-plugin-loader",
+    "crates/tiktools-plugin-package",
+    "crates/tiktools-plugin-registry",
+    "crates/tiktools-plugin-installer",
+    "crates/tiktools-plugin-devkit",
     "crates/tiktools-tiktok",
     "plugins/sonicboom/backend",
     "plugins/l4d2/backend",
@@ -37,6 +41,7 @@ rust-version = "1.95"
 [workspace.dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+semver = { version = "1.0.28", features = ["serde"] }
 schemars = "1.2.3"
 thiserror = "2.0.21"
 unicode-segmentation = "1.13.3"
@@ -50,6 +55,8 @@ rustls = { version = "0.23.46", default-features = false, features = ["ring"] }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 libloading = "0.9.0"
 sha2 = "0.11.1"
+ring = "0.17.14"
+url = "2.5.8"
 zip = { version = "9.1.2", default-features = false, features = ["deflate"] }
 # Declarative native-library providers (npm tarballs, GitHub release
 # assets): pure-Rust download, verify, and extract for build/install

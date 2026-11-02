@@ -9,7 +9,6 @@ description = "Developer-friendly, runtime-neutral SDK for TikTools plugins"
 [features]
 default = []
 http-client = ["dep:reqwest"]
-packager = ["dep:sha2", "dep:zip"]
 providers = [
     "http-client",
     "dep:reqwest",
@@ -20,11 +19,6 @@ providers = [
     "dep:base64",
 ]
 
-[[bin]]
-name = "tiktools-plugin-pack"
-path = "src/bin/tiktools-plugin-pack.rs"
-required-features = ["packager"]
-
 [dependencies]
 tiktools-plugin-api = { path = "../tiktools-plugin-api" }
 tiktools-plugin-macros = { path = "../tiktools-plugin-macros" }
@@ -32,7 +26,6 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 sha2 = { workspace = true, optional = true }
-zip = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }

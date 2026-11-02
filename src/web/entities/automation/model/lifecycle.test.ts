@@ -32,7 +32,7 @@ test('100 feature remounts return subscriptions to baseline and cancel debounced
   const state = harness();
   for (let cycle = 0; cycle < 100; ++cycle) {
     const automation = useAutomation(state.client);
-    const plugins = usePlugins(state.client, { translate: (key) => key, refreshBehavior: async () => {}, reportError() {}, pickPluginPackage() {} });
+    const plugins = usePlugins(state.client, { translate: (key) => key, refreshBehavior: async () => {}, reportError() {} });
     for (const handler of state.topics.get('workflow.changed') ?? []) handler({});
     for (const handler of state.topics.get('plugin.progress') ?? []) handler({ pluginId: 'p', state: 'ready', message: '' });
     automation.dispose(); plugins.dispose();
@@ -43,14 +43,11 @@ test('100 feature remounts return subscriptions to baseline and cancel debounced
   expect(state.calls).toHaveLength(0);
 });
 
-test('disposed plugins ignore picker and outstanding settings completion', async () => {
+test('disposed plugins ignore outstanding settings completion', async () => {
   const state = harness();
-  let picker!: (path: string | null, error?: string) => void;
-  const plugins = usePlugins(state.client, { translate: (key) => key, refreshBehavior: async () => {}, reportError() {}, pickPluginPackage: (callback) => { picker = callback; } });
+  const plugins = usePlugins(state.client, { translate: (key) => key, refreshBehavior: async () => {}, reportError() {} });
   plugins.handleGetPluginSettings('p');
-  plugins.handleInstallPlugin();
   plugins.dispose();
-  picker('/tmp/package.plugin');
   state.finish({ pluginId: 'p', schema: {}, values: { old: true } });
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(plugins.pluginSettings.value).toEqual({});

@@ -64,6 +64,36 @@ const processor: ProcessorStatusEntry = {
   },
 } as ProcessorStatusEntry;
 
+const remoteEntry = { registry: 'official', id: 'acme.tts', name: 'Acme TTS', latest: '1.2.0', runtime: 'process', updatedAt: 0 };
+
+const remoteDocument = {
+  id: 'acme.tts',
+  name: 'Acme TTS',
+  publisher: 'acme',
+  description: 'Reads chat aloud.',
+  'dist-tags': { stable: '1.2.0' },
+  releases: [{ version: '1.2.0', channel: 'stable', publishedAt: 0, yanked: false, runtime: 'process', permissions: [], capabilities: [] }],
+};
+
+const preview = {
+  id: 'x.demo',
+  name: 'X Demo',
+  version: '1.0.0',
+  runtime: 'process',
+  securityModel: 'isolated',
+  permissions: ['audio.output'],
+  capabilities: [],
+  size: 2048,
+  digest: 'a'.repeat(64),
+  origin: { kind: 'file' },
+  signature: { status: 'unsigned' },
+  change: 'install',
+  permissionDiff: { addedPermissions: [], removedPermissions: [], addedCapabilities: [], removedCapabilities: [] },
+  requiresSideloadConsent: true,
+  metadata: {},
+  consentToken: 'token-1',
+};
+
 async function mountPage(plugins: PluginStatus[] = [plugin('deck'), plugin('tts', { installed: false, enabled: false })]) {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'processors.status') return { processors: [processor] };
@@ -71,7 +101,15 @@ async function mountPage(plugins: PluginStatus[] = [plugin('deck'), plugin('tts'
       return { pluginId: 'deck', processorId: 'enrich', ok: true, durationMs: 3, result: { enriched: true } };
     }
     if (method === 'media.pick') return { selection: { type: 'file', file: { path: 'C:/x.plugin', name: 'x.plugin' } } };
-    if (method === 'plugins.install') throw new Error('plugin already installed');
+    if (method === 'plugins.packages.receipts') return { receipts: [] };
+    if (method === 'plugins.jobs.list') return { jobs: [] };
+    if (method === 'plugins.updates.list') return { updates: [], checkedAt: 0 };
+    if (method === 'registry.search') return { entries: [remoteEntry], total: 1, page: 1, pages: 1 };
+    if (method === 'registry.package') return { registry: 'official', document: remoteDocument };
+    if (method === 'plugins.packages.inspect') return preview;
+    if (method === 'plugins.packages.install') {
+      return { job: { id: 'job-1', kind: 'install', stage: 'queued', status: 'queued', createdAt: 1, updatedAt: 1 } };
+    }
     return {};
   });
   const stores = createStoreHarness(client);
@@ -111,11 +149,16 @@ describe('PluginsPage', () => {
       vi.unstubAllGlobals();
     }
   });
-  it('lists installed and available plugins separately', async () => {
-    const { wrapper } = await mountPage();
+  it('lists installed plugins apart from bundled and registry plugins', async () => {
+    const { wrapper, calls } = await mountPage();
     expect(wrapper.findAll('[role="option"]').map((item) => item.text())).toEqual([expect.stringContaining('DECK')]);
-    await buttonByText(wrapper, 'Available (1)').trigger('click');
-    expect(wrapper.findAll('[role="option"]').map((item) => item.text())).toEqual([expect.stringContaining('TTS')]);
+    await buttonByText(wrapper, 'Browse').trigger('click');
+    await flushPromises();
+    expect(calls.map((call) => call.method)).toContain('registry.search');
+    expect(wrapper.findAll('[role="option"]').map((item) => item.text())).toEqual([
+      expect.stringContaining('TTS'),
+      expect.stringContaining('Acme TTS'),
+    ]);
   });
 
   it('filters the catalog by search', async () => {
@@ -147,27 +190,52 @@ describe('PluginsPage', () => {
     const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Uninstall')!;
     confirm.click();
     await flushPromises();
-    expect(calls.find((call) => call.method === 'plugins.uninstall')?.params).toEqual({ pluginId: 'deck' });
+    expect(calls.find((call) => call.method === 'plugins.uninstall')?.params).toEqual({ pluginId: 'deck', purgeData: false });
   });
 
-  it('installs an available plugin', async () => {
+  it('activates a bundled plugin', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByText(wrapper, 'Available (1)').trigger('click');
+    await buttonByText(wrapper, 'Browse').trigger('click');
+    await flushPromises();
     await selectPlugin(wrapper, 'TTS');
     await buttonByText(wrapper, 'Activate').trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.install.set')?.params).toEqual({ pluginId: 'tts', installed: true });
   });
 
-  it('asks before replacing an installed package', async () => {
+  it('reviews a package file and requires sideload consent before installing', async () => {
     const { wrapper, calls } = await mountPage();
     await buttonByText(wrapper, 'Install .plugin…').trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'plugins.install')?.params).toEqual({ path: 'C:/x.plugin', replaceExisting: false });
-    expect(wrapper.text()).toContain('This plugin is already installed. Replace it with the selected package?');
-    await buttonByText(wrapper, 'Replace').trigger('click');
+    expect(calls.find((call) => call.method === 'plugins.packages.inspect')?.params).toEqual({
+      spec: { kind: 'file', path: 'C:/x.plugin' },
+    });
+    expect(wrapper.text()).toContain('Install X Demo');
+    expect(wrapper.text()).toContain('Play audio');
+    expect(wrapper.text()).toContain('Not signed');
+    expect(buttonByText(wrapper, 'Install').attributes('disabled')).toBeDefined();
+    await wrapper.findAll('input[type="checkbox"]').at(-1)!.setValue(true);
+    await buttonByText(wrapper, 'Install').trigger('click');
     await flushPromises();
-    expect(calls.filter((call) => call.method === 'plugins.install').at(-1)?.params).toEqual({ path: 'C:/x.plugin', replaceExisting: true });
+    expect(calls.find((call) => call.method === 'plugins.packages.install')?.params).toEqual({
+      spec: { kind: 'file', path: 'C:/x.plugin' },
+      consentToken: 'token-1',
+    });
+  });
+
+  it('reviews registry plugins from the browse tab', async () => {
+    const { wrapper, calls } = await mountPage();
+    await buttonByText(wrapper, 'Browse').trigger('click');
+    await flushPromises();
+    await selectPlugin(wrapper, 'Acme TTS');
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'registry.package')?.params).toEqual({ id: 'acme.tts', registry: 'official' });
+    expect(wrapper.text()).toContain('Reads chat aloud.');
+    await buttonByText(wrapper, 'Review and install').trigger('click');
+    await flushPromises();
+    expect(calls.filter((call) => call.method === 'plugins.packages.inspect').at(-1)?.params).toEqual({
+      spec: { kind: 'registry', id: 'acme.tts', registry: 'official' },
+    });
   });
 
   it('shows processor metrics and runs a test', async () => {

@@ -1,0 +1,9 @@
+import { actionResult, definePlugin } from '@tiktools/plugin-sdk';
+
+export default definePlugin({
+  call(request) {
+    if (request.type !== 'action') return {};
+    const message = request.action.config?.message;
+    return actionResult(typeof message === 'string' && message ? message : 'Hello from {{name}}');
+  },
+});

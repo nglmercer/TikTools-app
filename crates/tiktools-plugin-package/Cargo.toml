@@ -1,0 +1,18 @@
+[package]
+name = "tiktools-plugin-package"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "The TikTools .plugin package format: safe extraction, packing, checksums, and signatures"
+publish = false
+
+[dependencies]
+tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "0.3.3" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+sha2.workspace = true
+zip.workspace = true
+ring.workspace = true
+base64.workspace = true

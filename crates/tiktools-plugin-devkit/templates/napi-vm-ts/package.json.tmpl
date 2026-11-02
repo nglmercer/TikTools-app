@@ -1,0 +1,13 @@
+{
+  "name": "{{crate}}",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target browser --format esm",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@tiktools/plugin-sdk": "{{npm_sdk}}",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@tiktools/plugin-sdk",
+  "version": "0.3.3",
+  "description": "Types and helpers for TikTools napi-vm plugins, plus the plugin manifest JSON Schema",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/plugin.ts",
+    "./plugin.schema.json": "./plugin.schema.json"
+  },
+  "files": [
+    "src/plugin.ts",
+    "plugin.schema.json",
+    "README.md"
+  ]
+}

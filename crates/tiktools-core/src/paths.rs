@@ -73,6 +73,10 @@ impl AppPaths {
         Ok(())
     }
 
+    pub fn plugin_store(&self) -> PathBuf {
+        configured_path("TIKTOOLS_PLUGIN_STORE_DIR", self.root.join("plugin-store"))
+    }
+
     pub fn points_database(&self) -> PathBuf {
         self.data.join("tiktok-points.db")
     }

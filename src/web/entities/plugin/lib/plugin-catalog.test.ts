@@ -47,8 +47,8 @@ describe('plugin catalog', () => {
   it('splits plugins by install state before filtering', () => {
     const plugins = [plugin('deck'), plugin('tts', { installed: false })];
     expect(catalogPlugins(plugins, 'installed', actionTypes, '', localize).map((entry) => entry.descriptor.id)).toEqual(['deck']);
-    expect(catalogPlugins(plugins, 'available', actionTypes, 'tts', localize).map((entry) => entry.descriptor.id)).toEqual(['tts']);
-    expect(catalogPlugins(plugins, 'available', actionTypes, 'deck', localize)).toEqual([]);
+    expect(catalogPlugins(plugins, 'browse', actionTypes, 'tts', localize).map((entry) => entry.descriptor.id)).toEqual(['tts']);
+    expect(catalogPlugins(plugins, 'browse', actionTypes, 'deck', localize)).toEqual([]);
   });
 
   it('counts actions backed by the plugin', () => {

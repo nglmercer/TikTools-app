@@ -5,6 +5,7 @@
 
 pub mod abi;
 pub mod capabilities;
+pub mod compat;
 pub mod events;
 pub mod intel;
 pub mod manifest;
@@ -16,6 +17,7 @@ pub mod ui;
 
 pub use abi::{PluginBuffer, PluginInit, PluginStatus, TikToolsPluginApi};
 pub use capabilities::{CapabilityId, CapabilitySet, PermissionSet};
+pub use compat::{CompatRequirements, HostCompat, Incompatibility};
 pub use events::{event_subscription_matches, DomainEventEnvelope};
 pub use intel::{
     canonical_stable_comment, canonical_stable_user, EventIntel, IntelComment, IntelComposition,
@@ -24,8 +26,8 @@ pub use intel::{
     IntelUnicode, IntelUser,
 };
 pub use manifest::{
-    NativeAddonDeclaration, NativeLibDeclaration, NativeLibProvider, PluginManifest,
-    PluginProcessorDescriptor, PluginRuntimeKind, PluginSecurityModel, PluginTrust,
+    NativeAddonDeclaration, NativeLibDeclaration, NativeLibProvider, PackageMetadata, PluginAuthor,
+    PluginManifest, PluginProcessorDescriptor, PluginRuntimeKind, PluginSecurityModel, PluginTrust,
     ProcessorFailureMode, ProcessorInputDescriptor, ProcessorStage,
 };
 pub use media::{

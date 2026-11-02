@@ -6,7 +6,7 @@ use tiktools_control_api::modules::plugins::{
     PluginActionOutcome, PluginActionParams, PluginConnectionResult, PluginIdParams,
     PluginInstallParams, PluginInstallResult, PluginInstallSetParams, PluginListResult,
     PluginOptionsParams, PluginOptionsResult, PluginProvisionParams, PluginProvisionResult,
-    PluginResult, PluginTokenImportParams,
+    PluginResult, PluginTokenImportParams, PluginUninstallParams,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::modules::OkResult;
@@ -95,7 +95,10 @@ impl TikToolsClient {
     }
     /// Removes a user-installed plugin package.
     /// RPC method `plugins.uninstall`.
-    pub async fn plugins_uninstall(&self, params: PluginIdParams) -> Result<OkResult, ClientError> {
+    pub async fn plugins_uninstall(
+        &self,
+        params: PluginUninstallParams,
+    ) -> Result<OkResult, ClientError> {
         self.call(PLUGINS_UNINSTALL, params).await
     }
     /// Marks a plugin installed+enabled and starts its runtime.

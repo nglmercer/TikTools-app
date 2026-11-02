@@ -36,7 +36,6 @@ use std::{
 };
 
 use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
 use tiktools_plugin_api::{manifest::current_napi_target, PluginManifest};
 use tiktools_plugin_loader::{
     NapiVmPluginRuntime, PluginManager, PluginRoot, PluginRuntime, PluginSource,
@@ -93,13 +92,6 @@ fn copy_dir(source: &Path, target: &Path) {
             fs::copy(entry.path(), &destination).unwrap();
         }
     }
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 /// Builds the napi-rs fixture cdylib once per test binary and returns its
@@ -594,101 +586,4 @@ async fn clean_shutdown_and_reload_with_active_listener() {
     manager.stop(&manifest.id).unwrap();
 
     fs::remove_dir_all(&root).ok();
-}
-
-#[cfg(feature = "plugin-install")]
-#[test]
-fn installer_retains_bundled_native_tree() {
-    use std::io::Write;
-    use tiktools_plugin_loader::PluginInstaller;
-
-    let scratch = scratch_root("installer");
-    fs::create_dir_all(&scratch).unwrap();
-    let manifest = json!({
-        "schemaVersion": 3,
-        "id": "native-installed",
-        "name": "NativeInstalled",
-        "version": "1.0.0",
-        "runtime": "napi-vm",
-        "entry": "dist/index.js",
-        "trust": "trusted",
-        "apiVersion": 1,
-        "nativeAddons": [{
-            "package": "rdev-node",
-            "root": "node_modules/rdev-node",
-        }],
-    });
-    let manifest_bytes = serde_json::to_vec_pretty(&manifest).unwrap();
-    let entry_bytes =
-        b"export default { call() { return { logs: [], intents: [], events: [] }; } };";
-    let package_bytes = br#"{"name":"rdev-node","version":"1.0.0"}"#;
-    let files: &[(&str, &[u8])] = &[
-        ("plugin.json", &manifest_bytes),
-        ("dist/index.js", entry_bytes),
-        ("node_modules/rdev-node/package.json", package_bytes),
-        (
-            "node_modules/rdev-node/node-rdev.linux-x64-gnu.node",
-            b"fake-linux",
-        ),
-        (
-            "node_modules/rdev-node/node-rdev.win32-x64-msvc.node",
-            b"fake-win32",
-        ),
-    ];
-    let checksums: serde_json::Map<String, Value> = files
-        .iter()
-        .map(|(name, bytes)| (name.to_string(), Value::String(sha256_hex(bytes))))
-        .collect();
-    let checksums_bytes = serde_json::to_vec_pretty(&checksums).unwrap();
-
-    let archive_path = scratch.join("native-installed.plugin");
-    {
-        let file = fs::File::create(&archive_path).unwrap();
-        let mut writer = zip::ZipWriter::new(file);
-        let options = zip::write::SimpleFileOptions::default();
-        for (name, bytes) in files {
-            writer.start_file(*name, options).unwrap();
-            writer.write_all(bytes).unwrap();
-        }
-        writer.start_file("checksums.json", options).unwrap();
-        writer.write_all(&checksums_bytes).unwrap();
-        writer.finish().unwrap();
-    }
-
-    let installed = PluginInstaller {
-        plugin_directory: scratch.join("plugins"),
-        staging_directory: scratch.join("staging"),
-        replace_existing: false,
-        provider_endpoints: None,
-    }
-    .install(&archive_path)
-    .unwrap();
-    assert_eq!(installed.manifest.id, "native-installed");
-    assert_eq!(installed.manifest.native_addons.len(), 1);
-    assert_eq!(installed.manifest.native_addons[0].package, "rdev-node");
-    assert_eq!(
-        installed.manifest.native_addons[0].root,
-        "node_modules/rdev-node"
-    );
-    for name in [
-        "node_modules/rdev-node/package.json",
-        "node_modules/rdev-node/node-rdev.linux-x64-gnu.node",
-        "node_modules/rdev-node/node-rdev.win32-x64-msvc.node",
-    ] {
-        assert!(
-            installed.directory.join(name).is_file(),
-            "archive dropped {name}"
-        );
-    }
-    assert_eq!(
-        fs::read(
-            installed
-                .directory
-                .join("node_modules/rdev-node/node-rdev.linux-x64-gnu.node")
-        )
-        .unwrap(),
-        b"fake-linux",
-    );
-
-    fs::remove_dir_all(&scratch).ok();
 }

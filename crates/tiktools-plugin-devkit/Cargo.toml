@@ -1,0 +1,30 @@
+[package]
+name = "tiktools-plugin-devkit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "tiktools-plugin: scaffold, validate, build, pack, sign, and publish TikTools plugins"
+publish = false
+
+[[bin]]
+name = "tiktools-plugin"
+path = "src/bin/tiktools-plugin.rs"
+
+[[bin]]
+name = "tiktools-plugin-pack"
+path = "src/bin/tiktools-plugin-pack.rs"
+
+[[bin]]
+name = "tiktools-plugin-stage-native"
+path = "src/bin/tiktools-plugin-stage-native.rs"
+
+[dependencies]
+tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "0.3.3" }
+tiktools-plugin-package = { path = "../tiktools-plugin-package", version = "0.3.3" }
+tiktools-plugin-registry = { path = "../tiktools-plugin-registry", version = "0.3.3" }
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", version = "0.3.3", features = ["providers"] }
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true }

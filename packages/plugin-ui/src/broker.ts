@@ -1,36 +1,10 @@
-/**
- * Restricted broker client for the SonicBoom plugin UI.
- *
- * The plugin UI NEVER touches the main window's privileged bridge. It
- * reaches the host through `window.tiktools` or the parent frame only:
- *
- * - Inside the desktop child WebView, the host injects `window.tiktools`
- *   natively (the initialization script installs it on top of that
- *   window's own `window.ipc` transport, which the Rust side wires to the
- *   restricted plugin broker — never to the main router). Plugin identity
- *   is captured by the native host — JavaScript never supplies a
- *   `pluginId`.
- * - Inside a development/CI iframe (opaque origin via `sandbox`), the same
- *   calls travel over `postMessage` using the versioned envelope below,
- *   and the parent shim fills in the plugin identity it mounted.
- * - Anywhere else (a top-level page with no native injection), there is no
- *   host to talk to: calls fail explicitly instead of posting messages to
- *   the page itself.
- *
- * Allowed operations (anything else fails closed):
- * `settings.get`, `settings.set`, `actions.execute`, `options.get`,
- * `events.subscribe`, `events.unsubscribe`, `host.locale`, `host.theme`.
- *
- * This protocol is mirrored by the host shim
- * (`src/web/plugin-ui/plugin-webview-host.ts`) and the desktop broker
- * (`crates/tiktools-desktop/src/plugin_webview/broker.rs`). The three
- * sides are pinned by interop tests, not by shared imports: the plugin
- * package must stay buildable on its own.
- */
-
-import type { ActionOptionItem } from './types.ts';
-
 export const BROKER_API_VERSION = 1;
+
+export interface ActionOptionItem {
+  value: string;
+  label: string;
+  disabled?: boolean;
+}
 
 export type BrokerMethod =
   | 'settings.get'
@@ -74,8 +48,6 @@ export interface OptionsResult {
 }
 
 export type Unsubscribe = () => void;
-
-/** Native `window.tiktools` surface injected by the desktop host. */
 export interface NativeTikTools {
   settings: {
     get(): Promise<Record<string, unknown>>;
@@ -99,7 +71,6 @@ export interface NativeTikTools {
 function nativeApi(): NativeTikTools | undefined {
   const candidate = (window as unknown as { tiktools?: NativeTikTools }).tiktools;
   if (!candidate || typeof candidate !== 'object') return undefined;
-  // Fail closed on a partial injection: every namespace must exist.
   if (
     !candidate.settings ||
     !candidate.actions ||
@@ -111,20 +82,7 @@ function nativeApi(): NativeTikTools | undefined {
   }
   return candidate;
 }
-
-/** Where broker calls travel. `unavailable` means a top-level page with
- * no native injection: there is no host, so calls fail explicitly. */
 export type BrokerTransport = 'native' | 'iframe' | 'unavailable';
-
-/**
- * Broker client used by the plugin UI. Prefers the native injection, uses
- * the versioned `postMessage` transport when embedded in a frame
- * (development iframe), and fails explicitly on a top-level page with no
- * native host — posting to `window.parent` there would message the page
- * itself and surface as a generic `broker error`. Responses are
- * correlated by request id; unknown envelopes and version mismatches are
- * dropped.
- */
 export class PluginBroker {
   private readonly native: NativeTikTools | undefined;
   private readonly embedded: boolean;
@@ -165,7 +123,6 @@ export class PluginBroker {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return;
     const envelope = data as Record<string, unknown>;
     if (envelope.apiVersion !== BROKER_API_VERSION) return;
-    // Pushed event from the host.
     if (typeof envelope.event === 'string') {
       const watchers = this.listeners.get(envelope.event);
       if (watchers) {
@@ -173,7 +130,6 @@ export class PluginBroker {
       }
       return;
     }
-    // Request/response correlation.
     if (typeof envelope.id !== 'string') return;
     const entry = this.pending.get(envelope.id);
     if (!entry) return;
@@ -185,9 +141,6 @@ export class PluginBroker {
   private post(method: BrokerMethod, params: Record<string, unknown>): Promise<unknown> {
     if (this.native) return this.callNative(method, params);
     if (!this.embedded) {
-      // Top-level page with no native host (broken injection, plain
-      // browser): never post to `window.parent`, which is the page
-      // itself — fail with a diagnosable error instead.
       return Promise.reject(new Error('native plugin broker is unavailable'));
     }
     this.sequence += 1;
@@ -195,8 +148,6 @@ export class PluginBroker {
     const request: BrokerRequest = { apiVersion: BROKER_API_VERSION, id, method, params };
     return new Promise<unknown>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      // Vue reactivity wraps state in Proxies, which structuredClone
-      // rejects: send a plain-JSON copy across the frame boundary.
       let wire: BrokerRequest;
       try {
         wire = JSON.parse(JSON.stringify(request)) as BrokerRequest;
@@ -265,13 +216,6 @@ export class PluginBroker {
   async getTheme(): Promise<string> {
     return String(await this.post('host.theme', {}));
   }
-
-  /**
-   * Subscribes to host-pushed plugin events (speech state, backend logs).
-   * The native transport registers directly; the postMessage transport
-   * notifies the parent and routes pushed events to local listeners. With
-   * no host at all, subscribing is a no-op returning a no-op unsubscribe.
-   */
   subscribe(event: string, listener: (data: unknown) => void): Unsubscribe {
     if (this.native) {
       return this.native.events.subscribe([event], (name, data) => {
@@ -296,4 +240,8 @@ export class PluginBroker {
       }
     };
   }
+}
+
+export function createBrokerClient(): PluginBroker {
+  return new PluginBroker();
 }

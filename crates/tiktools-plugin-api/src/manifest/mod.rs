@@ -4,12 +4,19 @@
 //! for the removed TypeScript plugin format: a package must declare its
 //! runtime and entry explicitly before it can be discovered.
 
+mod metadata;
 mod parse;
 mod processor;
 #[cfg(test)]
 mod tests;
 mod types;
 mod validation;
+
+pub use metadata::{
+    is_https_url, is_plugin_category, is_plugin_target, is_valid_publisher, is_valid_version_req,
+    parse_version, parse_version_req, PackageMetadata, PluginAuthor, HOST_ENGINE,
+    PLUGIN_CATEGORIES, PLUGIN_TARGETS,
+};
 
 pub use processor::{
     is_valid_processor_event_type, is_valid_processor_id, validate_processor_type,

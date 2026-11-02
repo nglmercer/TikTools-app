@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { PluginBroker } from '../broker.ts';
+import type { PluginBroker } from '@tiktools/plugin-ui';
 import TtsIcon from './TtsIcon.vue';
 import { t, type Locale } from '../i18n/index.ts';
 const props = defineProps<{ broker: PluginBroker; locale: Locale; enabled: boolean; connectionKey: string }>();

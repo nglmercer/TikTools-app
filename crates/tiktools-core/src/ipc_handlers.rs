@@ -362,10 +362,15 @@ impl AppCore {
                 ));
             }
             Err(error) => {
+                let code = crate::ipc::messages::PluginInstallErrorCode::from_install_code(
+                    error
+                        .data
+                        .as_ref()
+                        .and_then(|data| data.get("code"))
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default(),
+                );
                 let message = error.message().to_owned();
-                // Never expose sensitive filesystem internals beyond the
-                // installer message itself; classify for structured UI flow.
-                let code = crate::ipc::messages::classify_plugin_install_error(&message);
                 tracing::warn!(%message, ?code, "plugin package installation failed");
                 self.emit(HostMessage::plugin_install_failure(code, message));
             }
@@ -373,7 +378,7 @@ impl AppCore {
     }
 
     fn handle_uninstall_plugin_package(&self, id: String) {
-        match self.plugin_uninstall(&id) {
+        match self.plugin_uninstall(&id, false) {
             Ok(()) => {
                 self.emit_persisted_behavior();
                 self.emit(HostMessage::plugin_uninstall_success(id));

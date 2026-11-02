@@ -28,6 +28,12 @@ const { t } = useI18n();
     <p class="base-confirm-dialog__message">
       {{ message }}
     </p>
+    <div
+      v-if="$slots.default"
+      class="base-confirm-dialog__extra"
+    >
+      <slot />
+    </div>
     <template #footer>
       <BaseButton
         :variant="danger ? 'danger' : 'primary'"
@@ -47,5 +53,9 @@ const { t } = useI18n();
 .base-confirm-dialog__message {
   margin: 0;
   line-height: var(--line-height-normal);
+}
+
+.base-confirm-dialog__extra {
+  margin-top: var(--space-4);
 }
 </style>

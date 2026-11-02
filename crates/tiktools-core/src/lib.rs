@@ -28,6 +28,8 @@ mod plugin_diagnostics;
 mod plugin_events;
 mod plugin_intents;
 mod plugin_invoker;
+#[cfg(feature = "plugin-install")]
+mod plugin_packages;
 mod plugin_processors;
 mod plugin_runtime;
 mod runtime_state;
@@ -85,6 +87,10 @@ use crate::{
 pub use services::{
     MediaApiError, MediaError, MediaHost, MediaHostError, MediaHostFuture, NoopMediaHost,
 };
+#[cfg(feature = "plugin-install")]
+pub use tiktools_plugin_installer as plugin_installer;
+#[cfg(feature = "plugin-install")]
+pub use tiktools_plugin_registry as plugin_registry;
 
 pub trait HostEmitter: Send + Sync {
     fn emit(&self, message: HostMessage);
@@ -192,6 +198,8 @@ pub struct AppCore {
     shutdown_finished: AtomicBool,
     shutdown_complete: tokio::sync::Notify,
     pub(crate) transport_state: TransportHealthState,
+    #[cfg(feature = "plugin-install")]
+    pub(crate) packages: Result<Arc<plugin_packages::PluginPackages>, String>,
 }
 
 impl AppCore {
@@ -234,6 +242,13 @@ impl AppCore {
             Err(error) => tracing::warn!(%error, "runtime plugin scan failed"),
         }
 
+        let events = EventBus::new(256);
+        #[cfg(feature = "plugin-install")]
+        let packages = plugin_packages::PluginPackages::new(&paths, events.clone()).map(Arc::new);
+        #[cfg(feature = "plugin-install")]
+        if let Err(error) = &packages {
+            tracing::warn!(%error, "plugin package management is unavailable");
+        }
         let db = Arc::new(db::DatabaseManager::new(paths));
         let capabilities = Arc::new(CapabilityBroker::new(db.paths().plugin_data.clone()));
 
@@ -299,7 +314,7 @@ impl AppCore {
             analytics_writer: db::AnalyticsWriter::new(Arc::clone(&db)),
             db: db.clone(),
             app_state: Arc::new(AppStateService::default()),
-            events: EventBus::new(256),
+            events,
             emitter,
             automation_state: AutomationRuntimeState::default(),
             #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
@@ -356,6 +371,8 @@ impl AppCore {
             shutdown_finished: AtomicBool::new(false),
             shutdown_complete: tokio::sync::Notify::new(),
             transport_state: TransportHealthState::default(),
+            #[cfg(feature = "plugin-install")]
+            packages,
         };
         #[cfg(feature = "http")]
         if let Some(message) = core.http_client_error.clone() {
@@ -440,106 +457,73 @@ impl AppCore {
         &self,
         archive: impl AsRef<std::path::Path>,
         replace_existing: bool,
-    ) -> Result<
-        tiktools_plugin_loader::InstalledPluginPackage,
-        tiktools_plugin_loader::PluginLoaderError,
-    > {
-        let _install_lock = recover_mutex(&self.plugin_state.install_lock, "plugin install");
-        let paths = self.db.paths();
-        let installer = tiktools_plugin_loader::PluginInstaller {
-            plugin_directory: paths.plugins.clone(),
-            staging_directory: paths.temp.join("plugin-install"),
-            replace_existing,
-            provider_endpoints: None,
+    ) -> Result<tiktools_plugin_installer::InstallOutcome, tiktools_plugin_installer::InstallError>
+    {
+        use tiktools_plugin_installer::{
+            CommitOptions, Consent, NoopReporter, PackageOrigin, SignaturePolicy,
         };
-        let archive = archive.as_ref();
-        let manifest = installer.inspect_manifest(archive)?;
-        let old_running = replace_existing && self.plugins.is_running(&manifest.id);
-        if old_running {
-            self.plugins.stop(&manifest.id)?;
-        }
-        let installed = match installer.install(archive) {
-            Ok(installed) => installed,
-            Err(error) => {
-                if old_running {
-                    restart_plugin(&self.plugins, &manifest.id);
-                }
-                return Err(error);
-            }
-        };
-        if let Err(error) = self.plugins.scan().map(|_| ()) {
-            if old_running {
-                restart_plugin(&self.plugins, &manifest.id);
-            }
-            return Err(error);
-        }
-        if old_running {
-            restart_plugin(&self.plugins, &manifest.id);
-        }
+        let packages = self.plugin_packages()?;
+        let prepared = packages.installer.prepare(
+            archive.as_ref(),
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )?;
+        let outcome = packages.installer.commit(
+            &prepared,
+            &CommitOptions {
+                consent: Consent::Implicit { replace_existing },
+                policy: None,
+            },
+            &plugin_packages::CoreActivation(self),
+            &NoopReporter,
+        )?;
         self.rebuild_processor_index();
-        Ok(installed)
+        Ok(outcome)
     }
 
     #[cfg(feature = "plugin-install")]
     pub fn uninstall_plugin(
         &self,
         id: &str,
-    ) -> Result<(), tiktools_plugin_loader::PluginLoaderError> {
-        let _install_lock = recover_mutex(&self.plugin_state.install_lock, "plugin install");
+        purge_data: bool,
+    ) -> Result<(), tiktools_plugin_installer::InstallError> {
+        use tiktools_plugin_installer::{InstallError, InstallErrorCode};
+        let packages = self.plugin_packages()?;
         let plugin = self
             .plugins
             .get(id)
-            .ok_or_else(|| tiktools_plugin_loader::PluginLoaderError::NotFound(id.to_owned()))?;
+            .ok_or_else(|| InstallError::not_installed(id))?;
         if plugin.source != tiktools_plugin_loader::PluginSource::User {
-            return Err(tiktools_plugin_loader::PluginLoaderError::Runtime(
-                "only user-installed plugin packages can be uninstalled".to_owned(),
+            return Err(InstallError::new(
+                InstallErrorCode::Unsupported,
+                "only user-installed plugin packages can be uninstalled",
             ));
         }
-        let root = std::fs::canonicalize(&self.db.paths().plugins).map_err(|error| {
-            tiktools_plugin_loader::PluginLoaderError::Runtime(format!(
-                "could not resolve the user plugin directory: {error}"
-            ))
-        })?;
-        let metadata = std::fs::symlink_metadata(&plugin.directory).map_err(|error| {
-            tiktools_plugin_loader::PluginLoaderError::Runtime(format!(
-                "could not inspect plugin package: {error}"
-            ))
-        })?;
-        if metadata.file_type().is_symlink() || !metadata.is_dir() {
-            return Err(tiktools_plugin_loader::PluginLoaderError::Runtime(
-                "plugin package is not a regular directory".to_owned(),
-            ));
-        }
-        let package = std::fs::canonicalize(&plugin.directory).map_err(|error| {
-            tiktools_plugin_loader::PluginLoaderError::Runtime(format!(
-                "could not resolve plugin package: {error}"
-            ))
-        })?;
-        if !is_strict_plugin_child(&root, &package) {
-            return Err(tiktools_plugin_loader::PluginLoaderError::Runtime(
-                "plugin package is outside the user plugin directory".to_owned(),
-            ));
-        }
-        let was_running = self.plugins.is_running(id);
-        if was_running {
-            self.plugins.stop(id)?;
-        }
-        if let Err(error) = std::fs::remove_dir_all(&package) {
-            if was_running {
-                restart_plugin(&self.plugins, id);
-            }
-            return Err(tiktools_plugin_loader::PluginLoaderError::Runtime(format!(
-                "could not remove plugin package: {error}"
-            )));
-        }
+        let data = purge_data
+            .then(|| plugin_packages::plugin_data_dir(self.db.paths(), id))
+            .flatten();
+        packages.installer.uninstall(
+            id,
+            data.as_deref(),
+            &plugin_packages::CoreActivation(self),
+        )?;
         #[cfg(feature = "persistence")]
         if let Err(error) = self.db.remove_plugin_state(id) {
             tracing::warn!(plugin = %id, %error, "plugin package was removed but persisted state could not be cleared");
         }
         self.clear_plugin_activation(id);
-        self.plugins.scan().map(|_| ())?;
         self.rebuild_processor_index();
         Ok(())
+    }
+
+    #[cfg(feature = "plugin-install")]
+    pub(crate) fn plugin_packages(
+        &self,
+    ) -> Result<&Arc<plugin_packages::PluginPackages>, tiktools_plugin_installer::InstallError>
+    {
+        self.packages
+            .as_ref()
+            .map_err(|error| plugin_packages::unavailable(error))
     }
 
     pub async fn shutdown(self: &Arc<Self>) {
@@ -637,25 +621,5 @@ impl AppCore {
         }
         self.shutdown_finished.store(true, Ordering::Release);
         self.shutdown_complete.notify_waiters();
-    }
-}
-
-#[cfg(feature = "plugin-install")]
-fn restart_plugin(plugins: &PluginManager, id: &str) {
-    if let Err(error) = plugins.start(id) {
-        tracing::warn!(plugin = %id, %error, "plugin runtime could not be restarted after package operation");
-    }
-}
-
-#[cfg(feature = "plugin-install")]
-fn is_strict_plugin_child(root: &std::path::Path, candidate: &std::path::Path) -> bool {
-    if cfg!(target_os = "windows") {
-        let root = root.to_string_lossy().to_ascii_lowercase();
-        let candidate = candidate.to_string_lossy().to_ascii_lowercase();
-        candidate.starts_with(&(root.clone() + "\\"))
-            && candidate[root.len() + 1..].find('\\').is_none()
-            && candidate[root.len() + 1..].find('/').is_none()
-    } else {
-        candidate.parent() == Some(root)
     }
 }

@@ -243,6 +243,7 @@ pub struct PluginManifest {
     /// host loads whatever the package roots already contain.
     #[serde(rename = "nativeLibs")]
     pub native_libs: Vec<NativeLibDeclaration>,
+    pub metadata: super::metadata::PackageMetadata,
 }
 impl fmt::Display for PluginRuntimeKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

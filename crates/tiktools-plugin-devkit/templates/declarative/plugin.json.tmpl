@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 3,
+  "id": "{{id}}",
+  "name": "{{name}}",
+  "version": "0.1.0",
+  "description": "{{name}} connects TikTools to a local HTTP server.",
+  "publisher": "{{publisher}}",
+  "license": "MIT",
+  "engines": { "tiktools": "{{engine}}" },
+  "categories": ["{{category}}"],
+  "changelog": "CHANGELOG.md",
+  "icon": "webhook",
+  "runtime": "declarative",
+  "capabilities": ["http.request"],
+  "permissions": [],
+  "settings": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "serverUrl": { "type": "string", "title": "Server URL", "default": "http://127.0.0.1:8080" }
+      }
+    }
+  },
+  "http": {
+    "baseUrl": "{{ settings.serverUrl }}",
+    "auth": { "type": "none" },
+    "health": { "path": "/health" }
+  },{{ui}}
+  "actionTypes": [
+    {
+      "id": "{{id}}.notify",
+      "version": 1,
+      "title": { "default": "Notify server" },
+      "description": { "default": "Posts the configured text to the server." },
+      "tag": "http",
+      "fields": [
+        { "key": "text", "label": { "default": "Text" }, "kind": "text", "value": "" }
+      ],
+      "http": {
+        "method": "POST",
+        "path": "/notify",
+        "headers": { "Content-Type": "text/plain" },
+        "body": "{{ config.text }}"
+      }
+    }
+  ]
+}

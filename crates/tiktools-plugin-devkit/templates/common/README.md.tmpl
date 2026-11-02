@@ -1,0 +1,24 @@
+# {{name}}
+
+A TikTools plugin (`{{id}}`) created with `tiktools-plugin new --template {{template}}`.
+
+## Develop
+
+```bash
+tiktools-plugin validate
+tiktools-plugin build --release
+tiktools-plugin dev stage --into <dev-plugins-dir>
+```
+
+Run TikTools with `TIKTOOLS_DEV_PLUGINS_DIR=<dev-plugins-dir>` to load the staged copy.
+
+## Publish
+
+```bash
+tiktools-plugin keygen --id {{publisher}}-1 --publisher {{publisher}} --out ~/.tiktools/keys
+tiktools-plugin build --release --sign ~/.tiktools/keys/{{publisher}}-1.key.json
+tiktools-plugin validate --publish
+tiktools-plugin publish dist-plugin/*.plugin --registry <registry-dir> --index-key <index.key.json>
+```
+
+Never commit `*.key.json` files.

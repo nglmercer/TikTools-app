@@ -16,7 +16,12 @@ native-plugins = ["tiktools-plugin-loader/native-plugins"]
 # closed at load with "this build lacks napi-vm-node-api support".
 napi-vm-node-api = ["tiktools-plugin-loader/napi-vm-node-api"]
 wasm-plugins = ["tiktools-plugin-loader/wasm-plugins"]
-plugin-install = ["tiktools-plugin-loader/plugin-install"]
+plugin-install = [
+    "dep:tiktools-plugin-installer",
+    "dep:tiktools-plugin-package",
+    "dep:tiktools-plugin-registry",
+    "dep:semver",
+]
 persistence = ["dep:rusqlite"]
 http = ["dep:reqwest", "tiktools-plugin-sdk/http-client"]
 tiktok-network = ["dep:tokio-tungstenite"]
@@ -31,6 +36,10 @@ tiktools-plugin-api = { path = "../tiktools-plugin-api" }
 tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk" }
 tiktools-plugin-loader = { path = "../tiktools-plugin-loader", default-features = false }
 tiktools-tiktok = { path = "../tiktools-tiktok", optional = true }
+tiktools-plugin-installer = { path = "../tiktools-plugin-installer", optional = true }
+tiktools-plugin-package = { path = "../tiktools-plugin-package", optional = true }
+tiktools-plugin-registry = { path = "../tiktools-plugin-registry", optional = true }
+semver = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true

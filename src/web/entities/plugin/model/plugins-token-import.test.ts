@@ -16,7 +16,7 @@ function harness(result: Promise<unknown>) {
     onTopic: () => () => {}, onPush: () => () => {},
     onTransportError: () => () => {}, onGap: () => () => {},
   };
-  const plugins = usePlugins(client, { translate: (key) => key, refreshBehavior: async () => {}, reportError() {}, pickPluginPackage() {} });
+  const plugins = usePlugins(client, { translate: (key) => key, refreshBehavior: async () => {}, reportError() {} });
   return { plugins, calls };
 }
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));

@@ -1,0 +1,25 @@
+[package]
+name = "tiktools-plugin-registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "TikTools plugin registry protocol v1: client, resolver, downloader, and static index writer"
+publish = false
+
+[dependencies]
+tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "0.3.3" }
+tiktools-plugin-package = { path = "../tiktools-plugin-package", version = "0.3.3" }
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", version = "0.3.3", features = ["http-client"] }
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+semver.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true }
+tracing.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util"] }
