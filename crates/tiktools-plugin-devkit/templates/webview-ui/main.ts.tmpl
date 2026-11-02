@@ -1,0 +1,13 @@
+import { createBrokerClient } from '@tiktools/plugin-ui';
+
+const broker = createBrokerClient();
+const app = document.getElementById('app');
+
+async function render(): Promise<void> {
+  if (!app) return;
+  const settings = await broker.getSettings();
+  app.textContent = `Server: ${String(settings.serverUrl ?? 'not configured')}`;
+}
+
+broker.subscribe('plugin.settings-changed', () => void render());
+void render();

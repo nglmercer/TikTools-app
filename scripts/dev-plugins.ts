@@ -171,9 +171,7 @@ async function stageNapiVmExample(
       cargoWrapper,
       'build',
       '-p',
-      'tiktools-plugin-sdk',
-      '--features',
-      'providers',
+      'tiktools-plugin-devkit',
       '--bin',
       'tiktools-plugin-stage-native',
     ]);

@@ -1,0 +1,18 @@
+{{attributes}}use serde_json::Value;
+use tiktools_plugin_sdk::prelude::*;
+
+#[derive(Default)]
+struct {{type}};
+
+impl Plugin for {{type}} {
+    fn action(&mut self, _context: &PluginContext, call: ActionCall) -> PluginResult<ActionResult> {
+        let message = call
+            .config()
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("Hello from {{name}}");
+        Ok(ActionResult::summary(message))
+    }
+}
+
+{{export}}!({{type}});

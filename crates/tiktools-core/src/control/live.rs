@@ -93,6 +93,7 @@ fn discovery_failure(error: tiktools_tiktok::discovery::DiscoveryFailure) -> Ope
     OperationError {
         code,
         message: error.message,
+        data: None,
     }
 }
 

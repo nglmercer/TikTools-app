@@ -12,7 +12,7 @@ import {
   type TtsLogEntry,
   type TtsSettings,
 } from '../../shared/tts/tts-policy.ts';
-import { PluginBroker } from './broker.ts';
+import { PluginBroker } from '@tiktools/plugin-ui';
 import { TtsSettingsPanel } from './components/TtsSettingsPanel.vue';
 import { outputsTarget } from './components/source.ts';
 import { t, type Locale } from './i18n/index.ts';

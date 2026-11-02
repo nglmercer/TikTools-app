@@ -1,7 +1,7 @@
 //! Restricted broker between one plugin WebView and the host.
 //!
 //! This is the native counterpart of the plugin-side client
-//! (`plugins/sonicboom/ui/src/broker.ts`) and the web host shim
+//! (`packages/plugin-ui/src/broker.ts`, `@tiktools/plugin-ui`) and the web host shim
 //! (`src/web/plugin-ui/plugin-webview-host.ts`). The three sides share the
 //! versioned envelope `{apiVersion: 1, id, ...}` by convention, pinned by
 //! interop tests — never by shared imports, since the plugin package must

@@ -48,6 +48,14 @@ pub struct PluginResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+pub struct PluginUninstallParams {
+    pub plugin_id: String,
+    #[serde(default)]
+    pub purge_data: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginInstallParams {
     pub path: String,
     #[serde(default)]
@@ -180,14 +188,14 @@ pub fn register(router: &mut ControlRouter) {
             .map_err(ApiError::from)
         },
     );
-    router.register_typed::<PluginIdParams, OkResult, _, _>(
+    router.register_typed::<PluginUninstallParams, OkResult, _, _>(
         "plugins.uninstall",
-        "Removes a user-installed plugin package",
+        "Removes a user-installed plugin package, its retained versions, and optionally its data",
         true,
-        |core: Arc<AppCore>, params: PluginIdParams| async move {
+        |core: Arc<AppCore>, params: PluginUninstallParams| async move {
             // Recursive removal stays off Tokio workers.
             crate::modules::blocking_task("plugins.uninstall", move || {
-                core.plugin_uninstall(&params.plugin_id)
+                core.plugin_uninstall(&params.plugin_id, params.purge_data)
             })
             .await?
             .map(|()| OkResult::ok())

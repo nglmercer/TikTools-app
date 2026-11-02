@@ -10,6 +10,7 @@ description = "Small, versioned, runtime-neutral TikTools plugin contracts"
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true
+semver.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 unicode-segmentation.workspace = true

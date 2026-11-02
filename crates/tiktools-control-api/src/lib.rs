@@ -64,6 +64,10 @@ impl ControlApi {
     pub fn register_all(router: &mut ControlRouter) {
         modules::system::register(router);
         modules::plugins::register(router);
+        #[cfg(feature = "plugin-install")]
+        modules::packages::register(router);
+        #[cfg(feature = "plugin-install")]
+        modules::registry::register(router);
         modules::settings::register(router);
         modules::live::register(router);
         modules::points::register(router);

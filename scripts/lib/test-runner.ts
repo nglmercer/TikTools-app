@@ -15,7 +15,7 @@ export const TEST_USAGE =
   'Options: --features <list> (rust only), --watch (web only), --changed (default/web/bun/plugin).\n' +
   'Examples: bun run test | bun run test rust tiktools-core batched_likes | bun run test web live-batch | bun run test e2e.';
 
-export const FAST_BUN_ROOTS = ['src/automation', 'src/plugin-ui', 'src/shared', 'src/widgets', 'scripts'];
+export const FAST_BUN_ROOTS = ['src/automation', 'src/plugin-ui', 'src/shared', 'src/widgets', 'scripts', 'packages'];
 export const FAST_BUN_PLUGIN_ROOTS = ['plugins/sonicboom/shared', 'plugins/sonicboom/ui/src'];
 
 /** Shorthand `bun <area>` directories (repo-relative). */
@@ -25,6 +25,7 @@ export const BUN_AREA_DIRS: Record<string, string> = {
   shared: 'src/shared',
   widgets: 'src/widgets',
   scripts: 'scripts',
+  packages: 'packages',
 };
 
 const SUPPORTED_AREAS = new Set(['rust', 'web', 'bun', 'plugin', 'e2e']);

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 3,
+  "id": "{{id}}",
+  "name": "{{manifest_name}}",
+  "version": "0.1.0",
+  "description": "{{name}} for TikTools.",
+  "publisher": "{{publisher}}",
+  "license": "MIT",
+  "engines": { "tiktools": "{{engine}}" },
+  "categories": ["utilities"],
+  "changelog": "CHANGELOG.md",
+  "icon": "plugin",
+  "runtime": "{{runtime}}",
+  "entry": "{{entry}}",{{runtime_fields}}
+  "protocolVersion": 1,
+  "capabilities": [],
+  "permissions": [],
+  "actionTypes": [
+    {
+      "id": "{{id}}.say",
+      "version": 1,
+      "title": { "default": "Say something" },
+      "description": { "default": "Returns a message as the action summary." },
+      "tag": "utility",
+      "fields": [
+        { "key": "message", "label": { "default": "Message" }, "kind": "text", "value": "" }
+      ]
+    }
+  ]
+}

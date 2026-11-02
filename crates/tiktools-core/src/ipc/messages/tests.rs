@@ -222,20 +222,20 @@ fn plugin_install_result_uses_structured_codes() {
     assert!(failure.contains("already-installed"));
 
     assert_eq!(
-        classify_plugin_install_error("plugin is already installed: demo"),
+        PluginInstallErrorCode::from_install_code("already-installed"),
         PluginInstallErrorCode::AlreadyInstalled
     );
     assert_eq!(
-        classify_plugin_install_error("plugin manifest field `id` is invalid"),
+        PluginInstallErrorCode::from_install_code("signature-invalid"),
         PluginInstallErrorCode::InvalidPackage
     );
     assert_eq!(
-        classify_plugin_install_error("plugin manifest field `protocolVersion` is invalid"),
+        PluginInstallErrorCode::from_install_code("no-compatible-release"),
         PluginInstallErrorCode::Incompatible
     );
     assert_eq!(
-        classify_plugin_install_error("checksum mismatch in demo: index.js"),
-        PluginInstallErrorCode::InvalidPackage
+        PluginInstallErrorCode::from_install_code("busy"),
+        PluginInstallErrorCode::Unknown
     );
 }
 

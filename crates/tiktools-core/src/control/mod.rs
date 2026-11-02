@@ -16,6 +16,8 @@ mod globals;
 mod helpers;
 mod live;
 mod media;
+#[cfg(feature = "plugin-install")]
+mod plugin_packages;
 mod plugin_settings;
 mod plugins;
 mod points;
@@ -34,6 +36,11 @@ pub use automation::{
 pub(crate) use helpers::check_session_cookie_len;
 pub(crate) use helpers::{clean_plugin_id, clean_record_id, fresh_record_id};
 pub use live::{LiveChannel, LiveChannelsResult, LiveStatus};
+#[cfg(feature = "plugin-install")]
+pub use plugin_packages::{
+    AvailableRelease, PluginVersions, PolicyPatch, RegistryAddInput, RegistryPackageView,
+    RegistryRootKey, RegistryRootPreview,
+};
 pub use plugin_settings::{PluginConnectionResult, PluginProvisionResult, PluginSettingsResult};
 pub use plugins::{PluginActionOutcome, PluginInstallResult};
 pub use processors::ProcessorOutcomeDto;
@@ -43,10 +50,11 @@ pub use widgets::{WidgetsCopyResult, WidgetsState, WidgetsStatusResult, GATEWAY_
 
 /// Machine-readable operation failure. The control API maps this 1:1 onto
 /// the JSON-RPC error envelope (`code` + `message`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OperationError {
     pub code: &'static str,
     pub message: String,
+    pub data: Option<serde_json::Value>,
 }
 
 impl OperationError {
@@ -54,6 +62,7 @@ impl OperationError {
         Self {
             code: "not_found",
             message: message.into(),
+            data: None,
         }
     }
 
@@ -61,6 +70,7 @@ impl OperationError {
         Self {
             code: "invalid_params",
             message: message.into(),
+            data: None,
         }
     }
 
@@ -68,6 +78,7 @@ impl OperationError {
         Self {
             code: "unavailable",
             message: message.into(),
+            data: None,
         }
     }
 
@@ -75,6 +86,7 @@ impl OperationError {
         Self {
             code: "conflict",
             message: message.into(),
+            data: None,
         }
     }
 
@@ -85,6 +97,7 @@ impl OperationError {
         Self {
             code: "forbidden",
             message: message.into(),
+            data: None,
         }
     }
 
@@ -92,6 +105,7 @@ impl OperationError {
         Self {
             code: "timeout",
             message: message.into(),
+            data: None,
         }
     }
 
@@ -101,6 +115,7 @@ impl OperationError {
         Self {
             code: "capability_unavailable",
             message: message.into(),
+            data: None,
         }
     }
 
@@ -108,6 +123,16 @@ impl OperationError {
         Self {
             code: "internal",
             message: message.into(),
+            data: None,
+        }
+    }
+
+    #[cfg(feature = "plugin-install")]
+    pub fn install(error: tiktools_plugin_installer::InstallError) -> Self {
+        Self {
+            code: "install_failed",
+            message: error.message.clone(),
+            data: serde_json::to_value(&error).ok(),
         }
     }
 

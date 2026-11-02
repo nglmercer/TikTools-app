@@ -62,7 +62,11 @@ impl ApiError {
 
 impl From<OperationError> for ApiError {
     fn from(error: OperationError) -> Self {
-        Self::new(error.code(), error.message().to_owned())
+        Self {
+            code: error.code.to_owned(),
+            message: error.message,
+            data: error.data,
+        }
     }
 }
 

@@ -17,6 +17,7 @@ import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
 import BaseMarkdown from '@/shared/ui/markdown/BaseMarkdown.vue';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 import type { PluginDetailsTab } from '../model/details-tab.ts';
+import PluginVersionsPane from './PluginVersionsPane.vue';
 
 const props = defineProps<{
   plugin: PluginStatus;
@@ -29,6 +30,7 @@ const tab = defineModel<PluginDetailsTab>('tab', { required: true });
 const { t } = useI18n();
 const plugins = usePluginControls();
 const uninstallOpen = ref(false);
+const purgeData = ref(false);
 
 const descriptor = computed(() => props.plugin.descriptor);
 const id = computed(() => descriptor.value.id);
@@ -54,6 +56,7 @@ const tabs = computed(() => [
   { value: 'general' as const, label: t('plugins.details.tabs.general') },
   { value: 'settings' as const, label: t('plugins.details.tabs.settings'), disabled: !hasSettings.value },
   { value: 'connection' as const, label: t('plugins.details.tabs.connection'), disabled: !hasConnection.value },
+  { value: 'versions' as const, label: t('plugins.details.tabs.versions'), disabled: !removable.value },
 ]);
 
 const enabled = computed({
@@ -92,7 +95,11 @@ watch(() => plugins.settings.value[id.value]?.values, () => { testResult.value =
 watch(
   [hasSettings, hasConnection],
   () => {
-    if ((tab.value === 'settings' && !hasSettings.value) || (tab.value === 'connection' && !hasConnection.value)) {
+    if (
+      (tab.value === 'settings' && !hasSettings.value) ||
+      (tab.value === 'connection' && !hasConnection.value) ||
+      (tab.value === 'versions' && !removable.value)
+    ) {
       tab.value = 'general';
     }
   },
@@ -101,7 +108,8 @@ watch(
 
 function uninstall(): void {
   uninstallOpen.value = false;
-  plugins.uninstall(id.value);
+  plugins.uninstall(id.value, purgeData.value);
+  purgeData.value = false;
 }
 </script>
 
@@ -236,6 +244,10 @@ function uninstall(): void {
             @save="plugins.saveSettings"
             @test="runTestConnection"
           />
+          <PluginVersionsPane
+            v-else-if="value === 'versions'"
+            :plugin-id="id"
+          />
           <PluginConnectionEditor
             v-else
             :plugin-id="id"
@@ -266,7 +278,11 @@ function uninstall(): void {
       :confirm-label="t('plugins.details.uninstallConfirm')"
       danger
       @confirm="uninstall"
-    />
+    >
+      <BaseCheckbox v-model="purgeData">
+        {{ t('plugins.details.purgeData') }}
+      </BaseCheckbox>
+    </BaseConfirmDialog>
   </section>
 </template>
 

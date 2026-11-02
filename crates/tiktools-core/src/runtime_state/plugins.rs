@@ -90,6 +90,11 @@ impl AppCore {
         }
         self.start_enabled_event_subscribers();
         self.spawn_plugin_event_observer(runtime);
+        #[cfg(feature = "plugin-install")]
+        {
+            self.adopt_user_plugin_packages();
+            self.spawn_plugin_update_checker(runtime);
+        }
         let core = Arc::clone(self);
         let shutdown = Arc::clone(&self.plugin_state.poll_shutdown);
         tracing::info!("plugin event poll started");

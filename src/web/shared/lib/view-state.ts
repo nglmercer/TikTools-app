@@ -58,10 +58,10 @@ export interface WidgetsViewState {
 
 export interface PluginsViewState {
   view?: 'plugins' | 'processors';
-  catalog?: 'installed' | 'available';
+  catalog?: 'installed' | 'browse' | 'updates';
   query?: string;
   selected?: string;
-  details?: 'general' | 'settings' | 'connection';
+  details?: 'general' | 'settings' | 'connection' | 'versions';
 }
 
 export interface ConnectionsViewState {
@@ -209,10 +209,10 @@ function cleanPlugins(value: unknown): PluginsViewState | undefined {
   if (!isRecord(value)) return undefined;
   const cleaned = pickDefined({
     view: oneOf(value['view'], ['plugins', 'processors']),
-    catalog: oneOf(value['catalog'], ['installed', 'available']),
+    catalog: value['catalog'] === 'available' ? 'browse' : oneOf(value['catalog'], ['installed', 'browse', 'updates']),
     query: cleanString(value['query']),
     selected: cleanString(value['selected']),
-    details: oneOf(value['details'], ['general', 'settings', 'connection']),
+    details: oneOf(value['details'], ['general', 'settings', 'connection', 'versions']),
   });
   return Object.keys(cleaned).length > 0 ? (cleaned as PluginsViewState) : undefined;
 }

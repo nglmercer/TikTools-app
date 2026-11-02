@@ -25,9 +25,13 @@ use tiktools_control_api::modules::live::{
     LiveChannelsParams, LiveConnectParams, LiveMonitorStartParams, LivePickParams,
 };
 use tiktools_control_api::modules::media::{MediaPickParams, MediaPlayParams, MediaValidateParams};
+use tiktools_control_api::modules::packages::{
+    JobParams, PackageInspectParams, PackageInstallParams, PackagePluginParams,
+    PackagePolicyParams, PackageRollbackParams, PackageUpdateParams,
+};
 use tiktools_control_api::modules::plugins::{
     PluginActionParams, PluginIdParams, PluginInstallParams, PluginInstallSetParams,
-    PluginOptionsParams, PluginProvisionParams,
+    PluginOptionsParams, PluginProvisionParams, PluginUninstallParams,
 };
 use tiktools_control_api::modules::points::{
     PartialPointsConfig, PointsAdjustParams, PointsLeaderboardParams, PointsResetParams,
@@ -36,6 +40,10 @@ use tiktools_control_api::modules::points::{
 use tiktools_control_api::modules::processors::ProcessorTestParams;
 use tiktools_control_api::modules::rankings::{
     Definition, ExternalContribution, RankingId, RankingUpdate,
+};
+use tiktools_control_api::modules::registry::{
+    RegistryAddInput, RegistryDefaults, RegistryEnableParams, RegistryNameParams,
+    RegistryPackageParams, RegistryRefreshParams, RegistryUrlParams, SearchQuery,
 };
 use tiktools_control_api::modules::rpc::SchemaParams;
 use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsSet};
@@ -186,7 +194,7 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "plugins.install" => PluginInstallParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
-        "plugins.uninstall" => PluginIdParams::deserialize(params)
+        "plugins.uninstall" => PluginUninstallParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
         "plugins.enable" => PluginIdParams::deserialize(params)
@@ -300,9 +308,36 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "workflows.disable" => WorkflowIdParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
+        "plugins.packages.inspect" => validate::<PackageInspectParams>(params),
+        "plugins.packages.install" => validate::<PackageInstallParams>(params),
+        "plugins.packages.update" => validate::<PackageUpdateParams>(params),
+        "plugins.packages.rollback" => validate::<PackageRollbackParams>(params),
+        "plugins.packages.versions" => validate::<PackagePluginParams>(params),
+        "plugins.packages.policy" => validate::<PackagePolicyParams>(params),
+        "plugins.jobs.get" | "plugins.jobs.cancel" => validate::<JobParams>(params),
+        "plugins.packages.receipts"
+        | "plugins.updates.check"
+        | "plugins.updates.list"
+        | "plugins.jobs.list"
+        | "registry.list"
+        | "registry.defaults.get" => validate::<Empty>(params),
+        "registry.root" => validate::<RegistryUrlParams>(params),
+        "registry.add" => validate::<RegistryAddInput>(params),
+        "registry.remove" => validate::<RegistryNameParams>(params),
+        "registry.enable" => validate::<RegistryEnableParams>(params),
+        "registry.refresh" => validate::<RegistryRefreshParams>(params),
+        "registry.search" => validate::<SearchQuery>(params),
+        "registry.package" => validate::<RegistryPackageParams>(params),
+        "registry.defaults.set" => validate::<RegistryDefaults>(params),
         _ => Err(ClientError::new(
             "method_not_found",
             format!("unknown method `{method}`"),
         )),
     }
+}
+
+fn validate<T: serde::de::DeserializeOwned>(params: &serde_json::Value) -> Result<(), ClientError> {
+    T::deserialize(params)
+        .map(|_| ())
+        .map_err(|error| ClientError::new("invalid_params", error.to_string()))
 }

@@ -91,7 +91,7 @@ method, params}` → `{apiVersion: 1, id, ok, result|error}`, events as
 `{apiVersion: 1, event, data}` — pinned by interop tests, never by
 shared imports (the plugin package must stay buildable on its own):
 
-- Plugin client: `plugins/sonicboom/ui/src/broker.ts`
+- Plugin client: `@tiktools/plugin-ui` (`packages/plugin-ui/src/broker.ts`)
 - Native broker: `crates/tiktools-desktop/src/plugin_webview/broker.rs`
 - Web host shim: `src/web/plugin-ui/plugin-webview-host.ts`
 

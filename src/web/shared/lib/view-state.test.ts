@@ -59,7 +59,7 @@ test('save and load round-trips every section', () => {
     customEnd: '2026-01-31',
   });
   saveViewState('widgets', { selectedKind: 'chat' });
-  saveViewState('plugins', { view: 'plugins', catalog: 'available', query: 'tts' });
+  saveViewState('plugins', { view: 'plugins', catalog: 'browse', query: 'tts' });
   saveViewState('connections', {
     showCookie: true,
     openServers: { srv1: true, srv2: false },
@@ -92,7 +92,7 @@ test('save and load round-trips every section', () => {
     customEnd: '2026-01-31',
   });
   expect(state.widgets).toEqual({ selectedKind: 'chat' });
-  expect(state.plugins).toEqual({ view: 'plugins', catalog: 'available', query: 'tts' });
+  expect(state.plugins).toEqual({ view: 'plugins', catalog: 'browse', query: 'tts' });
   expect(state.connections).toEqual({
     showCookie: true,
     openServers: { srv1: true, srv2: false },

@@ -493,20 +493,85 @@ queued are discarded instead of executed.
 
 ## Installation
 
-Create a `.plugin` archive containing `plugin.json` and the declared entry,
-then install it through the Rust host:
+Plugins install from three kinds of sources through one transactional
+installer (`crates/tiktools-plugin-installer`):
+
+| Spec | Source | Signature policy |
+| --- | --- | --- |
+| `./acme.tts.plugin`, `file:<path>` | local archive | verified when a trusted publisher signed it, otherwise allowed only after explicit sideload consent |
+| `https://host/acme.plugin` | web address (HTTPS; `http://localhost` for development) | same as local archives |
+| `acme.tts`, `acme.tts@1.2.0`, `acme.tts@^1.2`, `official:acme.tts` | registry | must be signed by a publisher key the registry delegated |
+
+Every install is reviewed first: `plugins.packages.inspect` resolves,
+downloads, and verifies the package and returns a preview (permissions,
+capabilities, security model, signature, size, compatibility, and the change
+from the installed version) with a `consentToken`. `plugins.packages.install`
+then runs a job that only succeeds when the token still matches the exact
+bytes and access that were reviewed. The desktop review dialog, the CLI, and
+agents use this flow for registry and URL specs. Local archive paths given to
+`tiktools plugin install` or `--install-plugin` keep the direct developer path
+(add `--review` to the CLI command to go through the review instead):
 
 ```bash
-cargo run -p tiktools-desktop -- --install-plugin ./my-plugin.plugin
-cargo run -p tiktools-desktop -- --install-plugin ./my-plugin.plugin --replace
+tiktools plugin inspect acme.tts
+tiktools plugin install acme.tts --yes
+tiktools plugin install ./acme.tts.plugin --replace
+tiktools plugin install https://cdn.example/acme.tts.plugin --yes --allow-unsigned
+tiktools plugin outdated
+tiktools plugin update acme.tts --yes
+tiktools plugin rollback acme.tts
+tiktools plugin uninstall acme.tts --purge
+cargo run -p tiktools-desktop --locked -- --install-plugin acme.tts
 ```
 
-Installation uses a temporary directory, validates the manifest and optional
-`checksums.json`, rejects traversal and symlink escapes, and atomically moves
-the package into the user plugin directory. The usual runtime directory is
-`%LOCALAPPDATA%/TikTools/plugins` on Windows,
-`~/.local/share/TikTools/plugins` on Linux, and
-`~/Library/Application Support/TikTools/plugins` on macOS.
+Installation extracts into `<plugins>/.staging`, rejects traversal, symlinks,
+duplicate paths, and oversize archives, verifies every file against
+`checksums.json` and the publisher signature, checks host compatibility
+(`engines.tiktools`, protocol, ABI, target, runtime availability), stops the
+running instance, swaps the package in atomically, and restarts it. A failure
+at any stage leaves the previous package untouched. The replaced version is
+kept under the plugin store for `rollback` (two versions by default).
+
+Store layout:
+
+```text
+<root>/plugins/<id>/                       active package (discovery reads only this)
+<root>/plugin-data/<id>/                   plugin data; kept on update, removed by uninstall --purge
+<root>/plugin-store/receipts/<id>.json     origin, digest, signature, granted access, update policy
+<root>/plugin-store/versions/<id>/<ver>/   retained versions for rollback
+<root>/plugin-store/cache/sha256/...       content-addressed downloads (1 GB cap)
+<root>/plugin-store/registries.json        configured registries and update defaults
+```
+
+`TIKTOOLS_PLUGIN_STORE_DIR` overrides the store directory. Packages that were
+installed before receipts existed are adopted on startup. Registries, update
+checks, auto-update policies, and advisories are described in
+[Plugin registry protocol](PLUGIN_REGISTRY_PROTOCOL.md); building and
+publishing packages is covered in [Plugin authoring](PLUGIN_AUTHORING.md).
+
+### Publishing metadata
+
+Optional manifest fields describe a package for registries and the review
+dialog. Display fields are sanitized, identity and compatibility fields are
+strict:
+
+```json
+{
+  "publisher": "acme",
+  "authors": [{ "name": "Acme Labs", "url": "https://acme.dev" }],
+  "license": "MIT",
+  "homepage": "https://acme.dev/tts",
+  "repository": "https://github.com/acme/tts-plugin",
+  "engines": { "tiktools": ">=0.4.0, <0.6.0" },
+  "dependencies": { "acme.voices": "^2.0" },
+  "categories": ["audio", "chat"],
+  "changelog": "CHANGELOG.md"
+}
+```
+
+A package whose `engines.tiktools` range excludes the running host is reported
+unavailable at discovery and refused by the installer. `dependencies` are
+validated and shown, not yet installed automatically.
 
 ## SDK guidance
 
@@ -526,21 +591,29 @@ tiktools_process_plugin!(ExamplePlugin);
 
 Native plugins can use `tiktools_export_native_plugin!(ExamplePlugin);` for the
 same reviewed FFI bridge. Do not depend on Wry, Winit, SQLite, or the TikTok
-client. Keep payloads bounded and shutdown idempotent. The low-level
-packaging path is also available without Bun or Node:
+client. Keep payloads bounded and shutdown idempotent.
+
+The author CLI `tiktools-plugin` (`crates/tiktools-plugin-devkit`) scaffolds,
+validates, builds, packs, signs, and publishes packages without Bun or Node:
 
 ```bash
 cargo install --git https://github.com/nglmercer/TikTools-app \
-  --branch remake --package tiktools-plugin-sdk \
-  --features packager --bin tiktools-plugin-pack --locked
-tiktools-plugin-pack --manifest plugin.json --entry target/release/plugin \
+  --branch remake --package tiktools-plugin-devkit --locked
+tiktools-plugin new acme.tts --template process-rust
+tiktools-plugin build --release
+tiktools-plugin pack --manifest plugin.json --entry target/release/plugin \
   --output dist/plugin.plugin
 ```
 
-The packager validates the schema-v2 manifest, stages the declared entry and
-standard asset directories, writes SHA-256 checksums, and creates the ZIP-based
-`.plugin` archive. Project repositories only need to build their entry and
-invoke this common CLI.
+The packager (`crates/tiktools-plugin-package`) validates the manifest, stages
+the declared entry plus `assets/`, `dist/`, `locales/`, the webview UI
+directory, the changelog, and `node_modules/` for napi-vm, writes SHA-256
+checksums, and creates the ZIP-based `.plugin` archive. The same crate reads
+archives for the host, so author-side and host-side validation cannot drift.
+`tiktools-plugin-pack` and `tiktools-plugin-stage-native` remain available as
+aliases with their previous flags. TypeScript authors use
+`@tiktools/plugin-sdk` (`packages/plugin-sdk`) for napi-vm guests and
+`@tiktools/plugin-ui` (`packages/plugin-ui`) for webview pages. The
 `tiktools-plugin-api` crate remains available for other languages and custom
 runtime adapters.
 

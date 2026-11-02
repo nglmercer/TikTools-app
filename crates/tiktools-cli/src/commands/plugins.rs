@@ -6,6 +6,7 @@ use serde_json::Value;
 use tiktools_client::{ClientError, TikToolsClient};
 use tiktools_control_api::modules::plugins::{
     PluginActionParams, PluginIdParams, PluginInstallParams, PluginOptionsParams,
+    PluginUninstallParams,
 };
 use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsSet};
 
@@ -23,7 +24,9 @@ pub enum Command {
     },
     Uninstall {
         id: String,
+        purge: bool,
     },
+    Package(super::packages::Command),
     Enable {
         id: String,
     },
@@ -67,14 +70,23 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
             id: one_arg(rest, "plugin get <id>")?,
         }),
         "install" => {
-            let (path, rest) = split_first(rest, "plugin install <path> [--replace]")?;
-            Ok(Command::Install {
-                path: path.to_owned(),
-                replace: rest.iter().any(|arg| arg == "--replace"),
-            })
+            let (spec, rest) = split_first(
+                rest,
+                "plugin install <file.plugin> [--replace] | plugin install <id[@version]|url> [--yes] [--allow-unsigned]",
+            )?;
+            if super::packages::is_local_archive(spec) && !rest.iter().any(|arg| arg == "--review")
+            {
+                Ok(Command::Install {
+                    path: spec.trim_start_matches("file:").to_owned(),
+                    replace: rest.iter().any(|arg| arg == "--replace"),
+                })
+            } else {
+                Ok(Command::Package(super::packages::parse_install(spec, rest)))
+            }
         }
         "uninstall" => Ok(Command::Uninstall {
-            id: one_arg(rest, "plugin uninstall <id>")?,
+            id: super::args::positional(rest, 0, "plugin uninstall <id> [--purge]")?,
+            purge: rest.iter().any(|arg| arg == "--purge"),
         }),
         "enable" => Ok(Command::Enable {
             id: one_arg(rest, "plugin enable <id>")?,
@@ -129,7 +141,10 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
                 live: rest.iter().any(|arg| arg == "--live"),
             })
         }
-        other => Err(format!("unknown plugin verb `{other}`").into()),
+        other => match super::packages::parse_plugin(other, rest) {
+            Some(command) => command.map(Command::Package),
+            None => Err(format!("unknown plugin verb `{other}`").into()),
+        },
     }
 }
 
@@ -147,11 +162,15 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                 })
                 .await?,
         ),
-        Command::Uninstall { id } => result_value(
+        Command::Uninstall { id, purge } => result_value(
             client
-                .plugins_uninstall(PluginIdParams { plugin_id: id })
+                .plugins_uninstall(PluginUninstallParams {
+                    plugin_id: id,
+                    purge_data: purge,
+                })
                 .await?,
         ),
+        Command::Package(command) => super::packages::execute(client, command).await,
         Command::Enable { id } => result_value(
             client
                 .plugins_enable(PluginIdParams { plugin_id: id })

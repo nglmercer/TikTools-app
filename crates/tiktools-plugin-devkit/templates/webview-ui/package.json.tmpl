@@ -1,0 +1,11 @@
+{
+  "name": "{{crate}}",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build ui/src/main.ts --outdir ui/dist --target browser --format esm && bun -e \"require('node:fs').copyFileSync('ui/index.html', 'ui/dist/index.html')\""
+  },
+  "devDependencies": {
+    "@tiktools/plugin-ui": "{{npm_ui}}"
+  }
+}

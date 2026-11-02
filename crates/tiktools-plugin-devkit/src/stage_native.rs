@@ -1,25 +1,8 @@
-//! Stage a native package into a plugin directory.
-//!
-//! Two modes: local staging from a source checkout (the default), and
-//! provider staging from a `nativeLibs` declaration plus its lockfile:
-//!
-//! ```text
-//! tiktools-plugin-stage-native --package <name> --source <dir> --plugin-dir <dir> --root <rel> [--overwrite]
-//! tiktools-plugin-stage-native --provider [npm|github|all] --manifest <plugin.json> --plugin-dir <dir>
-//!     [--lockfile <path>] [--target <triple>] [--overwrite] [--pin] [--work-dir <dir>]
-//!     [--registry <url>] [--github-base <url>]
-//! ```
-//!
-//! `--pin` resolves the declarations against their providers and
-//! (re)writes the lockfile without staging; without it, the lockfile is
-//! replayed and every library is verified and staged. Both modes print a
-//! JSON report. Provider mode needs the `providers` cargo feature.
-
-use std::{env, error::Error, path::PathBuf};
+use std::{error::Error, path::PathBuf};
 
 use tiktools_plugin_sdk::native_stage::{stage_native_package, NativeStageRequest};
 
-const USAGE: &str = "Usage:\n  tiktools-plugin-stage-native --package <name> --source <dir> --plugin-dir <dir> --root <rel> [--overwrite]\n  tiktools-plugin-stage-native --provider [npm|github|all] --manifest <plugin.json> --plugin-dir <dir> [--lockfile <path>] [--target <triple>] [--overwrite] [--pin] [--work-dir <dir>] [--registry <url>] [--github-base <url>]";
+const USAGE: &str = "Usage:\n  tiktools-plugin stage-native --package <name> --source <dir> --plugin-dir <dir> --root <rel> [--overwrite]\n  tiktools-plugin stage-native --provider [npm|github|all] --manifest <plugin.json> --plugin-dir <dir> [--lockfile <path>] [--target <triple>] [--overwrite] [--pin] [--work-dir <dir>] [--registry <url>] [--github-base <url>]";
 
 struct LocalOptions {
     package: String,
@@ -29,7 +12,6 @@ struct LocalOptions {
     overwrite: bool,
 }
 
-#[cfg_attr(not(feature = "providers"), allow(dead_code))]
 struct ProviderOptions {
     provider: String,
     manifest: PathBuf,
@@ -48,8 +30,8 @@ enum Mode {
     Provider(ProviderOptions),
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let mode = match parse_args()? {
+pub fn run(args: Vec<String>) -> Result<(), Box<dyn Error>> {
+    let mode = match parse_args(args)? {
         Some(mode) => mode,
         None => {
             println!("{USAGE}");
@@ -72,15 +54,16 @@ fn run_local(options: LocalOptions) -> Result<(), Box<dyn Error>> {
     })
     .map_err(|error| format!("staging failed: {error}"))?;
     println!(
-        "{{\"root\":{},\"files\":{},\"nodeBinaries\":{}}}",
-        serde_json_string(&report.root),
-        serde_json_string_array(&report.files),
-        serde_json_string_array(&report.node_binaries),
+        "{}",
+        serde_json::json!({
+            "root": report.root,
+            "files": report.files,
+            "nodeBinaries": report.node_binaries,
+        })
     );
     Ok(())
 }
 
-#[cfg(feature = "providers")]
 fn run_provider(options: ProviderOptions) -> Result<(), Box<dyn Error>> {
     use tiktools_plugin_api::{NativeLibProvider, PluginManifest};
     use tiktools_plugin_sdk::native_providers::{
@@ -187,12 +170,7 @@ fn run_provider(options: ProviderOptions) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[cfg(not(feature = "providers"))]
-fn run_provider(_options: ProviderOptions) -> Result<(), Box<dyn Error>> {
-    Err("provider mode needs the providers feature (rebuild with --features providers)".into())
-}
-
-fn parse_args() -> Result<Option<Mode>, Box<dyn Error>> {
+fn parse_args(args: Vec<String>) -> Result<Option<Mode>, Box<dyn Error>> {
     let mut package = None;
     let mut source = None;
     let mut plugin_dir = None;
@@ -206,7 +184,7 @@ fn parse_args() -> Result<Option<Mode>, Box<dyn Error>> {
     let mut work_dir = None;
     let mut registry = None;
     let mut github_base = None;
-    let mut args = env::args().skip(1);
+    let mut args = args.into_iter();
     while let Some(argument) = args.next() {
         if argument == "--help" || argument == "-h" {
             return Ok(None);
@@ -277,28 +255,4 @@ fn parse_args() -> Result<Option<Mode>, Box<dyn Error>> {
         }
         _ => Err(USAGE.into()),
     }
-}
-
-fn serde_json_string(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len() + 2);
-    escaped.push('"');
-    for c in value.chars() {
-        match c {
-            '"' => escaped.push_str("\\\""),
-            '\\' => escaped.push_str("\\\\"),
-            '\n' => escaped.push_str("\\n"),
-            c if c.is_control() => escaped.push_str(&format!("\\u{:04x}", c as u32)),
-            c => escaped.push(c),
-        }
-    }
-    escaped.push('"');
-    escaped
-}
-
-fn serde_json_string_array(values: &[String]) -> String {
-    let items: Vec<String> = values
-        .iter()
-        .map(|value| serde_json_string(value))
-        .collect();
-    format!("[{}]", items.join(","))
 }

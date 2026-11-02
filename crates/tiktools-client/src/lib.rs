@@ -21,10 +21,12 @@ pub mod gifts;
 pub mod globals;
 pub mod live;
 pub mod media;
+pub mod packages;
 pub mod plugins;
 pub mod points;
 pub mod processors;
 pub mod rankings;
+pub mod registry;
 pub mod rpc;
 pub mod settings;
 pub mod system;
@@ -121,9 +123,11 @@ impl TikToolsClient {
             globals::METHODS,
             live::METHODS,
             media::METHODS,
+            packages::METHODS,
             plugins::METHODS,
             points::METHODS,
             rankings::METHODS,
+            registry::METHODS,
             processors::METHODS,
             rpc::METHODS,
             settings::METHODS,

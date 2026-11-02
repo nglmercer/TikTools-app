@@ -5,19 +5,22 @@ import { useRoute, useRouter } from 'vue-router';
 import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
 import LanguageSelect from '@/features/change-language/ui/LanguageSelect.vue';
 import RuntimeGlobalsEditor from '@/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
+import PluginSourcesEditor from '@/features/manage-plugin-sources/ui/PluginSourcesEditor.vue';
 import type { Locale } from '@/shared/i18n/i18n.ts';
 import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
 import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconLink from '@/shared/ui/icon/icons/IconLink.vue';
+import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import BaseList from '@/shared/ui/list/BaseList.vue';
 
-type SettingsSection = 'general' | 'globals';
+type SettingsSection = 'general' | 'globals' | 'plugins';
 
 const sections: ReadonlyArray<{ id: SettingsSection; icon: Component }> = [
   { id: 'general', icon: markRaw(IconGear) },
   { id: 'globals', icon: markRaw(IconLink) },
+  { id: 'plugins', icon: markRaw(IconPuzzle) },
 ];
 
 const { t } = useI18n();
@@ -71,6 +74,7 @@ const locale = computed<Locale>({
           </BaseFormGrid>
         </BaseGroupBox>
       </template>
+      <PluginSourcesEditor v-else-if="section === 'plugins'" />
       <BaseGroupBox
         v-else
         :title="t('globals.title')"

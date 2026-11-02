@@ -22,10 +22,19 @@ const USAGE: &str = "\
 usage: tiktools [--json] [--standalone] <command> [args]
 
 commands:
-  plugin list | get <id> | install <path> [--replace] | uninstall <id>
+  plugin list | get <id> | install <file.plugin> [--replace] | uninstall <id> [--purge]
+         | install <id[@version]|registry:id|https-url> [--yes] [--allow-unsigned] [--no-wait]
+         | search <query> [--category c] [--registry r] [--page N] | inspect <spec>
+         | outdated | update <id> [--version v] [--yes] | update --all [--yes]
+         | rollback <id> [version] | versions <id> | pin <id> | unpin <id>
+         | policy <id> [--channel stable|beta] [--auto off|notify|patch|minor]
+         | jobs | job <job-id> | cancel <job-id>
          | enable <id> | disable <id> | start <id> | stop <id>
          | settings get <id> | settings set <id> k=v... | settings reset <id>
          | health <id> | options <action-type/field> | action <type> [--config json] [--live]
+  registry list | root <url> | add <name> <url> [--scope acme.*]... [--priority N] [--yes] [--unverified]
+           | remove <name> | enable <name> | disable <name> | refresh [name]
+           | package <id> [--registry r] | defaults
   processor list | status | test <plugin-id> <processor-id> [event-json]
   live connect --unique-id <id> --session-cookie <cookie> [--room-id <id>]
        | pick --session-cookie <cookie> | disconnect | status

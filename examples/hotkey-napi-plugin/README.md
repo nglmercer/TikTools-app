@@ -48,7 +48,7 @@ Stage the native package from a local rdev-node checkout (preferred
 for local iteration on host builds):
 
 ```bash
-cargo run -p tiktools-plugin-sdk --bin tiktools-plugin-stage-native -- \
+cargo run -p tiktools-plugin-devkit --bin tiktools-plugin-stage-native -- \
   --package rdev-node \
   --source ../rdev-node \
   --plugin-dir examples/hotkey-napi-plugin \
@@ -60,7 +60,7 @@ for any target — this is also what the release and cross-target builds
 use):
 
 ```bash
-cargo run -p tiktools-plugin-sdk --features providers --bin tiktools-plugin-stage-native -- \
+cargo run -p tiktools-plugin-devkit --bin tiktools-plugin-stage-native -- \
   --provider all \
   --manifest examples/hotkey-napi-plugin/plugin.json \
   --plugin-dir examples/hotkey-napi-plugin \
@@ -72,7 +72,7 @@ Re-pin the lockfile after bumping a `nativeLibs` version (review the
 diff: it is the trust moment):
 
 ```bash
-cargo run -p tiktools-plugin-sdk --features providers --bin tiktools-plugin-stage-native -- \
+cargo run -p tiktools-plugin-devkit --bin tiktools-plugin-stage-native -- \
   --provider all \
   --manifest examples/hotkey-napi-plugin/plugin.json \
   --pin

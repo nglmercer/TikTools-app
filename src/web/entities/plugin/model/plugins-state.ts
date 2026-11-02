@@ -9,10 +9,6 @@ import type {
   HostMessage,
   PluginSettingValues,
 } from '../../../../shared/messages.ts';
-import {
-  createInitialPluginInstallState,
-  type PluginInstallState,
-} from '@/entities/plugin/lib/plugin-install.ts';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import type { PluginSettingsState } from '@/types.ts';
@@ -61,9 +57,6 @@ export interface PluginsCallbacks {
   translate: (key: string) => string;
   refreshBehavior: () => Promise<void>;
   reportError: (message: string) => void;
-  pickPluginPackage: (
-    onSelected: (path: string | null, pickerError?: string) => void,
-  ) => void;
 }
 
 export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) {
@@ -79,7 +72,6 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
   const pluginProvision = ref<Record<string, PluginCredentialState>>(
     {},
   );
-  const pluginInstallState = ref<PluginInstallState>(createInitialPluginInstallState());
   const pluginProgress = ref<Extract<HostMessage, { type: 'plugin-progress' }> | null>(null);
   let pluginProgressTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -179,6 +171,7 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
   });
   for (const topic of [
     'plugin.installed',
+    'plugin.updated',
     'plugin.uninstalled',
     'plugin.started',
     'plugin.stopped',
@@ -335,86 +328,12 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
     void mutateInstallState('plugins.install.set', { pluginId: id, installed });
   };
 
-  const handleUninstallPlugin = (id: string): void => {
-    void mutateInstallState('plugins.uninstall', { pluginId: id });
+  const handleUninstallPlugin = (id: string, purgeData = false): void => {
+    void mutateInstallState('plugins.uninstall', { pluginId: id, purgeData });
   };
 
   const handleSetPluginEnabled = (id: string, enabled: boolean): void => {
     void mutateInstallState(enabled ? 'plugins.enable' : 'plugins.disable', { pluginId: id });
-  };
-
-  const sendInstallPackage = (path: string, replaceExisting: boolean): void => {
-    pluginInstallState.value = {
-      installing: true,
-      error: '',
-      success: '',
-      pendingPath: path,
-      needsReplace: false,
-    };
-    void control
-      .call('plugins.install', { path, replaceExisting })
-      .then(() => {
-        if (disposed) return;
-        pluginInstallState.value = {
-          installing: false,
-          error: '',
-          success: callbacks.translate('plugins.messages.installSuccess'),
-          pendingPath: '',
-          needsReplace: false,
-        };
-        void callbacks.refreshBehavior();
-      })
-      .catch((failure: unknown) => {
-        if (disposed) return;
-        const message = errorMessage(failure);
-        if (/already installed/i.test(message)) {
-          pluginInstallState.value = {
-            ...pluginInstallState.value,
-            installing: false,
-            success: '',
-            error: callbacks.translate('plugins.messages.replaceConfirm'),
-            needsReplace: true,
-          };
-          return;
-        }
-        pluginInstallState.value = {
-          installing: false,
-          error: message || callbacks.translate('plugins.messages.installFailed'),
-          success: '',
-          pendingPath: '',
-          needsReplace: false,
-        };
-      });
-  };
-
-  const handleInstallPlugin = (): void => {
-    if (pluginInstallState.value.installing) return;
-    pluginInstallState.value = createInitialPluginInstallState();
-    callbacks.pickPluginPackage((path, pickerError) => {
-      if (disposed) return;
-      if (pickerError) {
-        pluginInstallState.value = {
-          installing: false,
-          error: pickerError,
-          success: '',
-          pendingPath: '',
-          needsReplace: false,
-        };
-        return;
-      }
-      if (!path) return;
-      sendInstallPackage(path, false);
-    });
-  };
-
-  const handleConfirmPluginReplace = (): void => {
-    const pending = pluginInstallState.value.pendingPath;
-    if (!pending || pluginInstallState.value.installing) return;
-    sendInstallPackage(pending, true);
-  };
-
-  const handleCancelPluginReplace = (): void => {
-    pluginInstallState.value = createInitialPluginInstallState();
   };
 
   const dispose = (): void => {
@@ -434,7 +353,6 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
     actionOptionSelected,
     pluginConnections,
     pluginProvision,
-    pluginInstallState,
     pluginProgress,
     dismissPluginProgress,
     executeAction,
@@ -447,8 +365,5 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
     handleSetPluginInstalled,
     handleUninstallPlugin,
     handleSetPluginEnabled,
-    handleInstallPlugin,
-    handleConfirmPluginReplace,
-    handleCancelPluginReplace,
   };
 }

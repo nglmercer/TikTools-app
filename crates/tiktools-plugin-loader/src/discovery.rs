@@ -35,6 +35,9 @@ pub(crate) fn read_discovered_plugin(
     } else if !manifest.target_matches_current_platform() {
         available = false;
         reason = Some("plugin has no build for this platform".to_owned());
+    } else if let Some(mismatch) = host_version_mismatch(&manifest) {
+        available = false;
+        reason = Some(mismatch);
     } else if cfg!(target_os = "android")
         && (manifest.runtime == PluginRuntimeKind::Native || !manifest.native_addons.is_empty())
     {
@@ -84,6 +87,17 @@ pub(crate) fn read_discovered_plugin(
         available,
         reason,
         running: false,
+    })
+}
+
+fn host_version_mismatch(manifest: &PluginManifest) -> Option<String> {
+    let requirement = manifest.metadata.host_requirement()?;
+    let host = semver::Version::parse(env!("CARGO_PKG_VERSION")).ok()?;
+    (!requirement.matches(&host)).then(|| {
+        format!(
+            "plugin requires TikTools {} (this host is {host})",
+            manifest.metadata.engine.as_deref().unwrap_or_default()
+        )
     })
 }
 

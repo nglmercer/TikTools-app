@@ -19,9 +19,7 @@ mod validation;
 pub type JsonObject = BTreeMap<String, Value>;
 
 pub use host::{ConnectionStatus, ErrorPhase, HostMessage, PluginProgressState};
-pub use install::{
-    classify_plugin_install_error, PluginInstallErrorCode, MAX_PLUGIN_PACKAGE_PATH_LEN,
-};
+pub use install::{PluginInstallErrorCode, MAX_PLUGIN_PACKAGE_PATH_LEN};
 pub use page::PageMessage;
 pub use points::{PartialPointsConfig, PointsConfig};
 pub use validation::IpcMessageError;

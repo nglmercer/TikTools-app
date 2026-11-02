@@ -3,6 +3,7 @@ use serde_json::{Map, Value};
 use std::collections::BTreeSet;
 
 use super::{
+    metadata::{parse_version, PackageMetadata},
     types::{
         NativeAddonDeclaration, NativeLibDeclaration, NativeLibProvider, PluginManifest,
         PluginRuntimeKind, PluginSecurityModel, PluginTrust,
@@ -190,6 +191,7 @@ impl PluginManifest {
         if !native_libs.is_empty() && runtime != PluginRuntimeKind::NapiVm {
             return Err(ManifestError::InvalidField("nativeLibs"));
         }
+        let metadata = PackageMetadata::parse(object, &id)?;
 
         Ok(Self {
             schema_version,
@@ -221,7 +223,12 @@ impl PluginManifest {
             ui,
             native_addons,
             native_libs,
+            metadata,
         })
+    }
+
+    pub fn semver(&self) -> Option<semver::Version> {
+        parse_version(&self.version)
     }
 
     pub fn validate_compatibility(&self) -> Result<(), ManifestError> {

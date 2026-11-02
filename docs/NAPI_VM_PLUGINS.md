@@ -224,7 +224,7 @@ Content hashes live in the committed `native-libs.lock.json` next to
 `plugin.json`, written by the staging tool's `--pin` mode:
 
 ```bash
-cargo run -p tiktools-plugin-sdk --features providers \
+cargo run -p tiktools-plugin-devkit \
   --bin tiktools-plugin-stage-native -- \
   --provider all --manifest my-plugin/plugin.json --pin
 ```
@@ -239,7 +239,7 @@ missing pin, or tampered bytes all fail the fetch.
 ### Staging native packages
 
 Declared package roots are populated by the shared
-`tiktools-plugin-stage-native` tool (`crates/tiktools-plugin-sdk`),
+`tiktools-plugin-stage-native` tool (`crates/tiktools-plugin-devkit`, also `tiktools-plugin stage-native`),
 which validates the name, requires at least one `.node` artifact, and
 copies `package.json` plus the artifacts into
 `<plugin>/<root>`. Every flow stages through that one binary:

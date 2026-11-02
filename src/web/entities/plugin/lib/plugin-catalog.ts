@@ -2,7 +2,7 @@ import type { ActionTypeDefinition, LiveAction, PluginDescriptor, PluginStatus }
 
 export const MAX_PLUGIN_TAGS = 4;
 
-export type PluginCatalogTab = 'installed' | 'available';
+export type PluginCatalogTab = 'installed' | 'browse' | 'updates';
 
 type Localize = (value: unknown) => string;
 

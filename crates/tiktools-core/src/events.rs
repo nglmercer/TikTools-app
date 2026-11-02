@@ -34,6 +34,16 @@ pub enum DomainEvent {
     },
     #[serde(rename = "plugin.settings-changed", rename_all = "camelCase")]
     PluginSettingsChanged { plugin_id: String },
+    #[serde(rename = "plugin.updated", rename_all = "camelCase")]
+    PluginUpdated {
+        plugin_id: String,
+        from_version: Option<String>,
+        to_version: String,
+    },
+    #[serde(rename = "plugin.job", rename_all = "camelCase")]
+    PluginJob { job: Value },
+    #[serde(rename = "plugin.updates", rename_all = "camelCase")]
+    PluginUpdates { report: Value },
     /// Validated spontaneous plugin event (hotkeys, timers, watchers),
     /// published immediately after poll/validation and before automation
     /// enrichment/execution, so control-plane subscribers observe raw
@@ -170,6 +180,9 @@ impl DomainEvent {
             Self::PluginStopped { .. } => "plugin.stopped",
             Self::PluginProgress { .. } => "plugin.progress",
             Self::PluginSettingsChanged { .. } => "plugin.settings-changed",
+            Self::PluginUpdated { .. } => "plugin.updated",
+            Self::PluginJob { .. } => "plugin.job",
+            Self::PluginUpdates { .. } => "plugin.updates",
             Self::PluginEvent { .. } => "plugin.event",
             Self::PluginStatus { .. } => "plugin.status",
             Self::AutomationRunCompleted { .. } => "automation.run.completed",
@@ -727,6 +740,32 @@ mod tests {
                 |data| assert_eq!(data["pluginId"], "demo"),
             ),
             (
+                DomainEvent::PluginUpdated {
+                    plugin_id: "demo".to_owned(),
+                    from_version: Some("1.0.0".to_owned()),
+                    to_version: "1.1.0".to_owned(),
+                },
+                "plugin.updated",
+                |data| {
+                    assert_eq!(data["pluginId"], "demo");
+                    assert_eq!(data["toVersion"], "1.1.0");
+                },
+            ),
+            (
+                DomainEvent::PluginJob {
+                    job: serde_json::json!({"id": "job-1", "status": "running"}),
+                },
+                "plugin.job",
+                |data| assert_eq!(data["job"]["id"], "job-1"),
+            ),
+            (
+                DomainEvent::PluginUpdates {
+                    report: serde_json::json!({"updates": []}),
+                },
+                "plugin.updates",
+                |data| assert!(data["report"]["updates"].is_array()),
+            ),
+            (
                 DomainEvent::PluginEvent {
                     plugin_id: "demo".to_owned(),
                     event_type: "hotkey.pressed".to_owned(),
@@ -908,7 +947,7 @@ mod tests {
         let cases = all_variant_cases();
         assert_eq!(
             cases.len(),
-            25,
+            28,
             "a DomainEvent variant is missing test coverage"
         );
         for (event, topic, check_data) in &cases {
