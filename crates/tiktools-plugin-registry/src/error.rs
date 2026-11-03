@@ -9,6 +9,8 @@ use crate::Rejection;
 pub enum RegistryError {
     #[error("registry `{0}` is not configured")]
     UnknownRegistry(String),
+    #[error("cloud registry at {origin} has no published generation yet")]
+    NoPublishedGeneration { origin: String },
     #[error("registry `{0}` already exists")]
     DuplicateRegistry(String),
     #[error("registry name `{0}` is invalid")]
