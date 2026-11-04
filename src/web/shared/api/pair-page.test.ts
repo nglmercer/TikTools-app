@@ -36,7 +36,7 @@ test('requesting a new code uses POST, clears old input and waits before another
   expect(ui.renew.disabled).toBe(true);
   expect(request).toHaveBeenCalledExactlyOnceWith('/__local/pair/renew', { method: 'POST' });
   expect(ui.input.value).toBe('');
-  await vi.waitFor(() => expect(ui.result.textContent).toContain('New code printed in Termux'));
+  await vi.waitFor(() => expect(ui.result.textContent).toContain('New code printed in the terminal'));
   expect(ui.result.dataset.kind).toBe('success');
   ui.renew.click(); expect(request).toHaveBeenCalledTimes(1);
   await vi.advanceTimersByTimeAsync(30_000); expect(ui.renew.disabled).toBe(false);

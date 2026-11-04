@@ -877,7 +877,7 @@ const PAIR_SCRIPT: &str = r#"(() => {
       const response = await fetch('/__local/pair', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
       if (response.ok) { location.replace('/'); return; }
       show('Incorrect or expired code. Try again or request a new code.');
-    } catch { show('Adapter unavailable. Check Termux.'); }
+    } catch { show('Adapter unavailable. Check the terminal where the adapter is running.'); }
   };
   form.addEventListener('submit', event => {
     event.preventDefault();
@@ -898,20 +898,20 @@ const PAIR_SCRIPT: &str = r#"(() => {
       const response = await fetch('/__local/pair/renew', { method: 'POST' });
       const body = await response.json();
       if (response.ok) {
-        show('New code printed in Termux. Enter it here within five minutes.', 'success');
+        show('New code printed in the terminal. Enter it here within five minutes.', 'success');
         cooldown(30);
       } else if (body.error === 'cooldown') {
         const seconds = Number(body.retryAfterSeconds) || 30;
         show(`Please wait ${seconds} seconds before requesting another code.`, 'info');
         cooldown(seconds);
       } else if (body.error === 'pairing_locked') {
-        show('Too many attempts. Restart the adapter in Termux to pair again.');
+        show('Too many attempts. Restart the adapter to pair again.');
       } else if (body.error === 'already_paired') {
-        show('Already paired. Reload this page, or restart the adapter in Termux to pair another browser.');
+        show('Already paired. Reload this page, or restart the adapter to pair another browser.');
       } else {
-        renew.disabled = false; show('Could not request a code. Check Termux.');
+        renew.disabled = false; show('Could not request a code. Check the terminal where the adapter is running.');
       }
-    } catch { renew.disabled = false; show('Adapter unavailable. Check Termux.'); }
+    } catch { renew.disabled = false; show('Adapter unavailable. Check the terminal where the adapter is running.'); }
   });
 })();"#;
 
