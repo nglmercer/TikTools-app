@@ -1,6 +1,8 @@
 pub mod analytics;
 pub mod app;
 pub mod automation;
+#[cfg(feature = "cloud-auth")]
+pub mod cloud;
 pub mod competitions;
 pub mod creators;
 pub mod gifts;

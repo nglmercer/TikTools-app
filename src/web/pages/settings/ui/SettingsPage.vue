@@ -3,6 +3,7 @@ import { computed, markRaw, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
+import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
 import LanguageSelect from '@/features/change-language/ui/LanguageSelect.vue';
 import RuntimeGlobalsEditor from '@/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
 import PluginSourcesEditor from '@/features/manage-plugin-sources/ui/PluginSourcesEditor.vue';
@@ -73,6 +74,7 @@ const locale = computed<Locale>({
             </BaseFormRow>
           </BaseFormGrid>
         </BaseGroupBox>
+        <CloudAccountEditor />
       </template>
       <PluginSourcesEditor v-else-if="section === 'plugins'" />
       <BaseGroupBox

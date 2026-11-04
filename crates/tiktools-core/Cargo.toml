@@ -22,6 +22,14 @@ plugin-install = [
     "dep:tiktools-plugin-registry",
     "dep:semver",
 ]
+# Optional Cloud account (system-browser login, OS keychain tokens).
+# Opt-in only: nothing here runs without an explicit TIKTOOLS_CLOUD_ORIGIN,
+# and every local feature keeps working without it.
+cloud-auth = [
+    "dep:tiktools-cloud-auth",
+    "tiktools-cloud-auth/system-browser",
+    "tiktools-cloud-auth/os-keychain",
+]
 persistence = ["dep:rusqlite"]
 http = ["dep:reqwest", "tiktools-plugin-sdk/http-client"]
 tiktok-network = ["dep:tokio-tungstenite"]
@@ -39,6 +47,7 @@ tiktools-tiktok = { path = "../tiktools-tiktok", optional = true }
 tiktools-plugin-installer = { path = "../tiktools-plugin-installer", optional = true }
 tiktools-plugin-package = { path = "../tiktools-plugin-package", optional = true }
 tiktools-plugin-registry = { path = "../tiktools-plugin-registry", optional = true }
+tiktools-cloud-auth = { path = "../tiktools-cloud-auth", version = "0.3.3", optional = true }
 semver = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true

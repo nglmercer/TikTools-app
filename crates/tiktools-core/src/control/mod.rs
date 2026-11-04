@@ -9,6 +9,8 @@
 
 mod analytics;
 mod automation;
+#[cfg(feature = "cloud-auth")]
+mod cloud_account;
 mod competitions;
 #[cfg(test)]
 pub(crate) use competitions::bound_ranking_presentation;
@@ -32,6 +34,8 @@ pub use analytics::GiftDebugResult;
 pub use automation::{
     AutomationEnablementMiss, AutomationKind, AutomationSetEnablementResult, ScriptAnalysisResult,
 };
+#[cfg(feature = "cloud-auth")]
+pub use cloud_account::CloudLoginUrl;
 #[cfg(any(test, feature = "native-tiktok"))]
 pub(crate) use helpers::check_session_cookie_len;
 pub(crate) use helpers::{clean_plugin_id, clean_record_id, fresh_record_id};

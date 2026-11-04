@@ -11,8 +11,9 @@ name = "tiktools"
 path = "src/main.rs"
 
 [features]
-default = []
+default = ["cloud-auth"]
 local-web = ["dep:axum", "dep:rand"]
+cloud-auth = ["tiktools-core/cloud-auth", "tiktools-control-api/cloud-auth"]
 
 [dependencies]
 tiktools-client = { path = "../tiktools-client" }

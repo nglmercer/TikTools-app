@@ -1,0 +1,31 @@
+[package]
+name = "tiktools-cloud-auth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Optional Cloud account for TikTools Desktop: system-browser login, OS keychain tokens, session restore"
+publish = false
+
+[features]
+default = []
+system-browser = ["dep:open", "cloud-client/system-browser"]
+os-keychain = ["cloud-client/os-keychain"]
+
+[dependencies.open]
+version = "5"
+optional = true
+
+[dependencies]
+cloud-client = { path = "../cloud-client", version = "0.1.0" }
+schemars.workspace = true
+secrecy = "0.10"
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true }
+url.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

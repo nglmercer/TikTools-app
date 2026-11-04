@@ -9,6 +9,8 @@
 pub mod api;
 pub mod args;
 pub mod automation;
+#[cfg(feature = "cloud-auth")]
+pub mod cloud;
 pub mod competitions;
 pub mod globals;
 pub mod live;
@@ -52,6 +54,8 @@ impl From<ClientError> for CommandError {
 /// typed call.
 pub enum Plan {
     Plugins(plugins::Command),
+    #[cfg(feature = "cloud-auth")]
+    Cloud(cloud::Command),
     Registry(packages::Command),
     Processors(processors::Command),
     Live(live::Command),
@@ -65,7 +69,10 @@ pub enum Plan {
     System(system::Command),
     Template(template::Command),
     Api(api::Command),
-    Rpc { method: String, params: Value },
+    Rpc {
+        method: String,
+        params: Value,
+    },
 }
 
 /// Display-ready execution result: the render key for human output, the
@@ -129,27 +136,36 @@ pub fn redact_output(value: Value, secrets_visible: bool) -> Value {
 pub fn parse_command(args: &[String]) -> Result<Plan, CommandError> {
     let head = args[0].as_str();
     let rest = &args[1..];
-    let plan = match head {
-        "plugin" => Plan::Plugins(plugins::parse(rest)?),
-        "registry" => Plan::Registry(packages::parse_registry(rest)?),
-        "processor" | "processors" => Plan::Processors(processors::parse(rest)?),
-        "live" => Plan::Live(live::parse(rest)?),
-        "points" => Plan::Points(points::parse(rest)?),
-        "ranking" => Plan::Rankings(rankings::parse(rest)?),
-        "competition" => Plan::Competitions(competitions::parse(rest)?),
-        "automation" => Plan::Automation(automation::parse(rest)?),
-        "globals" => Plan::Globals(globals::parse(rest)?),
-        "workflow" => Plan::Workflows(workflows::parse(rest)?),
-        "media" => Plan::Media(media::parse(rest)?),
-        "system" => Plan::System(system::parse(rest)?),
-        "template" => Plan::Template(template::parse(rest)?),
-        "api" => Plan::Api(api::parse(rest)?),
-        "rpc" => raw::parse_rpc(rest)?,
-        // `serve_plan` handles every `host` form before parsing commands;
-        // reaching here means host was misrouted, so report its usage.
-        "host" => return Err("host --stdio [--events] | host --ipc".to_owned().into()),
-        other => return Err(format!("unknown command `{other}`").into()),
-    };
+    let plan =
+        match head {
+            "plugin" => Plan::Plugins(plugins::parse(rest)?),
+            #[cfg(feature = "cloud-auth")]
+            "cloud" => Plan::Cloud(cloud::parse(rest)?),
+            #[cfg(not(feature = "cloud-auth"))]
+            "cloud" => return Err(
+                "cloud commands need the `cloud-auth` feature; rebuild with --features cloud-auth"
+                    .to_owned()
+                    .into(),
+            ),
+            "registry" => Plan::Registry(packages::parse_registry(rest)?),
+            "processor" | "processors" => Plan::Processors(processors::parse(rest)?),
+            "live" => Plan::Live(live::parse(rest)?),
+            "points" => Plan::Points(points::parse(rest)?),
+            "ranking" => Plan::Rankings(rankings::parse(rest)?),
+            "competition" => Plan::Competitions(competitions::parse(rest)?),
+            "automation" => Plan::Automation(automation::parse(rest)?),
+            "globals" => Plan::Globals(globals::parse(rest)?),
+            "workflow" => Plan::Workflows(workflows::parse(rest)?),
+            "media" => Plan::Media(media::parse(rest)?),
+            "system" => Plan::System(system::parse(rest)?),
+            "template" => Plan::Template(template::parse(rest)?),
+            "api" => Plan::Api(api::parse(rest)?),
+            "rpc" => raw::parse_rpc(rest)?,
+            // `serve_plan` handles every `host` form before parsing commands;
+            // reaching here means host was misrouted, so report its usage.
+            "host" => return Err("host --stdio [--events] | host --ipc".to_owned().into()),
+            other => return Err(format!("unknown command `{other}`").into()),
+        };
     Ok(plan)
 }
 
@@ -160,6 +176,8 @@ pub async fn execute_plan(client: &TikToolsClient, plan: Plan) -> Result<Output,
             "plugin",
             plugins::execute(client, command).await?,
         )),
+        #[cfg(feature = "cloud-auth")]
+        Plan::Cloud(command) => Ok(Output::new("cloud", cloud::execute(client, command).await?)),
         Plan::Registry(command) => Ok(Output::new(
             "registry",
             packages::execute(client, command).await?,

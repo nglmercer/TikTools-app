@@ -7,12 +7,13 @@ rust-version.workspace = true
 description = "Thin Winit/Wry desktop host for TikTools"
 
 [features]
-default = ["persistence", "plugin-install", "http", "devtools"]
+default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth"]
 devtools = ["wry/devtools"]
 live-benchmark = ["tiktools-core/live-benchmark"]
 plugin-install = ["tiktools-core/plugin-install"]
 persistence = ["tiktools-core/persistence"]
 http = ["tiktools-core/http"]
+cloud-auth = ["tiktools-core/cloud-auth", "tiktools-control-api/cloud-auth"]
 
 [dependencies]
 tiktools-core = { path = "../tiktools-core", features = ["native-tiktok"] }
