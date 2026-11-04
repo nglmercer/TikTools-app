@@ -1,16 +1,26 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
+import { useSyncStore } from '@/entities/cloud-sync/model/sync-store.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
-import { useSyncStore } from '@/entities/cloud-sync/model/sync-store.ts';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 
 const { t } = useI18n();
+const account = useAccountStore();
 const sync = useSyncStore();
 
+const signedIn = computed(() => account.status?.state === 'signed-in');
 const status = computed(() => sync.status);
 const conflicts = computed(() => sync.status?.conflicts ?? []);
+const enabled = computed({
+  get: () => sync.status?.enabled ?? false,
+  set: (value: boolean) => {
+    void sync.setEnabled(value);
+  },
+});
 const lastSynced = computed(() => {
   const at = sync.status?.lastSyncedAt;
   if (at == null) return null;
@@ -18,12 +28,14 @@ const lastSynced = computed(() => {
 });
 
 onMounted(() => {
+  void account.refresh();
   void sync.refresh();
 });
 </script>
 
 <template>
   <BaseGroupBox
+    v-if="signedIn"
     :title="t('sync.group')"
     :description="t('sync.description')"
   >
@@ -37,23 +49,16 @@ onMounted(() => {
         v-if="sync.error"
         :title="sync.error"
       />
-      <template v-if="status != null && !status.enabled">
-        <p>{{ t('sync.disabled') }}</p>
-        <BaseButton
-          variant="primary"
-          :disabled="sync.working"
-          @click="sync.setEnabled(true)"
-        >
-          {{ t('sync.enable') }}
-        </BaseButton>
-      </template>
-      <template v-else-if="status != null">
+      <BaseSwitch
+        v-model="enabled"
+        :disabled="sync.working || status == null"
+      >
+        {{ t('sync.toggle') }}
+      </BaseSwitch>
+      <template v-if="status != null && enabled">
         <p>{{ t('sync.pending', { count: status.pending }) }}</p>
         <p v-if="lastSynced != null">
           {{ t('sync.lastSynced', { when: lastSynced }) }}
-        </p>
-        <p v-if="!status.signedIn">
-          {{ t('sync.signedOut') }}
         </p>
         <BaseAlert
           v-if="conflicts.length > 0"
@@ -87,13 +92,10 @@ onMounted(() => {
         >
           {{ t('sync.syncNow') }}
         </BaseButton>
-        <BaseButton
-          :disabled="sync.working"
-          @click="sync.setEnabled(false)"
-        >
-          {{ t('sync.disable') }}
-        </BaseButton>
       </template>
+      <p v-else-if="status != null">
+        {{ t('sync.disabled') }}
+      </p>
     </template>
   </BaseGroupBox>
 </template>
