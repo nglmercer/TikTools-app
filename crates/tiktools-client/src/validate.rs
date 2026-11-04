@@ -38,6 +38,13 @@ use tiktools_control_api::modules::points::{
     PointsViewerParams,
 };
 use tiktools_control_api::modules::processors::ProcessorTestParams;
+#[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::publisher::{
+    PublisherCreateParams, PublisherEnrollParams, PublisherIdParams, PublisherReleaseParams,
+    PublisherSubmitParams, PublisherUploadParams,
+};
+#[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::sync::SyncResolveParams;
 use tiktools_control_api::modules::rankings::{
     Definition, ExternalContribution, RankingId, RankingUpdate,
 };
@@ -329,6 +336,36 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "registry.search" => validate::<SearchQuery>(params),
         "registry.package" => validate::<RegistryPackageParams>(params),
         "registry.defaults.set" => validate::<RegistryDefaults>(params),
+        #[cfg(feature = "cloud-auth")]
+        "cloud.status"
+        | "cloud.login.begin"
+        | "cloud.login.open"
+        | "cloud.login.complete"
+        | "cloud.login.cancel"
+        | "cloud.restore"
+        | "cloud.logout" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "sync.status" | "sync.enable" | "sync.disable" | "sync.now" => {
+            validate::<Empty>(params)
+        }
+        #[cfg(feature = "cloud-auth")]
+        "sync.resolve" => validate::<SyncResolveParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "publisher.list" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "publisher.create" => validate::<PublisherCreateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "publisher.keys" => validate::<PublisherIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "publisher.keys.enroll" => validate::<PublisherEnrollParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "publisher.uploads.send" => validate::<PublisherUploadParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "publisher.releases.submit" => validate::<PublisherSubmitParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "publisher.releases.get" | "publisher.publication.request" => {
+            validate::<PublisherReleaseParams>(params)
+        }
         _ => Err(ClientError::new(
             "method_not_found",
             format!("unknown method `{method}`"),

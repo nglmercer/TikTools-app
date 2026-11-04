@@ -15,6 +15,8 @@
 pub mod analytics;
 pub mod app;
 pub mod automation;
+#[cfg(feature = "cloud-auth")]
+pub mod cloud;
 pub mod competitions;
 pub mod creators;
 pub mod gifts;
@@ -24,11 +26,15 @@ pub mod media;
 pub mod packages;
 pub mod plugins;
 pub mod points;
+#[cfg(feature = "cloud-auth")]
+pub mod publishers;
 pub mod processors;
 pub mod rankings;
 pub mod registry;
 pub mod rpc;
 pub mod settings;
+#[cfg(feature = "cloud-auth")]
+pub mod sync;
 pub mod system;
 pub mod ui;
 pub mod validate;
@@ -117,6 +123,8 @@ impl TikToolsClient {
             analytics::METHODS,
             app::METHODS,
             automation::METHODS,
+            #[cfg(feature = "cloud-auth")]
+            cloud::METHODS,
             creators::METHODS,
             competitions::METHODS,
             gifts::METHODS,
@@ -125,12 +133,16 @@ impl TikToolsClient {
             media::METHODS,
             packages::METHODS,
             plugins::METHODS,
+            #[cfg(feature = "cloud-auth")]
+            publishers::METHODS,
             points::METHODS,
             rankings::METHODS,
             registry::METHODS,
             processors::METHODS,
             rpc::METHODS,
             settings::METHODS,
+            #[cfg(feature = "cloud-auth")]
+            sync::METHODS,
             system::METHODS,
             ui::METHODS,
             widgets::METHODS,

@@ -10,9 +10,9 @@
 //! - Session tokens live in the OS credential store ([`OsTokenStore`]) or in
 //!   process memory for the current run only. They are never written to
 //!   files, logs, SQLite, or the frontend.
-//! - Only nonsecret state ([`AccountStatus`]: origin, account id, login
-//!   phase, persistence health, error text) crosses into control responses
-//!   and the UI.
+//! - Only nonsecret state ([`AccountStatus`]: origin, account id, verified
+//!   profile, login phase, persistence health, error text) crosses into
+//!   control responses and the UI.
 //! - Bearer credentials are used only on native API routes inside
 //!   `cloud-client`.
 
@@ -49,6 +49,33 @@ pub const LOGIN_TIMEOUT: Duration = Duration::from_secs(180);
 struct AccountSidecar {
     origin: String,
     account_id: String,
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    display_name: Option<String>,
+}
+
+/// Verified, nonsecret account profile from `/me`. Cached in memory after
+/// sign-in and in the sidecar across restarts; refreshed best-effort, so a
+/// signed-in status without a profile is still valid.
+#[derive(Debug, Clone, Default)]
+struct AccountProfile {
+    email: Option<String>,
+    display_name: Option<String>,
+}
+
+/// Opaque same-process bearer token. The inner secret is exposed only as a
+/// transient borrow for building an `Authorization` header; it is never
+/// persisted, logged, or serialized.
+#[derive(Debug, Clone)]
+pub struct NativeToken(String);
+
+impl NativeToken {
+    /// Transient borrow for one request. Callers must mark the header
+    /// sensitive and never store the result.
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Error)]
@@ -96,6 +123,7 @@ struct PendingLogin {
 struct Inner {
     origin: Option<String>,
     session: Option<Arc<Session>>,
+    profile: Option<AccountProfile>,
     pending: Option<PendingLogin>,
     cancel_tx: Option<oneshot::Sender<()>>,
     last_error: Option<String>,
@@ -117,6 +145,7 @@ impl CloudAuth {
             inner: Arc::new(Mutex::new(Inner {
                 origin,
                 session: None,
+                profile: None,
                 pending: None,
                 cancel_tx: None,
                 last_error: None,
@@ -154,16 +183,43 @@ impl CloudAuth {
                 .session
                 .as_ref()
                 .map(|session| session.account_id().to_owned()),
+            email: inner.profile.as_ref().and_then(|profile| profile.email.clone()),
+            display_name: inner
+                .profile
+                .as_ref()
+                .and_then(|profile| profile.display_name.clone()),
             persistence: self.store.persistence(),
             error: inner.last_error.clone(),
         }
     }
+
+    /// Best-effort profile refresh from the bounded `/me/export` snapshot.
+    /// Never fails sign-in: a missing or unreadable profile leaves the
+    /// cached (or absent) profile untouched.
+    async fn refresh_profile(session: &Session) -> Option<AccountProfile> {
+        let export = session.export_account().await.ok()?;
+        Some(AccountProfile {
+            email: Some(export.profile.email),
+            display_name: export.profile.name,
+        })
+    }
+
 
     /// The live native session, if signed in. Shares ownership so sync and
     /// other native callers reuse one session without re-authenticating;
     /// the token itself never leaves the [`Session`] handle.
     pub async fn session(&self) -> Option<Arc<Session>> {
         self.inner.lock().await.session.clone()
+    }
+
+    /// Bearer [REDACTED] for same-process native Cloud API calls only (e.g. the
+    /// publisher flow). The secret never leaves process memory: callers must
+    /// not persist, log, or forward it, and must mark auth headers sensitive.
+    pub async fn native_token(&self) -> Option<NativeToken> {
+        use secrecy::ExposeSecret;
+        let inner = self.inner.lock().await;
+        let token = inner.session.as_ref()?.token_for_keychain();
+        Some(NativeToken(token.expose_secret().to_owned()))
     }
 
     /// Non-blocking share of the live session, if signed in. Lock holds are
@@ -312,9 +368,22 @@ impl CloudAuth {
                 "saved account does not match the stored credential".to_owned(),
             ));
         }
+        // Prefer a fresh profile; fall back to the sidecar cache so an
+        // offline restore still shows the last known account details.
+        let profile = Self::refresh_profile(&session).await.or_else(|| {
+            if sidecar.email.is_none() && sidecar.display_name.is_none() {
+                None
+            } else {
+                Some(AccountProfile {
+                    email: sidecar.email.clone(),
+                    display_name: sidecar.display_name.clone(),
+                })
+            }
+        });
         let mut inner = self.inner.lock().await;
         inner.origin = Some(sidecar.origin);
         inner.session = Some(Arc::new(session));
+        inner.profile = profile;
         inner.last_error = None;
         drop(inner);
         Ok(self.status().await)
@@ -337,6 +406,7 @@ impl CloudAuth {
         let (origin, account_id, session) = {
             let mut inner = self.inner.lock().await;
             let session = inner.session.take();
+            inner.profile = None;
             inner.pending = None;
             inner.cancel_tx = None;
             inner.last_error = None;
@@ -408,9 +478,14 @@ impl CloudAuth {
             drop(inner);
             return Err(AuthError::StorageUnavailable);
         }
+        let profile = Self::refresh_profile(&session).await;
         let sidecar = AccountSidecar {
             origin: origin.clone(),
             account_id: account_id.clone(),
+            email: profile.as_ref().and_then(|profile| profile.email.clone()),
+            display_name: profile
+                .as_ref()
+                .and_then(|profile| profile.display_name.clone()),
         };
         if let Some(parent) = self.sidecar.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -430,6 +505,7 @@ impl CloudAuth {
         let mut inner = self.inner.lock().await;
         inner.origin = Some(origin);
         inner.session = Some(Arc::new(session));
+        inner.profile = profile;
         inner.last_error = None;
         drop(inner);
         Ok(self.status().await)

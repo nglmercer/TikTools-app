@@ -188,6 +188,34 @@ fn route(
                 serde_json::json!({"id": state.account_id, "email": "user@example.com"}),
             )
         }
+        ("GET", "/api/v1/native/me/export") => {
+            if state.expire_tokens || !state.tokens.contains(&bearer) {
+                return json(401, serde_json::json!({"error": "unauthorized"}));
+            }
+            json(
+                200,
+                serde_json::json!({
+                    "schemaVersion": 1,
+                    "profile": {
+                        "id": state.account_id,
+                        "email": "user@example.com",
+                        "name": "Test User",
+                    },
+                    "cloudRoles": [],
+                    "publisherMemberships": [],
+                    "publisherKeysRequested": [],
+                    "releasesSubmitted": [],
+                    "uploadsRequested": [],
+                    "reviewsRecorded": [],
+                    "publicationRequests": [],
+                    "ownershipTransfers": [],
+                    "auditEventsByActor": [],
+                    "yanksRecorded": [],
+                    "advisoriesRecorded": [],
+                    "sync": {"schemaVersion": 1, "cursor": 0, "records": []},
+                }),
+            )
+        }
         ("POST", "/api/v1/native/logout") => {
             if !state.tokens.contains(&bearer) {
                 return json(401, serde_json::json!({"error": "unauthorized"}));
@@ -263,6 +291,10 @@ async fn login_logout_round_trip() {
     assert_eq!(status.state, AccountState::SignedIn);
     assert_eq!(status.account_id.as_deref(), Some("user-1"));
     assert_eq!(status.persistence, Persistence::MemoryOnly);
+
+    // Sign-in resolves the verified profile best-effort from /me/export.
+    assert_eq!(status.email.as_deref(), Some("user@example.com"));
+    assert_eq!(status.display_name.as_deref(), Some("Test User"));
 
     // The sidecar remembers the account but never the token.
     let sidecar = fs::read_to_string(dir.join("cloud-account.json")).unwrap();

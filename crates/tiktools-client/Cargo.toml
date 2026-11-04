@@ -6,6 +6,16 @@ license.workspace = true
 rust-version.workspace = true
 description = "Typed Rust SDK over the TikTools control API (direct + IPC)"
 
+[features]
+# Full Cloud surface (account, sync, publisher) for hosts built with the
+# Cloud stack. Also enables the transport and packaging features the
+# publisher operations need from the control API.
+cloud-auth = [
+    "tiktools-control-api/cloud-auth",
+    "tiktools-control-api/http",
+    "tiktools-control-api/plugin-install",
+]
+
 [dependencies]
 tiktools-control-api = { path = "../tiktools-control-api" }
 serde.workspace = true

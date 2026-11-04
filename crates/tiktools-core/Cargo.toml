@@ -70,3 +70,7 @@ url = "2.5.8"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 arboard = { version = "3.7.0", default-features = false }
+
+[dev-dependencies]
+cloud-client = { path = "../cloud-client", version = "0.1.0" }
+secrecy = "0.10"

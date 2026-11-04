@@ -6,6 +6,8 @@ export interface AccountStatus {
   origin: string | null;
   state: AccountState;
   accountId?: string | null;
+  email?: string | null;
+  displayName?: string | null;
   persistence: AccountPersistence;
   error?: string | null;
 }

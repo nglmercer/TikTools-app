@@ -13,6 +13,8 @@ mod automation;
 mod cloud_account;
 #[cfg(feature = "cloud-auth")]
 mod cloud_sync;
+#[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
+mod cloud_publisher;
 mod competitions;
 #[cfg(test)]
 pub(crate) use competitions::bound_ranking_presentation;

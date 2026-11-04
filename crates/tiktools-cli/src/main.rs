@@ -69,6 +69,11 @@ commands:
   rpc --stdio [--events]        NDJSON request/response loop on stdio
   cloud status | login | logout | restore
                                 Cloud account (requires TIKTOOLS_CLOUD_ORIGIN)
+  publisher list | create <namespace> | keys <publisher-id>
+            | enroll <publisher-id> [--key-id <id>] | upload <publisher-id> <path>
+            | submit <upload-id> <key-id> <plugin-id> <version> [--target any]
+            | release <release-id> | publish <release-id>
+                                Cloud publisher flow (requires sign-in)
   host --stdio [--events]       headless host on stdio (streams events with --events)
   host --ipc                    headless host on local IPC (refuses when a host is running)
   web --assets <directory> [--port N]  local browser adapter (requires local-web feature)

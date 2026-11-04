@@ -30,6 +30,13 @@ pub struct AccountStatus {
     pub state: AccountState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
+    /// Verified account email from `/me`, when the sign-in resolved it.
+    /// Best-effort: a signed-in status without an email is still valid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    /// Verified display name from `/me`, when the provider supplies one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     pub persistence: Persistence,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,

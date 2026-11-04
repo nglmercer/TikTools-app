@@ -19,6 +19,8 @@ pub mod packages;
 pub mod plugins;
 pub mod points;
 pub mod processors;
+#[cfg(feature = "cloud-auth")]
+pub mod publishers;
 pub mod rankings;
 pub mod raw;
 pub mod system;
@@ -56,6 +58,8 @@ pub enum Plan {
     Plugins(plugins::Command),
     #[cfg(feature = "cloud-auth")]
     Cloud(cloud::Command),
+    #[cfg(feature = "cloud-auth")]
+    Publisher(publishers::Command),
     Registry(packages::Command),
     Processors(processors::Command),
     Live(live::Command),
@@ -147,6 +151,14 @@ pub fn parse_command(args: &[String]) -> Result<Plan, CommandError> {
                     .to_owned()
                     .into(),
             ),
+            #[cfg(feature = "cloud-auth")]
+            "publisher" => Plan::Publisher(publishers::parse(rest)?),
+            #[cfg(not(feature = "cloud-auth"))]
+            "publisher" => return Err(
+                "publisher commands need the `cloud-auth` feature; rebuild with --features cloud-auth"
+                    .to_owned()
+                    .into(),
+            ),
             "registry" => Plan::Registry(packages::parse_registry(rest)?),
             "processor" | "processors" => Plan::Processors(processors::parse(rest)?),
             "live" => Plan::Live(live::parse(rest)?),
@@ -178,6 +190,11 @@ pub async fn execute_plan(client: &TikToolsClient, plan: Plan) -> Result<Output,
         )),
         #[cfg(feature = "cloud-auth")]
         Plan::Cloud(command) => Ok(Output::new("cloud", cloud::execute(client, command).await?)),
+        #[cfg(feature = "cloud-auth")]
+        Plan::Publisher(command) => Ok(Output::new(
+            "publisher",
+            publishers::execute(client, command).await?,
+        )),
         Plan::Registry(command) => Ok(Output::new(
             "registry",
             packages::execute(client, command).await?,

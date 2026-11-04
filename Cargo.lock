@@ -6483,12 +6483,14 @@ name = "tiktools-core"
 version = "0.3.3"
 dependencies = [
  "arboard",
+ "cloud-client",
  "fastrand",
  "getrandom 0.4.3",
  "napi-vm",
  "reqwest 0.13.5",
  "rusqlite",
  "schemars",
+ "secrecy",
  "semver",
  "serde",
  "serde_json",

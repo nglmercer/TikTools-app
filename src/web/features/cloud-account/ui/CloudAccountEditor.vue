@@ -11,7 +11,13 @@ const account = useAccountStore();
 
 const state = computed(() => account.status?.state ?? null);
 const origin = computed(() => account.status?.origin ?? null);
-const accountId = computed(() => account.status?.accountId ?? null);
+const displayAccount = computed(
+  () =>
+    account.status?.displayName
+    ?? account.status?.email
+    ?? account.status?.accountId
+    ?? null,
+);
 const persistence = computed(() => account.status?.persistence ?? null);
 
 onMounted(() => {
@@ -37,7 +43,7 @@ onMounted(() => {
       />
       <template v-else-if="state === 'signed-in'">
         <p>
-          {{ t('account.signedInAs', { account: accountId }) }}
+          {{ t('account.signedInAs', { account: displayAccount }) }}
         </p>
         <p>
           {{ t('account.origin', { origin }) }}
