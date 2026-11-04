@@ -9,6 +9,13 @@ use tiktools_plugin_api::{
     AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
 };
 
+/// Serializes the cloud-sync tests below: they share one device directory
+/// through the process-global test home, and the opt-in file has no
+/// inter-test isolation. Async-aware on purpose: the guard is held across
+/// awaits for the whole test body.
+#[cfg(feature = "cloud-auth")]
+static SYNC_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// Isolates the test process data root. `AppCore::new` resolves
 /// every writable path from the environment, so tests that
 /// exercise the points store must not read or write the
@@ -2671,4 +2678,65 @@ async fn user_winner_action_is_queued_once_for_a_challenge() {
     );
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(feature = "cloud-auth")]
+#[tokio::test]
+async fn cloud_sync_enable_disable_round_trip() {
+    let _sync_guard = SYNC_TEST_LOCK.lock().await;
+    let _home = isolated_test_home();
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    // Self-setting first step: the opt-in file is shared process-wide, so
+    // no test may assume its pristine default.
+    let status = core.sync_set_enabled(false).unwrap();
+    assert!(!status.enabled);
+    assert!(!status.signed_in);
+    assert_eq!(status.pending, 0);
+    assert!(status.conflicts.is_empty());
+    let status = core.sync_set_enabled(true).unwrap();
+    assert!(status.enabled);
+    let status = core.sync_set_enabled(false).unwrap();
+    assert!(!status.enabled);
+    // The flag lives in a device file, so a fresh core on the same home
+    // observes the last choice.
+    let emitter = Arc::new(RecordingEmitter::default());
+    let restarted = Arc::new(AppCore::new(emitter));
+    assert!(!restarted.sync_status().await.unwrap().enabled);
+    core.shutdown().await;
+    restarted.shutdown().await;
+}
+
+#[cfg(feature = "cloud-auth")]
+#[tokio::test]
+async fn cloud_sync_without_sign_in_fails_closed() {
+    let _sync_guard = SYNC_TEST_LOCK.lock().await;
+    let _home = isolated_test_home();
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    core.sync_set_enabled(true).unwrap();
+    let error = core.sync_now().await.unwrap_err();
+    assert_eq!(error.code, "unavailable");
+    assert!(core.sync_status().await.unwrap().last_error.is_some());
+    core.shutdown().await;
+}
+
+#[cfg(feature = "cloud-auth")]
+#[tokio::test]
+async fn cloud_sync_remote_never_installs_or_stages() {
+    let _sync_guard = SYNC_TEST_LOCK.lock().await;
+    let _home = isolated_test_home();
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    core.sync_set_enabled(true).unwrap();
+    // Unknown plugin: skipped, not installed, and nothing staged.
+    let changed = core
+        .plugin_apply_remote_selection("acme.unknown", true)
+        .unwrap();
+    assert!(!changed);
+    assert!(core.plugin_get("acme.unknown").is_err());
+    let status = core.sync_status().await.unwrap();
+    assert_eq!(status.pending, 0);
+    assert!(status.conflicts.is_empty());
+    core.shutdown().await;
 }

@@ -19,6 +19,8 @@ pub mod rankings;
 pub mod registry;
 pub mod rpc;
 pub mod settings;
+#[cfg(feature = "cloud-auth")]
+pub mod sync;
 pub mod system;
 pub mod ui;
 pub mod widgets;

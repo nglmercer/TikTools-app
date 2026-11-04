@@ -95,7 +95,7 @@ struct PendingLogin {
 
 struct Inner {
     origin: Option<String>,
-    session: Option<Session>,
+    session: Option<Arc<Session>>,
     pending: Option<PendingLogin>,
     cancel_tx: Option<oneshot::Sender<()>>,
     last_error: Option<String>,
@@ -157,6 +157,30 @@ impl CloudAuth {
             persistence: self.store.persistence(),
             error: inner.last_error.clone(),
         }
+    }
+
+    /// The live native session, if signed in. Shares ownership so sync and
+    /// other native callers reuse one session without re-authenticating;
+    /// the token itself never leaves the [`Session`] handle.
+    pub async fn session(&self) -> Option<Arc<Session>> {
+        self.inner.lock().await.session.clone()
+    }
+
+    /// Non-blocking share of the live session, if signed in. Lock holds are
+    /// microsecond-scale (never across an await), so a missed lock just
+    /// means another task is mid-update; callers treat that as absent.
+    pub fn try_session(&self) -> Option<Arc<Session>> {
+        self.inner.try_lock().ok()?.session.clone()
+    }
+
+    /// Last signed-in `(origin, account_id)` from the nonsecret sidecar, if
+    /// any. Needs no live session, so offline staging can target the right
+    /// identity; the sync engine still re-validates on use.
+    pub fn last_identity(&self) -> Option<(String, String)> {
+        std::fs::read(&self.sidecar)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<AccountSidecar>(&bytes).ok())
+            .map(|sidecar| (sidecar.origin, sidecar.account_id))
     }
 
     /// Bind the loopback receiver first, then hand out the URL to open in
@@ -290,7 +314,7 @@ impl CloudAuth {
         }
         let mut inner = self.inner.lock().await;
         inner.origin = Some(sidecar.origin);
-        inner.session = Some(session);
+        inner.session = Some(Arc::new(session));
         inner.last_error = None;
         drop(inner);
         Ok(self.status().await)
@@ -405,7 +429,7 @@ impl CloudAuth {
         }
         let mut inner = self.inner.lock().await;
         inner.origin = Some(origin);
-        inner.session = Some(session);
+        inner.session = Some(Arc::new(session));
         inner.last_error = None;
         drop(inner);
         Ok(self.status().await)
