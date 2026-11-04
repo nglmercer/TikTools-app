@@ -24,6 +24,14 @@ pub struct RegistrySource {
     pub root_keys: Vec<PublicKey>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub builtin: bool,
+    /// Cloud origin (e.g. a RemakeBackend deployment) whose active snapshot
+    /// generation is discovered via `GET {origin}/api/v1/registry/current`.
+    /// When set, `url` is resolved to the immutable generation endpoint
+    /// `{origin}/api/v1/registry/generations/{n}/files` on every refresh, so
+    /// each operation is pinned to a single generation. Older configurations
+    /// without this field keep working unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cloud_origin: Option<String>,
 }
 
 fn enabled() -> bool {
@@ -46,6 +54,7 @@ impl RegistrySource {
             scopes: Vec::new(),
             root_keys: Vec::new(),
             builtin: false,
+            cloud_origin: None,
         })
     }
 
@@ -165,7 +174,18 @@ impl RegistriesConfig {
                 .find(|existing| existing.name == source.name)
             {
                 Some(existing) => {
-                    existing.url = source.url;
+                    if let Some(origin) = source.cloud_origin.clone() {
+                        // Keep a previously resolved generation endpoint instead
+                        // of resetting it to the bare origin; the next refresh
+                        // re-resolves the active generation anyway.
+                        if !crate::cloud::is_cloud_url(&existing.url, &origin) {
+                            existing.url = source.url;
+                        }
+                        existing.cloud_origin = Some(origin);
+                    } else {
+                        existing.url = source.url;
+                        existing.cloud_origin = None;
+                    }
                     existing.root_keys = source.root_keys;
                     existing.builtin = true;
                 }

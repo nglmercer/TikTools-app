@@ -16,7 +16,8 @@ use tiktools_plugin_package::{
     pack, sign_archive, KeyId, KeyRole, PackRequest, SigningKey, TrustStore, TrustedKey,
 };
 use tiktools_plugin_registry::{
-    Advisory, AdvisorySeverity, Downloader, IndexWriter, RegistryClient, RegistrySource,
+    cloud_source, Advisory, AdvisorySeverity, Downloader, IndexWriter, RegistryClient,
+    RegistrySource,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
@@ -919,6 +920,193 @@ async fn registry_loop_installs_by_id_and_reports_updates() {
             "stable",
             installer.host(),
             &job,
+            &AtomicBool::new(false),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, InstallErrorCode::NoCompatibleRelease);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cloud_registry_installs_verified_package_and_update() {
+    let root = TempDir::new("cloud-loop");
+    let root_key = SigningKey::generate(KeyId::parse("root-1").unwrap(), None).unwrap();
+    let index_key = SigningKey::generate(KeyId::parse("index-1").unwrap(), None).unwrap();
+    let publisher = publisher_key();
+    let origin = root.join("origin");
+    let gen1 = origin.join("api/v1/registry/generations/1/files");
+    let writer = IndexWriter::open(
+        &gen1,
+        "test",
+        Some(SigningKey::from_json(&index_key.to_json()).unwrap()),
+    );
+    writer
+        .init(
+            &root_key,
+            vec![
+                TrustedKey::new(index_key.public_key(), KeyRole::Index),
+                TrustedKey::new(publisher.public_key(), KeyRole::Publisher).publisher("acme"),
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+    writer
+        .add(
+            &signed_package(&root, &publisher, "acme.demo", "1.0.0"),
+            "stable",
+            None,
+        )
+        .unwrap();
+    fs::create_dir_all(origin.join("api/v1/registry")).unwrap();
+    fs::write(
+        origin.join("api/v1/registry/current"),
+        serde_json::json!({"generation": 1}).to_string(),
+    )
+    .unwrap();
+    let server = StaticServer::start(origin.clone()).await;
+
+    let trust = Arc::new(RwLock::new(TrustStore::new()));
+    let source = cloud_source("official", &server.base, vec![root_key.public_key()]).unwrap();
+    let registry = Arc::new(
+        RegistryClient::new(
+            root.join("store/registries"),
+            root.join("store/registries.json"),
+            vec![source],
+            trust.clone(),
+        )
+        .unwrap(),
+    );
+    let status = registry.refresh("official").await.unwrap();
+    assert!(status.verified, "{status:?}");
+    assert!(status.url.contains("/generations/1/files"), "{status:?}");
+    let sources = PackageSources::new(
+        registry.clone(),
+        Downloader::new(root.join("store/cache")).unwrap(),
+    );
+    let installer = installer_with(&root, trust);
+    let jobs = JobRegistry::new(None);
+    let job = jobs.start(JobKind::Install, None, Some("acme.demo".to_owned()));
+
+    let spec: PackageSpec = "official:acme.demo".parse().unwrap();
+    let resolved = sources
+        .fetch(
+            &spec,
+            "stable",
+            installer.host(),
+            &job,
+            &AtomicBool::new(false),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resolved.policy, SignaturePolicy::Require);
+    let prepared = installer
+        .prepare(&resolved.path, resolved.origin.clone(), resolved.policy)
+        .unwrap();
+    let preview = installer.preview(&prepared);
+    assert_eq!(preview.signature.status, SignatureStatus::Verified);
+    let outcome = installer
+        .commit(
+            &prepared,
+            &CommitOptions {
+                consent: Consent::Token(preview.consent_token),
+                policy: None,
+            },
+            &NoopHooks,
+            &job,
+        )
+        .unwrap();
+    assert!(
+        matches!(outcome.receipt.origin, PackageOrigin::Registry { ref registry, .. } if registry == "official")
+    );
+    assert!(outcome.receipt.signature.is_verified());
+
+    // Publish 1.0.1 in a new generation, yank 1.0.0, advance the pointer.
+    let gen2 = origin.join("api/v1/registry/generations/2/files");
+    let writer2 = IndexWriter::open(
+        &gen2,
+        "test",
+        Some(SigningKey::from_json(&index_key.to_json()).unwrap()),
+    );
+    writer2
+        .init(
+            &root_key,
+            vec![
+                TrustedKey::new(index_key.public_key(), KeyRole::Index),
+                TrustedKey::new(publisher.public_key(), KeyRole::Publisher).publisher("acme"),
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+    writer2
+        .add(
+            &signed_package(&root, &publisher, "acme.demo", "1.0.0"),
+            "stable",
+            None,
+        )
+        .unwrap();
+    writer2
+        .add(
+            &signed_package(&root, &publisher, "acme.demo", "1.0.1"),
+            "stable",
+            None,
+        )
+        .unwrap();
+    writer2.yank("acme.demo", "1.0.0", true).unwrap();
+    fs::write(
+        origin.join("api/v1/registry/current"),
+        serde_json::json!({"generation": 2}).to_string(),
+    )
+    .unwrap();
+    registry.refresh("official").await.unwrap();
+
+    let report = check_updates(
+        &installer.receipts().list().unwrap(),
+        &registry,
+        installer.host(),
+    )
+    .await;
+    assert_eq!(report.updates.len(), 1, "{report:?}");
+    assert_eq!(report.updates[0].latest.as_deref(), Some("1.0.1"));
+
+    let update_job = jobs.start(JobKind::Install, None, Some("acme.demo".to_owned()));
+    let resolved = sources
+        .fetch(
+            &spec,
+            "stable",
+            installer.host(),
+            &update_job,
+            &AtomicBool::new(false),
+        )
+        .await
+        .unwrap();
+    let prepared = installer
+        .prepare(&resolved.path, resolved.origin.clone(), resolved.policy)
+        .unwrap();
+    let preview = installer.preview(&prepared);
+    let outcome = installer
+        .commit(
+            &prepared,
+            &CommitOptions {
+                consent: Consent::Token(preview.consent_token),
+                policy: None,
+            },
+            &NoopHooks,
+            &update_job,
+        )
+        .unwrap();
+    assert_eq!(outcome.receipt.version, "1.0.1");
+
+    // A range matching only the yanked release is rejected. (Exact pins still
+    // reinstall yanked versions so rollback and retained copies keep working.)
+    let yanked: PackageSpec = "official:acme.demo@>=1.0.0,<1.0.1".parse().unwrap();
+    let error = sources
+        .fetch(
+            &yanked,
+            "stable",
+            installer.host(),
+            &update_job,
             &AtomicBool::new(false),
         )
         .await

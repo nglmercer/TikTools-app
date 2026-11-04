@@ -11,7 +11,10 @@ use tiktools_plugin_installer::{
     PreparedPackage, UpdateReport, DEFAULT_RETAINED_VERSIONS,
 };
 use tiktools_plugin_package::{PublicKey, TrustStore};
-use tiktools_plugin_registry::{Downloader, RegistryClient, RegistrySource};
+use tiktools_plugin_registry::{
+    cloud_source, Downloader, RegistryClient, RegistrySource, OFFICIAL_REGISTRY_NAME,
+    STAGING_REGISTRY_NAME,
+};
 
 use crate::{events::DomainEvent, paths::AppPaths, EventBus};
 
@@ -135,29 +138,99 @@ pub(crate) fn host_compat() -> HostCompat {
 }
 
 fn builtin_registries() -> Vec<RegistrySource> {
-    let (Some(url), Some(keys)) = (
-        option_env!("TIKTOOLS_OFFICIAL_REGISTRY_URL"),
-        option_env!("TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS"),
-    ) else {
-        return Vec::new();
-    };
-    let root_keys: Vec<PublicKey> = match serde_json::from_str(keys) {
-        Ok(keys) => keys,
-        Err(error) => {
-            tracing::warn!(%error, "official registry root keys are invalid; registry disabled");
-            return Vec::new();
+    let mut sources = Vec::new();
+    // A static registry tree keeps working exactly as before when an explicit
+    // URL is pinned; otherwise the official source discovers the active
+    // snapshot generation from the Cloud origin on every refresh.
+    if let Some(url) = option_env!("TIKTOOLS_OFFICIAL_REGISTRY_URL") {
+        match static_source(
+            OFFICIAL_REGISTRY,
+            url,
+            option_env!("TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS"),
+            100,
+        ) {
+            Some(source) => sources.push(source),
+            None => return sources,
         }
-    };
-    match RegistrySource::new(OFFICIAL_REGISTRY, url) {
+    } else if let Some(origin) = option_env!("TIKTOOLS_CLOUD_ORIGIN") {
+        match cloud_builtin(
+            OFFICIAL_REGISTRY_NAME,
+            origin,
+            option_env!("TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS"),
+            100,
+        ) {
+            Some(source) => sources.push(source),
+            None => return sources,
+        }
+    }
+    if let Some(origin) = option_env!("TIKTOOLS_STAGING_CLOUD_ORIGIN") {
+        // Staging uses its own source name and independently pinned keys so a
+        // disposable staging trust anchor can never be mistaken for the
+        // official one. Both must be configured; half a staging pair stays
+        // disabled instead of running unverified.
+        if let Some(source) = cloud_builtin(
+            STAGING_REGISTRY_NAME,
+            origin,
+            option_env!("TIKTOOLS_STAGING_REGISTRY_ROOT_KEYS"),
+            50,
+        ) {
+            sources.push(source);
+        }
+    }
+    sources
+}
+
+fn parse_root_keys(keys: Option<&str>, what: &str) -> Option<Vec<PublicKey>> {
+    let keys = keys?;
+    match serde_json::from_str(keys) {
+        Ok(keys) => Some(keys),
+        Err(error) => {
+            tracing::warn!(%error, "{what} root keys are invalid; registry disabled");
+            None
+        }
+    }
+}
+
+fn static_source(
+    name: &str,
+    url: &str,
+    keys: Option<&str>,
+    priority: i32,
+) -> Option<RegistrySource> {
+    let root_keys = parse_root_keys(keys, name)?;
+    match RegistrySource::new(name, url) {
         Ok(mut source) => {
             source.root_keys = root_keys;
             source.builtin = true;
-            source.priority = 100;
-            vec![source]
+            source.priority = priority;
+            Some(source)
         }
         Err(error) => {
-            tracing::warn!(%error, "official registry URL is invalid; registry disabled");
-            Vec::new()
+            tracing::warn!(%error, "{name} registry URL is invalid; registry disabled");
+            None
+        }
+    }
+}
+
+fn cloud_builtin(
+    name: &str,
+    origin: &str,
+    keys: Option<&str>,
+    priority: i32,
+) -> Option<RegistrySource> {
+    let root_keys = parse_root_keys(keys, name)?;
+    match cloud_source(name, origin, root_keys) {
+        Ok(mut source) => {
+            source.priority = priority;
+            if source.root_keys.is_empty() {
+                tracing::warn!("{name} cloud registry has no pinned root keys; registry disabled");
+                return None;
+            }
+            Some(source)
+        }
+        Err(error) => {
+            tracing::warn!(%error, "{name} cloud origin is invalid; registry disabled");
+            None
         }
     }
 }

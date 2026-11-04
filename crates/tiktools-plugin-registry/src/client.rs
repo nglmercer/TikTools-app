@@ -247,7 +247,17 @@ impl RegistryClient {
     }
 
     pub async fn refresh(&self, name: &str) -> Result<RegistryStatus, RegistryError> {
-        let source = self.source(name)?;
+        let source = match self.ensure_cloud_generation(name).await {
+            Ok(source) => source,
+            Err(error) => {
+                // Generation discovery failures are availability states the UI
+                // surfaces, so they are recorded like any other refresh error.
+                if let Ok(mut state) = self.state.lock() {
+                    state.entry(name.to_owned()).or_default().error = Some(error.to_string());
+                }
+                return Err(error);
+            }
+        };
         let result = self.load_registry(&source).await;
         if let Ok(mut state) = self.state.lock() {
             let entry = state.entry(name.to_owned()).or_default();
@@ -319,7 +329,7 @@ impl RegistryClient {
         page: u32,
     ) -> Result<CatalogPage, RegistryError> {
         let source = self.source(registry)?;
-        self.ensure_loaded(&source).await?;
+        let (source, _) = self.ensure_loaded(&source).await?;
         let path = format!("catalog/page-{}.json", page.max(1));
         let bytes = self.document(&source, &path, KeyRole::Index).await?;
         serde_json::from_slice(&bytes).map_err(|error| RegistryError::document(&path, error))
@@ -376,7 +386,7 @@ impl RegistryClient {
         query: &SearchQuery,
         words: &[String],
     ) -> Result<Vec<CatalogEntry>, RegistryError> {
-        let config = self.ensure_loaded(source).await?;
+        let (_, config) = self.ensure_loaded(source).await?;
         if let Some(api) = config.api.as_deref() {
             let mut url = url::Url::parse(&join_url(api, "search")?)
                 .map_err(|_| RegistryError::InsecureUrl(api.to_owned()))?;
@@ -411,9 +421,9 @@ impl RegistryClient {
         source: &RegistrySource,
         id: &str,
     ) -> Result<PackageDocument, RegistryError> {
-        self.ensure_loaded(source).await?;
+        let (source, _) = self.ensure_loaded(source).await?;
         let path = shard_path(id);
-        let bytes = self.document(source, &path, KeyRole::Index).await?;
+        let bytes = self.document(&source, &path, KeyRole::Index).await?;
         let document: PackageDocument = serde_json::from_slice(&bytes)
             .map_err(|error| RegistryError::document(&path, error))?;
         document
@@ -425,7 +435,18 @@ impl RegistryClient {
     async fn ensure_loaded(
         &self,
         source: &RegistrySource,
-    ) -> Result<RegistryConfigDocument, RegistryError> {
+    ) -> Result<(RegistrySource, RegistryConfigDocument), RegistryError> {
+        // Cloud sources re-resolve the active generation before every
+        // operation; the returned snapshot pins the whole operation to the
+        // generation that was active when it started. Callers must use the
+        // returned source (not the one they passed in) for all fetches.
+        let owned;
+        let source = if source.cloud_origin.is_some() {
+            owned = self.ensure_cloud_generation(&source.name).await?;
+            owned
+        } else {
+            source.clone()
+        };
         let cached = self.state.lock().ok().and_then(|state| {
             state
                 .get(&source.name)
@@ -434,10 +455,11 @@ impl RegistryClient {
         if let Some(config) =
             cached.filter(|config| !config.expires.is_some_and(|expires| now() > expires))
         {
-            return Ok(config);
+            return Ok((source, config));
         }
         self.refresh(&source.name).await?;
-        self.state
+        let config = self
+            .state
             .lock()
             .ok()
             .and_then(|state| {
@@ -445,7 +467,8 @@ impl RegistryClient {
                     .get(&source.name)
                     .and_then(|entry| entry.config.clone())
             })
-            .ok_or_else(|| RegistryError::UnknownRegistry(source.name.clone()))
+            .ok_or_else(|| RegistryError::UnknownRegistry(source.name.clone()))?;
+        Ok((source, config))
     }
 
     async fn load_registry(
@@ -604,6 +627,63 @@ impl RegistryClient {
             .get(name)
             .cloned()
             .ok_or_else(|| RegistryError::UnknownRegistry(name.to_owned()))
+    }
+
+    /// Fetch the active generation advertised by a Cloud origin. A 404 means
+    /// no snapshot has been published yet, which is an availability state the
+    /// UI surfaces, not a transport failure.
+    async fn cloud_generation(&self, origin: &str) -> Result<u64, RegistryError> {
+        let url = crate::cloud::current_url(origin)?;
+        match self.get(&url, None).await {
+            Ok(Some((bytes, _))) => Ok(crate::cloud::parse_generation(&bytes)?.generation),
+            Ok(None) => Err(RegistryError::http(&url, "empty response")),
+            Err(RegistryError::Status { status: 404, .. }) => {
+                Err(RegistryError::NoPublishedGeneration {
+                    origin: origin.to_owned(),
+                })
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Resolve the active generation for a Cloud source and pin the stored
+    /// URL to its immutable endpoint. The returned snapshot is used for the
+    /// whole operation, so a generation change mid-operation cannot mix
+    /// snapshots. When the origin is unreachable but a generation was
+    /// resolved before, fall back to that URL so cached signed metadata keeps
+    /// working offline, mirroring the document cache fallback below.
+    async fn ensure_cloud_generation(&self, name: &str) -> Result<RegistrySource, RegistryError> {
+        let stored = self.source(name)?;
+        let Some(origin) = stored.cloud_origin.clone() else {
+            return Ok(stored);
+        };
+        let generation = match self.cloud_generation(&origin).await {
+            Ok(generation) => generation,
+            // An authoritative "nothing published" must fail closed: silently
+            // serving a stale generation would hide a rollback or takedown.
+            Err(RegistryError::NoPublishedGeneration { .. }) => {
+                return Err(RegistryError::NoPublishedGeneration { origin });
+            }
+            Err(error) if stored.url != origin => {
+                tracing::warn!(registry = %name, %error, "cloud generation lookup failed; using last resolved generation");
+                return Ok(stored);
+            }
+            Err(error) => return Err(error),
+        };
+        let url = crate::cloud::generation_files_url(&origin, generation)?;
+        if url == stored.url {
+            return Ok(stored);
+        }
+        self.update_config(|config| {
+            let entry = config
+                .registries
+                .iter_mut()
+                .find(|entry| entry.name == name)
+                .ok_or_else(|| RegistryError::UnknownRegistry(name.to_owned()))?;
+            entry.url = url.clone();
+            Ok(())
+        })?;
+        self.source(name)
     }
 
     fn describe(&self, source: &RegistrySource) -> RegistryStatus {
