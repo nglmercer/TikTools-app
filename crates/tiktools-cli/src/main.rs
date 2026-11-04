@@ -72,6 +72,7 @@ commands:
   host --stdio [--events]       headless host on stdio (streams events with --events)
   host --ipc                    headless host on local IPC (refuses when a host is running)
   web --assets <directory> [--port N]  local browser adapter (requires local-web feature)
+  web --print-code [--port N]       print the active pairing code without restarting
 
 commands run against the running host over local IPC by default; when no
 host is running they fail with host_unavailable instead of starting a

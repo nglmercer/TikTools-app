@@ -13,8 +13,10 @@ use axum::{
 };
 use rand::RngExt;
 use serde_json::{json, Value};
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -24,6 +26,12 @@ use tokio::{sync::Semaphore, task::JoinSet};
 const PAIRING_RENEW_COOLDOWN: Duration = Duration::from_secs(30);
 const SESSION_LIFETIME: Duration = Duration::from_secs(3600);
 const MAX_FRAME: usize = 1024 * 1024;
+/// Lifetime of a pairing code, in seconds. Bounds the in-memory check in
+/// `pair` and the runtime-file readout the same way.
+const PAIRING_TTL_SECS: u64 = 300;
+/// Deterministic pairing override for automated login tests. Never set in
+/// production: anyone holding the value can pair without the terminal.
+const PAIRING_FIXTURE_ENV: &str = "TIKTOOLS_PAIRING_FIXTURE";
 
 struct Auth {
     pairing: Option<String>,
@@ -38,6 +46,7 @@ struct App {
     origin: String,
     authority: String,
     join_base: String,
+    pairing_file: PathBuf,
     auth: Mutex<Auth>,
     clients: Arc<Semaphore>,
     stopping: tokio::sync::watch::Sender<bool>,
@@ -47,6 +56,139 @@ struct App {
 // continue to use the independent 256-bit secret() generator below.
 fn pairing_code() -> String {
     format!("{:06}", rand::rng().random_range(0..1_000_000u32))
+}
+
+fn fixture_code_from(value: Option<std::ffi::OsString>) -> Result<Option<String>, String> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let code = value
+        .to_str()
+        .ok_or_else(|| format!("{PAIRING_FIXTURE_ENV} must be a six-digit code"))?;
+    if code.len() == 6 && code.bytes().all(|byte| byte.is_ascii_digit()) {
+        Ok(Some(code.to_owned()))
+    } else {
+        Err(format!("{PAIRING_FIXTURE_ENV} must be a six-digit code"))
+    }
+}
+
+/// Active code source. The fixture override keeps automated login tests
+/// deterministic; a loud warning marks every process running with it.
+fn mint_pairing() -> Result<String, String> {
+    if let Some(code) = fixture_code_from(std::env::var_os(PAIRING_FIXTURE_ENV))? {
+        eprintln!(
+            "warning: {PAIRING_FIXTURE_ENV} is set; pairing uses a deterministic test code and is not secure"
+        );
+        return Ok(code);
+    }
+    Ok(pairing_code())
+}
+
+/// Readout of the active code for `web --print-code`, so agents and operators
+/// can recover a missed terminal print without restarting the adapter. The
+/// file is a readout only: reading never extends, consumes, or retries the
+/// code, and the 5-minute TTL is enforced by the reader.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PairingSnapshot {
+    code: String,
+    issued_at_unix: u64,
+    expires_in_secs: u64,
+    pid: u32,
+}
+
+fn pairing_file(port: u16) -> PathBuf {
+    tiktools_core::paths::AppPaths::from_environment()
+        .temp
+        .join(format!("tiktools-web-pairing-{port}.json"))
+}
+
+fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or(0)
+}
+
+fn write_pairing_file(path: &Path, snapshot: &PairingSnapshot) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension(format!("tmp-{}", std::process::id()));
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let result = (|| -> std::io::Result<()> {
+        use std::io::Write;
+        let mut file = options.open(&tmp)?;
+        file.write_all(
+            serde_json::to_vec(snapshot)
+                .map_err(std::io::Error::other)?
+                .as_slice(),
+        )?;
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&tmp, path)?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    result
+}
+
+fn publish_pairing_code(path: &Path, code: &str) {
+    let snapshot = PairingSnapshot {
+        code: code.to_owned(),
+        issued_at_unix: now_unix(),
+        expires_in_secs: PAIRING_TTL_SECS,
+        pid: std::process::id(),
+    };
+    if let Err(error) = write_pairing_file(path, &snapshot) {
+        eprintln!("warning: could not publish pairing code for `web --print-code`: {error}");
+    }
+}
+
+fn load_pairing_snapshot(path: &Path) -> Result<PairingSnapshot, String> {
+    let bytes = std::fs::read(path).map_err(|_| "no active pairing code".to_string())?;
+    let snapshot: PairingSnapshot =
+        serde_json::from_slice(&bytes).map_err(|_| "no active pairing code".to_string())?;
+    if snapshot.code.len() != 6 || !snapshot.code.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err("no active pairing code".to_string());
+    }
+    Ok(snapshot)
+}
+
+fn snapshot_remaining(snapshot: &PairingSnapshot, now: u64) -> Option<u64> {
+    snapshot
+        .issued_at_unix
+        .saturating_add(snapshot.expires_in_secs)
+        .checked_sub(now)
+        .filter(|remaining| *remaining > 0)
+}
+
+fn server_listening(port: u16) -> bool {
+    std::net::TcpStream::connect_timeout(
+        &std::net::SocketAddr::from(([127, 0, 0, 1], port)),
+        Duration::from_millis(500),
+    )
+    .is_ok()
+}
+
+/// Readout for a separate CLI process. Fails closed when the file is missing,
+/// malformed, expired, or the adapter is no longer listening.
+fn current_pairing_code_at(path: &Path, port: u16) -> Result<(String, u64), String> {
+    let snapshot = load_pairing_snapshot(path)?;
+    let remaining = snapshot_remaining(&snapshot, now_unix())
+        .ok_or_else(|| "pairing code expired".to_string())?;
+    if !server_listening(port) {
+        return Err("local browser adapter is not running".to_string());
+    }
+    Ok((snapshot.code, remaining))
+}
+
+fn current_pairing_code(port: u16) -> Result<(String, u64), String> {
+    current_pairing_code_at(&pairing_file(port), port)
 }
 
 fn secret() -> String {
@@ -89,8 +231,17 @@ impl App {
 
 pub async fn run(args: &[String], standalone: bool) -> i32 {
     if args.len() == 1 && matches!(args[0].as_str(), "--help" | "-h") {
-        println!("usage: tiktools web --assets <directory> [--port N] [--join-origin URL]\nLocal browser adapter; start tiktools host --ipc first.");
+        println!("usage: tiktools web --assets <directory> [--port N] [--join-origin URL]\n       tiktools web --print-code [--port N]\nLocal browser adapter; start tiktools host --ipc first.\n--print-code prints the active six-digit pairing code without restarting the adapter.");
         return 0;
+    }
+    if args.iter().any(|arg| arg == "--print-code") {
+        return match parse_print_code_options(args) {
+            Ok(port) => print_pairing_code(port),
+            Err(error) => {
+                eprintln!("tiktools web: {error}");
+                2
+            }
+        };
     }
     let (assets, port, join_origin) = match parse_options(args, standalone) {
         Ok(options) => options,
@@ -103,6 +254,47 @@ pub async fn run(args: &[String], standalone: bool) -> i32 {
         Ok(()) => 0,
         Err(error) => {
             eprintln!("tiktools web: {error}");
+            3
+        }
+    }
+}
+
+/// `web --print-code [--port N]`: read the active pairing code back without
+/// restarting the adapter. Only `--port` may accompany `--print-code`.
+fn parse_print_code_options(args: &[String]) -> Result<u16, String> {
+    let mut port: u16 = 8787;
+    let mut options = args.iter();
+    while let Some(option) = options.next() {
+        match option.as_str() {
+            "--print-code" => {}
+            "--port" => {
+                port = options
+                    .next()
+                    .ok_or("--port requires a number")?
+                    .parse()
+                    .map_err(|_| "invalid port")?;
+            }
+            _ => {
+                return Err(format!(
+                    "unknown option: {option}; use web --print-code [--port N]"
+                ));
+            }
+        }
+    }
+    Ok(port)
+}
+
+fn print_pairing_code(port: u16) -> i32 {
+    match current_pairing_code(port) {
+        Ok((code, remaining)) => {
+            // Bare code on stdout for agents and scripts; the human note goes
+            // to stderr. Use it immediately: the code is single-use.
+            println!("{code}");
+            eprintln!("one-use pairing code (single use, valid for {remaining}s); never store it");
+            0
+        }
+        Err(error) => {
+            eprintln!("tiktools web --print-code: {error}");
             3
         }
     }
@@ -195,7 +387,9 @@ async fn start(assets: PathBuf, port: u16, join_origin: Option<String>) -> Resul
             .port()
     );
     let origin = format!("http://{authority}");
-    let pairing = pairing_code();
+    let pairing = mint_pairing()?;
+    let pairing_path = pairing_file(port);
+    publish_pairing_code(&pairing_path, &pairing);
     let join_base = join_origin.unwrap_or_else(|| origin.clone());
     eprintln!(
         "TikTools local browser: {origin}\nOne-use pairing code (valid 5 minutes): {pairing}\nOne-click join: {} (same one-use code, valid 5 minutes)",
@@ -207,6 +401,7 @@ async fn start(assets: PathBuf, port: u16, join_origin: Option<String>) -> Resul
         origin,
         authority,
         join_base,
+        pairing_file: pairing_path.clone(),
         auth: Mutex::new(Auth {
             pairing: Some(pairing),
             issued: Instant::now(),
@@ -218,6 +413,7 @@ async fn start(assets: PathBuf, port: u16, join_origin: Option<String>) -> Resul
         stopping: tokio::sync::watch::channel(false).0,
     });
     let shutdown_state = state.clone();
+    let pairing_path_for_shutdown = pairing_path;
     let router = Router::new()
         .route("/__local/pair", post(pair))
         .route("/__local/pair/renew", post(renew_pairing))
@@ -227,7 +423,7 @@ async fn start(assets: PathBuf, port: u16, join_origin: Option<String>) -> Resul
         .layer(DefaultBodyLimit::max(4096))
         .layer(middleware::from_fn_with_state(state.clone(), boundary))
         .with_state(state);
-    axum::serve(listener, router)
+    let result = axum::serve(listener, router)
         .with_graceful_shutdown(async move {
             #[cfg(unix)]
             {
@@ -243,7 +439,11 @@ async fn start(assets: PathBuf, port: u16, join_origin: Option<String>) -> Resul
             let _ = shutdown_state.stopping.send(true);
         })
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string());
+    // Best-effort readout cleanup. A stale file is harmless: the reader still
+    // enforces the TTL and checks that the adapter is listening.
+    let _ = std::fs::remove_file(&pairing_path_for_shutdown);
+    result
 }
 
 async fn boundary(State(app): State<Arc<App>>, request: Request, next: Next) -> Response {
@@ -298,6 +498,8 @@ async fn pair(
         return StatusCode::UNAUTHORIZED.into_response();
     }
     auth.pairing = None;
+    // The spent code must not linger in the readout file.
+    let _ = std::fs::remove_file(&app.pairing_file);
     let session = secret();
     let cookie = format!(
         "{}={session}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600",
@@ -348,27 +550,37 @@ async fn renew_pairing(State(app): State<Arc<App>>, headers: HeaderMap) -> Respo
     }
     // Draw uniformly from all values except the previous pending code, so a
     // successful rotation always invalidates the old code without retry loops.
-    let code = if let Some(previous) = auth
-        .pairing
-        .as_deref()
-        .and_then(|value| value.parse::<u32>().ok())
-        .filter(|value| *value < 1_000_000)
-    {
-        let draw = rand::rng().random_range(0..999_999u32);
-        format!("{:06}", draw + u32::from(draw >= previous))
-    } else {
-        pairing_code()
+    // The test fixture keeps its deterministic value across renewals.
+    let code = match fixture_code_from(std::env::var_os(PAIRING_FIXTURE_ENV)) {
+        Ok(Some(fixed)) => fixed,
+        Ok(None) => {
+            if let Some(previous) = auth
+                .pairing
+                .as_deref()
+                .and_then(|value| value.parse::<u32>().ok())
+                .filter(|value| *value < 1_000_000)
+            {
+                let draw = rand::rng().random_range(0..999_999u32);
+                format!("{:06}", draw + u32::from(draw >= previous))
+            } else {
+                pairing_code()
+            }
+        }
+        Err(error) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, error).into_response();
+        }
     };
     eprintln!(
         "One-use pairing code (valid 5 minutes): {code}\nOne-click join: {} (same one-use code, valid 5 minutes)",
         join_link(&app.join_base, &code)
     );
-    auth.pairing = Some(code);
+    auth.pairing = Some(code.clone());
     auth.issued = Instant::now();
     auth.renewed_at = Some(Instant::now());
+    publish_pairing_code(&app.pairing_file, &code);
     (
         StatusCode::OK,
-        Json(json!({"ok":true,"expiresInSeconds":300,"retryAfterSeconds":30})),
+        Json(json!({"ok":true,"expiresInSeconds":PAIRING_TTL_SECS,"retryAfterSeconds":30})),
     )
         .into_response()
 }
@@ -788,12 +1000,29 @@ mod tests {
     }
 
     fn state(root: PathBuf) -> Arc<App> {
+        state_with_pairing_file(root, test_pairing_file())
+    }
+
+    /// Unique readout path per test so parallel tests never share a file.
+    fn test_pairing_file() -> PathBuf {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!(
+            "tiktools-web-pairing-test-{}-{unique}.json",
+            std::process::id()
+        ))
+    }
+
+    fn state_with_pairing_file(root: PathBuf, pairing_file: PathBuf) -> Arc<App> {
         Arc::new(App {
             root,
             asset_token: secret(),
             origin: "http://127.0.0.1:8787".into(),
             authority: "127.0.0.1:8787".into(),
             join_base: "http://127.0.0.1:8787".into(),
+            pairing_file,
             auth: Mutex::new(Auth {
                 pairing: Some("012345".into()),
                 issued: Instant::now(),
@@ -804,6 +1033,19 @@ mod tests {
             clients: Arc::new(Semaphore::new(8)),
             stopping: tokio::sync::watch::channel(false).0,
         })
+    }
+
+    fn write_snapshot(path: &Path, code: &str, issued_at_unix: u64) {
+        write_pairing_file(
+            path,
+            &PairingSnapshot {
+                code: code.into(),
+                issued_at_unix,
+                expires_in_secs: PAIRING_TTL_SECS,
+                pid: std::process::id(),
+            },
+        )
+        .unwrap();
     }
     fn origin() -> HeaderMap {
         let mut headers = HeaderMap::new();
@@ -1065,5 +1307,107 @@ mod tests {
             .unwrap()
             .contains("tiktools-transport"));
         tokio::fs::remove_dir_all(root).await.unwrap();
+    }
+
+    #[test]
+    fn fixture_override_accepts_only_six_digits() {
+        assert_eq!(fixture_code_from(None), Ok(None));
+        assert_eq!(
+            fixture_code_from(Some("012345".into())),
+            Ok(Some("012345".to_string()))
+        );
+        for bad in ["", "12345", "1234567", "abcdef", " 12345", "12 345"] {
+            assert!(
+                fixture_code_from(Some(bad.into())).is_err(),
+                "rejects {bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn print_code_options_default_port_and_reject_unknown() {
+        assert_eq!(parse_print_code_options(&["--print-code".into()]), Ok(8787));
+        assert_eq!(
+            parse_print_code_options(&["--print-code".into(), "--port".into(), "4599".into()]),
+            Ok(4599)
+        );
+        assert!(parse_print_code_options(&["--print-code".into(), "--assets".into()]).is_err());
+        assert!(parse_print_code_options(&["--print-code".into(), "--port".into()]).is_err());
+        assert!(
+            parse_print_code_options(&["--print-code".into(), "--port".into(), "nope".into()])
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn pairing_file_roundtrip_enforces_shape_and_ttl() {
+        let path = test_pairing_file();
+        let now = now_unix();
+        write_snapshot(&path, "123456", now);
+        let snapshot = load_pairing_snapshot(&path).unwrap();
+        assert_eq!(snapshot.code, "123456");
+        assert_eq!(snapshot.expires_in_secs, PAIRING_TTL_SECS);
+        assert!(snapshot_remaining(&snapshot, now).is_some_and(|left| left <= PAIRING_TTL_SECS));
+        assert_eq!(snapshot_remaining(&snapshot, now + PAIRING_TTL_SECS), None);
+        let _ = std::fs::remove_file(&path);
+        // Missing, malformed, and non-numeric files all fail closed.
+        assert!(load_pairing_snapshot(&path).is_err());
+        std::fs::write(&path, b"not json").unwrap();
+        assert!(load_pairing_snapshot(&path).is_err());
+        write_snapshot(&path, "abc", now);
+        assert!(load_pairing_snapshot(&path).is_err());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pairing_file_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let path = test_pairing_file();
+        write_snapshot(&path, "123456", now_unix());
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn readout_fails_closed_without_server_and_opens_with_it() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let path = test_pairing_file();
+        write_snapshot(&path, "123456", now_unix());
+        // A live listener proves the adapter behind the port is up, so the
+        // readout opens even though nothing here speaks the pair protocol.
+        let (code, remaining) = current_pairing_code_at(&path, port).unwrap();
+        assert_eq!(code, "123456");
+        assert!(remaining > 0 && remaining <= PAIRING_TTL_SECS);
+        // Expired codes stay rejected while the server is still up.
+        write_snapshot(
+            &path,
+            "123456",
+            now_unix().saturating_sub(PAIRING_TTL_SECS + 1),
+        );
+        assert!(current_pairing_code_at(&path, port).is_err());
+        drop(listener);
+        write_snapshot(&path, "123456", now_unix());
+        assert!(current_pairing_code_at(&path, port).is_err());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn renew_publishes_code_and_pair_consumes_it() {
+        let path = test_pairing_file();
+        let app = state_with_pairing_file(PathBuf::new(), path.clone());
+        let response = renew_pairing(State(app.clone()), origin()).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let code = app.auth.lock().unwrap().pairing.clone().unwrap();
+        assert_ne!(code, "012345");
+        assert_eq!(load_pairing_snapshot(&path).unwrap().code, code);
+        let response = pair(State(app.clone()), origin(), Json(json!({"code":code}))).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            !path.exists(),
+            "a spent code must not linger in the readout"
+        );
     }
 }

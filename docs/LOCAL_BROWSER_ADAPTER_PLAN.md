@@ -100,7 +100,13 @@ active endpoint, preventing DNS rebinding and cross-site socket requests. Do not
 enable wildcard CORS. Missing or unexpected browser origins fail closed.
 
 Generate a cryptographically random six-digit, one-use pairing code, shown only in the
-foreground terminal. Exchange it through a same-origin POST for a short-lived,
+foreground terminal and published to an owner-only runtime file for the
+`tiktools web --print-code [--port N]` readout, so operators and agents can
+recover a missed print without restarting the adapter. The readout never
+extends, consumes, or retries the code and fails closed once it is spent,
+expired, or the adapter is gone. `TIKTOOLS_PAIRING_FIXTURE` overrides the code
+with a deterministic six-digit value for automated login tests only; never set
+it in production. Exchange it through a same-origin POST for a short-lived,
 HttpOnly, SameSite=Strict session cookie; rotate/invalidate sessions on restart.
 Use same-origin validation and a session-bound CSRF mechanism for state-changing
 HTTP endpoints. Authenticate before accepting a WebSocket upgrade. Keep codes,

@@ -249,6 +249,23 @@ Restart the adapter after a lockout or to pair another browser while a session
 is active. Never paste a TikTok session cookie into this pairing form. Stop the adapter with Ctrl+C; the
 IPC host remains running and available to the CLI.
 
+If the terminal print scrolled away, recover the active code without
+restarting the adapter (same port the adapter listens on):
+
+```bash
+./target/debug/tiktools web --print-code --port 8787
+```
+
+The code prints on stdout for immediate use; it is single-use, expires five
+minutes after issue, and the command fails closed once it is spent, expired,
+or the adapter is gone. The readout is published to a `0600` runtime file and
+never extends, consumes, or retries the code. Do not store the printed code;
+shell history and logs keep it. For automated login tests only, set
+`TIKTOOLS_PAIRING_FIXTURE` to a six-digit value before starting the adapter to
+use a deterministic code (and `web --print-code` to read it back); never set
+it in production, where anyone holding the value could pair without the
+terminal.
+
 The frontend uses the shared Control API for system state, LIVE, automations,
 workflows and plugins. Unsupported Android capabilities remain unavailable.
 Browser disconnect does not undo an accepted operation; the client never
