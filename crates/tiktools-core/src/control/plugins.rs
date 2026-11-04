@@ -201,6 +201,8 @@ impl AppCore {
     pub fn plugin_set_installed(&self, id: &str, installed: bool) -> Result<(), OperationError> {
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
+        #[cfg(feature = "cloud-auth")]
+        let version = plugin.manifest.version.clone();
         #[cfg(feature = "persistence")]
         self.db
             .set_plugin_state(&id, installed, true)
@@ -216,31 +218,97 @@ impl AppCore {
         }
         self.rebuild_processor_index();
         self.refresh_automation_snapshot();
+        #[cfg(feature = "cloud-auth")]
+        if installed {
+            self.stage_selection(&id, &version, true);
+        } else {
+            self.stage_removal(&id);
+        }
         Ok(())
     }
 
     pub fn plugin_set_enabled(&self, id: &str, enabled: bool) -> Result<(), OperationError> {
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
+        #[cfg(feature = "cloud-auth")]
+        let version = plugin.manifest.version.clone();
+        self.set_enabled_impl(&id, enabled)?;
+        #[cfg(feature = "cloud-auth")]
+        self.stage_selection(&id, &version, enabled);
+        Ok(())
+    }
+
+    fn set_enabled_impl(&self, id: &str, enabled: bool) -> Result<(), OperationError> {
         #[cfg(feature = "persistence")]
         self.db
-            .set_plugin_state(&id, true, enabled)
+            .set_plugin_state(id, true, enabled)
             .map_err(|error| OperationError::internal(error.to_string()))?;
         let result = if enabled {
-            self.plugins.start(&id)
+            self.plugins.start(id)
         } else {
-            self.plugins.stop(&id)
+            self.plugins.stop(id)
         };
         result?;
-        self.set_plugin_activation(&id, true, enabled);
+        self.set_plugin_activation(id, true, enabled);
         self.rebuild_processor_index();
         self.refresh_automation_snapshot();
         self.events.publish_domain(if enabled {
-            DomainEvent::PluginStarted { plugin_id: id }
+            DomainEvent::PluginStarted {
+                plugin_id: id.to_owned(),
+            }
         } else {
-            DomainEvent::PluginStopped { plugin_id: id }
+            DomainEvent::PluginStopped {
+                plugin_id: id.to_owned(),
+            }
         });
         Ok(())
+    }
+
+    /// Apply one remote selection to an already-installed plugin. Returns
+    /// whether anything changed. Unknown plugins are skipped without error:
+    /// remote records never install anything. This path never stages, so
+    /// applied remote changes cannot loop back to the server.
+    #[cfg(feature = "cloud-auth")]
+    pub(crate) fn plugin_apply_remote_selection(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<bool, OperationError> {
+        let plugin = match self.require_discovered(id) {
+            Ok(plugin) => plugin,
+            Err(_) => return Ok(false),
+        };
+        let current = recover_rwlock_read(&self.plugin_state.activation, "plugin activation")
+            .get(plugin.manifest.id.as_str())
+            .map(|state| state.enabled)
+            .unwrap_or(true);
+        if current == enabled {
+            return Ok(false);
+        }
+        self.set_enabled_impl(&plugin.manifest.id, enabled)?;
+        Ok(true)
+    }
+
+    /// Stage a local selection change for upload. Inert unless sync is
+    /// enabled and an account is known; never fails the local operation.
+    #[cfg(feature = "cloud-auth")]
+    fn stage_selection(&self, id: &str, version: &str, enabled: bool) {
+        if let Err(error) = self
+            .sync
+            .coordinator()
+            .record_local_change(id, version, enabled)
+        {
+            tracing::warn!(plugin = %id, %error, "cloud sync staging failed");
+        }
+    }
+
+    /// Stage a local uninstall for upload. Same opt-in and failure
+    /// semantics as [`Self::stage_selection`].
+    #[cfg(feature = "cloud-auth")]
+    fn stage_removal(&self, id: &str) {
+        if let Err(error) = self.sync.coordinator().record_local_removal(id) {
+            tracing::warn!(plugin = %id, %error, "cloud sync staging failed");
+        }
     }
 
     pub fn plugin_start(&self, id: &str) -> Result<(), OperationError> {

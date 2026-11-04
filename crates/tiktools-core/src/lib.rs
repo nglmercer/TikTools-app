@@ -19,6 +19,8 @@ pub mod services;
 mod automation_runtime;
 #[cfg(feature = "cloud-auth")]
 pub mod cloud_account;
+#[cfg(feature = "cloud-auth")]
+pub mod cloud_sync;
 mod helpers;
 mod hotkey_bindings;
 pub mod input_access;
@@ -204,6 +206,8 @@ pub struct AppCore {
     pub(crate) packages: Result<Arc<plugin_packages::PluginPackages>, String>,
     #[cfg(feature = "cloud-auth")]
     pub(crate) cloud: Arc<cloud_account::CloudAccount>,
+    #[cfg(feature = "cloud-auth")]
+    pub(crate) sync: Arc<cloud_sync::CloudSync>,
 }
 
 impl AppCore {
@@ -251,6 +255,8 @@ impl AppCore {
         let packages = plugin_packages::PluginPackages::new(&paths, events.clone()).map(Arc::new);
         #[cfg(feature = "cloud-auth")]
         let cloud = Arc::new(cloud_account::CloudAccount::new(&paths));
+        #[cfg(feature = "cloud-auth")]
+        let sync = Arc::new(cloud_sync::CloudSync::new(&paths, cloud.auth()));
         #[cfg(feature = "plugin-install")]
         if let Err(error) = &packages {
             tracing::warn!(%error, "plugin package management is unavailable");
@@ -381,6 +387,8 @@ impl AppCore {
             packages,
             #[cfg(feature = "cloud-auth")]
             cloud,
+            #[cfg(feature = "cloud-auth")]
+            sync,
         };
         #[cfg(feature = "http")]
         if let Some(message) = core.http_client_error.clone() {

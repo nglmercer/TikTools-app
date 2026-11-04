@@ -17,6 +17,7 @@ members = [
     "crates/tiktools-plugin-devkit",
     "crates/cloud-client",
     "crates/tiktools-cloud-auth",
+    "crates/tiktools-cloud-sync",
     "crates/tiktools-tiktok",
     "plugins/sonicboom/backend",
     "plugins/l4d2/backend",
