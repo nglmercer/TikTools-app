@@ -10,6 +10,7 @@ description = "Headless JSON-RPC control plane for TikTools (CLI, stdio, IPC, We
 default = ["persistence", "plugin-install"]
 persistence = ["tiktools-core/persistence"]
 plugin-install = ["tiktools-core/plugin-install"]
+cloud-auth = ["tiktools-core/cloud-auth"]
 native-tiktok = ["tiktools-core/native-tiktok"]
 http = ["tiktools-core/http"]
 

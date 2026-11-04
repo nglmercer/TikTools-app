@@ -67,6 +67,8 @@ commands:
     | verify [--coverage|--smoke] [--sandbox] [--timeout SEC]
   rpc <method> [params-json]
   rpc --stdio [--events]        NDJSON request/response loop on stdio
+  cloud status | login | logout | restore
+                                Cloud account (requires TIKTOOLS_CLOUD_ORIGIN)
   host --stdio [--events]       headless host on stdio (streams events with --events)
   host --ipc                    headless host on local IPC (refuses when a host is running)
   web --assets <directory> [--port N]  local browser adapter (requires local-web feature)
