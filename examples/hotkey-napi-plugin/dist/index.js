@@ -34,15 +34,15 @@ const { startListener } = binding;
 const stopListener = typeof binding.stopListener === "function" ? binding.stopListener : undefined;
 const state = new KeyState();
 const pending = createPressQueue();
-// Host-registered chords plus the raw-input opt-in. The listener starts on
-// load and each `hotkey.bind` projection re-decides via wantsListening.
+// Host-registered chords plus the raw-input opt-in. Start the native hook only
+// after a binding needs it: X11 hooks cannot restart after they are stopped.
 let bindings = [];
 let sequencesNeeded = false;
 let listening = false;
 let lastReportedDropped = 0;
 // Backend health. `statusDirty` flips on every transition so `poll` emits
 // exactly one `hotkey.status` event per change.
-let report = { backend: "rdev", state: "starting", detail: "" };
+let report = { backend: "rdev", state: "starting", detail: "waiting for bindings" };
 let statusDirty = true;
 // Debug counters (see `hotkey.diagnostics`) plus one-shot transition logs.
 // Poll ticks stay silent unless something changed: the host logs every poll
@@ -66,7 +66,7 @@ function setReport(next) {
 }
 function startListening() {
     if (listening) {
-        return;
+        return true;
     }
     state.reset();
     try {
@@ -98,12 +98,14 @@ function startListening() {
         listening = true;
         pushLog("hotkey: rdev listener started");
         setReport({ backend: "rdev", state: "running", detail: "" });
+        return true;
     }
     catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         stats.failures += 1;
         pushLog(`hotkey: rdev listener failed to start (${detail})`);
         setReport({ backend: "rdev", state: "failed", detail });
+        return false;
     }
 }
 // Pushes every queued press through `tiktools:events` immediately. A
@@ -132,6 +134,9 @@ function pushPendingPresses() {
 }
 function stopListening() {
     state.reset();
+    if (!listening) {
+        return true;
+    }
     if (stopListener === undefined) {
         // The native listener is still running: keep `listening` true so
         // status and diagnostics describe reality.
@@ -144,9 +149,10 @@ function stopListening() {
     catch {
         stopped = false;
     }
-    listening = false;
     if (stopped) {
+        listening = false;
         pushLog("hotkey: listener stopped");
+        setReport({ backend: "rdev", state: "starting", detail: "waiting for bindings" });
     }
     return stopped;
 }
@@ -185,7 +191,6 @@ const plugin = {
         if (typeof context.name !== "string" || context.name.length === 0) {
             throw new Error("hotkeys: missing name in context");
         }
-        startListening();
     },
     async call(request, context) {
         if (typeof context.pluginId !== "string" || context.pluginId.length === 0) {
@@ -224,7 +229,9 @@ const plugin = {
                 sequencesNeeded = parsed.sequencesNeeded;
                 const logs = [...parsed.warnings];
                 if (wantsListening(bindings, sequencesNeeded)) {
-                    startListening();
+                    if (!startListening()) {
+                        throw new Error(`hotkey listener failed to start: ${report.detail}`);
+                    }
                 }
                 else if (!stopListening() && stopListener === undefined) {
                     logs.push("staged rdev-node has no stopListener export; the native listener keeps running until unload");

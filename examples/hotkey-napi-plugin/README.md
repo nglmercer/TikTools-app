@@ -14,6 +14,11 @@ unlike it, the guest cannot reach compositor-authorized portal chords,
 raw evdev devices, or session detection, so on Wayland it only observes
 what rdev sees (see `docs/HOTKEYS_LINUX.md`).
 
+The native listener starts when a binding or sequence actually needs it. On
+X11, the current `rdev-node` native hook cannot restart after it has been
+stopped within the same process. If all bindings are removed and later added
+again, the bind reports the failure; restart the TikTools host to listen again.
+
 Layout:
 
 ```text
