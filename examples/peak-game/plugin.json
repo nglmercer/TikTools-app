@@ -4,6 +4,9 @@
   "name": "PEAK Game",
   "version": "1.0.0",
   "publisher": "tiktools",
+  "metadata": {
+    "publisher": "tiktools"
+  },
   "license": "MIT",
   "engines": { "tiktools": ">=0.3.3, <0.4.0" },
   "categories": ["games", "integrations"],
