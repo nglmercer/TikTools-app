@@ -65,6 +65,7 @@ Options:
   --host            Build for the host target explicitly
   --out <dir>       Output directory (default: dist/plugins)
   --debug           Use the debug cargo profile (default: release)
+  --sign <key>      Sign archives with an enrolled publisher private key
   --help            Show this message
 
 Supported targets:
@@ -81,6 +82,7 @@ let outDirectory = process.env.PLUGIN_OUT_DIR?.trim() || defaultOutDirectory;
 let profile: 'release' | 'debug' = 'release';
 let requestedTarget: string | null = null;
 let explicitHost = false;
+let signingKey: string | null = null;
 
 for (let index = 0; index < rawArgs.length; index += 1) {
   const argument = rawArgs[index];
@@ -93,6 +95,11 @@ for (let index = 0; index < rawArgs.length; index += 1) {
     profile = 'debug';
   } else if (argument === '--host') {
     explicitHost = true;
+  } else if (argument === '--sign') {
+    const value = rawArgs[index + 1];
+    if (!value || value.startsWith('--')) fail('--sign requires a key path');
+    signingKey = resolve(repositoryRoot, value);
+    index += 1;
   } else if (argument === '--target') {
     const value = rawArgs[index + 1];
     if (!value) fail('--target requires a value');
@@ -307,6 +314,9 @@ const built: string[] = [];
 for (const { directory, manifestPath, manifest } of targets) {
   const id = validatePluginId(manifest.id, manifestPath);
   const version = validatePluginVersion(manifest.version, manifestPath);
+  if (signingKey && (typeof manifest.publisher !== 'string' || !manifest.publisher)) {
+    fail(`${manifestPath} needs a publisher when signing`);
+  }
   const sourceEntryRaw =
     typeof manifest.entry === 'string' && manifest.entry.trim().length > 0
       ? manifest.entry
@@ -387,6 +397,7 @@ for (const { directory, manifestPath, manifest } of targets) {
     '--output',
     archivePath,
     ...(packageTarget ? ['--target', packageTarget] : []),
+    ...(signingKey ? ['--sign', signingKey] : []),
   ]);
 
   // Post-package validation: archive exists and packaged manifest declares
@@ -394,7 +405,13 @@ for (const { directory, manifestPath, manifest } of targets) {
   if (!(await exists(archivePath))) {
     fail(`packager did not produce ${archivePath}`);
   }
-  await verifyPackagedManifest(archivePath, id, packageTarget);
+  await verifyPackagedManifest(archivePath, id, version, manifest.publisher, packageTarget);
+  if (signingKey) {
+    const signature = JSON.parse(await readArchiveFile(archivePath, `${id}/signature.json`)) as { publisher?: unknown };
+    if (signature.publisher !== manifest.publisher) {
+      fail(`archive ${archivePath} signing key publisher does not match its manifest`);
+    }
+  }
   if (id === 'tiktools.event-gateway') {
     await verifyPackagedWidgets(archivePath, id);
   }
@@ -406,6 +423,8 @@ for (const { directory, manifestPath, manifest } of targets) {
 async function verifyPackagedManifest(
   archivePath: string,
   id: string,
+  version: string,
+  publisher: unknown,
   packageTarget: string | null,
 ): Promise<void> {
   const entries = await readArchiveEntries(archivePath);
@@ -414,10 +433,13 @@ async function verifyPackagedManifest(
     fail(`archive ${archivePath} does not contain plugin.json`);
   }
   const manifestText = await readArchiveFile(archivePath, manifestEntry as string);
-  const packaged = JSON.parse(manifestText) as { targets?: unknown; entry?: unknown };
+  const packaged = JSON.parse(manifestText) as { id?: unknown; version?: unknown; publisher?: unknown; targets?: unknown; entry?: unknown };
+  if (packaged.id !== id || packaged.version !== version || packaged.publisher !== publisher) {
+    fail(`archive ${archivePath} has mismatched id, version, or publisher`);
+  }
   if (packageTarget) {
-    if (!Array.isArray(packaged.targets) || !(packaged.targets as unknown[]).includes(packageTarget)) {
-      fail(`archive ${archivePath} packaged targets do not contain ${packageTarget}`);
+    if (!Array.isArray(packaged.targets) || packaged.targets[0] !== packageTarget) {
+      fail(`archive ${archivePath} first packaged target is not ${packageTarget}`);
     }
     if (typeof packaged.entry !== 'string' || packaged.entry.trim().length === 0) {
       fail(`archive ${archivePath} has no valid packaged entry`);
