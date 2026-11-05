@@ -80,13 +80,8 @@ pub(crate) fn build_command(raw: &[String]) -> CommandResult {
     let out = out_dir(&args, &manifest_path);
     let mut built = Vec::new();
     for target in targets {
+        let packaged_target = build_target(&manifest, target.as_deref())?;
         let entry = build_entry(&directory, &manifest, target.as_deref(), release)?;
-        let packaged_target = target.clone().filter(|_| {
-            matches!(
-                manifest.runtime,
-                PluginRuntimeKind::Native | PluginRuntimeKind::Process
-            ) || !manifest.native_addons.is_empty()
-        });
         let output = pack_directory(&manifest_path, entry, &out, packaged_target.as_deref())?;
         let output = match &key {
             Some(key) => sign_archive(&output.path, key)?,
@@ -96,6 +91,29 @@ pub(crate) fn build_command(raw: &[String]) -> CommandResult {
     }
     print_json(&json!({ "packages": built }));
     Ok(())
+}
+
+fn build_target(
+    manifest: &PluginManifest,
+    requested: Option<&str>,
+) -> Result<Option<String>, String> {
+    let platform_specific = matches!(
+        manifest.runtime,
+        PluginRuntimeKind::Native | PluginRuntimeKind::Process
+    ) || !manifest.native_addons.is_empty();
+    if !platform_specific {
+        return Ok(None);
+    }
+    let target = requested.map(ToOwned::to_owned).unwrap_or_else(host_target);
+    if !tiktools_plugin_api::manifest::is_plugin_target(&target) {
+        return Err(format!("unsupported build target `{target}`"));
+    }
+    if !manifest.native_addons.is_empty() && target != host_target() {
+        return Err(
+            "cross-building native addons is not supported; build on the target platform".into(),
+        );
+    }
+    Ok(Some(target))
 }
 
 pub(crate) fn pack_directory(
@@ -157,6 +175,11 @@ fn build_entry(
     if directory.join("Cargo.toml").is_file() && manifest.runtime != PluginRuntimeKind::NapiVm {
         return cargo_build(directory, manifest, target, release).map(Some);
     }
+    if directory.join("backend/Cargo.toml").is_file()
+        && manifest.runtime != PluginRuntimeKind::NapiVm
+    {
+        return cargo_build(&directory.join("backend"), manifest, target, release).map(Some);
+    }
     if directory.join("package.json").is_file() {
         run(Command::new("bun")
             .args(["run", "build"])
@@ -191,9 +214,19 @@ fn cargo_build(
     }
     run(&mut command)?;
     let profile = if release { "release" } else { "debug" };
-    let target_dir = std::env::var_os("CARGO_TARGET_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| directory.join("target"));
+    let metadata = Command::new("cargo")
+        .args(["metadata", "--no-deps", "--format-version", "1"])
+        .current_dir(directory)
+        .output()?;
+    if !metadata.status.success() {
+        return Err("could not determine cargo target directory".into());
+    }
+    let metadata: serde_json::Value = serde_json::from_slice(&metadata.stdout)?;
+    let target_dir = PathBuf::from(
+        metadata["target_directory"]
+            .as_str()
+            .ok_or("cargo metadata omitted target_directory")?,
+    );
     let output_dir = match triple {
         Some(triple) => target_dir.join(triple).join(profile),
         None => target_dir.join(profile),
@@ -261,4 +294,17 @@ pub(crate) fn describe(output: &PackOutput, signed: bool) -> serde_json::Value {
         "size": output.size,
         "signed": signed,
     })
+}
+
+#[cfg(test)]
+mod build_tests {
+    use super::*;
+    #[test]
+    fn platform_specific_builds_never_default_to_any_target() {
+        let process = PluginManifest::from_json_str(r#"{"schemaVersion":2,"id":"acme.plugin","name":"Test","version":"1.0.0","runtime":"process","entry":"test","protocolVersion":1}"#).unwrap();
+        assert_eq!(build_target(&process, None).unwrap(), Some(host_target()));
+        assert!(build_target(&process, Some("invalid-target")).is_err());
+        let declarative = PluginManifest::from_json_str(r#"{"schemaVersion":2,"id":"acme.plugin","name":"Test","version":"1.0.0","runtime":"declarative"}"#).unwrap();
+        assert_eq!(build_target(&declarative, None).unwrap(), None);
+    }
 }

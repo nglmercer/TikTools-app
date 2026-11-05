@@ -21,7 +21,7 @@ use crate::paths::AppPaths;
 
 const STEP_UP_ENROLL_ACTION: &str = "publisher.key.enroll";
 const PROOF_DOMAIN: &str = "tiktools-cloud-publisher-key-v1";
-const MAX_ARTIFACT_SIZE: i64 = 64 * 1024 * 1024;
+const MAX_ARTIFACT_SIZE: i64 = 128 * 1024 * 1024;
 
 /// A publisher namespace the signed-in account belongs to.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -241,8 +241,9 @@ impl CloudPublisher {
         Self {
             http: Client::builder()
                 .timeout(std::time::Duration::from_secs(60))
+                .redirect(reqwest::redirect::Policy::none())
                 .build()
-                .unwrap_or_else(|_| Client::new()),
+                .expect("failed to initialize cloud HTTP client"),
             keys_dir: paths.data.join("publisher-keys"),
         }
     }
@@ -264,17 +265,14 @@ impl CloudPublisher {
         if is_uuid(trimmed) {
             return Ok(trimmed.to_owned());
         }
-        let publishers: Vec<PublisherSummary> = self
-            .get_json(origin, token, "/api/v1/publishers")
-            .await?;
+        let publishers: Vec<PublisherSummary> =
+            self.get_json(origin, token, "/api/v1/publishers").await?;
         publishers
             .into_iter()
             .find(|publisher| publisher.namespace == trimmed)
             .map(|publisher| publisher.id)
             .ok_or_else(|| {
-                OperationError::not_found(format!(
-                    "no publisher named `{trimmed}` in your account"
-                ))
+                OperationError::not_found(format!("no publisher named `{trimmed}` in your account"))
             })
     }
 
@@ -342,7 +340,9 @@ impl CloudPublisher {
             )
             .send()
             .await
-            .map_err(|error| OperationError::unavailable(format!("cloud request failed: {error}")))?;
+            .map_err(|error| {
+                OperationError::unavailable(format!("cloud request failed: {error}"))
+            })?;
         self.decode(response).await
     }
 
@@ -447,9 +447,17 @@ impl CloudPublisher {
     ) -> Result<PublisherEnrollResult, crate::control::OperationError> {
         use crate::control::OperationError;
         let (origin, token) = self.credentials(auth).await?;
-        let publisher_id = self
-            .resolve_publisher_id(&origin, &token, &params.publisher_id)
-            .await?;
+        let publishers: Vec<PublisherSummary> =
+            self.get_json(&origin, &token, "/api/v1/publishers").await?;
+        let publisher = publishers
+            .into_iter()
+            .find(|p| {
+                p.id == params.publisher_id.trim() || p.namespace == params.publisher_id.trim()
+            })
+            .ok_or_else(|| {
+                OperationError::not_found("publisher is not available in this account")
+            })?;
+        let publisher_id = publisher.id;
         let grant: StepUpGrant = self
             .post_json(
                 &origin,
@@ -490,10 +498,13 @@ impl CloudPublisher {
         };
         let parsed =
             KeyId::parse(&key_id).map_err(|error| OperationError::invalid(error.to_string()))?;
-        // Keys enroll unattributed; the backend authorizes by membership and
-        // approves the key record independently.
-        let signing = SigningKey::generate(parsed, None)
-            .map_err(|error| OperationError::invalid(error.to_string()))?;
+        // Persist the publisher-bound key before registration. If a network
+        // reply is lost, retrying this key id reuses the same private key.
+        let path = self.key_file(&key_id);
+        let signing =
+            load_or_create_signing_key(&path, parsed, &publisher.namespace).map_err(|error| {
+                OperationError::internal(format!("could not prepare the private key: {error}"))
+            })?;
         let public_key = signing.public_key();
         let raw = public_key
             .raw()
@@ -521,15 +532,6 @@ impl CloudPublisher {
                 },
             )
             .await?;
-        let path = self.key_file(&key_id);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|error| {
-                OperationError::internal(format!("could not create key directory: {error}"))
-            })?;
-        }
-        write_owner_only(&path, &signing.to_json()).map_err(|error| {
-            OperationError::internal(format!("could not store the private key: {error}"))
-        })?;
         let fingerprint = record.fingerprint.clone();
         Ok(PublisherEnrollResult {
             record,
@@ -551,24 +553,27 @@ impl CloudPublisher {
         let publisher_id = self
             .resolve_publisher_id(&origin, &token, &params.publisher_id)
             .await?;
-        let bytes = std::fs::read(&params.path).map_err(|error| {
+        use std::io::Read;
+        let file = std::fs::File::open(&params.path).map_err(|error| {
             OperationError::not_found(format!("could not read {}: {error}", params.path))
         })?;
+        // Bound the read itself, not just the validation after allocation.
+        let mut bytes = Vec::new();
+        file.take(MAX_ARTIFACT_SIZE as u64 + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|_| OperationError::unavailable("could not read artifact"))?;
         if bytes.is_empty() || bytes.len() as i64 > MAX_ARTIFACT_SIZE {
             return Err(OperationError::invalid(
-                "artifact must be non-empty and at most 64 MiB",
+                "artifact must be non-empty and at most 128 MiB",
             ));
         }
-        let sha256 =
-            Sha256Digest::of_bytes(&bytes).to_string();
+        let sha256 = Sha256Digest::of_bytes(&bytes).to_string();
         // Deterministic per distinct upload so a retry reuses the reservation
         // instead of creating a duplicate. Lowercase hex fits the backend's
         // idempotency-key charset.
         let idempotency =
-            Sha256Digest::of_bytes(
-                format!("{}:{}:{sha256}", publisher_id, bytes.len()).as_bytes(),
-            )
-            .to_string();
+            Sha256Digest::of_bytes(format!("{}:{}:{sha256}", publisher_id, bytes.len()).as_bytes())
+                .to_string();
         let created: UploadCreateResponse = self
             .post_json(
                 &origin,
@@ -582,7 +587,9 @@ impl CloudPublisher {
                 },
             )
             .await?;
-        let mut put = self.http.put(created.url);
+        let upload_url = safe_upload_url(&created.url)
+            .ok_or_else(|| OperationError::invalid("cloud returned an unsafe upload URL"))?;
+        let mut put = self.http.put(upload_url);
         for (name, value) in &created.headers {
             put = put.header(name.as_str(), value.as_str());
         }
@@ -590,9 +597,8 @@ impl CloudPublisher {
             .body(bytes)
             .send()
             .await
-            .map_err(|error| {
-                OperationError::unavailable(format!("artifact upload failed: {error}"))
-            })?
+            // reqwest errors can contain the signed URL, which is a bearer capability.
+            .map_err(|_| OperationError::unavailable("artifact upload failed"))?
             .status();
         if !put_status.is_success() {
             return Err(OperationError::unavailable(format!(
@@ -628,10 +634,14 @@ impl CloudPublisher {
     ) -> Result<PublisherReleaseResult, crate::control::OperationError> {
         use crate::control::OperationError;
         if params.plugin_id.trim().is_empty() || params.plugin_id.len() > 256 {
-            return Err(OperationError::invalid("plugin id must be 1-256 characters"));
+            return Err(OperationError::invalid(
+                "plugin id must be 1-256 characters",
+            ));
         }
         if semver::Version::parse(&params.version).is_err() {
-            return Err(OperationError::invalid("version must be semantic (e.g. 1.2.3)"));
+            return Err(OperationError::invalid(
+                "version must be semantic (e.g. 1.2.3)",
+            ));
         }
         let (origin, token) = self.credentials(auth).await?;
         let release: PublisherReleaseView = self
@@ -664,7 +674,11 @@ impl CloudPublisher {
     ) -> Result<PublisherReleaseResult, crate::control::OperationError> {
         let (origin, token) = self.credentials(auth).await?;
         let release: PublisherReleaseView = self
-            .get_json(&origin, &token, &format!("/api/v1/plugins/releases/{}", params.id))
+            .get_json(
+                &origin,
+                &token,
+                &format!("/api/v1/plugins/releases/{}", params.id),
+            )
             .await?;
         Ok(PublisherReleaseResult { release })
     }
@@ -703,6 +717,25 @@ fn is_uuid(value: &str) -> bool {
             .all(|(index, byte)| matches!(index, 8 | 13 | 18 | 23) || byte.is_ascii_hexdigit())
 }
 
+fn safe_upload_url(raw: &str) -> Option<reqwest::Url> {
+    let url = reqwest::Url::parse(raw).ok()?;
+    let loopback = url.host_str().is_some_and(|host| {
+        host.trim_start_matches('[')
+            .trim_end_matches(']')
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback())
+    });
+    if !(url.scheme() == "https" || url.scheme() == "http" && loopback)
+        || url.host().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    Some(url)
+}
+
 fn valid_namespace(value: &str) -> bool {
     let bytes = value.as_bytes();
     (2..=63).contains(&bytes.len())
@@ -735,8 +768,7 @@ fn proof_message(
 }
 
 fn base64_encode(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
         let mut block: u32 = 0;
@@ -754,12 +786,85 @@ fn base64_encode(bytes: &[u8]) -> String {
     out
 }
 
+fn load_or_create_signing_key(
+    path: &std::path::Path,
+    id: KeyId,
+    publisher: &str,
+) -> Result<SigningKey, String> {
+    use std::io::Read;
+    let parent = path.parent().ok_or("missing key directory")?;
+    std::fs::create_dir_all(parent).map_err(|_| "could not create key directory")?;
+    let metadata =
+        std::fs::symlink_metadata(parent).map_err(|_| "could not inspect key directory")?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err("key directory must be a regular directory".into());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))
+            .map_err(|_| "could not protect key directory")?;
+    }
+    let load = || -> Result<SigningKey, String> {
+        let mut options = std::fs::OpenOptions::new();
+        options.read(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.custom_flags(libc::O_NOFOLLOW);
+        }
+        let file = options
+            .open(path)
+            .map_err(|_| "could not safely open existing key")?;
+        let metadata = file
+            .metadata()
+            .map_err(|_| "could not inspect existing key")?;
+        if !metadata.is_file() || metadata.len() > 16384 {
+            return Err("existing key is not a small regular file".into());
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if metadata.permissions().mode() & 0o077 != 0 {
+                return Err("existing private key must have mode 0600 or stricter".into());
+            }
+        }
+        let mut bytes = Vec::new();
+        file.take(16385)
+            .read_to_end(&mut bytes)
+            .map_err(|_| "could not read existing key")?;
+        let key = SigningKey::from_json(&bytes).map_err(|_| "existing key is invalid")?;
+        if key.key_id() != &id || key.publisher() != Some(publisher) {
+            return Err(
+                "existing key id or publisher does not match; choose a different key id".into(),
+            );
+        }
+        Ok(key)
+    };
+    match std::fs::symlink_metadata(path) {
+        Ok(_) => return load(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => return Err("could not inspect existing key".into()),
+    }
+    let key =
+        SigningKey::generate(id.clone(), Some(publisher.to_owned())).map_err(|e| e.to_string())?;
+    match write_owner_only(path, &key.to_json()) {
+        Ok(()) => Ok(key),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => load(),
+        Err(_) => Err("could not persist private key".into()),
+    }
+}
+
 fn write_owner_only(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
         let mut options = std::fs::OpenOptions::new();
-        options.write(true).create(true).truncate(true).mode(0o600);
+        options
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW);
         let mut file = options.open(path)?;
         use std::io::Write;
         file.write_all(bytes)?;
@@ -768,13 +873,75 @@ fn write_owner_only(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()>
     }
     #[cfg(not(unix))]
     {
-        std::fs::write(path, bytes)
+        let _ = (path, bytes);
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "private key ACL verification is not available on this platform",
+        ))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn upload_url_requires_tls_or_loopback_and_has_no_embedded_credentials() {
+        for good in [
+            "https://store.example/object?token=secret",
+            "http://127.0.0.1:5000/x",
+            "http://[::1]:5000/x",
+        ] {
+            assert!(safe_upload_url(good).is_some());
+        }
+        for bad in [
+            "http://example.com/x",
+            "http://localhost/x",
+            "https://user:pass@example.com/x",
+            "https://example.com/x#frag",
+            "file:///tmp/file",
+        ] {
+            assert!(safe_upload_url(bad).is_none());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn enrollment_reuses_publisher_bound_key_without_overwriting() {
+        use std::os::unix::fs::{symlink, PermissionsExt};
+        let dir = std::env::temp_dir().join(format!("publisher-key-test-{}", uuid_for_test()));
+        std::fs::create_dir(&dir).unwrap();
+        let path = dir.join("keys").join("key.json");
+        let first =
+            load_or_create_signing_key(&path, KeyId::parse("key-1").unwrap(), "tiktools").unwrap();
+        let before = std::fs::read(&path).unwrap();
+        let second =
+            load_or_create_signing_key(&path, KeyId::parse("key-1").unwrap(), "tiktools").unwrap();
+        assert_eq!(first.public_key(), second.public_key());
+        assert_eq!(second.publisher(), Some("tiktools"));
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(
+            load_or_create_signing_key(&path, KeyId::parse("key-1").unwrap(), "other").is_err()
+        );
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(
+            load_or_create_signing_key(&path, KeyId::parse("key-1").unwrap(), "tiktools").is_err()
+        );
+        let link = dir.join("keys/link.json");
+        symlink(&path, &link).unwrap();
+        assert!(
+            load_or_create_signing_key(&link, KeyId::parse("key-1").unwrap(), "tiktools").is_err()
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    fn uuid_for_test() -> u128 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    }
 
     #[test]
     fn valid_namespace_mirrors_backend_rules() {
@@ -847,11 +1014,10 @@ mod tests {
         ) -> Vec<u8> {
             let body_json: serde_json::Value =
                 serde_json::from_slice(body).unwrap_or(serde_json::Value::Null);
-            log.0.lock().unwrap().push((
-                method.to_owned(),
-                path.to_owned(),
-                body.to_vec(),
-            ));
+            log.0
+                .lock()
+                .unwrap()
+                .push((method.to_owned(), path.to_owned(), body.to_vec()));
             if path != "/store/object"
                 && headers.get("authorization").map(String::as_str) != Some("Bearer test-token")
             {
@@ -893,9 +1059,10 @@ mod tests {
                     }
                     json(200, r#"{"grantId":"grant-1","expiresIn":300}"#)
                 }
-                ("POST", "/api/v1/publishers/pub-1/keys/challenges") => {
-                    json(200, r#"{"challengeId":"chal-1","nonce":"n0nce","expiresIn":300}"#)
-                }
+                ("POST", "/api/v1/publishers/pub-1/keys/challenges") => json(
+                    200,
+                    r#"{"challengeId":"chal-1","nonce":"n0nce","expiresIn":300}"#,
+                ),
                 ("POST", "/api/v1/publishers/pub-1/keys") => {
                     let key_id = body_json
                         .get("keyId")
@@ -934,9 +1101,10 @@ mod tests {
                 }
                 ("POST", "/api/v1/plugins/releases") => json(200, &release("submitted")),
                 ("GET", "/api/v1/plugins/releases/rel-1") => json(200, &release("submitted")),
-                ("POST", "/api/v1/plugins/releases/rel-1/publish") => {
-                    json(200, r#"{"jobId":"job-1","status":"requested","processingAvailable":true}"#)
-                }
+                ("POST", "/api/v1/plugins/releases/rel-1/publish") => json(
+                    200,
+                    r#"{"jobId":"job-1","status":"requested","processingAvailable":true}"#,
+                ),
                 _ => json(400, r#"{"error":"unexpected"}"#),
             }
         }
@@ -971,10 +1139,7 @@ mod tests {
                         break;
                     }
                     if let Some((key, value)) = line.split_once(':') {
-                        headers.insert(
-                            key.trim().to_ascii_lowercase(),
-                            value.trim().to_owned(),
-                        );
+                        headers.insert(key.trim().to_ascii_lowercase(), value.trim().to_owned());
                     }
                 }
                 let length: usize = headers
@@ -1071,6 +1236,20 @@ mod tests {
         let key_bytes = std::fs::read(&enrolled.key_file).unwrap();
         let loaded = SigningKey::from_json(&key_bytes).unwrap();
         assert_eq!(loaded.key_id().as_str(), "acme-1");
+        assert_eq!(loaded.publisher(), Some("acme"));
+        let retried = publisher
+            .enroll(
+                &auth,
+                PublisherEnrollParams {
+                    publisher_id: "acme".into(),
+                    password: "correct-horse".into(),
+                    key_id: Some("acme-1".into()),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read(&retried.key_file).unwrap(), key_bytes);
+        assert_eq!(retried.record.public_key, enrolled.record.public_key);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -1156,6 +1335,8 @@ mod tests {
         let proof = proof_message("pub", "chal", "nonce", "key-1", &base64_encode(&raw));
         let signature = key.sign(proof.as_bytes());
         assert_eq!(signature.len(), 64);
-        key.public_key().verify(proof.as_bytes(), &signature).unwrap();
+        key.public_key()
+            .verify(proof.as_bytes(), &signature)
+            .unwrap();
     }
 }

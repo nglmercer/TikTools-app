@@ -3,6 +3,11 @@
   "id": "repo.game",
   "name": "R.E.P.O. Game",
   "version": "1.0.0",
+  "publisher": "tiktools",
+  "license": "MIT",
+  "engines": { "tiktools": ">=0.3.3, <0.4.0" },
+  "categories": ["games", "integrations"],
+  "repository": "https://github.com/nglmercer/TikTools-app",
   "description": "Control R.E.P.O. gameplay through its local REST API.",
   "icon": "terminal",
   "tags": [

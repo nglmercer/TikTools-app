@@ -49,6 +49,70 @@ fn args(values: &[&str]) -> Vec<String> {
 }
 
 #[test]
+fn validate_all_fails_if_any_manifest_is_missing_or_not_publishable() {
+    let directory = TempDir::new("validate-all");
+    let files = render_template("declarative", "acme.demo", "acme", None, "{}");
+    fs::write(directory.join("plugin.json"), &files["plugin.json"]).unwrap();
+    fs::write(directory.join("CHANGELOG.md"), &files["CHANGELOG.md"]).unwrap();
+    let valid = directory.0.to_string_lossy().to_string();
+    let missing = directory.arg("missing.json");
+    assert!(run(args(&["validate-all", &valid])).is_ok());
+    assert!(run(args(&["validate-all", &valid, &missing])).is_err());
+    assert!(run(args(&["validate-all", &valid, &valid])).is_err());
+    assert!(run(args(&["validate-all"])).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn keygen_writes_private_keys_safely_and_records_explicit_scopes() {
+    use std::os::unix::fs::{symlink, PermissionsExt};
+    let dir = TempDir::new("scoped-key");
+    let path = dir.0.to_string_lossy().to_string();
+    run(args(&[
+        "keygen",
+        "--id",
+        "official-key",
+        "--publisher",
+        "tiktools",
+        "--out",
+        &path,
+        "--scope",
+        "tiktools.*",
+        "--scope",
+        "sonicboom.server",
+    ]))
+    .unwrap();
+    let private = dir.join("official-key.key.json");
+    assert_eq!(
+        fs::metadata(&private).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    let public: tiktools_plugin_package::TrustedKey =
+        serde_json::from_slice(&fs::read(dir.join("official-key.pub.json")).unwrap()).unwrap();
+    assert!(public.allows_package("sonicboom.server"));
+    assert!(!public.allows_package("sonicboom.other"));
+    assert!(run(args(&[
+        "keygen", "--id", "bad", "--role", "root", "--scope", "*", "--out", &path
+    ]))
+    .is_err());
+    let victim = dir.join("victim");
+    fs::write(&victim, b"unchanged").unwrap();
+    symlink(&victim, dir.join("link.key.json")).unwrap();
+    assert!(run(args(&[
+        "keygen",
+        "--id",
+        "link",
+        "--publisher",
+        "tiktools",
+        "--out",
+        &path,
+        "--force"
+    ]))
+    .is_err());
+    assert_eq!(fs::read(victim).unwrap(), b"unchanged");
+}
+
+#[test]
 fn every_template_renders_a_publishable_manifest() {
     for template in TEMPLATES {
         let files = render_template(template, "acme.demo", "acme", None, "{ path = \"../sdk\" }");

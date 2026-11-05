@@ -68,6 +68,9 @@ reqwest = { workspace = true, optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
 url = "2.5.8"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(not(target_os = "android"))'.dependencies]
 arboard = { version = "3.7.0", default-features = false }
 

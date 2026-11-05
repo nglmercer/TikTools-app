@@ -32,6 +32,8 @@ to depend on the local SDK instead of the git dependency.
 ```bash
 tiktools-plugin validate
 tiktools-plugin validate --publish
+# Review several existing plugins at once; exits nonzero if any is not ready.
+tiktools-plugin validate-all plugins/l4d2 plugins/sonicboom
 ```
 
 `validate` parses the manifest with the host parser and reports host
@@ -90,6 +92,15 @@ tiktools-plugin verify dist-plugin/acme.tts-0.1.0-win32-x64-msvc.plugin --trust 
 `*.pub.json` to send to registry operators. `build` and `pack` accept
 `--sign <key>` to sign in the same step. The signature covers
 `checksums.json`, which covers every file in the package.
+
+The official publisher uses namespace `tiktools`. Existing IDs are preserved
+only through explicit root-signed scopes, such as `--scope 'tiktools.*'
+--scope sonicboom.server` when generating a publisher key. A scope does not
+replace backend publisher approval or independent registry-root delegation.
+Use `validate-all --legacy-id` for these grandfathered manifests. The two
+SonicBoom manifests currently share an ID and version but describe different
+implementations; select `plugins/sonicboom` as the release source, not both.
+Generated private keys are owner-readable only on Unix.
 
 ## 6. Publish
 

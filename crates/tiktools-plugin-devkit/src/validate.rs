@@ -114,3 +114,70 @@ pub(crate) fn run(raw: &[String]) -> CommandResult {
     }
     Ok(())
 }
+
+/// Check all explicit inputs and return every failure in a single report.
+/// No package is built, signed, or uploaded by this command.
+pub(crate) fn run_all(raw: &[String]) -> CommandResult {
+    let args = Args::parse(raw);
+    if args.rest(0).is_empty() {
+        return Err(
+            "usage: tiktools-plugin validate-all <dir|plugin.json>... [--legacy-id]".into(),
+        );
+    }
+    let mut reports = Vec::new();
+    let mut failed = false;
+    for target in args.rest(0) {
+        let path = manifest_path(Some(target));
+        match load_manifest(&path) {
+            Ok(manifest) => {
+                let directory = path.parent().unwrap_or(Path::new("."));
+                let issues = publish_issues(&manifest, directory, args.has("--legacy-id"));
+                failed |= !issues.is_empty();
+                reports.push(json!({
+                    "manifest": path.display().to_string(),
+                    "id": manifest.id,
+                    "version": manifest.version,
+                    "publishReady": issues.is_empty(),
+                    "publishIssues": issues,
+                    "warnings": warnings(&manifest, directory),
+                }));
+            }
+            Err(error) => {
+                failed = true;
+                reports.push(json!({"manifest": path.display().to_string(), "publishReady": false, "error": error}));
+            }
+        }
+    }
+    // Distinct source directories with the same id and version are
+    // ambiguous: choose one source before building its target variants.
+    let mut seen = std::collections::BTreeMap::<(String, String), usize>::new();
+    for index in 0..reports.len() {
+        let Some(id) = reports[index]["id"].as_str() else {
+            continue;
+        };
+        let Some(version) = reports[index]["version"].as_str() else {
+            continue;
+        };
+        let identity = (id.to_owned(), version.to_owned());
+        if let Some(&first) = seen.get(&identity) {
+            failed = true;
+            for duplicate in [first, index] {
+                reports[duplicate]["publishReady"] = json!(false);
+                if let Some(issues) = reports[duplicate]["publishIssues"].as_array_mut() {
+                    let message =
+                        json!("duplicate plugin id and version among inputs; select one source");
+                    if !issues.contains(&message) {
+                        issues.push(message);
+                    }
+                }
+            }
+        } else {
+            seen.insert(identity, index);
+        }
+    }
+    print_json(&json!({"publishReady": !failed, "plugins": reports}));
+    if failed {
+        return Err("one or more manifests are not ready to publish".into());
+    }
+    Ok(())
+}

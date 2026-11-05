@@ -1,5 +1,6 @@
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -12,7 +13,7 @@ use tiktools_plugin_package::{
 use crate::args::{print_json, Args, CommandResult};
 
 const KEYGEN_USAGE: &str =
-    "tiktools-plugin keygen --id <key-id> [--publisher <name>] [--role root|index|publisher] [--out <dir>]";
+    "tiktools-plugin keygen --id <key-id> [--publisher <name>] [--role root|index|publisher] [--scope <plugin-id|prefix.*>]... [--out <dir>]";
 const SIGN_USAGE: &str = "tiktools-plugin sign <file.plugin>... --key <key.json>";
 const VERIFY_USAGE: &str = "tiktools-plugin verify <file.plugin> [--trust <public-key.json>]...";
 
@@ -31,6 +32,19 @@ pub(crate) fn keygen(raw: &[String]) -> CommandResult {
     if role == KeyRole::Publisher && publisher.is_none() {
         return Err(format!("publisher keys need --publisher\n{KEYGEN_USAGE}").into());
     }
+    let scopes = args.flags("--scope");
+    if !scopes.is_empty() && role != KeyRole::Publisher {
+        return Err("scopes are only valid for publisher keys".into());
+    }
+    for scope in &scopes {
+        let base = scope.strip_suffix(".*").unwrap_or(scope);
+        if !tiktools_plugin_api::manifest::is_valid_plugin_id(base)
+            || scope.len() > 256
+            || scope.contains('*') && !scope.ends_with(".*")
+        {
+            return Err(format!("invalid publisher scope `{scope}`").into());
+        }
+    }
     let key = SigningKey::generate(id.clone(), publisher.clone())?;
     let out = args.path("--out").unwrap_or_else(|| PathBuf::from("."));
     fs::create_dir_all(&out)?;
@@ -39,12 +53,13 @@ pub(crate) fn keygen(raw: &[String]) -> CommandResult {
     if private.exists() && !args.has("--force") {
         return Err(format!("{} exists; pass --force to overwrite", private.display()).into());
     }
-    fs::write(&private, key.to_json())?;
+    write_private(&private, &key.to_json(), args.has("--force"))?;
     let mut trusted = TrustedKey::new(key.public_key(), role);
     trusted.publisher = publisher;
+    trusted.scopes = scopes;
     let mut public_bytes = serde_json::to_vec_pretty(&trusted)?;
     public_bytes.push(b'\n');
-    fs::write(&public, public_bytes)?;
+    write_private(&public, &public_bytes, args.has("--force"))?;
     print_json(&json!({
         "keyId": id.to_string(),
         "role": role,
@@ -53,6 +68,41 @@ pub(crate) fn keygen(raw: &[String]) -> CommandResult {
         "fingerprint": key.public_key().fingerprint()?.to_string(),
         "warning": "keep the private key file secret and out of version control",
     }));
+    Ok(())
+}
+
+fn write_private(path: &Path, bytes: &[u8], force: bool) -> CommandResult {
+    if force {
+        match fs::symlink_metadata(path) {
+            Ok(meta) if !meta.is_file() || meta.file_type().is_symlink() => {
+                return Err("private key path must be a regular file".into())
+            }
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    let mut options = fs::OpenOptions::new();
+    options.write(true);
+    if force {
+        options.create(true);
+    } else {
+        options.create_new(true);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600).custom_flags(libc::O_NOFOLLOW);
+    }
+    let mut file = options.open(path)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    }
+    file.set_len(0)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
     Ok(())
 }
 

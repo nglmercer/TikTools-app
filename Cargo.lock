@@ -6486,6 +6486,7 @@ dependencies = [
  "cloud-client",
  "fastrand",
  "getrandom 0.4.3",
+ "libc",
  "napi-vm",
  "reqwest 0.13.5",
  "rusqlite",
@@ -6570,6 +6571,7 @@ dependencies = [
 name = "tiktools-plugin-devkit"
 version = "0.3.3"
 dependencies = [
+ "libc",
  "semver",
  "serde",
  "serde_json",

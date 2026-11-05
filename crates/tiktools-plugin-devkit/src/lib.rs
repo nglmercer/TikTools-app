@@ -19,12 +19,13 @@ tiktools-plugin <command> [args]
 commands:
   new <id> [--template process-rust|native-rust|napi-vm-ts|declarative|webview-ui] [--name text] [--publisher name] [--dir path]
   validate [dir|plugin.json] [--publish] [--legacy-id]
+  validate-all <dir|plugin.json>... [--legacy-id]
   build [dir] [--target <plugin-target> | --all-targets] [--release] [--out-dir dist] [--sign key.json]
   pack [dir] [--entry file] [--out-dir dist] [--target <plugin-target>] [--sign key.json]
   pack --manifest plugin.json --entry file --output file.plugin [--target <plugin-target>]
   stage-native --package <name> --source <dir> --plugin-dir <dir> --root <rel> [--overwrite]
   stage-native --provider [npm|github|all] --manifest plugin.json [--plugin-dir dir] [--pin] ...
-  keygen --id <key-id> [--publisher name] [--role root|index|publisher] [--out dir]
+  keygen --id <key-id> [--publisher name] [--role root|index|publisher] [--scope <id|prefix.*>]... [--out dir]
   sign <file.plugin>... --key key.json
   verify <file.plugin> [--trust public-key.json]...
   index init|delegate|add|yank|advise|revoke|rebuild <registry-dir> ...
@@ -39,6 +40,7 @@ pub fn run(args: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     match command.as_str() {
         "new" => scaffold::run(rest),
         "validate" => validate::run(rest),
+        "validate-all" => validate::run_all(rest),
         "build" => pack_cmd::build_command(rest),
         "pack" => pack_cmd::pack_command(rest),
         "stage-native" => stage_native::run(rest.to_vec()),
