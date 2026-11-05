@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "tiktok-live-appv3",
+      "name": "tiktools",
       "dependencies": {
         "pinia": "^4.1.0",
         "vue": "^3.5.44",
