@@ -21,6 +21,7 @@ use super::{result_value, CommandError};
 pub enum Command {
     List,
     Create { namespace: String },
+    Delete { publisher: String },
     Keys { publisher_id: String },
     Enroll { publisher_id: String, key_id: Option<String> },
     Upload { publisher_id: String, path: String },
@@ -36,12 +37,15 @@ pub enum Command {
 }
 
 pub fn parse(rest: &[String]) -> Result<Command, CommandError> {
-    let usage = "publisher <list|create|keys|enroll|upload|submit|release|publish> ...";
+    let usage = "publisher <list|create|delete|keys|enroll|upload|submit|release|publish> ...";
     let (verb, rest) = split_first(rest, usage).map_err(CommandError::from)?;
     match verb {
         "list" => Ok(Command::List),
         "create" => Ok(Command::Create {
             namespace: one_arg(rest, "publisher create <namespace>")?,
+        }),
+        "delete" => Ok(Command::Delete {
+            publisher: one_arg(rest, "publisher delete <namespace-or-publisher-id>")?,
         }),
         "keys" => Ok(Command::Keys {
             publisher_id: one_arg(rest, "publisher keys <publisher-id>")?,
@@ -114,6 +118,13 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
         Command::Create { namespace } => {
             result_value(client.publisher_create(PublisherCreateParams { namespace }).await?)
         }
+        Command::Delete { publisher } => result_value(
+            client
+                .publisher_delete(PublisherIdParams {
+                    publisher_id: publisher,
+                })
+                .await?,
+        ),
         Command::Keys { publisher_id } => {
             result_value(client.publisher_keys(PublisherIdParams { publisher_id }).await?)
         }
@@ -188,6 +199,10 @@ mod tests {
             Ok(Command::Create { .. })
         ));
         assert!(matches!(
+            parse(&args(&["delete", "tiktok-live-appv3"])),
+            Ok(Command::Delete { .. })
+        ));
+        assert!(matches!(
             parse(&args(&["keys", "pub-1"])),
             Ok(Command::Keys { .. })
         ));
@@ -238,6 +253,7 @@ mod tests {
     fn verbs_reject_missing_positionals() {
         for words in [
             vec!["create"],
+            vec!["delete"],
             vec!["keys"],
             vec!["enroll"],
             vec!["upload", "pub-1"],

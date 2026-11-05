@@ -39,6 +39,15 @@ pub struct PublisherListResult {
     pub publishers: Vec<PublisherSummary>,
 }
 
+/// Result of deleting a publisher namespace. `publisher_id` is the resolved
+/// id, which can differ from the namespace the caller typed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PublisherDeleteResult {
+    pub publisher_id: String,
+    pub deleted: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PublisherCreateParams {
@@ -380,6 +389,40 @@ impl CloudPublisher {
         })
     }
 
+    /// DELETE with no response body. A 2xx status is success. A 409 means the
+    /// backend still sees members, keys, uploads, releases, transfers or
+    /// step-up records, so nothing was removed.
+    async fn delete_empty(
+        &self,
+        origin: &str,
+        token: &NativeToken,
+        path: &str,
+    ) -> Result<(), crate::control::OperationError> {
+        use crate::control::OperationError;
+        let response = self
+            .http
+            .delete(format!("{origin}{path}"))
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", token.expose()),
+            )
+            .send()
+            .await
+            .map_err(|error| {
+                OperationError::unavailable(format!("cloud request failed: {error}"))
+            })?;
+        if response.status().is_success() {
+            return Ok(());
+        }
+        if response.status() == StatusCode::CONFLICT {
+            return Err(OperationError::conflict(
+                "publisher still has other members, keys, uploads, releases, transfers or step-up records; nothing was deleted",
+            ));
+        }
+        // `decode` maps every non-success status to an error.
+        self.decode::<serde_json::Value>(response).await.map(|_| ())
+    }
+
     /// Namespaces the signed-in account belongs to.
     pub(crate) async fn list(
         &self,
@@ -414,6 +457,31 @@ impl CloudPublisher {
             &serde_json::json!({ "namespace": namespace }),
         )
         .await
+    }
+
+    /// Deletes a publisher namespace the caller owns. Accepts the namespace
+    /// or the publisher id. The backend refuses (409) unless the namespace
+    /// has no other members, keys, uploads, releases, transfers or step-up
+    /// records.
+    pub(crate) async fn delete(
+        &self,
+        auth: &CloudAuth,
+        params: PublisherIdParams,
+    ) -> Result<PublisherDeleteResult, crate::control::OperationError> {
+        let (origin, token) = self.credentials(auth).await?;
+        let publisher_id = self
+            .resolve_publisher_id(&origin, &token, &params.publisher_id)
+            .await?;
+        self.delete_empty(
+            &origin,
+            &token,
+            &format!("/api/v1/publishers/{publisher_id}"),
+        )
+        .await?;
+        Ok(PublisherDeleteResult {
+            publisher_id,
+            deleted: true,
+        })
     }
 
     /// Signing keys of one publisher (pending and approved).
@@ -995,6 +1063,7 @@ mod tests {
                 200 => "OK",
                 201 => "Created",
                 400 => "Bad Request",
+                409 => "Conflict",
                 _ => "Error",
             };
             format!(
@@ -1034,6 +1103,13 @@ mod tests {
                     200,
                     r#"{"schemaVersion":1,"profile":{"id":"user-1","email":"user@example.com","name":"Test User"},"cloudRoles":[],"publisherMemberships":[],"publisherKeysRequested":[],"releasesSubmitted":[],"uploadsRequested":[],"reviewsRecorded":[],"publicationRequests":[],"ownershipTransfers":[],"auditEventsByActor":[],"yanksRecorded":[],"advisoriesRecorded":[],"sync":{"schemaVersion":1,"cursor":0,"records":[]}}"#,
                 ),
+                ("DELETE", "/api/v1/publishers/pub-1") => {
+                    b"HTTP/1.1 204 No Content\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+                        .to_vec()
+                }
+                ("DELETE", "/api/v1/publishers/00000000-0000-4000-8000-0000000000bb") => {
+                    json(409, r#"{"error":"publisher still has other members"}"#)
+                }
                 ("GET", "/api/v1/publishers") => json(
                     200,
                     r#"[{"id":"pub-1","namespace":"acme","status":"approved","role":"owner"}]"#,
@@ -1313,6 +1389,33 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(publication.job_id, "job-1");
+
+        // Deleting by namespace resolves to the publisher id before DELETE.
+        let deleted = publisher
+            .delete(
+                &auth,
+                PublisherIdParams {
+                    publisher_id: "acme".to_owned(),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(deleted.publisher_id, "pub-1");
+        assert!(deleted.deleted);
+
+        // A conflict from the backend is returned as an error and nothing is removed.
+        let busy = publisher
+            .delete(
+                &auth,
+                PublisherIdParams {
+                    publisher_id: "00000000-0000-4000-8000-0000000000bb".to_owned(),
+                },
+            )
+            .await;
+        assert!(
+            busy.is_err(),
+            "a publisher with other members must not be deleted"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

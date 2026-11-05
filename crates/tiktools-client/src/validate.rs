@@ -43,8 +43,6 @@ use tiktools_control_api::modules::publisher::{
     PublisherCreateParams, PublisherEnrollParams, PublisherIdParams, PublisherReleaseParams,
     PublisherSubmitParams, PublisherUploadParams,
 };
-#[cfg(feature = "cloud-auth")]
-use tiktools_control_api::modules::sync::SyncResolveParams;
 use tiktools_control_api::modules::rankings::{
     Definition, ExternalContribution, RankingId, RankingUpdate,
 };
@@ -54,6 +52,8 @@ use tiktools_control_api::modules::registry::{
 };
 use tiktools_control_api::modules::rpc::SchemaParams;
 use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsSet};
+#[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::sync::SyncResolveParams;
 use tiktools_control_api::modules::system::SaveFileParams;
 use tiktools_control_api::modules::widgets::WidgetsCopyParams;
 use tiktools_control_api::modules::workflows::{WorkflowIdParams, WorkflowSaveParams};
@@ -345,15 +345,15 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         | "cloud.restore"
         | "cloud.logout" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
-        "sync.status" | "sync.enable" | "sync.disable" | "sync.now" => {
-            validate::<Empty>(params)
-        }
+        "sync.status" | "sync.enable" | "sync.disable" | "sync.now" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.resolve" => validate::<SyncResolveParams>(params),
         #[cfg(feature = "cloud-auth")]
         "publisher.list" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
         "publisher.create" => validate::<PublisherCreateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "publisher.delete" => validate::<PublisherIdParams>(params),
         #[cfg(feature = "cloud-auth")]
         "publisher.keys" => validate::<PublisherIdParams>(params),
         #[cfg(feature = "cloud-auth")]

@@ -1,9 +1,9 @@
 use super::TikToolsClient;
 use tiktools_control_api::modules::publisher::{
-    PublisherCreateParams, PublisherEnrollParams, PublisherEnrollResult, PublisherIdParams,
-    PublisherKeysResult, PublisherListResult, PublisherPublicationResult, PublisherReleaseParams,
-    PublisherReleaseResult, PublisherSubmitParams, PublisherSummary, PublisherUploadParams,
-    PublisherUploadResult,
+    PublisherCreateParams, PublisherDeleteResult, PublisherEnrollParams, PublisherEnrollResult,
+    PublisherIdParams, PublisherKeysResult, PublisherListResult, PublisherPublicationResult,
+    PublisherReleaseParams, PublisherReleaseResult, PublisherSubmitParams, PublisherSummary,
+    PublisherUploadParams, PublisherUploadResult,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
@@ -11,6 +11,7 @@ use tiktools_control_api::ClientError;
 pub(crate) const METHODS: &[&str] = &[
     PUBLISHER_LIST,
     PUBLISHER_CREATE,
+    PUBLISHER_DELETE,
     PUBLISHER_KEYS,
     PUBLISHER_KEYS_ENROLL,
     PUBLISHER_UPLOADS_SEND,
@@ -21,6 +22,7 @@ pub(crate) const METHODS: &[&str] = &[
 
 const PUBLISHER_LIST: &str = "publisher.list";
 const PUBLISHER_CREATE: &str = "publisher.create";
+const PUBLISHER_DELETE: &str = "publisher.delete";
 const PUBLISHER_KEYS: &str = "publisher.keys";
 const PUBLISHER_KEYS_ENROLL: &str = "publisher.keys.enroll";
 const PUBLISHER_UPLOADS_SEND: &str = "publisher.uploads.send";
@@ -38,6 +40,13 @@ impl TikToolsClient {
         params: PublisherCreateParams,
     ) -> Result<PublisherSummary, ClientError> {
         self.call(PUBLISHER_CREATE, params).await
+    }
+
+    pub async fn publisher_delete(
+        &self,
+        params: PublisherIdParams,
+    ) -> Result<PublisherDeleteResult, ClientError> {
+        self.call(PUBLISHER_DELETE, params).await
     }
 
     pub async fn publisher_keys(

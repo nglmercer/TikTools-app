@@ -6,10 +6,10 @@
 use super::OperationError;
 use crate::{
     cloud_publisher::{
-        PublisherCreateParams, PublisherEnrollParams, PublisherEnrollResult, PublisherIdParams,
-        PublisherKeysResult, PublisherListResult, PublisherPublicationResult, PublisherReleaseParams,
-        PublisherReleaseResult, PublisherSubmitParams, PublisherSummary, PublisherUploadParams,
-        PublisherUploadResult,
+        PublisherCreateParams, PublisherDeleteResult, PublisherEnrollParams, PublisherEnrollResult,
+        PublisherIdParams, PublisherKeysResult, PublisherListResult, PublisherPublicationResult,
+        PublisherReleaseParams, PublisherReleaseResult, PublisherSubmitParams, PublisherSummary,
+        PublisherUploadParams, PublisherUploadResult,
     },
     AppCore,
 };
@@ -32,6 +32,13 @@ impl AppCore {
         params: PublisherCreateParams,
     ) -> Result<PublisherSummary, OperationError> {
         self.publisher().create(self.auth(), params).await
+    }
+
+    pub async fn publisher_delete(
+        &self,
+        params: PublisherIdParams,
+    ) -> Result<PublisherDeleteResult, OperationError> {
+        self.publisher().delete(self.auth(), params).await
     }
 
     pub async fn publisher_keys(

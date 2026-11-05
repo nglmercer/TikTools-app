@@ -4,13 +4,13 @@
 
 use std::sync::Arc;
 
-use tiktools_core::AppCore;
 pub use tiktools_core::cloud_publisher::{
-    PublisherCreateParams, PublisherEnrollParams, PublisherEnrollResult, PublisherIdParams,
-    PublisherKeysResult, PublisherListResult, PublisherPublicationResult, PublisherReleaseParams,
-    PublisherReleaseResult, PublisherSubmitParams, PublisherSummary, PublisherUploadParams,
-    PublisherUploadResult,
+    PublisherCreateParams, PublisherDeleteResult, PublisherEnrollParams, PublisherEnrollResult,
+    PublisherIdParams, PublisherKeysResult, PublisherListResult, PublisherPublicationResult,
+    PublisherReleaseParams, PublisherReleaseResult, PublisherSubmitParams, PublisherSummary,
+    PublisherUploadParams, PublisherUploadResult,
 };
+use tiktools_core::AppCore;
 
 use super::Empty;
 use crate::{error::ApiError, router::ControlRouter};
@@ -30,6 +30,14 @@ pub fn register(router: &mut ControlRouter) {
         true,
         |core: Arc<AppCore>, params: PublisherCreateParams| async move {
             core.publisher_create(params).await.map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<PublisherIdParams, PublisherDeleteResult, _, _>(
+        "publisher.delete",
+        "Deletes an owned publisher namespace that has no other members, keys, uploads, releases, transfers or step-up records",
+        true,
+        |core: Arc<AppCore>, params: PublisherIdParams| async move {
+            core.publisher_delete(params).await.map_err(ApiError::from)
         },
     );
     router.register_typed::<PublisherIdParams, PublisherKeysResult, _, _>(
