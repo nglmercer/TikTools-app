@@ -34,7 +34,10 @@ impl TikToolsClient {
         self.call(SYNC_NOW, Empty::default()).await
     }
 
-    pub async fn sync_resolve(&self, params: SyncResolveParams) -> Result<SyncStatusResult, ClientError> {
+    pub async fn sync_resolve(
+        &self,
+        params: SyncResolveParams,
+    ) -> Result<SyncStatusResult, ClientError> {
         self.call(SYNC_RESOLVE, params).await
     }
 }

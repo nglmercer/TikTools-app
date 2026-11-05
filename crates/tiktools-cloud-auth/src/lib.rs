@@ -183,7 +183,10 @@ impl CloudAuth {
                 .session
                 .as_ref()
                 .map(|session| session.account_id().to_owned()),
-            email: inner.profile.as_ref().and_then(|profile| profile.email.clone()),
+            email: inner
+                .profile
+                .as_ref()
+                .and_then(|profile| profile.email.clone()),
             display_name: inner
                 .profile
                 .as_ref()
@@ -203,7 +206,6 @@ impl CloudAuth {
             display_name: export.profile.name,
         })
     }
-
 
     /// The live native session, if signed in. Shares ownership so sync and
     /// other native callers reuse one session without re-authenticating;

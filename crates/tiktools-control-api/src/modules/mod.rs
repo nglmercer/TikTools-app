@@ -14,11 +14,7 @@ pub mod packages;
 pub mod plugins;
 pub mod points;
 pub mod processors;
-#[cfg(all(
-    feature = "cloud-auth",
-    feature = "http",
-    feature = "plugin-install"
-))]
+#[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 pub mod publisher;
 pub mod rankings;
 #[cfg(feature = "plugin-install")]

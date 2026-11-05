@@ -20,11 +20,23 @@ use super::{result_value, CommandError};
 
 pub enum Command {
     List,
-    Create { namespace: String },
-    Delete { publisher: String },
-    Keys { publisher_id: String },
-    Enroll { publisher_id: String, key_id: Option<String> },
-    Upload { publisher_id: String, path: String },
+    Create {
+        namespace: String,
+    },
+    Delete {
+        publisher: String,
+    },
+    Keys {
+        publisher_id: String,
+    },
+    Enroll {
+        publisher_id: String,
+        key_id: Option<String>,
+    },
+    Upload {
+        publisher_id: String,
+        path: String,
+    },
     Submit {
         upload_id: String,
         key_id: String,
@@ -32,8 +44,12 @@ pub enum Command {
         version: String,
         target: Option<String>,
     },
-    Release { id: String },
-    Publish { id: String },
+    Release {
+        id: String,
+    },
+    Publish {
+        id: String,
+    },
 }
 
 pub fn parse(rest: &[String]) -> Result<Command, CommandError> {
@@ -115,9 +131,11 @@ fn read_password() -> Result<String, CommandError> {
 pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value, ClientError> {
     match command {
         Command::List => result_value(client.publisher_list().await?),
-        Command::Create { namespace } => {
-            result_value(client.publisher_create(PublisherCreateParams { namespace }).await?)
-        }
+        Command::Create { namespace } => result_value(
+            client
+                .publisher_create(PublisherCreateParams { namespace })
+                .await?,
+        ),
         Command::Delete { publisher } => result_value(
             client
                 .publisher_delete(PublisherIdParams {
@@ -125,15 +143,16 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                 })
                 .await?,
         ),
-        Command::Keys { publisher_id } => {
-            result_value(client.publisher_keys(PublisherIdParams { publisher_id }).await?)
-        }
+        Command::Keys { publisher_id } => result_value(
+            client
+                .publisher_keys(PublisherIdParams { publisher_id })
+                .await?,
+        ),
         Command::Enroll {
             publisher_id,
             key_id,
         } => {
-            let password =
-                read_password().map_err(|error: CommandError| to_client_error(error))?;
+            let password = read_password().map_err(|error: CommandError| to_client_error(error))?;
             result_value(
                 client
                     .publisher_enroll(PublisherEnrollParams {
@@ -166,12 +185,16 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                 })
                 .await?,
         ),
-        Command::Release { id } => {
-            result_value(client.publisher_release(PublisherReleaseParams { id }).await?)
-        }
-        Command::Publish { id } => {
-            result_value(client.publisher_publish(PublisherReleaseParams { id }).await?)
-        }
+        Command::Release { id } => result_value(
+            client
+                .publisher_release(PublisherReleaseParams { id })
+                .await?,
+        ),
+        Command::Publish { id } => result_value(
+            client
+                .publisher_publish(PublisherReleaseParams { id })
+                .await?,
+        ),
     }
 }
 
@@ -208,10 +231,7 @@ mod tests {
         ));
         assert!(matches!(
             parse(&args(&["enroll", "pub-1"])),
-            Ok(Command::Enroll {
-                key_id: None,
-                ..
-            })
+            Ok(Command::Enroll { key_id: None, .. })
         ));
         assert!(matches!(
             parse(&args(&["enroll", "pub-1", "--key-id", "acme-1"])),
@@ -225,9 +245,7 @@ mod tests {
             Ok(Command::Upload { .. })
         ));
         assert!(matches!(
-            parse(&args(&[
-                "submit", "up-1", "key-1", "acme.tts", "1.2.3"
-            ])),
+            parse(&args(&["submit", "up-1", "key-1", "acme.tts", "1.2.3"])),
             Ok(Command::Submit { target: None, .. })
         ));
         assert!(matches!(

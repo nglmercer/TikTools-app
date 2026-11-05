@@ -140,44 +140,45 @@ pub fn redact_output(value: Value, secrets_visible: bool) -> Value {
 pub fn parse_command(args: &[String]) -> Result<Plan, CommandError> {
     let head = args[0].as_str();
     let rest = &args[1..];
-    let plan =
-        match head {
-            "plugin" => Plan::Plugins(plugins::parse(rest)?),
-            #[cfg(feature = "cloud-auth")]
-            "cloud" => Plan::Cloud(cloud::parse(rest)?),
-            #[cfg(not(feature = "cloud-auth"))]
-            "cloud" => return Err(
+    let plan = match head {
+        "plugin" => Plan::Plugins(plugins::parse(rest)?),
+        #[cfg(feature = "cloud-auth")]
+        "cloud" => Plan::Cloud(cloud::parse(rest)?),
+        #[cfg(not(feature = "cloud-auth"))]
+        "cloud" => {
+            return Err(
                 "cloud commands need the `cloud-auth` feature; rebuild with --features cloud-auth"
                     .to_owned()
                     .into(),
-            ),
-            #[cfg(feature = "cloud-auth")]
-            "publisher" => Plan::Publisher(publishers::parse(rest)?),
-            #[cfg(not(feature = "cloud-auth"))]
-            "publisher" => return Err(
-                "publisher commands need the `cloud-auth` feature; rebuild with --features cloud-auth"
-                    .to_owned()
-                    .into(),
-            ),
-            "registry" => Plan::Registry(packages::parse_registry(rest)?),
-            "processor" | "processors" => Plan::Processors(processors::parse(rest)?),
-            "live" => Plan::Live(live::parse(rest)?),
-            "points" => Plan::Points(points::parse(rest)?),
-            "ranking" => Plan::Rankings(rankings::parse(rest)?),
-            "competition" => Plan::Competitions(competitions::parse(rest)?),
-            "automation" => Plan::Automation(automation::parse(rest)?),
-            "globals" => Plan::Globals(globals::parse(rest)?),
-            "workflow" => Plan::Workflows(workflows::parse(rest)?),
-            "media" => Plan::Media(media::parse(rest)?),
-            "system" => Plan::System(system::parse(rest)?),
-            "template" => Plan::Template(template::parse(rest)?),
-            "api" => Plan::Api(api::parse(rest)?),
-            "rpc" => raw::parse_rpc(rest)?,
-            // `serve_plan` handles every `host` form before parsing commands;
-            // reaching here means host was misrouted, so report its usage.
-            "host" => return Err("host --stdio [--events] | host --ipc".to_owned().into()),
-            other => return Err(format!("unknown command `{other}`").into()),
-        };
+            )
+        }
+        #[cfg(feature = "cloud-auth")]
+        "publisher" => Plan::Publisher(publishers::parse(rest)?),
+        #[cfg(not(feature = "cloud-auth"))]
+        "publisher" => return Err(
+            "publisher commands need the `cloud-auth` feature; rebuild with --features cloud-auth"
+                .to_owned()
+                .into(),
+        ),
+        "registry" => Plan::Registry(packages::parse_registry(rest)?),
+        "processor" | "processors" => Plan::Processors(processors::parse(rest)?),
+        "live" => Plan::Live(live::parse(rest)?),
+        "points" => Plan::Points(points::parse(rest)?),
+        "ranking" => Plan::Rankings(rankings::parse(rest)?),
+        "competition" => Plan::Competitions(competitions::parse(rest)?),
+        "automation" => Plan::Automation(automation::parse(rest)?),
+        "globals" => Plan::Globals(globals::parse(rest)?),
+        "workflow" => Plan::Workflows(workflows::parse(rest)?),
+        "media" => Plan::Media(media::parse(rest)?),
+        "system" => Plan::System(system::parse(rest)?),
+        "template" => Plan::Template(template::parse(rest)?),
+        "api" => Plan::Api(api::parse(rest)?),
+        "rpc" => raw::parse_rpc(rest)?,
+        // `serve_plan` handles every `host` form before parsing commands;
+        // reaching here means host was misrouted, so report its usage.
+        "host" => return Err("host --stdio [--events] | host --ipc".to_owned().into()),
+        other => return Err(format!("unknown command `{other}`").into()),
+    };
     Ok(plan)
 }
 

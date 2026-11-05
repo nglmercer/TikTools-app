@@ -72,7 +72,7 @@ Supported targets:
   ${supportedRustTargets().join(', ')}
 
 Output:
-  <out>/<plugin-id>-<version>-<plugin-target>.plugin (target-independent WASM: <id>-<version>.plugin)`);
+  <out>/<plugin-id>-<version>-<plugin-target>.plugin (target-independent WASM and declarative plugins: <id>-<version>.plugin)`);
 }
 
 const rawArgs = process.argv.slice(2);
@@ -282,9 +282,9 @@ for (const entry of await readdir(examplesRoot, { withFileTypes: true })) {
   const manifestPath = join(directory, 'plugin.json');
   if (!(await exists(manifestPath))) continue;
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ExampleManifest;
-  // napi-vm examples ship TypeScript + a staged node_modules tree instead
-  // of a Cargo project; every other runtime needs its Cargo.toml here.
-  if (manifest.runtime !== 'napi-vm' && !(await exists(join(directory, 'Cargo.toml')))) continue;
+  // napi-vm examples ship TypeScript; declarative examples need no build.
+  // Compiled runtimes need a Cargo project.
+  if (manifest.runtime !== 'napi-vm' && manifest.runtime !== 'declarative' && !(await exists(join(directory, 'Cargo.toml')))) continue;
   discovered.push({ directory, manifestPath, manifest });
 }
 
@@ -308,7 +308,7 @@ if (targets.length === 0) fail('no plugins found under examples/');
 
 await mkdir(outDirectory, { recursive: true });
 
-const VALID_RUNTIMES = new Set(['native', 'process', 'wasm', 'napi-vm']);
+const VALID_RUNTIMES = new Set(['native', 'process', 'wasm', 'napi-vm', 'declarative']);
 
 const built: string[] = [];
 for (const { directory, manifestPath, manifest } of targets) {
@@ -317,7 +317,7 @@ for (const { directory, manifestPath, manifest } of targets) {
   if (signingKey && (typeof manifest.publisher !== 'string' || !manifest.publisher)) {
     fail(`${manifestPath} needs a publisher when signing`);
   }
-  const sourceEntryRaw =
+  const sourceEntryRaw = manifest.runtime === 'declarative' ? '' :
     typeof manifest.entry === 'string' && manifest.entry.trim().length > 0
       ? manifest.entry
       : fail(`${manifestPath} has no valid entry`);
@@ -339,16 +339,18 @@ for (const { directory, manifestPath, manifest } of targets) {
     await ensureGatewayWidgetsStaged(repositoryRoot);
   }
 
-  // WASM stays target-independent unless it genuinely needs host WASI;
+  // Declarative and WASM packages are target-independent;
   // compiled native/process entries are platform-specific, as are napi-vm
   // archives (each carries its target's staged `.node` binaries).
-  const packageTarget = runtime === 'wasm' ? null : selectedTarget.pluginTarget;
+  const packageTarget = runtime === 'wasm' || runtime === 'declarative' ? null : selectedTarget.pluginTarget;
 
   console.log(
     `Building plugin ${id} (${profile}, ${packageTarget ?? 'target-independent'})...`,
   );
-  let builtEntryPath: string;
-  if (runtime === 'napi-vm') {
+  let builtEntryPath: string | null = null;
+  if (runtime === 'declarative') {
+    // Declarative packages are interpreted by the host and have no executable.
+  } else if (runtime === 'napi-vm') {
     builtEntryPath = await buildNapiVmExample(directory, manifestPath, manifest, sourceEntry);
   } else {
     runInherit('node', [
@@ -392,8 +394,7 @@ for (const { directory, manifestPath, manifest } of targets) {
     '--',
     '--manifest',
     manifestPath,
-    '--entry',
-    builtEntryPath,
+    ...(builtEntryPath ? ['--entry', builtEntryPath] : []),
     '--output',
     archivePath,
     ...(packageTarget ? ['--target', packageTarget] : []),
@@ -405,7 +406,7 @@ for (const { directory, manifestPath, manifest } of targets) {
   if (!(await exists(archivePath))) {
     fail(`packager did not produce ${archivePath}`);
   }
-  await verifyPackagedManifest(archivePath, id, version, manifest.publisher, packageTarget);
+  await verifyPackagedManifest(archivePath, id, version, manifest.publisher, packageTarget, runtime === 'declarative');
   if (signingKey) {
     const signature = JSON.parse(await readArchiveFile(archivePath, `${id}/signature.json`)) as { publisher?: unknown };
     if (signature.publisher !== manifest.publisher) {
@@ -426,6 +427,7 @@ async function verifyPackagedManifest(
   version: string,
   publisher: unknown,
   packageTarget: string | null,
+  declarative: boolean,
 ): Promise<void> {
   const entries = await readArchiveEntries(archivePath);
   const manifestEntry = entries.find((entry) => entry.endsWith('/plugin.json'));
@@ -450,7 +452,7 @@ async function verifyPackagedManifest(
   const entryFile = entries.find(
     (entry) => entry === `${id}/${String(packaged.entry).replaceAll('\\', '/')}`,
   );
-  if (!entryFile) {
+  if (!declarative && !entryFile) {
     fail(`archive ${archivePath} does not contain declared entry ${String(packaged.entry)}`);
   }
 }

@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tiktools_core::{cloud_sync::SyncStatus, control::OperationError, AppCore};
 pub use tiktools_core::control::SyncNowResult;
+use tiktools_core::{cloud_sync::SyncStatus, control::OperationError, AppCore};
 
 use super::Empty;
 use crate::ApiError;

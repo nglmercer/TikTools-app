@@ -26,9 +26,9 @@ pub mod media;
 pub mod packages;
 pub mod plugins;
 pub mod points;
+pub mod processors;
 #[cfg(feature = "cloud-auth")]
 pub mod publishers;
-pub mod processors;
 pub mod rankings;
 pub mod registry;
 pub mod rpc;

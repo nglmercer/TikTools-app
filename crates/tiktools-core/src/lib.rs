@@ -19,10 +19,10 @@ pub mod services;
 mod automation_runtime;
 #[cfg(feature = "cloud-auth")]
 pub mod cloud_account;
-#[cfg(feature = "cloud-auth")]
-pub mod cloud_sync;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 pub mod cloud_publisher;
+#[cfg(feature = "cloud-auth")]
+pub mod cloud_sync;
 mod helpers;
 mod hotkey_bindings;
 pub mod input_access;
