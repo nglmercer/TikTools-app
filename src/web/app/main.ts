@@ -41,7 +41,9 @@ async function mountApp(): Promise<VueApp> {
   app.onUnmount(() => banner?.remove());
   await Promise.all([activateLocale(detectLocale()), router.isReady()]);
   app.mount('#app');
-  notifyFrontendReady();
+  // The desktop WebView reveals its hidden window on frontend-ready. A browser page
+  // has no native window and no window.ipc, so it must not send it.
+  if (!browser) notifyFrontendReady();
   return app;
 }
 
