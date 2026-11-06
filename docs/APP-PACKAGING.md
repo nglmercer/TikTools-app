@@ -51,7 +51,11 @@ relative `usr/lib` layout as the DEB staging step. User data remains in
 `AppPaths`, outside the installation directory. The DEB dependency list uses
 Debian/Ubuntu package names and alternatives; other Linux distributions use
 their own package names and should use a tested AppImage or portable build.
-AppImage runtime dependencies and clean-machine startup still need validation.
+For a local Linux startup smoke test with an available graphical display and
+FUSE, run `bun scripts/smoke-appimage.ts <AppImage> 4.0.0`. It uses a disposable
+profile, disables bundled plugins, checks installation detection, and waits for
+the frontend to become ready. This does not exercise an update, plugin startup,
+or a clean machine; those still require separate tests.
 
 To migrate from a portable version, close TikTools and install a verified
 release through the platform installer once installers are available. The
