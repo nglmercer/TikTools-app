@@ -26,7 +26,7 @@ const handle = computed(() => {
 const error = computed(() => friendlyAccountError(account.error, t));
 
 onMounted(() => {
-  void account.refresh();
+  void account.ensureRestored();
 });
 </script>
 

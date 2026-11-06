@@ -185,16 +185,16 @@ export async function routeExternalAssetFixture(
   );
 }
 
-const COMPILED_UI_DIST = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-  'plugins',
-  'sonicboom',
-  'ui',
-  'dist',
-);
+// The SonicBoom UI lives in the external plugins-example-tiktools checkout
+// (TIKTOOLS_PLUGINS_REPO, or a sibling clone). Its committed `ui/dist/` is
+// served as-is; without a checkout the dependent tests are skipped.
+const PLUGINS_REPOSITORY = process.env.TIKTOOLS_PLUGINS_REPO
+  ? resolve(process.env.TIKTOOLS_PLUGINS_REPO)
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'plugins-example-tiktools');
+const COMPILED_UI_DIST = join(PLUGINS_REPOSITORY, 'plugins', 'sonicboom', 'ui', 'dist');
+
+/** True when the compiled SonicBoom UI is available to serve. */
+export const compiledPluginUiAvailable = existsSync(join(COMPILED_UI_DIST, 'index.html'));
 
 const COMPILED_UI_MIME: Record<string, string> = {
   '.html': 'text/html',
@@ -225,7 +225,7 @@ export async function routeCompiledPluginUi(
   const index = join(COMPILED_UI_DIST, 'index.html');
   if (!existsSync(index)) {
     throw new Error(
-      `Compiled plugin UI missing at ${COMPILED_UI_DIST} — run \`bun run build:sonicboom-ui\` first.`,
+      `Compiled plugin UI missing at ${COMPILED_UI_DIST} — clone plugins-example-tiktools beside TikTools (or set TIKTOOLS_PLUGINS_REPO) and run \`bun run build:sonicboom-ui\` there.`,
     );
   }
   const prefix = `${PLUGIN_FIXTURE_BASE}${pluginId}/`;

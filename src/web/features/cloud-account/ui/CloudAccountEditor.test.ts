@@ -1,6 +1,7 @@
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import type { AccountStatus } from '@/entities/cloud-account/api/account-types.ts';
+import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudAccountEditor from './CloudAccountEditor.vue';
@@ -21,6 +22,9 @@ function signedIn(overrides: Partial<AccountStatus> = {}): AccountStatus {
 function setup(status: AccountStatus) {
   const { client } = createFakeControlClient((method) => {
     if (method === 'cloud.status') return status;
+    if (method === 'cloud.restore') {
+      throw new ControlCallError('unavailable', 'no saved cloud session', { reason: 'no-saved-session' });
+    }
     throw new Error(`unexpected ${method}`);
   });
   const wrapper = mountWithPlugins(CloudAccountEditor, {

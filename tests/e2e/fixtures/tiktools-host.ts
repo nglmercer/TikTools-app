@@ -183,6 +183,26 @@ const INIT_SCRIPT = `
     'plugins.packages.receipts': () => ({ receipts: [] }),
     'plugins.jobs.list': () => ({ jobs: [] }),
     'plugins.updates.list': () => ({ updates: [], checkedAt: 0, errors: [] }),
+    // Registry sources (Plugins › Explore availability, Settings › Advanced).
+    // Feed rankings provision themselves on connect; keep definitions in memory.
+    'rankings.list': () => ({ rankings: Object.values(state.rankings ??= {}) }),
+    'rankings.create': (params) => {
+      (state.rankings ??= {})[params.id] = params;
+      return { ranking: params };
+    },
+    'rankings.update': (params) => {
+      (state.rankings ??= {})[params.definition.id] = params.definition;
+      return { ranking: params.definition };
+    },
+    'rankings.snapshot': (params) => ({ id: params.id, entries: [], total: 0, revision: 0 }),
+    'registry.list': () => ({ registries: [] }),
+    'registry.defaults.get': () => ({ channel: 'stable', autoUpdate: 'notify', checkIntervalHours: 12, allowSideload: true }),
+    'app.update.status': () => ({
+      currentVersion: '4.0.2', availableVersion: null, channel: 'stable', state: 'idle',
+      installationType: 'development', installSupported: false, checkSupported: false,
+      downloadedBytes: 0, totalBytes: null, progress: null, releaseNotes: null, lastChecked: null, error: null,
+    }),
+    'app.update.preferences.get': () => ({ channel: 'stable', automaticChecks: false, notifications: false, lastChecked: 0, lastAttempt: 0 }),
     'plugins.settings.get': (params) => {
       const stored = state.pluginSettings[params.pluginId];
       if (!stored) throw new Error('unknown plugin settings: ' + params.pluginId);

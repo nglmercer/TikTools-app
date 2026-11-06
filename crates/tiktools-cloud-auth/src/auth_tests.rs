@@ -594,6 +594,11 @@ async fn begin_guards_and_unconfigured() {
 
     let mock = MockCloud::start("user-10").await;
     let auth = manager(&dir, Some(mock.origin.clone()), store);
+    // Configured but never signed in: a quiet "nothing to restore".
+    assert!(matches!(
+        auth.restore().await,
+        Err(AuthError::NoSavedSession)
+    ));
     auth.begin_login().await.unwrap();
     assert!(matches!(
         auth.begin_login().await,

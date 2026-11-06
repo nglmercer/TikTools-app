@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { errorMessage } from '@/shared/api/control-client.ts';
+import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import type { AccountStatus, CloudLoginUrlResult } from '../api/account-types.ts';
 
@@ -35,6 +35,36 @@ export const useAccountStore = defineStore('cloud-account', () => {
     } finally {
       loading.value = false;
     }
+  }
+
+  let restoring: Promise<void> | null = null;
+  let restored = false;
+
+  /**
+   * Load the status and, once per app session, reconnect a session saved in
+   * the OS keychain. "Nothing saved" is a normal signed-out start and stays
+   * silent; real failures (expired session, keychain unavailable) surface.
+   * Concurrent callers share one attempt.
+   */
+  function ensureRestored(): Promise<void> {
+    // After the one restore attempt, later mounts just reload the status.
+    if (restored) return refresh();
+    restoring ??= (async () => {
+      await refresh();
+      if (status.value?.state !== 'signed-out') return;
+      try {
+        status.value = await client.call<AccountStatus>('cloud.restore', {});
+        error.value = status.value.error ?? null;
+      } catch (failure) {
+        const reason = failure instanceof ControlCallError
+          ? (failure.data as { reason?: string } | undefined)?.reason
+          : undefined;
+        if (reason !== 'no-saved-session' && reason !== 'unconfigured') error.value = errorMessage(failure);
+      } finally {
+        restored = true;
+      }
+    })();
+    return restoring;
   }
 
   async function startLogin(): Promise<void> {
@@ -91,5 +121,5 @@ export const useAccountStore = defineStore('cloud-account', () => {
     }
   }
 
-  return { status, loading, working, loginUrl, error, refresh, restore, startLogin, cancelLogin, logout };
+  return { status, loading, working, loginUrl, error, refresh, restore, ensureRestored, startLogin, cancelLogin, logout };
 });

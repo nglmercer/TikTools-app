@@ -23,10 +23,13 @@ import {
 import {
   installPluginUiOverride,
   PLUGIN_EXTERNAL_BASE,
+  compiledPluginUiAvailable,
   routeCompiledPluginUi,
   routeExternalAssetFixture,
 } from './fixtures/plugin-frame.ts';
 import { webviewPageState } from './fixtures/states.ts';
+
+test.skip(!compiledPluginUiAvailable, 'needs the plugins-example-tiktools checkout (set TIKTOOLS_PLUGINS_REPO)');
 
 test('external module and stylesheet load in the sandboxed frame with CORS', async ({
   page,
