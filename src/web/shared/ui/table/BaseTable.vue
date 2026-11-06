@@ -157,7 +157,7 @@ function onKeydown(event: KeyboardEvent): void {
 .base-table__table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .base-table__header {
