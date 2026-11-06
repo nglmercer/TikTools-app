@@ -61,6 +61,8 @@ pub struct DesktopApp {
     diagnostics_at: Instant,
     diagnostic_logging: bool,
     plugin_ui: crate::plugin_webview::PluginUiWindows,
+    pending_update: Option<(tiktools_core::app_update::InstallPlan, bool)>,
+    update_ready_for_handoff: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

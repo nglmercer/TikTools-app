@@ -20,6 +20,8 @@ jobs:
   version:
     name: validate release version
     runs-on: ubuntu-24.04
+    outputs:
+      prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,8 +34,17 @@ jobs:
       - name: Install frontend dependencies from the lockfile
         run: bun ci
 
-      - name: Validate Cargo and package.json versions match
+      - name: Validate release tag and manifest versions
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: bun scripts/task.ts version check
+
+      - name: Classify release channel
+        id: tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          bun -e 'const version = process.env.RELEASE_TAG.slice(1).split("+")[0]; console.log(`prerelease=${version.includes("-")}`)' >> "$GITHUB_OUTPUT"
 
   quality:
     name: run CI quality gate
@@ -103,6 +114,14 @@ jobs:
       - name: Build release desktop binary
         run: node scripts/cargo-with-linker.mjs build -p tiktools-desktop --release --locked
 
+      - name: Install pinned cargo-packager
+        run: cargo install cargo-packager --version 0.11.8 --locked
+
+      - name: Validate compiled desktop version before packaging
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bun scripts/check-version.ts --binary
+
       - name: Verify Windows release uses the GUI subsystem
         if: runner.os == 'Windows'
         run: pwsh -NoProfile -File scripts/check-windows-pe.ps1 target/release/tiktools-desktop.exe
@@ -112,6 +131,12 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_PLATFORM: ${{ matrix.platform }}
         run: bun scripts/task.ts package
+
+      - name: Package and verify desktop installers
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: bun scripts/package-installers.ts
 
       - name: Upload release archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -123,7 +148,7 @@ jobs:
 
   publish:
     name: publish GitHub release
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -142,7 +167,7 @@ jobs:
         run: sha256sum TikTools-* > SHA256SUMS.txt
 
       - name: Publish stable GitHub release
-        if: ${{ !contains(github.ref_name, '-') }}
+        if: ${{ needs.version.outputs.prerelease == 'false' }}
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
@@ -154,7 +179,7 @@ jobs:
           fi
 
       - name: Publish prerelease GitHub release
-        if: ${{ contains(github.ref_name, '-') }}
+        if: ${{ needs.version.outputs.prerelease == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}

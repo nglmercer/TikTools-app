@@ -20,6 +20,7 @@ import IconLayers from '@/shared/ui/icon/icons/IconLayers.vue';
 import IconLink from '@/shared/ui/icon/icons/IconLink.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import BaseNotification from '@/shared/ui/notification/BaseNotification.vue';
+import { useAppUpdaterStore } from '@/features/app-updater/model/updater-store.ts';
 import type { AppTab, BuiltinAppTab } from '@/types.ts';
 import AppMenuBar from '@/widgets/app-menu-bar/ui/AppMenuBar.vue';
 import type { NavigationItem, NavigationSection } from '@/widgets/app-navigation/model/navigation-types.ts';
@@ -54,6 +55,8 @@ const plugins = usePluginsStore();
 const { pluginProgress } = storeToRefs(plugins);
 const { pluginPages } = storeToRefs(useAutomationStore());
 const localeStore = useLocaleStore();
+const appUpdater = useAppUpdaterStore();
+const dismissedUpdate = ref('');
 const { locale } = storeToRefs(localeStore);
 
 document.documentElement.dataset.theme = 'dark';
@@ -182,6 +185,14 @@ function openConnectionSetup(): void {
       :action-label="t('navigation.connections')"
       @action="openConnectionSetup"
       @dismiss="connection.error = ''"
+    />
+    <BaseNotification
+      v-else-if="appUpdater.preferences.notifications && appUpdater.status?.state === 'available' && appUpdater.status.availableVersion && dismissedUpdate !== appUpdater.status.availableVersion"
+      class="app-layout__notice"
+      :message="t('appUpdater.available', { version: appUpdater.status.availableVersion })"
+      :action-label="t('appUpdater.title')"
+      @action="router.push(tabLocation('settings'))"
+      @dismiss="dismissedUpdate = appUpdater.status?.availableVersion ?? ''"
     />
     <AppMenuBar
       :status="status"

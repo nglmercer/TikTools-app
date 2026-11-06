@@ -11,6 +11,8 @@ pub mod contracts;
 pub mod control;
 pub mod db;
 pub mod events;
+#[cfg(feature = "app-update")]
+pub use tiktools_app_update as app_update;
 pub mod ipc;
 pub mod paths;
 pub mod platform;
@@ -126,6 +128,8 @@ pub(crate) struct PluginHealth {
 /// The Rust application service graph. Each subsystem has separate ownership
 /// so a future database/live/plugin implementation can be tested in isolation.
 pub struct AppCore {
+    #[cfg(feature = "app-update")]
+    app_updater: RwLock<Option<Arc<tiktools_app_update::AppUpdater>>>,
     pub live: Arc<LiveService>,
     live_monitor: live_monitor::LiveMonitor,
     pub points: Arc<PointsService>,
@@ -202,6 +206,7 @@ pub struct AppCore {
     pub(crate) hotkey_sync_state: Mutex<crate::plugin_diagnostics::HotkeySyncState>,
     shutdown_started: AtomicBool,
     shutdown_finished: AtomicBool,
+    shutdown_update_safe: AtomicBool,
     shutdown_complete: tokio::sync::Notify,
     pub(crate) transport_state: TransportHealthState,
     #[cfg(feature = "plugin-install")]
@@ -215,6 +220,41 @@ pub struct AppCore {
 }
 
 impl AppCore {
+    /// Enable the desktop updater only from the native desktop host. The key is
+    /// fixed at build time; control clients cannot choose a key or endpoint.
+    #[cfg(feature = "app-update")]
+    pub fn enable_desktop_app_updater(&self) {
+        let events = self.events.clone();
+        // Feed publication is a separate release gate: embedding a key alone
+        // must not activate the proposed URLs before they are live.
+        let key = if option_env!("TIKTOOLS_APP_UPDATE_FEED_ENABLED") == Some("1") {
+            option_env!("TIKTOOLS_APP_UPDATE_PUBLIC_KEY")
+        } else {
+            None
+        };
+        let service = tiktools_app_update::AppUpdater::new_desktop(
+            env!("CARGO_PKG_VERSION"),
+            key,
+            option_env!("TIKTOOLS_APP_UPDATE_INSTALL_ENABLED") == Some("1"),
+            move |state| {
+                if let Ok(state) = serde_json::to_value(state) {
+                    events.publish_domain(crate::events::DomainEvent::AppUpdateStateChanged {
+                        state,
+                    });
+                }
+            },
+        );
+        *self.app_updater.write().unwrap_or_else(|e| e.into_inner()) = Some(service);
+    }
+
+    #[cfg(feature = "app-update")]
+    pub fn app_updater(&self) -> Option<Arc<tiktools_app_update::AppUpdater>> {
+        self.app_updater
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
     pub fn new(emitter: Arc<dyn HostEmitter>) -> Self {
         Self::with_media_host(emitter, Arc::new(NoopMediaHost))
     }
@@ -319,6 +359,8 @@ impl AppCore {
         #[cfg(feature = "native-tiktok")]
         let live_points_work = services::points_work::PointsWorkService::new(Arc::clone(&points));
         let core = Self {
+            #[cfg(feature = "app-update")]
+            app_updater: RwLock::new(None),
             live: Arc::new(live),
             live_monitor: live_monitor::LiveMonitor::default(),
             points,
@@ -387,6 +429,7 @@ impl AppCore {
             hotkey_sync_state: Mutex::new(crate::plugin_diagnostics::HotkeySyncState::default()),
             shutdown_started: AtomicBool::new(false),
             shutdown_finished: AtomicBool::new(false),
+            shutdown_update_safe: AtomicBool::new(true),
             shutdown_complete: tokio::sync::Notify::new(),
             transport_state: TransportHealthState::default(),
             #[cfg(feature = "plugin-install")]
@@ -603,14 +646,21 @@ impl AppCore {
         if let Some(task) = observer_task {
             let _ = task.await;
         }
-        self.plugins.stop_all();
+        if !self.plugins.stop_all_checked() {
+            self.shutdown_update_safe.store(false, Ordering::Release);
+            tracing::error!("plugin shutdown was incomplete; application update is unsafe");
+        }
         #[cfg(feature = "persistence")]
-        self.analytics_writer.shutdown().await;
+        if !self.analytics_writer.shutdown().await {
+            self.shutdown_update_safe.store(false, Ordering::Release);
+        }
         // Join the owned points writer last: every earlier shutdown step may
         // still award points (disconnect handling included), and accepted
         // writes must reach SQLite before the process exits.
         #[cfg(feature = "native-tiktok")]
-        self.live_points_work.shutdown().await;
+        if !self.live_points_work.shutdown().await {
+            self.shutdown_update_safe.store(false, Ordering::Release);
+        }
         // Bounded: a wedged SQLite must not block process shutdown
         // forever. The deadline is an explicit failure policy — the error
         // below is the report that durable work may remain unresolved, and
@@ -619,10 +669,14 @@ impl AppCore {
         let flush = tokio::task::spawn_blocking(move || points.shutdown());
         match tokio::time::timeout(std::time::Duration::from_secs(30), flush).await {
             Ok(Ok(())) => {}
-            Ok(Err(error)) => tracing::error!(%error, "points writer shutdown failed"),
-            Err(_) => tracing::error!(
-                "points writer failed to stop within 30s; durable points work may remain unresolved"
-            ),
+            Ok(Err(error)) => {
+                self.shutdown_update_safe.store(false, Ordering::Release);
+                tracing::error!(%error, "points writer shutdown failed");
+            }
+            Err(_) => {
+                self.shutdown_update_safe.store(false, Ordering::Release);
+                tracing::error!("points writer failed to stop within 30s; durable points work may remain unresolved");
+            }
         }
         #[cfg(feature = "persistence")]
         {
@@ -635,15 +689,26 @@ impl AppCore {
             match tokio::time::timeout(std::time::Duration::from_secs(5), checkpoint).await {
                 Ok(Ok(Ok(()))) => {}
                 Ok(Ok(Err(error))) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
                     tracing::error!(%error, "ranking or competition checkpoint failed")
                 }
                 Ok(Err(error)) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
                     tracing::error!(%error, "checkpoint worker failed")
                 }
-                Err(_) => tracing::error!("checkpoint timed out; restart may be degraded"),
+                Err(_) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
+                    tracing::error!("checkpoint timed out; restart may be degraded");
+                }
             }
         }
         self.shutdown_finished.store(true, Ordering::Release);
         self.shutdown_complete.notify_waiters();
+    }
+
+    /// Updates must not proceed if shutdown left plugin or durable work unresolved.
+    pub fn update_shutdown_safe(&self) -> bool {
+        self.shutdown_finished.load(Ordering::Acquire)
+            && self.shutdown_update_safe.load(Ordering::Acquire)
     }
 }

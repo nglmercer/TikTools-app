@@ -217,6 +217,28 @@ pub(crate) async fn handle_webview_ipc_message(
                 admission,
             }));
         }
+        InboundRoute::Legacy(value) if is_app_update_install_command(&value) => {
+            if emitter
+                .update_prompt_pending
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                let sent =
+                    proxy.send_event(DesktopEvent::Command(DesktopCommand::AdmittedCommand {
+                        command: Box::new(DesktopCommand::RequestAppUpdateInstall {
+                            generation,
+                            spanish: value.get("locale").and_then(serde_json::Value::as_str)
+                                == Some("es"),
+                        }),
+                        admission,
+                    }));
+                if sent.is_err() {
+                    emitter
+                        .update_prompt_pending
+                        .store(false, Ordering::Release);
+                }
+            }
+        }
         InboundRoute::Legacy(value) if try_devtools_command(&value, proxy).is_some() => {}
         InboundRoute::Legacy(value)
             if try_plugin_ui_command(&value, proxy, admission.clone()).is_some() => {}
@@ -239,6 +261,20 @@ pub(crate) async fn handle_webview_ipc_message(
             tracing::warn!("invalid legacy WebView message");
         }
     }
+}
+
+/// Main WebView-only command. All installation details remain native, and a
+/// separate native confirmation is required before any update can start.
+pub(crate) fn is_app_update_install_command(value: &serde_json::Value) -> bool {
+    value.as_object().is_some_and(|object| {
+        (object.len() == 1
+            || (object.len() == 2
+                && matches!(
+                    object.get("locale").and_then(serde_json::Value::as_str),
+                    Some("en" | "es")
+                )))
+            && object.get("type").and_then(serde_json::Value::as_str) == Some("app-update-install")
+    })
 }
 
 pub(crate) fn page_generation_matches(value: &serde_json::Value, generation: u64) -> bool {

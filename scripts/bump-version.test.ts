@@ -3,18 +3,25 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 import {
+  assertVersionUpgrade,
   normalizeVersion,
   readPackageName,
   readWorkspaceMembers,
   readWorkspaceVersion,
   setCargoLockVersions,
   setPackageJsonVersion,
+  setPathDependencyVersions,
   setWorkspaceVersion,
   updateStandaloneLockfiles,
   usesWorkspaceVersion,
 } from './bump-version.ts';
 
 describe('normalizeVersion', () => {
+  test('compares prereleases with SemVer precedence and rejects downgrades', () => {
+    expect(() => assertVersionUpgrade('1.0.0-beta.1', '1.0.0')).not.toThrow();
+    expect(() => assertVersionUpgrade('1.0.0', '1.0.0-beta.1')).toThrow();
+    expect(() => assertVersionUpgrade('1.0.0+one', '1.0.0+two')).toThrow();
+  });
   test('accepts plain semver', () => {
     expect(normalizeVersion('0.3.1')).toBe('0.3.1');
   });
@@ -35,6 +42,13 @@ describe('normalizeVersion', () => {
 });
 
 describe('cargo manifest helpers', () => {
+  test('updates only matching workspace path dependency pins', () => {
+    const input = 'tiktools-api = { path = "../api", version = "0.3.3" }\nother = { path = "../other", version = "0.3.3" }\ntiktools-api-new = { path = "../api", version = "0.3.30" }\n';
+    const updated = setPathDependencyVersions(input, ['tiktools-api', 'tiktools-api-new'], '0.3.3', '4.0.0');
+    expect(updated).toContain('tiktools-api = { path = "../api", version = "4.0.0" }');
+    expect(updated).toContain('other = { path = "../other", version = "0.3.3" }');
+    expect(updated).toContain('version = "0.3.30"');
+  });
   const cargoToml = `[workspace]
 members = [
     "crates/foo",

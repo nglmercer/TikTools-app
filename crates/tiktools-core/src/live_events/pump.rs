@@ -152,9 +152,11 @@ impl AppCore {
             match tokio::time::timeout(deadlines.pump, &mut pump).await {
                 Ok(Ok(())) => {}
                 Ok(Err(error)) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
                     tracing::error!(%error, "LIVE pump task failed while stopping");
                 }
                 Err(_) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
                     tracing::error!(
                         "LIVE pump did not stop within {:?}; aborting it",
                         deadlines.pump
@@ -172,9 +174,11 @@ impl AppCore {
             match tokio::time::timeout(deadlines.drain, &mut worker).await {
                 Ok(Ok(())) => {}
                 Ok(Err(error)) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
                     tracing::error!(%error, "LIVE ingress worker failed while draining");
                 }
                 Err(_) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
                     tracing::warn!(
                         drain_deadline_ms = deadlines.drain.as_millis() as u64,
                         "LIVE ingress did not drain before the deadline; emergency stop"

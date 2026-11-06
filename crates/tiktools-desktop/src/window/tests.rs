@@ -2,8 +2,9 @@
 
 use super::domain_events::forward_domain_events;
 use super::ipc::{
-    classify_inbound_message, is_devtools_command_value, is_frontend_ready_fast,
-    is_open_devtools_fast, is_probably_control_rpc, webview_request_too_large, InboundRoute,
+    classify_inbound_message, is_app_update_install_command, is_devtools_command_value,
+    is_frontend_ready_fast, is_open_devtools_fast, is_probably_control_rpc,
+    webview_request_too_large, InboundRoute,
 };
 use super::outbox::{
     classify_webview_message, WebviewOutbox, MAX_BATCH_PER_TICK, MAX_PENDING_WEBVIEW_MESSAGES,
@@ -11,6 +12,25 @@ use super::outbox::{
 };
 use std::sync::Arc;
 use tiktools_core::AppCore;
+
+#[test]
+fn update_install_command_cannot_supply_a_path_or_impersonate_rpc() {
+    assert!(is_app_update_install_command(
+        &serde_json::json!({"type":"app-update-install"})
+    ));
+    assert!(is_app_update_install_command(
+        &serde_json::json!({"type":"app-update-install", "locale":"es"})
+    ));
+    assert!(!is_app_update_install_command(
+        &serde_json::json!({"type":"app-update-install", "locale":"https://evil.example"})
+    ));
+    assert!(!is_app_update_install_command(
+        &serde_json::json!({"type":"app-update-install","path":"/tmp/app"})
+    ));
+    assert!(!is_app_update_install_command(
+        &serde_json::json!({"type":"app-update-install","method":"app.update.install"})
+    ));
+}
 
 fn domain_event(topic: &str, data: &str) -> String {
     format!(r#"{{"jsonrpc":"2.0","method":"event","params":{{"topic":"{topic}","data":{data}}}}}"#)

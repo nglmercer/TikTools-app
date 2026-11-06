@@ -1,0 +1,21 @@
+[package]
+name = "tiktools-app-update"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Application update policy and signed release metadata validation"
+
+[dependencies]
+cargo-packager-updater = "=0.2.3"
+base64.workspace = true
+minisign-verify = "=0.2.5"
+reqwest.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

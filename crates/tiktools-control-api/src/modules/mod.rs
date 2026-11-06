@@ -25,6 +25,7 @@ pub mod settings;
 pub mod sync;
 pub mod system;
 pub mod ui;
+pub mod updates;
 pub mod widgets;
 pub mod workflows;
 

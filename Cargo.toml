@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/tiktools-app-update",
     "crates/tiktools-aggregation",
     "crates/tiktools-competitions",
     "crates/tiktools-control-api",
@@ -36,7 +37,7 @@ exclude = [
 resolver = "2"
 
 [workspace.package]
-version = "0.3.3"
+version = "4.0.0"
 edition = "2021"
 license = "MIT"
 rust-version = "1.95"

@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const repositoryRoot = resolve(import.meta.dir, '..');
-const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
 function fail(message: string): never {
   console.error(`Version bump failed: ${message}`);
@@ -15,11 +15,19 @@ function escapeRegExp(value: string): string {
 
 /** Strip an optional leading `v` and validate the result as semver. */
 export function normalizeVersion(input: string): string {
-  const version = input.trim().replace(/^v/i, '');
+  const version = input.replace(/^v/, '');
   if (!SEMVER_PATTERN.test(version)) {
     throw new Error(`expected a semver version such as 0.3.1, got ${JSON.stringify(input)}`);
   }
   return version;
+}
+
+export function assertVersionUpgrade(current: string, next: string): void {
+  normalizeVersion(current);
+  normalizeVersion(next);
+  if (Bun.semver.order(next, current) <= 0) {
+    throw new Error(`new version ${next} must have higher SemVer precedence than ${current}`);
+  }
 }
 
 function extractSection(toml: string, header: string): { section: string; index: number; length: number } {
@@ -52,6 +60,14 @@ export function setPackageJsonVersion(packageJsonText: string, version: string):
   const data = JSON.parse(packageJsonText) as Record<string, unknown>;
   data.version = version;
   return `${JSON.stringify(data, null, 2)}\n`;
+}
+
+/** Update a local workspace crate dependency without changing third-party pins. */
+export function setPathDependencyVersions(text: string, names: string[], oldVersion: string, newVersion: string): string {
+  return text.replace(/^(\s*([\w-]+)\s*=\s*\{[^\n]*\bpath\s*=\s*"[^"]+"[^\n]*\})$/gm, (line, _declaration, name: string) => {
+    if (!names.includes(name)) return line;
+    return line.replace(new RegExp(`(\\bversion\\s*=\\s*")${escapeRegExp(oldVersion)}(?=")`), `$1${newVersion}`);
+  });
 }
 
 /** Workspace member directories from the root `[workspace] members` list. */
@@ -176,10 +192,12 @@ async function main(): Promise<void> {
   const cargoTomlPath = resolve(repositoryRoot, 'Cargo.toml');
   const cargoLockPath = resolve(repositoryRoot, 'Cargo.lock');
   const packageJsonPath = resolve(repositoryRoot, 'package.json');
-  const [cargoToml, cargoLock, packageJsonText] = await Promise.all([
+  const packagerPath = resolve(repositoryRoot, 'Packager.toml');
+  const [cargoToml, cargoLock, packageJsonText, packagerText] = await Promise.all([
     readFile(cargoTomlPath, 'utf8'),
     readFile(cargoLockPath, 'utf8'),
     readFile(packageJsonPath, 'utf8'),
+    readFile(packagerPath, 'utf8'),
   ]);
 
   let current: string;
@@ -193,6 +211,11 @@ async function main(): Promise<void> {
   if (current === version) {
     console.log(`Already at version ${version}; nothing to do.`);
     return;
+  }
+  try {
+    assertVersionUpgrade(current, version);
+  } catch (error) {
+    fail((error as Error).message);
   }
 
   const packageNames: string[] = [];
@@ -209,6 +232,8 @@ async function main(): Promise<void> {
   }
 
   const lockUpdate = setCargoLockVersions(cargoLock, packageNames, current, version);
+  const nextPackager = packagerText.replace(/^(version\s*=\s*")[^"]+("\s*)$/m, `$1${version}$2`);
+  if (nextPackager === packagerText) fail('Packager.toml has no version or already has the requested version');
   let nextCargoToml: string;
   try {
     nextCargoToml = setWorkspaceVersion(cargoToml, version);
@@ -219,7 +244,14 @@ async function main(): Promise<void> {
     writeFile(cargoTomlPath, nextCargoToml),
     writeFile(cargoLockPath, lockUpdate.text),
     writeFile(packageJsonPath, setPackageJsonVersion(packageJsonText, version)),
+    writeFile(packagerPath, nextPackager),
   ]);
+  for (const member of members) {
+    const path = resolve(repositoryRoot, member, 'Cargo.toml');
+    const original = await readFile(path, 'utf8');
+    const updated = setPathDependencyVersions(original, packageNames, current, version);
+    if (updated !== original) await writeFile(path, updated);
+  }
   const standalone = await updateStandaloneLockfiles(repositoryRoot, packageNames, current, version);
 
   console.log(`Bumped version: ${current} -> ${version}`);

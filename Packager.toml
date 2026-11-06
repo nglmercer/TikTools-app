@@ -1,0 +1,50 @@
+name = "tiktools-desktop"
+product-name = "TikTools"
+identifier = "com.nglmercer.tiktools"
+version = "4.0.0"
+publisher = "TikTools"
+description = "TikTools desktop application"
+homepage = "https://github.com/nglmercer/TikTools-app"
+authors = ["TikTools contributors"]
+category = "Utility"
+license-file = "LICENSE"
+icons = ["assets/tiktools-icon.png"]
+out-dir = "release/installers"
+binaries-dir = "release/staging/TikTools"
+resources = [
+  { src = "release/staging/TikTools/web", target = "web" },
+  { src = "release/staging/TikTools/plugins", target = "plugins" },
+  { src = "release/staging/TikTools/LICENSE", target = "LICENSE" },
+  { src = "release/staging/TikTools/README.md", target = "README.md" },
+]
+
+[[binaries]]
+path = "tiktools-desktop"
+main = true
+
+[deb]
+depends = [
+  "libgtk-3-0 | libgtk-3-0t64",
+  "libwebkit2gtk-4.1-0 | libwebkit2gtk-4.1-0t64",
+  "libasound2 | libasound2t64",
+  "libappindicator3-1 | libayatana-appindicator3-1",
+]
+
+[nsis]
+installMode = "currentUser"
+preinstall-section = '''
+Section -CheckWebView2
+  ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+  StrCmp $0 "" check_user
+  StrCmp $0 "0.0.0.0" check_user webview_ready
+check_user:
+  ReadRegStr $0 HKCU "Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+  StrCmp $0 "" webview_missing
+  StrCmp $0 "0.0.0.0" webview_missing webview_ready
+webview_missing:
+  MessageBox MB_OK|MB_ICONSTOP "TikTools requires the Microsoft Edge WebView2 Runtime. Install it from https://developer.microsoft.com/microsoft-edge/webview2/ and run this installer again."
+  SetErrorLevel 1
+  Abort
+webview_ready:
+SectionEnd
+'''

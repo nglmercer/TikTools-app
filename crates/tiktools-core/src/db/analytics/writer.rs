@@ -132,16 +132,23 @@ impl AnalyticsWriter {
         Ok(())
     }
 
-    pub(crate) async fn shutdown(&self) {
+    pub(crate) async fn shutdown(&self) -> bool {
         self.stop.store(true, Ordering::Release);
         let worker = crate::recover_mutex(&self.worker, "analytics worker").take();
         if let Some(worker) = worker {
             match tokio::task::spawn_blocking(move || worker.join()).await {
                 Ok(Ok(())) => {}
-                Ok(Err(_)) => tracing::error!("analytics owner panicked"),
-                Err(error) => tracing::error!(%error, "analytics owner join failed"),
+                Ok(Err(_)) => {
+                    tracing::error!("analytics owner panicked");
+                    return false;
+                }
+                Err(error) => {
+                    tracing::error!(%error, "analytics owner join failed");
+                    return false;
+                }
             }
         }
+        true
     }
 }
 

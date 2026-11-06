@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
 import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
 import CloudSyncEditor from '@/features/cloud-sync/ui/CloudSyncEditor.vue';
+import AppUpdater from '@/features/app-updater/ui/AppUpdater.vue';
 import LanguageSelect from '@/features/change-language/ui/LanguageSelect.vue';
 import RuntimeGlobalsEditor from '@/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
 import PluginSourcesEditor from '@/features/manage-plugin-sources/ui/PluginSourcesEditor.vue';
@@ -77,6 +78,7 @@ const locale = computed<Locale>({
         </BaseGroupBox>
         <CloudAccountEditor />
         <CloudSyncEditor />
+        <AppUpdater />
       </template>
       <PluginSourcesEditor v-else-if="section === 'plugins'" />
       <BaseGroupBox

@@ -795,7 +795,10 @@ async fn one_broken_plugin_does_not_block_sibling_shutdown() {
     manager.start("healthy").unwrap();
     // The panicking worker and the failing shutdown are logged, and every
     // instance — including the healthy sibling — is still removed.
-    manager.stop_all();
+    assert!(
+        !manager.stop_all_checked(),
+        "failed plugin shutdown must block an application update"
+    );
     assert!(!manager.is_running("doomed"));
     assert!(!manager.is_running("flaky"));
     assert!(!manager.is_running("healthy"));

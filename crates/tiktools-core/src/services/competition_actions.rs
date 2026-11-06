@@ -257,13 +257,18 @@ impl AppCore {
         )
         .take();
         if let Some(mut task) = task {
-            if tokio::time::timeout(Duration::from_secs(5), &mut task)
-                .await
-                .is_err()
-            {
-                task.abort();
-                let _ = task.await;
-                tracing::error!("competition action worker stopped with an unknown outcome; inspect running actions");
+            match tokio::time::timeout(Duration::from_secs(5), &mut task).await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
+                    tracing::error!(%error, "competition action worker failed during shutdown");
+                }
+                Err(_) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
+                    task.abort();
+                    let _ = task.await;
+                    tracing::error!("competition action worker stopped with an unknown outcome; inspect running actions");
+                }
             }
         }
         *recover_mutex(

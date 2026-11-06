@@ -17,6 +17,8 @@ use tokio::sync::broadcast;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "topic", content = "data")]
 pub enum DomainEvent {
+    #[serde(rename = "app.update.stateChanged", rename_all = "camelCase")]
+    AppUpdateStateChanged { state: Value },
     #[serde(rename = "plugin.installed", rename_all = "camelCase")]
     PluginInstalled { plugin_id: String },
     #[serde(rename = "plugin.uninstalled", rename_all = "camelCase")]
@@ -174,6 +176,7 @@ pub enum DomainEvent {
 impl DomainEvent {
     pub fn topic(&self) -> &'static str {
         match self {
+            Self::AppUpdateStateChanged { .. } => "app.update.stateChanged",
             Self::PluginInstalled { .. } => "plugin.installed",
             Self::PluginUninstalled { .. } => "plugin.uninstalled",
             Self::PluginStarted { .. } => "plugin.started",

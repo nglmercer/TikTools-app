@@ -13,6 +13,7 @@ plugin-install = ["tiktools-core/plugin-install"]
 cloud-auth = ["tiktools-core/cloud-auth"]
 native-tiktok = ["tiktools-core/native-tiktok"]
 http = ["tiktools-core/http"]
+app-update = ["tiktools-core/app-update"]
 
 [dependencies]
 tiktools-aggregation = { path = "../tiktools-aggregation" }

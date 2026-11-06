@@ -67,6 +67,14 @@ export default {
       hint: 'Applies immediately to the whole application.',
     },
   },
+  appUpdater: {
+    title: 'Application updates', installed: 'Installed version: {version}', available: 'Available version: {version}',
+    upToDate: 'TikTools is up to date.', lastChecked: 'Last checked: {when}', channel: 'Update channel',
+    stable: 'Stable', beta: 'Beta', automaticChecks: 'Check automatically', notifications: 'Notify me about updates',
+    check: 'Check for updates', download: 'Download update', install: 'Install and restart', checking: 'Checking for updates…',
+    downloading: 'Downloading update…', progress: 'Downloading: {percent}%', verifying: 'Verifying update…', closing: 'Closing TikTools to install the update…',
+    manual: 'Automatic installation is unavailable. Download a release manually:',
+  },
   account: {
     group: 'Cloud account',
     description: 'Optional sign-in for Cloud features. Everything local keeps working without an account, and tokens never leave the native app.',

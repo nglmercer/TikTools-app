@@ -474,7 +474,7 @@ impl PluginManager {
     /// of failing typed, so one torn transition can never wedge shutdown
     /// forever. Worker failures are logged and the instance is always
     /// removed with its running state cleared.
-    fn stop_for_shutdown(&self, id: &str) {
+    fn stop_for_shutdown(&self, id: &str) -> bool {
         let instance = {
             let _lifecycle = recover_mutex(&self.lifecycle, "plugin lifecycle");
             let removed = self.remove_instance(id);
@@ -485,8 +485,12 @@ impl PluginManager {
             self.set_running(id, false);
             removed
         };
-        if let Err(error) = self.finish_stop(id, instance) {
-            tracing::warn!(id = %id, %error, "plugin shutdown failed");
+        match self.finish_stop(id, instance) {
+            Ok(()) => true,
+            Err(error) => {
+                tracing::warn!(id = %id, %error, "plugin shutdown failed");
+                false
+            }
         }
     }
 
@@ -568,16 +572,24 @@ impl PluginManager {
     }
 
     pub fn stop_all(&self) {
+        let _ = self.stop_all_checked();
+    }
+
+    /// Shut down all plugins and report whether every worker actually stopped.
+    /// Used by the application updater to avoid replacing a running install.
+    pub fn stop_all_checked(&self) -> bool {
         let ids: Vec<String> = recover_rwlock_read(&self.instances, "plugin instances")
             .keys()
             .cloned()
             .collect();
+        let mut stopped = true;
         for id in ids {
-            self.stop_for_shutdown(&id);
+            stopped &= self.stop_for_shutdown(&id);
         }
         // Shutdown is the last structured chance to join retired workers
         // before the manager itself is dropped.
         self.reap_retired();
+        stopped && self.retired_worker_count() == 0 && self.abandoned_worker_count() == 0
     }
 
     pub async fn call(&self, id: &str, request: &Value) -> Result<Value, PluginLoaderError> {

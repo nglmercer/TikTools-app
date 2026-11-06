@@ -11,7 +11,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 use tiktools_core::paths::AppPaths;
@@ -19,12 +19,14 @@ use tracing_subscriber::{fmt::MakeWriter, EnvFilter};
 
 const MAX_LOG_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_ROTATED_FILES: usize = 5;
+static LOG_WRITER: OnceLock<RotatingLogWriter> = OnceLock::new();
 
 pub fn init() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let paths = AppPaths::from_environment();
     paths.ensure_directories()?;
     let log_path = paths.logs.join("tiktools.log");
     let writer = RotatingLogWriter::new(&log_path)?;
+    let flush_writer = writer.clone();
     tracing_subscriber::fmt()
         .with_target(false)
         .with_ansi(false)
@@ -34,7 +36,22 @@ pub fn init() -> Result<PathBuf, Box<dyn std::error::Error>> {
         .with_writer(writer)
         .try_init()
         .map_err(|error| io::Error::other(error.to_string()))?;
+    let _ = LOG_WRITER.set(flush_writer);
     Ok(log_path)
+}
+
+/// Flush log writes before the updater takes control of the process.
+pub fn flush() -> io::Result<()> {
+    let writer = LOG_WRITER
+        .get()
+        .ok_or_else(|| io::Error::other("logging is not initialized"))?;
+    let mut state = writer
+        .state
+        .lock()
+        .map_err(|_| io::Error::other("log writer lock poisoned"))?;
+    let file = state.file_mut()?;
+    file.flush()?;
+    file.sync_data()
 }
 
 #[derive(Clone)]

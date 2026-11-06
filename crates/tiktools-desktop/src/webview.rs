@@ -237,7 +237,9 @@ impl FrontendSource {
 }
 
 pub fn packaged_asset_root(executable: &Path) -> Option<PathBuf> {
-    executable.parent().map(|directory| directory.join("web"))
+    executable
+        .parent()
+        .map(|directory| tiktools_core::paths::resource_path(directory, "web"))
 }
 
 #[derive(Clone)]

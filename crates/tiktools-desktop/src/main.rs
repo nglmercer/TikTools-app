@@ -16,6 +16,22 @@ mod webview;
 mod window;
 
 fn main() {
+    // Handle this before logging, the single-instance lock, or GUI initialization.
+    // Release CI runs the actual binary and compares this value to its tag.
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--version")) {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+    if std::env::args_os().nth(1).as_deref()
+        == Some(std::ffi::OsStr::new("--update-installation-type"))
+    {
+        let installation = tiktools_core::app_update::detect_installation().kind();
+        println!(
+            "{}",
+            serde_json::to_string(&installation).expect("installation type serializes")
+        );
+        return;
+    }
     // rustls 0.23 cannot choose a provider when multiple TLS stacks are unified
     // by the workspace. Install the provider before any async client is created.
     if rustls::crypto::CryptoProvider::get_default().is_none() {

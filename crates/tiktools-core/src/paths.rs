@@ -27,7 +27,7 @@ impl AppPaths {
             .map(normalize)
             .unwrap_or_else(|| {
                 executable_directory()
-                    .map(|directory| directory.join("plugins"))
+                    .map(|directory| resource_path(&directory, "plugins"))
                     .unwrap_or_else(|| root.join("builtin-plugins"))
             });
         let development_plugins = env::var_os("TIKTOOLS_DEV_PLUGINS_DIR")
@@ -115,6 +115,28 @@ fn executable_directory() -> Option<PathBuf> {
         .and_then(|path| path.parent().map(Path::to_path_buf))
 }
 
+/// Locate immutable packaged resources relative to the executable. Portable
+/// and Windows packages put them alongside the binary; cargo-packager's DEB
+/// and AppImage layouts put them under `<prefix>/lib/tiktools-desktop`.
+pub fn resource_path(executable_directory: &Path, name: &str) -> PathBuf {
+    let adjacent = executable_directory.join(name);
+    if adjacent.exists() {
+        return adjacent;
+    }
+    if executable_directory
+        .file_name()
+        .is_some_and(|part| part == "bin")
+    {
+        if let Some(prefix) = executable_directory.parent() {
+            let installed = prefix.join("lib").join("tiktools-desktop").join(name);
+            if installed.exists() {
+                return installed;
+            }
+        }
+    }
+    adjacent
+}
+
 fn default_data_root() -> PathBuf {
     if cfg!(target_os = "windows") {
         env::var_os("LOCALAPPDATA")
@@ -159,5 +181,19 @@ mod tests {
         assert!(paths
             .analytics_database()
             .ends_with("data/tiktok-analytics.db"));
+    }
+
+    #[test]
+    fn resolves_portable_and_packager_resource_layouts() {
+        let root =
+            std::env::temp_dir().join(format!("tiktools-resource-test-{}", fastrand::u64(..)));
+        let bin = root.join("usr/bin");
+        let installed = root.join("usr/lib/tiktools-desktop/web");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&installed).unwrap();
+        assert_eq!(resource_path(&bin, "web"), installed);
+        std::fs::create_dir_all(bin.join("web")).unwrap();
+        assert_eq!(resource_path(&bin, "web"), bin.join("web"));
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

@@ -27,6 +27,7 @@ pub fn run(log_path: std::path::PathBuf) -> Result<(), Box<dyn std::error::Error
     let emitter = crate::event::shared_emitter(proxy.clone());
     let media = Arc::new(crate::media::DesktopMediaHost::default());
     let core = Arc::new(AppCore::with_media_host(emitter.clone(), media));
+    core.enable_desktop_app_updater();
     let router = Arc::new(IpcRouter::new(core.clone()));
     instance.start_listener(proxy.clone());
     let mut app = DesktopApp::new(
@@ -39,6 +40,48 @@ pub fn run(log_path: std::path::PathBuf) -> Result<(), Box<dyn std::error::Error
         emitter,
     );
     event_loop.run_app(&mut app)?;
+    let update = app.take_update_plan();
+    drop(app);
+    // Release WebViews, native plugins, the Tokio runtime, and the instance
+    // lock before the updater transfers control to an installer.
+    drop(instance);
+    drop(runtime);
+    let update = match update {
+        Ok(update) => update,
+        Err(spanish) => {
+            let (title, message) = if spanish {
+                ("Actualización cancelada", "TikTools no pudo cerrar todos los procesos o guardar todos los datos de forma segura. No se instaló la actualización; abre TikTools de nuevo y revisa el registro.")
+            } else {
+                ("Update canceled", "TikTools could not safely stop all processes or save all data. The update was not installed; reopen TikTools and check the log.")
+            };
+            let _ = rfd::MessageDialog::new()
+                .set_title(title)
+                .set_description(message)
+                .set_level(rfd::MessageLevel::Error)
+                .set_buttons(rfd::MessageButtons::Ok)
+                .show();
+            return Ok(());
+        }
+    };
+    if let Some((update, spanish)) = update {
+        let outcome = crate::logging::flush()
+            .map_err(|error| error.to_string())
+            .and_then(|()| update.apply().map_err(|error| error.to_string()));
+        if let Err(error) = outcome {
+            tracing::error!(%error, "application update failed after shutdown");
+            let (title, message) = if spanish {
+                ("Error al actualizar TikTools", "No se pudo instalar o reiniciar la aplicación. Descarga e instala TikTools desde https://github.com/nglmercer/TikTools-app/releases. Los datos de la aplicación se guardan por separado.")
+            } else {
+                ("TikTools update failed", "The application could not be installed or restarted. Download and reinstall TikTools from https://github.com/nglmercer/TikTools-app/releases. Your application data is stored separately.")
+            };
+            let _ = rfd::MessageDialog::new()
+                .set_title(title)
+                .set_description(message)
+                .set_level(rfd::MessageLevel::Error)
+                .set_buttons(rfd::MessageButtons::Ok)
+                .show();
+        }
+    }
     Ok(())
 }
 

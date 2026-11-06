@@ -12,6 +12,7 @@ import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
 import { usePointsStore } from '@/entities/points/model/points-store.ts';
 import { useProcessorsStore } from '@/entities/processor/model/processors-store.ts';
 import { useRuleProfilesStore } from '@/entities/rule-template/model/rule-profiles-store.ts';
+import { useAppUpdaterStore } from '@/features/app-updater/model/updater-store.ts';
 import { useGlobalsStore } from '@/entities/runtime-global/model/globals-store.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
@@ -33,6 +34,7 @@ export function useAppRuntime() {
   const globals = useGlobalsStore();
   const profiles = useRuleProfilesStore();
   const discovery = useDiscoveryStore();
+  const appUpdater = useAppUpdaterStore();
   const { events, autoScroll, filter, searchQuery } = storeToRefs(live);
 
   let disposed = false;
@@ -190,6 +192,7 @@ export function useAppRuntime() {
 
   onMounted(() => {
     control.attach();
+    void appUpdater.initialize();
     presentationMounted = true;
     document.addEventListener('visibilitychange', onVisibilityChange);
     updatePresentation();

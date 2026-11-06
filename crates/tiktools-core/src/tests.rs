@@ -1904,7 +1904,9 @@ async fn enabled_event_subscriber_starts_with_host_runtime() {
     core.spawn_plugin_event_poll(&tokio::runtime::Handle::current());
 
     assert!(core.plugins.is_running("hotkeys"));
+    assert!(!core.update_shutdown_safe());
     core.shutdown().await;
+    assert!(core.update_shutdown_safe());
     let _ = std::fs::remove_dir_all(root);
 }
 

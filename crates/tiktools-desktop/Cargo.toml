@@ -17,7 +17,7 @@ cloud-auth = ["tiktools-core/cloud-auth", "tiktools-control-api/cloud-auth"]
 
 [dependencies]
 tiktools-core = { path = "../tiktools-core", features = ["native-tiktok"] }
-tiktools-control-api = { path = "../tiktools-control-api" }
+tiktools-control-api = { path = "../tiktools-control-api", features = ["app-update"] }
 tiktools-plugin-api = { path = "../tiktools-plugin-api" }
 serde_json.workspace = true
 serde.workspace = true

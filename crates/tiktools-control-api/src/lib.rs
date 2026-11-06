@@ -83,6 +83,7 @@ impl ControlApi {
         modules::processors::register(router);
         modules::media::register(router);
         modules::app::register(router);
+        modules::updates::register(router);
         modules::globals::register(router);
         modules::creators::register(router);
         modules::analytics::register(router);

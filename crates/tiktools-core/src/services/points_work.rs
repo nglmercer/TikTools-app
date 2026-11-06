@@ -163,8 +163,8 @@ impl PointsWorkService {
             .await
             .map_err(|_| "LIVE points execution worker failed".into())
     }
-    pub(crate) async fn shutdown(&self) {
-        self.shutdown_with_deadline(WORKER_JOIN_DEADLINE).await;
+    pub(crate) async fn shutdown(&self) -> bool {
+        self.shutdown_with_deadline(WORKER_JOIN_DEADLINE).await
     }
 
     /// Cancels admission (dropping queued callers with an explicit error),
@@ -172,12 +172,12 @@ impl PointsWorkService {
     /// worker wedged inside an award is abandoned with a loud report that
     /// awards behind it may remain unresolved — the same policy as the
     /// durable writer join that runs after this in the shutdown ladder.
-    pub(crate) async fn shutdown_with_deadline(&self, deadline: Duration) {
+    pub(crate) async fn shutdown_with_deadline(&self, deadline: Duration) -> bool {
         self.stopping.cancel();
         crate::recover_mutex(&self.sender, "LIVE points sender").take();
         let worker = crate::recover_mutex(&self.worker, "LIVE points worker").take();
         let Some(worker) = worker else {
-            return;
+            return true;
         };
         let abandoned = Arc::clone(&self.abandoned_joins);
         match tokio::task::spawn_blocking(move || {
@@ -193,13 +193,19 @@ impl PointsWorkService {
         })
         .await
         {
-            Ok(Ok(())) => {}
-            Ok(Err(cause)) => tracing::error!(
-                cause,
-                deadline_ms = deadline.as_millis() as u64,
-                "LIVE points worker abandoned past its join deadline; queued awards may remain unresolved"
-            ),
-            Err(error) => tracing::error!(%error, "LIVE points worker join task failed"),
+            Ok(Ok(())) => true,
+            Ok(Err(cause)) => {
+                tracing::error!(
+                    cause,
+                    deadline_ms = deadline.as_millis() as u64,
+                    "LIVE points worker failed to stop; queued awards may remain unresolved"
+                );
+                false
+            }
+            Err(error) => {
+                tracing::error!(%error, "LIVE points worker join task failed");
+                false
+            }
         }
     }
 
