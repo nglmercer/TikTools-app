@@ -9,7 +9,7 @@ description = "Application update policy and signed release metadata validation"
 [dependencies]
 cargo-packager-updater = "=0.2.3"
 base64.workspace = true
-minisign-verify = "=0.2.5"
+minisign-verify = "=0.3.0"
 reqwest.workspace = true
 semver.workspace = true
 serde.workspace = true
