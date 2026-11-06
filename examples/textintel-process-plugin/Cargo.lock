@@ -293,7 +293,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-api"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "schemars",
  "semver",
@@ -306,11 +306,11 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-macros"
-version = "4.0.0"
+version = "4.0.1"
 
 [[package]]
 name = "tiktools-plugin-sdk"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "serde",
  "serde_json",

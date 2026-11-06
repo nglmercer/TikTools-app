@@ -6446,7 +6446,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-aggregation"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "getrandom 0.4.3",
  "schemars",
@@ -6455,7 +6455,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-app-update"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "base64 0.23.1",
  "cargo-packager-updater",
@@ -6472,7 +6472,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-cli"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "axum",
  "rand 0.10.3",
@@ -6486,7 +6486,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-client"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -6496,7 +6496,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-cloud-auth"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "cloud-client",
  "open",
@@ -6512,7 +6512,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-cloud-sync"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "cloud-client",
  "reqwest 0.13.5",
@@ -6527,7 +6527,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-competitions"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "getrandom 0.4.3",
  "schemars",
@@ -6537,7 +6537,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-control-api"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "libc",
  "schemars",
@@ -6555,7 +6555,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-core"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "arboard",
  "cloud-client",
@@ -6594,7 +6594,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-desktop"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "gtk",
  "open",
@@ -6622,7 +6622,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-api"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "schemars",
  "semver",
@@ -6635,7 +6635,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-devkit"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "libc",
  "semver",
@@ -6650,7 +6650,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-installer"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "base64 0.23.1",
  "flate2",
@@ -6672,7 +6672,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-loader"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "libloading 0.9.0",
  "napi-vm",
@@ -6688,11 +6688,11 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-macros"
-version = "4.0.0"
+version = "4.0.1"
 
 [[package]]
 name = "tiktools-plugin-package"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "base64 0.23.1",
  "ring",
@@ -6706,7 +6706,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-registry"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "reqwest 0.13.5",
  "schemars",
@@ -6724,7 +6724,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-sdk"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "base64 0.23.1",
  "flate2",
@@ -6741,7 +6741,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-tiktok"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "fastrand",
  "httpdate",

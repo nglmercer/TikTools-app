@@ -8,9 +8,9 @@ description = "TikTools plugin registry protocol v1: client, resolver, downloade
 publish = false
 
 [dependencies]
-tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "4.0.0" }
-tiktools-plugin-package = { path = "../tiktools-plugin-package", version = "4.0.0" }
-tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", version = "4.0.0", features = ["http-client"] }
+tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "4.0.1" }
+tiktools-plugin-package = { path = "../tiktools-plugin-package", version = "4.0.1" }
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", version = "4.0.1", features = ["http-client"] }
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
