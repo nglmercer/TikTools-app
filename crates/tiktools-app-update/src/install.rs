@@ -109,7 +109,7 @@ impl InstallPlan {
             return Err(InstallError::Restart);
         }
         validate_version(&self.target, &self.expected_version)?;
-        Command::new(&self.target)
+        appimage_command(&self.target)
             .spawn()
             .map_err(|_| InstallError::Restart)?;
         Ok(())
@@ -122,8 +122,69 @@ fn install_package(update: &Update, bytes: Vec<u8>) -> Result<(), InstallError> 
         .map_err(|error| InstallError::Installer(error.to_string()))
 }
 
+/// AppRun adds paths from its mounted image to the environment. Those paths
+/// refer to the old image during replacement and must not leak into the new one.
+fn appimage_command(path: &std::path::Path) -> Command {
+    #[cfg(target_os = "linux")]
+    let mut command = Command::new(path);
+    #[cfg(not(target_os = "linux"))]
+    let command = Command::new(path);
+    #[cfg(target_os = "linux")]
+    {
+        let mount = std::env::var_os("APPDIR").map(PathBuf::from);
+        for name in ["APPDIR", "APPIMAGE", "ARGV0", "OWD"] {
+            command.env_remove(name);
+        }
+        if let Some(mount) = mount {
+            for name in [
+                "PATH",
+                "LD_LIBRARY_PATH",
+                "LD_PRELOAD",
+                "XDG_DATA_DIRS",
+                "GIO_EXTRA_MODULES",
+                "GTK_PATH",
+                "QT_PLUGIN_PATH",
+            ] {
+                if let Some(value) = std::env::var_os(name) {
+                    match without_mount_paths(&value, &mount) {
+                        Some(value) => {
+                            command.env(name, value);
+                        }
+                        None => {
+                            command.env_remove(name);
+                        }
+                    }
+                }
+            }
+            for name in ["GSETTINGS_SCHEMA_DIR", "QT_QPA_PLATFORM_PLUGIN_PATH"] {
+                if std::env::var_os(name)
+                    .is_some_and(|value| PathBuf::from(value).starts_with(&mount))
+                {
+                    command.env_remove(name);
+                }
+            }
+        }
+    }
+    command
+}
+
+#[cfg(target_os = "linux")]
+fn without_mount_paths(
+    value: &std::ffi::OsStr,
+    mount: &std::path::Path,
+) -> Option<std::ffi::OsString> {
+    let paths: Vec<_> = std::env::split_paths(value)
+        .filter(|path| !path.starts_with(mount))
+        .collect();
+    if paths.is_empty() {
+        None
+    } else {
+        std::env::join_paths(paths).ok()
+    }
+}
+
 fn validate_version(path: &std::path::Path, expected: &str) -> Result<(), InstallError> {
-    let mut child = Command::new(path)
+    let mut child = appimage_command(path)
         .arg("--version")
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -162,6 +223,19 @@ fn validate_version(path: &std::path::Path, expected: &str) -> Result<(), Instal
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn restart_environment_removes_only_paths_from_the_old_mount() {
+        let value =
+            std::ffi::OsStr::new("/old/.mount_tik/usr/lib:/usr/lib:/old/.mount_tik-extra/lib");
+        let cleaned = without_mount_paths(value, std::path::Path::new("/old/.mount_tik")).unwrap();
+        assert_eq!(cleaned, "/usr/lib:/old/.mount_tik-extra/lib");
+        assert!(without_mount_paths(
+            std::ffi::OsStr::new("/old/.mount_tik/usr/lib"),
+            std::path::Path::new("/old/.mount_tik")
+        )
+        .is_none());
+    }
 
     #[test]
     fn packager_replaces_a_disposable_image_without_touching_user_data() {
