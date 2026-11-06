@@ -37,6 +37,7 @@ pub mod settings;
 pub mod sync;
 pub mod system;
 pub mod ui;
+pub mod updates;
 pub mod validate;
 pub mod widgets;
 pub mod workflows;
@@ -145,6 +146,7 @@ impl TikToolsClient {
             sync::METHODS,
             system::METHODS,
             ui::METHODS,
+            updates::METHODS,
             widgets::METHODS,
             workflows::METHODS,
         ]

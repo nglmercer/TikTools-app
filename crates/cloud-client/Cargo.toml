@@ -40,3 +40,7 @@ keyring = { version = "3.6.3", default-features = false, features = ["apple-nati
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3.6.3", default-features = false, features = ["windows-native"], optional = true }
+# better-auth pulls in webauthn-rs, which links OpenSSL. Windows runners and
+# end-user machines have no system OpenSSL, so build it from source and link
+# it statically.
+openssl = { version = "0.10", features = ["vendored"] }

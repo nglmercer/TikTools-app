@@ -923,6 +923,7 @@ dependencies = [
  "getrandom 0.2.17",
  "keyring",
  "open",
+ "openssl",
  "reqwest 0.12.28",
  "secrecy",
  "semver",

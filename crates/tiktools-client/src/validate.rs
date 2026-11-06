@@ -55,6 +55,7 @@ use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsS
 #[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::sync::SyncResolveParams;
 use tiktools_control_api::modules::system::SaveFileParams;
+use tiktools_control_api::modules::updates::{CheckParams as UpdateCheckParams, NoUpdateParams};
 use tiktools_control_api::modules::widgets::WidgetsCopyParams;
 use tiktools_control_api::modules::workflows::{WorkflowIdParams, WorkflowSaveParams};
 use tiktools_control_api::modules::Empty;
@@ -82,6 +83,14 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "app.state.set" => AppStateSetParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
+        "app.update.check" => UpdateCheckParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "app.update.status" | "app.update.download" | "app.update.install" => {
+            NoUpdateParams::deserialize(params)
+                .map(|_| ())
+                .map_err(invalid)
+        }
         "automation.list" => AutomationListParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
