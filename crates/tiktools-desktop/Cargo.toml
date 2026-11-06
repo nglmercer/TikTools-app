@@ -32,6 +32,7 @@ wry = { version = "0.57.1", features = ["tracing"] }
 tray-icon = "0.26.1"
 rfd.workspace = true
 rodio.workspace = true
+open = "5.4.5"
 
 [dev-dependencies]
 tiktools-plugin-loader = { path = "../tiktools-plugin-loader" }

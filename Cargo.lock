@@ -6631,6 +6631,7 @@ name = "tiktools-desktop"
 version = "4.0.0"
 dependencies = [
  "gtk",
+ "open",
  "percent-encoding",
  "rfd",
  "rodio",

@@ -23,7 +23,7 @@ describe('AppUpdater', () => {
     await store.initialize();
     const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
     expect(wrapper.text()).toContain('4.0.0');
-    expect(wrapper.text()).toContain('github.com/nglmercer/TikTools-app/releases');
+    expect(wrapper.get('a.app-updater__url').attributes('href')).toBe('https://github.com/nglmercer/TikTools-app/releases');
     expect(wrapper.text()).not.toContain('Download update');
     await wrapper.get('select').setValue('beta');
     await flushPromises();

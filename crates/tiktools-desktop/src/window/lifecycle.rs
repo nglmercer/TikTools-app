@@ -31,6 +31,12 @@ use wry::PageLoadEvent;
 use wry::Rect;
 use wry::WebViewBuilder;
 
+const UPDATE_RELEASES_URL: &str = "https://github.com/nglmercer/TikTools-app/releases";
+
+fn is_update_releases_url(url: &str) -> bool {
+    url == UPDATE_RELEASES_URL
+}
+
 impl DesktopApp {
     pub fn new(
         core: Arc<AppCore>,
@@ -204,6 +210,12 @@ impl DesktopApp {
             // in-page and asks the host for the inspector.
             .with_initialization_script(crate::webview::MAIN_INIT_SCRIPT)
             .with_navigation_handler(move |url| {
+                if is_update_releases_url(&url) {
+                    if let Err(error) = open::that_detached(UPDATE_RELEASES_URL) {
+                        tracing::warn!(%error, "could not open the application release page");
+                    }
+                    return false;
+                }
                 // Plugin asset URLs load inline frames in the plugin tabs;
                 // installation is enforced per request by the asset server.
                 let allowed = navigation_frontend.allows_navigation(&url)
@@ -1218,5 +1230,23 @@ impl Drop for DesktopApp {
             platform::sync_gtk_display();
         }
         self.window.take();
+    }
+}
+
+#[cfg(test)]
+mod update_release_link_tests {
+    use super::*;
+
+    #[test]
+    fn only_the_fixed_release_page_opens_externally() {
+        assert!(is_update_releases_url(UPDATE_RELEASES_URL));
+        for url in [
+            "http://github.com/nglmercer/TikTools-app/releases",
+            "https://github.com/nglmercer/TikTools-app/releases?next=evil",
+            "https://github.com.evil.example/nglmercer/TikTools-app/releases",
+            "https://github.com/nglmercer/TikTools-app/releases/other",
+        ] {
+            assert!(!is_update_releases_url(url));
+        }
     }
 }

@@ -112,7 +112,10 @@ function install(): void {
         {{ updater.error || status?.error?.message }}
       </p>
       <p v-if="!status?.checkSupported || !status?.installSupported">
-        {{ t('appUpdater.manual') }} <span class="app-updater__url">https://github.com/nglmercer/TikTools-app/releases</span>
+        {{ t('appUpdater.manual') }} <a
+          class="app-updater__url"
+          href="https://github.com/nglmercer/TikTools-app/releases"
+        >https://github.com/nglmercer/TikTools-app/releases</a>
       </p>
     </div>
   </BaseGroupBox>
