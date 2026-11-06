@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { eventText, formatEventTime } from '@/entities/live-event/lib/event-text.ts';
 import EventDetails from '@/entities/live-event/ui/EventDetails.vue';
@@ -14,6 +14,7 @@ import IconClose from '@/shared/ui/icon/icons/IconClose.vue';
 import IconEye from '@/shared/ui/icon/icons/IconEye.vue';
 import { formatCount } from '@/shared/lib/intl.ts';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
+import { onSwipe } from '@/shared/lib/touch-gestures.ts';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 import type { DisplayEvent, LikeLeaderPayload, TopViewerPayload, UserCardUser, ViewerRecord } from '@/types.ts';
@@ -54,6 +55,21 @@ const viewerModes = computed(() => [
 // the legacy core projection only covers hosts without the ranking engine.
 const likes = computed(() => (props.likesRanking ? rankingLeaders(props.likesRanking) : props.likeLeaders));
 
+// Phones show the inspector as a bottom sheet: swiping its header down
+// dismisses it. Bound to the header so scrolling the list never closes it.
+const panel = ref<{ $el: HTMLElement } | null>(null);
+let disposeSwipe: (() => void) | null = null;
+onMounted(() => {
+  const header = panel.value?.$el.querySelector('.base-panel__header');
+  if (!header) return;
+  disposeSwipe = onSwipe(header, {
+    threshold: 40,
+    enabled: () => typeof window.matchMedia === 'function' && window.matchMedia('(width < 700px)').matches,
+    onSwipe: (direction) => { if (direction === 'down') emit('close'); },
+  });
+});
+onBeforeUnmount(() => disposeSwipe?.());
+
 const tabs = computed(() => [
   { value: 'viewers' as const, label: t('feed.inspector.viewers') },
   { value: 'event' as const, label: t('feed.inspector.details'), disabled: !props.event },
@@ -63,6 +79,7 @@ const tabs = computed(() => [
 
 <template>
   <BasePanel
+    ref="panel"
     class="feed-inspector"
     :title="t('feed.inspector.title')"
     flush
@@ -180,6 +197,27 @@ const tabs = computed(() => [
 </template>
 
 <style scoped>
+/* Bottom-sheet grab handle on phones. */
+@media (width < 700px) {
+  .feed-inspector :deep(.base-panel__header) {
+    position: relative;
+    padding-top: var(--space-4);
+    touch-action: none;
+  }
+
+  .feed-inspector :deep(.base-panel__header)::before {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--color-border-strong);
+    content: '';
+    transform: translateX(-50%);
+  }
+}
+
 .feed-inspector__tabs {
   height: 100%;
   padding-top: var(--space-2);

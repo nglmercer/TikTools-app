@@ -4,6 +4,13 @@
   height: 100dvh;
 }
 
+/* The app handles pull-to-refresh itself; suppress the browser's own so a
+   pull never reloads twice. */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
 @media (width < 1024px) {
   .app-layout__navigation {
     width: 180px;

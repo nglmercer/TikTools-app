@@ -35,6 +35,10 @@ export default {
     rankings: 'Rankings & competitions',
     settings: 'Settings',
     toggleSidebar: 'Toggle sidebar',
+    pull: {
+      hint: 'Pull to reload',
+      release: 'Release to reload',
+    },
   },
   connection: {
     handleRequired: 'Enter a TikTok creator username.',
