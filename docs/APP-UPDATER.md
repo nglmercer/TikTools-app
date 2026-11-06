@@ -61,8 +61,19 @@ Both commands require `TIKTOOLS_UPDATE_PUBLIC_KEY`. Signing also requires
 environment secrets, never command-line arguments or logs. The command signs
 the NSIS and AppImage files and `update.json`, then verifies all three using the
 client's verifier. It rejects missing or mismatched versions and artifacts.
-These commands only prepare local files: a protected signing job, upload
-verification, and atomic channel publication are still required. Current feed
+These commands only prepare local files. After uploading and verifying the
+referenced release assets, authenticate the current feed heads and stage a new
+snapshot locally with:
+
+```sh
+bun scripts/stage-update-channels.ts release-assets current-heads new-snapshot
+```
+
+The heads directory must contain both `.json` and `.json.sig` for each existing
+channel. An absent pair represents an empty channel. The staging command checks
+signatures and SemVer ordering but does not verify remote uploads or publish the
+snapshot. A protected signing job, upload verification, serialization of
+publishers, and atomic channel publication are still required. Current feed
 heads must be authenticated before promotion; stable may advance on stable
 versions only, while beta advances only to a higher SemVer version.
 

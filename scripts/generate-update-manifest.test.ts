@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'bun:test';
@@ -31,6 +31,21 @@ describe('signed release metadata', () => {
       expect(await run([...script, '--sign', dir], { ...signedEnv, CARGO_PACKAGER_SIGN_PRIVATE_KEY: undefined })).not.toBe(0);
       expect(await run([...script, '--sign', dir], signedEnv)).toBe(0);
       expect(await run([...script, '--verify', dir], signedEnv)).toBe(0);
+      const heads = join(dir, 'heads');
+      const snapshot = join(dir, 'snapshot');
+      await mkdir(heads);
+      const stage = ['bun', 'scripts/stage-update-channels.ts', dir, heads];
+      expect(await run([...stage, snapshot], signedEnv)).toBe(0);
+      expect(await readFile(join(snapshot, 'stable.json'), 'utf8')).toBe(await readFile(join(dir, 'update.json'), 'utf8'));
+      expect(await readFile(join(snapshot, 'beta.json'), 'utf8')).toBe(await readFile(join(dir, 'update.json'), 'utf8'));
+      expect(await run(['bun', 'scripts/stage-update-channels.ts', dir, snapshot, join(dir, 'unchanged')], signedEnv)).toBe(0);
+      expect(await readFile(join(dir, 'unchanged', 'stable.json'), 'utf8')).toBe(await readFile(join(snapshot, 'stable.json'), 'utf8'));
+      await copyFile(join(snapshot, 'stable.json'), join(heads, 'stable.json'));
+      await copyFile(join(snapshot, 'stable.json.sig'), join(heads, 'stable.json.sig'));
+      await writeFile(join(heads, 'stable.json'), '{"version":"99.0.0"}');
+      expect(await run([...stage, join(dir, 'rejected')], signedEnv)).not.toBe(0);
+      await rm(join(heads, 'stable.json.sig'));
+      expect(await run([...stage, join(dir, 'incomplete')], signedEnv)).not.toBe(0);
       await writeFile(linux, 'corrupt');
       expect(await run([...script, '--verify', dir], signedEnv)).not.toBe(0);
       await writeFile(linux, 'linux fixture');
