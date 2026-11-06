@@ -239,8 +239,10 @@ jobs:
           PRERELEASE: ${{ needs.version.outputs.prerelease }}
         run: |
           # An existing tag in the release repository must be this exact commit.
+          # A missing tag makes `gh api` print a 4xx JSON body on stdout, so only
+          # a real 40-hex commit SHA counts as an existing tag.
           existing="$(gh api "repos/$RELEASE_REPO/commits/$RELEASE_TAG" -q .sha 2>/dev/null || true)"
-          if [ -n "$existing" ] && [ "$existing" != "$GITHUB_SHA" ]; then
+          if [[ "$existing" =~ ^[0-9a-f]{40}$ ]] && [ "$existing" != "$GITHUB_SHA" ]; then
             echo "::error::$RELEASE_REPO tag $RELEASE_TAG points to $existing, expected $GITHUB_SHA"
             exit 1
           fi
