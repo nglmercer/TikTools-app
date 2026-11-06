@@ -50,8 +50,8 @@ tiktools-tiktok = { path = "../tiktools-tiktok", optional = true }
 tiktools-plugin-installer = { path = "../tiktools-plugin-installer", optional = true }
 tiktools-plugin-package = { path = "../tiktools-plugin-package", optional = true }
 tiktools-plugin-registry = { path = "../tiktools-plugin-registry", optional = true }
-tiktools-cloud-auth = { path = "../tiktools-cloud-auth", version = "4.0.1", optional = true }
-tiktools-cloud-sync = { path = "../tiktools-cloud-sync", version = "4.0.1", optional = true }
+tiktools-cloud-auth = { path = "../tiktools-cloud-auth", version = "4.0.2", optional = true }
+tiktools-cloud-sync = { path = "../tiktools-cloud-sync", version = "4.0.2", optional = true }
 semver = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
