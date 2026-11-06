@@ -69,9 +69,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Linux build dependencies
+        timeout-minutes: 12
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
+          set -euo pipefail
+
+          # Avoid hanging indefinitely on an unresponsive Ubuntu package mirror.
+          apt_opts=(
+            -o Acquire::Retries=2
+            -o Acquire::http::Timeout=30
+            -o Acquire::https::Timeout=30
+          )
+
+          echo "::group::Refresh APT indexes"
+          time sudo apt-get "${apt_opts[@]}" update
+          echo "::endgroup::"
+
+          echo "::group::Install native build dependencies"
+          time sudo DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install --no-install-recommends -y \
             libasound2-dev \
             libappindicator3-dev \
             libgtk-3-dev \
@@ -79,6 +93,7 @@ jobs:
             libxdo-dev \
             mold \
             pkg-config
+          echo "::endgroup::"
 
       - name: Install current Rust with validation tools
         run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal --component rustfmt --component clippy
@@ -161,9 +176,23 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Linux build dependencies
+        timeout-minutes: 12
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
+          set -euo pipefail
+
+          # Avoid hanging indefinitely on an unresponsive Ubuntu package mirror.
+          apt_opts=(
+            -o Acquire::Retries=2
+            -o Acquire::http::Timeout=30
+            -o Acquire::https::Timeout=30
+          )
+
+          echo "::group::Refresh APT indexes"
+          time sudo apt-get "${apt_opts[@]}" update
+          echo "::endgroup::"
+
+          echo "::group::Install native build dependencies"
+          time sudo DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install --no-install-recommends -y \
             libasound2-dev \
             libappindicator3-dev \
             libgtk-3-dev \
@@ -171,6 +200,7 @@ jobs:
             libxdo-dev \
             mold \
             pkg-config
+          echo "::endgroup::"
 
       - name: Install MSRV Rust
         run: rustup toolchain install "${{ env.MSRV_TOOLCHAIN }}" --profile minimal
@@ -207,9 +237,23 @@ jobs:
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
+        timeout-minutes: 12
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
+          set -euo pipefail
+
+          # Avoid hanging indefinitely on an unresponsive Ubuntu package mirror.
+          apt_opts=(
+            -o Acquire::Retries=2
+            -o Acquire::http::Timeout=30
+            -o Acquire::https::Timeout=30
+          )
+
+          echo "::group::Refresh APT indexes"
+          time sudo apt-get "${apt_opts[@]}" update
+          echo "::endgroup::"
+
+          echo "::group::Install native build dependencies"
+          time sudo DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install --no-install-recommends -y \
             libasound2-dev \
             libappindicator3-dev \
             libgtk-3-dev \
@@ -217,6 +261,7 @@ jobs:
             libxdo-dev \
             mold \
             pkg-config
+          echo "::endgroup::"
 
       - name: Install current Rust
         run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal
