@@ -568,11 +568,14 @@ async fn storage_failures_never_fall_back_to_files() {
     #[cfg(feature = "os-keychain")]
     {
         let os = crate::OsTokenStore::new();
+        // Headless CI runners have no Secret Service, so `Unavailable` is a
+        // valid answer; any other error means the adapter misbehaved.
         let probed = os.load(&mock.origin, "probe");
         assert!(
-            probed.is_ok(),
-            "keychain probe must answer, got: {probed:?}"
+            matches!(probed, Ok(_) | Err(crate::TokenStoreError::Unavailable)),
+            "keychain probe must answer or report unavailable, got: {probed:?}"
         );
+        assert!(!dir.join("cloud-account.json").exists());
     }
     mock.stop();
 }
