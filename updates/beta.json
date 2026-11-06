@@ -1,0 +1,15 @@
+{
+  "version": "4.0.1",
+  "platforms": {
+    "windows-x86_64": {
+      "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.0.1/TikTools-4.0.1-windows-x86_64-installer.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIGNhcmdvLXBhY2thZ2VyIHNlY3JldCBrZXkKUlVSRTd4VWVEZHRLMWJ2MzBNUXpJSXBNeThQcmFTR2xIc0M3S0hhNFFFMjNIaG5ob25FZ2tqU0ZqZFNCWFBOeGU0UUpVb0ZOTFR6V1duVkdoVWxJNTl6ekJkRU4rWkN6R2dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzOTkyNjE3CWZpbGU6VGlrVG9vbHMtNC4wLjEtd2luZG93cy14ODZfNjQtaW5zdGFsbGVyLmV4ZQo2NmJNeGVWMDF1ODBaR1RVNDRFOStzVW41dzFEaEgzdGhTL1J2UWFyK2tRNEMxb2FiVUFTMVlqTSs1RjgyeGRFcENnMys4TnJaNU4rZFlEV1Z6blNEdz09Cg==",
+      "format": "nsis"
+    },
+    "linux-x86_64": {
+      "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.0.1/TikTools-4.0.1-linux-x86_64-installer.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIGNhcmdvLXBhY2thZ2VyIHNlY3JldCBrZXkKUlVSRTd4VWVEZHRLMWVhUGJPUjJLb256ZytOakliTkVCL0R0SjVFYk5FQmJQSm5xMnVxaWdmbXNHQ3F5Qk9zTEQvWFZEeHE1a1pCcTdVZjIzbjE2ajM4OXNpWlZOQllFRGdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzOTkyNjE3CWZpbGU6VGlrVG9vbHMtNC4wLjEtbGludXgteDg2XzY0LWluc3RhbGxlci5BcHBJbWFnZQpuU3JKOUZwdUdrNURza2RrRHN1K09OUTNqTEdwL0RUcGpyN1VKcnhiY1pRVjlweGlWOGx3L3FKeFVGZkxuKzU4eVV6NHVaNXdPWHNQT3lnMTJmbXJBdz09Cg==",
+      "format": "appimage"
+    }
+  }
+}
