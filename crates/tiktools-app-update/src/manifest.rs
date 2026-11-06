@@ -72,6 +72,16 @@ pub fn validate_manifest(
         .pop_if_empty()
         .push(&format!("v{}", release.version))
         .push("");
+    let extension = match target {
+        "windows-x86_64" => "exe",
+        "linux-x86_64" => "AppImage",
+        _ => return Err(ManifestError::UnsupportedPlatform),
+    };
+    let expected_file = format!(
+        "TikTools-{}-{target}-installer.{extension}",
+        release.version
+    );
+    let expected_path = format!("{}{expected_file}", expected_prefix.path());
     // `+` is legal in a path segment, but release URLs commonly percent-encode
     // it. Normalize only that byte; encoded slashes must not alter boundaries.
     let path = url.path().replace("%2B", "+").replace("%2b", "+");
@@ -82,8 +92,7 @@ pub fn validate_manifest(
         || url.port().is_some()
         || url.query().is_some()
         || url.fragment().is_some()
-        || !path.starts_with(expected_prefix.path())
-        || path == expected_prefix.path()
+        || path != expected_path
     {
         return Err(ManifestError::UntrustedUrl);
     }
@@ -109,7 +118,7 @@ mod tests {
     #[test]
     fn validates_upstream_shape_and_rejects_untrusted_metadata() {
         let current = Version::parse("4.0.0").unwrap();
-        let url = "https://github.com/nglmercer/TikTools-app/releases/download/v4.1.0/app.nsis.zip";
+        let url = "https://github.com/nglmercer/TikTools-app/releases/download/v4.1.0/TikTools-4.1.0-windows-x86_64-installer.exe";
         assert!(
             validate_manifest(
                 manifest("nsis", url).as_bytes(),
@@ -121,6 +130,20 @@ mod tests {
             .available
         );
         assert!(validate_manifest(
+            manifest("nsis", &url.replace("installer.exe", "installer.zip")).as_bytes(),
+            "windows-x86_64",
+            Channel::Stable,
+            &current
+        )
+        .is_err());
+        assert!(validate_manifest(
+            manifest("nsis", &url.replace("installer.exe", "installer.exe/extra")).as_bytes(),
+            "windows-x86_64",
+            Channel::Stable,
+            &current
+        )
+        .is_err());
+        assert!(validate_manifest(
             manifest("wix", url).as_bytes(),
             "windows-x86_64",
             Channel::Stable,
@@ -130,7 +153,7 @@ mod tests {
         assert!(validate_manifest(
             manifest(
                 "nsis",
-                "https://github.com/nglmercer/TikTools-app/releases/download/v4.0.0/app.nsis.zip"
+                "https://github.com/nglmercer/TikTools-app/releases/download/v4.0.0/TikTools-4.1.0-windows-x86_64-installer.exe"
             )
             .as_bytes(),
             "windows-x86_64",
@@ -161,7 +184,7 @@ mod tests {
 
     #[test]
     fn accepts_encoded_semver_build_metadata_in_release_urls() {
-        let json = br#"{"version":"4.1.0+build.1","platforms":{"linux-x86_64":{"url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.1.0%2Bbuild.1/TikTools.AppImage","signature":"signed","format":"appimage"}}}"#;
+        let json = br#"{"version":"4.1.0+build.1","platforms":{"linux-x86_64":{"url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.1.0%2Bbuild.1/TikTools-4.1.0%2Bbuild.1-linux-x86_64-installer.AppImage","signature":"signed","format":"appimage"}}}"#;
         assert!(validate_manifest(
             json,
             "linux-x86_64",
