@@ -41,6 +41,8 @@ describe('Linux installer metadata', () => {
         await writeFile(join(helpers, helper), elf);
       }
       await expect(verifyAppImageWebKit(root)).resolves.toBeUndefined();
+      await writeFile(join(root, 'usr/lib/libwayland-client.so.0'), '');
+      await expect(verifyAppImageWebKit(root)).rejects.toThrow('must not bundle libwayland-client.so.0');
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 });

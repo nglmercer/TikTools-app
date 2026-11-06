@@ -11,6 +11,12 @@
 # library's path from "/usr/lib/..." to the same-length "././/lib/...". The AppImageKit
 # AppRun used by cargo-packager chdirs into "$APPDIR/usr" before exec, so the
 # relative path resolves to the bundled copies.
+#
+# It also drops linuxdeploy's bundled Wayland client libraries. They are pinned
+# to the build host's Wayland version and shadow the host's newer stack, which
+# makes Mesa's EGL fail inside WebKitWebProcess on rolling distributions
+# ("Could not create default EGL display: EGL_BAD_PARAMETER"). Like Mesa, the
+# Wayland client stack must always come from the host.
 set -euo pipefail
 
 APPDIR=""
@@ -79,4 +85,19 @@ if [ "$patched" -eq 0 ]; then
   echo "linuxdeploy-plugin-tiktoolswebkit: no bundled libwebkit2gtk-4.1 referencing $helper_dir" >&2
   exit 1
 fi
-echo "linuxdeploy-plugin-tiktoolswebkit: bundled helpers into usr/$relative_dir and patched $patched librar(y/ies)"
+
+# Keep the host's Wayland client stack (see the header). Mixed versions make
+# Mesa's EGL initialization fail in the WebKit web process on newer distros.
+shopt -s nullglob
+wayland_libraries=(
+  "$APPDIR"/usr/lib/libwayland-client.so.0*
+  "$APPDIR"/usr/lib/libwayland-cursor.so.0*
+  "$APPDIR"/usr/lib/libwayland-egl.so.1*
+  "$APPDIR"/usr/lib/libwayland-server.so.0*
+)
+shopt -u nullglob
+for library in "${wayland_libraries[@]}"; do
+  rm -f "$library"
+done
+
+echo "linuxdeploy-plugin-tiktoolswebkit: bundled helpers into usr/$relative_dir, patched $patched librar(y/ies), removed ${#wayland_libraries[@]} bundled Wayland librar(y/ies)"

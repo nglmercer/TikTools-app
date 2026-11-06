@@ -112,6 +112,14 @@ export async function verifyAppImageWebKit(appDir: string): Promise<void> {
       }
     }
   }
+  // The host's Wayland client stack must win over any bundled copy: a pinned
+  // build-host version shadows the host libraries and makes Mesa's EGL fail
+  // inside WebKitWebProcess on rolling distributions (EGL_BAD_PARAMETER).
+  for (const name of await readdir(libDir)) {
+    if (/^libwayland-(?:client|cursor|egl|server)\.so/.test(name)) {
+      throw new Error(`AppImage must not bundle ${name}; the host Wayland client stack is required`);
+    }
+  }
 }
 
 /** Check Debian-family runtime names without assuming other distributions use them. */
