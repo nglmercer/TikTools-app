@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ActionTypeDefinition, PluginStatus } from '../../../../automation/behavior/types.ts';
 import { catalogPlugins, pluginState, type PluginCatalogTab } from '@/entities/plugin/lib/plugin-catalog.ts';
+import { isPluginCommand, pluginMenu, type PluginCommand } from '@/entities/plugin/lib/plugin-menu.ts';
 import PluginStateBadge from '@/entities/plugin/ui/PluginStateBadge.vue';
 import type { SearchEntry, UpdateInfo } from '@/entities/plugin-package/api/package-types.ts';
 import { remoteSelection } from '@/entities/plugin-package/lib/package-format.ts';
@@ -12,6 +13,8 @@ import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import BaseList from '@/shared/ui/list/BaseList.vue';
+import BaseContextMenu from '@/shared/ui/menu/BaseContextMenu.vue';
+import type { MenuAction } from '@/shared/ui/menu/menu-types.ts';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
@@ -39,6 +42,7 @@ const emit = defineEmits<{
   update: [id: string, version?: string];
   'update-all': [];
   open: [id: string];
+  command: [id: string, command: PluginCommand];
 }>();
 
 const tab = defineModel<PluginCatalogTab>('tab', { required: true });
@@ -81,6 +85,18 @@ const rows = computed<CatalogRow[]>(() => {
     .map((entry) => ({ key: remoteSelection(entry.registry, entry.id), kind: 'remote' as const, entry }));
   return [...local, ...remote];
 });
+
+/** Right-click (or Menu / Shift+F10) on an installed or bundled plugin row. */
+const menuPlugin = computed(() => {
+  const row = rows.value.find((entry) => entry.key === selected.value);
+  return row?.kind === 'local' ? row.plugin : null;
+});
+const menuItems = computed(() => (menuPlugin.value ? pluginMenu(menuPlugin.value, props.actionTypes, t) : []));
+
+function onMenu(action: MenuAction): void {
+  const plugin = menuPlugin.value;
+  if (plugin && isPluginCommand(action.id)) emit('command', plugin.descriptor.id, action.id);
+}
 
 const filtering = computed(() => query.value.trim().length > 0);
 
@@ -195,87 +211,94 @@ function submitSpec(): void {
           </BaseButton>
         </div>
       </div>
-      <BaseList
-        v-model:selected="selected"
-        class="plugin-catalog__list"
-        :items="rows"
-        :item-key="(row) => row.key"
-        :aria-label="t('plugins.title')"
-        @activate="emit('open', $event.key)"
+      <!-- No `disabled` binding: it would be read before the right-clicked
+           row is selected. Rows without commands get an empty (hidden) menu. -->
+      <BaseContextMenu
+        :items="menuItems"
+        @select="onMenu"
       >
-        <template #default="{ item }">
-          <span
-            class="plugin-catalog__item"
-            :class="{ 'plugin-catalog__item--off': item.kind === 'local' && item.plugin.installed && !item.plugin.enabled }"
-            @pointerdown="emit('open', item.key)"
-          >
-            <IconPuzzle class="plugin-catalog__icon" />
-            <span class="plugin-catalog__name">{{ rowName(item) }}</span>
-            <PluginStateBadge
-              v-if="item.kind === 'local' && (item.plugin.installed || !item.plugin.available)"
-              :state="pluginState(item.plugin)"
-            />
+        <BaseList
+          v-model:selected="selected"
+          class="plugin-catalog__list"
+          :items="rows"
+          :item-key="(row) => row.key"
+          :aria-label="t('plugins.title')"
+          @activate="emit('open', $event.key)"
+        >
+          <template #default="{ item }">
             <span
-              v-else-if="item.kind === 'local'"
-              class="plugin-catalog__tag"
-            >{{ t('plugins.catalog.bundled') }}</span>
-            <span
-              v-else-if="item.kind === 'remote'"
-              class="plugin-catalog__tag"
-            >{{ item.entry.latest }}</span>
-            <template v-else>
+              class="plugin-catalog__item"
+              :class="{ 'plugin-catalog__item--off': item.kind === 'local' && item.plugin.installed && !item.plugin.enabled }"
+              @pointerdown="emit('open', item.key)"
+            >
+              <IconPuzzle class="plugin-catalog__icon" />
+              <span class="plugin-catalog__name">{{ rowName(item) }}</span>
+              <PluginStateBadge
+                v-if="item.kind === 'local' && (item.plugin.installed || !item.plugin.available)"
+                :state="pluginState(item.plugin)"
+              />
               <span
-                v-if="item.update.advisory"
-                class="plugin-catalog__tag plugin-catalog__tag--warning"
-              >{{ t(`packages.advisory.${item.update.advisory.severity}`) }}</span>
+                v-else-if="item.kind === 'local'"
+                class="plugin-catalog__tag"
+              >{{ t('plugins.catalog.bundled') }}</span>
+              <span
+                v-else-if="item.kind === 'remote'"
+                class="plugin-catalog__tag"
+              >{{ item.entry.latest }}</span>
+              <template v-else>
+                <span
+                  v-if="item.update.advisory"
+                  class="plugin-catalog__tag plugin-catalog__tag--warning"
+                >{{ t(`packages.advisory.${item.update.advisory.severity}`) }}</span>
+                <BaseButton
+                  v-if="item.update.latest"
+                  size="sm"
+                  @click.stop="emit('update', item.update.id, item.update.latest)"
+                >
+                  {{ item.update.current }} → {{ item.update.latest }}
+                </BaseButton>
+              </template>
+            </span>
+          </template>
+          <template #empty>
+            <BaseEmptyState
+              v-if="tab === 'installed' && filtering"
+              :title="t('plugins.catalog.noMatches', { query: query.trim() })"
+            />
+            <BaseEmptyState
+              v-else-if="tab === 'installed'"
+              :title="t('plugins.catalog.emptyInstalled')"
+              :description="t('plugins.catalog.emptyInstalledHint')"
+            >
+              <template #icon>
+                <IconPuzzle :size="28" />
+              </template>
               <BaseButton
-                v-if="item.update.latest"
                 size="sm"
-                @click.stop="emit('update', item.update.id, item.update.latest)"
+                @click="tab = 'browse'"
               >
-                {{ item.update.current }} → {{ item.update.latest }}
+                {{ t('plugins.catalog.browseAvailable') }}
               </BaseButton>
-            </template>
-          </span>
-        </template>
-        <template #empty>
-          <BaseEmptyState
-            v-if="tab === 'installed' && filtering"
-            :title="t('plugins.catalog.noMatches', { query: query.trim() })"
-          />
-          <BaseEmptyState
-            v-else-if="tab === 'installed'"
-            :title="t('plugins.catalog.emptyInstalled')"
-            :description="t('plugins.catalog.emptyInstalledHint')"
-          >
-            <template #icon>
-              <IconPuzzle :size="28" />
-            </template>
-            <BaseButton
-              size="sm"
-              @click="tab = 'browse'"
+            </BaseEmptyState>
+            <BaseEmptyState
+              v-else-if="tab === 'browse'"
+              :title="searching ? t('plugins.catalog.searching') : t('plugins.catalog.emptyBrowse')"
+              :description="t('plugins.catalog.emptyBrowseHint')"
             >
-              {{ t('plugins.catalog.browseAvailable') }}
-            </BaseButton>
-          </BaseEmptyState>
-          <BaseEmptyState
-            v-else-if="tab === 'browse'"
-            :title="searching ? t('plugins.catalog.searching') : t('plugins.catalog.emptyBrowse')"
-            :description="t('plugins.catalog.emptyBrowseHint')"
-          >
-            <BaseButton
-              size="sm"
-              @click="emit('install-package')"
-            >
-              {{ t('plugins.install.package') }}
-            </BaseButton>
-          </BaseEmptyState>
-          <BaseEmptyState
-            v-else
-            :title="t('plugins.catalog.emptyUpdates')"
-          />
-        </template>
-      </BaseList>
+              <BaseButton
+                size="sm"
+                @click="emit('install-package')"
+              >
+                {{ t('plugins.install.package') }}
+              </BaseButton>
+            </BaseEmptyState>
+            <BaseEmptyState
+              v-else
+              :title="t('plugins.catalog.emptyUpdates')"
+            />
+          </template>
+        </BaseList>
+      </BaseContextMenu>
     </div>
   </BasePanel>
 </template>

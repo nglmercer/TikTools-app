@@ -132,6 +132,20 @@ async function selectPlugin(wrapper: Wrapper, name: string) {
   await option.trigger('pointerdown');
 }
 
+async function openItemMenu(wrapper: Wrapper, name: string) {
+  const option = wrapper.findAll('[role="option"]').find((item) => item.text().includes(name))!;
+  await option.trigger('contextmenu');
+  await nextTick();
+}
+
+function menuItems(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]'));
+}
+
+function menuItem(label: string): HTMLElement {
+  return menuItems().find((item) => item.textContent?.trim() === label)!;
+}
+
 describe('PluginsPage', () => {
   it('opens plugin details and returns to the catalog on narrow screens', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
@@ -191,6 +205,50 @@ describe('PluginsPage', () => {
     confirm.click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.uninstall')?.params).toEqual({ pluginId: 'deck', purgeData: false });
+  });
+
+  it('offers plugin commands from the context menu on a list item', async () => {
+    const { wrapper, calls } = await mountPage();
+    await openItemMenu(wrapper, 'DECK');
+    expect(menuItems().map((item) => item.textContent?.trim())).toEqual([
+      'Open', 'Enabled', 'Settings', 'Connection', 'Versions', 'Test connection', 'Uninstall…',
+    ]);
+    menuItem('Enabled').click();
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'plugins.disable')?.params).toEqual({ pluginId: 'deck' });
+
+    await openItemMenu(wrapper, 'DECK');
+    menuItem('Uninstall…').click();
+    await flushPromises();
+    expect(wrapper.get('.plugin-details__name').text()).toBe('DECK');
+    expect(document.body.textContent).toContain('2 actions use it and will stop working.');
+    Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Uninstall')!.click();
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'plugins.uninstall')?.params).toEqual({ pluginId: 'deck', purgeData: false });
+  });
+
+  it('opens a details tab from the context menu', async () => {
+    const { wrapper } = await mountPage([plugin('deck'), plugin('vts')]);
+    await selectPlugin(wrapper, 'DECK');
+    await openItemMenu(wrapper, 'VTS');
+    menuItem('Versions').click();
+    await flushPromises();
+    expect(wrapper.get('.plugin-details__name').text()).toBe('VTS');
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Versions');
+  });
+
+  it('removes non-package plugins from the installed list instead of uninstalling', async () => {
+    const dev = plugin('devkit', { available: false, enabled: false }, { source: 'development' });
+    const { wrapper, calls } = await mountPage([dev]);
+    await selectPlugin(wrapper, 'DEVKIT');
+    expect(buttonByText(wrapper, 'Uninstall…')).toBeUndefined();
+    await buttonByText(wrapper, 'Remove from installed').trigger('click');
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'plugins.install.set')?.params).toEqual({ pluginId: 'devkit', installed: false });
+
+    await openItemMenu(wrapper, 'DEVKIT');
+    expect(menuItems().map((item) => item.textContent?.trim())).toContain('Remove from installed');
+    expect(menuItems().map((item) => item.textContent?.trim())).not.toContain('Uninstall…');
   });
 
   it('activates a bundled plugin', async () => {

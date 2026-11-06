@@ -80,8 +80,9 @@ onScopeDispose(() => listen(false));
 </script>
 
 <template>
+  <!-- A menu with no entries (e.g. a context target without commands) shows nothing. -->
   <MenuList
-    v-if="open"
+    v-if="open && items.length"
     :items="items"
     :anchor="anchor"
     :placement="placement"
