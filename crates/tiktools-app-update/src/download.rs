@@ -100,24 +100,10 @@ pub async fn download_verified<F: FnMut(u64, Option<u64>), V: FnOnce()>(
         .map_err(|_| DownloadError::InvalidSignature)?
         .clone();
     let redirect = reqwest::redirect::Policy::custom(|attempt| {
-        let url = attempt.url();
-        if attempt.previous().len() >= 5
-            || url.scheme() != "https"
-            || url.port().is_some()
-            || !url.username().is_empty()
-            || url.password().is_some()
-            || !matches!(
-                url.host_str(),
-                Some(
-                    "github.com"
-                        | "release-assets.githubusercontent.com"
-                        | "objects.githubusercontent.com"
-                )
-            )
-        {
-            attempt.stop()
-        } else {
+        if trusted_redirect(attempt.url(), attempt.previous().len()) {
             attempt.follow()
+        } else {
+            attempt.stop()
         }
     });
     let client = reqwest::Client::builder()
@@ -142,6 +128,22 @@ pub async fn download_verified<F: FnMut(u64, Option<u64>), V: FnOnce()>(
         &authenticated.public_key,
     )
     .await
+}
+
+fn trusted_redirect(url: &reqwest::Url, previous: usize) -> bool {
+    previous < 5
+        && url.scheme() == "https"
+        && url.port().is_none()
+        && url.username().is_empty()
+        && url.password().is_none()
+        && matches!(
+            url.host_str(),
+            Some(
+                "github.com"
+                    | "release-assets.githubusercontent.com"
+                    | "objects.githubusercontent.com"
+            )
+        )
 }
 
 /// Shared bounded-reader and authentication path, independent of transport setup.
@@ -176,7 +178,7 @@ async fn read_update<F: FnMut(u64, Option<u64>)>(
     limit: u64,
     progress: &mut F,
 ) -> Result<Vec<u8>, DownloadError> {
-    if !response.status().is_success() {
+    if response.status() != reqwest::StatusCode::OK {
         return Err(DownloadError::Network);
     }
     let total = response.content_length();
@@ -213,6 +215,24 @@ mod tests {
         assert!(verify(b"test", &sig, "garbage").is_err());
     }
 
+    #[test]
+    fn redirect_policy_accepts_only_trusted_https_hosts() {
+        let accepted =
+            reqwest::Url::parse("https://release-assets.githubusercontent.com/file?token=signed")
+                .unwrap();
+        assert!(trusted_redirect(&accepted, 1));
+        assert!(!trusted_redirect(&accepted, 5));
+        for url in [
+            "http://github.com/file",
+            "https://github.com.evil.example/file",
+            "https://user@github.com/file",
+            "https://github.com:444/file",
+            "https://evil.example/file",
+        ] {
+            assert!(!trusted_redirect(&reqwest::Url::parse(url).unwrap(), 0));
+        }
+    }
+
     #[tokio::test]
     async fn rejects_oversize_and_interrupted_downloads_without_faking_progress() {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -226,6 +246,17 @@ mod tests {
                 let _ = stream.write_all(data).await;
             });
             reqwest::get(format!("http://{addr}/")).await.unwrap()
+        }
+        for status in [
+            b"HTTP/1.1 206 Partial Content\r\nContent-Length: 3\r\nConnection: close\r\n\r\n123"
+                .as_slice(),
+            b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".as_slice(),
+        ] {
+            let response = response(status).await;
+            assert!(matches!(
+                read_update(response, 10, &mut |_, _| {}).await,
+                Err(DownloadError::Network)
+            ));
         }
         let chunked = response(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\n12345\r\n0\r\n\r\n").await;
         assert!(matches!(

@@ -44,7 +44,7 @@ async fn read_limited(
         .send()
         .await
         .map_err(|_| CheckError::Network)?;
-    if !response.status().is_success() {
+    if response.status() != reqwest::StatusCode::OK {
         return Err(CheckError::Network);
     }
     if response
@@ -131,6 +131,14 @@ mod tests {
     #[tokio::test]
     async fn bounds_both_declared_and_streamed_metadata() {
         let client = reqwest::Client::new();
+        let partial = serve(
+            b"HTTP/1.1 206 Partial Content\r\nContent-Length: 3\r\nConnection: close\r\n\r\n123",
+        )
+        .await;
+        assert!(matches!(
+            read_limited(&client, &partial, 10).await,
+            Err(CheckError::Network)
+        ));
         let too_long =
             serve(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: close\r\n\r\n1234567890")
                 .await;
