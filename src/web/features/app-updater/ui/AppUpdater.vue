@@ -68,11 +68,11 @@ function install(): void {
           {{ t('appUpdater.check') }}
         </BaseButton>
         <BaseButton
-          v-if="status?.state === 'available' && status.installSupported && matchingChannel"
+          v-if="(status?.state === 'available' || (status?.state === 'failed' && status.error?.code === 'download_failed')) && status.installSupported && matchingChannel"
           :disabled="busy"
           @click="updater.download()"
         >
-          {{ t('appUpdater.download') }}
+          {{ t(status?.state === 'failed' ? 'appUpdater.retryDownload' : 'appUpdater.download') }}
         </BaseButton>
         <BaseButton
           v-if="status?.state === 'readyToInstall' && status.installSupported && matchingChannel"
@@ -111,8 +111,11 @@ function install(): void {
       >
         {{ updater.error || status?.error?.message }}
       </p>
-      <p v-if="!status?.checkSupported || !status?.installSupported">
-        {{ t('appUpdater.manual') }} <a
+      <p v-if="status?.state === 'failed' && status.error?.code === 'download_failed'">
+        {{ t('appUpdater.retryHelp') }}
+      </p>
+      <p v-if="!status?.checkSupported || !status?.installSupported || status?.state === 'failed'">
+        {{ t(status?.state === 'failed' && status.installSupported ? 'appUpdater.manualRecovery' : 'appUpdater.manual') }} <a
           class="app-updater__url"
           href="https://github.com/nglmercer/TikTools-app/releases"
         >https://github.com/nglmercer/TikTools-app/releases</a>

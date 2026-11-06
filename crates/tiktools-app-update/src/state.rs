@@ -90,7 +90,12 @@ impl UpdateState {
                     Phase::Installing,
                     Phase::RestartRequired | Phase::Completed | Phase::Failed
                 )
-        );
+        ) || (state.state == Phase::Failed
+            && next == Phase::Downloading
+            && state
+                .error
+                .as_ref()
+                .is_some_and(|error| error.code == "download_failed"));
         if !permitted {
             return Err(StateError::InvalidTransition);
         }

@@ -78,6 +78,21 @@ describe('AppUpdater', () => {
     expect(wrapper.text()).toContain('Check for updates');
   });
 
+  it('offers a retry after a download failure', async () => {
+    const { client, calls } = createFakeControlClient((method) => {
+      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
+      if (method === 'app.update.status') return status({ state: 'failed', installSupported: true, error: { code: 'download_failed', message: 'Download failed' } });
+      return {};
+    });
+    const harness = createStoreHarness(client);
+    await harness.use(useAppUpdaterStore).initialize();
+    const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
+    const retry = wrapper.findAll('button').find((button) => button.text().includes('Retry download'));
+    expect(retry).toBeDefined();
+    await retry!.trigger('click');
+    expect(calls.some((call) => call.method === 'app.update.download')).toBe(true);
+  });
+
   it('requests native confirmation without passing an installer path', async () => {
     const { client } = createFakeControlClient((method) => {
       if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };

@@ -198,12 +198,22 @@ impl AppUpdater {
         }
         let (release, state) = {
             let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-            if inner.state.state != Phase::Available {
+            let retry = inner.state.state == Phase::Failed
+                && inner
+                    .state
+                    .error
+                    .as_ref()
+                    .is_some_and(|error| error.code == "download_failed");
+            if inner.state.state != Phase::Available && !retry {
                 return Err(ServiceError::InvalidState);
             }
             let release = inner.release.clone().ok_or(ServiceError::InvalidState)?;
+            inner.package = None;
             inner.state.state = Phase::Downloading;
             inner.state.error = None;
+            inner.state.downloaded_bytes = 0;
+            inner.state.total_bytes = None;
+            inner.state.progress = None;
             (release, inner.state.clone())
         };
         (self.notify)(state.clone());
@@ -336,6 +346,61 @@ mod tests {
         let inner = updater.inner.lock().unwrap();
         assert!(inner.release.is_none());
         assert!(inner.package.is_none());
+    }
+
+    #[tokio::test]
+    async fn retry_requires_a_failed_download_and_resets_progress() {
+        let updater = AppUpdater::new(
+            "4.0.0",
+            Some("fixture-key"),
+            InstallationType::AppImage,
+            |_| {},
+        );
+        let metadata = br#"{"version":"4.1.0","platforms":{"linux-x86_64":{"url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.1.0/TikTools-4.1.0-linux-x86_64-installer.AppImage","signature":"signed","format":"appimage"}}}"#;
+        let release = crate::validate_manifest(
+            metadata,
+            "linux-x86_64",
+            Channel::Stable,
+            &Version::parse("4.0.0").unwrap(),
+        )
+        .unwrap();
+        {
+            let mut inner = updater.inner.lock().unwrap();
+            inner.release = Some(Arc::new(AuthenticatedRelease {
+                release,
+                public_key: "fixture-key".into(),
+            }));
+            inner.state.state = Phase::Failed;
+            inner.state.error = Some(UpdateError {
+                code: "check_failed".into(),
+                message: "failed".into(),
+            });
+            inner.state.downloaded_bytes = 50;
+            inner.state.total_bytes = Some(100);
+            inner.state.progress = Some(50.0);
+        }
+        assert!(matches!(
+            updater.download(),
+            Err(ServiceError::InvalidState)
+        ));
+        updater
+            .inner
+            .lock()
+            .unwrap()
+            .state
+            .error
+            .as_mut()
+            .unwrap()
+            .code = "download_failed".into();
+        let state = updater.download().unwrap();
+        assert_eq!(state.state, Phase::Downloading);
+        assert_eq!(state.downloaded_bytes, 0);
+        assert_eq!(state.total_bytes, None);
+        assert_eq!(state.progress, None);
+        assert!(matches!(
+            updater.download(),
+            Err(ServiceError::InvalidState)
+        ));
     }
 
     #[test]

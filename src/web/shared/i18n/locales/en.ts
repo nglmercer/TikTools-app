@@ -72,7 +72,10 @@ export default {
     upToDate: 'TikTools is up to date.', lastChecked: 'Last checked: {when}', channel: 'Update channel',
     stable: 'Stable', beta: 'Beta', automaticChecks: 'Check automatically', notifications: 'Notify me about updates',
     check: 'Check for updates', download: 'Download update', install: 'Install and restart', checking: 'Checking for updates…',
+    retryHelp: 'Try again, check your connection, or download the release manually.',
+    retryDownload: 'Retry download',
     downloading: 'Downloading update…', progress: 'Downloading: {percent}%', verifying: 'Verifying update…', closing: 'Closing TikTools to install the update…',
+    manualRecovery: 'You can also download a release manually:',
     manual: 'Automatic installation is unavailable. Download a release manually:',
   },
   account: {

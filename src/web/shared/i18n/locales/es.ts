@@ -74,7 +74,10 @@ export default {
     upToDate: 'TikTools está actualizado.', lastChecked: 'Última comprobación: {when}', channel: 'Canal de actualización',
     stable: 'Estable', beta: 'Beta', automaticChecks: 'Buscar automáticamente', notifications: 'Notificarme sobre actualizaciones',
     check: 'Buscar actualizaciones', download: 'Descargar actualización', install: 'Instalar y reiniciar', checking: 'Buscando actualizaciones…',
+    retryHelp: 'Vuelve a intentarlo, comprueba tu conexión o descarga la versión manualmente.',
+    retryDownload: 'Reintentar descarga',
     downloading: 'Descargando actualización…', progress: 'Descargando: {percent}%', verifying: 'Verificando actualización…', closing: 'Cerrando TikTools para instalar la actualización…',
+    manualRecovery: 'También puedes descargar una versión manualmente:',
     manual: 'La instalación automática no está disponible. Descarga una versión manualmente:',
   },
   account: {
