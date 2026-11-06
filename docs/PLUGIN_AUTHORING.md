@@ -33,7 +33,7 @@ to depend on the local SDK instead of the git dependency.
 tiktools-plugin validate
 tiktools-plugin validate --publish
 # Review several existing plugins at once; exits nonzero if any is not ready.
-tiktools-plugin validate-all plugins/l4d2 plugins/sonicboom
+tiktools-plugin validate-all plugins/sonicboom examples/*
 ```
 
 `validate` parses the manifest with the host parser and reports host

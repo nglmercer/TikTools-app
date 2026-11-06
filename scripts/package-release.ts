@@ -88,14 +88,6 @@ const BUNDLED_PLUGINS: readonly BundledPlugin[] = [
     native: { package: 'rdev-node', binary: 'node-rdev' },
   },
   {
-    id: 'l4d2.interactive',
-    source: 'first-party',
-    package: 'l4d2',
-    crate: 'tiktools-l4d2',
-    runtime: 'process',
-    entry: 'tiktools-l4d2',
-  },
-  {
     id: 'minecraft.server',
     source: 'example',
     example: 'minecraft-server',

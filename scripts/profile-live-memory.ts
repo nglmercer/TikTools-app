@@ -310,7 +310,7 @@ export function descendants(
       host = rss;
     } else if (name.includes('webkit') || name.includes('webview')) {
       webviews += rss;
-    } else if (name.includes('plugin') || name.includes('sonicboom') || name.includes('l4d2')) {
+    } else if (name.includes('plugin') || name.includes('sonicboom')) {
       plugins += rss;
     } else {
       other += rss;

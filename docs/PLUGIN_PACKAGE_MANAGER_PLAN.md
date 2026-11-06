@@ -572,7 +572,7 @@ updated "Installation" section in `docs/PLUGINS.md`.
 - `--install-plugin <path> [--replace]` keeps working.
 - Existing user packages are adopted (Section 10). Development (`.dev-plugins`)
   and builtin roots are never modified by the installer.
-- In-repo plugins (`plugins/sonicboom`, `plugins/l4d2`, `examples/*`) gain
+- In-repo plugins (`plugins/sonicboom`, `examples/*`) gain
   `publisher: "tiktools"`, `license`, `engines`, `categories`; ids unchanged.
 - Release CI (`.github/workflows/release.yml`) builds, signs (index and
   publisher keys from CI secrets), and publishes official plugins to the
