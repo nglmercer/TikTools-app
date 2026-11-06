@@ -73,7 +73,11 @@ impl UpdateState {
         let permitted = matches!(
             (state.state, next),
             (
-                Phase::Idle | Phase::UpToDate | Phase::Available | Phase::Failed,
+                Phase::Idle
+                    | Phase::UpToDate
+                    | Phase::Available
+                    | Phase::ReadyToInstall
+                    | Phase::Failed,
                 Phase::Checking
             ) | (
                 Phase::Checking,

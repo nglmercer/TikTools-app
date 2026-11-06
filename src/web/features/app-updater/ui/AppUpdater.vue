@@ -10,6 +10,7 @@ import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 const { t, locale } = useI18n();
 const updater = useAppUpdaterStore();
 const status = computed(() => updater.status);
+const matchingChannel = computed(() => status.value?.channel === updater.preferences.channel);
 const busy = computed(() => ['checking', 'downloading', 'verifying', 'installing'].includes(status.value?.state ?? ''));
 const progress = computed(() => status.value?.totalBytes ? Math.min(100, Math.round(status.value.downloadedBytes * 100 / status.value.totalBytes)) : null);
 const checked = computed(() => updater.preferences.lastChecked ? new Date(updater.preferences.lastChecked * 1000).toLocaleString(locale.value) : '');
@@ -24,10 +25,10 @@ function install(): void {
       <p v-if="status">
         {{ t('appUpdater.installed', { version: status.currentVersion }) }}
       </p>
-      <p v-if="status?.availableVersion">
+      <p v-if="status?.availableVersion && matchingChannel">
         {{ t('appUpdater.available', { version: status.availableVersion }) }}
       </p>
-      <p v-if="status?.state === 'upToDate'">
+      <p v-if="status?.state === 'upToDate' && matchingChannel">
         {{ t('appUpdater.upToDate') }}
       </p>
       <p v-if="checked">
@@ -67,14 +68,14 @@ function install(): void {
           {{ t('appUpdater.check') }}
         </BaseButton>
         <BaseButton
-          v-if="status?.state === 'available' && status.installSupported"
+          v-if="status?.state === 'available' && status.installSupported && matchingChannel"
           :disabled="busy"
           @click="updater.download()"
         >
           {{ t('appUpdater.download') }}
         </BaseButton>
         <BaseButton
-          v-if="status?.state === 'readyToInstall' && status.installSupported"
+          v-if="status?.state === 'readyToInstall' && status.installSupported && matchingChannel"
           variant="primary"
           @click="install"
         >
@@ -99,7 +100,7 @@ function install(): void {
         {{ t('appUpdater.closing') }}
       </p>
       <p
-        v-if="status?.releaseNotes"
+        v-if="status?.releaseNotes && matchingChannel"
         class="app-updater__notes"
       >
         {{ status.releaseNotes }}

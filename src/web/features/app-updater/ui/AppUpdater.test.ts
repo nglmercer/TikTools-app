@@ -63,6 +63,21 @@ describe('AppUpdater', () => {
     expect(wrapper.get('progress').attributes('value')).toBe('50');
   });
 
+  it('hides a ready update when the selected channel changes', async () => {
+    const { client } = createFakeControlClient((method) => {
+      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false,"channel":"beta"}' } };
+      if (method === 'app.update.status') return status({ channel: 'beta', state: 'readyToInstall', installSupported: true });
+      return {};
+    });
+    const harness = createStoreHarness(client);
+    await harness.use(useAppUpdaterStore).initialize();
+    const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
+    expect(wrapper.text()).toContain('Install and restart');
+    await wrapper.get('select').setValue('stable');
+    expect(wrapper.text()).not.toContain('Install and restart');
+    expect(wrapper.text()).toContain('Check for updates');
+  });
+
   it('requests native confirmation without passing an installer path', async () => {
     const { client } = createFakeControlClient((method) => {
       if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };

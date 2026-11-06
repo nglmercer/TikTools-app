@@ -145,7 +145,11 @@ impl AppUpdater {
             let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
             if !matches!(
                 inner.state.state,
-                Phase::Idle | Phase::UpToDate | Phase::Available | Phase::Failed
+                Phase::Idle
+                    | Phase::UpToDate
+                    | Phase::Available
+                    | Phase::ReadyToInstall
+                    | Phase::Failed
             ) {
                 return Err(ServiceError::InvalidState);
             }
@@ -309,6 +313,29 @@ mod tests {
             Err(ServiceError::Unavailable)
         ));
         assert!(!updater.status().install_supported);
+    }
+
+    #[tokio::test]
+    async fn a_new_channel_check_discards_ready_update_state() {
+        let updater = AppUpdater::new(
+            "4.0.0",
+            Some("fixture-key"),
+            InstallationType::AppImage,
+            |_| {},
+        );
+        {
+            let mut inner = updater.inner.lock().unwrap();
+            inner.state.state = Phase::ReadyToInstall;
+            inner.state.channel = Channel::Beta;
+            inner.state.available_version = Some("4.1.0-beta.1".into());
+        }
+        let state = updater.check(Channel::Stable).unwrap();
+        assert_eq!(state.state, Phase::Checking);
+        assert_eq!(state.channel, Channel::Stable);
+        assert!(state.available_version.is_none());
+        let inner = updater.inner.lock().unwrap();
+        assert!(inner.release.is_none());
+        assert!(inner.package.is_none());
     }
 
     #[test]
