@@ -133,9 +133,30 @@ pub async fn download_verified<F: FnMut(u64, Option<u64>), V: FnOnce()>(
         .send()
         .await
         .map_err(|_| DownloadError::Network)?;
-    let bytes = read_update(response, MAX_UPDATE_BYTES, &mut progress).await?;
+    verify_response(
+        response,
+        MAX_UPDATE_BYTES,
+        &mut progress,
+        verifying,
+        &signature,
+        &authenticated.public_key,
+    )
+    .await
+}
+
+/// Shared bounded-reader and authentication path, independent of transport setup.
+pub(crate) async fn verify_response<F: FnMut(u64, Option<u64>), V: FnOnce()>(
+    response: reqwest::Response,
+    limit: u64,
+    progress: &mut F,
+    verifying: V,
+    signature: &str,
+    public_key: &str,
+) -> Result<VerifiedPackage, DownloadError> {
+    let bytes = read_update(response, limit, progress).await?;
     verifying();
-    let key = authenticated.public_key.clone();
+    let signature = signature.to_owned();
+    let key = public_key.to_owned();
     tokio::task::spawn_blocking(move || verified_package(bytes, &signature, &key))
         .await
         .map_err(|_| DownloadError::InvalidSignature)?

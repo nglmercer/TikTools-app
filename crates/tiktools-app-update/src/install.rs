@@ -410,7 +410,44 @@ mod tests {
         let mut corrupted = bytes.clone();
         corrupted[0] ^= 1;
         assert!(crate::download::verified_package(corrupted, &signature, &public_key).is_err());
-        let package = crate::download::verified_package(bytes, &signature, &public_key).unwrap();
+        // Only this test uses loopback HTTP; production still enforces HTTPS and fixed hosts.
+        let size = bytes.len() as u64;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 1024];
+            let _ = stream.read(&mut request).unwrap();
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Length: {size}\r\nConnection: close\r\n\r\n"
+            )
+            .unwrap();
+            stream.write_all(&bytes).unwrap();
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let mut received = 0;
+        let package = runtime.block_on(async {
+            let response = reqwest::get(format!("http://{address}/fixture"))
+                .await
+                .unwrap();
+            crate::download::verify_response(
+                response,
+                crate::MAX_UPDATE_BYTES,
+                &mut |downloaded, _| received = downloaded,
+                || {},
+                &signature,
+                &public_key,
+            )
+            .await
+            .unwrap()
+        });
+        server.join().unwrap();
+        assert_eq!(received, size);
         let plan = InstallPlan::new(
             Arc::new(release),
             package,

@@ -47,10 +47,10 @@ TIKTOOLS_TEST_APPIMAGE=/absolute/path/TikTools.AppImage \
 ```
 
 The test uses an ephemeral signing key and isolated profile; it verifies signed
-metadata and payloads before replacement, checks the running image remains alive,
+metadata and a loopback-downloaded payload before replacement, checks the running image remains alive,
 and confirms a profile marker survives. It uses the same version on both sides
 (with a simulated older current version for metadata) and does not test the
-desktop shutdown, network download, or restart handoff.
+production HTTPS transport, desktop shutdown, or restart handoff.
 
 For development, run `cargo test -p tiktools-app-update --locked`. Tests use
 public signature vectors and loopback HTTP fixtures; they do not prove that
