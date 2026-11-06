@@ -25,8 +25,12 @@ guard and runtime, and then calls Packager to replace the image. It checks the
 new image's reported version before launching it. This path requires
 `TIKTOOLS_APP_UPDATE_INSTALL_ENABLED=1` at build time in addition to the feed
 gate; do not set it in a release until real install and restart tests pass.
-NSIS automatic installation remains unsupported: Packager 0.2.3 exits the
-process during Windows installation, and that handoff has not been tested.
+An experimental NSIS handoff additionally requires
+`TIKTOOLS_APP_UPDATE_NSIS_ENABLED=1` at build time. It validates the current-user
+uninstall registry entry and installed resources before handing verified bytes
+to Packager after shutdown. Packager 0.2.3 launches the installer and exits, so
+the old process cannot report installer success. Leave this gate disabled until
+real Windows installation, upgrade, failure, and restart tests pass.
 On Linux, `tiktools-desktop --update-installation-type` reports the detected
 installation type without starting the GUI. AppImage auto-installation requires
 the executable to be inside the mounted image and validates the outer image's

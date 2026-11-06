@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-#[cfg(target_os = "linux")]
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -26,7 +25,7 @@ impl InstallationType {
 #[derive(Debug, Clone)]
 pub struct DetectedInstallation {
     pub(crate) kind: InstallationType,
-    pub(crate) appimage: Option<PathBuf>,
+    pub(crate) target: Option<PathBuf>,
 }
 
 impl DetectedInstallation {
@@ -36,6 +35,29 @@ impl DetectedInstallation {
 }
 
 pub fn detect_installation() -> DetectedInstallation {
+    #[cfg(target_os = "windows")]
+    {
+        if let (Ok(executable), Some(directory)) =
+            (std::env::current_exe(), nsis_install_directory())
+        {
+            if let Some(target) = validated_nsis_install(&executable, &directory) {
+                return DetectedInstallation {
+                    kind: InstallationType::Nsis,
+                    target: Some(target),
+                };
+            }
+        }
+        if std::env::current_exe()
+            .ok()
+            .and_then(|path| path.parent().map(Path::to_path_buf))
+            .is_some_and(|dir| dir.join("web/index.html").is_file() && dir.join("plugins").is_dir())
+        {
+            return DetectedInstallation {
+                kind: InstallationType::Portable,
+                target: None,
+            };
+        }
+    }
     #[cfg(target_os = "linux")]
     {
         if let (Ok(executable), Some(appdir), Some(image), Ok(mounts)) = (
@@ -49,7 +71,7 @@ pub fn detect_installation() -> DetectedInstallation {
             {
                 return DetectedInstallation {
                     kind: InstallationType::AppImage,
-                    appimage: Some(path),
+                    target: Some(path),
                 };
             }
         }
@@ -60,7 +82,7 @@ pub fn detect_installation() -> DetectedInstallation {
         {
             return DetectedInstallation {
                 kind: InstallationType::Deb,
-                appimage: None,
+                target: None,
             };
         }
         if std::env::current_exe()
@@ -70,7 +92,7 @@ pub fn detect_installation() -> DetectedInstallation {
         {
             return DetectedInstallation {
                 kind: InstallationType::Portable,
-                appimage: None,
+                target: None,
             };
         }
     }
@@ -80,8 +102,64 @@ pub fn detect_installation() -> DetectedInstallation {
         } else {
             InstallationType::Unknown
         },
-        appimage: None,
+        target: None,
     }
+}
+
+#[cfg(target_os = "windows")]
+fn nsis_install_directory() -> Option<PathBuf> {
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::{
+        Foundation::ERROR_SUCCESS,
+        System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_SZ},
+    };
+    let key: Vec<u16> = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\TikTools"
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
+    let name: Vec<u16> = "InstallLocation".encode_utf16().chain(Some(0)).collect();
+    let mut buffer = [0u16; 32768];
+    let mut size = (buffer.len() * 2) as u32;
+    let result = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            key.as_ptr(),
+            name.as_ptr(),
+            RRF_RT_REG_SZ,
+            std::ptr::null_mut(),
+            buffer.as_mut_ptr().cast(),
+            &mut size,
+        )
+    };
+    if result != ERROR_SUCCESS || size == 0 || size as usize > buffer.len() * 2 || size % 2 != 0 {
+        return None;
+    }
+    let mut value = &buffer[..size as usize / 2];
+    while value.last() == Some(&0) {
+        value = &value[..value.len() - 1];
+    }
+    if value.len() >= 2 && value[0] == 34 && value[value.len() - 1] == 34 {
+        value = &value[1..value.len() - 1];
+    }
+    if value.is_empty() || value.contains(&0) {
+        return None;
+    }
+    let path = PathBuf::from(std::ffi::OsString::from_wide(value));
+    path.is_absolute().then_some(path)
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn validated_nsis_install(executable: &Path, directory: &Path) -> Option<PathBuf> {
+    if !directory.is_absolute()
+        || !directory.join("uninstall.exe").is_file()
+        || !directory.join("web/index.html").is_file()
+        || !directory.join("plugins").is_dir()
+    {
+        return None;
+    }
+    let executable = executable.canonicalize().ok()?;
+    (directory.join("tiktools-desktop.exe").canonicalize().ok()? == executable)
+        .then_some(executable)
 }
 
 #[cfg(target_os = "linux")]
@@ -181,6 +259,34 @@ mod tests {
         assert!(validated_appimage(&image, &appdir, &image, &mounts).is_none());
         std::fs::write(&image, b"not an AppImage").unwrap();
         assert!(validated_appimage(&executable, &appdir, &image, &mounts).is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod nsis_tests {
+    use super::*;
+
+    #[test]
+    fn nsis_detection_requires_the_registered_executable_and_resources() {
+        let root =
+            std::env::temp_dir().join(format!("tiktools-nsis-detection-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("web")).unwrap();
+        std::fs::create_dir_all(root.join("plugins")).unwrap();
+        let executable = root.join("tiktools-desktop.exe");
+        std::fs::write(&executable, b"binary").unwrap();
+        std::fs::write(root.join("web/index.html"), b"web").unwrap();
+        assert!(validated_nsis_install(&executable, &root).is_none());
+        std::fs::write(root.join("uninstall.exe"), b"uninstaller").unwrap();
+        assert_eq!(
+            validated_nsis_install(&executable, &root),
+            executable.canonicalize().ok()
+        );
+        let other = root.join("other.exe");
+        std::fs::write(&other, b"portable").unwrap();
+        assert!(validated_nsis_install(&other, &root).is_none());
+        std::fs::remove_file(root.join("web/index.html")).unwrap();
+        assert!(validated_nsis_install(&executable, &root).is_none());
         std::fs::remove_dir_all(root).unwrap();
     }
 }

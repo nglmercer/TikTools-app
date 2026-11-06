@@ -28,6 +28,7 @@ pub struct InstallPlan {
     bytes: Vec<u8>,
     target: PathBuf,
     expected_version: String,
+    kind: InstallationType,
 }
 
 impl InstallPlan {
@@ -36,18 +37,29 @@ impl InstallPlan {
         package: VerifiedPackage,
         target: PathBuf,
         current: String,
+        kind: InstallationType,
     ) -> Result<Self, InstallError> {
         let validated = &release.release;
-        if !validated.available || validated.target != "linux-x86_64" {
+        if !validated.available {
             return Err(InstallError::Unsupported);
         }
         let format = validated
             .release
             .format(&validated.target)
             .map_err(|_| InstallError::Unsupported)?;
-        if !matches!(format, UpdateFormat::AppImage) {
-            return Err(InstallError::Unsupported);
-        }
+        let target_os = match (kind, validated.target.as_str(), &format) {
+            (InstallationType::AppImage, "linux-x86_64", UpdateFormat::AppImage)
+                if cfg!(target_os = "linux") =>
+            {
+                "linux"
+            }
+            (InstallationType::Nsis, "windows-x86_64", UpdateFormat::Nsis)
+                if cfg!(target_os = "windows") =>
+            {
+                "windows"
+            }
+            _ => return Err(InstallError::Unsupported),
+        };
         let version = validated.release.version.to_string();
         let update = Update {
             config: Config {
@@ -59,7 +71,7 @@ impl InstallPlan {
             current_version: current,
             version: version.clone(),
             date: validated.release.pub_date,
-            target: "linux".to_owned(),
+            target: target_os.to_owned(),
             extract_path: target.clone(),
             download_url: validated
                 .release
@@ -80,6 +92,7 @@ impl InstallPlan {
             bytes: package.into_bytes(),
             target,
             expected_version: version,
+            kind,
         })
     }
 
@@ -87,12 +100,14 @@ impl InstallPlan {
     /// been dropped. Packager atomically moves the old image before writing.
     pub fn apply(self) -> Result<(), InstallError> {
         let detected = detect_installation();
-        if detected.kind != InstallationType::AppImage
-            || detected.appimage.as_ref() != Some(&self.target)
-        {
+        if detected.kind != self.kind || detected.target.as_ref() != Some(&self.target) {
             return Err(InstallError::SourceChanged);
         }
         install_package(&self.update, self.bytes)?;
+        if self.kind != InstallationType::AppImage {
+            // Packager exits after launching NSIS; a return cannot prove success.
+            return Err(InstallError::Restart);
+        }
         validate_version(&self.target, &self.expected_version)?;
         Command::new(&self.target)
             .spawn()
@@ -220,6 +235,7 @@ mod tests {
             bytes: b"replacement".to_vec(),
             target: image.clone(),
             expected_version: "4.1.0".into(),
+            kind: InstallationType::AppImage,
         };
         assert!(matches!(plan.apply(), Err(InstallError::SourceChanged)));
         assert_eq!(std::fs::read(&image).unwrap(), b"original");

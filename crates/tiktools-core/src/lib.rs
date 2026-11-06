@@ -236,6 +236,7 @@ impl AppCore {
             env!("CARGO_PKG_VERSION"),
             key,
             option_env!("TIKTOOLS_APP_UPDATE_INSTALL_ENABLED") == Some("1"),
+            option_env!("TIKTOOLS_APP_UPDATE_NSIS_ENABLED") == Some("1"),
             move |state| {
                 if let Ok(state) = serde_json::to_value(state) {
                     events.publish_domain(crate::events::DomainEvent::AppUpdateStateChanged {

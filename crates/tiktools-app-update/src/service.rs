@@ -92,13 +92,17 @@ impl AppUpdater {
         version: &str,
         key: Option<&str>,
         install_enabled: bool,
+        nsis_enabled: bool,
         notify: impl Fn(State) + Send + Sync + 'static,
     ) -> Arc<Self> {
         let detected = crate::detect_installation();
         let mut updater = Self::new(version, key, detected.kind, notify);
         let service = Arc::get_mut(&mut updater).expect("new updater is uniquely owned");
-        service.install_target = detected.appimage;
-        let supported = install_enabled && service.configured() && service.install_target.is_some();
+        service.install_target = detected.target;
+        let supported = install_enabled
+            && service.configured()
+            && service.install_target.is_some()
+            && (detected.kind != InstallationType::Nsis || nsis_enabled);
         service
             .inner
             .get_mut()
@@ -239,7 +243,7 @@ impl AppUpdater {
     /// Called only by the desktop after an affirmative native confirmation.
     /// This reserves the verified package and prevents conflicting jobs.
     pub fn prepare_install(&self) -> Result<InstallPlan, ServiceError> {
-        let (release, package, current, target) = {
+        let (release, package, current, target, kind) = {
             let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
             if !inner.state.install_supported {
                 return Err(ServiceError::Unavailable);
@@ -262,9 +266,10 @@ impl AppUpdater {
                 package,
                 inner.state.current_version.clone(),
                 target,
+                inner.state.installation_type,
             )
         };
-        match InstallPlan::new(release, package, target, current) {
+        match InstallPlan::new(release, package, target, current, kind) {
             Ok(plan) => {
                 (self.notify)(self.status());
                 Ok(plan)
