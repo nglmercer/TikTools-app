@@ -348,27 +348,79 @@ mod tests {
             assert!(Instant::now() < deadline, "frontend did not become ready");
             std::thread::sleep(Duration::from_millis(100));
         }
-        let bytes = std::fs::read(&source).unwrap();
-        preflight_appimage(&bytes, &image, "4.0.0").unwrap();
-        let update = Update {
-            config: Config {
-                endpoints: vec![],
-                pubkey: String::new(),
-                windows: None,
-            },
-            body: None,
-            current_version: "4.0.0".into(),
-            version: "4.0.0".into(),
-            date: None,
-            target: "linux".into(),
-            extract_path: image.clone(),
-            download_url: "https://example.com/app".parse().unwrap(),
-            signature: String::new(),
-            timeout: None,
-            headers: Default::default(),
-            format: UpdateFormat::AppImage,
+        // Test-only key; no production trust material or network is involved.
+        let key_path = root.path().join("fixture.key");
+        let password = "ephemeral-test-password";
+        let generated = Command::new("cargo")
+            .args(["packager", "signer", "generate", "--ci", "--path"])
+            .arg(&key_path)
+            .env("CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD", password)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .unwrap();
+        assert!(generated.success(), "cargo-packager signer is required");
+        let private_key = std::fs::read_to_string(&key_path).unwrap();
+        let public_key = std::fs::read_to_string(root.path().join("fixture.key.pub")).unwrap();
+        let candidate = root.path().join("candidate.AppImage");
+        std::fs::copy(&source, &candidate).unwrap();
+        let sign = |path: &std::path::Path| {
+            let result = Command::new("cargo")
+                .args(["packager", "signer", "sign"])
+                .arg(path)
+                .env("CARGO_PACKAGER_SIGN_PRIVATE_KEY", &private_key)
+                .env("CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD", password)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .unwrap();
+            assert!(result.success(), "fixture signing failed");
         };
-        install_package(&update, bytes).unwrap();
+        sign(&candidate);
+        let signature =
+            std::fs::read_to_string(root.path().join("candidate.AppImage.sig")).unwrap();
+        let manifest = serde_json::json!({"version":"4.0.0", "platforms": {"linux-x86_64": {
+            "url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.0.0/TikTools-4.0.0-linux-x86_64-installer.AppImage",
+            "signature":signature.trim(), "format":"appimage"
+        }}}).to_string();
+        let manifest_path = root.path().join("manifest.json");
+        std::fs::write(&manifest_path, &manifest).unwrap();
+        sign(&manifest_path);
+        let manifest_signature = std::fs::read(root.path().join("manifest.json.sig")).unwrap();
+        let release = crate::authenticate_manifest(
+            manifest.as_bytes(),
+            &manifest_signature,
+            crate::Channel::Stable,
+            "linux-x86_64",
+            &semver::Version::parse("3.9.0").unwrap(),
+            &public_key,
+        )
+        .unwrap();
+        let altered_manifest = format!("{manifest} ");
+        assert!(crate::authenticate_manifest(
+            altered_manifest.as_bytes(),
+            &manifest_signature,
+            crate::Channel::Stable,
+            "linux-x86_64",
+            &semver::Version::parse("3.9.0").unwrap(),
+            &public_key,
+        )
+        .is_err());
+        let bytes = std::fs::read(&candidate).unwrap();
+        let mut corrupted = bytes.clone();
+        corrupted[0] ^= 1;
+        assert!(crate::download::verified_package(corrupted, &signature, &public_key).is_err());
+        let package = crate::download::verified_package(bytes, &signature, &public_key).unwrap();
+        let plan = InstallPlan::new(
+            Arc::new(release),
+            package,
+            image.clone(),
+            "3.9.0".into(),
+            InstallationType::AppImage,
+        )
+        .unwrap();
+        preflight_appimage(&plan.bytes, &image, &plan.expected_version).unwrap();
+        install_package(&plan.update, plan.bytes).unwrap();
         assert_ne!(std::fs::metadata(&image).unwrap().ino(), original_inode);
         assert!(
             running.0.try_wait().unwrap().is_none(),

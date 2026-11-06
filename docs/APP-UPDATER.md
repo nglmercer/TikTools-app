@@ -39,17 +39,18 @@ header; extracted or unknown layouts fall back to manual installation.
 
 A Linux integration check can exercise Packager replacement while a disposable
 AppImage is running. With a graphical display, FUSE, and a locally built 4.0.0
-AppImage, run:
+AppImage and `cargo-packager` 0.11.8 installed, run:
 
 ```sh
 TIKTOOLS_TEST_APPIMAGE=/absolute/path/TikTools.AppImage \
   cargo test -p tiktools-app-update packager_replaces_a_running_disposable_appimage -- --ignored
 ```
 
-The test uses an isolated profile and confirms the running image remains alive,
-the replacement has a new inode, and a profile marker survives. It uses the same
-version on both sides and does not test signatures or the desktop shutdown and
-restart handoff.
+The test uses an ephemeral signing key and isolated profile; it verifies signed
+metadata and payloads before replacement, checks the running image remains alive,
+and confirms a profile marker survives. It uses the same version on both sides
+(with a simulated older current version for metadata) and does not test the
+desktop shutdown, network download, or restart handoff.
 
 For development, run `cargo test -p tiktools-app-update --locked`. Tests use
 public signature vectors and loopback HTTP fixtures; they do not prove that

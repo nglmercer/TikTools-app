@@ -136,12 +136,17 @@ pub async fn download_verified<F: FnMut(u64, Option<u64>), V: FnOnce()>(
     let bytes = read_update(response, MAX_UPDATE_BYTES, &mut progress).await?;
     verifying();
     let key = authenticated.public_key.clone();
-    let bytes = tokio::task::spawn_blocking(move || {
-        verify(&bytes, &signature, &key)?;
-        Ok::<_, DownloadError>(bytes)
-    })
-    .await
-    .map_err(|_| DownloadError::InvalidSignature)??;
+    tokio::task::spawn_blocking(move || verified_package(bytes, &signature, &key))
+        .await
+        .map_err(|_| DownloadError::InvalidSignature)?
+}
+
+pub(crate) fn verified_package(
+    bytes: Vec<u8>,
+    signature: &str,
+    public_key: &str,
+) -> Result<VerifiedPackage, DownloadError> {
+    verify(&bytes, signature, public_key)?;
     Ok(VerifiedPackage { bytes })
 }
 
