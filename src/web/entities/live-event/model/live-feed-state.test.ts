@@ -54,6 +54,7 @@ function createControl() {
         };
       },
       onPush: () => () => {},
+      onGap: () => () => {},
     } as never as ControlClient,
     emit(topic: string, data: never): void {
       for (const handler of handlers.get(topic) ?? []) handler(data);
@@ -274,6 +275,7 @@ function createBackfillControl(responder: (params: { after: number }) => unknown
         };
       },
       onPush: () => () => {},
+      onGap: () => () => {},
       call: async (method: string, params: unknown) => {
         calls.push({ method, params });
         return responder(params as { after: number });

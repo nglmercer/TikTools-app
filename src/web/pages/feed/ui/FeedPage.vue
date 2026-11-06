@@ -15,7 +15,7 @@ const MESSAGE_HISTORY_LIMIT = 20;
 
 const connection = useConnectionStore();
 const liveStore = useLiveFeedStore();
-const { events, topViewers, likeLeaders, liveViewers, imagesEnabled } = storeToRefs(liveStore);
+const { events, topViewers, likeLeaders, topRanking, likesRanking, liveViewers, imagesEnabled } = storeToRefs(liveStore);
 const { leaderboard } = storeToRefs(usePointsStore());
 
 const inspectorOpen = ref(loadViewState().aside?.open !== false);
@@ -98,6 +98,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
       :messages="viewerMessages"
       :top-viewers="topViewers"
       :like-leaders="likeLeaders"
+      :top-ranking="topRanking"
+      :likes-ranking="likesRanking"
       :leaderboard="leaderboard"
       :live-viewers="liveViewers"
       :images="imagesEnabled"

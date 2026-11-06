@@ -369,6 +369,7 @@ export default {
       empty: 'No contributors yet.',
       sourceTikTok: 'TikTok room ranking',
       sourcePoints: 'Loyalty points ranking',
+      sourceRanking: 'Diamonds ranking for this LIVE',
       filterTop: 'General',
       filterLikes: 'Likes',
       emptyLikes: 'No likes received yet.',

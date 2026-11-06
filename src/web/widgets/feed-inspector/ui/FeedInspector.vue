@@ -5,6 +5,8 @@ import { eventText, formatEventTime } from '@/entities/live-event/lib/event-text
 import EventDetails from '@/entities/live-event/ui/EventDetails.vue';
 import type { ViewerIdentity } from '@/entities/viewer/lib/viewer-profile.ts';
 import TopViewersList from '@/entities/viewer/ui/TopViewersList.vue';
+import { rankingLeaders } from '@/entities/viewer/lib/top-viewers.ts';
+import type { RankingSnapshot } from '../../../../widgets/shared/ranking-controller.ts';
 import TopLikesList from '@/entities/viewer/ui/TopLikesList.vue';
 import ViewerProfile from '@/entities/viewer/ui/ViewerProfile.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
@@ -24,9 +26,11 @@ const props = withDefaults(
     likeLeaders: readonly LikeLeaderPayload[];
     leaderboard: readonly ViewerRecord[];
     liveViewers: number;
+    topRanking?: RankingSnapshot | null;
+    likesRanking?: RankingSnapshot | null;
     images?: boolean;
   }>(),
-  { images: true },
+  { images: true, topRanking: null, likesRanking: null },
 );
 
 const tab = defineModel<InspectorTab>('tab', { required: true });
@@ -43,6 +47,10 @@ const viewerModes = computed(() => [
   { value: 'top' as const, label: t('feed.viewers.filterTop') },
   { value: 'likes' as const, label: t('feed.viewers.filterLikes') },
 ]);
+
+// The host likes ranking is authoritative once provisioned for this room;
+// the legacy core projection only covers hosts without the ranking engine.
+const likes = computed(() => (props.likesRanking ? rankingLeaders(props.likesRanking) : props.likeLeaders));
 
 const tabs = computed(() => [
   { value: 'viewers' as const, label: t('feed.inspector.viewers') },
@@ -82,7 +90,7 @@ const tabs = computed(() => [
             />
             <TopLikesList
               v-if="viewerMode === 'likes'"
-              :leaders="likeLeaders"
+              :leaders="likes"
               :images="images"
               @select="emit('open-viewer', $event)"
             />
@@ -91,6 +99,7 @@ const tabs = computed(() => [
               :top-viewers="topViewers"
               :leaderboard="leaderboard"
               :live-viewers="liveViewers"
+              :ranking="topRanking"
               :images="images"
               @select="emit('open-viewer', $event)"
             />

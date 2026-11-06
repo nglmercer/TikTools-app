@@ -17,7 +17,8 @@ const BUILTIN_TABS: readonly BuiltinAppTab[] = [
   'behavior',
   'plugins',
   'widgets',
-  'rankings',
+  // 'rankings' is hidden from navigation while in development; never
+  // restore it as the startup tab.
   'settings',
 ];
 

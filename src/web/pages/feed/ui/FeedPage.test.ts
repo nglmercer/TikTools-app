@@ -8,6 +8,7 @@ import type { ControlClient, TopicHandler } from '@/shared/api/control-client.ts
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { createPinia, setActivePinia } from 'pinia';
+import { rankingSnapshot } from '@/entities/ranking/model/feed-rankings.test.ts';
 import FeedPage from './FeedPage.vue';
 
 enableAutoUnmount(afterEach);
@@ -16,12 +17,12 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-function harness() {
+function harness(call: ControlClient['call'] = (async () => ({})) as ControlClient['call']) {
   const topics = new Map<string, Set<TopicHandler>>();
   const client: ControlClient = {
     attach: () => {},
     detach: () => {},
-    call: (async () => ({})) as ControlClient['call'],
+    call,
     onTopic: (topic, handler) => {
       const set = topics.get(topic) ?? new Set();
       set.add(handler as TopicHandler);
@@ -36,8 +37,8 @@ function harness() {
   return { client, emit };
 }
 
-async function mountFeed() {
-  const { client, emit } = harness();
+async function mountFeed(call?: ControlClient['call']) {
+  const { client, emit } = harness(call);
   const pinia = createPinia();
   setActivePinia(pinia);
   const app = createApp({});
@@ -102,6 +103,39 @@ describe('FeedPage', () => {
     await wrapper.find('.top-likes__row').trigger('click');
     expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Profile');
     expect(wrapper.text()).toContain('Alice');
+  });
+
+  it('ranks General by gift diamonds and Likes from the host ranking engine', async () => {
+    const definitions = new Map<string, { id: string; creatorId: string; roomId: string }>();
+    const call = (async (method: string, params: Record<string, unknown> = {}) => {
+      if (method === 'rankings.list') return { rankings: [...definitions.values()] };
+      if (method === 'rankings.create') { definitions.set(String(params['id']), params as never); return { ok: true }; }
+      if (method === 'rankings.snapshot') {
+        const id = String(params['id']);
+        return rankingSnapshot(id, 'luna', 'room-42', id === 'feed-top-gifters' ? [900, 30] : [5000]);
+      }
+      return {};
+    }) as ControlClient['call'];
+    const { wrapper, emit } = await mountFeed(call);
+    emit('live.connected', { uniqueId: 'luna', roomId: 'room-42' });
+    // The legacy projection is ignored once the ranking is provisioned.
+    emit('live.likes-ranking', { creatorId: 'luna', roomId: 'room-42', leaders: [{ rank: 1, score: 7, uniqueId: 'old', nickname: 'Old', userId: '1' }] });
+    await flushPromises();
+    await nextTick();
+
+    expect(wrapper.text()).toContain('Diamonds ranking for this LIVE');
+    expect(wrapper.findAll('.top-viewers__row').map((row) => row.text())).toEqual([
+      expect.stringContaining('900'),
+      expect.stringContaining('30'),
+    ]);
+    await wrapper.findAll('.feed-inspector__viewer-filter button').find((button) => button.text() === 'Likes')!.trigger('click');
+    expect(wrapper.findAll('.top-likes__row')).toHaveLength(1);
+    expect(wrapper.get('.top-likes__row').text()).toContain('5,000');
+
+    emit('ranking.updated', { snapshot: rankingSnapshot('feed-top-likes', 'luna', 'room-42', [6000, 12], 2) });
+    await nextTick();
+    expect(wrapper.findAll('.top-likes__row')).toHaveLength(2);
+    expect(wrapper.get('.top-likes__row').text()).toContain('6,000');
   });
 
   it('opens event details and the author profile in the inspector', async () => {
