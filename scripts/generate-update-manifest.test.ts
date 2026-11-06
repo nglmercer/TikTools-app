@@ -35,11 +35,17 @@ describe('signed release metadata', () => {
       const snapshot = join(dir, 'snapshot');
       await mkdir(heads);
       const stage = ['bun', 'scripts/stage-update-channels.ts', dir, heads];
-      expect(await run([...stage, snapshot], signedEnv)).toBe(0);
+      expect(await run([...stage, snapshot], signedEnv)).not.toBe(0);
+      expect(await run([...stage, snapshot, '--bootstrap'], signedEnv)).toBe(0);
       expect(await readFile(join(snapshot, 'stable.json'), 'utf8')).toBe(await readFile(join(dir, 'update.json'), 'utf8'));
       expect(await readFile(join(snapshot, 'beta.json'), 'utf8')).toBe(await readFile(join(dir, 'update.json'), 'utf8'));
       expect(await run(['bun', 'scripts/stage-update-channels.ts', dir, snapshot, join(dir, 'unchanged')], signedEnv)).toBe(0);
       expect(await readFile(join(dir, 'unchanged', 'stable.json'), 'utf8')).toBe(await readFile(join(snapshot, 'stable.json'), 'utf8'));
+      const betaOnly = join(dir, 'beta-only');
+      await mkdir(betaOnly);
+      await copyFile(join(snapshot, 'beta.json'), join(betaOnly, 'beta.json'));
+      await copyFile(join(snapshot, 'beta.json.sig'), join(betaOnly, 'beta.json.sig'));
+      expect(await run(['bun', 'scripts/stage-update-channels.ts', dir, betaOnly, join(dir, 'from-beta'), '--allow-missing-stable'], signedEnv)).toBe(0);
       await copyFile(join(snapshot, 'stable.json'), join(heads, 'stable.json'));
       await copyFile(join(snapshot, 'stable.json.sig'), join(heads, 'stable.json.sig'));
       await writeFile(join(heads, 'stable.json'), '{"version":"99.0.0"}');
@@ -48,6 +54,7 @@ describe('signed release metadata', () => {
       expect(await run([...stage, join(dir, 'incomplete')], signedEnv)).not.toBe(0);
       await writeFile(linux, 'corrupt');
       expect(await run([...script, '--verify', dir], signedEnv)).not.toBe(0);
+      expect(await run(['bun', 'scripts/stage-update-channels.ts', dir, snapshot, join(dir, 'bad-artifact')], signedEnv)).not.toBe(0);
       await writeFile(linux, 'linux fixture');
       await writeFile(join(dir, 'update.json'), '{"version":"99.0.0"}');
       expect(await run([...script, '--verify', dir], signedEnv)).not.toBe(0);

@@ -69,10 +69,12 @@ snapshot locally with:
 bun scripts/stage-update-channels.ts release-assets current-heads new-snapshot
 ```
 
-The heads directory must contain both `.json` and `.json.sig` for each existing
-channel. An absent pair represents an empty channel. The staging command checks
-signatures and SemVer ordering but does not verify remote uploads or publish the
-snapshot. A protected signing job, upload verification, serialization of
+The heads directory must contain both `.json` and `.json.sig` for each channel.
+Only on first publication, pass `--bootstrap` with both channels absent. If
+the first release was a beta, use `--allow-missing-stable` after confirming the
+stable head is absent from the hosting service. The command verifies candidate installer files and signatures, authenticates the
+heads, and checks SemVer ordering. It does not verify remote uploads or publish
+the snapshot. A protected signing job, upload verification, serialization of
 publishers, and atomic channel publication are still required. Current feed
 heads must be authenticated before promotion; stable may advance on stable
 versions only, while beta advances only to a higher SemVer version.
