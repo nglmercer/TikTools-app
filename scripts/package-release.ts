@@ -436,6 +436,17 @@ if (!(await isFile(binaryPath))) {
   fail(`compiled desktop binary is missing ${binaryPath}`);
 }
 
+// Packaging may also be invoked outside release CI. Check the tag, manifests,
+// Packager config, and actual executable before touching existing staging.
+const versionCheck = Bun.spawn([process.execPath, 'scripts/check-version.ts', '--binary'], {
+  cwd: repositoryRoot,
+  env: { ...process.env, RELEASE_TAG: tag, RELEASE_BINARY: binaryPath },
+  stdin: 'ignore',
+  stdout: 'inherit',
+  stderr: 'inherit',
+});
+if (await versionCheck.exited !== 0) fail('release version verification failed');
+
 const releaseDirectory = resolve(repositoryRoot, 'release');
 const stagingDirectory = join(releaseDirectory, 'staging');
 const bundleName = 'TikTools';
