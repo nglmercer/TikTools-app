@@ -42,6 +42,12 @@ const preview = {
 };
 
 describe('packages store', () => {
+  it('normalizes partial version responses to empty lists', async () => {
+    const { store } = harness((method) => (method === 'plugins.packages.versions' ? { installed: '1.0.0' } : {}));
+    await store.loadVersions('acme.tts');
+    expect(store.versions['acme.tts']).toMatchObject({ id: 'acme.tts', installed: '1.0.0', retained: [], available: [] });
+  });
+
   it('keeps only the latest review when inspections overlap', async () => {
     let resolveFirst!: (value: unknown) => void;
     const { store } = harness((method, params) => {

@@ -254,8 +254,16 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
 
   async function loadVersions(pluginId: string): Promise<void> {
     try {
-      const result = await client.call<PluginVersions>('plugins.packages.versions', { pluginId });
-      versions.value = { ...versions.value, [pluginId]: result };
+      const result = await client.call<Partial<PluginVersions>>('plugins.packages.versions', { pluginId });
+      // Normalize at the boundary: a partial host response must not leave
+      // consumers reading `.length` of a missing list.
+      const normalized: PluginVersions = {
+        ...result,
+        id: result.id ?? pluginId,
+        retained: Array.isArray(result.retained) ? result.retained : [],
+        available: Array.isArray(result.available) ? result.available : [],
+      };
+      versions.value = { ...versions.value, [pluginId]: normalized };
       const rest = { ...versionsError.value };
       delete rest[pluginId];
       versionsError.value = rest;

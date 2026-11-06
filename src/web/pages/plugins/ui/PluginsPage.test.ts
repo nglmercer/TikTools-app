@@ -103,6 +103,7 @@ async function mountPage(plugins: PluginStatus[] = [plugin('deck'), plugin('tts'
     if (method === 'media.pick') return { selection: { type: 'file', file: { path: 'C:/x.plugin', name: 'x.plugin' } } };
     if (method === 'plugins.packages.receipts') return { receipts: [] };
     if (method === 'plugins.jobs.list') return { jobs: [] };
+    if (method === 'plugins.packages.versions') return { id: 'deck', installed: '1.2.0', retained: [], available: [] };
     if (method === 'plugins.updates.list') return { updates: [], checkedAt: 0 };
     if (method === 'registry.search') return { entries: [remoteEntry], total: 1, page: 1, pages: 1 };
     if (method === 'registry.package') return { registry: 'official', document: remoteDocument };
