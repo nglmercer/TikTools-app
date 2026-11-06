@@ -165,6 +165,7 @@ function confirmDelete(): void {
 }
 
 .profile-toolbar__select {
-  width: 260px;
+  /* Wide enough for "name · N events · N actions" without truncation. */
+  width: clamp(240px, 28vw, 380px);
 }
 </style>

@@ -372,6 +372,7 @@ export default {
       sourceTikTok: 'Clasificación de la sala de TikTok',
       sourcePoints: 'Clasificación de puntos de fidelidad',
       sourceRanking: 'Clasificación por diamantes en este LIVE',
+      sourceLikes: 'Me gusta en este LIVE',
       filterTop: 'General',
       filterLikes: 'Me gusta',
       emptyLikes: 'Aún no se registraron me gusta.',

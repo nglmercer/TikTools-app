@@ -97,6 +97,23 @@ describe('AutomationsPage', () => {
     expect(wrapper.get('.event-editor__summary').text()).toBe('When someone sends a gift and Gift Name is Rose, run Log gift.');
   });
 
+  it('sorts the library from the filter menu', async () => {
+    const { wrapper } = await mountPage();
+    const filter = wrapper.get('.automation-library__sort');
+    expect(filter.classes()).not.toContain('automation-library__sort--active');
+    await filter.trigger('click');
+    await nextTick();
+    const item = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]'))
+      .find((entry) => entry.textContent?.trim() === 'Name Z–A')!;
+    item.click();
+    await flushPromises();
+    expect(wrapper.findAll('.automation-library tbody tr').map((row) => row.text())).toEqual([
+      expect.stringContaining('Chat hello'),
+      expect.stringContaining('Big gifts'),
+    ]);
+    expect(wrapper.get('.automation-library__sort').classes()).toContain('automation-library__sort--active');
+  });
+
   it('toggles a record from the table', async () => {
     const { wrapper, calls } = await mountPage();
     await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
