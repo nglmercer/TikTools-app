@@ -1125,6 +1125,11 @@ export default {
       disabled: 'Desactivado',
       unavailable: 'Dependencia no disponible',
     },
+    menu: {
+      open: 'Abrir',
+      remove: 'Quitar de instalados',
+      removeHint: 'Detiene el plugin y lo quita de Instalados. No borra archivos; puedes volver a añadirlo desde Explorar.',
+    },
     details: {
       empty: 'Selecciona un plugin para ver sus detalles.',
       tabs: {

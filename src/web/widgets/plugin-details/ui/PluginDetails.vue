@@ -16,7 +16,7 @@ import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
 import BaseMarkdown from '@/shared/ui/markdown/BaseMarkdown.vue';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
-import type { PluginDetailsTab } from '../model/details-tab.ts';
+import type { PluginDetailsRequest, PluginDetailsTab } from '../model/details-tab.ts';
 import PluginVersionsPane from './PluginVersionsPane.vue';
 
 const props = defineProps<{
@@ -26,6 +26,8 @@ const props = defineProps<{
 }>();
 
 const tab = defineModel<PluginDetailsTab>('tab', { required: true });
+/** One-shot command from the plugin list's context menu; cleared once handled. */
+const request = defineModel<PluginDetailsRequest | null>('request', { default: null });
 
 const { t } = useI18n();
 const plugins = usePluginControls();
@@ -106,6 +108,20 @@ watch(
   { immediate: true },
 );
 
+watch(
+  request,
+  (next) => {
+    if (!next) return;
+    request.value = null;
+    if (next === 'uninstall' && props.plugin.installed && removable.value) uninstallOpen.value = true;
+    if (next === 'test' && hasSettings.value && testActionId.value) {
+      tab.value = 'settings';
+      void runTestConnection();
+    }
+  },
+  { immediate: true },
+);
+
 function uninstall(): void {
   uninstallOpen.value = false;
   plugins.uninstall(id.value, purgeData.value);
@@ -156,6 +172,15 @@ function uninstall(): void {
             <IconTrash />
           </template>
           {{ t('plugins.details.uninstall') }}
+        </BaseButton>
+        <!-- Built-in and development plugins own no package files: they can only
+             leave the installed list (reversible from Browse). -->
+        <BaseButton
+          v-else-if="plugin.installed"
+          :title="t('plugins.menu.removeHint')"
+          @click="plugins.setInstalled(id, false)"
+        >
+          {{ t('plugins.menu.remove') }}
         </BaseButton>
       </div>
     </header>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-controls.ts';
 import InstallPluginDialog from '@/features/install-plugin/ui/InstallPluginDialog.vue';
 import type { PluginCatalogTab } from '@/entities/plugin/lib/plugin-catalog.ts';
+import type { PluginCommand } from '@/entities/plugin/lib/plugin-menu.ts';
 import { parseRemoteSelection } from '@/entities/plugin-package/lib/package-format.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import { useMediaQuery } from '@/shared/lib/media-query.ts';
@@ -16,7 +17,7 @@ import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 import BaseSplitter from '@/shared/ui/splitter/BaseSplitter.vue';
 import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
-import type { PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
+import type { PluginDetailsRequest, PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
 import PluginDetails from '@/widgets/plugin-details/ui/PluginDetails.vue';
 import PluginJobsPanel from '@/widgets/plugin-jobs/ui/PluginJobsPanel.vue';
 import ProcessorsPanel from '@/widgets/plugin-processors/ui/ProcessorsPanel.vue';
@@ -42,6 +43,39 @@ const mobileDetailsOpen = ref(false);
 function openPlugin(id: string): void {
   selected.value = id;
   if (isNarrow.value) mobileDetailsOpen.value = true;
+}
+
+/** Handed to the details panel, which owns the uninstall dialog and test result. */
+const detailsRequest = ref<PluginDetailsRequest | null>(null);
+
+function runCommand(id: string, command: PluginCommand): void {
+  const plugin = behavior.value.plugins.find((entry) => entry.descriptor.id === id);
+  if (!plugin) return;
+  switch (command) {
+    case 'toggle-enabled':
+      plugins.setEnabled(id, !plugin.enabled);
+      return;
+    case 'install':
+      plugins.setInstalled(id, true);
+      return;
+    case 'remove':
+      plugins.setInstalled(id, false);
+      return;
+    case 'settings':
+    case 'connection':
+    case 'versions':
+      openPlugin(id);
+      // After the selection watcher, which resets the tab to General.
+      void nextTick(() => { detailsTab.value = command; });
+      return;
+    case 'uninstall':
+    case 'test':
+      openPlugin(id);
+      detailsRequest.value = command;
+      return;
+    default:
+      openPlugin(id);
+  }
 }
 
 const behavior = computed(() => plugins.behavior.value);
@@ -159,6 +193,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
           @update="(id, version) => packages.updatePlugin(id, version)"
           @update-all="packages.updateAll()"
           @open="openPlugin"
+          @command="runCommand"
         />
       </template>
       <template #end>
@@ -166,6 +201,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
           v-if="selectedPlugin"
           :key="selectedPlugin.descriptor.id"
           v-model:tab="detailsTab"
+          v-model:request="detailsRequest"
           :plugin="selectedPlugin"
           :actions="behavior.actions"
           :action-types="behavior.actionTypes"
@@ -203,6 +239,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
           v-if="selectedPlugin"
           :key="selectedPlugin.descriptor.id"
           v-model:tab="detailsTab"
+          v-model:request="detailsRequest"
           :plugin="selectedPlugin"
           :actions="behavior.actions"
           :action-types="behavior.actionTypes"
@@ -234,6 +271,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
         @update="(id, version) => packages.updatePlugin(id, version)"
         @update-all="packages.updateAll()"
         @open="openPlugin"
+        @command="runCommand"
       />
     </div>
     <ProcessorsPanel

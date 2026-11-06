@@ -1123,6 +1123,11 @@ export default {
       disabled: 'Disabled',
       unavailable: 'Dependency unavailable',
     },
+    menu: {
+      open: 'Open',
+      remove: 'Remove from installed',
+      removeHint: 'Stops the plugin and removes it from Installed. No files are deleted; add it again from Browse.',
+    },
     details: {
       empty: 'Select a plugin to see its details.',
       tabs: {
