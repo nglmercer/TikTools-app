@@ -14,6 +14,7 @@ import {
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import { formatClockTime } from '@/entities/analytics/lib/analytics-range.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
+import { useMediaQuery } from '@/shared/lib/media-query.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
@@ -80,17 +81,19 @@ function onSortMenu(action: MenuAction): void {
   sort.value = action.id as RecordSort;
 }
 
+// Phones drop the least essential column so names and triggers stay readable.
+const isPhone = useMediaQuery('(width < 600px)');
 const eventColumns = computed<TableColumn[]>(() => [
   { key: 'enabled', label: t('automations.library.columns.enabled'), width: '52px', align: 'center' },
-  { key: 'name', label: t('automations.library.columns.name'), width: '32%' },
-  { key: 'trigger', label: t('automations.library.columns.trigger'), width: '30%' },
-  { key: 'actions', label: t('automations.library.columns.actions') },
+  { key: 'name', label: t('automations.library.columns.name'), width: isPhone.value ? '50%' : '32%' },
+  { key: 'trigger', label: t('automations.library.columns.trigger'), width: isPhone.value ? undefined : '30%' },
+  ...(isPhone.value ? [] : [{ key: 'actions', label: t('automations.library.columns.actions') }]),
 ]);
 const actionColumns = computed<TableColumn[]>(() => [
   { key: 'enabled', label: t('automations.library.columns.enabled'), width: '52px', align: 'center' },
-  { key: 'name', label: t('automations.library.columns.name'), width: '38%' },
+  { key: 'name', label: t('automations.library.columns.name'), width: isPhone.value ? '55%' : '38%' },
   { key: 'type', label: t('automations.library.columns.type') },
-  { key: 'lastRun', label: t('automations.library.columns.lastRun'), width: '110px', align: 'end' },
+  ...(isPhone.value ? [] : [{ key: 'lastRun', label: t('automations.library.columns.lastRun'), width: '110px', align: 'end' as const }]),
 ]);
 
 const eventRows = computed(() =>

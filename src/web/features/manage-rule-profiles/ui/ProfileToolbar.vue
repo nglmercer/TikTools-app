@@ -168,4 +168,19 @@ function confirmDelete(): void {
   /* Wide enough for "name · N events · N actions" without truncation. */
   width: clamp(240px, 28vw, 380px);
 }
+
+/* Phones: the picker takes its own full-width row. */
+@media (width < 600px) {
+  .profile-toolbar {
+    display: flex;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .profile-toolbar__select {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+}
 </style>

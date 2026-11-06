@@ -36,6 +36,15 @@ defineProps<{
   min-width: 0;
 }
 
+@media (width < 600px) {
+  .base-form-row__label {
+    justify-self: start;
+    margin-top: var(--space-3);
+    color: var(--color-text-muted);
+    text-align: left;
+  }
+}
+
 .base-form-row__hint {
   margin: 0;
   color: var(--color-text-subtle);

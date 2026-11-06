@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { BehaviorRun } from '../../../../automation/behavior/types.ts';
 import { formatClockTime } from '@/entities/analytics/lib/analytics-range.ts';
+import { useMediaQuery } from '@/shared/lib/media-query.ts';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseTable from '@/shared/ui/table/BaseTable.vue';
 import type { TableColumn } from '@/shared/ui/table/table-types.ts';
@@ -15,12 +16,14 @@ const props = defineProps<{
 
 const { t, locale } = useI18n();
 
+// Phones keep the columns that identify a run; the result text needs room.
+const isPhone = useMediaQuery('(width < 600px)');
 const columns = computed<TableColumn[]>(() => [
   { key: 'status', label: t('automations.runs.columns.status'), width: '90px' },
-  { key: 'time', label: t('automations.runs.columns.time'), width: '80px' },
+  { key: 'time', label: t('automations.runs.columns.time'), width: '60px' },
   { key: 'event', label: t('automations.runs.columns.event') },
   { key: 'action', label: t('automations.runs.columns.action') },
-  { key: 'result', label: t('automations.runs.columns.result') },
+  ...(isPhone.value ? [] : [{ key: 'result', label: t('automations.runs.columns.result') }]),
 ]);
 
 const rows = computed(() =>

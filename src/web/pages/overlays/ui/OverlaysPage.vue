@@ -120,6 +120,7 @@ onBeforeUnmount(() => store.dispose());
   <div class="overlays-page">
     <header class="overlays-page__toolbar">
       <BaseButton
+        class="overlays-page__portable-toggle"
         :aria-pressed="portableOpen"
         @click="portableOpen = !portableOpen"
       >
@@ -135,7 +136,7 @@ onBeforeUnmount(() => store.dispose());
           aria-hidden="true"
         />
         <span class="overlays-page__gateway-title">{{ t('overlays.gateway.title') }}</span>
-        <span>{{ gatewayText }}</span>
+        <span class="overlays-page__gateway-text">{{ gatewayText }}</span>
       </span>
       <BaseIconButton
         :label="t('overlays.gateway.refresh')"
@@ -255,12 +256,23 @@ onBeforeUnmount(() => store.dispose());
   min-width: 0;
 }
 
+.overlays-page__portable-toggle {
+  flex: none;
+}
+
 .overlays-page__gateway {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
   color: var(--color-text-muted);
   white-space: nowrap;
+}
+
+.overlays-page__gateway-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .overlays-page__gateway-title {
@@ -360,7 +372,24 @@ onBeforeUnmount(() => store.dispose());
 
 @media (width < 800px) {
   .overlays-page {
+    padding: var(--space-3);
+    overflow-x: hidden;
     overflow-y: auto;
+  }
+
+  /* Toolbar wraps: the gateway status shrinks and the hint gets its own line. */
+  .overlays-page__toolbar {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+
+  .overlays-page__gateway {
+    flex: 1;
+  }
+
+  .overlays-page__hint {
+    flex-basis: 100%;
+    white-space: normal;
   }
 
   .overlays-page__workspace {

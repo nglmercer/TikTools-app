@@ -594,6 +594,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
     row-gap: var(--space-2);
   }
 
+  /* The toolbar wraps, so the group divider no longer separates anything. */
+  .automations-page__divider {
+    display: none;
+  }
+
   .automations-page__narrow {
     display: flex;
     flex: 1;
