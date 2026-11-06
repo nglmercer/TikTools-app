@@ -97,11 +97,16 @@ export function verifyDebDependencies(dependencies: string): void {
 
 /** Inspect extracted installer contents against the already verified staging tree. */
 export async function verifyInstaller(staging: string, installer: string, format: 'deb' | 'appimage' | 'nsis', version: string): Promise<void> {
+  staging = resolve(staging);
+  installer = resolve(installer);
   const temp = await mkdtemp(join(tmpdir(), 'tiktools-installer-check-'));
   try {
     if (format === 'deb') {
-      verifyDebDependencies(await run(['dpkg-deb', '-f', installer, 'Depends'], temp));
       await run(['ar', 'x', installer], temp);
+      const control = await run(['tar', '-xOzf', 'control.tar.gz', 'control'], temp);
+      const depends = control.match(/^Depends:\s*(.*)$/m)?.[1];
+      if (!depends) throw new Error('DEB package is missing dependency metadata');
+      verifyDebDependencies(depends);
       await run(['tar', '-xzf', 'data.tar.gz', '--no-same-owner', '-C', temp], temp);
       await verifyLinuxDesktop(temp);
       await checkContents(staging, join(temp, 'usr', 'lib', 'tiktools-desktop'), join(temp, 'usr', 'bin', 'tiktools-desktop'), version, false);
