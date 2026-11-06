@@ -398,7 +398,7 @@ export const SonicBoomApp = defineVueComponent<Record<string, never>>([], () => 
     }
     return (
       <div class="tts-workspace">
-      <header class="tts-workspace-heading"><div><span class="tts-eyebrow">SonicBoom · TTS</span><h2><TtsIcon name="voice"/>{t(locale.value, 'ttsWorkspaceTitle')}</h2><p>{t(locale.value, 'ttsWorkspaceLead')}</p></div><span class={['tts-health', { 'is-ready': ready.value }]}><span/>{t(locale.value, ready.value ? 'ttsReady' : 'ttsNotReady')}</span></header>
+      <header class="tts-workspace-heading"><div><h2><TtsIcon name="voice"/>{t(locale.value, 'ttsWorkspaceTitle')}</h2><p>{t(locale.value, 'ttsWorkspaceLead')}</p></div><span class={['tts-health', { 'is-ready': ready.value }]}><span/>{t(locale.value, ready.value ? 'ttsReady' : 'ttsNotReady')}</span></header>
       <TtsPlayback broker={broker} locale={locale.value} enabled={settings.value.trackPlayback}
         connectionKey={String(connectionEpoch.value)}
         onToggle={(trackPlayback: boolean) => handleSettingsChange({ ...settings.value, trackPlayback })}/>

@@ -1,16 +1,8 @@
 /*
- * SonicBoom plugin UI theme. Copied from the main frontend's style
- * modules at isolation time (variables, base, buttons, fields, plugin
- * cards, TTS cards) so the isolated document renders identically without
- * importing the host app. Kept in sync by the UI suite's screenshots.
+ * SonicBoom plugin UI theme. The isolated document cannot import host CSS,
+ * so variables.css mirrors the app's design tokens and the rest restyles the
+ * TTS workspace after the app's panels and controls.
  */
 @import './styles/variables.css';
 @import './styles/base.css';
-@import './styles/buttons.css';
-@import './styles/fields.css';
-@import './styles/plugins.css';
 @import './styles/tts.css';
-
-/* NOTE: #app layout (viewport fill + internal vertical scroll) lives in
-   base.css. Do not reintroduce min-height: 100vh here: combined with a
-   locked html/body it clips content instead of scrolling it. */
