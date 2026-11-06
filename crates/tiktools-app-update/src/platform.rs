@@ -108,15 +108,17 @@ pub fn detect_installation() -> DetectedInstallation {
 
 #[cfg(target_os = "windows")]
 fn nsis_install_directory() -> Option<PathBuf> {
+    read_install_directory(r"Software\Microsoft\Windows\CurrentVersion\Uninstall\TikTools")
+}
+
+#[cfg(target_os = "windows")]
+fn read_install_directory(registry_key: &str) -> Option<PathBuf> {
     use std::os::windows::ffi::OsStringExt;
     use windows_sys::Win32::{
         Foundation::ERROR_SUCCESS,
         System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_RT_REG_SZ},
     };
-    let key: Vec<u16> = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\TikTools"
-        .encode_utf16()
-        .chain(Some(0))
-        .collect();
+    let key: Vec<u16> = registry_key.encode_utf16().chain(Some(0)).collect();
     let name: Vec<u16> = "InstallLocation".encode_utf16().chain(Some(0)).collect();
     let mut buffer = [0u16; 32768];
     let mut size = (buffer.len() * 2) as u32;
@@ -288,5 +290,58 @@ mod nsis_tests {
         std::fs::remove_file(root.join("web/index.html")).unwrap();
         assert!(validated_nsis_install(&executable, &root).is_none());
         std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod registry_tests {
+    use super::*;
+    use windows_sys::Win32::{
+        Foundation::ERROR_SUCCESS,
+        System::Registry::{
+            RegCloseKey, RegCreateKeyW, RegDeleteKeyW, RegSetValueExW, HKEY, HKEY_CURRENT_USER,
+            REG_SZ,
+        },
+    };
+
+    #[test]
+    fn reads_quoted_unicode_install_location_from_registry() {
+        let key_name = format!("Software\\TikToolsUpdaterTest_{}", std::process::id());
+        let wide_key: Vec<u16> = key_name.encode_utf16().chain(Some(0)).collect();
+        let value_name: Vec<u16> = "InstallLocation".encode_utf16().chain(Some(0)).collect();
+        let value: Vec<u16> = "\"C:\\Users\\Tester\\Tik Tools ñ\""
+            .encode_utf16()
+            .chain(Some(0))
+            .collect();
+        let mut handle: HKEY = std::ptr::null_mut();
+        unsafe {
+            assert_eq!(
+                RegCreateKeyW(HKEY_CURRENT_USER, wide_key.as_ptr(), &mut handle),
+                ERROR_SUCCESS
+            );
+            assert_eq!(
+                RegSetValueExW(
+                    handle,
+                    value_name.as_ptr(),
+                    0,
+                    REG_SZ,
+                    value.as_ptr().cast(),
+                    (value.len() * 2) as u32
+                ),
+                ERROR_SUCCESS
+            );
+            assert_eq!(RegCloseKey(handle), ERROR_SUCCESS);
+        }
+        assert_eq!(
+            read_install_directory(&key_name),
+            Some(PathBuf::from("C:\\Users\\Tester\\Tik Tools ñ"))
+        );
+        unsafe {
+            assert_eq!(
+                RegDeleteKeyW(HKEY_CURRENT_USER, wide_key.as_ptr()),
+                ERROR_SUCCESS
+            );
+        }
+        assert!(read_install_directory(&key_name).is_none());
     }
 }
