@@ -26,8 +26,9 @@ NO_STRIP=1 cargo packager --config Packager.toml --formats deb,appimage
 Alternatively, after the portable staging task succeeds, run
 `RELEASE_TAG=v4.0.0 RELEASE_PLATFORM=linux-x86_64 bun scripts/package-installers.ts`.
 This checks the staged executable's reported version, requires Packager 0.11.8,
-compares extracted contents with staged assets, and writes versioned installers
-without overwriting existing outputs. AppImage ELF files can be changed by
+compares extracted contents with staged assets, checks Linux desktop entries
+and icons, validates the DEB GTK/WebKitGTK dependency declarations, and writes
+versioned installers without overwriting existing outputs. AppImage ELF files can be changed by
 linuxdeploy; for those files it checks their GNU build IDs and executable version
 instead of byte equality. This is a packaging check, not a cryptographic
 signature check. It sets

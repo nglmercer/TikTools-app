@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { lstat, mkdtemp, open, readdir, rm } from 'node:fs/promises';
+import { lstat, mkdtemp, open, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 
 async function run(args: string[], cwd: string, timeoutMs = 600_000): Promise<string> {
   const child = Bun.spawn(args, { cwd, stdout: 'pipe', stderr: 'pipe' });
@@ -68,16 +68,46 @@ async function checkContents(staging: string, resources: string, binary: string,
   if ((await run([binary, '--version'], resources, 15_000)).trim() !== version) throw new Error('installer binary version does not match the release');
 }
 
+/** Validate Linux desktop integration from the extracted package tree. */
+export async function verifyLinuxDesktop(root: string): Promise<void> {
+  const desktop = await readFile(join(root, 'usr/share/applications/tiktools-desktop.desktop'), 'utf8');
+  if (!/^\[Desktop Entry\]\s*$/m.test(desktop) || !/^Type=Application\s*$/m.test(desktop) ||
+      !/^Exec=tiktools-desktop(?:\s.*)?$/m.test(desktop) || !/^Icon=tiktools-desktop\s*$/m.test(desktop)) {
+    throw new Error('invalid Linux desktop entry');
+  }
+  const iconRoot = join(root, 'usr/share/icons/hicolor');
+  const expected = await digest(resolve(import.meta.dir, '../../assets/tiktools-icon.png'));
+  let found = false;
+  for await (const relative of new Bun.Glob('*/apps/tiktools-desktop.png').scan({ cwd: iconRoot, onlyFiles: true })) {
+    const icon = join(iconRoot, relative);
+    if ((await lstat(icon)).isFile() && await digest(icon) === expected) found = true;
+  }
+  if (!found) throw new Error('Linux package is missing the application icon');
+}
+
+/** Check Debian-family runtime names without assuming other distributions use them. */
+export function verifyDebDependencies(dependencies: string): void {
+  for (const name of ['libgtk-3-0', 'libwebkit2gtk-4.1-0']) {
+    const escaped = name.replaceAll('.', '\\.');
+    if (!new RegExp(`(?:^|[ ,|])${escaped}(?:t64)?(?:[ ,|(]|$)`).test(dependencies)) {
+      throw new Error(`DEB package is missing ${name} dependency`);
+    }
+  }
+}
+
 /** Inspect extracted installer contents against the already verified staging tree. */
 export async function verifyInstaller(staging: string, installer: string, format: 'deb' | 'appimage' | 'nsis', version: string): Promise<void> {
   const temp = await mkdtemp(join(tmpdir(), 'tiktools-installer-check-'));
   try {
     if (format === 'deb') {
+      verifyDebDependencies(await run(['dpkg-deb', '-f', installer, 'Depends'], temp));
       await run(['ar', 'x', installer], temp);
       await run(['tar', '-xzf', 'data.tar.gz', '--no-same-owner', '-C', temp], temp);
+      await verifyLinuxDesktop(temp);
       await checkContents(staging, join(temp, 'usr', 'lib', 'tiktools-desktop'), join(temp, 'usr', 'bin', 'tiktools-desktop'), version, false);
     } else if (format === 'appimage') {
       await run([installer, '--appimage-extract'], temp);
+      await verifyLinuxDesktop(join(temp, 'squashfs-root'));
       const root = join(temp, 'squashfs-root', 'usr');
       // linuxdeploy patches the ELF RPATH, so compare its reported version.
       await checkContents(staging, join(root, 'lib', 'tiktools-desktop'), join(root, 'bin', 'tiktools-desktop'), version, true);
