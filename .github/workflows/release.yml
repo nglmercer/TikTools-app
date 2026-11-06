@@ -65,6 +65,12 @@ jobs:
             platform: linux-x86_64
           - os: windows-latest
             platform: windows-x86_64
+    # Job-wide so every cargo invocation (build and package) embeds the same
+    # update trust anchor; option_env! changes force a rebuild otherwise.
+    # Without the repository variable the updater stays disabled.
+    env:
+      TIKTOOLS_APP_UPDATE_PUBLIC_KEY: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY }}
+      TIKTOOLS_APP_UPDATE_FEED_ENABLED: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY != '' && '1' || '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -152,7 +158,25 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      # Releases and the update feed may live in another repository (repository
+      # variable RELEASE_REPO); that requires a RELEASE_REPO_TOKEN secret with
+      # Contents read/write on it. Default: this repository and its own token.
+      RELEASE_REPO: ${{ vars.RELEASE_REPO || github.repository }}
+      GH_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN || github.token }}
+      HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN != '' }}
+      # The update feed is signed and published only when a public key is set.
+      UPDATE_FEED: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY != '' && '1' || '' }}
+      TIKTOOLS_UPDATE_PUBLIC_KEY: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY }}
     steps:
+      - name: Check publication configuration
+        run: |
+          if [ "$RELEASE_REPO" != "$GITHUB_REPOSITORY" ] && [ "$HAS_RELEASE_TOKEN" != "true" ]; then
+            echo "::error::RELEASE_REPO=$RELEASE_REPO requires the RELEASE_REPO_TOKEN secret"
+            exit 1
+          fi
+
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -166,26 +190,71 @@ jobs:
         working-directory: release-assets
         run: sha256sum TikTools-* > SHA256SUMS.txt
 
+      - name: Set up Bun
+        if: env.UPDATE_FEED == '1'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install current Rust
+        if: env.UPDATE_FEED == '1'
+        run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal
+
+      - name: Cache Cargo dependencies and build output
+        if: env.UPDATE_FEED == '1'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-packager
+            target
+          key: cargo-update-feed-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-update-feed-${{ runner.os }}-
+
+      - name: Install pinned cargo-packager
+        if: env.UPDATE_FEED == '1'
+        run: |
+          if [ "$(cargo packager --version 2>/dev/null)" != "cargo-packager 0.11.8" ]; then
+            cargo install cargo-packager --version 0.11.8 --locked --force
+          fi
+
+      # Sign before anything is published, so a signing failure never leaves a
+      # public release without a matching feed entry.
+      - name: Sign update artifacts and metadata
+        if: env.UPDATE_FEED == '1'
+        env:
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY }}
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          mkdir update-candidate
+          cp "release-assets/TikTools-${version}-linux-x86_64-installer.AppImage" \
+             "release-assets/TikTools-${version}-windows-x86_64-installer.exe" update-candidate/
+          bun scripts/generate-update-manifest.ts --sign update-candidate
+
       - name: Create draft release with immutable assets
         env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
           PRERELEASE: ${{ needs.version.outputs.prerelease }}
         run: |
-          args=(--draft --verify-tag --generate-notes)
+          # An existing tag in the release repository must be this exact commit.
+          existing="$(gh api "repos/$RELEASE_REPO/commits/$RELEASE_TAG" -q .sha 2>/dev/null || true)"
+          if [ -n "$existing" ] && [ "$existing" != "$GITHUB_SHA" ]; then
+            echo "::error::$RELEASE_REPO tag $RELEASE_TAG points to $existing, expected $GITHUB_SHA"
+            exit 1
+          fi
+          args=(--draft --target "$GITHUB_SHA" --generate-notes)
           if [ "$PRERELEASE" = "true" ]; then
             args+=(--prerelease)
           fi
           # Creating an existing release must fail: never overwrite historical assets.
-          gh release create "$RELEASE_TAG" release-assets/TikTools-* release-assets/SHA256SUMS.txt "${args[@]}"
+          gh release create "$RELEASE_TAG" -R "$RELEASE_REPO" release-assets/TikTools-* release-assets/SHA256SUMS.txt "${args[@]}"
 
       - name: Verify uploaded release assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           mkdir uploaded-assets
-          gh release download "$RELEASE_TAG" --dir uploaded-assets
+          gh release download "$RELEASE_TAG" -R "$RELEASE_REPO" --dir uploaded-assets
           cmp release-assets/SHA256SUMS.txt uploaded-assets/SHA256SUMS.txt
           (cd uploaded-assets && sha256sum --check SHA256SUMS.txt)
           # Reject missing or unexpected assets before exposing the release.
@@ -193,7 +262,46 @@ jobs:
                   <(cd uploaded-assets && find . -maxdepth 1 -type f -printf '%f\n' | sort)
 
       - name: Publish verified draft
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release edit "$RELEASE_TAG" --draft=false
+        run: gh release edit "$RELEASE_TAG" -R "$RELEASE_REPO" --draft=false
+
+      # The feed is updated last: it must never reference unpublished assets.
+      - name: Publish update feed
+        if: env.UPDATE_FEED == '1'
+        run: |
+          gh auth setup-git
+          git clone --quiet --depth 1 --branch gh-pages "https://github.com/$RELEASE_REPO.git" feed
+          mode=()
+          if [ ! -e feed/updates/stable.json ] && [ ! -e feed/updates/beta.json ]; then
+            mode=(--bootstrap)
+          elif [ ! -e feed/updates/stable.json ]; then
+            mode=(--allow-missing-stable)
+          fi
+          mkdir -p feed/updates
+          bun scripts/stage-update-channels.ts update-candidate feed/updates feed-snapshot "${mode[@]}"
+          cp -f feed-snapshot/* feed/updates/
+          cd feed
+          git add updates
+          if git diff --cached --quiet; then
+            echo "Update feed unchanged"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit --quiet -m "update feed: $RELEASE_TAG"
+          git push --quiet origin gh-pages
+
+      - name: Wait for the live update feed
+        if: env.UPDATE_FEED == '1'
+        run: |
+          base="$(gh api "repos/$RELEASE_REPO/pages" -q .html_url)"
+          version="${RELEASE_TAG#v}"
+          channel=stable
+          case "$version" in *-*) channel=beta ;; esac
+          for _ in $(seq 1 60); do
+            if curl -fsS "${base%/}/updates/$channel.json" 2>/dev/null | grep -q "\"version\": \"$version\""; then
+              echo "Live $channel feed serves $version"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::${base%/}/updates/$channel.json did not serve $version within 10 minutes"
+          exit 1

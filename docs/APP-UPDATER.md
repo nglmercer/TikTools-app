@@ -52,6 +52,27 @@ and confirms a profile marker survives. It uses the same version on both sides
 (with a simulated older current version for metadata) and does not test the
 production HTTPS transport, desktop shutdown, or restart handoff.
 
+## Release workflow configuration
+
+`.github/workflows/release.yml` enables update checks and publishes the feed
+when the repository that runs it has these settings (nothing is hardcoded):
+
+| Name | Kind | Purpose |
+| --- | --- | --- |
+| `TIKTOOLS_UPDATE_PUBLIC_KEY` | variable | Public key; embedded at build time and enables checks |
+| `CARGO_PACKAGER_SIGN_PRIVATE_KEY` | secret | Signs installers and channel metadata |
+| `CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD` | secret | Password of the private key |
+| `RELEASE_REPO` | variable (optional) | `owner/repo` that receives releases and the `gh-pages` feed; default is the running repository |
+| `RELEASE_REPO_TOKEN` | secret (only with `RELEASE_REPO`) | Token with Contents read/write on `RELEASE_REPO` |
+
+The release repository needs a `gh-pages` branch served by GitHub Pages. The
+publish job signs before creating the release, publishes the verified
+release, then commits `updates/{stable,beta}.json` and their `.sig` files to
+`gh-pages` (bootstrapping on first use) and waits until Pages serves the new
+version. Without the public key variable, the workflow behaves as before and
+builds have checks disabled. Automatic installation stays disabled until
+`TIKTOOLS_APP_UPDATE_INSTALL_ENABLED=1` is added after real install tests.
+
 For development, run `cargo test -p tiktools-app-update --locked`. Tests use
 public signature vectors and loopback HTTP fixtures; they do not prove that
 the production endpoints or operating-system installers work. Create a
