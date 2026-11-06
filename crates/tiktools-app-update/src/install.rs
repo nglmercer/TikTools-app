@@ -103,6 +103,9 @@ impl InstallPlan {
         if detected.kind != self.kind || detected.target.as_ref() != Some(&self.target) {
             return Err(InstallError::SourceChanged);
         }
+        if self.kind == InstallationType::AppImage {
+            preflight_appimage(&self.bytes, &self.target, &self.expected_version)?;
+        }
         install_package(&self.update, self.bytes)?;
         if self.kind != InstallationType::AppImage {
             // Packager exits after launching NSIS; a return cannot prove success.
@@ -114,6 +117,38 @@ impl InstallPlan {
             .map_err(|_| InstallError::Restart)?;
         Ok(())
     }
+}
+
+#[cfg(target_os = "linux")]
+fn preflight_appimage(
+    bytes: &[u8],
+    target: &std::path::Path,
+    expected: &str,
+) -> Result<(), InstallError> {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+
+    let parent = target.parent().ok_or(InstallError::Unsupported)?;
+    let mut temporary = tempfile::Builder::new()
+        .prefix(".tiktools-update-check-")
+        .tempfile_in(parent)
+        .map_err(|error| InstallError::Installer(error.to_string()))?;
+    temporary
+        .write_all(bytes)
+        .and_then(|_| temporary.flush())
+        .map_err(|error| InstallError::Installer(error.to_string()))?;
+    temporary
+        .as_file()
+        .set_permissions(std::fs::Permissions::from_mode(0o700))
+        .map_err(|error| InstallError::Installer(error.to_string()))?;
+    // Close the write handle before executing; TempPath removes the file on drop.
+    let path = temporary.into_temp_path();
+    validate_version(&path, expected)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn preflight_appimage(_: &[u8], _: &std::path::Path, _: &str) -> Result<(), InstallError> {
+    Err(InstallError::Unsupported)
 }
 
 fn install_package(update: &Update, bytes: Vec<u8>) -> Result<(), InstallError> {
@@ -235,6 +270,33 @@ mod tests {
             std::path::Path::new("/old/.mount_tik")
         )
         .is_none());
+    }
+
+    #[test]
+    #[ignore = "requires a real AppImage and FUSE; set TIKTOOLS_TEST_APPIMAGE"]
+    fn preflight_runs_a_real_appimage() {
+        let source = PathBuf::from(
+            std::env::var_os("TIKTOOLS_TEST_APPIMAGE").expect("set TIKTOOLS_TEST_APPIMAGE"),
+        );
+        let bytes = std::fs::read(&source).unwrap();
+        let root = tempfile::tempdir_in(source.parent().unwrap()).unwrap();
+        let current = root.path().join("current.AppImage");
+        std::fs::write(&current, b"old image").unwrap();
+        assert!(preflight_appimage(&bytes, &current, "4.0.0").is_ok());
+        assert!(preflight_appimage(&bytes, &current, "4.0.1").is_err());
+        assert_eq!(std::fs::read(&current).unwrap(), b"old image");
+    }
+
+    #[test]
+    fn preflight_rejects_mismatched_binary_without_replacing_current_image() {
+        let root = tempfile::tempdir().unwrap();
+        let current = root.path().join("current.AppImage");
+        std::fs::write(&current, b"old image").unwrap();
+        let candidate = b"#!/bin/sh\nprintf '4.1.0\\n'\n";
+        assert!(preflight_appimage(candidate, &current, "4.2.0").is_err());
+        assert_eq!(std::fs::read(&current).unwrap(), b"old image");
+        assert!(preflight_appimage(candidate, &current, "4.1.0").is_ok());
+        assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 1);
     }
 
     #[test]

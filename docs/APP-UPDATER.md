@@ -22,7 +22,8 @@ HTTPS GitHub release asset hosts, and verifies the package signature using the
 same key used for the metadata. The experimental AppImage path requires a
 native confirmation, shuts down the core and WebViews, releases the instance
 guard and runtime, and then calls Packager to replace the image. It checks the
-new image's reported version before launching it. This path requires
+new image's reported version in a private temporary file before replacement,
+then checks the installed image again before launching it. This path requires
 `TIKTOOLS_APP_UPDATE_INSTALL_ENABLED=1` at build time in addition to the feed
 gate; do not set it in a release until real install and restart tests pass.
 An experimental NSIS handoff additionally requires
