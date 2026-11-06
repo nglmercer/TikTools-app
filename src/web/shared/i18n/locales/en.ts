@@ -72,6 +72,7 @@ export default {
     },
   },
   appUpdater: {
+    options: 'Options',
     title: 'Application updates', installed: 'Installed version: {version}', available: 'Available version: {version}',
     upToDate: 'TikTools is up to date.', lastChecked: 'Last checked: {when}', channel: 'Update channel',
     stable: 'Stable', beta: 'Beta', automaticChecks: 'Check automatically', notifications: 'Notify me about updates',

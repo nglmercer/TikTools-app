@@ -129,10 +129,20 @@ const locale = computed<Locale>({
     overflow-y: auto;
   }
 
+  /* Sections become a horizontal strip of equal tabs. */
   .settings-page__sections {
+    display: flex;
     flex: none;
+    gap: var(--space-1);
     width: 100%;
-    max-height: 112px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .settings-page__sections :deep(.base-list__item) {
+    flex: 1 0 auto;
+    justify-content: center;
+    height: var(--control-height-lg);
   }
 
   .settings-page__content {

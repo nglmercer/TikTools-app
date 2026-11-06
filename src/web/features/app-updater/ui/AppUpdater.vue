@@ -3,8 +3,12 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppUpdaterStore } from '../model/updater-store.ts';
 import type { UpdateChannel } from '../api/updater-types.ts';
+import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
+import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
+import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 
 const { t, locale } = useI18n();
@@ -14,6 +18,13 @@ const matchingChannel = computed(() => updater.preferencesLoaded && status.value
 const busy = computed(() => ['checking', 'downloading', 'verifying', 'installing'].includes(status.value?.state ?? ''));
 const progress = computed(() => status.value?.totalBytes ? Math.min(100, Math.round(status.value.downloadedBytes * 100 / status.value.totalBytes)) : null);
 const checked = computed(() => updater.preferences.lastChecked ? new Date(updater.preferences.lastChecked * 1000).toLocaleString(locale.value) : '');
+const channels = computed(() => [
+  { value: 'stable' as UpdateChannel, label: t('appUpdater.stable') },
+  { value: 'beta' as UpdateChannel, label: t('appUpdater.beta') },
+]);
+function setChannel(value: UpdateChannel | undefined): void {
+  if (value && value !== updater.preferences.channel) void updater.setChannel(value);
+}
 function install(): void {
   window.ipc?.postMessage(JSON.stringify({ type: 'app-update-install', locale: locale.value }));
 }
@@ -22,46 +33,64 @@ function install(): void {
 <template>
   <BaseGroupBox :title="t('appUpdater.title')">
     <div class="app-updater">
-      <p v-if="status">
-        {{ t('appUpdater.installed', { version: status.currentVersion }) }}
-      </p>
-      <p v-if="status?.availableVersion && matchingChannel">
-        {{ t('appUpdater.available', { version: status.availableVersion }) }}
-      </p>
-      <p v-if="status?.state === 'upToDate' && matchingChannel">
-        {{ t('appUpdater.upToDate') }}
-      </p>
-      <p v-if="checked">
-        {{ t('appUpdater.lastChecked', { when: checked }) }}
-      </p>
-      <label for="app-update-channel">{{ t('appUpdater.channel') }}</label>
-      <select
-        id="app-update-channel"
-        :value="updater.preferences.channel"
-        :disabled="busy || !updater.preferencesLoaded"
-        @change="updater.setChannel(($event.target as HTMLSelectElement).value as UpdateChannel)"
+      <div
+        v-if="status || checked"
+        class="app-updater__facts"
       >
-        <option value="stable">
-          {{ t('appUpdater.stable') }}
-        </option>
-        <option value="beta">
-          {{ t('appUpdater.beta') }}
-        </option>
-      </select>
-      <BaseCheckbox
-        :model-value="updater.preferences.automaticChecks"
-        :disabled="!updater.preferencesLoaded"
-        @update:model-value="updater.setPreference('automaticChecks', $event)"
-      >
-        {{ t('appUpdater.automaticChecks') }}
-      </BaseCheckbox>
-      <BaseCheckbox
-        :model-value="updater.preferences.notifications"
-        :disabled="!updater.preferencesLoaded"
-        @update:model-value="updater.setPreference('notifications', $event)"
-      >
-        {{ t('appUpdater.notifications') }}
-      </BaseCheckbox>
+        <p v-if="status">
+          {{ t('appUpdater.installed', { version: status.currentVersion }) }}
+        </p>
+        <p
+          v-if="status?.availableVersion && matchingChannel"
+          class="app-updater__highlight"
+        >
+          {{ t('appUpdater.available', { version: status.availableVersion }) }}
+        </p>
+        <p v-if="status?.state === 'upToDate' && matchingChannel">
+          {{ t('appUpdater.upToDate') }}
+        </p>
+        <p
+          v-if="checked"
+          class="app-updater__muted"
+        >
+          {{ t('appUpdater.lastChecked', { when: checked }) }}
+        </p>
+      </div>
+      <BaseFormGrid>
+        <BaseFormRow
+          for="app-update-channel"
+          :label="t('appUpdater.channel')"
+        >
+          <BaseComboBox
+            id="app-update-channel"
+            class="app-updater__channel"
+            :model-value="updater.preferences.channel"
+            :options="channels"
+            :disabled="busy || !updater.preferencesLoaded"
+            @update:model-value="setChannel"
+          />
+        </BaseFormRow>
+        <BaseFormRow
+          for="app-update-automatic"
+          :label="t('appUpdater.options')"
+        >
+          <BaseCheckbox
+            id="app-update-automatic"
+            :model-value="updater.preferences.automaticChecks"
+            :disabled="!updater.preferencesLoaded"
+            @update:model-value="updater.setPreference('automaticChecks', $event)"
+          >
+            {{ t('appUpdater.automaticChecks') }}
+          </BaseCheckbox>
+          <BaseCheckbox
+            :model-value="updater.preferences.notifications"
+            :disabled="!updater.preferencesLoaded"
+            @update:model-value="updater.setPreference('notifications', $event)"
+          >
+            {{ t('appUpdater.notifications') }}
+          </BaseCheckbox>
+        </BaseFormRow>
+      </BaseFormGrid>
       <div class="app-updater__actions">
         <BaseButton
           :disabled="busy || !updater.preferencesLoaded || !status?.checkSupported"
@@ -92,6 +121,7 @@ function install(): void {
       </p>
       <progress
         v-if="status?.state === 'downloading'"
+        class="app-updater__progress"
         :value="progress ?? undefined"
         max="100"
       />
@@ -107,16 +137,18 @@ function install(): void {
       >
         {{ status.releaseNotes }}
       </p>
-      <p
+      <BaseAlert
         v-if="updater.error || status?.error"
-        role="alert"
-      >
-        {{ updater.error || status?.error?.message }}
-      </p>
+        compact
+        :title="updater.error || status?.error?.message || ''"
+      />
       <p v-if="status?.state === 'failed' && status.error?.code === 'download_failed'">
         {{ t('appUpdater.retryHelp') }}
       </p>
-      <p v-if="!status?.checkSupported || !status?.installSupported || status?.state === 'failed'">
+      <p
+        v-if="!status?.checkSupported || !status?.installSupported || status?.state === 'failed'"
+        class="app-updater__muted"
+      >
         {{ t(status?.state === 'failed' && status.installSupported ? 'appUpdater.manualRecovery' : 'appUpdater.manual') }} <a
           class="app-updater__url"
           href="https://github.com/nglmercer/TikTools-app/releases"
@@ -127,10 +159,15 @@ function install(): void {
 </template>
 
 <style scoped>
-.app-updater { display: flex; flex-direction: column; gap: var(--space-3); }
+.app-updater { display: flex; flex-direction: column; gap: var(--space-5); }
 .app-updater p { margin: 0; }
-.app-updater select { max-width: 240px; }
-.app-updater__actions { display: flex; gap: var(--space-3); }
+.app-updater__facts { display: flex; flex-direction: column; gap: var(--space-2); margin: 0; }
+.app-updater__highlight { color: var(--color-success); font-weight: var(--font-weight-semibold); }
+.app-updater__muted { color: var(--color-text-subtle); font-size: var(--font-size-sm); }
+.app-updater__channel { width: 100%; max-width: 240px; }
+.app-updater__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.app-updater__progress { width: 100%; max-width: 360px; accent-color: var(--color-accent); }
 .app-updater__notes { white-space: pre-wrap; overflow-wrap: anywhere; }
-.app-updater__url { overflow-wrap: anywhere; user-select: text; }
+.app-updater__url { color: var(--color-text-muted); overflow-wrap: anywhere; user-select: text; }
+@media (width < 600px) { .app-updater__channel { max-width: none; } }
 </style>

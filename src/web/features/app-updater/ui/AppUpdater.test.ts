@@ -5,6 +5,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { UpdateStatus } from '../api/updater-types.ts';
 import { useAppUpdaterStore } from '../model/updater-store.ts';
 import AppUpdater from './AppUpdater.vue';
+import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 
 function status(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
   return { currentVersion: '4.0.0', availableVersion: null, channel: 'stable', state: 'idle', installationType: 'unknown',
@@ -25,7 +26,8 @@ describe('AppUpdater', () => {
     expect(wrapper.text()).toContain('4.0.0');
     expect(wrapper.get('a.app-updater__url').attributes('href')).toBe('https://github.com/nglmercer/TikTools-app/releases');
     expect(wrapper.text()).not.toContain('Download update');
-    await wrapper.get('select').setValue('beta');
+    wrapper.findComponent(BaseComboBox).vm.$emit('update:modelValue', 'beta');
+    await flushPromises();
     await flushPromises();
     expect(calls.some((call) => call.method === 'app.state.set' && String(call.params?.value).includes('"channel":"beta"'))).toBe(true);
   });
@@ -122,7 +124,8 @@ describe('AppUpdater', () => {
     await harness.use(useAppUpdaterStore).initialize();
     const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
     expect(wrapper.text()).toContain('Install and restart');
-    await wrapper.get('select').setValue('stable');
+    wrapper.findComponent(BaseComboBox).vm.$emit('update:modelValue', 'stable');
+    await flushPromises();
     expect(wrapper.text()).not.toContain('Install and restart');
     expect(wrapper.text()).toContain('Check for updates');
   });

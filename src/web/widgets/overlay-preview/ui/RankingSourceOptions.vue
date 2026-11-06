@@ -98,6 +98,60 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.ranking-source { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 8px; }
-.ranking-source label { display: flex; gap: 6px; align-items: center; }
+/* Native controls styled like the app's fields: selects in a grid, checkboxes in a row. */
+.ranking-source {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-4) var(--space-5);
+  align-items: end;
+  margin-bottom: var(--space-4);
+}
+
+.ranking-source label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-md);
+}
+
+.ranking-source label:has(select) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.ranking-source select {
+  width: 100%;
+  height: var(--control-height-md);
+  padding: 0 var(--control-padding-x);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-field);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+}
+
+.ranking-source select:focus {
+  border-color: var(--color-border-focus);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.ranking-source input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+@media (width < 600px) {
+  .ranking-source {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 </style>
