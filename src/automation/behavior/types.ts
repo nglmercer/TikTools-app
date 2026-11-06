@@ -224,6 +224,8 @@ export interface PluginDescriptor {
   hasConnectionProbe?: boolean;
   /** True when the host can mint this plugin's API token from an admin login. */
   supportsTokenProvisioning?: boolean;
+  /** Health probe uses the guided `service-info` strategy (one-click connect/sign-in). */
+  guidedConnection?: boolean;
   /** Imports a secret from an explicitly selected local configuration file. */
   supportsTokenImport?: boolean;
   supportsTokenDiscovery?: boolean;

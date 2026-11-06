@@ -13,21 +13,29 @@
 
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..', '..', '..');
-const GATEWAY_MANIFEST = join(REPOSITORY_ROOT, 'examples', 'event-gateway-process-plugin', 'Cargo.toml');
+// The Event Gateway plugin lives in the external plugins-example-tiktools
+// checkout (TIKTOOLS_PLUGINS_REPO, or a sibling clone). Without it the
+// suite is skipped; see `gatewayAvailable`.
+const PLUGINS_REPOSITORY = process.env.TIKTOOLS_PLUGINS_REPO
+  ? resolve(process.env.TIKTOOLS_PLUGINS_REPO)
+  : resolve(REPOSITORY_ROOT, '..', 'plugins-example-tiktools');
+const GATEWAY_MANIFEST = join(PLUGINS_REPOSITORY, 'plugins', 'event-gateway', 'Cargo.toml');
+const GATEWAY_TARGET_DIR = join(PLUGINS_REPOSITORY, 'target');
 const GATEWAY_DEBUG_BINARY = join(
-  REPOSITORY_ROOT,
-  'examples',
-  'event-gateway-process-plugin',
-  'target',
+  GATEWAY_TARGET_DIR,
   'debug',
-  'event-gateway',
+  process.platform === 'win32' ? 'event-gateway.exe' : 'event-gateway',
 );
+
+/** True when the external gateway sources are available to build. */
+export const gatewayAvailable = existsSync(GATEWAY_MANIFEST);
 const GATEWAY_PLUGIN_ID = 'tiktools.event-gateway';
 const PROTOCOL_VERSION = 1;
 
@@ -57,7 +65,7 @@ let binaryBuilt = false;
 
 function ensureGatewayBinary(): string {
   if (binaryBuilt) return GATEWAY_DEBUG_BINARY;
-  runOrThrow('node', ['scripts/cargo-with-linker.mjs', 'build', '--manifest-path', GATEWAY_MANIFEST], REPOSITORY_ROOT);
+  runOrThrow('node', ['scripts/cargo-with-linker.mjs', 'build', '--manifest-path', GATEWAY_MANIFEST, '--target-dir', GATEWAY_TARGET_DIR], REPOSITORY_ROOT);
   binaryBuilt = true;
   return GATEWAY_DEBUG_BINARY;
 }

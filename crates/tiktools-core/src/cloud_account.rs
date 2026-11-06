@@ -1,6 +1,7 @@
-//! Optional Cloud account owned by the core. The account is strictly opt-in:
-//! without an explicit `TIKTOOLS_CLOUD_ORIGIN` everything here reports
-//! unconfigured and every local feature keeps working.
+//! Optional Cloud account owned by the core. Signing in is strictly opt-in and
+//! every local feature keeps working offline. The origin resolves from
+//! `TIKTOOLS_CLOUD_ORIGIN` (runtime, then build time) or the official default;
+//! only an explicit opt-out reports unconfigured.
 
 use std::sync::Arc;
 

@@ -102,7 +102,7 @@ function submit(): void {
           :disabled="!canSubmit"
           @click="submit"
         >
-          {{ working ? t('plugins.provision.working') : t(simple ? 'plugins.connection.connectSonicBoom' : 'plugins.provision.submit') }}
+          {{ working ? t('plugins.provision.working') : t(simple ? 'plugins.connection.connectGuided' : 'plugins.provision.submit', { name: pluginName }) }}
         </BaseButton>
         <BaseButton
           :disabled="working"

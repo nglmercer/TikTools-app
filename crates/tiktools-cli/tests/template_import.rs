@@ -54,7 +54,7 @@ fn run_json(home: &std::path::Path, args: &[&str]) -> Value {
 #[test]
 fn template_import_creates_records_and_gallery_entry() {
     let home = isolated_home("template-import");
-    let template = repo_path("examples/templates/minecraft-gift-command.tiktemplate.json");
+    let template = repo_path("tests/fixtures/templates/minecraft-gift-command.tiktemplate.json");
     assert!(template.is_file(), "example template ships with the repo");
 
     let imported = run_json(
@@ -135,7 +135,7 @@ fn template_import_creates_records_and_gallery_entry() {
 #[test]
 fn profile_dry_run_plans_every_rule_offline() {
     let home = isolated_home("profile-dryrun");
-    let profile = repo_path("examples/profiles/minecraft-gifts.tikprofile.json");
+    let profile = repo_path("tests/fixtures/profiles/minecraft-gifts.tikprofile.json");
     assert!(profile.is_file(), "example profile ships with the repo");
 
     // No host needed: dry-run never connects.
@@ -193,7 +193,7 @@ fn profile_dry_run_plans_every_rule_offline() {
 #[test]
 fn profile_import_creates_all_rules_then_exports() {
     let home = isolated_home("profile-roundtrip");
-    let profile = repo_path("examples/profiles/minecraft-gifts.tikprofile.json");
+    let profile = repo_path("tests/fixtures/profiles/minecraft-gifts.tikprofile.json");
 
     let imported = run_json(
         &home,

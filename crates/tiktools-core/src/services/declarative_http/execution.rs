@@ -327,8 +327,12 @@ impl crate::AppCore {
         let Some(health) = health else {
             return failed(format!("Plugin `{id}` declares no health endpoint."));
         };
-        if health.get("strategy").and_then(Value::as_str) == Some("sonicboom") {
-            return self.check_sonicboom_connection(&plugin.manifest).await;
+        if super::service_info::is_service_info_strategy(
+            health.get("strategy").and_then(Value::as_str),
+        ) {
+            return self
+                .check_service_info_connection(&plugin.manifest, health)
+                .await;
         }
         let path = health
             .get("path")
@@ -508,9 +512,10 @@ mod sonicboom_action_http_tests {
                 socket.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}").await.unwrap();
             }
         });
-        let document: Value =
-            serde_json::from_str(include_str!("../../../../../plugins/sonicboom/plugin.json"))
-                .unwrap();
+        let document: Value = serde_json::from_str(include_str!(
+            "../../../../../tests/fixtures/plugins/sonicboom.plugin.json"
+        ))
+        .unwrap();
         let manifest = PluginManifest::from_json_str(&document.to_string()).unwrap();
         let root =
             std::env::temp_dir().join(format!("sonicboom-action-http-{}", fastrand::u64(..)));

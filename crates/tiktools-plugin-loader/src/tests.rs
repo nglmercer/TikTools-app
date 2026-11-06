@@ -1223,7 +1223,7 @@ fn repo_example_is_discovered_loaded_and_unloaded() {
     fs::create_dir_all(root.join("repo.game")).unwrap();
     fs::write(
         root.join("repo.game/plugin.json"),
-        include_str!("../../../examples/repo-game/plugin.json"),
+        include_str!("../../../tests/fixtures/plugins/repo-game.plugin.json"),
     )
     .unwrap();
     let manager = PluginManager::with_runtimes(

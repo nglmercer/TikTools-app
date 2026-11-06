@@ -284,6 +284,7 @@ function uninstall(): void {
             :supports-token-import="descriptor.supportsTokenImport"
             :supports-token-discovery="descriptor.supportsTokenDiscovery"
             :supports-provisioning="descriptor.supportsTokenProvisioning"
+            :guided="descriptor.guidedConnection"
             :provision-state="plugins.provision.value[id]"
             @load-settings="plugins.loadSettings"
             @load-options="plugins.loadOptions"

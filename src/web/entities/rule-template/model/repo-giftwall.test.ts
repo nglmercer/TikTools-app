@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
-import profile from '../../../../../examples/profiles/repo-giftwall.tikprofile.json';
-import manifest from '../../../../../examples/repo-game/plugin.json';
+import profile from '../../../../../tests/fixtures/profiles/repo-giftwall.tikprofile.json';
+import manifest from '../../../../../tests/fixtures/plugins/repo-game.plugin.json';
 import { instantiateProfile, parseRuleProfile } from './rule-profiles-state.ts';
 
 test('REPO giftwall imports safely and exposes editable live catalog actions', () => {

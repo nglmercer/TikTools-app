@@ -5981,17 +5981,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sonicboom-backend"
-version = "1.0.0"
-dependencies = [
- "reqwest 0.13.5",
- "serde_json",
- "tiktools-plugin-sdk",
- "tokio",
- "unicode-segmentation",
-]
-
-[[package]]
 name = "soup3"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

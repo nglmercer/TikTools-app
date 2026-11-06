@@ -85,6 +85,10 @@ const selectedPlugin = computed(
 const selectedRemote = computed(() => parseRemoteSelection(selected.value));
 const updateEntries = computed(() => packages.updates?.updates ?? []);
 const remoteEntries = computed(() => packages.searchResults?.entries ?? []);
+/** Unknown until the registry list loads; only `false` shows the unavailable state. */
+const marketplaceAvailable = computed(() =>
+  packages.registriesLoaded ? packages.registries.some((registry) => registry.enabled) : undefined,
+);
 
 function search(): void {
   void packages.search();
@@ -96,6 +100,7 @@ function openCatalogTab(next: PluginCatalogTab): void {
 
 onMounted(() => {
   void packages.initialize();
+  void packages.loadRegistries();
   openCatalogTab(catalog.value);
 });
 
@@ -186,6 +191,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
           :searching="packages.searching"
           :search-error="packages.searchError"
           :checking-updates="packages.checkingUpdates"
+          :marketplace-available="marketplaceAvailable"
           @install-package="plugins.installPackage()"
           @install-spec="plugins.installSpec"
           @search="search"
@@ -264,6 +270,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
         :searching="packages.searching"
         :search-error="packages.searchError"
         :checking-updates="packages.checkingUpdates"
+        :marketplace-available="marketplaceAvailable"
         @install-package="plugins.installPackage()"
         @install-spec="plugins.installSpec"
         @search="search"

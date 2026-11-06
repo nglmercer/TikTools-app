@@ -127,11 +127,11 @@ export function setCargoLockVersions(
 }
 
 /**
- * Standalone crates with their own lockfiles (test fixtures and examples
- * excluded from the workspace). Their locks pin workspace crates by version,
+ * Standalone crates with their own lockfiles (test fixtures excluded from
+ * the workspace). Their locks pin workspace crates by version,
  * so a bump must refresh them too or `--locked` builds fail.
  */
-const STANDALONE_LOCK_PATTERNS = ['crates/*/tests/fixtures/*/Cargo.lock', 'examples/*/Cargo.lock'];
+const STANDALONE_LOCK_PATTERNS = ['crates/*/tests/fixtures/*/Cargo.lock'];
 
 export interface StandaloneLockResult {
   /** Repo-relative lockfile path with forward slashes. */

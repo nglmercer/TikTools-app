@@ -7,7 +7,9 @@ import {
   makeTestShareEnvelope,
   makeTestSubscribeEnvelope,
 } from '../shared/test-events.ts';
-import { readStagedSettings, startGateway, type RunningGateway } from './gateway-harness.ts';
+import { gatewayAvailable, readStagedSettings, startGateway, type RunningGateway } from './gateway-harness.ts';
+
+test.skip(!gatewayAvailable, 'needs the plugins-example-tiktools checkout (set TIKTOOLS_PLUGINS_REPO)');
 
 type WidgetTestHook = {
   connectionStatus: () => string;

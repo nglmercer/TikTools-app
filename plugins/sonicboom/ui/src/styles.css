@@ -1,8 +1,0 @@
-/*
- * SonicBoom plugin UI theme. The isolated document cannot import host CSS,
- * so variables.css mirrors the app's design tokens and the rest restyles the
- * TTS workspace after the app's panels and controls.
- */
-@import './styles/variables.css';
-@import './styles/base.css';
-@import './styles/tts.css';

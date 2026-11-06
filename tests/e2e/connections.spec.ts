@@ -96,7 +96,7 @@ test('server connection failure shows the error without an app-wide crash', asyn
 test('REPO imports a token through the shared card without showing the secret', async ({ page }) => {
   const { baseHostState } = await import('./fixtures/tiktools-host.ts');
   const { sonicboomStatus, sonicboomDescriptor } = await import('./fixtures/plugins.ts');
-  const manifest = JSON.parse(readFileSync(new URL('../../examples/repo-game/plugin.json', import.meta.url), 'utf8'));
+  const manifest = JSON.parse(readFileSync(new URL('../../tests/fixtures/plugins/repo-game.plugin.json', import.meta.url), 'utf8'));
   const id = manifest.id;
   const state = baseHostState();
   state.automationSnapshot.plugins = [sonicboomStatus({
@@ -129,7 +129,7 @@ test('REPO imports a token through the shared card without showing the secret', 
 async function repoAutomaticState() {
   const { baseHostState } = await import('./fixtures/tiktools-host.ts');
   const { sonicboomStatus, sonicboomDescriptor } = await import('./fixtures/plugins.ts');
-  const manifest = JSON.parse(readFileSync(new URL('../../examples/repo-game/plugin.json', import.meta.url), 'utf8'));
+  const manifest = JSON.parse(readFileSync(new URL('../../tests/fixtures/plugins/repo-game.plugin.json', import.meta.url), 'utf8'));
   const state = baseHostState();
   state.automationSnapshot.plugins = [sonicboomStatus({ descriptor: sonicboomDescriptor({
     id: manifest.id, name: { default: manifest.name }, supportsTokenProvisioning: false,

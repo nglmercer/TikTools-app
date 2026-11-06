@@ -37,16 +37,16 @@ Diagnostics use the existing host poll/plugin-event channel, emitting only chang
 | Command | Result |
 | --- | --- |
 | `bun x vue-tsc --noEmit` | Pass |
-| `bun x vue-tsc --noEmit -p plugins/sonicboom/ui/tsconfig.json` | Pass |
+| `bun x vue-tsc --noEmit -p plugins-example-tiktools/plugins/sonicboom/ui/tsconfig.json` | Pass |
 | `bun scripts/task.ts frontend-lint` | Pass |
-| `bun test plugins/sonicboom/shared plugins/sonicboom/backend plugins/sonicboom/ui/src` | 101 pass |
-| `bun scripts/task.ts e2e test --config plugins/sonicboom/ui/playwright.config.ts` | 20 pass |
+| `bun test plugins-example-tiktools/plugins/sonicboom/shared plugins-example-tiktools/plugins/sonicboom/backend plugins-example-tiktools/plugins/sonicboom/ui/src` | 101 pass |
+| `bun scripts/task.ts e2e test --config plugins-example-tiktools/plugins/sonicboom/ui/playwright.config.ts` | 20 pass |
 | `cargo test -p sonicboom-backend` | 54 unit tests and 3 process integration tests pass |
 | `cargo clippy -p sonicboom-backend --all-targets -- -D warnings` | Pass |
 | `cargo test -p tiktools-core option_sources` | 17 pass |
 | `cargo test -p tiktools-core --features http declarative_http` | 26 pass; includes real HTTP action routing |
 | `cargo test -p tiktools-plugin-api` | 72 pass |
-| `bun x vite build --config plugins/sonicboom/ui/vite.config.ts` | Pass |
+| `bun x vite build --config plugins-example-tiktools/plugins/sonicboom/ui/vite.config.ts` | Pass |
 | `bun scripts/build-sonicboom-backend.ts` | Pass; packaged executable staged |
 | `bun scripts/task.ts e2e test` | 38 pass, 17 fail; all 17 reproduce on unchanged baseline |
 
@@ -99,7 +99,7 @@ The temporary verification server was stopped after the checks. Private recordin
 
 ## Files
 
-TikTools changes: `plugins/sonicboom/backend/src/{main,config,transport}.rs`, `plugins/sonicboom/backend/tests/observer.rs`, `plugins/sonicboom/plugin.json`, `plugins/sonicboom/ui/src/App.vue`, both UI locale catalogs, UI fixtures/specs, `crates/tiktools-core/src/services/declarative_http/execution.rs`, `crates/tiktools-plugin-api/src/manifest/validation.rs`, this report, and rebuilt tracked UI/backend distribution files.
+TikTools changes: `plugins-example-tiktools/plugins/sonicboom/backend/src/{main,config,transport}.rs`, `plugins-example-tiktools/plugins/sonicboom/backend/tests/observer.rs`, `plugins-example-tiktools/plugins/sonicboom/plugin.json`, `plugins-example-tiktools/plugins/sonicboom/ui/src/App.vue`, both UI locale catalogs, UI fixtures/specs, `crates/tiktools-core/src/services/declarative_http/execution.rs`, `crates/tiktools-plugin-api/src/manifest/validation.rs`, this report, and rebuilt tracked UI/backend distribution files.
 
 SonicBoom changes: `src/api/jobs.rs`, `src/server/manager.rs`, and `docs/tiktools-live-integration.md`.
 

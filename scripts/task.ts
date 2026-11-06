@@ -91,30 +91,9 @@ async function widgets(): Promise<void> {
   await assertWidgetBundle(join(root, 'dist', 'widgets'));
 }
 
-async function assertPluginArchives(): Promise<void> {
-  const entries = await readdir(join(root, 'dist', 'plugins'));
-  const archives = entries.filter((entry) => entry.endsWith('.plugin'));
-  if (!archives.length) {
-    throw new Error(
-      'no .plugin archives in dist/plugins — `bun scripts/task.ts plugins --all` produced nothing',
-    );
-  }
-  console.log(`Plugin archives present (${archives.length}): ${archives.sort().join(', ')}`);
-}
-
 async function frontendLint(): Promise<void> {
   await tool('eslint', 'src', 'scripts', 'vite.config.ts', 'vitest.config.ts', '--max-warnings=0');
   await tool('vue-tsc', '--noEmit');
-  await tool(
-    'eslint',
-    'plugins/sonicboom/ui/src',
-    'plugins/sonicboom/ui/tests',
-    'plugins/sonicboom/shared',
-    'plugins/sonicboom/ui/vite.config.ts',
-    'plugins/sonicboom/ui/playwright.config.ts',
-    '--max-warnings=0',
-  );
-  await tool('vue-tsc', '--noEmit', '-p', 'plugins/sonicboom/ui/tsconfig.json');
   await tool('eslint', 'packages', '--max-warnings=0');
   await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-sdk/tsconfig.json');
   await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-ui/tsconfig.json');
@@ -129,8 +108,9 @@ async function tests(): Promise<void> {
   // One invocation per area so an unmatched pattern fails loudly instead
   // of hiding behind a sibling area that still matches.
   await run(bun, 'test', 'src/automation', 'src/plugin-ui', 'src/shared', 'src/widgets', 'scripts');
-  await run(bun, 'test', 'plugins/sonicboom/shared', 'plugins/sonicboom/ui/src');
-  // Browser specs (tests/e2e, widget/gateway .e2e.ts, SonicBoom UI) need
+  // Plugin packages live in the external plugins-example-tiktools
+  // repository and run their own suites there.
+  // Browser specs (tests/e2e, widget/gateway .e2e.ts) need
   // built assets and Playwright browsers; run them explicitly with
   // `bun scripts/task.ts e2e ...` after `bun run build`.
   await tool('vitest', 'run');
@@ -168,20 +148,13 @@ async function controlApiVerify(): Promise<void> {
 }
 
 async function build(): Promise<void> {
-  // Widget bundles are mandatory gateway content: build them explicitly
-  // first (plugin packaging re-stages them for the gateway archive).
+  // Widget bundles are TikTools-owned OBS widgets (served by the external
+  // Event Gateway plugin); build them explicitly first.
   await widgets();
   await tool('vite', 'build');
   await assertFile('dist/web/index.html', 'run `bun run build` again');
-  await tool('vite', 'build', '--config', 'plugins/sonicboom/ui/vite.config.ts');
-  await assertFile('plugins/sonicboom/ui/dist/index.html', 'rebuild the SonicBoom UI first');
-  await script('build-sonicboom-backend.ts');
-  await assertFile(
-    'plugins/sonicboom/backend/dist/sonicboom-backend',
-    'rebuild the SonicBoom backend first',
-  );
-  await script('build-plugin.ts', '--all');
-  await assertPluginArchives();
+  // Plugins are not part of the application build: they live in the
+  // external plugins-example-tiktools repository and install separately.
   await cargo('build', '-p', 'tiktools-desktop', '--release', '--locked');
   const desktopBinary = isWindows ? 'target/release/tiktools-desktop.exe' : 'target/release/tiktools-desktop';
   await assertFile(desktopBinary, 'rebuild the desktop release binary first');
@@ -201,7 +174,6 @@ async function ci(): Promise<void> {
   await verifyRustTestExists('tiktools-core', 'native-tiktok', NAMED_BATCHED_TEST);
   await cargo('test', '-p', 'tiktools-core', '--locked', '--features', 'native-tiktok', '--lib', NAMED_BATCHED_TEST);
   await cargo('test', '-p', 'tiktools-cli', '--features', 'local-web', '--locked');
-  await cargo('test', '--manifest-path', 'examples/event-gateway-process-plugin/Cargo.toml', '--locked');
   await controlApiVerify();
   // MSRV and the Windows GUI-subsystem checks stay platform/toolchain
   // specific: they run in the dedicated CI jobs, not in the local gate.

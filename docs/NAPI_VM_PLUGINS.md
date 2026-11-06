@@ -290,13 +290,13 @@ guest calls from `onUnload` (the fixture calls `stopListener()` there).
 
 ## Real-world example
 
-`examples/hotkey-napi-plugin` is the production native plugin: a
+`plugins-example-tiktools/plugins/hotkeys` is the production native plugin: a
 TypeScript guest driving `rdev-node` for global hotkeys (see
 `docs/HOTKEYS_LINUX.md`). Build and test it with:
 
 ```bash
-node_modules/.bin/tsc -p examples/hotkey-napi-plugin/tsconfig.json
-bun test examples/hotkey-napi-plugin/
+node_modules/.bin/tsc -p plugins-example-tiktools/plugins/hotkeys/tsconfig.json
+bun test plugins-example-tiktools/plugins/hotkeys/
 bun scripts/build-plugin.ts --plugin hotkey-napi-plugin --host
 ```
 

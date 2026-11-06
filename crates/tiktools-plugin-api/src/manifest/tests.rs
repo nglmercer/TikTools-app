@@ -543,10 +543,10 @@ fn tts_outputs_source_is_optional_but_bounded() {
 
 #[test]
 fn shipped_sonicboom_example_parses() {
-    // Conformance gate for examples/sonicboom-server/plugin.json: the
+    // Conformance gate for tests/fixtures/plugins/sonicboom-server.plugin.json: the
     // declarative example the host ships must always parse and validate.
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/sonicboom-server/plugin.json");
+        .join("../../tests/fixtures/plugins/sonicboom-server.plugin.json");
     if !path.exists() {
         // The crate is consumed outside the workspace; nothing to gate.
         return;
@@ -579,7 +579,7 @@ fn sonicboom_output_action_declares_live_device_source() {
     // source reads the live device list (plus server selection) back from
     // the same server. No hardcoded device names anywhere.
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/sonicboom-server/plugin.json");
+        .join("../../tests/fixtures/plugins/sonicboom-server.plugin.json");
     if !path.exists() {
         // The crate is consumed outside the workspace; nothing to gate.
         return;
@@ -716,7 +716,7 @@ fn parses_the_migrated_sonicboom_package_manifest() {
     // legacy `pages` compatibility input, declarative HTTP actions, and
     // the process backend entry must all ingest together.
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../plugins/sonicboom/plugin.json");
+        .join("../../tests/fixtures/plugins/sonicboom.plugin.json");
     let input = std::fs::read_to_string(&root).expect("package manifest");
     let manifest = PluginManifest::from_json_str(&input).expect("valid manifest");
     assert_eq!(manifest.id, "sonicboom.server");
@@ -840,7 +840,7 @@ fn shipped_textintel_example_declares_valid_autocomplete() {
     // views and moderation verdict must parse and validate, or the editor
     // silently loses TextIntel suggestions on the next snapshot.
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/textintel-process-plugin/plugin.json");
+        .join("../../tests/fixtures/plugins/textintel.plugin.json");
     let input = std::fs::read_to_string(&root).expect("textintel manifest");
     let manifest = PluginManifest::from_json_str(&input).expect("valid manifest");
     assert_eq!(manifest.id, "textintel");
@@ -856,7 +856,7 @@ fn shipped_hotkeys_example_declares_native_addon() {
     // trust, entry, and native declaration must parse, or the reference
     // native plugin silently stops loading on the next snapshot.
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/hotkey-napi-plugin/plugin.json");
+        .join("../../tests/fixtures/plugins/hotkeys.plugin.json");
     let input = std::fs::read_to_string(&root).expect("hotkeys manifest");
     let manifest = PluginManifest::from_json_str(&input).expect("valid manifest");
     assert_eq!(manifest.id, "hotkeys");
@@ -1304,7 +1304,7 @@ fn host_target_reports_real_libc_and_napi_spelling() {
 #[test]
 fn minecraft_example_manifest_parses_as_declarative() {
     let manifest = PluginManifest::from_json_str(include_str!(
-        "../../../../examples/minecraft-server/plugin.json"
+        "../../../../tests/fixtures/plugins/minecraft-server.plugin.json"
     ))
     .expect("minecraft example must parse");
     assert_eq!(manifest.schema_version, 3);
@@ -1350,10 +1350,10 @@ fn minecraft_example_manifest_parses_as_declarative() {
 #[test]
 fn repo_and_reference_manifests_are_valid() {
     for source in [
-        include_str!("../../../../examples/repo-game/plugin.json"),
-        include_str!("../../../../examples/minecraft-server/plugin.json"),
-        include_str!("../../../../examples/sonicboom-server/plugin.json"),
-        include_str!("../../../../examples/peak-game/plugin.json"),
+        include_str!("../../../../tests/fixtures/plugins/repo-game.plugin.json"),
+        include_str!("../../../../tests/fixtures/plugins/minecraft-server.plugin.json"),
+        include_str!("../../../../tests/fixtures/plugins/sonicboom-server.plugin.json"),
+        include_str!("../../../../tests/fixtures/plugins/peak-game.plugin.json"),
     ] {
         PluginManifest::from_json_str(source).expect("reference declarative manifest");
     }
@@ -1361,8 +1361,10 @@ fn repo_and_reference_manifests_are_valid() {
 
 #[test]
 fn token_import_validates_parser_options_and_never_accepts_a_manifest_file_path() {
-    let original: Value =
-        serde_json::from_str(include_str!("../../../../examples/repo-game/plugin.json")).unwrap();
+    let original: Value = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/plugins/repo-game.plugin.json"
+    ))
+    .unwrap();
     for (key, value) in [
         ("format", serde_json::json!("json")),
         ("fileName", serde_json::json!("../credentials.cfg")),
@@ -1382,8 +1384,10 @@ fn token_import_validates_parser_options_and_never_accepts_a_manifest_file_path(
 
 #[test]
 fn token_discovery_rejects_traversal_and_invalid_endpoint_mapping() {
-    let original: Value =
-        serde_json::from_str(include_str!("../../../../examples/repo-game/plugin.json")).unwrap();
+    let original: Value = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/plugins/repo-game.plugin.json"
+    ))
+    .unwrap();
     for (key, value) in [
         ("relativePath", "../../private.cfg"),
         ("relativePath", "/private.cfg"),

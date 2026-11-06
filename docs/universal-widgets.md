@@ -15,7 +15,7 @@ Existing Vue designs are retained; arbitrary component/HTML source cannot be
 silently converted into the portable model. Timeline data is portable metadata;
 no new animation engine is claimed.
 
-The existing `examples/event-gateway-process-plugin` optionally forwards its
+The existing `plugins-example-tiktools/plugins/event-gateway` optionally forwards its
 `live.event` fanout to the independent OBS receiver. Set `obsBridge.enabled`, a
 numeric loopback `address` (default `127.0.0.1:17453`), and `tokenEnv` (default
 `OBS_EVENT_TOKEN`) in its normal plugin settings. Obtain a paired OBS credential
@@ -34,7 +34,7 @@ Shared contracts, fixtures and Rust validation are in `src/universal`. Gateway
 contract/security tests run with:
 
 ```text
-cargo test --manifest-path examples/event-gateway-process-plugin/Cargo.toml --locked
+cargo test --manifest-path plugins-example-tiktools/plugins/event-gateway/Cargo.toml --locked
 bun scripts/check-universal.mjs
 bun test src/widgets/shared/universal.test.ts src/web/entities/overlay/lib/editor-history.test.ts
 ```

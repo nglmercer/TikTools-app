@@ -90,11 +90,22 @@ cargo run -p tiktools-desktop --locked
 
 The normal `bun run start` command launches the Vite dev server, waits until
 it responds, prepares development plugins, and runs the desktop host against
-`TIKTOOLS_DEV_URL`. It discovers example directories containing a
-`Cargo.toml` and `plugin.json`, builds process examples in debug mode, and
-stages them under the ignored `.dev-plugins` runtime root. This is a
-development convenience only; it does not install plugins into the user
-profile or add a compile-time plugin registry. Set
+`TIKTOOLS_DEV_URL`. Plugin sources live in the separate
+[`plugins-example-tiktools`](https://github.com/nglmercer/plugins-example-tiktools)
+repository. When a checkout is found (`TIKTOOLS_PLUGINS_REPO=<path>`, or a
+sibling clone next to this repository), every package under its `plugins/`
+directory is built in debug mode and staged under the ignored `.dev-plugins`
+runtime root (`TIKTOOLS_DEV_PLUGINS_DIR`). Without a checkout TikTools starts
+normally with no development plugins; a package that fails to build is
+reported and skipped. This is a development convenience only; it does not
+install plugins into the user profile or add a compile-time plugin registry.
+
+```text
+workspace/
+├── TikTools-app/              # this repository
+├── RemakeBackend/             # optional Cloud backend
+└── plugins-example-tiktools/  # optional plugin sources
+``` Set
 `TIKTOOLS_SKIP_DEV_PLUGINS=1` to skip it, or use `bun scripts/task.ts rust run -p tiktools-desktop` when the
 existing frontend and plugin artifacts are sufficient.
 
@@ -128,10 +139,10 @@ The SonicBoom plugin ships its own UI and backend builds plus a
 standalone browser suite (see [Plugin UI architecture](PLUGIN_UI_ARCHITECTURE.md)):
 
 ```bash
-bun x vite build --config plugins/sonicboom/ui/vite.config.ts       # isolated UI → plugins/sonicboom/ui/dist/
-bun scripts/build-sonicboom-backend.ts  # chat observer → plugins/sonicboom/backend/dist/
-bun scripts/task.ts e2e test --config plugins/sonicboom/ui/playwright.config.ts        # UI suite + host/plugin interop (build UI first)
-bun test plugins/sonicboom/shared plugins/sonicboom/ui/src             # plugin shared-logic unit tests (the Rust backend is covered by cargo test --workspace)
+bun x vite build --config plugins-example-tiktools/plugins/sonicboom/ui/vite.config.ts       # isolated UI → plugins-example-tiktools/plugins/sonicboom/ui/dist/
+bun scripts/build-sonicboom-backend.ts  # chat observer → plugins-example-tiktools/plugins/sonicboom/backend/dist/
+bun scripts/task.ts e2e test --config plugins-example-tiktools/plugins/sonicboom/ui/playwright.config.ts        # UI suite + host/plugin interop (build UI first)
+bun test plugins-example-tiktools/plugins/sonicboom/shared plugins-example-tiktools/plugins/sonicboom/ui/src             # plugin shared-logic unit tests (the Rust backend is covered by cargo test --workspace)
 ```
 
 Release builds use the custom `tiktools://app` protocol:

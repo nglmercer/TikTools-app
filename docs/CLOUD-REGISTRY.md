@@ -46,10 +46,15 @@ The official source is a builtin and cannot be removed, only disabled:
 | Variable | Meaning |
 | --- | --- |
 | `TIKTOOLS_OFFICIAL_REGISTRY_URL` + `TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS` | Static v1 tree (previous behavior, kept for backwards compatibility). |
-| `TIKTOOLS_CLOUD_ORIGIN` + `TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS` | Cloud origin with per-refresh generation discovery. |
+| `TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS` (origin from the account resolver: `TIKTOOLS_CLOUD_ORIGIN` or the built-in default) | Cloud origin with per-refresh generation discovery. |
 | `TIKTOOLS_STAGING_CLOUD_ORIGIN` + `TIKTOOLS_STAGING_REGISTRY_ROOT_KEYS` | Disposable staging registry under the separate `staging` source. |
 
-Root keys are JSON arrays of public keys, baked in at compile time. Staging
+Root keys are JSON arrays of public keys, baked in at compile time. Without
+pinned official root keys the official source is not registered at all (it is
+never trusted from keys served by the origin itself), and the Plugins page
+reports the marketplace as not yet published. The live backend currently
+answers `GET /api/v1/registry/current` with `404` (no active generation),
+which the client also reports as unpublished. Staging
 uses its own source name and keys so a disposable staging anchor can never be
 mistaken for the official one; configuring only half of a staging pair leaves
 staging disabled rather than running unverified.

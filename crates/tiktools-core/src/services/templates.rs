@@ -8,7 +8,7 @@
 //!
 //! This engine mirrors `src/web/views/behavior/rule-templates.ts` exactly:
 //! the same documents must validate (or fail) on both sides. Shared fixtures
-//! under `examples/templates/fixtures/` pin the agreement.
+//! under `tests/fixtures/templates/` pin the agreement.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -840,16 +840,16 @@ mod tests {
     #[test]
     fn shared_fixtures_agree_with_the_web_engine() {
         let valid: Value = serde_json::from_str(include_str!(
-            "../../../../examples/templates/fixtures/valid-minimal.json"
+            "../../../../tests/fixtures/templates/valid-minimal.json"
         ))
         .expect("fixture parses");
         assert!(parse_rule_template(&valid).is_ok());
         for name in ["invalid-version.json", "invalid-operator.json"] {
             let text = match name {
                 "invalid-version.json" => {
-                    include_str!("../../../../examples/templates/fixtures/invalid-version.json")
+                    include_str!("../../../../tests/fixtures/templates/invalid-version.json")
                 }
-                _ => include_str!("../../../../examples/templates/fixtures/invalid-operator.json"),
+                _ => include_str!("../../../../tests/fixtures/templates/invalid-operator.json"),
             };
             let doc: Value = serde_json::from_str(text).expect("fixture parses");
             assert!(parse_rule_template(&doc).is_err(), "{name} must fail");
@@ -878,7 +878,7 @@ mod tests {
     #[test]
     fn minecraft_giftwall_preset_parses_with_titles_on_every_rule() {
         let raw: Value = serde_json::from_str(include_str!(
-            "../../../../examples/profiles/minecraft-giftwall.tikprofile.json"
+            "../../../../tests/fixtures/profiles/minecraft-giftwall.tikprofile.json"
         ))
         .expect("preset must be valid JSON");
         let profile = parse_profile(&raw).expect("preset must parse");

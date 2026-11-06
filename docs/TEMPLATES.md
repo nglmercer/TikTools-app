@@ -9,7 +9,7 @@ profiles with default options through the header profile selector, where
 one pack stays active at a time. Both sides parse the same v1
 documents (`crates/tiktools-core/src/services/templates.rs` and
 `src/web/views/behavior/rule-templates.ts`) and pin their agreement with
-the fixtures under `examples/templates/fixtures/`.
+the fixtures under `tests/fixtures/templates/`.
 
 ## Template document (v1)
 
@@ -142,8 +142,8 @@ tiktools template import rules.tiktemplate.json --dry-run --param giftName=Rose
 tiktools template import rules.tiktemplate.json --param giftName=Rose
 
 # Profiles: same flow for every entry, profile params merged underneath.
-tiktools template profile-import examples/profiles/minecraft-gifts.tikprofile.json --dry-run
-tiktools template profile-import examples/profiles/minecraft-gifts.tikprofile.json
+tiktools template profile-import plugins-example-tiktools/examples/profiles/minecraft-gifts.tikprofile.json --dry-run
+tiktools template profile-import plugins-example-tiktools/examples/profiles/minecraft-gifts.tikprofile.json
 
 # Round trip back to files.
 tiktools template export --event <event-id> --out rose.tiktemplate.json
@@ -162,7 +162,7 @@ unknown; nothing is created in that case.
 
 ## Minecraft example
 
-`examples/profiles/minecraft-gifts.tikprofile.json` replicates the classic
+`plugins-example-tiktools/examples/profiles/minecraft-gifts.tikprofile.json` replicates the classic
 gift wall: Roses give apples, Galaxies give diamonds, TNT gives TNT, GG
 grants speed, Hearts heal, and follows post a welcome message. Every rule is
 a `core.fetch` POST to the local CommandAPI:
@@ -187,7 +187,7 @@ Start Minecraft with the mod, join a world (commands fail while no world
 is loaded), then import:
 
 ```bash
-tiktools template profile-import examples/profiles/minecraft-gifts.tikprofile.json
+tiktools template profile-import plugins-example-tiktools/examples/profiles/minecraft-gifts.tikprofile.json
 tiktools automation list --kind all
 ```
 
@@ -195,7 +195,7 @@ Caveat: streakable gifts emit one event per combo tick with the running
 `repeatCount`, so a ×5 Rose streak fires five commands. Tune with per-rule
 `cooldownMs` if your server economy minds.
 
-`examples/profiles/minecraft-giftwall.tikprofile.json` is the same idea
+`plugins-example-tiktools/examples/profiles/minecraft-giftwall.tikprofile.json` is the same idea
 built on the `minecraft.server` plugin instead of raw `core.fetch`
 actions: 14 gift rules (TNT tower, mobs, kills, teleports, jail, super
 chest) plus follow/share announcements, every rule flashing a `/title` +

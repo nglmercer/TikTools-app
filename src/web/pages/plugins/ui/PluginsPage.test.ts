@@ -94,8 +94,12 @@ const preview = {
   consentToken: 'token-1',
 };
 
-async function mountPage(plugins: PluginStatus[] = [plugin('deck'), plugin('tts', { installed: false, enabled: false })]) {
+async function mountPage(
+  plugins: PluginStatus[] = [plugin('deck'), plugin('tts', { installed: false, enabled: false })],
+  registries: unknown[] | undefined = undefined,
+) {
   const { client, calls } = createFakeControlClient((method) => {
+    if (method === 'registry.list' && registries) return { registries };
     if (method === 'processors.status') return { processors: [processor] };
     if (method === 'processors.test') {
       return { pluginId: 'deck', processorId: 'enrich', ok: true, durationMs: 3, result: { enriched: true } };
@@ -167,7 +171,7 @@ describe('PluginsPage', () => {
   it('lists installed plugins apart from bundled and registry plugins', async () => {
     const { wrapper, calls } = await mountPage();
     expect(wrapper.findAll('[role="option"]').map((item) => item.text())).toEqual([expect.stringContaining('DECK')]);
-    await buttonByText(wrapper, 'Browse').trigger('click');
+    await buttonByText(wrapper, 'Explore').trigger('click');
     await flushPromises();
     expect(calls.map((call) => call.method)).toContain('registry.search');
     expect(wrapper.findAll('[role="option"]').map((item) => item.text())).toEqual([
@@ -254,7 +258,7 @@ describe('PluginsPage', () => {
 
   it('activates a bundled plugin', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByText(wrapper, 'Browse').trigger('click');
+    await buttonByText(wrapper, 'Explore').trigger('click');
     await flushPromises();
     await selectPlugin(wrapper, 'TTS');
     await buttonByText(wrapper, 'Activate').trigger('click');
@@ -284,7 +288,7 @@ describe('PluginsPage', () => {
 
   it('reviews registry plugins from the browse tab', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByText(wrapper, 'Browse').trigger('click');
+    await buttonByText(wrapper, 'Explore').trigger('click');
     await flushPromises();
     await selectPlugin(wrapper, 'Acme TTS');
     await flushPromises();
@@ -295,6 +299,15 @@ describe('PluginsPage', () => {
     expect(calls.filter((call) => call.method === 'plugins.packages.inspect').at(-1)?.params).toEqual({
       spec: { kind: 'registry', id: 'acme.tts', registry: 'official' },
     });
+  });
+
+  it('explains that the marketplace is unpublished when no registry is available', async () => {
+    const { wrapper, calls } = await mountPage(undefined, []);
+    await buttonByText(wrapper, 'Explore').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain("The official marketplace isn't published yet.");
+    expect(wrapper.find('input[type="search"]').exists()).toBe(false);
+    expect(calls.map((call) => call.method)).toContain('registry.list');
   });
 
   it('shows processor metrics and runs a test', async () => {

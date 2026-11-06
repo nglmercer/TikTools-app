@@ -10,11 +10,20 @@ import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
 import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
+import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import BaseSpinBox from '@/shared/ui/spin-box/BaseSpinBox.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 
+/**
+ * `updates`: plugin update policy for everyone (Settings › Updates).
+ * `registries`: registry sources, sideloading and manual registry setup,
+ * shown only under Settings › Advanced.
+ */
+const props = withDefaults(defineProps<{ part?: 'updates' | 'registries' }>(), { part: 'registries' });
+
 const { t, locale } = useI18n();
+const addOpen = ref(false);
 const packages = usePackagesStore();
 
 const name = ref('');
@@ -54,6 +63,9 @@ const allowSideload = computed({
   get: () => packages.defaults?.allowSideload ?? true,
   set: (value: boolean) => update('allowSideload', value),
 });
+
+const customRegistries = computed(() => packages.registries.filter((registry) => !registry.builtin));
+const builtinRegistries = computed(() => packages.registries.filter((registry) => registry.builtin));
 
 const canFetch = computed(() => /^[a-z][a-z0-9-]{1,31}$/.test(name.value) && /^https?:\/\//.test(url.value.trim()));
 const canAdd = computed(() => canFetch.value && !working.value && (unverified.value || (root.value !== null && confirmed.value)));
@@ -97,8 +109,8 @@ onMounted(() => void packages.loadRegistries());
       compact
     />
     <BaseGroupBox
+      v-if="props.part === 'updates'"
       :title="t('packages.sources.updates')"
-      :description="t('packages.sources.updatesHint')"
     >
       <BaseFormGrid>
         <BaseFormRow
@@ -138,27 +150,21 @@ onMounted(() => void packages.loadRegistries());
           />
         </BaseFormRow>
       </BaseFormGrid>
-      <BaseCheckbox
-        v-model="allowSideload"
-        :disabled="!packages.defaults"
-      >
-        {{ t('packages.sources.allowSideload') }}
-      </BaseCheckbox>
     </BaseGroupBox>
 
     <BaseGroupBox
+      v-if="props.part === 'registries'"
       :title="t('packages.sources.registries')"
-      :description="t('packages.sources.registriesHint')"
     >
       <p
-        v-if="!packages.registries.length"
+        v-if="!builtinRegistries.length"
         class="plugin-sources__muted"
       >
-        {{ t('packages.sources.none') }}
+        {{ t('packages.sources.officialUnavailable') }}
       </p>
       <ul class="plugin-sources__list">
         <li
-          v-for="registry in packages.registries"
+          v-for="registry in [...builtinRegistries, ...customRegistries]"
           :key="registry.name"
           class="plugin-sources__registry"
         >
@@ -202,84 +208,92 @@ onMounted(() => void packages.loadRegistries());
           </BaseButton>
         </li>
       </ul>
-    </BaseGroupBox>
-
-    <BaseGroupBox
-      :title="t('packages.sources.add')"
-      :description="t('packages.sources.addHint')"
-    >
-      <BaseFormGrid>
-        <BaseFormRow
-          for="plugin-sources-name"
-          :label="t('packages.sources.name')"
-        >
-          <BaseTextField
-            id="plugin-sources-name"
-            v-model="name"
-            placeholder="acme"
-          />
-        </BaseFormRow>
-        <BaseFormRow
-          for="plugin-sources-url"
-          :label="t('packages.sources.url')"
-        >
-          <BaseTextField
-            id="plugin-sources-url"
-            v-model="url"
-            type="url"
-            placeholder="https://plugins.example.com/v1"
-          />
-        </BaseFormRow>
-        <BaseFormRow
-          for="plugin-sources-scope"
-          :label="t('packages.sources.scope')"
-          :hint="t('packages.sources.scopeHint')"
-        >
-          <BaseTextField
-            id="plugin-sources-scope"
-            v-model="scope"
-            placeholder="acme.*"
-          />
-        </BaseFormRow>
-      </BaseFormGrid>
-      <div class="plugin-sources__actions">
-        <BaseButton
-          :disabled="!canFetch || working || unverified"
-          @click="fetchKeys"
-        >
-          {{ t('packages.sources.fetchKeys') }}
-        </BaseButton>
-        <BaseCheckbox v-model="unverified">
-          {{ t('packages.sources.unverifiedOption') }}
-        </BaseCheckbox>
-      </div>
-      <div
-        v-if="root && !unverified"
-        class="plugin-sources__keys"
+      <BaseCheckbox
+        v-model="allowSideload"
+        :disabled="!packages.defaults"
+      >
+        {{ t('packages.sources.allowSideload') }}
+      </BaseCheckbox>
+      <BaseDisclosure
+        v-model:open="addOpen"
+        :title="t('packages.sources.add')"
       >
         <p class="plugin-sources__muted">
-          {{ t('packages.sources.fingerprintsHint') }}
+          {{ t('packages.sources.addHint') }}
         </p>
-        <ul class="plugin-sources__list">
-          <li
-            v-for="key in root.keys"
-            :key="key.keyId"
-            class="plugin-sources__mono"
+        <BaseFormGrid>
+          <BaseFormRow
+            for="plugin-sources-name"
+            :label="t('packages.sources.name')"
           >
-            {{ key.keyId }} · {{ key.fingerprint }}
-          </li>
-        </ul>
-        <BaseCheckbox v-model="confirmed">
-          {{ t('packages.sources.confirmFingerprints') }}
-        </BaseCheckbox>
-      </div>
-      <BaseButton
-        variant="primary"
-        :disabled="!canAdd"
-        @click="add"
-      >
-        {{ t('packages.sources.addButton') }}
-      </BaseButton>
+            <BaseTextField
+              id="plugin-sources-name"
+              v-model="name"
+              placeholder="acme"
+            />
+          </BaseFormRow>
+          <BaseFormRow
+            for="plugin-sources-url"
+            :label="t('packages.sources.url')"
+          >
+            <BaseTextField
+              id="plugin-sources-url"
+              v-model="url"
+              type="url"
+              placeholder="https://plugins.example.com/v1"
+            />
+          </BaseFormRow>
+          <BaseFormRow
+            for="plugin-sources-scope"
+            :label="t('packages.sources.scope')"
+            :hint="t('packages.sources.scopeHint')"
+          >
+            <BaseTextField
+              id="plugin-sources-scope"
+              v-model="scope"
+              placeholder="acme.*"
+            />
+          </BaseFormRow>
+        </BaseFormGrid>
+        <div class="plugin-sources__actions">
+          <BaseButton
+            :disabled="!canFetch || working || unverified"
+            @click="fetchKeys"
+          >
+            {{ t('packages.sources.fetchKeys') }}
+          </BaseButton>
+          <BaseCheckbox v-model="unverified">
+            {{ t('packages.sources.unverifiedOption') }}
+          </BaseCheckbox>
+        </div>
+        <div
+          v-if="root && !unverified"
+          class="plugin-sources__keys"
+        >
+          <p class="plugin-sources__muted">
+            {{ t('packages.sources.fingerprintsHint') }}
+          </p>
+          <ul class="plugin-sources__list">
+            <li
+              v-for="key in root.keys"
+              :key="key.keyId"
+              class="plugin-sources__mono"
+            >
+              {{ key.keyId }} · {{ key.fingerprint }}
+            </li>
+          </ul>
+          <BaseCheckbox v-model="confirmed">
+            {{ t('packages.sources.confirmFingerprints') }}
+          </BaseCheckbox>
+        </div>
+        <BaseButton
+          variant="primary"
+          :disabled="!canAdd"
+          @click="add"
+        >
+          {{ t('packages.sources.addButton') }}
+        </BaseButton>
+      </BaseDisclosure>
     </BaseGroupBox>
   </div>
 </template>
@@ -288,7 +302,7 @@ onMounted(() => void packages.loadRegistries());
 .plugin-sources {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-5);
 }
 
 .plugin-sources__list {

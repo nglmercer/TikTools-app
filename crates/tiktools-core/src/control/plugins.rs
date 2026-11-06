@@ -714,7 +714,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("test plugin dir");
         std::fs::write(
             dir.join("plugin.json"),
-            include_str!("../../../../examples/minecraft-server/plugin.json"),
+            include_str!("../../../../tests/fixtures/plugins/minecraft-server.plugin.json"),
         )
         .expect("manifest");
         let manager = PluginManager::new(vec![PluginRoot {

@@ -13,7 +13,7 @@ const settings = {
 };
 function mountEditor(required: boolean, authorized: boolean) {
   return mountWithPlugins(PluginConnectionEditor, { attachTo: document.body, props: {
-    pluginId: 'sonicboom.server', pluginName: 'SonicBoom', actionOptions: {}, settings,
+    pluginId: 'sonicboom.server', pluginName: 'SonicBoom', guided: true, actionOptions: {}, settings,
     supportsProvisioning: true,
     connection: { ok: authorized, reachable: true, latencyMs: 5, at: 1,
       serverInfo: { authRequired: required, authorized, modelStatus: 'downloading', setupComplete: true, playback: true } },

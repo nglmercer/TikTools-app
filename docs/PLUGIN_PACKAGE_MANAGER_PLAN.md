@@ -47,7 +47,7 @@ Design principles:
 | Remote | `nativeLibs` npm/GitHub fetch at install time | No registry, no catalog, no URL installs |
 | Control API | `plugins.install/uninstall/enable/disable/start/stop/install.set` | No inspect, update, rollback, jobs, registry, search |
 | UI | Installed/Available catalog, pick-file install, replace banner | No browse, review/consent dialog, updates, versions, progress |
-| Authoring | `tiktools-plugin-pack`, `tiktools-plugin-stage-native`, `scripts/build-plugin.ts`, Rust SDK | No scaffolding, validation CLI, signing, publishing; no TS guest SDK; broker client copied per plugin (`plugins/sonicboom/ui/src/broker.ts`) |
+| Authoring | `tiktools-plugin-pack`, `tiktools-plugin-stage-native`, `scripts/build-plugin.ts`, Rust SDK | No scaffolding, validation CLI, signing, publishing; no TS guest SDK; broker client copied per plugin (`plugins-example-tiktools/plugins/sonicboom/ui/src/broker.ts`) |
 
 What stays as is: manifest parsing and validation (`tiktools-plugin-api`),
 runtime discovery and loading (`tiktools-plugin-loader`), the runtime-root
@@ -557,7 +557,7 @@ npm packages:
   `$schema`. The schema is hand-written and pinned by a test that parses every
   example manifest with both the Rust parser and the schema.
 - `@tiktools/plugin-ui`: the broker client extracted from
-  `plugins/sonicboom/ui/src/broker.ts`, versioned by `BROKER_API_VERSION`;
+  `plugins-example-tiktools/plugins/sonicboom/ui/src/broker.ts`, versioned by `BROKER_API_VERSION`;
   SonicBoom and future UIs depend on it through the workspace. Host and
   desktop interop tests stay where they are.
 
@@ -572,7 +572,7 @@ updated "Installation" section in `docs/PLUGINS.md`.
 - `--install-plugin <path> [--replace]` keeps working.
 - Existing user packages are adopted (Section 10). Development (`.dev-plugins`)
   and builtin roots are never modified by the installer.
-- In-repo plugins (`plugins/sonicboom`, `examples/*`) gain
+- In-repo plugins (`plugins-example-tiktools/plugins/sonicboom`, `examples/*`) gain
   `publisher: "tiktools"`, `license`, `engines`, `categories`; ids unchanged.
 - Release CI (`.github/workflows/release.yml`) builds, signs (index and
   publisher keys from CI secrets), and publishes official plugins to the

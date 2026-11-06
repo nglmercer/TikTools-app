@@ -104,7 +104,7 @@ test('apply assigns fresh ids, links the event, and keeps runtime spans', () => 
 });
 
 test('shared fixtures agree with the Rust engine (valid vs invalid)', () => {
-  const root = join(process.cwd(), 'examples', 'templates', 'fixtures');
+  const root = join(process.cwd(), 'tests', 'fixtures', 'templates');
   const valid = parseRuleTemplate(JSON.parse(readFileSync(join(root, 'valid-minimal.json'), 'utf8')));
   expect(valid.ok).toBe(true);
   expect(parseRuleTemplate(JSON.parse(readFileSync(join(root, 'invalid-version.json'), 'utf8'))).ok).toBe(false);

@@ -1,7 +1,7 @@
 //! Optional Cloud account for TikTools Desktop.
 //!
-//! The account is strictly opt-in: without an explicit Cloud origin nothing
-//! here runs and every local feature keeps working. Login reuses the pinned
+//! The account is strictly opt-in: signing in is optional, nothing here runs
+//! until the user asks for it, and every local feature keeps working offline. Login reuses the pinned
 //! `cloud-client` flow (system browser, PKCE, loopback callback, one-time
 //! redemption) instead of inventing a second OAuth dance.
 //!
@@ -22,6 +22,40 @@ mod store;
 #[cfg(test)]
 mod auth_tests;
 
+#[cfg(test)]
+mod origin_tests {
+    use super::{resolve_origin_from, DEFAULT_CLOUD_ORIGIN};
+
+    #[test]
+    fn runtime_override_wins_and_can_disable() {
+        assert_eq!(
+            resolve_origin_from(
+                Some(" https://staging.example/ "),
+                Some("https://built.example")
+            ),
+            Some("https://staging.example".to_owned())
+        );
+        for off in ["", "off", "NONE"] {
+            assert_eq!(
+                resolve_origin_from(Some(off), Some("https://built.example")),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn compiled_origin_then_builtin_default() {
+        assert_eq!(
+            resolve_origin_from(None, Some("https://built.example")),
+            Some("https://built.example".to_owned())
+        );
+        assert_eq!(
+            resolve_origin_from(None, None),
+            Some(DEFAULT_CLOUD_ORIGIN.to_owned())
+        );
+    }
+}
+
 pub use state::{AccountState, AccountStatus, Persistence};
 #[cfg(feature = "os-keychain")]
 pub use store::OsTokenStore;
@@ -35,9 +69,42 @@ use thiserror::Error;
 use tokio::sync::{oneshot, Mutex};
 
 /// Environment override for the Cloud origin (development and staging).
-/// Production builds carry no compiled-in origin: none configured means the
-/// account section reports unconfigured and login is unavailable.
+/// Set to an empty string, `off` or `none` to disable Cloud entirely.
 pub const ENV_CLOUD_ORIGIN: &str = "TIKTOOLS_CLOUD_ORIGIN";
+
+/// Official Cloud origin used when neither the runtime environment nor the
+/// build configures one, so a fresh install can sign in without setup.
+pub const DEFAULT_CLOUD_ORIGIN: &str = "https://remakebackend-production-a872.up.railway.app";
+
+/// Resolve the Cloud origin. Precedence:
+///
+/// 1. Runtime `TIKTOOLS_CLOUD_ORIGIN` (development/staging override; an empty
+///    value, `off` or `none` disables Cloud).
+/// 2. The origin compiled in through `TIKTOOLS_CLOUD_ORIGIN` at build time.
+/// 3. [`DEFAULT_CLOUD_ORIGIN`].
+pub fn resolve_cloud_origin() -> Option<String> {
+    resolve_origin_from(
+        std::env::var(ENV_CLOUD_ORIGIN).ok().as_deref(),
+        option_env!("TIKTOOLS_CLOUD_ORIGIN"),
+    )
+}
+
+fn resolve_origin_from(runtime: Option<&str>, compiled: Option<&str>) -> Option<String> {
+    fn configured(value: &str) -> Option<String> {
+        let value = value.trim().trim_end_matches('/');
+        match value.to_ascii_lowercase().as_str() {
+            "" | "off" | "none" => None,
+            _ => Some(value.to_owned()),
+        }
+    }
+    if let Some(runtime) = runtime {
+        return configured(runtime);
+    }
+    match compiled {
+        Some(compiled) => configured(compiled),
+        None => configured(DEFAULT_CLOUD_ORIGIN),
+    }
+}
 
 /// How long [`CloudAuth::complete_login`] waits for the browser callback.
 pub const LOGIN_TIMEOUT: Duration = Duration::from_secs(180);
@@ -80,7 +147,7 @@ impl NativeToken {
 
 #[derive(Debug, Error)]
 pub enum AuthError {
-    #[error("cloud authentication is not configured: set {ENV_CLOUD_ORIGIN}")]
+    #[error("cloud is disabled for this installation")]
     Unconfigured,
     #[error("a login is already in progress")]
     AlreadyInProgress,
@@ -155,14 +222,14 @@ impl CloudAuth {
         }
     }
 
-    /// Build from the `TIKTOOLS_CLOUD_ORIGIN` environment. Empty or missing
-    /// means unconfigured.
+    /// Build from the resolved Cloud origin ([`resolve_cloud_origin`]).
+    /// Only an explicit opt-out reports unconfigured.
     pub fn from_environment(data_dir: PathBuf, store: Arc<dyn TokenStore>) -> Self {
-        let origin = std::env::var(ENV_CLOUD_ORIGIN)
-            .ok()
-            .map(|value| value.trim().to_owned())
-            .filter(|value| !value.is_empty());
-        Self::new(origin, data_dir.join("cloud-account.json"), store)
+        Self::new(
+            resolve_cloud_origin(),
+            data_dir.join("cloud-account.json"),
+            store,
+        )
     }
 
     pub async fn status(&self) -> AccountStatus {

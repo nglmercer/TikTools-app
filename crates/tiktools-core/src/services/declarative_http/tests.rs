@@ -740,7 +740,7 @@ async fn repo_posts_send_nested_json_and_unique_execution_keys() {
     });
     let core = Arc::new(crate::AppCore::new(Arc::new(Emitter)));
     let mut document: Value = serde_json::from_str(include_str!(
-        "../../../../../examples/repo-game/plugin.json"
+        "../../../../../tests/fixtures/plugins/repo-game.plugin.json"
     ))
     .unwrap();
     document["http"]["baseUrl"] = json!(format!("http://{address}"));
@@ -775,7 +775,7 @@ async fn repo_posts_send_nested_json_and_unique_execution_keys() {
 #[test]
 fn repo_dynamic_catalogs_use_runtime_ids_and_names() {
     let document: Value = serde_json::from_str(include_str!(
-        "../../../../../examples/repo-game/plugin.json"
+        "../../../../../tests/fixtures/plugins/repo-game.plugin.json"
     ))
     .unwrap();
     for action in document["actionTypes"].as_array().unwrap() {
@@ -835,7 +835,7 @@ async fn repo_bursts_reject_excess_work_without_queueing() {
     });
     let core = Arc::new(crate::AppCore::new(Arc::new(Emitter)));
     let mut document: Value = serde_json::from_str(include_str!(
-        "../../../../../examples/repo-game/plugin.json"
+        "../../../../../tests/fixtures/plugins/repo-game.plugin.json"
     ))
     .unwrap();
     document["http"]["baseUrl"] = json!(format!("http://{address}"));
@@ -890,7 +890,7 @@ async fn health_reports_api_reachability_separately_from_gameplay_readiness() {
     for (id, path) in [("repo.not-ready", "/not-ready"), ("repo.ready", "/ready")] {
         std::fs::create_dir_all(root.join(id)).unwrap();
         let mut document: Value = serde_json::from_str(include_str!(
-            "../../../../../examples/repo-game/plugin.json"
+            "../../../../../tests/fixtures/plugins/repo-game.plugin.json"
         ))
         .unwrap();
         document["id"] = json!(id);

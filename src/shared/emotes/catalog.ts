@@ -2,7 +2,7 @@
  * Known TikTok LIVE emote shortcodes, app side.
  *
  * This is the same token set the SonicBoom sanitizer uses
- * (`plugins/sonicboom/shared/tts/emote-catalog.ts`). The two live in separate
+ * (`plugins/sonicboom/shared/tts/emote-catalog.ts` in plugins-example-tiktools). The two live in separate
  * build graphs — the plugin UI ships its own bundle and never imports the main
  * app — so the list is duplicated, and `catalog.test.ts` reads the plugin file
  * and fails if the two ever disagree.

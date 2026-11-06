@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 
-import presetJson from '../../../../../examples/profiles/minecraft-giftwall.tikprofile.json';
+import presetJson from '../../../../../tests/fixtures/profiles/minecraft-giftwall.tikprofile.json';
 import { instantiateProfile, parseRuleProfile } from './rule-profiles-state.ts';
 
 test('minecraft gift-wall preset parses on the desktop path', () => {

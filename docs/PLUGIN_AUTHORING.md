@@ -33,7 +33,7 @@ to depend on the local SDK instead of the git dependency.
 tiktools-plugin validate
 tiktools-plugin validate --publish
 # Review several existing plugins at once; exits nonzero if any is not ready.
-tiktools-plugin validate-all plugins/sonicboom examples/*
+tiktools-plugin validate-all plugins-example-tiktools/plugins/sonicboom examples/*
 ```
 
 `validate` parses the manifest with the host parser and reports host
@@ -99,7 +99,7 @@ only through explicit root-signed scopes, such as `--scope 'tiktools.*'
 replace backend publisher approval or independent registry-root delegation.
 Use `validate-all --legacy-id` for these grandfathered manifests. The two
 SonicBoom manifests currently share an ID and version but describe different
-implementations; select `plugins/sonicboom` as the release source, not both.
+implementations; select `plugins-example-tiktools/plugins/sonicboom` as the release source, not both.
 Generated private keys are owner-readable only on Unix.
 
 ## 6. Publish

@@ -1,20 +1,27 @@
 import { $ } from 'bun';
-import { stat } from 'node:fs/promises';
+import { cp, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export const GATEWAY_WIDGET_KINDS = ['follow', 'gift', 'chat', 'share', 'subscribe', 'likes', 'ranking'] as const;
 export type GatewayWidgetKind = (typeof GATEWAY_WIDGET_KINDS)[number];
 
+/** Plugin id of the Event Gateway, which serves the TikTools OBS widgets. */
+export const GATEWAY_PLUGIN_ID = 'tiktools.event-gateway';
+
 /**
- * Builds all OBS widget bundles and stages them into the Event Gateway
- * package (`dist/widgets/`), then verifies every entry page exists. Used by
- * plugin packaging and dev staging so a gateway can never ship (or stage)
- * with `/widgets/*` returning 404. Throws loudly when anything is missing.
+ * The OBS widgets are TikTools sources (`src/widgets`, the public widget
+ * SDK); the Event Gateway plugin lives in the external plugin repository and
+ * only serves them. Builds the bundles and copies them into a staged gateway
+ * package (`<packageDirectory>/dist/widgets/`), then verifies every entry
+ * page, so a gateway can never stage with `/widgets/*` returning 404.
  */
-export async function ensureGatewayWidgetsStaged(repositoryRoot: string): Promise<string> {
+export async function stageGatewayWidgets(repositoryRoot: string, packageDirectory: string): Promise<string> {
   await $`bun scripts/task.ts widgets`.cwd(repositoryRoot).quiet();
-  await $`bun scripts/sync-gateway-widgets.ts`.cwd(repositoryRoot).quiet();
-  const staged = join(repositoryRoot, 'examples', 'event-gateway-process-plugin', 'dist', 'widgets');
+  const source = join(repositoryRoot, 'dist', 'widgets');
+  await assertWidgetBundle(source);
+  const staged = join(packageDirectory, 'dist', 'widgets');
+  await mkdir(staged, { recursive: true });
+  await cp(source, staged, { recursive: true });
   await assertWidgetBundle(staged);
   return staged;
 }
@@ -30,7 +37,7 @@ export async function assertWidgetBundle(widgetsDir: string): Promise<void> {
   if (missing.length > 0) {
     throw new Error(
       `Event Gateway widget assets missing under ${widgetsDir}: ${missing.join(', ')}. ` +
-        `Run \`bun scripts/task.ts widgets && bun scripts/sync-gateway-widgets.ts\` (packaging and dev staging do this automatically).`,
+        'Run `bun scripts/task.ts widgets` (plugin staging and packaging do this automatically).',
     );
   }
 }

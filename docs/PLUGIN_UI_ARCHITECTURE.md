@@ -12,7 +12,7 @@ TikTools core/web
 ├── generic settings/actions/options broker
 └── NO plugin-specific components
 
-plugins/sonicboom/
+plugins-example-tiktools/plugins/sonicboom/
 ├── plugin.json          (manifest: actions, settings, pages, ui, entry)
 ├── backend/             (Rust process plugin: chat observer + speech)
 ├── shared/tts/          (speech policy shared by UI previews)
@@ -126,7 +126,7 @@ headers cannot drift.
 
 ## Backend (process plugin)
 
-Speech is plugin-owned: `plugins/sonicboom/backend/` is a standalone
+Speech is plugin-owned: `plugins-example-tiktools/plugins/sonicboom/backend/` is a standalone
 Rust binary speaking the framed process protocol
 (`tiktools-plugin-sdk`). It observes `live.ui-event` chat, applies the
 speech policy (comment triggers, user eligibility, affordability,

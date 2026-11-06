@@ -37,9 +37,18 @@ of RemakeBackend at `6aead4e`). No second OAuth flow is implemented.
 
 ## Configuration
 
-- `TIKTOOLS_CLOUD_ORIGIN` (e.g. `https://cloud.example.com`) selects the Cloud
-  origin. When unset, all `cloud.*` methods fail closed with
-  `cloud-not-configured` and the Settings section shows the unconfigured state.
+- The Cloud origin resolves automatically, so a fresh install can sign in with
+  no setup. Precedence:
+  1. runtime `TIKTOOLS_CLOUD_ORIGIN` (development/staging override; an empty
+     value, `off` or `none` disables Cloud and every `cloud.*` method fails
+     closed with `cloud-not-configured`),
+  2. `TIKTOOLS_CLOUD_ORIGIN` at build time,
+  3. the built-in official origin
+     (`tiktools_cloud_auth::DEFAULT_CLOUD_ORIGIN`,
+     `https://remakebackend-production-a872.up.railway.app`).
+- Signing in stays optional: the app never contacts the origin until the user
+  presses **Sign in** (or a persisted session is restored), and every local
+  feature works offline.
 - Plain HTTP is accepted only for loopback IP literals (local development).
 - Without the `cloud-auth` (resp. `os-keychain`) cargo features, the backend
   has no `cloud.*` methods and the CLI rejects `cloud ...` with a rebuild hint.
