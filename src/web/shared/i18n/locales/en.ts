@@ -370,6 +370,7 @@ export default {
       sourceTikTok: 'TikTok room ranking',
       sourcePoints: 'Loyalty points ranking',
       sourceRanking: 'Diamonds ranking for this LIVE',
+      sourceLikes: 'Likes in this LIVE',
       filterTop: 'General',
       filterLikes: 'Likes',
       emptyLikes: 'No likes received yet.',

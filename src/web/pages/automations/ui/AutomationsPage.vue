@@ -30,6 +30,7 @@ import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
+import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
 import BaseSplitter from '@/shared/ui/splitter/BaseSplitter.vue';
 import { isLibraryTab, type LibraryTab } from '@/widgets/automation-library/model/library-tab.ts';
@@ -58,7 +59,8 @@ const discardOpen = ref(false);
 const pickerOpen = ref(false);
 const templatesOpen = ref(false);
 const profileImportOpen = ref(false);
-const libraryWidth = ref(460);
+// Wide enough for the four event columns without truncating triggers.
+const libraryWidth = ref(600);
 const runsHeight = ref(200);
 const isNarrow = useMediaQuery('(width < 900px)');
 
@@ -275,10 +277,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
         @export="automation.exportProfile"
         @import="profileImportOpen = true"
       />
+      <span
+        class="automations-page__divider"
+        aria-hidden="true"
+      />
       <BaseButton
         size="sm"
         @click="templatesOpen = true"
       >
+        <template #icon>
+          <IconPlus />
+        </template>
         {{ t('automations.templates.open') }}
       </BaseButton>
       <span class="automations-page__spacer" />
@@ -318,7 +327,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
           v-model:size="libraryWidth"
           class="automations-page__main"
           :min="320"
-          :max="760"
+          :max="900"
         >
           <template #start>
             <AutomationLibrary
@@ -533,6 +542,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
 
 .automations-page__spacer {
   flex: 1;
+}
+
+/* Separates the profile picker group from page actions. */
+.automations-page__divider {
+  align-self: stretch;
+  width: var(--border-width);
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-border);
 }
 
 .automations-page__banner {

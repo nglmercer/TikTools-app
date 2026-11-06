@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, type Component } from 'vue';
+import { computed, markRaw, ref, shallowRef, type Component } from 'vue';
 import type { ActionTypeDefinition, BehaviorRun, LiveAction, LiveEvent, PluginEventType } from '../../../../automation/behavior/types.ts';
 import {
   actionNames,
@@ -16,10 +16,11 @@ import { formatClockTime } from '@/entities/analytics/lib/analytics-range.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
-import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconChat from '@/shared/ui/icon/icons/IconChat.vue';
 import IconCoins from '@/shared/ui/icon/icons/IconCoins.vue';
+import IconFilter from '@/shared/ui/icon/icons/IconFilter.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
@@ -27,6 +28,8 @@ import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import IconStop from '@/shared/ui/icon/icons/IconStop.vue';
 import IconUser from '@/shared/ui/icon/icons/IconUser.vue';
 import IconVolume from '@/shared/ui/icon/icons/IconVolume.vue';
+import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
+import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import BaseTable from '@/shared/ui/table/BaseTable.vue';
 import type { TableColumn } from '@/shared/ui/table/table-types.ts';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
@@ -61,17 +64,31 @@ const tabs = computed(() => [
   { value: 'events' as const, label: `${t('automations.library.events')} (${props.events.length})` },
   { value: 'actions' as const, label: `${t('automations.library.actions')} (${props.actions.length})` },
 ]);
-const sortOptions = computed(() => recordSorts.map((sort) => ({ value: sort, label: t(`automations.library.sorts.${sort}`) })));
+/** Sorting lives behind one icon to keep the toolbar minimal. */
+const sortMenuOpen = ref(false);
+const sortMenuAnchor = shallowRef<HTMLElement | null>(null);
+const sortMenu = computed<MenuEntry[]>(() =>
+  recordSorts.map((value) => ({ id: value, label: t(`automations.library.sorts.${value}`), checked: sort.value === value })),
+);
+
+function openSortMenu(event: MouseEvent): void {
+  sortMenuAnchor.value = markRaw(event.currentTarget as HTMLElement);
+  sortMenuOpen.value = true;
+}
+
+function onSortMenu(action: MenuAction): void {
+  sort.value = action.id as RecordSort;
+}
 
 const eventColumns = computed<TableColumn[]>(() => [
-  { key: 'enabled', label: t('automations.library.columns.enabled'), width: '56px', align: 'center' },
-  { key: 'name', label: t('automations.library.columns.name') },
-  { key: 'trigger', label: t('automations.library.columns.trigger') },
+  { key: 'enabled', label: t('automations.library.columns.enabled'), width: '52px', align: 'center' },
+  { key: 'name', label: t('automations.library.columns.name'), width: '32%' },
+  { key: 'trigger', label: t('automations.library.columns.trigger'), width: '30%' },
   { key: 'actions', label: t('automations.library.columns.actions') },
 ]);
 const actionColumns = computed<TableColumn[]>(() => [
-  { key: 'enabled', label: t('automations.library.columns.enabled'), width: '56px', align: 'center' },
-  { key: 'name', label: t('automations.library.columns.name') },
+  { key: 'enabled', label: t('automations.library.columns.enabled'), width: '52px', align: 'center' },
+  { key: 'name', label: t('automations.library.columns.name'), width: '38%' },
   { key: 'type', label: t('automations.library.columns.type') },
   { key: 'lastRun', label: t('automations.library.columns.lastRun'), width: '110px', align: 'end' },
 ]);
@@ -165,7 +182,6 @@ const sort = computed({
             v-model="query"
             class="automation-library__search"
             type="search"
-            size="sm"
             :placeholder="tab === 'events' ? t('automations.library.searchEvents') : t('automations.library.searchActions')"
             :aria-label="tab === 'events' ? t('automations.library.searchEvents') : t('automations.library.searchActions')"
           >
@@ -173,15 +189,25 @@ const sort = computed({
               <IconSearch />
             </template>
           </BaseTextField>
-          <BaseComboBox
-            v-model="sort"
+          <BaseIconButton
             class="automation-library__sort"
-            :options="sortOptions"
-            size="sm"
-            :aria-label="t('automations.library.sort')"
+            :class="{ 'automation-library__sort--active': sort !== 'name' }"
+            :label="`${t('automations.library.sort')}: ${t(`automations.library.sorts.${sort}`)}`"
+            variant="default"
+            aria-haspopup="menu"
+            :aria-expanded="sortMenuOpen"
+            @click="openSortMenu"
+          >
+            <IconFilter />
+          </BaseIconButton>
+          <BaseMenu
+            v-model:open="sortMenuOpen"
+            :items="sortMenu"
+            :anchor="sortMenuAnchor"
+            placement="bottom-end"
+            @select="onSortMenu"
           />
           <BaseButton
-            size="sm"
             variant="primary"
             @click="tab === 'events' ? emit('newEvent') : emit('newAction')"
           >
@@ -301,6 +327,21 @@ const sort = computed({
   height: 100%;
 }
 
+/* Events / Actions split the pane evenly at full control height. */
+.automation-library__tabs :deep(.base-tabs__list) {
+  padding: var(--space-2) var(--space-3) 0;
+}
+
+.automation-library__tabs :deep(.base-tabs__tab) {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-height-lg);
+}
+
+.automation-library__tabs :deep(.base-tabs__tab[aria-selected='true']) {
+  font-weight: var(--font-weight-semibold);
+}
+
 .automation-library__pane {
   display: flex;
   flex-direction: column;
@@ -312,8 +353,8 @@ const sort = computed({
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-3);
   border-bottom: var(--border-width) solid var(--color-border-subtle);
 }
 
@@ -323,12 +364,32 @@ const sort = computed({
 }
 
 .automation-library__sort {
-  width: 150px;
+  position: relative;
+  flex: none;
+}
+
+/* A dot marks a non-default order. */
+.automation-library__sort--active::after {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent-hover);
+  content: '';
 }
 
 .automation-library__table {
   flex: 1;
   min-height: 0;
+}
+
+/* Name cells stack a title and a subtitle: give them room to breathe. */
+.automation-library__table :deep(.base-table__cell) {
+  height: 40px;
+  padding-block: var(--space-2);
+  line-height: var(--line-height-tight);
 }
 
 .automation-library__name {
@@ -341,6 +402,7 @@ const sort = computed({
 .automation-library__sub,
 .automation-library__warning {
   display: block;
+  margin-top: var(--space-1);
   overflow: hidden;
   color: var(--color-text-subtle);
   font-size: var(--font-size-xs);
@@ -384,11 +446,6 @@ const sort = computed({
   .automation-library__toolbar {
     flex-wrap: wrap;
     row-gap: var(--space-2);
-  }
-
-  .automation-library__sort {
-    flex: 1 1 140px;
-    width: auto;
   }
 }
 </style>

@@ -11,6 +11,8 @@ import TopLikesList from '@/entities/viewer/ui/TopLikesList.vue';
 import ViewerProfile from '@/entities/viewer/ui/ViewerProfile.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import IconClose from '@/shared/ui/icon/icons/IconClose.vue';
+import IconEye from '@/shared/ui/icon/icons/IconEye.vue';
+import { formatCount } from '@/shared/lib/intl.ts';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
@@ -82,12 +84,22 @@ const tabs = computed(() => [
       <template #default="{ value }">
         <div class="feed-inspector__body">
           <template v-if="value === 'viewers'">
-            <BaseSegmented
-              v-model="viewerMode"
-              class="feed-inspector__viewer-filter"
-              :options="viewerModes"
-              size="sm"
-            />
+            <div class="feed-inspector__viewer-bar">
+              <BaseSegmented
+                v-model="viewerMode"
+                class="feed-inspector__viewer-filter"
+                :options="viewerModes"
+              />
+              <span
+                class="feed-inspector__live"
+                :title="t('feed.viewers.live', { count: formatCount(liveViewers, locale) })"
+                :aria-label="t('feed.viewers.live', { count: formatCount(liveViewers, locale) })"
+                role="status"
+              >
+                <IconEye />
+                {{ formatCount(liveViewers, locale) }}
+              </span>
+            </div>
             <TopLikesList
               v-if="viewerMode === 'likes'"
               :leaders="likes"
@@ -98,7 +110,6 @@ const tabs = computed(() => [
               v-else
               :top-viewers="topViewers"
               :leaderboard="leaderboard"
-              :live-viewers="liveViewers"
               :ranking="topRanking"
               :images="images"
               @select="emit('open-viewer', $event)"
@@ -180,8 +191,37 @@ const tabs = computed(() => [
   overflow-y: auto;
 }
 
+.feed-inspector__viewer-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+/* Equal-width tabs that fill the panel. */
 .feed-inspector__viewer-filter {
-  margin-bottom: var(--space-3);
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.feed-inspector__viewer-filter :deep(.base-segmented__option) {
+  flex: 1;
+  min-width: 0;
+}
+
+.feed-inspector__live {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-md);
+  padding: 0 var(--space-4);
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 .feed-inspector__empty {
