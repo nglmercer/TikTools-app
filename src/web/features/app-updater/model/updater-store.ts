@@ -15,6 +15,8 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
   const error = ref('');
   let initialized = false;
   let eventRevision = 0;
+  const preferencesLoaded = ref(false);
+  let latestChecked = 0;
   let saveQueue = Promise.resolve();
 
   function save(): Promise<void> {
@@ -31,8 +33,9 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
     client.onTopic<{ state: UpdateStatus }>('app.update.stateChanged', ({ state }) => {
       eventRevision++;
       status.value = state;
-      if (state.lastChecked && state.lastChecked > preferences.value.lastChecked) {
-        preferences.value.lastChecked = state.lastChecked;
+      latestChecked = Math.max(latestChecked, state.lastChecked ?? 0);
+      if (preferencesLoaded.value && latestChecked > preferences.value.lastChecked) {
+        preferences.value.lastChecked = latestChecked;
         void save();
       }
     });
@@ -46,9 +49,19 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
         lastChecked: typeof parsed.lastChecked === 'number' && Number.isFinite(parsed.lastChecked) ? parsed.lastChecked : 0,
         lastAttempt: typeof parsed.lastAttempt === 'number' && Number.isFinite(parsed.lastAttempt) ? parsed.lastAttempt : 0,
       };
+      preferencesLoaded.value = true;
+      if (latestChecked > preferences.value.lastChecked) {
+        preferences.value.lastChecked = latestChecked;
+        void save();
+      }
       const revision = eventRevision;
       const initialStatus = await updaterApi.status(client);
       if (revision === eventRevision) status.value = initialStatus;
+      latestChecked = Math.max(latestChecked, status.value?.lastChecked ?? 0);
+      if (latestChecked > preferences.value.lastChecked) {
+        preferences.value.lastChecked = latestChecked;
+        void save();
+      }
       if (status.value?.checkSupported && preferences.value.automaticChecks && Date.now() / 1000 - preferences.value.lastAttempt >= INTERVAL_SECONDS) await check();
     } catch (failure) { error.value = errorMessage(failure); }
   }
@@ -67,7 +80,7 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
     catch (failure) { error.value = errorMessage(failure); }
   }
 
-  async function setChannel(channel: UpdateChannel): Promise<void> { preferences.value.channel = channel; await save(); }
-  async function setPreference(key: 'automaticChecks' | 'notifications', value: boolean): Promise<void> { preferences.value[key] = value; await save(); }
-  return { status, preferences, error, initialize, check, download, setChannel, setPreference };
+  async function setChannel(channel: UpdateChannel): Promise<void> { if (!preferencesLoaded.value) return; preferences.value.channel = channel; await save(); }
+  async function setPreference(key: 'automaticChecks' | 'notifications', value: boolean): Promise<void> { if (!preferencesLoaded.value) return; preferences.value[key] = value; await save(); }
+  return { status, preferences, preferencesLoaded, error, initialize, check, download, setChannel, setPreference };
 });

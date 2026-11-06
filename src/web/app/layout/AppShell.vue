@@ -187,7 +187,7 @@ function openConnectionSetup(): void {
       @dismiss="connection.error = ''"
     />
     <BaseNotification
-      v-else-if="appUpdater.preferences.notifications && appUpdater.status?.channel === appUpdater.preferences.channel && appUpdater.status?.state === 'available' && appUpdater.status.availableVersion && dismissedUpdate !== appUpdater.status.availableVersion"
+      v-else-if="appUpdater.preferencesLoaded && appUpdater.preferences.notifications && appUpdater.status?.channel === appUpdater.preferences.channel && appUpdater.status?.state === 'available' && appUpdater.status.availableVersion && dismissedUpdate !== appUpdater.status.availableVersion"
       class="app-layout__notice"
       :message="t('appUpdater.available', { version: appUpdater.status.availableVersion })"
       :action-label="t('appUpdater.title')"

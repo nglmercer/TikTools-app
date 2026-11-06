@@ -10,7 +10,7 @@ import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 const { t, locale } = useI18n();
 const updater = useAppUpdaterStore();
 const status = computed(() => updater.status);
-const matchingChannel = computed(() => status.value?.channel === updater.preferences.channel);
+const matchingChannel = computed(() => updater.preferencesLoaded && status.value?.channel === updater.preferences.channel);
 const busy = computed(() => ['checking', 'downloading', 'verifying', 'installing'].includes(status.value?.state ?? ''));
 const progress = computed(() => status.value?.totalBytes ? Math.min(100, Math.round(status.value.downloadedBytes * 100 / status.value.totalBytes)) : null);
 const checked = computed(() => updater.preferences.lastChecked ? new Date(updater.preferences.lastChecked * 1000).toLocaleString(locale.value) : '');
@@ -38,7 +38,7 @@ function install(): void {
       <select
         id="app-update-channel"
         :value="updater.preferences.channel"
-        :disabled="busy"
+        :disabled="busy || !updater.preferencesLoaded"
         @change="updater.setChannel(($event.target as HTMLSelectElement).value as UpdateChannel)"
       >
         <option value="stable">
@@ -50,19 +50,21 @@ function install(): void {
       </select>
       <BaseCheckbox
         :model-value="updater.preferences.automaticChecks"
+        :disabled="!updater.preferencesLoaded"
         @update:model-value="updater.setPreference('automaticChecks', $event)"
       >
         {{ t('appUpdater.automaticChecks') }}
       </BaseCheckbox>
       <BaseCheckbox
         :model-value="updater.preferences.notifications"
+        :disabled="!updater.preferencesLoaded"
         @update:model-value="updater.setPreference('notifications', $event)"
       >
         {{ t('appUpdater.notifications') }}
       </BaseCheckbox>
       <div class="app-updater__actions">
         <BaseButton
-          :disabled="busy || !status?.checkSupported"
+          :disabled="busy || !updater.preferencesLoaded || !status?.checkSupported"
           @click="updater.check()"
         >
           {{ t('appUpdater.check') }}
