@@ -37,6 +37,10 @@ export default {
     rankings: 'Clasificaciones y competiciones',
     settings: 'Ajustes',
     toggleSidebar: 'Mostrar u ocultar la barra lateral',
+    pull: {
+      hint: 'Desliza para recargar',
+      release: 'Suelta para recargar',
+    },
   },
   connection: {
     handleRequired: 'Introduce el usuario de TikTok del creador.',

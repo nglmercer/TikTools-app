@@ -11,6 +11,8 @@ import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
 import { useNavigationStore } from '@/shared/model/navigation-store.ts';
+import { onPullToRefresh, onSwipe } from '@/shared/lib/touch-gestures.ts';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconChart from '@/shared/ui/icon/icons/IconChart.vue';
 import IconChat from '@/shared/ui/icon/icons/IconChat.vue';
 import IconCoins from '@/shared/ui/icon/icons/IconCoins.vue';
@@ -130,6 +132,40 @@ function closeDrawer(): void {
   drawerOpen.value = false;
 }
 
+/* ---- Touch gestures (mobile) ---- */
+const contentRef = ref<HTMLElement | null>(null);
+const pullDistance = ref(0);
+const pullArmed = ref(false);
+const gestureDisposers: Array<() => void> = [];
+
+function reloadApp(): void {
+  pullDistance.value = 0;
+  window.location.reload();
+}
+
+function installGestures(): void {
+  // Swipe in from the left edge opens the drawer on narrow layouts.
+  gestureDisposers.push(onSwipe(window, {
+    edge: 24,
+    enabled: () => isNarrow.value && !drawerOpen.value,
+    onSwipe: (direction) => { if (direction === 'right') drawerOpen.value = true; },
+  }));
+  // Swiping left on the open drawer (or its scrim) closes it.
+  gestureDisposers.push(onSwipe(window, {
+    enabled: () => isNarrow.value && drawerOpen.value,
+    onSwipe: (direction) => { if (direction === 'left') drawerOpen.value = false; },
+  }));
+  if (contentRef.value) {
+    gestureDisposers.push(onPullToRefresh(contentRef.value, {
+      onPull: (distance, armed) => {
+        pullDistance.value = distance;
+        pullArmed.value = armed;
+      },
+      onRefresh: reloadApp,
+    }));
+  }
+}
+
 function onShellKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape' && isNarrow.value && drawerOpen.value && !event.defaultPrevented) {
     drawerOpen.value = false;
@@ -144,6 +180,7 @@ onMounted(() => {
     else narrowQuery.addListener(onNarrowChange as (event: MediaQueryListEvent) => void);
   }
   window.addEventListener('keydown', onShellKeydown);
+  installGestures();
 });
 
 onBeforeUnmount(() => {
@@ -153,6 +190,7 @@ onBeforeUnmount(() => {
     narrowQuery = null;
   }
   window.removeEventListener('keydown', onShellKeydown);
+  for (const dispose of gestureDisposers.splice(0)) dispose();
 });
 
 function connect(): void {
@@ -224,7 +262,23 @@ function openConnectionSetup(): void {
         :sections="sections"
         :collapsed="sidebarRail"
       />
-      <main class="app-layout__content">
+      <main
+        ref="contentRef"
+        class="app-layout__content"
+      >
+        <div
+          v-if="pullDistance > 0"
+          class="app-layout__pull"
+          :class="{ 'app-layout__pull--armed': pullArmed }"
+          :style="{ transform: `translate(-50%, ${pullDistance - 40}px)` }"
+          role="status"
+        >
+          <IconRefresh
+            class="app-layout__pull-icon"
+            :style="{ transform: `rotate(${pullDistance * 3}deg)` }"
+          />
+          <span>{{ t(pullArmed ? 'navigation.pull.release' : 'navigation.pull.hint') }}</span>
+        </div>
         <RouterView />
       </main>
     </div>
@@ -270,6 +324,36 @@ function openConnectionSetup(): void {
   max-width: min(440px, calc(100vw - 32px));
 }
 
+/* Pull-to-refresh indicator: slides down from the top of the content. */
+.app-layout__pull {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 32px;
+  padding: 0 var(--space-5);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-overlay);
+  box-shadow: var(--shadow-popup);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.app-layout__pull--armed {
+  border-color: var(--color-border-selected);
+  color: var(--color-text);
+}
+
+.app-layout__pull--armed .app-layout__pull-icon {
+  color: var(--color-accent-hover);
+}
+
 .app-layout__navigation {
   flex: none;
   width: 208px;
@@ -293,6 +377,7 @@ function openConnectionSetup(): void {
 }
 
 .app-layout__content {
+  position: relative;
   display: flex;
   flex: 1;
   min-width: 0;
