@@ -37,6 +37,20 @@ installation type without starting the GUI. AppImage auto-installation requires
 the executable to be inside the mounted image and validates the outer image's
 header; extracted or unknown layouts fall back to manual installation.
 
+A Linux integration check can exercise Packager replacement while a disposable
+AppImage is running. With a graphical display, FUSE, and a locally built 4.0.0
+AppImage, run:
+
+```sh
+TIKTOOLS_TEST_APPIMAGE=/absolute/path/TikTools.AppImage \
+  cargo test -p tiktools-app-update packager_replaces_a_running_disposable_appimage -- --ignored
+```
+
+The test uses an isolated profile and confirms the running image remains alive,
+the replacement has a new inode, and a profile marker survives. It uses the same
+version on both sides and does not test signatures or the desktop shutdown and
+restart handoff.
+
 For development, run `cargo test -p tiktools-app-update --locked`. Tests use
 public signature vectors and loopback HTTP fixtures; they do not prove that
 the production endpoints or operating-system installers work. Create a

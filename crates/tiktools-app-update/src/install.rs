@@ -288,6 +288,97 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires a real AppImage, GUI display and FUSE; set TIKTOOLS_TEST_APPIMAGE"]
+    fn packager_replaces_a_running_disposable_appimage_without_touching_its_profile() {
+        use std::os::unix::fs::MetadataExt;
+        struct Running(std::process::Child);
+        impl Drop for Running {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        let source = PathBuf::from(
+            std::env::var_os("TIKTOOLS_TEST_APPIMAGE").expect("set TIKTOOLS_TEST_APPIMAGE"),
+        );
+        let root = tempfile::tempdir_in(source.parent().unwrap()).unwrap();
+        let image = root.path().join("TikTools.AppImage");
+        let profile_root = tempfile::Builder::new()
+            .prefix("tik-smoke-")
+            .tempdir()
+            .unwrap();
+        let profile = profile_root.path().join("profile");
+        let empty_plugins = root.path().join("empty-plugins");
+        std::fs::create_dir_all(&profile).unwrap();
+        std::fs::create_dir_all(&empty_plugins).unwrap();
+        std::fs::copy(&source, &image).unwrap();
+        let marker = profile.join("user-data-marker");
+        std::fs::write(&marker, b"preserve").unwrap();
+        let original_inode = std::fs::metadata(&image).unwrap().ino();
+        let mut command = Command::new(&image);
+        for (name, _) in std::env::vars_os() {
+            if name.to_string_lossy().starts_with("TIKTOOLS_") {
+                command.env_remove(name);
+            }
+        }
+        let mut running = Running(
+            command
+                .env("TIKTOOLS_HOME", &profile)
+                .env("TIKTOOLS_BUILTIN_PLUGINS_DIR", &empty_plugins)
+                .env("XDG_CONFIG_HOME", root.path().join("config"))
+                .env("XDG_DATA_HOME", root.path().join("data"))
+                .env("XDG_CACHE_HOME", root.path().join("cache"))
+                .env("XDG_STATE_HOME", root.path().join("state"))
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap(),
+        );
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            assert!(
+                running.0.try_wait().unwrap().is_none(),
+                "AppImage exited before frontend was ready"
+            );
+            let log =
+                std::fs::read_to_string(profile.join("logs/tiktools.log")).unwrap_or_default();
+            if log.contains("WebView frontend-ready") {
+                break;
+            }
+            assert!(Instant::now() < deadline, "frontend did not become ready");
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        let bytes = std::fs::read(&source).unwrap();
+        preflight_appimage(&bytes, &image, "4.0.0").unwrap();
+        let update = Update {
+            config: Config {
+                endpoints: vec![],
+                pubkey: String::new(),
+                windows: None,
+            },
+            body: None,
+            current_version: "4.0.0".into(),
+            version: "4.0.0".into(),
+            date: None,
+            target: "linux".into(),
+            extract_path: image.clone(),
+            download_url: "https://example.com/app".parse().unwrap(),
+            signature: String::new(),
+            timeout: None,
+            headers: Default::default(),
+            format: UpdateFormat::AppImage,
+        };
+        install_package(&update, bytes).unwrap();
+        assert_ne!(std::fs::metadata(&image).unwrap().ino(), original_inode);
+        assert!(
+            running.0.try_wait().unwrap().is_none(),
+            "old process exited during replacement"
+        );
+        assert_eq!(std::fs::read(&marker).unwrap(), b"preserve");
+        validate_version(&image, "4.0.0").unwrap();
+    }
+
+    #[test]
     fn preflight_rejects_mismatched_binary_without_replacing_current_image() {
         let root = tempfile::tempdir().unwrap();
         let current = root.path().join("current.AppImage");
