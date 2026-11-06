@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-import { startGateway, type RunningGateway } from './gateway-harness.ts';
+import { gatewayAvailable, startGateway, type RunningGateway } from './gateway-harness.ts';
+
+test.skip(!gatewayAvailable, 'needs the plugins-example-tiktools checkout (set TIKTOOLS_PLUGINS_REPO)');
 
 let gateway: RunningGateway;
 

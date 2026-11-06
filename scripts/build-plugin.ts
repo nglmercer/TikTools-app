@@ -1,6 +1,7 @@
-import { mkdir, readdir, readFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { GATEWAY_WIDGET_KINDS, ensureGatewayWidgetsStaged } from './lib/gateway-widgets.ts';
+import { PLUGINS_REPO_ENV, PLUGINS_REPO_NAME, externalPluginDirectories, resolvePluginsRepository } from './lib/external-plugins.ts';
+import { GATEWAY_PLUGIN_ID, GATEWAY_WIDGET_KINDS, stageGatewayWidgets } from './lib/gateway-widgets.ts';
 import {
   artifactFileName,
   detectHostTarget,
@@ -13,7 +14,6 @@ import {
 
 const repositoryRoot = resolve(import.meta.dir, '..');
 const cargoWrapper = join(repositoryRoot, 'scripts', 'cargo-with-linker.mjs');
-const examplesRoot = join(repositoryRoot, 'examples');
 const defaultOutDirectory = join(repositoryRoot, 'dist', 'plugins');
 
 type ExampleManifest = {
@@ -48,7 +48,8 @@ async function exists(path: string): Promise<boolean> {
 }
 
 function printHelp(): void {
-  console.log(`Build distributable .plugin archives from examples/.
+  console.log(`Build distributable .plugin archives from the external plugin checkout
+(${PLUGINS_REPO_ENV}, or a sibling ${PLUGINS_REPO_NAME}/).
 
 Usage:
   bun scripts/task.ts plugins --plugin <name>
@@ -59,8 +60,8 @@ Usage:
   bun scripts/task.ts plugins --all --target <rust-target>
 
 Options:
-  --plugin <name>   Example directory or manifest id (repeatable)
-  --all             Build every example with a plugin.json
+  --plugin <name>   Plugin directory or manifest id (repeatable)
+  --all             Build every plugin with a plugin.json
   --target <triple> Rust target triple (default: host target)
   --host            Build for the host target explicitly
   --out <dir>       Output directory (default: dist/plugins)
@@ -189,6 +190,8 @@ async function buildNapiVmExample(
     join(repositoryRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
     '-p',
     tsconfigPath,
+    '--typeRoots',
+    join(repositoryRoot, 'node_modules', '@types'),
   ]);
   const nativeAddons = Array.isArray(manifest['nativeAddons'])
     ? (manifest['nativeAddons'] as NativeAddonDeclaration[])
@@ -275,12 +278,13 @@ async function buildNapiVmExample(
 
 type DiscoveredExample = { directory: string; manifestPath: string; manifest: ExampleManifest };
 
+const pluginsRepository = await resolvePluginsRepository(repositoryRoot);
+if (!pluginsRepository) {
+  fail(`no plugin sources: clone ${PLUGINS_REPO_NAME} beside TikTools or set ${PLUGINS_REPO_ENV}`);
+}
 const discovered: DiscoveredExample[] = [];
-for (const entry of await readdir(examplesRoot, { withFileTypes: true })) {
-  if (!entry.isDirectory()) continue;
-  const directory = join(examplesRoot, entry.name);
+for (const directory of await externalPluginDirectories(pluginsRepository)) {
   const manifestPath = join(directory, 'plugin.json');
-  if (!(await exists(manifestPath))) continue;
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ExampleManifest;
   // napi-vm examples ship TypeScript; declarative examples need no build.
   // Compiled runtimes need a Cargo project.
@@ -304,7 +308,7 @@ const targets = buildAll
       return found;
     });
 
-if (targets.length === 0) fail('no plugins found under examples/');
+if (targets.length === 0) fail(`no buildable plugins found under ${pluginsRepository}/plugins`);
 
 await mkdir(outDirectory, { recursive: true });
 
@@ -333,10 +337,11 @@ for (const { directory, manifestPath, manifest } of targets) {
   if (sourceEntry.includes('\0') || sourceEntry.startsWith('/') || sourceEntry.split('/').includes('..')) {
     fail(`${manifestPath} has an unsafe entry: ${sourceEntry}`);
   }
-  if (id === 'tiktools.event-gateway') {
-    // Widget bundles are mandatory gateway content: build and stage them
-    // before the packager snapshots dist/, and fail loudly when missing.
-    await ensureGatewayWidgetsStaged(repositoryRoot);
+  if (id === GATEWAY_PLUGIN_ID) {
+    // Widget bundles are mandatory gateway content and TikTools-owned:
+    // build and stage them into the package's (gitignored) dist/ before the
+    // packager snapshots it, and fail loudly when missing.
+    await stageGatewayWidgets(repositoryRoot, directory);
   }
 
   // Declarative and WASM packages are target-independent;
@@ -361,6 +366,8 @@ for (const { directory, manifestPath, manifest } of targets) {
       selectedTarget.rustTarget,
       '--manifest-path',
       join(directory, 'Cargo.toml'),
+      '--target-dir',
+      join(pluginsRepository, 'target'),
     ]);
 
     // The executable suffix derives from the requested build target, never
@@ -371,7 +378,7 @@ for (const { directory, manifestPath, manifest } of targets) {
         ? `${sourceEntry}.exe`
         : sourceEntry;
     builtEntryPath = join(
-      directory,
+      pluginsRepository,
       'target',
       selectedTarget.rustTarget,
       profile,
@@ -413,7 +420,7 @@ for (const { directory, manifestPath, manifest } of targets) {
       fail(`archive ${archivePath} signing key publisher does not match its manifest`);
     }
   }
-  if (id === 'tiktools.event-gateway') {
+  if (id === GATEWAY_PLUGIN_ID) {
     await verifyPackagedWidgets(archivePath, id);
   }
 

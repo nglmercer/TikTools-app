@@ -26,9 +26,6 @@ playwright/.cache/
 # The napi-vm hang fixture commits its guest entry so the startup-handshake
 # deadline test stays reviewable and reproducible.
 !crates/tiktools-plugin-loader/tests/fixtures/napi-vm-hang/dist/
-# The napi-vm hotkeys example commits its compiled guest entry for
-# reviewability; its node_modules are staged at build time and ignored.
-!examples/hotkey-napi-plugin/dist/
 
 # Python profiler/test bytecode.
 __pycache__/

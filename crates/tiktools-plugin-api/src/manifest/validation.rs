@@ -277,6 +277,10 @@ pub fn validate_http_config(http: &Value) -> Result<(), ManifestError> {
         }) {
             return Err(ManifestError::InvalidField("http"));
         }
+        if let Some(probe) = health.get("authProbePath") {
+            let probe = probe.as_str().ok_or(ManifestError::InvalidField("http"))?;
+            validate_relative_path(probe).map_err(|_| ManifestError::InvalidField("http"))?;
+        }
         if let Some(timeout) = health.get("timeoutMs") {
             validate_http_timeout(timeout, MAX_HTTP_FETCH_TIMEOUT_MS)
                 .map_err(|_| ManifestError::InvalidField("http"))?;

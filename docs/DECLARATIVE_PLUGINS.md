@@ -3,7 +3,7 @@
 A declarative plugin integrates an HTTP server (SonicBoom, a webhook, any
 JSON API) with **no plugin code at all**: the host interprets the manifest's
 HTTP actions, option sources, templates, and pages through its own hardened
-pipeline. `examples/sonicboom-server/plugin.json` is the reference package.
+pipeline. `plugins-example-tiktools/examples/sonicboom-server-declarative/plugin.json` is the reference package.
 
 Schema v2 manifests keep working unchanged: declarative keys are only read
 when `"schemaVersion"` is `3`, and `runtime: "declarative"` packages need no
@@ -275,17 +275,17 @@ descriptions, tags, ids, categories, and plugin ids, so one plugin with
 several actions reads as a browsable template gallery with no extra
 manifest format.
 
-`examples/minecraft-server/plugin.json` is the reference package: six
+`plugins-example-tiktools/plugins/minecraft-server/plugin.json` is the reference package: six
 structured CommandAPI actions (give-item, spawn-mob, apply-effect,
 change-weather, send-message, run-command) with curated selects, bounded
 numbers, and connection settings — no health probe, because the
 CommandAPI documents no health endpoint. It stages as a development
 plugin automatically (`bun scripts/task.ts prepare-plugins`).
-`examples/profiles/minecraft-giftwall.tikprofile.json` is a ready-made
+`plugins-example-tiktools/examples/profiles/minecraft-giftwall.tikprofile.json` is a ready-made
 rule pack on top of it: 14 gift rules plus follow/share announcements,
 every rule flashing a `/title` + subtitle.
 
-`examples/peak-game/plugin.json` drives PEAK through PEAKapi, the local
+`plugins-example-tiktools/plugins/peak-game/plugin.json` drives PEAK through PEAKapi, the local
 BepInEx REST API of the game (spawn item, entity and hazard, despawn one
 API-owned object, clear them all). It reads the item, entity and hazard
 catalogs as dynamic selects, probes `/health` for the `gameplayReady`
@@ -430,6 +430,20 @@ A health descriptor may declare `readinessField` naming a boolean response field
 A false/missing value reports the server as reachable but gameplay unavailable,
 with the game readiness diagnostics. R.E.P.O. uses `gameplayReady`.
 
+`"strategy": "service-info"` selects a staged probe for servers that separate
+network access, authorization and model loading. `path` answers a public
+discovery document (`{auth: {required}, setup_complete, model: {status},
+features: {playback}}`) and the optional `authProbePath` names any protected,
+model-independent endpoint that proves the saved credential works:
+
+```json
+"health": { "strategy": "service-info", "path": "/api/info", "authProbePath": "/api/protected", "timeoutMs": 5000 }
+```
+
+The connection card then shows sign-in, setup and model-loading states from
+the probe instead of a plain latency check. The legacy strategy name
+`sonicboom` is a deprecated alias kept for already-installed manifests.
+
 ## Import a token from local configuration
 
 A plugin may offer **Import token from configuration…** on the existing shared
@@ -475,7 +489,7 @@ The UI reloads masked settings and tests the connection after success; it blocks
 import during pending edits and removes the settings form while importing to
 avoid racing autosaves with the new secret.
 
-`examples/repo-game/plugin.json` and `examples/peak-game/plugin.json` opt in.
+`plugins-example-tiktools/plugins/repo-game/plugin.json` and `plugins-example-tiktools/plugins/peak-game/plugin.json` opt in.
 SonicBoom retains its admin login flow and Minecraft stays unchanged. A future
 plugin with an INI token can opt in with its own filename/section/key and secret
 token setting, using the same connection UI and executor. Token import does not

@@ -347,9 +347,10 @@ mod tests {
     }
     #[test]
     fn only_repo_opts_in_and_requires_a_secret_destination() {
-        let mut doc: Value =
-            serde_json::from_str(include_str!("../../../../examples/repo-game/plugin.json"))
-                .unwrap();
+        let mut doc: Value = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/plugins/repo-game.plugin.json"
+        ))
+        .unwrap();
         let manifest = PluginManifest::from_json_str(&doc.to_string()).unwrap();
         assert!(supports_token_import(&manifest));
         doc["settings"]["schema"]["properties"]["apiToken"]["secret"] = json!(false);
@@ -357,8 +358,8 @@ mod tests {
             &PluginManifest::from_json_str(&doc.to_string()).unwrap()
         ));
         for source in [
-            include_str!("../../../../examples/sonicboom-server/plugin.json"),
-            include_str!("../../../../examples/minecraft-server/plugin.json"),
+            include_str!("../../../../tests/fixtures/plugins/sonicboom-server.plugin.json"),
+            include_str!("../../../../tests/fixtures/plugins/minecraft-server.plugin.json"),
         ] {
             assert!(!supports_token_import(
                 &PluginManifest::from_json_str(source).unwrap()
@@ -420,7 +421,7 @@ mod integration_tests {
         std::fs::create_dir_all(&package).unwrap();
         std::fs::write(
             package.join("plugin.json"),
-            include_str!("../../../../examples/repo-game/plugin.json"),
+            include_str!("../../../../tests/fixtures/plugins/repo-game.plugin.json"),
         )
         .unwrap();
         let config = root.join("org.repo.rest-api.cfg");

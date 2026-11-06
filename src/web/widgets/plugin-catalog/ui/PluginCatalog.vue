@@ -32,6 +32,8 @@ const props = defineProps<{
   searching?: boolean;
   searchError?: string;
   checkingUpdates?: boolean;
+  /** False when no enabled registry exists (official one unpublished). */
+  marketplaceAvailable?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -56,8 +58,8 @@ const specInput = ref('');
 const installedCount = computed(() => props.plugins.filter((plugin) => plugin.installed).length);
 const pendingUpdates = computed(() => props.updates.filter((entry) => entry.latest));
 const tabs = computed(() => [
-  { value: 'installed' as const, label: `${t('plugins.catalog.installed')} (${installedCount.value})` },
   { value: 'browse' as const, label: t('plugins.catalog.browse') },
+  { value: 'installed' as const, label: `${t('plugins.catalog.installed')} (${installedCount.value})` },
   {
     value: 'updates' as const,
     label: pendingUpdates.value.length
@@ -141,7 +143,15 @@ function submitSpec(): void {
           </template>
         </BaseTextField>
         <template v-else-if="tab === 'browse'">
+          <p
+            v-if="marketplaceAvailable === false"
+            class="plugin-catalog__notice"
+            role="status"
+          >
+            {{ t('plugins.catalog.marketplaceUnavailable') }}
+          </p>
           <form
+            v-else
             class="plugin-catalog__row"
             @submit.prevent="emit('search')"
           >
@@ -281,6 +291,18 @@ function submitSpec(): void {
               </BaseButton>
             </BaseEmptyState>
             <BaseEmptyState
+              v-else-if="tab === 'browse' && marketplaceAvailable === false"
+              :title="t('plugins.catalog.marketplaceUnavailable')"
+              :description="t('plugins.catalog.marketplaceUnavailableHint')"
+            >
+              <BaseButton
+                size="sm"
+                @click="emit('install-package')"
+              >
+                {{ t('plugins.install.package') }}
+              </BaseButton>
+            </BaseEmptyState>
+            <BaseEmptyState
               v-else-if="tab === 'browse'"
               :title="searching ? t('plugins.catalog.searching') : t('plugins.catalog.emptyBrowse')"
               :description="t('plugins.catalog.emptyBrowseHint')"
@@ -304,6 +326,12 @@ function submitSpec(): void {
 </template>
 
 <style scoped>
+.plugin-catalog__notice {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
 .plugin-catalog {
   height: 100%;
 }

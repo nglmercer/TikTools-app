@@ -152,10 +152,15 @@ fn builtin_registries() -> Vec<RegistrySource> {
             Some(source) => sources.push(source),
             None => return sources,
         }
-    } else if let Some(origin) = option_env!("TIKTOOLS_CLOUD_ORIGIN") {
+    } else if let Some(origin) = tiktools_cloud_auth::resolve_cloud_origin() {
+        // Same origin the account uses (env override, build config, or the
+        // built-in default). Trust still comes only from the independently
+        // pinned root keys: without them the official source stays disabled
+        // and the catalog reports it as unavailable instead of trusting keys
+        // served by the origin itself.
         match cloud_builtin(
             OFFICIAL_REGISTRY_NAME,
-            origin,
+            &origin,
             option_env!("TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS"),
             100,
         ) {

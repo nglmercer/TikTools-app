@@ -22,6 +22,8 @@ const props = withDefaults(
     connection?: PluginConnectionState;
     actionOptions: Readonly<Record<string, ActionOptionItem[]>>;
     supportsProvisioning?: boolean;
+    /** Guided `service-info` connection; inferred from a probe result when omitted. */
+    guided?: boolean;
     supportsTokenImport?: boolean;
     supportsTokenDiscovery?: boolean;
     provisionState?: PluginCredentialState;
@@ -30,6 +32,7 @@ const props = withDefaults(
   {
     settings: undefined,
     connection: undefined,
+    guided: undefined,
     provisionState: undefined,
     openMediaPicker: undefined,
   },
@@ -50,12 +53,12 @@ let modelRefresh: ReturnType<typeof setTimeout> | undefined;
 onBeforeUnmount(() => clearTimeout(modelRefresh));
 const advanced = ref(false);
 const connectRequested = ref(false);
-const sonicboom = computed(() => props.pluginId === 'sonicboom.server');
+const guided = computed(() => props.guided ?? props.connection?.serverInfo !== undefined);
 const serverInfo = computed(() => props.connection?.serverInfo);
 const needsAuthorization = computed(() => serverInfo.value?.authRequired && !serverInfo.value.authorized);
 const visibleSchema = computed(() => {
   const schema = props.settings?.schema;
-  if (!schema || !sonicboom.value || advanced.value) return schema ?? {};
+  if (!schema || !guided.value || advanced.value) return schema ?? {};
   const properties = schema.properties as JsonObject | undefined;
   return { ...schema, properties: Object.fromEntries(Object.entries(properties ?? {}).filter(([key]) => key !== 'apiToken')) };
 });
@@ -67,7 +70,7 @@ watch(() => props.connection?.at, () => {
   if (connectRequested.value && needsAuthorization.value) provisionOpen.value = true;
   connectRequested.value = false;
   clearTimeout(modelRefresh);
-  if (sonicboom.value && props.connection?.ok && ['idle', 'downloading', 'loading'].includes(serverInfo.value?.modelStatus ?? '')) {
+  if (guided.value && props.connection?.ok && ['idle', 'downloading', 'loading'].includes(serverInfo.value?.modelStatus ?? '')) {
     modelRefresh = setTimeout(test, 3000);
   }
 });
@@ -106,8 +109,8 @@ const statusText = computed(() => {
   if (dirty.value) return t('plugins.connection.testToVerify');
   if (testing.value) return t('plugins.connection.testing');
   if (!connection) return t('connections.servers.notConfigured');
-  if (sonicboom.value && needsAuthorization.value) return t('plugins.connection.authorize');
-  if (sonicboom.value && connection.ok) return t('plugins.connection.connected');
+  if (guided.value && needsAuthorization.value) return t('plugins.connection.authorize');
+  if (guided.value && connection.ok) return t('plugins.connection.connected');
   if (connection.reachable && connection.gameplayReady === false) return t('connections.servers.apiNotReady');
   return connection.ok ? t('connections.servers.connectedIn', { ms: connection.latencyMs }) : t('connections.servers.failed');
 });
@@ -179,7 +182,7 @@ onMounted(() => {
     </header>
 
     <p
-      v-if="sonicboom && serverInfo && !dirty"
+      v-if="guided && serverInfo && !dirty"
       class="connection-editor__note"
       role="status"
     >
@@ -187,7 +190,7 @@ onMounted(() => {
       <span v-if="!serverInfo.authRequired"> · {{ t('plugins.connection.noTokenNeeded') }}</span>
     </p>
     <p
-      v-if="sonicboom && serverInfo && !serverInfo.playback && !dirty"
+      v-if="guided && serverInfo && !serverInfo.playback && !dirty"
       class="connection-editor__note"
     >
       {{ t('plugins.connection.noPlayback') }}
@@ -241,7 +244,7 @@ onMounted(() => {
         class="connection-editor__details"
         role="status"
       >
-        {{ sonicboom && !connection.reachable && !advanced ? t('plugins.connection.openSonicBoom') : connection.error }}
+        {{ guided && !connection.reachable && !advanced ? t('plugins.connection.openGuided', { name: pluginName }) : connection.error }}
       </p>
       <BaseSchemaForm
         v-if="settings && !(supportsTokenImport && working)"
@@ -261,20 +264,20 @@ onMounted(() => {
       <div class="connection-editor__actions">
         <BaseButton
           variant="primary"
-          :disabled="!settings || testing || urlInvalid || (sonicboom && (dirty || saveState === 'saving'))"
-          @click="sonicboom ? connect() : test()"
+          :disabled="!settings || testing || urlInvalid || (guided && (dirty || saveState === 'saving'))"
+          @click="guided ? connect() : test()"
         >
-          {{ testing ? t('plugins.connection.testing') : t(sonicboom ? 'plugins.connection.connectSonicBoom' : 'plugins.connection.test') }}
+          {{ testing ? t('plugins.connection.testing') : t(guided ? 'plugins.connection.connectGuided' : 'plugins.connection.test', { name: pluginName }) }}
         </BaseButton>
       </div>
       <BaseButton
-        v-if="sonicboom"
+        v-if="guided"
         @click="advanced = !advanced"
       >
         {{ t('plugins.connection.advanced') }}
       </BaseButton>
       <p
-        v-if="!sonicboom"
+        v-if="!guided"
         class="connection-editor__note"
       >
         {{ url && isLoopbackUrl(url) ? t('plugins.connection.localNote') : t('plugins.connection.hint') }}
@@ -345,19 +348,19 @@ onMounted(() => {
     </section>
 
     <div
-      v-if="supportsProvisioning && (!sonicboom || needsAuthorization || advanced)"
+      v-if="supportsProvisioning && (!guided || needsAuthorization || advanced)"
       class="connection-editor__actions"
     >
       <BaseButton
         :disabled="importDisabled"
-        @click="sonicboom ? connect() : provisionOpen = true"
+        @click="guided ? connect() : provisionOpen = true"
       >
-        {{ t(sonicboom ? 'plugins.connection.authorize' : 'plugins.connection.getToken') }}
+        {{ t(guided ? 'plugins.connection.authorize' : 'plugins.connection.getToken') }}
       </BaseButton>
       <ProvisionTokenDialog
         v-model:open="provisionOpen"
         :plugin-name="pluginName"
-        :simple="sonicboom"
+        :simple="guided"
         :working="working"
         :result="provisionResult"
         @submit="(username, password) => emit('provision', pluginId, username, password)"

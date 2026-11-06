@@ -21,10 +21,13 @@ plugin-install = [
     "dep:tiktools-plugin-package",
     "dep:tiktools-plugin-registry",
     "dep:semver",
+    # Origin resolution only; login and keychain stay behind `cloud-auth`.
+    "dep:tiktools-cloud-auth",
 ]
 # Optional Cloud account (system-browser login, OS keychain tokens).
-# Opt-in only: nothing here runs without an explicit TIKTOOLS_CLOUD_ORIGIN,
-# and every local feature keeps working without it.
+# Signing in is opt-in: the origin defaults to the official Cloud (override
+# or disable with TIKTOOLS_CLOUD_ORIGIN) and every local feature keeps
+# working offline without an account.
 cloud-auth = [
     "dep:tiktools-cloud-auth",
     "tiktools-cloud-auth/system-browser",

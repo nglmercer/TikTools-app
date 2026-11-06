@@ -34,18 +34,35 @@ describe('SettingsPage', () => {
     expect(wrapper.get('#settings-language').text()).toContain('English');
   });
 
+  it('lists the simplified sections', async () => {
+    const { wrapper } = await mountPage();
+    expect(wrapper.findAll('[role="option"]').map((option) => option.text())).toEqual([
+      'General',
+      'Account',
+      'Updates',
+      'Advanced',
+    ]);
+  });
+
   it('switches the section through the route query', async () => {
     const { wrapper, router } = await mountPage();
-    await wrapper.findAll('[role="option"]')[1]!.trigger('pointerdown');
+    await wrapper.findAll('[role="option"]')[3]!.trigger('pointerdown');
     await flushPromises();
-    expect(router.currentRoute.value.query.section).toBe('globals');
-    expect(wrapper.get('legend').text()).toBe('Runtime globals');
+    expect(router.currentRoute.value.query.section).toBe('advanced');
+    expect(wrapper.findAll('legend').map((legend) => legend.text())).toContain('Runtime globals');
     expect(wrapper.text()).toContain('{{ globals.key }}');
   });
 
-  it('restores the section from the route query', async () => {
+  it('keeps registry setup collapsed under Advanced', async () => {
+    const { wrapper } = await mountPage('?section=advanced');
+    expect(wrapper.find('#plugin-sources-url').isVisible()).toBe(false);
+    expect(wrapper.text()).toContain('Add a registry');
+  });
+
+  it('maps legacy section links to Advanced', async () => {
     const { wrapper } = await mountPage('?section=globals');
-    expect(wrapper.findAll('input').map((input) => input.element.value)).toEqual(['commandPort', '46665']);
+    expect(wrapper.get('[role="option"][aria-selected="true"]').text()).toBe('Advanced');
+    expect(wrapper.findAll('input').map((input) => input.element.value)).toContain('commandPort');
   });
 
   it('changes the application language', async () => {

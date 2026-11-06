@@ -41,12 +41,13 @@ bun scripts/task.ts frontend-test
 bun run start
 ```
 
-`start` builds `dist/web`, compiles the checked-in process-plugin examples into
-the ignored `.dev-plugins` directory, and launches the Rust desktop binary with
-that directory as a development runtime root. This makes plugin changes easy
-to test without installing them into the user profile. Use
-`TIKTOOLS_SKIP_DEV_PLUGINS=1 bun run start` to launch without rebuilding the
-example plugins. For fast UI-only iteration, run
+`start` builds `dist/web` and launches the Rust desktop binary. Example and
+first-party plugins live in the separate
+[`plugins-example-tiktools`](https://github.com/nglmercer/plugins-example-tiktools)
+repository and are never bundled with the app; when a checkout sits next to
+this one (or `TIKTOOLS_PLUGINS_REPO` points at it), `start` builds its packages
+into the ignored `.dev-plugins` directory and loads them as development
+plugins. Use `TIKTOOLS_SKIP_DEV_PLUGINS=1 bun run start` to skip that step. For fast UI-only iteration, run
 the frontend server and point the Rust host at it:
 
 ```bash
@@ -183,7 +184,7 @@ Plugins contribute actions, event sources, and pre-filter event processors
 events under the optional `event.intel` namespace before automation filters
 run, fail open on any error, and are previewed over IPC with
 `processors.test`/`processors.status`. See `docs/PLUGINS.md` and the
-`examples/textintel-process-plugin/` reference implementation.
+`plugins-example-tiktools/plugins/textintel/` reference implementation.
 
 ## Data and privacy
 

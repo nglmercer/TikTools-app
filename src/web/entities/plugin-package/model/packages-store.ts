@@ -65,6 +65,7 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
   const checkingUpdates = ref(false);
   const updatesError = ref('');
   const registries = shallowRef<RegistryStatus[]>([]);
+  const registriesLoaded = ref(false);
   const defaults = ref<RegistryDefaults | null>(null);
   const registryError = ref('');
   const searchQuery = ref('');
@@ -319,7 +320,8 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
         client.call<{ registries: RegistryStatus[] }>('registry.list', {}),
         client.call<RegistryDefaults>('registry.defaults.get', {}),
       ]);
-      registries.value = list.registries;
+      registries.value = Array.isArray(list?.registries) ? list.registries : [];
+      registriesLoaded.value = Array.isArray(list?.registries);
       defaults.value = current;
       registryError.value = '';
     } catch (failure) {
@@ -394,6 +396,7 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
     checkingUpdates,
     updatesError,
     registries,
+    registriesLoaded,
     defaults,
     registryError,
     searchQuery,

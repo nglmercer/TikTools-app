@@ -147,8 +147,8 @@ describe('updateStandaloneLockfiles', () => {
   test('refreshes standalone locks and skips locks without workspace pins', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bump-version-test-'));
     try {
-      const stale = join(root, 'examples/foo');
-      const clean = join(root, 'examples/bar');
+      const stale = join(root, 'crates/alpha/tests/fixtures/stale');
+      const clean = join(root, 'crates/alpha/tests/fixtures/clean');
       const fixture = join(root, 'crates/loader/tests/fixtures/probe');
       await mkdir(stale, { recursive: true });
       await mkdir(clean, { recursive: true });
@@ -171,11 +171,11 @@ describe('updateStandaloneLockfiles', () => {
       );
 
       expect(results).toEqual([
+        { path: 'crates/alpha/tests/fixtures/stale/Cargo.lock', updated: ['tiktools-plugin-api'] },
         {
           path: 'crates/loader/tests/fixtures/probe/Cargo.lock',
           updated: ['tiktools-plugin-sdk'],
         },
-        { path: 'examples/foo/Cargo.lock', updated: ['tiktools-plugin-api'] },
       ]);
       const staleText = await readFile(join(stale, 'Cargo.lock'), 'utf8');
       expect(staleText).toContain('name = "tiktools-plugin-api"\nversion = "0.3.2"');

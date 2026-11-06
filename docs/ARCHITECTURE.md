@@ -178,7 +178,7 @@ declare `processorTypes`, require the `events.enrich` capability, answer
 and receive their host-rendered settings inside each request; the host merges
 results under `event.intel` in deterministic order with strict deadlines and
 circuit breaking. The textintel reference processor lives in
-`examples/textintel-process-plugin/` with its own latency bench.
+`plugins-example-tiktools/plugins/textintel/` with its own latency bench.
 
 The processor pipeline keeps three boundaries. The contribution index
 (`plugin_processors::index`) precomputes eligible processors off the hot

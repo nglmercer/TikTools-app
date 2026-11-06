@@ -11,7 +11,7 @@
 mod diagnostics;
 mod endpoint;
 mod execution;
-mod sonicboom;
+mod service_info;
 mod template;
 #[cfg(test)]
 mod tests;
@@ -20,6 +20,7 @@ pub(crate) use diagnostics::{
     declarative_auth_label, declarative_request_line, redact_endpoint_secrets, with_auth_hint,
 };
 pub(crate) use endpoint::{build_declarative_request, DeclarativeBuild, DeclarativeEndpoint};
+pub(crate) use service_info::uses_guided_connection;
 pub(crate) use template::render_scoped_template;
 
 /// Permission a manifest must declare before a declarative fetch may leave

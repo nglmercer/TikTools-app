@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 import {
   EMOTE_CATALOG,
@@ -24,14 +24,16 @@ function emote(overrides: Partial<LiveEmote> & { id: string }): LiveEmote {
   return { source: 'protobuf', ...overrides };
 }
 
-describe('catalog parity with the SonicBoom sanitizer', () => {
-  // The plugin UI ships its own bundle and never imports the app, so the token
-  // list is duplicated. This reads the plugin source and fails if the two
-  // drift — the same guard style the sanitizer fixtures use.
-  const pluginSource = readFileSync(
-    join(import.meta.dir, '..', '..', '..', 'plugins', 'sonicboom', 'shared', 'tts', 'emote-catalog.ts'),
-    'utf8',
-  );
+// The SonicBoom plugin lives in the external plugins-example-tiktools
+// repository and ships its own copy of the token list. When that checkout is
+// present (TIKTOOLS_PLUGINS_REPO or a sibling clone) the two must not drift.
+const pluginsRepository = process.env.TIKTOOLS_PLUGINS_REPO
+  ? resolve(process.env.TIKTOOLS_PLUGINS_REPO)
+  : resolve(import.meta.dir, '..', '..', '..', '..', 'plugins-example-tiktools');
+const pluginCatalog = join(pluginsRepository, 'plugins', 'sonicboom', 'shared', 'tts', 'emote-catalog.ts');
+
+describe.skipIf(!existsSync(pluginCatalog))('catalog parity with the SonicBoom sanitizer', () => {
+  const pluginSource = existsSync(pluginCatalog) ? readFileSync(pluginCatalog, 'utf8') : '';
 
   const pluginIds = [...pluginSource.matchAll(/id:\s*'([^']+)'/g)]
     .map((match) => match[1] as string)

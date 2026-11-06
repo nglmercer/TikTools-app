@@ -90,7 +90,7 @@ cargo test -p tiktools-plugin-loader --test napi_vm --locked
 cargo test -p tiktools-plugin-loader --test napi_vm_native --locked
 cargo test -p tiktools-plugin-loader --no-default-features --test napi_vm --locked
 cargo test --workspace --locked
-cargo test --manifest-path examples/event-gateway-process-plugin/Cargo.toml --locked
+cargo test --manifest-path plugins-example-tiktools/plugins/event-gateway/Cargo.toml --locked
 bun scripts/build-plugin.ts --all --debug
 cargo build -p tiktools-desktop --release --locked
 ```

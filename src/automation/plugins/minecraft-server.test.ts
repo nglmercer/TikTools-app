@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import manifestJson from '../../../examples/minecraft-server/plugin.json';
+import manifestJson from '../../../tests/fixtures/plugins/minecraft-server.plugin.json';
 import type { ActionTypeDefinition } from '../behavior/types.ts';
 import { defaultActionConfig } from '../behavior/action-config.ts';
 

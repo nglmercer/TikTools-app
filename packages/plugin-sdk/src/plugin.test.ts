@@ -100,7 +100,7 @@ test('repository manifests only use keys the schema knows', () => {
     properties: Record<string, unknown>;
   };
   const root = join(import.meta.dir, '..', '..', '..');
-  for (const manifest of ['plugins/sonicboom/plugin.json', 'examples/audio-process-plugin/plugin.json']) {
+  for (const manifest of ['tests/fixtures/plugins/sonicboom.plugin.json', 'tests/fixtures/plugins/audio-process.plugin.json']) {
     const parsed = JSON.parse(readFileSync(join(root, manifest), 'utf8')) as Record<string, unknown>;
     for (const key of Object.keys(parsed)) {
       if (key === '$schema' || key === 'apiVersion') continue;

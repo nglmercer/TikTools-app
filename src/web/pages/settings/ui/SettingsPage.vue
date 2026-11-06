@@ -3,6 +3,7 @@ import { computed, markRaw, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
+import CloudAccountDiagnostics from '@/features/cloud-account/ui/CloudAccountDiagnostics.vue';
 import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
 import CloudSyncEditor from '@/features/cloud-sync/ui/CloudSyncEditor.vue';
 import AppUpdater from '@/features/app-updater/ui/AppUpdater.vue';
@@ -14,17 +15,22 @@ import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
 import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
-import IconLink from '@/shared/ui/icon/icons/IconLink.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
+import IconUser from '@/shared/ui/icon/icons/IconUser.vue';
 import BaseList from '@/shared/ui/list/BaseList.vue';
 
-type SettingsSection = 'general' | 'globals' | 'plugins';
+type SettingsSection = 'general' | 'account' | 'updates' | 'advanced';
 
 const sections: ReadonlyArray<{ id: SettingsSection; icon: Component }> = [
   { id: 'general', icon: markRaw(IconGear) },
-  { id: 'globals', icon: markRaw(IconLink) },
-  { id: 'plugins', icon: markRaw(IconPuzzle) },
+  { id: 'account', icon: markRaw(IconUser) },
+  { id: 'updates', icon: markRaw(IconRefresh) },
+  { id: 'advanced', icon: markRaw(IconPuzzle) },
 ];
+
+/** Older deep links (`?section=globals|plugins`) now live under Advanced. */
+const legacySections: Record<string, SettingsSection> = { globals: 'advanced', plugins: 'advanced' };
 
 const { t } = useI18n();
 const route = useRoute();
@@ -32,7 +38,10 @@ const router = useRouter();
 const localeStore = useLocaleStore();
 
 const section = computed<SettingsSection>({
-  get: () => sections.find((entry) => entry.id === route.query.section)?.id ?? 'general',
+  get: () => {
+    const requested = String(route.query.section ?? '');
+    return sections.find((entry) => entry.id === requested)?.id ?? legacySections[requested] ?? 'general';
+  },
   set: (value) => void router.replace({ query: { ...route.query, section: value } }),
 });
 
@@ -66,7 +75,6 @@ const locale = computed<Locale>({
             <BaseFormRow
               for="settings-language"
               :label="t('settings.language.label')"
-              :hint="t('settings.language.hint')"
             >
               <LanguageSelect
                 id="settings-language"
@@ -76,18 +84,25 @@ const locale = computed<Locale>({
             </BaseFormRow>
           </BaseFormGrid>
         </BaseGroupBox>
+      </template>
+      <template v-else-if="section === 'account'">
         <CloudAccountEditor />
         <CloudSyncEditor />
-        <AppUpdater />
       </template>
-      <PluginSourcesEditor v-else-if="section === 'plugins'" />
-      <BaseGroupBox
-        v-else
-        :title="t('globals.title')"
-        :description="t('globals.hint', { token: '{{ globals.key }}' })"
-      >
-        <RuntimeGlobalsEditor />
-      </BaseGroupBox>
+      <template v-else-if="section === 'updates'">
+        <AppUpdater />
+        <PluginSourcesEditor part="updates" />
+      </template>
+      <template v-else>
+        <PluginSourcesEditor part="registries" />
+        <BaseGroupBox
+          :title="t('globals.title')"
+          :description="t('globals.hint', { token: '{{ globals.key }}' })"
+        >
+          <RuntimeGlobalsEditor />
+        </BaseGroupBox>
+        <CloudAccountDiagnostics />
+      </template>
     </section>
   </div>
 </template>
@@ -104,7 +119,7 @@ const locale = computed<Locale>({
 
 .settings-page__sections {
   flex: none;
-  width: 220px;
+  width: 200px;
   border: var(--border-width) solid var(--color-border-subtle);
 }
 
@@ -114,7 +129,7 @@ const locale = computed<Locale>({
   flex-direction: column;
   gap: var(--space-5);
   min-width: 0;
-  max-width: 880px;
+  max-width: 760px;
   overflow-y: auto;
 }
 

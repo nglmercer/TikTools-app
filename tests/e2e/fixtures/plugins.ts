@@ -25,6 +25,7 @@ export function sonicboomDescriptor(overrides: Record<string, unknown> = {}) {
     hasSettings: true,
     hasConnectionProbe: true,
     supportsTokenProvisioning: true,
+    guidedConnection: true,
     ...overrides,
   };
 }

@@ -160,16 +160,10 @@ jobs:
       - name: Test optional local browser adapter
         run: node scripts/cargo-with-linker.mjs test -p tiktools-cli --features local-web --locked
 
-      - name: Test optional OBS bridge and gateway
-        run: cargo test --manifest-path examples/event-gateway-process-plugin/Cargo.toml --locked
-
       - name: Verify control surface end to end
         run: |
           node scripts/cargo-with-linker.mjs build -p tiktools-cli --locked
           ./target/debug/tiktools api verify --sandbox
-
-      - name: Build all example plugins
-        run: bun scripts/build-plugin.ts --all --debug
 
   msrv:
     name: msrv

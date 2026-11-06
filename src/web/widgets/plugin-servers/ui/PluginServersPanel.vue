@@ -104,6 +104,7 @@ function toggle(id: string): void {
             :supports-token-import="server.plugin.descriptor.supportsTokenImport"
             :supports-token-discovery="server.plugin.descriptor.supportsTokenDiscovery"
             :supports-provisioning="server.plugin.descriptor.supportsTokenProvisioning"
+            :guided="server.plugin.descriptor.guidedConnection"
             :provision-state="plugins.provision.value[server.id]"
             @load-settings="plugins.loadSettings"
             @load-options="plugins.loadOptions"

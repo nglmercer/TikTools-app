@@ -8,6 +8,7 @@
 
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { resolvePluginsRepository } from './external-plugins.ts';
 
 export const TEST_USAGE =
   'Usage: bun run test [area] [target] [filter] [options]\n' +
@@ -16,7 +17,6 @@ export const TEST_USAGE =
   'Examples: bun run test | bun run test rust tiktools-core batched_likes | bun run test web live-batch | bun run test e2e.';
 
 export const FAST_BUN_ROOTS = ['src/automation', 'src/plugin-ui', 'src/shared', 'src/widgets', 'scripts', 'packages'];
-export const FAST_BUN_PLUGIN_ROOTS = ['plugins/sonicboom/shared', 'plugins/sonicboom/ui/src'];
 
 /** Shorthand `bun <area>` directories (repo-relative). */
 export const BUN_AREA_DIRS: Record<string, string> = {
@@ -134,7 +134,7 @@ export function parseTestArgs(args: string[]): ParsedTestRequest {
       return { area: 'bun', target: second, filter: third, watch: false, changed };
     }
     case 'plugin': {
-      if (!second) fail('`test plugin` needs a name, e.g. `test plugin sonicboom`');
+      if (!second) fail('`test plugin` needs a name, e.g. `test plugin sonicboom` (runs in the external plugin checkout)');
       if (third !== undefined) assertSafeToken(third, 'filter');
       assertSafePlugin(second);
       return { area: 'plugin', plugin: second, filter: third, watch: false, changed };
@@ -199,10 +199,13 @@ export function bunTargetDir(target: string): string {
   fail(`unknown bun test target: ${JSON.stringify(target)} (try ${Object.keys(BUN_AREA_DIRS).join(', ')})`);
 }
 
-/** Candidate bun test roots for a plugin. Pure; existence is checked by the caller. */
+/**
+ * Candidate bun test roots for a plugin in the external plugin checkout
+ * (`pluginsRepository`). Pure; existence is checked by the caller.
+ */
 export function pluginTestRoots(plugin: string): string[] {
   assertSafePlugin(plugin);
-  return [`plugins/${plugin}/shared`, `plugins/${plugin}/ui/src`];
+  return [`plugins/${plugin}/shared`, `plugins/${plugin}/ui/src`, `plugins/${plugin}/tests`];
 }
 
 /** Resolve workspace crate names via `cargo metadata`. Reuses the normal toolchain. */
@@ -230,6 +233,7 @@ export type TestDeps = {
   root?: string;
   workspaceCrates?: string[];
   pluginRootsExist?: (roots: string[]) => Promise<string[]>;
+  pluginsRepository?: string;
   run?: (cmd: string[]) => Promise<void>;
   verifyRustFilter?: (crate: string, features: string | undefined, filter: string) => Promise<void>;
 };
@@ -237,7 +241,7 @@ export type TestDeps = {
 /** Build spawn argv for a parsed request. Validates crate names against metadata. */
 export function buildTestCommands(
   request: ParsedTestRequest,
-  ctx: { workspaceCrates?: string[]; pluginRoots?: string[] },
+  ctx: { workspaceCrates?: string[]; pluginRoots?: string[]; pluginsRepository?: string },
 ): string[][] {
   const bun = process.execPath;
   const changedFlag = (request.area !== 'rust' && request.area !== 'e2e' && request.changed) ? ['--changed'] : [];
@@ -245,7 +249,6 @@ export function buildTestCommands(
     case 'default':
       return [
         [bun, 'test', ...changedFlag, ...FAST_BUN_ROOTS],
-        [bun, 'test', ...changedFlag, ...FAST_BUN_PLUGIN_ROOTS],
         [bun, 'x', '--no-install', 'vitest', 'run', ...(request.changed ? ['--changed'] : [])],
       ];
     case 'rust': {
@@ -269,7 +272,8 @@ export function buildTestCommands(
     case 'plugin': {
       const roots = ctx.pluginRoots ?? pluginTestRoots(request.plugin);
       if (!roots.length) fail(`plugin has no bun test roots: ${JSON.stringify(request.plugin)}`);
-      return [[bun, 'test', ...changedFlag, ...roots, ...(request.filter ? [request.filter] : [])]];
+      const cwd = ctx.pluginsRepository ? ['--cwd', ctx.pluginsRepository] : [];
+      return [[bun, ...cwd, 'test', ...changedFlag, ...roots, ...(request.filter ? [request.filter] : [])]];
     }
     case 'e2e':
       return [
@@ -337,19 +341,25 @@ export async function runTargetedTests(rawArgs: string[], deps: TestDeps = {}): 
   }
 
   let pluginRoots: string[] | undefined;
+  let resolvedPluginsRepository: string | undefined;
   if (request.area === 'plugin') {
+    const pluginsRepository = deps.pluginsRepository ?? (await resolvePluginsRepository(root));
+    if (!pluginsRepository) {
+      fail('`test plugin` needs the external plugin checkout: clone plugins-example-tiktools beside TikTools or set TIKTOOLS_PLUGINS_REPO');
+    }
+    resolvedPluginsRepository = pluginsRepository;
     const candidates = pluginTestRoots(request.plugin);
     if (deps.pluginRootsExist) {
       pluginRoots = await deps.pluginRootsExist(candidates);
     } else {
       pluginRoots = [];
       for (const candidate of candidates) {
-        if (await pathExists(root, candidate)) pluginRoots.push(candidate);
+        if (await pathExists(pluginsRepository, candidate)) pluginRoots.push(candidate);
       }
     }
     if (!pluginRoots.length) fail(`plugin has no bun test roots: ${JSON.stringify(request.plugin)}`);
   }
 
   const workspaceCrates = deps.workspaceCrates;
-  for (const cmd of buildTestCommands(request, { workspaceCrates, pluginRoots })) await run(cmd);
+  for (const cmd of buildTestCommands(request, { workspaceCrates, pluginRoots, pluginsRepository: resolvedPluginsRepository })) await run(cmd);
 }

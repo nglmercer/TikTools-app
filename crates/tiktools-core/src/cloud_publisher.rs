@@ -296,7 +296,7 @@ impl CloudPublisher {
             .filter(|origin| !origin.is_empty())
             .ok_or_else(|| {
                 OperationError::unavailable(
-                    "cloud publisher needs a configured origin; set TIKTOOLS_CLOUD_ORIGIN and sign in",
+                    "cloud publisher needs a signed-in Cloud account; sign in first",
                 )
             })?;
         let token = auth.native_token().await.ok_or_else(|| {

@@ -135,6 +135,7 @@ impl AppCore {
                     "eventTypeIds": event_type_ids,
                     "hasSettings": plugin.manifest.settings_schema.is_some(),
                     "hasConnectionProbe": plugin.manifest.http.as_ref().and_then(|http| http.get("health")).is_some(),
+                    "guidedConnection": crate::services::declarative_http::uses_guided_connection(&plugin.manifest),
                     "supportsTokenProvisioning": crate::services::token_provision::supports_token_provisioning(&plugin.manifest),
                     "supportsTokenImport": crate::services::token_import::supports_token_import(&plugin.manifest),
                     "supportsTokenDiscovery": crate::services::token_import::supports_token_import(&plugin.manifest) && plugin.manifest.http.as_ref().and_then(|http|http.pointer("/tokenImport/discovery")).is_some()

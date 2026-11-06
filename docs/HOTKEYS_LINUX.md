@@ -1,7 +1,7 @@
 # Linux hotkeys: X11, Wayland, permissions
 
 Global hotkeys ship as a TypeScript napi-vm plugin
-(`examples/hotkey-napi-plugin`) backed by the `rdev-node` native addon.
+(`plugins-example-tiktools/plugins/hotkeys`) backed by the `rdev-node` native addon.
 The guest watches the OS keyboard through one rdev listener, tracks
 modifiers plus a rolling 8-key sequence, and answers the host `poll`
 call with everything observed since the previous tick as

@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   BUN_AREA_DIRS,
-  FAST_BUN_PLUGIN_ROOTS,
   FAST_BUN_ROOTS,
   buildTestCommands,
   bunTargetDir,
@@ -148,18 +147,29 @@ describe('workspace metadata and crate validation', () => {
   });
 
   test('plugin roots stay under the plugin directory', () => {
-    expect(pluginTestRoots('sonicboom')).toEqual(['plugins/sonicboom/shared', 'plugins/sonicboom/ui/src']);
+    expect(pluginTestRoots('sonicboom')).toEqual([
+      'plugins/sonicboom/shared',
+      'plugins/sonicboom/ui/src',
+      'plugins/sonicboom/tests',
+    ]);
+  });
+
+  test('plugin commands run inside the external plugin checkout', () => {
+    const [cmd] = buildTestCommands(
+      { area: 'plugin', plugin: 'sonicboom', watch: false, changed: false },
+      { pluginRoots: ['plugins/sonicboom/shared'], pluginsRepository: '/work/plugins-example-tiktools' },
+    )!;
+    expect(cmd?.slice(1)).toEqual(['--cwd', '/work/plugins-example-tiktools', 'test', 'plugins/sonicboom/shared']);
   });
 });
 
 describe('command dispatch', () => {
   test('default builds the fast unit commands', () => {
     const cmds = buildTestCommands({ area: 'default', watch: false, changed: false }, {});
-    expect(cmds).toHaveLength(3);
+    expect(cmds).toHaveLength(2);
     expect(cmds[0]?.slice(1, 3)).toEqual(['test', 'src/automation']);
     expect(cmds[0]).toEqual(expect.arrayContaining(FAST_BUN_ROOTS));
-    expect(cmds[1]).toEqual(expect.arrayContaining(FAST_BUN_PLUGIN_ROOTS));
-    expect(cmds[2]?.slice(-2)).toEqual(['vitest', 'run']);
+    expect(cmds[1]?.slice(-2)).toEqual(['vitest', 'run']);
   });
 
   test('rust builds a locked linker-wrapped cargo command', () => {

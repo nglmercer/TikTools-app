@@ -68,7 +68,7 @@ commands:
   rpc <method> [params-json]
   rpc --stdio [--events]        NDJSON request/response loop on stdio
   cloud status | login | logout | restore
-                                Cloud account (requires TIKTOOLS_CLOUD_ORIGIN)
+                                Cloud account (official Cloud; override with TIKTOOLS_CLOUD_ORIGIN)
   publisher list | create <namespace> | delete <namespace-or-publisher-id> | keys <publisher-id>
             | enroll <publisher-id> [--key-id <id>] | upload <publisher-id> <path>
             | submit <upload-id> <key-id> <plugin-id> <version> [--target any]

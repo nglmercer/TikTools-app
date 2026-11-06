@@ -67,7 +67,7 @@ plugin must be packaged as its own executable, use the `napi-vm` runtime
 (`docs/NAPI_VM_PLUGINS.md`), or use the bounded `napi-vm` automation
 surface.
 
-The example at `examples/audio-process-plugin` demonstrates a complete process
+The example at `plugins-example-tiktools/plugins/audio-process` demonstrates a complete process
 plugin. It returns a typed `audio-play` intent; it does not open the file
 itself.
 
@@ -475,7 +475,7 @@ tiktools_process_plugin!(TextProcessor);
 ```
 
 The reference implementation is
-`examples/textintel-process-plugin/`: a crash-isolated process plugin that
+`plugins-example-tiktools/plugins/textintel/`: a crash-isolated process plugin that
 analyzes comments and viewer names with a pinned offline textintel engine
 (language, normalization, composition, Unicode, obfuscation, spam, rebus,
 spoken/TTS views, nickname phonetics). Its latency bench

@@ -6,8 +6,8 @@ suites cover the two frontends:
 
 - **Main suite** (`tests/e2e`, `playwright.config.ts`): the generic
   TikTools SPA against a fake host at the exact `window.ipc` boundary.
-- **Plugin UI suite** (`plugins/sonicboom/ui/tests`,
-  `plugins/sonicboom/ui/playwright.config.ts`): the compiled plugin UI
+- **Plugin UI suite** (`plugins-example-tiktools/plugins/sonicboom/ui/tests`,
+  `plugins-example-tiktools/plugins/sonicboom/ui/playwright.config.ts`): the compiled plugin UI
   against a fake native broker, plus a real host/plugin interop spec.
 
 Testing layers:
@@ -16,7 +16,7 @@ Testing layers:
 Bun unit tests (src/web, src/automation, src/plugin-ui)
   + Rust unit/integration tests (cargo)
   + Playwright main E2E (tests/e2e)
-  + Playwright plugin UI E2E + interop (plugins/sonicboom/ui/tests)
+  + Playwright plugin UI E2E + interop (plugins-example-tiktools/plugins/sonicboom/ui/tests)
   + Playwright screenshot regression (tests/e2e/screenshots.spec.ts)
 ```
 
@@ -28,8 +28,8 @@ bun scripts/task.ts e2e test --ui         # interactive UI mode (development/deb
 bun scripts/task.ts e2e test --headed     # headed Chromium
 bun scripts/task.ts e2e test --update-snapshots     # regenerate screenshot baselines (see below)
 
-bun x vite build --config plugins/sonicboom/ui/vite.config.ts  # build the plugin UI first (once per change)
-bun scripts/task.ts e2e test --config plugins/sonicboom/ui/playwright.config.ts   # headless Chromium plugin UI suite
+bun x vite build --config plugins-example-tiktools/plugins/sonicboom/ui/vite.config.ts  # build the plugin UI first (once per change)
+bun scripts/task.ts e2e test --config plugins-example-tiktools/plugins/sonicboom/ui/playwright.config.ts   # headless Chromium plugin UI suite
 ```
 
 The first run installs nothing extra: `@playwright/test` is a
@@ -91,8 +91,8 @@ and control client end to end).
 
 ## Plugin UI suite
 
-`plugins/sonicboom/ui/tests/` runs against the **compiled** `ui/dist/`
-bundle (`bun x vite build --config plugins/sonicboom/ui/vite.config.ts` first), so the suite verifies what
+`plugins-example-tiktools/plugins/sonicboom/ui/tests/` runs against the **compiled** `ui/dist/`
+bundle (`bun x vite build --config plugins-example-tiktools/plugins/sonicboom/ui/vite.config.ts` first), so the suite verifies what
 actually ships in the isolated view.
 
 | file | coverage |

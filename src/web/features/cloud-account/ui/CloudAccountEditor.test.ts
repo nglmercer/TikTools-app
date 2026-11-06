@@ -30,6 +30,34 @@ function setup(status: AccountStatus) {
 }
 
 describe('CloudAccountEditor', () => {
+  it('shows only a sign-in button when signed out, with no technical details', async () => {
+    const wrapper = setup({ origin: 'https://cloud.example', state: 'signed-out', persistence: 'keychain' });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Sign in');
+    expect(wrapper.text()).not.toContain('cloud.example');
+    expect(wrapper.text()).not.toContain('TIKTOOLS_CLOUD_ORIGIN');
+  });
+
+  it('turns network failures into a friendly message', async () => {
+    const wrapper = setup({
+      origin: 'https://cloud.example',
+      state: 'signed-out',
+      persistence: 'keychain',
+      error: 'cloud login failed: error sending request for url',
+    });
+    await flushPromises();
+    expect(wrapper.text()).toContain("Couldn't reach TikTools Cloud");
+    expect(wrapper.text()).not.toContain('error sending request');
+  });
+
+  it('shows the email under the display name and hides the origin', async () => {
+    const wrapper = setup(signedIn());
+    await flushPromises();
+    expect(wrapper.text()).toContain('user@example.com');
+    expect(wrapper.text()).toContain('Signed in');
+    expect(wrapper.text()).not.toContain('127.0.0.1');
+  });
+
   it('prefers the verified display name over the raw account id', async () => {
     const wrapper = setup(signedIn());
     await flushPromises();
