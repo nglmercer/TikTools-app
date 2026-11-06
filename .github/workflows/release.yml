@@ -166,26 +166,34 @@ jobs:
         working-directory: release-assets
         run: sha256sum TikTools-* > SHA256SUMS.txt
 
-      - name: Publish stable GitHub release
-        if: ${{ needs.version.outputs.prerelease == 'false' }}
+      - name: Create draft release with immutable assets
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
         run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release-assets/TikTools-* release-assets/SHA256SUMS.txt --clobber
-          else
-            gh release create "$RELEASE_TAG" release-assets/TikTools-* release-assets/SHA256SUMS.txt --generate-notes
+          args=(--draft --verify-tag --generate-notes)
+          if [ "$PRERELEASE" = "true" ]; then
+            args+=(--prerelease)
           fi
+          # Creating an existing release must fail: never overwrite historical assets.
+          gh release create "$RELEASE_TAG" release-assets/TikTools-* release-assets/SHA256SUMS.txt "${args[@]}"
 
-      - name: Publish prerelease GitHub release
-        if: ${{ needs.version.outputs.prerelease == 'true' }}
+      - name: Verify uploaded release assets
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release-assets/TikTools-* release-assets/SHA256SUMS.txt --clobber
-          else
-            gh release create "$RELEASE_TAG" release-assets/TikTools-* release-assets/SHA256SUMS.txt --generate-notes --prerelease
-          fi
+          mkdir uploaded-assets
+          gh release download "$RELEASE_TAG" --dir uploaded-assets
+          cmp release-assets/SHA256SUMS.txt uploaded-assets/SHA256SUMS.txt
+          (cd uploaded-assets && sha256sum --check SHA256SUMS.txt)
+          # Reject missing or unexpected assets before exposing the release.
+          diff -u <(cd release-assets && find . -maxdepth 1 -type f -printf '%f\n' | sort) \
+                  <(cd uploaded-assets && find . -maxdepth 1 -type f -printf '%f\n' | sort)
+
+      - name: Publish verified draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release edit "$RELEASE_TAG" --draft=false

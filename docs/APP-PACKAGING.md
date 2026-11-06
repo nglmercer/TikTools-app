@@ -59,3 +59,10 @@ the data directory first, especially before a database migration. Portable
 archives require manual replacement; they are not eligible for automatic
 installation. Reinstalling a previous version is a manual recovery option and
 does not reverse database schema changes.
+
+The release workflow creates a new draft release, downloads its uploaded assets,
+checks their SHA-256 hashes and file list, and only then publishes the draft.
+It does not replace assets on an existing release. If publication fails, inspect
+and remove the incomplete draft before retrying; never delete a published
+historical release to retry. This verification does not activate the updater
+feed: signed metadata publication remains a separate, unfinished release gate.
