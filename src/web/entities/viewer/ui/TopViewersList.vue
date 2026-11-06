@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatCount } from '@/shared/lib/intl.ts';
 import type { TopViewerPayload, ViewerRecord } from '@/types.ts';
+import type { RankingSnapshot } from '../../../../widgets/shared/ranking-controller.ts';
 import { rankedViewers } from '../lib/top-viewers.ts';
 import type { ViewerIdentity } from '../lib/viewer-profile.ts';
 import ViewerAvatar from './ViewerAvatar.vue';
@@ -12,14 +13,20 @@ const props = withDefaults(
     topViewers: readonly TopViewerPayload[];
     leaderboard: readonly ViewerRecord[];
     liveViewers: number;
+    ranking?: RankingSnapshot | null;
     images?: boolean;
   }>(),
-  { images: true },
+  { images: true, ranking: null },
 );
 
 const emit = defineEmits<{ select: [viewer: ViewerIdentity] }>();
 const { t, locale } = useI18n();
-const entries = computed(() => rankedViewers(props.topViewers, props.leaderboard));
+const entries = computed(() => rankedViewers(props.topViewers, props.leaderboard, props.ranking));
+const SOURCE_LABELS = {
+  ranking: 'feed.viewers.sourceRanking',
+  tiktok_room: 'feed.viewers.sourceTikTok',
+  loyalty_points: 'feed.viewers.sourcePoints',
+} as const;
 </script>
 
 <template>
@@ -31,7 +38,7 @@ const entries = computed(() => rankedViewers(props.topViewers, props.leaderboard
       v-if="entries.length"
       class="top-viewers__source"
     >
-      {{ t(entries[0]?.provenance === 'tiktok_room' ? 'feed.viewers.sourceTikTok' : 'feed.viewers.sourcePoints') }}
+      {{ t(SOURCE_LABELS[entries[0]!.provenance]) }}
     </p>
     <ul
       v-if="entries.length"

@@ -70,7 +70,10 @@ const builtinPages: ReadonlyArray<{ tab: BuiltinAppTab; label: string; icon: Com
   { tab: 'behavior', label: 'navigation.automations', icon: IconFlow },
   { tab: 'plugins', label: 'navigation.plugins', icon: IconPuzzle },
   { tab: 'widgets', label: 'navigation.overlays', icon: IconLayers },
-  { tab: 'rankings', label: 'navigation.rankings', icon: IconChart },
+  // Rankings & competitions is still in development: the route stays
+  // reachable (#/rankings) and the ranking engine feeds the Live feed, but
+  // the page is not listed in navigation yet.
+  // { tab: 'rankings', label: 'navigation.rankings', icon: IconChart },
   { tab: 'settings', label: 'navigation.settings', icon: IconGear },
 ];
 

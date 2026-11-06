@@ -6,6 +6,7 @@ import type { ControlClient } from '@/shared/api/control-client.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import type { DisplayEvent, EventFilter, TopViewerPayload } from '@/types.ts';
 import { debounce, loadViewState, saveViewState, type DebouncedCallback } from '@/shared/lib/view-state.ts';
+import { createFeedRankings } from '@/entities/ranking/model/feed-rankings.ts';
 
 export interface LiveFeedCallbacks {
   systemAuthor: () => string;
@@ -65,6 +66,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   let restoreTimer: ReturnType<typeof setTimeout> | null = null;
   let refreshRevision = 0;
   const unsubscribers: Array<() => void> = [];
+  const feedRankings = createFeedRankings(control);
 
   const MAX_VISIBLE_FEED = 300;
   const MAX_STAGED_EVENTS = 900;
@@ -293,6 +295,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
 
   const dispose = (): void => {
     disposed = true;
+    feedRankings.dispose();
     cancelFrame(flushFrame);
     cancelFrame(scrollFrame);
     cancelFrame(restoreFrame);
@@ -482,6 +485,8 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       recoveryGeneration += 1;
       recoveryAfter = null;
     }
+    // Idempotent: also reloads ranking snapshots after a same-room reconnect.
+    void feedRankings.connect(data.uniqueId ?? '', data.roomId ?? '');
   }));
   unsubscribers.push(control.onTopic<{ event: UiEvent; sequence?: number; cursor?: number }>('live.ui-event', (data) => {
     if (typeof data.sequence === 'number' && Number.isSafeInteger(data.sequence)) {
@@ -621,6 +626,9 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     searchQuery,
     topViewers,
     likeLeaders,
+    topRanking: feedRankings.topRanking,
+    likesRanking: feedRankings.likesRanking,
+    rankingsAvailable: feedRankings.rankingsAvailable,
     liveViewers,
     giftCatalog,
     autoScroll,
