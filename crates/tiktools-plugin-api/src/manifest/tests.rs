@@ -1348,45 +1348,6 @@ fn minecraft_example_manifest_parses_as_declarative() {
 }
 
 #[test]
-fn l4d2_first_party_manifest_declares_the_local_ipc_contract() {
-    let raw = include_str!("../../../../plugins/l4d2/plugin.json");
-    let manifest = PluginManifest::from_json_str(raw).expect("l4d2 manifest must parse");
-    assert_eq!(manifest.id, "l4d2.interactive");
-    assert_eq!(manifest.runtime, PluginRuntimeKind::Process);
-    assert_eq!(manifest.entry, "tiktools-l4d2");
-    let ids: Vec<&str> = manifest
-        .action_types
-        .iter()
-        .filter_map(|descriptor| descriptor.get("id").and_then(Value::as_str))
-        .collect();
-    assert_eq!(
-        ids,
-        [
-            "l4d2.test_connection",
-            "l4d2.spawn_common",
-            "l4d2.spawn_infected",
-            "l4d2.spawn_item",
-            "l4d2.spawn_weapon",
-        ]
-    );
-    for descriptor in &manifest.action_types {
-        validate_action_type(descriptor).expect("action shape");
-        // The backend talks to the local L4D2api addon itself: no host capability gates.
-        assert_eq!(
-            descriptor.get("requiredCapabilities"),
-            Some(&serde_json::json!([]))
-        );
-    }
-    // File IPC needs no credentials: the old RCON settings must stay gone.
-    let settings: Value = serde_json::from_str(raw).expect("manifest json");
-    let schema = &settings["settings"]["schema"];
-    for removed in ["host", "port", "password"] {
-        assert!(schema["properties"].get(removed).is_none(), "{removed}");
-    }
-    assert_eq!(schema["required"], serde_json::json!([]));
-}
-
-#[test]
 fn repo_and_reference_manifests_are_valid() {
     for source in [
         include_str!("../../../../examples/repo-game/plugin.json"),

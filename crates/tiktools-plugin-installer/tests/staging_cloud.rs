@@ -53,7 +53,6 @@ async fn current_client_installs_all_official_staging_packages() {
     for id in [
         "audio.play.process",
         "hotkeys",
-        "l4d2.interactive",
         "minecraft.server",
         "peak.game",
         "repo.game",
