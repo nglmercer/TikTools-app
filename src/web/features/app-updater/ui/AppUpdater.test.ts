@@ -30,6 +30,29 @@ describe('AppUpdater', () => {
     expect(calls.some((call) => call.method === 'app.state.set' && String(call.params?.value).includes('"channel":"beta"'))).toBe(true);
   });
 
+  it('keeps a newer event received while status is loading', async () => {
+    let resolveStatus: ((value: UpdateStatus) => void) | undefined;
+    const { client } = createFakeControlClient((method) => {
+      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
+      if (method === 'app.update.status') return new Promise<UpdateStatus>((resolve) => { resolveStatus = resolve; });
+      return {};
+    });
+    let emit: ((state: UpdateStatus) => void) | undefined;
+    client.onTopic = (topic, handler) => {
+      if (topic === 'app.update.stateChanged') emit = (state) => handler({ state } as never);
+      return () => {};
+    };
+    const harness = createStoreHarness(client);
+    const store = harness.use(useAppUpdaterStore);
+    const initializing = store.initialize();
+    await flushPromises();
+    emit?.(status({ state: 'downloading', downloadedBytes: 12, checkSupported: true }));
+    resolveStatus?.(status({ state: 'idle', checkSupported: false }));
+    await initializing;
+    expect(store.status?.state).toBe('downloading');
+    expect(store.status?.checkSupported).toBe(true);
+  });
+
   it('renders unknown download length without inventing a percentage', async () => {
     const { client } = createFakeControlClient((method) => {
       if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };

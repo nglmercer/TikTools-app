@@ -14,6 +14,7 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
   const preferences = ref<UpdatePreferences>({ channel: 'stable', automaticChecks: true, notifications: true, lastChecked: 0, lastAttempt: 0 });
   const error = ref('');
   let initialized = false;
+  let eventRevision = 0;
   let saveQueue = Promise.resolve();
 
   function save(): Promise<void> {
@@ -28,7 +29,8 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
     if (initialized) return;
     initialized = true;
     client.onTopic<{ state: UpdateStatus }>('app.update.stateChanged', ({ state }) => {
-      status.value = { ...state, checkSupported: status.value?.checkSupported ?? false };
+      eventRevision++;
+      status.value = state;
       if (state.lastChecked && state.lastChecked > preferences.value.lastChecked) {
         preferences.value.lastChecked = state.lastChecked;
         void save();
@@ -44,8 +46,10 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
         lastChecked: typeof parsed.lastChecked === 'number' && Number.isFinite(parsed.lastChecked) ? parsed.lastChecked : 0,
         lastAttempt: typeof parsed.lastAttempt === 'number' && Number.isFinite(parsed.lastAttempt) ? parsed.lastAttempt : 0,
       };
-      status.value = await updaterApi.status(client);
-      if (status.value.checkSupported && preferences.value.automaticChecks && Date.now() / 1000 - preferences.value.lastAttempt >= INTERVAL_SECONDS) await check();
+      const revision = eventRevision;
+      const initialStatus = await updaterApi.status(client);
+      if (revision === eventRevision) status.value = initialStatus;
+      if (status.value?.checkSupported && preferences.value.automaticChecks && Date.now() / 1000 - preferences.value.lastAttempt >= INTERVAL_SECONDS) await check();
     } catch (failure) { error.value = errorMessage(failure); }
   }
 

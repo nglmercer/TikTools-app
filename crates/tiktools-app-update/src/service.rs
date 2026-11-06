@@ -57,6 +57,10 @@ impl AppUpdater {
             ("windows", "x86_64") => Some("windows-x86_64"),
             _ => None,
         };
+        let key = key
+            .filter(|value| !value.trim().is_empty())
+            .map(str::to_owned);
+        let check_supported = key.is_some() && target.is_some();
         Arc::new(Self {
             inner: Mutex::new(Inner {
                 state: State {
@@ -66,6 +70,7 @@ impl AppUpdater {
                     state: Phase::Idle,
                     installation_type,
                     install_supported: false,
+                    check_supported,
                     downloaded_bytes: 0,
                     total_bytes: None,
                     progress: None,
@@ -76,9 +81,7 @@ impl AppUpdater {
                 release: None,
                 package: None,
             }),
-            key: key
-                .filter(|value| !value.trim().is_empty())
-                .map(str::to_owned),
+            key,
             target,
             install_target: None,
             notify: Arc::new(notify),
@@ -323,6 +326,19 @@ mod tests {
             Err(ServiceError::Unavailable)
         ));
         assert!(!updater.status().install_supported);
+    }
+
+    #[test]
+    fn snapshots_include_check_capability() {
+        let disabled = AppUpdater::new("4.0.0", None, InstallationType::Unknown, |_| {});
+        assert_eq!(
+            serde_json::to_value(disabled.status()).unwrap()["checkSupported"],
+            false
+        );
+        let configured =
+            AppUpdater::new("4.0.0", Some("fixture"), InstallationType::Unknown, |_| {});
+        let value = serde_json::to_value(configured.status()).unwrap();
+        assert_eq!(value["checkSupported"], configured.configured());
     }
 
     #[tokio::test]

@@ -28,6 +28,7 @@ pub struct State {
     pub state: Phase,
     pub installation_type: InstallationType,
     pub install_supported: bool,
+    pub check_supported: bool,
     pub downloaded_bytes: u64,
     pub total_bytes: Option<u64>,
     pub progress: Option<f64>,
@@ -57,6 +58,7 @@ impl UpdateState {
             installation_type,
             // The desktop lifecycle has not yet enabled installation.
             install_supported: false,
+            check_supported: false,
             downloaded_bytes: 0,
             total_bytes: None,
             progress: None,

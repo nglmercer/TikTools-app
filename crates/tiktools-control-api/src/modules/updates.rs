@@ -52,10 +52,8 @@ pub fn register(router: &mut ControlRouter) {
             #[cfg(feature = "app-update")]
             {
                 let updater = updater(&core)?;
-                let mut value = serde_json::to_value(updater.status())
-                    .map_err(|_| ApiError::internal("could not serialize updater status"))?;
-                value["checkSupported"] = Value::Bool(updater.configured());
-                Ok(value)
+                serde_json::to_value(updater.status())
+                    .map_err(|_| ApiError::internal("could not serialize updater status"))
             }
             #[cfg(not(feature = "app-update"))]
             {
