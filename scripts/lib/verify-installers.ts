@@ -85,6 +85,35 @@ export async function verifyLinuxDesktop(root: string): Promise<void> {
   if (!found) throw new Error('Linux package is missing the application icon');
 }
 
+/**
+ * Ensure the AppImage's bundled WebKitGTK spawns its bundled helpers. The
+ * library hardcodes the build host's helper directory, which does not exist on
+ * other distributions (e.g. Arch keeps it in /usr/lib/webkit2gtk-4.1), so the
+ * packaging plugin rewrites "/usr" to the same-length "././" that AppRun resolves from
+ * "$APPDIR/usr". A smoke launch on the build host cannot catch this.
+ */
+export async function verifyAppImageWebKit(appDir: string): Promise<void> {
+  const libDir = join(appDir, 'usr', 'lib');
+  const libraries: string[] = [];
+  for (const name of await readdir(libDir)) {
+    if (name.startsWith('libwebkit2gtk-4.1.so') && (await lstat(join(libDir, name))).isFile()) libraries.push(name);
+  }
+  if (libraries.length === 0) throw new Error('AppImage is missing the bundled libwebkit2gtk-4.1');
+  for (const name of libraries) {
+    const text = (await readFile(join(libDir, name))).toString('latin1');
+    const absolute = text.match(/\/usr\/lib(?:\/[\w.-]+)?\/webkit2gtk-4\.1(?=[/\0])/);
+    if (absolute) throw new Error(`AppImage ${name} still references host WebKit helpers at ${absolute[0]}`);
+    const relative = text.match(/\.\/\.\/\/(lib(?:\/[\w.-]+)?\/webkit2gtk-4\.1)(?=[/\0])/)?.[1];
+    if (!relative) throw new Error(`AppImage ${name} has no AppDir-relative WebKit helper path`);
+    for (const helper of ['WebKitNetworkProcess', 'WebKitWebProcess', 'injected-bundle/libwebkit2gtkinjectedbundle.so']) {
+      const path = join(appDir, 'usr', relative, helper);
+      if (!await lstat(path).then((stat) => stat.isFile(), () => false) || !await isElf(path)) {
+        throw new Error(`AppImage is missing WebKit helper usr/${relative}/${helper}`);
+      }
+    }
+  }
+}
+
 /** Check Debian-family runtime names without assuming other distributions use them. */
 export function verifyDebDependencies(dependencies: string): void {
   for (const name of ['libgtk-3-0', 'libwebkit2gtk-4.1-0']) {
@@ -113,6 +142,7 @@ export async function verifyInstaller(staging: string, installer: string, format
     } else if (format === 'appimage') {
       await run([installer, '--appimage-extract'], temp);
       await verifyLinuxDesktop(join(temp, 'squashfs-root'));
+      await verifyAppImageWebKit(join(temp, 'squashfs-root'));
       const root = join(temp, 'squashfs-root', 'usr');
       // linuxdeploy patches the ELF RPATH, so compare its reported version.
       await checkContents(staging, join(root, 'lib', 'tiktools-desktop'), join(root, 'bin', 'tiktools-desktop'), version, true);

@@ -2,7 +2,7 @@ import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { verifyDebDependencies, verifyLinuxDesktop } from './verify-installers.ts';
+import { verifyAppImageWebKit, verifyDebDependencies, verifyLinuxDesktop } from './verify-installers.ts';
 
 describe('Linux installer metadata', () => {
   test('requires GTK and WebKitGTK Debian dependencies', () => {
@@ -24,6 +24,23 @@ describe('Linux installer metadata', () => {
       await expect(verifyLinuxDesktop(root)).resolves.toBeUndefined();
       await writeFile(desktop, '[Desktop Entry]\nType=Application\nExec=other\nIcon=tiktools-desktop\n');
       await expect(verifyLinuxDesktop(root)).rejects.toThrow();
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+  test('requires AppDir-relative WebKit helpers in the AppImage', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tiktools-appimage-webkit-'));
+    const elf = Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0]);
+    const library = join(root, 'usr/lib/libwebkit2gtk-4.1.so.0');
+    const helpers = join(root, 'usr/lib/x86_64-linux-gnu/webkit2gtk-4.1');
+    try {
+      await mkdir(join(helpers, 'injected-bundle'), { recursive: true });
+      await writeFile(library, Buffer.concat([elf, Buffer.from('/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1\0')]));
+      await expect(verifyAppImageWebKit(root)).rejects.toThrow('host WebKit helpers');
+      await writeFile(library, Buffer.concat([elf, Buffer.from('././/lib/x86_64-linux-gnu/webkit2gtk-4.1\0')]));
+      await expect(verifyAppImageWebKit(root)).rejects.toThrow('missing WebKit helper');
+      for (const helper of ['WebKitNetworkProcess', 'WebKitWebProcess', 'injected-bundle/libwebkit2gtkinjectedbundle.so']) {
+        await writeFile(join(helpers, helper), elf);
+      }
+      await expect(verifyAppImageWebKit(root)).resolves.toBeUndefined();
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 });

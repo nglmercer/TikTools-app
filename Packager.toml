@@ -30,6 +30,13 @@ depends = [
   "libappindicator3-1 | libayatana-appindicator3-1",
 ]
 
+[appimage]
+# Bundles WebKitGTK's helper processes and rewrites their hardcoded host path
+# so the Ubuntu-built AppImage also starts on Arch, Fedora, etc.
+# scripts/package-installers.ts installs the in-repo copy of this plugin into
+# cargo-packager's tool cache before packaging, so the URL is only a fallback.
+linuxdeploy-plugins = { "tiktoolswebkit" = "https://raw.githubusercontent.com/nglmercer/TikTools-app/remake/scripts/appimage/linuxdeploy-plugin-tiktoolswebkit.sh" }
+
 [nsis]
 installMode = "currentUser"
 preinstall-section = '''
