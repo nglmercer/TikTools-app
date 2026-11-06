@@ -28,7 +28,7 @@ const lastSynced = computed(() => {
 });
 
 onMounted(() => {
-  void account.refresh();
+  void account.ensureRestored();
   void sync.refresh();
 });
 </script>

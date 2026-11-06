@@ -149,6 +149,8 @@ impl NativeToken {
 pub enum AuthError {
     #[error("cloud is disabled for this installation")]
     Unconfigured,
+    #[error("no saved cloud session")]
+    NoSavedSession,
     #[error("a login is already in progress")]
     AlreadyInProgress,
     #[error("no login is in progress")]
@@ -170,6 +172,7 @@ impl AuthError {
     pub fn code(&self) -> &'static str {
         match self {
             AuthError::Unconfigured => "unconfigured",
+            AuthError::NoSavedSession => "no-saved-session",
             AuthError::AlreadyInProgress => "already-in-progress",
             AuthError::NoLoginInProgress => "no-login-in-progress",
             AuthError::AlreadySignedIn => "already-signed-in",
@@ -410,7 +413,15 @@ impl CloudAuth {
     /// Refuses when the configured origin changed since sign-in.
     pub async fn restore(&self) -> Result<AccountStatus, AuthError> {
         let sidecar: AccountSidecar = {
-            let bytes = std::fs::read(&self.sidecar).map_err(|_| AuthError::Unconfigured)?;
+            let Ok(bytes) = std::fs::read(&self.sidecar) else {
+                // Nothing to restore is a normal signed-out start, distinct
+                // from a disabled Cloud.
+                return Err(if self.inner.lock().await.origin.is_some() {
+                    AuthError::NoSavedSession
+                } else {
+                    AuthError::Unconfigured
+                });
+            };
             serde_json::from_slice(&bytes)
                 .map_err(|_| AuthError::Failed("saved account is unreadable".to_owned()))?
         };
@@ -428,7 +439,7 @@ impl CloudAuth {
             .store
             .load(&sidecar.origin, &sidecar.account_id)
             .map_err(|_| AuthError::StorageUnavailable)?
-            .ok_or(AuthError::Unconfigured)?;
+            .ok_or(AuthError::NoSavedSession)?;
         let session = Session::connect_secret(&sidecar.origin, token)
             .await
             .map_err(map_session_error)?;
@@ -514,7 +525,9 @@ impl CloudAuth {
                         let _ = std::fs::remove_file(&self.sidecar);
                         if !matches!(
                             restore_error,
-                            None | Some(AuthError::Unconfigured) | Some(AuthError::Expired)
+                            None | Some(AuthError::Unconfigured)
+                                | Some(AuthError::NoSavedSession)
+                                | Some(AuthError::Expired)
                         ) {
                             warning = Some(format!(
                                 "signed out locally; server revocation is unknown ({})",

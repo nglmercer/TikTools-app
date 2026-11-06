@@ -25,14 +25,15 @@ export function sonicboomDescriptor(overrides: Record<string, unknown> = {}) {
     hasSettings: true,
     hasConnectionProbe: true,
     supportsTokenProvisioning: true,
-    guidedConnection: true,
     ...overrides,
   };
 }
 
 export function sonicboomStatus(overrides: Record<string, unknown> = {}) {
   return {
-    descriptor: sonicboomDescriptor(),
+    // Only the SonicBoom package declares the guided service-info probe;
+    // other fixtures built from this descriptor stay plain HTTP plugins.
+    descriptor: sonicboomDescriptor({ guidedConnection: true }),
     installed: true,
     enabled: true,
     running: true,

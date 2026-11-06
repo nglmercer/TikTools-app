@@ -29,7 +29,7 @@ fn auth_error(error: AuthError) -> OperationError {
     let message = error.to_string();
     let data = serde_json::json!({ "reason": reason });
     let mut operation = match &error {
-        AuthError::Unconfigured | AuthError::StorageUnavailable => {
+        AuthError::Unconfigured | AuthError::NoSavedSession | AuthError::StorageUnavailable => {
             OperationError::unavailable(message)
         }
         AuthError::AlreadyInProgress

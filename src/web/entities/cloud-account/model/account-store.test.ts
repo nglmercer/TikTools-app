@@ -48,6 +48,42 @@ describe('account store', () => {
     expect(calls.map((call) => call.method)).toEqual(['cloud.status']);
   });
 
+  it('restores a keychain session once and shares concurrent attempts', async () => {
+    const { store, calls } = harness((method) => {
+      if (method === 'cloud.status') return signedOut();
+      if (method === 'cloud.restore') return signedOut({ state: 'signed-in', accountId: 'user-9' });
+      throw new Error(`unexpected ${method}`);
+    });
+    await Promise.all([store.ensureRestored(), store.ensureRestored()]);
+    expect(store.status?.state).toBe('signed-in');
+    expect(calls.filter((call) => call.method === 'cloud.restore')).toHaveLength(1);
+  });
+
+  it('treats "no saved session" as a quiet signed-out start', async () => {
+    const { store } = harness((method) => {
+      if (method === 'cloud.status') return signedOut();
+      if (method === 'cloud.restore') {
+        throw new ControlCallError('unavailable', 'no saved cloud session', { reason: 'no-saved-session' });
+      }
+      throw new Error(`unexpected ${method}`);
+    });
+    await store.ensureRestored();
+    expect(store.status?.state).toBe('signed-out');
+    expect(store.error).toBeNull();
+  });
+
+  it('surfaces an expired saved session', async () => {
+    const { store } = harness((method) => {
+      if (method === 'cloud.status') return signedOut();
+      if (method === 'cloud.restore') {
+        throw new ControlCallError('internal', 'cloud session expired; sign in again', { reason: 'expired' });
+      }
+      throw new Error(`unexpected ${method}`);
+    });
+    await store.ensureRestored();
+    expect(store.error).toContain('expired');
+  });
+
   it('runs the browser login loop to signed-in', async () => {
     const { store } = harness((method) => {
       if (method === 'cloud.login.begin') return { browserUrl: 'https://cloud.example/desktop/login?x=1' };
