@@ -4,6 +4,10 @@
 
 - Rust 1.95 or newer with Cargo.
 - MSVC Build Tools are required on Windows.
+- Native Windows Perl is required on Windows to compile the vendored OpenSSL
+  dependency used by cloud authentication. Install Strawberry Perl once:
+  `winget install --id StrawberryPerl.StrawberryPerl --exact`.
+  Released TikTools binaries do not require Perl.
 - LLVM `lld-link` is optional. When available on `PATH`, Rust commands
   automatically use it for faster linking. Otherwise the default MSVC
   linker is used.
@@ -19,6 +23,33 @@ On Debian/Ubuntu, install the GTK/WebKitGTK development packages provided by
 your distribution before building the desktop crate. Package names vary with
 the distribution release; if Cargo reports a missing GTK or WebKit library,
 install its `-dev` package and retry.
+
+### Windows build environment
+
+`bun run dev`, `bun run start`, `bun run build`, and
+`bun scripts/task.ts rust <cargo arguments>` use `scripts/cargo-with-linker.mjs`.
+It loads the installed MSVC developer environment when necessary and detects
+native Windows Perl on `PATH`. It also finds Strawberry Perl under
+`C:\Strawberry`, `<SystemDrive>\Strawberry`, `<ProgramFiles>\Strawberry`, and
+`<LOCALAPPDATA>\Programs\Strawberry`, even when the terminal or IDE has an old
+`PATH`. It sets `OPENSSL_SRC_PERL` for the Cargo child process without adding
+Strawberry's GCC tools to `PATH`.
+
+For a portable or custom Perl installation, set the executable explicitly:
+
+```powershell
+$env:OPENSSL_SRC_PERL = 'D:\Tools\Strawberry\perl\bin\perl.exe'
+bun run dev
+```
+
+Existing `OPENSSL_SRC_PERL` and `PERL` settings are preserved. Use native
+Windows Perl for MSVC builds; the MSYS/Cygwin Perl shipped with Unix-like
+environments is unsuitable for this configuration. See
+[OpenSSL's Perl notes](https://github.com/openssl/openssl/blob/master/NOTES-PERL.md).
+If Perl is absent, the wrapper prints the installation command before Cargo
+runs. Install it once and retry. Direct `cargo` commands bypass this setup;
+use a Developer PowerShell with native Perl available or set
+`OPENSSL_SRC_PERL` yourself.
 
 ## Install and run
 

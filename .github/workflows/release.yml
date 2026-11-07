@@ -106,6 +106,10 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
 
+      - name: Install native Perl for vendored OpenSSL
+        if: runner.os == 'Windows'
+        run: choco install strawberryperl --no-progress -y
+
       - name: Cache Cargo dependencies and build output
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
