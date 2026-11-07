@@ -32,8 +32,6 @@ use self::{
 };
 use super::modules::HostShared;
 
-pub(crate) use env::HostEvents as Events;
-
 /// Per-plugin native state: one shim handle, one External class, one env per
 /// loaded addon.
 pub(crate) struct NativeState {
@@ -123,6 +121,7 @@ pub(crate) fn load_addon<'js>(
     path: &Path,
 ) -> rquickjs::Result<Value<'js>> {
     let fail = |message: String| Exception::throw_message(ctx, &message);
+    tracing::debug!(plugin = %shared.plugin, addon = %path.display(), "loading native addon");
     preflight(path).map_err(&fail)?;
     if shared.native.borrow().is_none() {
         let state = init_state(ctx, shared).map_err(&fail)?;
@@ -186,7 +185,7 @@ pub(crate) fn load_addon<'js>(
     }
 
     let url = CString::new(format!("file://{}", path.display())).unwrap_or_default();
-    let env_ptr = Env::new(ctx.as_raw().as_ptr(), external_class, events, url, version as u32);
+    let env_ptr = Env::new(ctx.as_raw().as_ptr(), external_class, events, url);
     if let Some(state) = shared.native.borrow_mut().as_mut() {
         state.envs.push(env_ptr);
     }

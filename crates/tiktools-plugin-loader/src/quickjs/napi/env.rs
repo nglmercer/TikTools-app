@@ -118,7 +118,6 @@ pub(crate) struct Env {
     pub(super) external_class: qjs::JSClassID,
     pub(super) events: Arc<HostEvents>,
     pub(super) module_url: CString,
-    pub(super) api_version: u32,
     handles: RefCell<Vec<qjs::JSValue>>,
     scopes: RefCell<Vec<Scope>>,
     pending: Cell<Option<qjs::JSValue>>,
@@ -131,7 +130,6 @@ pub(crate) struct Env {
     /// Hidden symbol atoms: wrap pointer, type tag, added finalizers.
     pub(super) wrap_atom: qjs::JSAtom,
     pub(super) tag_atom: qjs::JSAtom,
-    pub(super) finalizer_counter: Cell<u64>,
     pub(super) live_async: RefCell<HashSet<usize>>,
     pub(super) live_tsfn: RefCell<HashSet<usize>>,
     pub(super) dead: Cell<bool>,
@@ -171,7 +169,6 @@ impl Env {
         external_class: qjs::JSClassID,
         events: Arc<HostEvents>,
         module_url: CString,
-        api_version: u32,
     ) -> *mut Env {
         let wrap_atom = new_private_atom(ctx, "tiktools.napi.wrap");
         let tag_atom = new_private_atom(ctx, "tiktools.napi.type-tag");
@@ -180,7 +177,6 @@ impl Env {
             external_class,
             events,
             module_url,
-            api_version,
             handles: RefCell::new(Vec::new()),
             scopes: RefCell::new(Vec::new()),
             pending: Cell::new(None),
@@ -197,7 +193,6 @@ impl Env {
             instance_data: Cell::new((std::ptr::null_mut(), None, std::ptr::null_mut())),
             wrap_atom,
             tag_atom,
-            finalizer_counter: Cell::new(0),
             live_async: RefCell::default(),
             live_tsfn: RefCell::default(),
             dead: Cell::new(false),

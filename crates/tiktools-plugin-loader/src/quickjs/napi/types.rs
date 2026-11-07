@@ -69,6 +69,7 @@ pub(super) const PENDING_EXCEPTION: i32 = 10;
 pub(super) const CANCELLED: i32 = 11;
 pub(super) const ESCAPE_CALLED_TWICE: i32 = 12;
 pub(super) const HANDLE_SCOPE_MISMATCH: i32 = 13;
+#[allow(dead_code)] // part of the complete napi_status table
 pub(super) const CALLBACK_SCOPE_MISMATCH: i32 = 14;
 pub(super) const QUEUE_FULL: i32 = 15;
 pub(super) const CLOSING: i32 = 16;
@@ -76,7 +77,9 @@ pub(super) const BIGINT_EXPECTED: i32 = 17;
 pub(super) const DATE_EXPECTED: i32 = 18;
 pub(super) const ARRAYBUFFER_EXPECTED: i32 = 19;
 pub(super) const DETACHABLE_ARRAYBUFFER_EXPECTED: i32 = 20;
+#[allow(dead_code)] // part of the complete napi_status table
 pub(super) const WOULD_DEADLOCK: i32 = 21;
+#[allow(dead_code)] // part of the complete napi_status table
 pub(super) const NO_EXTERNAL_BUFFERS_ALLOWED: i32 = 22;
 pub(super) const CANNOT_RUN_JS: i32 = 23;
 

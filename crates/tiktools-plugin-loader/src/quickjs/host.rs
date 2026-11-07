@@ -8,7 +8,6 @@ use std::{
         atomic::{AtomicU32, Ordering},
         Arc,
     },
-    thread,
     time::Instant,
 };
 
