@@ -219,6 +219,33 @@ jobs:
       - name: Test client and CLI on MSRV
         run: node scripts/cargo-with-linker.mjs +${{ env.MSRV_TOOLCHAIN }} test -p tiktools-client -p tiktools-cli --locked
 
+  plugin-runtime:
+    # The QuickJS plugin runtime and its in-process Node-API host (native
+    # `.node` addons) ship C and platform-specific code, so run the loader's
+    # tests, including the napi-rs addon integration tests, on every desktop OS.
+    name: plugin runtime (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - windows-latest
+          - macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install current Rust
+        run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal
+
+      - name: Set up MSVC developer environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+
+      - name: Test plugin loader and Node-API host
+        run: cargo +${{ env.RUSTUP_TOOLCHAIN }} test -p tiktools-plugin-loader --locked -- --test-threads=1
+
   desktop:
     name: desktop (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

@@ -201,7 +201,7 @@ contained outside the application.
 
 ## Automation script errors
 
-Scripts run in `napi-vm` with bounded source/result sizes and a loop budget.
+Scripts run in QuickJS (`rquickjs`) with bounded source/result sizes and a loop budget.
 They receive JSON `event`, `inputs`, and `data` values only. Node APIs,
 filesystem, network, process spawning, and WebView handles are unavailable.
 Move privileged work into a declared host action or plugin capability.

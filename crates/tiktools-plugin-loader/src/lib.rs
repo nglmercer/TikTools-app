@@ -8,7 +8,7 @@
 mod declarative;
 mod discovery;
 mod manager;
-mod napi_vm;
+mod quickjs;
 mod native;
 mod process;
 #[cfg(test)]
@@ -20,7 +20,7 @@ mod worker;
 pub use declarative::DeclarativePluginRuntime;
 pub use discovery::plugin_roots;
 pub use manager::{PluginManager, RuntimeRegistry};
-pub use napi_vm::{native_addons_allowed, NapiVmPluginRuntime};
+pub use quickjs::{native_addons_allowed, QuickJsPluginRuntime, QuickJsPluginRuntime as NapiVmPluginRuntime};
 pub use native::NativePluginRuntime;
 pub use process::ProcessPluginRuntime;
 pub use types::{

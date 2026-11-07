@@ -67,7 +67,7 @@ thiserror.workspace = true
 tracing.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
-napi-vm.workspace = true
+rquickjs.workspace = true
 rusqlite = { workspace = true, optional = true, features = ["bundled"] }
 reqwest = { workspace = true, optional = true }
 tokio-tungstenite = { workspace = true, optional = true }

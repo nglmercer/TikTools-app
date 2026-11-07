@@ -1,5 +1,18 @@
 # napi-vm plugins (`runtime: "napi-vm"`)
 
+> **Engine note.** `runtime: "napi-vm"` plugins run on QuickJS (`rquickjs`).
+> The manifest runtime name, the `PluginCall` protocol, the `tiktools:events`
+> module, `node:module` `createRequire` and the `nativeAddons` allowlist are
+> unchanged. Native `.node` addons load through an in-process Node-API host
+> (`crates/tiktools-plugin-loader/src/quickjs/napi/`) that forwards the
+> `napi_*` C symbols (`native/node_api_shim.c`) into QuickJS. Guests get
+> `console`, timers, `queueMicrotask`, `TextEncoder`/`TextDecoder`, `URL`/
+> `URLSearchParams` and a Node-style `Buffer` (a `Uint8Array` subclass; native
+> buffers from addons are plain `Uint8Array`s). `napi_get_uv_event_loop` is
+> unsupported (no libuv), as before. Text below
+> that names "napi-vm's VM" or interpreter means this QuickJS runtime.
+
+
 TypeScript-first plugins compiled to JavaScript ahead of time and executed
 through `napi_vm::RustPluginHost` — napi-vm's pure-Rust interpreter. There is
 no runtime transpiler and no Node.js dependency on this path.
@@ -328,15 +341,10 @@ exact-host loads, alias require, undeclared/missing/ambiguous/untrusted
 rejections, GNU vs musl selection, TSFN delivery while idle, and clean
 shutdown with reload.
 
-## Follow-ups (upstream napi-vm)
+## Follow-ups
 
-- `RustPluginHost::load_spec(...)`: let TikTools pass its parsed
-  manifest (id/entry) instead of sharing one `plugin.json` shape, which
-  removes the `apiVersion` compat key, the `name` regex constraint, and
-  the `permissions` key collision.
-- Rust capability modules for TikTools-owned APIs (`events`, `points`,
-  `storage`, `audio`, `http`), granted per plugin from the manifest's
-  `capabilities` list.
-- Hotkey host capability modules (Wayland portal chords, evdev raw
-  input) restoring what the retired process plugin did guest-side;
+- Rust capability modules for TikTools-owned APIs (`events` exists; `points`,
+  `storage`, `audio`, `http` are future), granted per plugin from the
+  manifest's `capabilities` list.
+- Hotkey host capability modules (Wayland portal chords, evdev raw input);
   see `docs/HOTKEYS_LINUX.md`.
