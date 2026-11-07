@@ -141,7 +141,7 @@ records stay readable while their execution is moved into Rust.
 
 Rust owns workflow/behavior persistence, native event publication, built-in
 action metadata, and bounded script execution. The editor remains Vue and
-uses JSON descriptors supplied by the host. `napi-vm` receives only JSON values
+uses JSON descriptors supplied by the host. the QuickJS script engine receives only JSON values
 (`event`, `inputs`, and `data`) and has no Node, filesystem, network, or WebView
 objects.
 

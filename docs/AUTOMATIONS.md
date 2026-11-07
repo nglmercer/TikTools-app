@@ -83,7 +83,7 @@ manifests.
 ## Scripts
 
 The `core.code` action and the workflow script node execute through the
-pure-Rust `napi-vm` adapter. A script receives JSON globals:
+embedded QuickJS (`rquickjs`) adapter. A script receives JSON globals:
 
 ```js
 event   // normalized automation event

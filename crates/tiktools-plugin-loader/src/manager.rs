@@ -18,7 +18,7 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 
 use crate::{
     discovery::{read_discovered_plugin, MAX_DIRECTORY_ENTRIES},
-    napi_vm::{native_addons_allowed, untrusted_native_addons},
+    quickjs::{native_addons_allowed, untrusted_native_addons},
     worker::{run_instance_worker, QueuedCall, RunningInstance, WorkerMsg},
     DeclarativePluginRuntime, DiscoveredPlugin, EmittedEvent, NapiVmPluginRuntime,
     NativePluginRuntime, PluginLoaderError, PluginRoot, PluginRuntime, ProcessPluginRuntime,

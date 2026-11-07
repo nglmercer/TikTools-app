@@ -1,3 +1,5 @@
+> **Historical.** The `napi-vm` dependency was removed; the script service and plugin runtime now run on QuickJS (`rquickjs`). This plan is kept for context only.
+
 # napi-vm migration plan
 
 Prepared 2026-10-26 after the dependency refresh. This is a separate migration;

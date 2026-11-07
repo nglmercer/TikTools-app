@@ -305,8 +305,7 @@ The workspace currently requires:
 rust-version = 1.90
 ```
 
-The pinned `tiktok-signer` revision currently pulls `rquickjs 0.12.2` and `napi-vm` code that require
-Rust 1.87 and 1.88 respectively, and `tray-icon` 0.26 (`muda` 0.21) requires Rust 1.90. These are
+The pinned `tiktok-signer` revision currently pulls `rquickjs 0.12.2` (Rust 1.87), and `tray-icon` 0.26 (`muda` 0.21) requires Rust 1.90. These are
 existing dependency requirements, so use Rust `1.90.0` explicitly in CI and document the MSRV change
 rather than allowing the lockfile to fail on 1.88.
 

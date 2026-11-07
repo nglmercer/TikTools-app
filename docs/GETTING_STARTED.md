@@ -80,7 +80,7 @@ bun scripts/task.ts rust build -p tiktools-desktop --release --locked
 
 The core-only commands avoid desktop dependencies. `cargo test --workspace --locked`
 also exercises SQLite, plugin manifest/ABI, native event normalization, the
-bounded `napi-vm` adapter, and the Wry asset handler.
+bounded QuickJS adapter, and the Wry asset handler.
 
 ## Frontend commands
 

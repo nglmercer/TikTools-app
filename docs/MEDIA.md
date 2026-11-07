@@ -66,7 +66,7 @@ omitted `selection` and no `error`.
 
 ## Runtime boundaries
 
-`napi-vm` scripts and the sample process plugin do not get filesystem handles,
+QuickJS scripts and the sample process plugin do not get filesystem handles,
 audio objects, or arbitrary host callbacks through the TikTools protocol. They
 return a bounded JSON audio intent. The SDK emits the typed `intents` shape;
 the compatibility boundary also accepts legacy `playAudio` responses. The

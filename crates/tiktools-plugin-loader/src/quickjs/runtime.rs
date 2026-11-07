@@ -1,46 +1,11 @@
-//! napi-vm JavaScript runtime for TypeScript-first plugins.
+//! Plugin runtime adapter for the QuickJS host (`runtime: "napi-vm"`).
 //!
-//! Plugins are authored in TypeScript, compiled to JavaScript ahead of time,
-//! and executed through `napi_vm::RustPluginHost`. There is no runtime
-//! transpiler and no Node.js dependency on this path: guest code runs inside
-//! napi-vm's pure-Rust interpreter with deny-by-default host capabilities.
-//!
-//! Threading: napi-vm's VM is `!Send` (`Rc`/`RefCell` internals), while
-//! [`PluginInstance`] must be `Send`. Each plugin therefore runs on one
-//! dedicated owner thread that serves the manager's call queue directly —
-//! there is no generic worker thread in front of it (see
-//! `PluginRuntime::spawn_worker`). The VM value never crosses threads:
-//! only plain bytes move over the queue, and only the owner thread runs
-//! guest code or drains the event loop.
-//!
-//! The owner sleeps with no timeout while idle: plugin commands and
-//! host-event wakes (native callbacks, async completions, and finalizers
-//! posted from other threads) are the only work sources, so an idle plugin
-//! consumes zero recurring wakeups.
-//!
-//! Protocol: unchanged. The host sends `PluginCall` JSON and the guest
-//! answers `PluginCallResult` JSON through its `call(request, context)`
-//! export. TikTools stays the authority for its own `plugin.json`: the loader
-//! parses the manifest, and napi-vm only reads its own compatibility subset
-//! (`name`, `version`, `apiVersion`, `entry`) from the same file. Until
-//! napi-vm grows a spec-based load entry point, napi-vm plugins carry
-//! `"apiVersion": 1` next to the TikTools fields, and request no napi-vm
-//! `permissions` object (that key collides with TikTools' own string-list
-//! `permissions`, so host capabilities stay deny-by-default in this slice).
-//!
-//! Native addons (napi-rs `.node` binaries) are opt-in per plugin through
-//! the manifest `nativeAddons` list, and only for explicitly trusted
-//! manifests (see `native_addons_allowed`). Before `host.load`, the owner
-//! thread selects the exact host binary from each declared package root,
-//! authorizes that one file through napi-vm (which pins its contents
-//! internally), and exposes it to guests as a native `require()` alias
-//! under the declared package name; with no declaration the guest stays
-//! inside the pure-Rust VM. While idle the owner thread sleeps: native
-//! TSFN/async callbacks wake it through a host-event notifier instead of
-//! a polling interval.
+//! The manifest runtime name stays `napi-vm` so installed plugins keep
+//! working; the engine behind it is QuickJS (see the module docs in
+//! `quickjs/mod.rs`).
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::HashSet,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -50,10 +15,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use napi_vm::{
-    value_to_json, Interpreter, RustPluginCapability, RustPluginHost, RustPluginHostOptions,
-    RustPluginPolicy, Value, VmErr, WakeNotifier,
-};
 #[cfg(all(
     feature = "napi-vm-node-api",
     any(target_os = "linux", target_os = "macos", target_os = "windows")
@@ -65,16 +26,25 @@ use tiktools_plugin_api::{
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
 
+use super::{
+    events::EventsPush,
+    host::{HostConfig, QuickJsHost},
+    modules::NativeAliases,
+};
 use crate::{
     worker::{QueuedCall, WorkerMsg},
     EmittedEvent, ManagedWorker, PluginInstance, PluginLoaderError, PluginRuntime, PluginSource,
     WorkerContext,
 };
 
-#[derive(Default)]
-pub struct NapiVmPluginRuntime;
+/// Cross-thread wake callback: native callbacks, async completions and
+/// finalizers posted from other threads nudge the owner thread through it.
+pub(crate) type WakeNotifier = Arc<dyn Fn() + Send + Sync>;
 
-impl PluginRuntime for NapiVmPluginRuntime {
+#[derive(Default)]
+pub struct QuickJsPluginRuntime;
+
+impl PluginRuntime for QuickJsPluginRuntime {
     fn kind(&self) -> PluginRuntimeKind {
         PluginRuntimeKind::NapiVm
     }
@@ -259,37 +229,13 @@ fn guest_context(manifest: &PluginManifest) -> serde_json::Value {
     })
 }
 
-/// Guest module for push events: `import { emit, emitMany } from
-/// "tiktools:events"`. Installed only for plugins whose manifest requests
-/// publishing; every emit is validated here (shape, declared type, size)
-/// and re-validated by core (publish grant) before delivery.
-pub const EVENTS_CAPABILITY: &str = "tiktools:events";
-
-/// Max serialized bytes of one pushed event (type plus data).
-/// Hotkey-class events are ~100 bytes; 64 KiB leaves wide headroom while
-/// keeping the bounded push bus small under burst.
-const MAX_EMIT_EVENT_BYTES: usize = 64 * 1024;
-
-/// Max events per `emitMany` batch: bursts stay bounded per call.
-const MAX_EMIT_BATCH: usize = 64;
-
-/// Per-plugin push state: what the `tiktools:events` closures validate
-/// against and where accepted events go.
-struct EventsPush {
-    plugin_id: String,
-    declared: HashSet<String>,
-    tx: broadcast::Sender<EmittedEvent>,
-}
-
-/// Translates the TikTools manifest into the napi-vm events request: a
-/// plugin that declares the publish capability asks for the module. The
-/// guest import still requires the host grant (installed in
-/// `run_vm_owner`); delivery additionally requires core's per-event
-/// validation.
+/// Translates the TikTools manifest into the events request: a plugin that
+/// declares the publish capability gets the `tiktools:events` module. The
+/// guest import still requires core's per-event validation on delivery.
 fn events_push_for(
     manifest: &PluginManifest,
     emit_tx: broadcast::Sender<EmittedEvent>,
-) -> Option<EventsPush> {
+) -> Option<Arc<EventsPush>> {
     if !manifest
         .capabilities
         .iter()
@@ -297,140 +243,11 @@ fn events_push_for(
     {
         return None;
     }
-    Some(EventsPush {
+    Some(Arc::new(EventsPush {
         plugin_id: manifest.id.clone(),
-        declared: declared_event_types(manifest).into_iter().collect(),
+        declared: declared_event_types(manifest).into_iter().collect::<HashSet<_>>(),
         tx: emit_tx,
-    })
-}
-
-fn install_events_capability(
-    host: &mut RustPluginHost,
-    events: &EventsPush,
-) -> Result<(), PluginLoaderError> {
-    let plugin_id = events.plugin_id.clone();
-    let declared = events.declared.clone();
-    let tx = events.tx.clone();
-    let capability =
-        RustPluginCapability::new(EVENTS_CAPABILITY).export("emit", move |interp, args| {
-            let event = args.first().cloned().unwrap_or(Value::Undefined);
-            push_one(interp, &plugin_id, &declared, &tx, &event).map(|_| Value::Undefined)
-        });
-    let plugin_id = events.plugin_id.clone();
-    let declared = events.declared.clone();
-    let tx = events.tx.clone();
-    let capability = capability.export("emitMany", move |interp, args| {
-        let batch = args.first().cloned().unwrap_or(Value::Undefined);
-        push_many(interp, &plugin_id, &declared, &tx, &batch)
-            .map(|count| Value::Number(count as f64))
-    });
-    host.define_capability(capability).map_err(|error| {
-        PluginLoaderError::Runtime(format!(
-            "napi-vm plugin `{}` events capability failed: {error}",
-            events.plugin_id
-        ))
-    })?;
-    host.set_extra_capability_requests(BTreeMap::from([(
-        EVENTS_CAPABILITY.to_owned(),
-        serde_json::json!(true),
-    )]))
-    .map_err(|error| {
-        PluginLoaderError::Runtime(format!(
-            "napi-vm plugin `{}` events request failed: {error}",
-            events.plugin_id
-        ))
-    })
-}
-
-/// Validates one pushed event and enqueues it. Failures throw to the guest,
-/// so a misbehaving plugin learns immediately instead of losing events.
-fn push_one(
-    interp: &mut Interpreter,
-    plugin_id: &str,
-    declared: &HashSet<String>,
-    tx: &broadcast::Sender<EmittedEvent>,
-    event: &Value,
-) -> Result<(), VmErr> {
-    let json = value_to_json(interp, event)
-        .map_err(|error| VmErr::Msg(format!("emit: event is not serializable: {error}")))?;
-    let (event_type, data) = check_emitted_json(declared, &json, "emit")?;
-    tx.send(EmittedEvent {
-        plugin_id: plugin_id.to_owned(),
-        event_type,
-        data,
-    })
-    .map_err(|_| VmErr::Msg("emit: event bus unavailable".to_owned()))?;
-    Ok(())
-}
-
-/// Validates a batch and enqueues it, returning the accepted count. The
-/// batch is validated fully before anything is sent: a bad batch sends
-/// nothing.
-fn push_many(
-    interp: &mut Interpreter,
-    plugin_id: &str,
-    declared: &HashSet<String>,
-    tx: &broadcast::Sender<EmittedEvent>,
-    batch: &Value,
-) -> Result<usize, VmErr> {
-    let json = value_to_json(interp, batch)
-        .map_err(|error| VmErr::Msg(format!("emitMany: batch is not serializable: {error}")))?;
-    let events = json
-        .as_array()
-        .ok_or_else(|| VmErr::Msg("emitMany: expected an array of events".to_owned()))?;
-    if events.len() > MAX_EMIT_BATCH {
-        return Err(VmErr::Msg(format!(
-            "emitMany: batch exceeds {MAX_EMIT_BATCH} events"
-        )));
-    }
-    let mut staged = Vec::with_capacity(events.len());
-    for event in events {
-        staged.push(check_emitted_json(declared, event, "emitMany")?);
-    }
-    for (event_type, data) in staged {
-        tx.send(EmittedEvent {
-            plugin_id: plugin_id.to_owned(),
-            event_type,
-            data,
-        })
-        .map_err(|_| VmErr::Msg("emitMany: event bus unavailable".to_owned()))?;
-    }
-    Ok(events.len())
-}
-
-/// Shared shape/type/size validation for pushed events: `{ type, data? }`
-/// with a declared type and a bounded payload. Core re-validates the
-/// publish grant before delivery.
-fn check_emitted_json(
-    declared: &HashSet<String>,
-    json: &serde_json::Value,
-    caller: &str,
-) -> Result<(String, serde_json::Value), VmErr> {
-    let object = json
-        .as_object()
-        .ok_or_else(|| VmErr::Msg(format!("{caller}: event must be an object")))?;
-    let event_type = object
-        .get("type")
-        .and_then(serde_json::Value::as_str)
-        .filter(|kind| !kind.is_empty())
-        .ok_or_else(|| VmErr::Msg(format!("{caller}: event needs a non-empty string type")))?;
-    if !declared.contains(event_type) {
-        return Err(VmErr::Msg(format!(
-            "{caller}: undeclared event type `{event_type}`"
-        )));
-    }
-    let bytes = serde_json::to_vec(json)
-        .map_err(|error| VmErr::Msg(format!("{caller}: event is not serializable: {error}")))?;
-    if bytes.len() > MAX_EMIT_EVENT_BYTES {
-        return Err(VmErr::Msg(format!(
-            "{caller}: event exceeds {MAX_EMIT_EVENT_BYTES} bytes"
-        )));
-    }
-    let data = object
-        .get("data")
-        .cloned()
-        .unwrap_or(serde_json::Value::Null);
-    Ok((event_type.to_owned(), data))
+    }))
 }
 
 /// Spawns the dedicated VM owner thread and waits for the guest `onLoad`
@@ -453,6 +270,8 @@ fn spawn_owner(
     let id = manifest.id.clone();
     let name = manifest.name.clone();
     let context = guest_context(manifest);
+    let version = manifest.version.clone();
+    let entry = manifest.entry.clone();
     let native_addons = manifest.native_addons.clone();
     let directory = directory.to_owned();
     let events = events_push_for(manifest, emit_tx);
@@ -462,9 +281,13 @@ fn spawn_owner(
     let wake_tx = tx.clone();
     let worker = thread::Builder::new()
         .name(format!("tiktools-napi-vm-{thread_id}"))
+        // The guest stack limit (2 MiB) plus native frames must fit.
+        .stack_size(16 * 1024 * 1024)
         .spawn(move || {
             run_vm_owner(VmOwnerArgs {
                 name,
+                version,
+                entry,
                 directory,
                 context,
                 native_addons,
@@ -512,28 +335,31 @@ fn spawn_owner(
 /// body takes one parameter instead of a long positional list.
 struct VmOwnerArgs {
     name: String,
+    version: String,
+    entry: String,
     directory: PathBuf,
     context: serde_json::Value,
     native_addons: Vec<NativeAddonDeclaration>,
-    events: Option<EventsPush>,
+    events: Option<Arc<EventsPush>>,
     rx: mpsc::UnboundedReceiver<WorkerMsg>,
     wake_tx: mpsc::UnboundedSender<WorkerMsg>,
     ready: std_mpsc::Sender<Result<(), PluginLoaderError>>,
 }
 
-/// VM owner-thread main loop. Creates the `RustPluginHost` here so the VM
+/// VM owner-thread main loop. Creates the QuickJS host here so the runtime
 /// never exists anywhere else, authorizes declared native addons, reports
 /// the `onLoad` outcome through the handshake channel, then serves the
 /// manager's call queue until `Shutdown` unloads the guest.
 ///
-/// Shutdown order: stop accepting calls, run guest `onUnload`, dispose the
-/// napi-vm plugin and shut down its native runtime, then exit this thread.
-/// The host never terminates threads an addon detached itself: persistent
-/// addon resources must expose their own stop API, which the guest calls
-/// from `onUnload`.
+/// Shutdown order: stop accepting calls, run guest `onUnload`, release the
+/// runtime and its native addons, then exit this thread. The host never
+/// terminates threads an addon detached itself: persistent addon resources
+/// must expose their own stop API, which the guest calls from `onUnload`.
 fn run_vm_owner(args: VmOwnerArgs) -> Result<(), PluginLoaderError> {
     let VmOwnerArgs {
         name,
+        version,
+        entry,
         directory,
         context,
         native_addons,
@@ -542,63 +368,54 @@ fn run_vm_owner(args: VmOwnerArgs) -> Result<(), PluginLoaderError> {
         wake_tx,
         ready,
     } = args;
-    // Deny-by-default: no filesystem, no `node:path`, no capability modules
-    // in this slice. TikTools-owned host APIs arrive as Rust capability
-    // modules granted per plugin in a follow-up. Native selection is
-    // host-side (see below): guests receive no platform or libc facts and
-    // load the addon through its package alias instead of a loader.
-    let policy = match &events {
-        Some(_) => RustPluginPolicy::default().grant(EVENTS_CAPABILITY, serde_json::json!(true)),
-        None => RustPluginPolicy::default(),
-    };
-    let mut host = RustPluginHost::new(RustPluginHostOptions {
-        policy,
-        ..RustPluginHostOptions::default()
-    });
-    // Guest load entry point: `host.load` evaluates the guest module and
-    // settles its `onLoad` (including native addon calls). A guest stuck
-    // there shows as `load started` with no matching `loaded`, while the
-    // manager-side `plugin starting` line stays open too.
+    // Guest load entry point: evaluates the guest module and settles its
+    // `onLoad` (including native addon calls). A guest stuck there shows as
+    // `load started` with no matching `loaded`, while the manager-side
+    // `plugin starting` line stays open too.
     let load_started = Instant::now();
     tracing::info!(
         plugin = %name,
         native_addons = native_addons.len(),
         "napi-vm guest load started"
     );
-    if let Some(events) = &events {
-        if let Err(error) = install_events_capability(&mut host, events) {
-            tracing::warn!(
-                plugin = %name,
-                elapsed_ms = load_started.elapsed().as_millis() as u64,
-                %error,
-                "napi-vm guest load failed"
-            );
-            let _ = ready.send(Err(error));
+    let fail = |ready: &std_mpsc::Sender<Result<(), PluginLoaderError>>, error: PluginLoaderError| {
+        tracing::warn!(
+            plugin = %name,
+            elapsed_ms = load_started.elapsed().as_millis() as u64,
+            %error,
+            "napi-vm guest load failed"
+        );
+        let _ = ready.send(Err(error));
+    };
+    let aliases = match native_aliases(&name, &directory, &native_addons) {
+        Ok(aliases) => aliases,
+        Err(error) => {
+            fail(&ready, error);
             return Ok(());
         }
-    }
-    if let Err(error) = configure_host_napi_addons(&mut host, &name, &directory, &native_addons) {
-        tracing::warn!(
-            plugin = %name,
-            elapsed_ms = load_started.elapsed().as_millis() as u64,
-            %error,
-            "napi-vm guest load failed"
-        );
-        let _ = ready.send(Err(error));
-        return Ok(());
-    }
-    if let Err(error) = host.load(&directory).map(|_| ()) {
-        let error =
-            PluginLoaderError::Runtime(format!("napi-vm plugin `{name}` failed to load: {error}"));
-        tracing::warn!(
-            plugin = %name,
-            elapsed_ms = load_started.elapsed().as_millis() as u64,
-            %error,
-            "napi-vm guest load failed"
-        );
-        let _ = ready.send(Err(error));
-        return Ok(());
-    }
+    };
+    let wake_pending = Arc::new(AtomicBool::new(false));
+    let notifier = coalesced_wake(wake_tx.clone(), Arc::clone(&wake_pending));
+    let mut host = match QuickJsHost::load(HostConfig {
+        name: name.clone(),
+        version,
+        directory,
+        entry,
+        aliases,
+        events,
+        wake: notifier,
+    }) {
+        Ok(host) => host,
+        Err(error) => {
+            fail(
+                &ready,
+                PluginLoaderError::Runtime(format!(
+                    "napi-vm plugin `{name}` failed to load: {error}"
+                )),
+            );
+            return Ok(());
+        }
+    };
     tracing::info!(
         plugin = %name,
         elapsed_ms = load_started.elapsed().as_millis() as u64,
@@ -607,17 +424,9 @@ fn run_vm_owner(args: VmOwnerArgs) -> Result<(), PluginLoaderError> {
     if ready.send(Ok(())).is_err() {
         return Ok(());
     }
-    // Host-event wake: native callbacks, async completions, and finalizers
-    // posted from other threads wake this loop through the command queue.
-    // Bridges without threaded ingress ignore the registration.
-    let wake_pending = Arc::new(AtomicBool::new(false));
-    if let Some(plugin) = host.get_mut(&name) {
-        let notifier = coalesced_wake(wake_tx.clone(), Arc::clone(&wake_pending));
-        plugin.interpreter_mut().set_host_wake_notifier(notifier);
-    }
     // Initial pump: run anything load queued (native handshake callbacks)
     // before sleeping, so the first idle state is fully drained.
-    pump_vm_event_loop(&mut host, &name);
+    host.pump();
     loop {
         // Block with no timeout: commands and host-event wakes are the only
         // work sources — guest timers always drain inside the call that
@@ -643,7 +452,7 @@ fn run_vm_owner(args: VmOwnerArgs) -> Result<(), PluginLoaderError> {
                 }
                 let kind = request_kind(&call.request);
                 let call_started = Instant::now();
-                let outcome = handle_vm_call(&mut host, &name, &call.request, &context);
+                let outcome = handle_vm_call(&mut host, &call.request, &context);
                 let elapsed_ms = call_started.elapsed().as_millis() as u64;
                 // Steady-state poll ticks land here every second per plugin,
                 // so only slow calls warn; the rest stay at debug.
@@ -675,7 +484,7 @@ fn run_vm_owner(args: VmOwnerArgs) -> Result<(), PluginLoaderError> {
         }
         // Pump after every call and every wake so queued native callbacks
         // execute promptly without an arriving plugin request.
-        pump_vm_event_loop(&mut host, &name);
+        host.pump();
     }
     // Fail waiters queued behind the shutdown instead of leaving them on
     // their deadlines; mirrors the generic worker.
@@ -687,12 +496,12 @@ fn run_vm_owner(args: VmOwnerArgs) -> Result<(), PluginLoaderError> {
         }
     }
     // `onUnload` errors propagate like the generic worker's shutdown
-    // errors: the VM is revoked by dropping the host either way. The
+    // errors: the runtime is released by dropping the host either way. The
     // started/finished pair brackets a hook stuck in native teardown.
     let unload_started = Instant::now();
     tracing::info!(plugin = %name, "napi-vm guest unload started (onUnload)");
-    match host.unload(&name) {
-        Ok(_) => {
+    match host.unload() {
+        Ok(()) => {
             tracing::info!(
                 plugin = %name,
                 elapsed_ms = unload_started.elapsed().as_millis() as u64,
@@ -745,47 +554,30 @@ fn request_kind(request: &[u8]) -> String {
         .unwrap_or_else(|| "unknown".to_owned())
 }
 
-/// Runs one non-blocking napi-vm event-loop turn so native TSFN/async
-/// callbacks posted while the VM is idle execute promptly. A failure is
-/// logged and never breaks the owner loop: one throwing callback must not
-/// kill the plugin thread.
-fn pump_vm_event_loop(host: &mut RustPluginHost, name: &str) {
-    let Some(plugin) = host.get_mut(name) else {
-        return;
-    };
-    if let Err(error) = plugin.interpreter_mut().run_event_loop_once(Duration::ZERO) {
-        tracing::warn!(plugin = %name, %error, "napi-vm event-loop pump failed");
-    }
-}
-
 /// Selects the exact host binary from each declared package root and
-/// authorizes it before `host.load`: one `.node` per package, exposed to
-/// guests as a native `require()` alias under the declared package name.
-/// With no declaration this is a no-op and the guest stays inside the
-/// pure-Rust VM. Only the selected file is ever authorized; arbitrary
-/// `.node` files stay refused even when they sit inside the plugin
-/// directory.
+/// authorizes it before load: one `.node` per package, exposed to guests as
+/// a native `require()` alias under the declared package name. With no
+/// declaration this is empty and the guest runs without any native code.
+/// Only the selected file is ever authorized; arbitrary `.node` files stay
+/// refused even when they sit inside the plugin directory.
 #[cfg(all(
     feature = "napi-vm-node-api",
     any(target_os = "linux", target_os = "macos", target_os = "windows")
 ))]
-fn configure_host_napi_addons(
-    host: &mut RustPluginHost,
+fn native_aliases(
     name: &str,
     directory: &Path,
     native_addons: &[NativeAddonDeclaration],
-) -> Result<(), PluginLoaderError> {
-    use napi_vm::RustPluginNapiOptions;
-
+) -> Result<NativeAliases, PluginLoaderError> {
+    let mut aliases = NativeAliases::new();
     if native_addons.is_empty() {
-        return Ok(());
+        return Ok(aliases);
     }
     let root = std::fs::canonicalize(directory).map_err(|error| {
         PluginLoaderError::Runtime(format!(
             "napi-vm plugin `{name}` directory is not usable: {error}"
         ))
     })?;
-    let mut options = RustPluginNapiOptions::default();
     for declaration in native_addons {
         // The manifest parser guarantees a safe-relative root; every
         // canonical containment check below still runs so a hand-built
@@ -827,15 +619,9 @@ fn configure_host_napi_addons(
             path = %canonical.display(),
             "authorizing native addon binary",
         );
-        options = options
-            .allow_addon(&canonical)
-            .allow_addon_alias(declaration.package.clone(), &canonical);
+        aliases.insert(declaration.package.clone(), canonical);
     }
-    host.configure_napi_addons(name, options).map_err(|error| {
-        PluginLoaderError::Runtime(format!(
-            "napi-vm plugin `{name}` native addon configuration failed: {error}"
-        ))
-    })
+    Ok(aliases)
 }
 
 /// Builds without the native backend: any `nativeAddons` declaration fails
@@ -844,14 +630,13 @@ fn configure_host_napi_addons(
     feature = "napi-vm-node-api",
     any(target_os = "linux", target_os = "macos", target_os = "windows")
 )))]
-fn configure_host_napi_addons(
-    _host: &mut RustPluginHost,
+fn native_aliases(
     name: &str,
     _directory: &Path,
     native_addons: &[NativeAddonDeclaration],
-) -> Result<(), PluginLoaderError> {
+) -> Result<NativeAliases, PluginLoaderError> {
     if native_addons.is_empty() {
-        return Ok(());
+        return Ok(NativeAliases::new());
     }
     if cfg!(target_os = "android") {
         return Err(PluginLoaderError::RuntimeUnavailable(format!(
@@ -865,11 +650,10 @@ fn configure_host_napi_addons(
 
 /// Runs one `PluginCall` through the guest `call(request, context)` export
 /// and returns the raw `PluginCallResult` JSON bytes, like every other
-/// runtime. Promise results are awaited inside `call_json`, which drains
-/// the VM job queue before returning.
+/// runtime. Promise results are awaited inside `QuickJsHost::call`, which
+/// drains the job queue and timers before returning.
 fn handle_vm_call(
-    host: &mut RustPluginHost,
-    name: &str,
+    host: &mut QuickJsHost,
     request: &[u8],
     context: &serde_json::Value,
 ) -> Result<Vec<u8>, PluginLoaderError> {
@@ -881,11 +665,8 @@ fn handle_vm_call(
     let request_value: serde_json::Value = serde_json::from_str(request_text).map_err(|error| {
         PluginLoaderError::Runtime(format!("plugin request is not JSON: {error}"))
     })?;
-    let plugin = host.get_mut(name).ok_or_else(|| {
-        PluginLoaderError::Runtime(format!("napi-vm plugin `{name}` is not loaded"))
-    })?;
-    let response = plugin
-        .call_json(&request_value, context)
+    let response = host
+        .call(&request_value, context)
         .map_err(|error| PluginLoaderError::Runtime(format!("napi-vm call failed: {error}")))?;
     let serialized = serde_json::to_string(&response).map_err(|error| {
         PluginLoaderError::Runtime(format!("napi-vm call result is not serializable: {error}"))
@@ -962,7 +743,7 @@ mod tests {
         let manifest = PluginManifest::from_json_str(std::str::from_utf8(&bytes).unwrap()).unwrap();
         let (emit_tx, _emit_rx) = broadcast::channel(8);
         let ctx = WorkerContext::new(emit_tx, std::time::Duration::from_secs(15));
-        let owned = NapiVmPluginRuntime
+        let owned = QuickJsPluginRuntime
             .spawn_worker(&manifest, &dir, &ctx)
             .expect("napi-vm provides an owned worker")
             .expect("owned worker spawns");
@@ -987,101 +768,6 @@ mod tests {
         );
         tx.send(WorkerMsg::Shutdown).unwrap();
         worker.join().unwrap().unwrap();
-    }
-
-    fn push_fixture() -> (
-        Interpreter,
-        HashSet<String>,
-        broadcast::Sender<EmittedEvent>,
-    ) {
-        let declared: HashSet<String> = ["push.tick".to_owned()].into_iter().collect();
-        let (tx, _) = broadcast::channel(8);
-        (Interpreter::new(), declared, tx)
-    }
-
-    #[test]
-    fn push_accepts_declared_events_and_rejects_the_rest() {
-        let (mut interp, declared, tx) = push_fixture();
-        let mut rx = tx.subscribe();
-        let event = interp
-            .eval_source("({type:'push.tick',data:{n:1}})")
-            .unwrap();
-        push_one(&mut interp, "p", &declared, &tx, &event).unwrap();
-        let got = rx.try_recv().unwrap();
-        assert_eq!(got.plugin_id, "p");
-        assert_eq!(got.event_type, "push.tick");
-        assert_eq!(got.data, serde_json::json!({"n": 1}));
-
-        // Undeclared type, missing type, and non-objects all throw.
-        for source in [
-            "({type:'nope'})",
-            "({data:{}})",
-            "({type:''})",
-            "({type:42})",
-            "42",
-            "'push.tick'",
-            "null",
-        ] {
-            let bad = interp.eval_source(source).unwrap();
-            assert!(
-                push_one(&mut interp, "p", &declared, &tx, &bad).is_err(),
-                "{source} must be rejected"
-            );
-        }
-        assert!(rx.try_recv().is_err(), "rejected emits send nothing");
-
-        // Oversized payloads throw.
-        let big = "x".repeat(MAX_EMIT_EVENT_BYTES);
-        let event = napi_vm::value_from_json(&serde_json::json!({
-            "type": "push.tick",
-            "data": { "s": big },
-        }))
-        .unwrap();
-        let error = push_one(&mut interp, "p", &declared, &tx, &event).unwrap_err();
-        assert!(error.to_string().contains("exceeds"), "{error}");
-    }
-
-    #[test]
-    fn push_many_validates_before_sending_anything() {
-        let (mut interp, declared, tx) = push_fixture();
-        let mut rx = tx.subscribe();
-        let batch = interp
-            .eval_source("[{type:'push.tick'},{type:'push.tick',data:2}]")
-            .unwrap();
-        assert_eq!(
-            push_many(&mut interp, "p", &declared, &tx, &batch).unwrap(),
-            2
-        );
-        assert!(rx.try_recv().is_ok());
-        assert!(rx.try_recv().is_ok());
-
-        // One bad event poisons the batch: nothing is sent.
-        let batch = interp
-            .eval_source("[{type:'push.tick'},{type:'nope'}]")
-            .unwrap();
-        assert!(push_many(&mut interp, "p", &declared, &tx, &batch).is_err());
-        assert!(rx.try_recv().is_err());
-
-        // Non-arrays and over-long batches throw.
-        let not_array = interp.eval_source("({type:'push.tick'})").unwrap();
-        assert!(push_many(&mut interp, "p", &declared, &tx, &not_array).is_err());
-        let long = format!(
-            "[{}]",
-            vec!["{type:'push.tick'}"; MAX_EMIT_BATCH + 1].join(",")
-        );
-        let over = interp.eval_source(&long).unwrap();
-        let error = push_many(&mut interp, "p", &declared, &tx, &over).unwrap_err();
-        assert!(error.to_string().contains("exceeds"), "{error}");
-    }
-
-    #[test]
-    fn push_without_subscribers_fails_loudly() {
-        let (mut interp, declared, _) = push_fixture();
-        let (orphan_tx, orphan_rx) = broadcast::channel(1);
-        drop(orphan_rx);
-        let event = interp.eval_source("({type:'push.tick'})").unwrap();
-        let error = push_one(&mut interp, "p", &declared, &orphan_tx, &event).unwrap_err();
-        assert!(error.to_string().contains("unavailable"), "{error}");
     }
 
     fn trust_manifest(trust: &str) -> PluginManifest {

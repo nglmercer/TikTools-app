@@ -17,7 +17,7 @@ That workflow builds the Rust CLI directly. Frontend tools are optional.
   to every client.
 - Rust-owned SQLite persistence for points, creators, gifts, workflows, and
   behavior records.
-- Bounded JavaScript automation through the pure-Rust `napi-vm` runtime.
+- Bounded JavaScript automation and plugins through the embedded QuickJS (`rquickjs`) runtime.
 - Runtime-discovered native, process, and optional WASM plugins.
 - English and Spanish UI translations, themes, points, analytics, and
   automation editors.

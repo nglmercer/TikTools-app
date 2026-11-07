@@ -1,68 +1,153 @@
 //! Bounded JavaScript execution for automation scripts.
 //!
-//! This is deliberately a small host surface around the pure-Rust part of
-//! `napi-vm`. It exposes JSON values only; there is no Node API, filesystem,
-//! network, process, or WebView handle available to guest code.
+//! A small host surface around QuickJS (`rquickjs`). It exposes JSON values
+//! only; there is no Node API, filesystem, network, process, or WebView
+//! handle available to guest code. Every evaluation gets a fresh runtime with
+//! a memory cap, a stack cap and an execution budget enforced through
+//! QuickJS' interrupt handler.
 
-use napi_vm::{format, Interpreter, Lexer, Parser, Value as VmValue};
+use std::{
+    cell::Cell,
+    rc::Rc,
+    time::{Duration, Instant},
+};
+
+use rquickjs::{Context, Ctx, Function, Object, Runtime, Value as JsValue};
 use serde_json::Value;
 
 const MAX_SOURCE_BYTES: usize = 128 * 1024;
 const MAX_JSON_BYTES: usize = 2 * 1024 * 1024;
-const LOOP_BUDGET: u64 = 1_000_000;
+/// QuickJS calls the interrupt handler roughly every 10k bytecode ops, so
+/// this bounds a script to about 20M ops; the wall clock backs it up for
+/// slow host calls.
+const INTERRUPT_BUDGET: u32 = 2_000;
+const WALL_CLOCK_BUDGET: Duration = Duration::from_secs(5);
+const MEMORY_LIMIT_BYTES: usize = 64 * 1024 * 1024;
+const STACK_LIMIT_BYTES: usize = 512 * 1024;
+const BUDGET_MESSAGE: &str = "Maximum loop iterations exceeded";
 
 #[derive(Default)]
 pub struct ScriptService;
 
 impl ScriptService {
     pub fn validate(&self, source: &str) -> Result<(), String> {
-        let program = wrapped_source(source)?;
-        let mut lexer = Lexer::new(&program);
-        let tokens = lexer.tokenize_with_spans();
-        Parser::new_with_spans(tokens)
-            .parse_program()
-            .map(|_| ())
-            .map_err(|error| error.to_string())
+        let function = function_source(source)?;
+        let (runtime, context) = new_context()?;
+        let outcome = context.with(|ctx| {
+            // Evaluating the function expression compiles it (reporting
+            // syntax errors) without ever calling it.
+            ctx.eval::<JsValue, _>(function)
+                .map(|_| ())
+                .map_err(|error| describe_error(&ctx, error))
+        });
+        drop(runtime);
+        outcome
     }
 
     pub fn evaluate(&self, source: &str, event: &Value, inputs: &Value) -> Result<Value, String> {
-        let program = wrapped_source(source)?;
-        let event = to_vm_value(event)?;
-        let inputs = to_vm_value(inputs)?;
-        let mut lexer = Lexer::new(&program);
-        let tokens = lexer.tokenize_with_spans();
-        let statements = Parser::new_with_spans(tokens)
-            .parse_program()
-            .map_err(|error| error.to_string())?;
-
-        let mut interpreter = Interpreter::with_builtins();
-        interpreter.set_loop_budget(LOOP_BUDGET);
-        interpreter.set_source(&program);
-        let data = event_data(&event);
-        {
-            let mut globals = interpreter.global.borrow_mut();
-            globals.set("event", event);
-            globals.set("inputs", inputs.clone());
-            // `data` is the event payload shorthand used by the automation
-            // contract. `inputs` remains a separate host-provided object.
-            globals.set("data", data);
-        }
-        interpreter.begin_execution();
-        let result = interpreter
-            .run_program_body(&statements)
-            .map_err(|error| error.to_string())?;
-        interpreter
-            .drain_jobs()
-            .map_err(|error| error.to_string())?;
-        vm_json_value(&result)
+        let program = format!("JSON.stringify({}())", function_source(source)?);
+        let event_json = serde_json::to_string(event).map_err(|error| error.to_string())?;
+        let inputs_json = serde_json::to_string(inputs).map_err(|error| error.to_string())?;
+        let (runtime, context) = new_context()?;
+        let tripped = Rc::new(Cell::new(false));
+        install_budget(&runtime, Rc::clone(&tripped));
+        let outcome = context.with(|ctx| {
+            let run = || -> Result<Option<String>, rquickjs::Error> {
+                let globals = ctx.globals();
+                let event_value = ctx.json_parse(event_json.as_str())?;
+                let inputs_value = ctx.json_parse(inputs_json.as_str())?;
+                // `data` is the event payload shorthand used by the
+                // automation contract. `inputs` stays a separate
+                // host-provided object.
+                let data = match event_value.as_object() {
+                    Some(object) => object.get::<_, Option<JsValue>>("data")?,
+                    None => None,
+                };
+                globals.set("event", event_value)?;
+                globals.set("inputs", inputs_value)?;
+                match data {
+                    Some(data) if !data.is_undefined() => globals.set("data", data)?,
+                    _ => globals.set("data", JsValue::new_null(ctx.clone()))?,
+                }
+                install_console(&ctx)?;
+                let result: JsValue = ctx.eval(program.as_str())?;
+                // Settle microtasks scheduled by the script before reading
+                // the result, like a host event loop would.
+                while ctx.execute_pending_job() {}
+                if result.is_undefined() {
+                    Ok(None)
+                } else {
+                    Ok(Some(result.get::<String>()?))
+                }
+            };
+            run().map_err(|error| {
+                if tripped.get() {
+                    BUDGET_MESSAGE.to_owned()
+                } else {
+                    describe_error(&ctx, error)
+                }
+            })
+        });
+        drop(context);
+        drop(runtime);
+        json_result(outcome?)
     }
 }
 
-fn event_data(event: &VmValue) -> VmValue {
-    event.get_prop("data").unwrap_or(VmValue::Null)
+fn new_context() -> Result<(Runtime, Context), String> {
+    let runtime = Runtime::new().map_err(|error| error.to_string())?;
+    runtime.set_memory_limit(MEMORY_LIMIT_BYTES);
+    runtime.set_max_stack_size(STACK_LIMIT_BYTES);
+    // Base intrinsics only plus JSON/Promise/etc: no timers, no I/O.
+    let context = Context::full(&runtime).map_err(|error| error.to_string())?;
+    Ok((runtime, context))
 }
 
-fn wrapped_source(source: &str) -> Result<String, String> {
+fn install_budget(runtime: &Runtime, tripped: Rc<Cell<bool>>) {
+    let started = Instant::now();
+    let mut ticks = 0_u32;
+    runtime.set_interrupt_handler(Some(Box::new(move || {
+        ticks += 1;
+        let exhausted = ticks > INTERRUPT_BUDGET || started.elapsed() > WALL_CLOCK_BUDGET;
+        if exhausted {
+            tripped.set(true);
+        }
+        exhausted
+    })));
+}
+
+fn install_console(ctx: &Ctx<'_>) -> Result<(), rquickjs::Error> {
+    let console = Object::new(ctx.clone())?;
+    for name in ["log", "info", "warn", "error", "debug"] {
+        console.set(
+            name,
+            Function::new(ctx.clone(), |message: rquickjs::function::Rest<String>| {
+                tracing::debug!(target: "automation_script", "{}", message.0.join(" "));
+            })?,
+        )?;
+    }
+    ctx.globals().set("console", console)
+}
+
+fn describe_error(ctx: &Ctx<'_>, error: rquickjs::Error) -> String {
+    if matches!(error, rquickjs::Error::Exception) {
+        let caught = ctx.catch();
+        if let Some(object) = caught.as_object() {
+            let name = object.get::<_, Option<String>>("name").ok().flatten();
+            let message = object.get::<_, Option<String>>("message").ok().flatten();
+            if let (Some(name), Some(message)) = (name, message) {
+                return format!("{name}: {message}");
+            }
+        }
+        return caught
+            .as_string()
+            .and_then(|text| text.to_string().ok())
+            .unwrap_or_else(|| "script threw an exception".to_owned());
+    }
+    error.to_string()
+}
+
+fn function_source(source: &str) -> Result<String, String> {
     if source.len() > MAX_SOURCE_BYTES {
         return Err("automation script is larger than the 128 KiB limit".to_owned());
     }
@@ -70,37 +155,14 @@ fn wrapped_source(source: &str) -> Result<String, String> {
     // declarations local to one invocation. The result is serialized inside
     // the VM, so no Rust object or host callback crosses the boundary.
     Ok(format!(
-        "JSON.stringify((function () {{\nfunction log(value) {{ console.log(value); }}\n{source}\n}})())"
+        "(function () {{\nfunction log(value) {{ console.log(value); }}\n{source}\n}})"
     ))
 }
 
-fn to_vm_value(value: &Value) -> Result<VmValue, String> {
-    match value {
-        Value::Null => Ok(VmValue::Null),
-        Value::Bool(value) => Ok(VmValue::Bool(*value)),
-        Value::Number(value) => value
-            .as_f64()
-            .map(VmValue::Number)
-            .ok_or_else(|| "JSON number cannot be represented by the VM".to_owned()),
-        Value::String(value) => Ok(VmValue::String(value.clone().into())),
-        Value::Array(values) => values
-            .iter()
-            .map(to_vm_value)
-            .collect::<Result<Vec<_>, _>>()
-            .map(VmValue::array),
-        Value::Object(values) => values
-            .iter()
-            .map(|(key, value)| Ok((key.clone(), to_vm_value(value)?)))
-            .collect::<Result<Vec<(String, VmValue)>, String>>()
-            .map(VmValue::object),
-    }
-}
-
-fn vm_json_value(value: &VmValue) -> Result<Value, String> {
-    let rendered = format::try_to_string(value).map_err(|error| error.to_string())?;
-    if rendered == "undefined" {
+fn json_result(rendered: Option<String>) -> Result<Value, String> {
+    let Some(rendered) = rendered else {
         return Ok(Value::Null);
-    }
+    };
     if rendered.len() > MAX_JSON_BYTES {
         return Err("automation script result is larger than the 2 MiB limit".to_owned());
     }
@@ -140,5 +202,59 @@ mod tests {
     fn reports_syntax_errors_without_running_partial_code() {
         let error = ScriptService.validate("return {").unwrap_err();
         assert!(error.contains("SyntaxError"), "{error}");
+    }
+
+    #[test]
+    fn undefined_results_become_null() {
+        let result = ScriptService
+            .evaluate("var x = 1;", &Value::Null, &Value::Null)
+            .unwrap();
+        assert_eq!(result, Value::Null);
+    }
+
+    #[test]
+    fn guests_have_no_host_apis() {
+        let result = ScriptService
+            .evaluate(
+                "return [typeof require, typeof process, typeof fetch, typeof setTimeout, typeof std, typeof os];",
+                &Value::Null,
+                &Value::Null,
+            )
+            .unwrap();
+        assert_eq!(
+            result,
+            json!(["undefined", "undefined", "undefined", "undefined", "undefined", "undefined"])
+        );
+    }
+
+    #[test]
+    fn missing_event_data_is_null_and_log_is_available() {
+        let result = ScriptService
+            .evaluate("log('hi'); return data;", &json!({"user": 1}), &Value::Null)
+            .unwrap();
+        assert_eq!(result, Value::Null);
+    }
+
+    #[test]
+    fn runaway_memory_is_rejected() {
+        let error = ScriptService
+            .evaluate(
+                "var s = 'x'; while (true) { s = s + s; }",
+                &Value::Null,
+                &Value::Null,
+            )
+            .unwrap_err();
+        assert!(!error.is_empty());
+    }
+
+    #[test]
+    fn oversized_source_and_runtime_errors_are_reported() {
+        assert!(ScriptService
+            .validate(&"a".repeat(MAX_SOURCE_BYTES + 1))
+            .is_err());
+        let error = ScriptService
+            .evaluate("throw new TypeError('boom');", &Value::Null, &Value::Null)
+            .unwrap_err();
+        assert!(error.contains("TypeError: boom"), "{error}");
     }
 }

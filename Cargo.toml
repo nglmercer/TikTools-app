@@ -65,10 +65,7 @@ flate2 = "1.1.10"
 base64 = "0.23.1"
 rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }
 rodio = { version = "0.23.0", features = ["tracing"] }
-# Native-addon integration uses `allow_addon` / `allow_addon_alias` plus
-# `node:module` createRequire from napi-vm main. Pinned by rev like the
-# ttl-* deps: a relative path cannot resolve in CI checkouts.
-napi-vm = { git = "https://github.com/nglmercer/napi-vm", rev = "62a5874440bd568ee8748a1a4c29e7a891db80ac", default-features = false }
+rquickjs = { version = "0.12.2", features = ["loader", "futures", "array-buffer", "classes", "properties"] }
 
 # The checked-in JavaScript/Bun package was only a compatibility implementation. The desktop
 # host consumes the Rust crates directly from the upstream workspace at a pinned revision.
