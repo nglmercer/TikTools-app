@@ -30,6 +30,7 @@ plugin-install = [
 # working offline without an account.
 cloud-auth = [
     "dep:tiktools-cloud-auth",
+    "tiktools-cloud-auth/account",
     "tiktools-cloud-auth/system-browser",
     "tiktools-cloud-auth/os-keychain",
     "dep:tiktools-cloud-sync",

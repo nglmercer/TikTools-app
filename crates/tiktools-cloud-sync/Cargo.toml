@@ -7,7 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 cloud-client = { path = "../cloud-client" }
-tiktools-cloud-auth = { path = "../tiktools-cloud-auth" }
+tiktools-cloud-auth = { path = "../tiktools-cloud-auth", features = ["account"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 schemars = { workspace = true }

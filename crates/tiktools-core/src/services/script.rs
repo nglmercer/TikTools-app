@@ -33,13 +33,18 @@ impl ScriptService {
     pub fn validate(&self, source: &str) -> Result<(), String> {
         let function = function_source(source)?;
         let (runtime, context) = new_context()?;
+        let tripped = Rc::new(Cell::new(false));
+        install_budget(&runtime, Rc::clone(&tripped));
         let outcome = context.with(|ctx| {
-            // Evaluating the function expression compiles it (reporting
-            // syntax errors) without ever calling it.
-            ctx.eval::<JsValue, _>(function)
-                .map(|_| ())
-                .map_err(|error| describe_error(&ctx, error))
+            ctx.eval::<JsValue, _>(function).map(|_| ()).map_err(|error| {
+                if tripped.get() {
+                    BUDGET_MESSAGE.to_owned()
+                } else {
+                    describe_error(&ctx, error)
+                }
+            })
         });
+        drop(context);
         drop(runtime);
         outcome
     }
@@ -202,6 +207,14 @@ mod tests {
     fn reports_syntax_errors_without_running_partial_code() {
         let error = ScriptService.validate("return {").unwrap_err();
         assert!(error.contains("SyntaxError"), "{error}");
+    }
+
+    #[test]
+    fn validation_bounds_code_that_escapes_the_wrapper() {
+        let error = ScriptService
+            .validate("}); while (true) {} (function () {")
+            .unwrap_err();
+        assert_eq!(error, BUDGET_MESSAGE);
     }
 
     #[test]

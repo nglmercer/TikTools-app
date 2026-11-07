@@ -105,7 +105,10 @@ if (developmentPluginRoot) {
 }
 
 const host = Bun.spawn({
-  cmd: ['node', 'scripts/cargo-with-linker.mjs', 'run', '-p', 'tiktools-desktop'],
+  cmd: [
+    'node', 'scripts/cargo-with-linker.mjs', 'run', '-p', 'tiktools-desktop',
+    '--no-default-features', '--features', 'persistence,plugin-install,http,devtools',
+  ],
   cwd: repositoryRoot,
   env: environment,
   stdin: 'inherit',

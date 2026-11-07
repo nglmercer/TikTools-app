@@ -9,15 +9,16 @@ publish = false
 
 [features]
 default = []
-system-browser = ["dep:open", "cloud-client/system-browser"]
-os-keychain = ["cloud-client/os-keychain"]
+account = ["dep:cloud-client"]
+system-browser = ["account", "dep:open", "cloud-client/system-browser"]
+os-keychain = ["account", "cloud-client/os-keychain"]
 
 [dependencies.open]
 version = "5"
 optional = true
 
 [dependencies]
-cloud-client = { path = "../cloud-client", version = "0.1.0" }
+cloud-client = { path = "../cloud-client", version = "0.1.0", optional = true }
 schemars.workspace = true
 secrecy = "0.10"
 serde.workspace = true

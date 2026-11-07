@@ -206,7 +206,7 @@ pub(in super::super) unsafe extern "C" fn api_is_detached_arraybuffer(env: Envir
 // ----- typed arrays ---------------------------------------------------
 
 /// (napi type, quickjs enum, element size)
-const KINDS: [(i32, u32, usize); 11] = [
+const KINDS: [(i32, qjs::JSTypedArrayEnum, usize); 11] = [
     (0, qjs::JSTypedArrayEnum_JS_TYPED_ARRAY_INT8, 1),
     (1, qjs::JSTypedArrayEnum_JS_TYPED_ARRAY_UINT8, 1),
     (2, qjs::JSTypedArrayEnum_JS_TYPED_ARRAY_UINT8C, 1),
@@ -234,7 +234,7 @@ fn throw_range(env: &Env, message: &str) -> i32 {
     }
 }
 
-fn make_typed_array(env: &Env, qjs_kind: u32, buffer: JSValue, offset: usize, length: usize) -> Result<JSValue, i32> {
+fn make_typed_array(env: &Env, qjs_kind: qjs::JSTypedArrayEnum, buffer: JSValue, offset: usize, length: usize) -> Result<JSValue, i32> {
     let mut args = [buffer, number(offset as f64), number(length as f64)];
     check(env, unsafe { qjs::JS_NewTypedArray(env.ctx, 3, args.as_mut_ptr(), qjs_kind) })
 }
@@ -274,7 +274,7 @@ fn typed_array_parts(env: &Env, value: JSValue) -> Result<(JSValue, usize, usize
     if qjs_kind < 0 {
         return Err(INVALID_ARG);
     }
-    let kind = KINDS.iter().find(|entry| entry.1 == qjs_kind as u32).map_or(1, |entry| entry.0);
+    let kind = KINDS.iter().find(|entry| entry.1 as i64 == i64::from(qjs_kind)).map_or(1, |entry| entry.0);
     let (mut offset, mut byte_length, mut bpe) = (0_u64, 0_u64, 0_u64);
     let buffer = check(env, unsafe { qjs::JS_GetTypedArrayBuffer(env.ctx, value, &mut offset, &mut byte_length, &mut bpe) })?;
     Ok((buffer, offset as usize, byte_length as usize, (bpe as usize).max(1), kind))
