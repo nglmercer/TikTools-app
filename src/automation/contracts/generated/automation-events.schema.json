@@ -1,161 +1,33 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AutomationContracts",
-  "description": "Root used by the schema generator so every public automation contract is\nemitted into one deterministic `$defs` collection.",
-  "type": "object",
-  "properties": {
-    "automationUser": {
-      "$ref": "#/$defs/AutomationUser"
-    },
-    "automationCreator": {
-      "$ref": "#/$defs/AutomationCreator"
-    },
-    "automationPoints": {
-      "$ref": "#/$defs/AutomationPoints"
-    },
-    "automationEvent": {
-      "$ref": "#/$defs/AutomationEvent"
-    },
-    "automationIntel": {
-      "$ref": "#/$defs/EventIntel"
-    },
-    "chat": {
-      "$ref": "#/$defs/ChatAutomationData"
-    },
-    "emoteChat": {
-      "$ref": "#/$defs/EmoteChatAutomationData"
-    },
-    "gift": {
-      "$ref": "#/$defs/GiftAutomationData"
-    },
-    "like": {
-      "$ref": "#/$defs/LikeAutomationData"
-    },
-    "social": {
-      "$ref": "#/$defs/SocialAutomationData"
-    },
-    "member": {
-      "$ref": "#/$defs/MemberAutomationData"
-    },
-    "roomStats": {
-      "$ref": "#/$defs/RoomStatsAutomationData"
-    },
-    "connection": {
-      "$ref": "#/$defs/ConnectionAutomationData"
-    },
-    "pointsAwarded": {
-      "$ref": "#/$defs/PointsAwardedAutomationData"
-    },
-    "pluginEmit": {
-      "$ref": "#/$defs/PluginEmitAutomationData"
-    },
-    "competition": {
-      "$ref": "#/$defs/CompetitionAutomationData"
-    }
-  },
-  "required": [
-    "automationUser",
-    "automationCreator",
-    "automationPoints",
-    "automationEvent",
-    "automationIntel",
-    "chat",
-    "emoteChat",
-    "gift",
-    "like",
-    "social",
-    "member",
-    "roomStats",
-    "connection",
-    "pointsAwarded",
-    "pluginEmit",
-    "competition"
-  ],
   "$defs": {
-    "AutomationUser": {
-      "type": "object",
-      "properties": {
-        "userId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "uniqueId": {
-          "type": "string"
-        },
-        "nickname": {
-          "type": "string"
-        },
-        "secUid": {
-          "type": "string"
-        },
-        "avatarUrl": {
-          "description": "Display-only avatar URL from the live event. Optional so older\nproducers/consumers keep working; renderers must fall back to\ninitials when it is absent.",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "uniqueId",
-        "nickname",
-        "secUid"
-      ]
+    "ActionStatus": {
+      "description": "Public execution status omits action inputs and idempotency keys.",
+      "enum": [
+        "pending",
+        "running",
+        "completed",
+        "failed",
+        "uncertain"
+      ],
+      "type": "string"
     },
     "AutomationCreator": {
-      "type": "object",
       "properties": {
-        "uniqueId": {
+        "roomId": {
           "type": "string"
         },
-        "roomId": {
+        "uniqueId": {
           "type": "string"
         }
       },
       "required": [
         "uniqueId",
         "roomId"
-      ]
-    },
-    "AutomationPoints": {
-      "type": "object",
-      "properties": {
-        "delta": {
-          "type": "number",
-          "format": "double"
-        },
-        "total": {
-          "type": "number",
-          "format": "double"
-        },
-        "level": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        }
-      },
-      "required": [
-        "delta",
-        "total",
-        "level"
-      ]
+      ],
+      "type": "object"
     },
     "AutomationEvent": {
-      "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "type": {
-          "type": "string"
-        },
-        "timestamp": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
         "connectionId": {
           "type": [
             "string",
@@ -172,17 +44,21 @@
             }
           ]
         },
-        "user": {
+        "data": true,
+        "id": {
+          "type": "string"
+        },
+        "intel": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AutomationUser"
+              "$ref": "#/$defs/EventIntel"
             },
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "Provider-neutral pre-filter enrichment. Always optional: the base\ntrigger contract works with no processor installed."
         },
-        "data": true,
         "points": {
           "anyOf": [
             {
@@ -199,11 +75,18 @@
             "null"
           ]
         },
-        "intel": {
-          "description": "Provider-neutral pre-filter enrichment. Always optional: the base\ntrigger contract works with no processor installed.",
+        "timestamp": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "type": {
+          "type": "string"
+        },
+        "user": {
           "anyOf": [
             {
-              "$ref": "#/$defs/EventIntel"
+              "$ref": "#/$defs/AutomationUser"
             },
             {
               "type": "null"
@@ -216,26 +99,317 @@
         "type",
         "timestamp",
         "data"
-      ]
+      ],
+      "type": "object"
     },
-    "EventIntel": {
-      "description": "Stable provider-neutral enrichment attached by event processors.\nAlways optional on the event: the base trigger contract works with no\nprocessor installed.",
-      "type": "object",
+    "AutomationPoints": {
+      "properties": {
+        "delta": {
+          "format": "double",
+          "type": "number"
+        },
+        "level": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total": {
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "delta",
+        "total",
+        "level"
+      ],
+      "type": "object"
+    },
+    "AutomationUser": {
+      "properties": {
+        "avatarUrl": {
+          "description": "Display-only avatar URL from the live event. Optional so older\nproducers/consumers keep working; renderers must fall back to\ninitials when it is absent.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nickname": {
+          "type": "string"
+        },
+        "secUid": {
+          "type": "string"
+        },
+        "uniqueId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "uniqueId",
+        "nickname",
+        "secUid"
+      ],
+      "type": "object"
+    },
+    "ChatAutomationData": {
       "properties": {
         "comment": {
+          "type": "string",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 3,
+            "jsonPath": "content",
+            "method": "WebcastChatMessage",
+            "path": "content",
+            "protobufType": "string",
+            "transform": "native"
+          }
+        },
+        "emotes": {
+          "description": "Structured artwork metadata for inline LIVE emotes. Missing on older\nevents and omitted from JSON when the signer found none.",
+          "items": {
+            "$ref": "#/$defs/ChatAutomationEmote"
+          },
+          "type": "array",
+          "x-native-source": {
+            "cardinality": "repeated",
+            "fieldNumber": 13,
+            "jsonPath": "emotes",
+            "messageType": "webcast.model.base.emoji.EmoteWithIndex",
+            "method": "WebcastChatMessage",
+            "path": "emotes",
+            "protobufType": "message",
+            "transform": "normalized-message-array"
+          }
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "comment",
+        "method",
+        "msgId",
+        "isHistory"
+      ],
+      "type": "object",
+      "x-native-method": "WebcastChatMessage"
+    },
+    "ChatAutomationEmote": {
+      "properties": {
+        "emoteType": {
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "imageUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "index": {
+          "format": "int32",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "packageId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shortcode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "CompetitionAutomationData": {
+      "description": "Host-generated competition context. Optional winner and action fields are\npopulated only after the relevant durable state transition.",
+      "properties": {
+        "actionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "actionStatus": {
           "anyOf": [
             {
-              "$ref": "#/$defs/IntelComment"
+              "$ref": "#/$defs/ActionStatus"
             },
             {
               "type": "null"
             }
           ]
         },
-        "user": {
+        "competitionId": {
+          "type": "string"
+        },
+        "creatorId": {
+          "type": "string"
+        },
+        "generation": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "optionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rankingId": {
+          "type": "string"
+        },
+        "roomId": {
+          "type": "string"
+        },
+        "selectionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selectionMode": {
           "anyOf": [
             {
-              "$ref": "#/$defs/IntelUser"
+              "$ref": "#/$defs/SelectionMode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "winnerId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "winnerScore": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "competitionId",
+        "rankingId",
+        "creatorId",
+        "roomId",
+        "generation"
+      ],
+      "type": "object"
+    },
+    "ConnectionAutomationData": {
+      "properties": {
+        "roomId": {
+          "type": "string"
+        },
+        "uniqueId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uniqueId",
+        "roomId"
+      ],
+      "type": "object"
+    },
+    "CounterTransition": {
+      "description": "Observed cumulative transition; a goal T crosses iff previous < T <= total.",
+      "properties": {
+        "previous": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "previous",
+        "total"
+      ],
+      "type": "object"
+    },
+    "EmoteChatAutomationData": {
+      "properties": {
+        "emotes": {
+          "items": {
+            "$ref": "#/$defs/ChatAutomationEmote"
+          },
+          "type": "array",
+          "x-native-source": {
+            "cardinality": "repeated",
+            "fieldNumber": 3,
+            "jsonPath": "emoteList",
+            "messageType": "webcast.model.base.emoji.EmoteModel",
+            "method": "WebcastEmoteChatMessage",
+            "path": "emote_list",
+            "protobufType": "message",
+            "transform": "normalized-message-array"
+          }
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "msgId",
+        "isHistory"
+      ],
+      "type": "object",
+      "x-native-method": "WebcastEmoteChatMessage"
+    },
+    "EventIntel": {
+      "description": "Stable provider-neutral enrichment attached by event processors.\nAlways optional on the event: the base trigger contract works with no\nprocessor installed.",
+      "properties": {
+        "comment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelComment"
             },
             {
               "type": "null"
@@ -252,16 +426,208 @@
             }
           ]
         },
-        "providers": true
-      }
+        "providers": true,
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelUser"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
     },
-    "IntelComment": {
-      "type": "object",
+    "GiftAggregation": {
       "properties": {
-        "normalized": {
+        "cumulative": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "diamonds": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "increment": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "increment",
+        "cumulative",
+        "diamonds"
+      ],
+      "type": "object"
+    },
+    "GiftAutomationData": {
+      "properties": {
+        "aggregation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GiftAggregation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "comboCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 6,
+            "jsonPath": "comboCount",
+            "method": "WebcastGiftMessage",
+            "path": "combo_count",
+            "protobufType": "int32",
+            "transform": "normalized-unsigned"
+          }
+        },
+        "diamondCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 12,
+            "jsonPath": "gift.diamondCount",
+            "method": "WebcastGiftMessage",
+            "path": "gift.diamond_count",
+            "protobufType": "int32",
+            "transform": "normalized-unsigned"
+          }
+        },
+        "giftIconUrl": {
           "type": [
             "string",
             "null"
+          ]
+        },
+        "giftId": {
+          "type": "string",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 2,
+            "jsonPath": "giftId",
+            "method": "WebcastGiftMessage",
+            "path": "gift_id",
+            "protobufType": "int64",
+            "transform": "u64-to-string"
+          }
+        },
+        "giftName": {
+          "type": "string",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 16,
+            "jsonPath": "gift.name",
+            "method": "WebcastGiftMessage",
+            "path": "gift.name",
+            "protobufType": "string",
+            "transform": "native"
+          }
+        },
+        "groupId": {
+          "type": "string",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 11,
+            "jsonPath": "groupId",
+            "method": "WebcastGiftMessage",
+            "path": "group_id",
+            "protobufType": "int64",
+            "transform": "integer-to-string"
+          }
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        },
+        "repeatCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 5,
+            "jsonPath": "repeatCount",
+            "method": "WebcastGiftMessage",
+            "path": "repeat_count",
+            "protobufType": "int32",
+            "transform": "normalized-unsigned"
+          }
+        },
+        "repeatEnd": {
+          "type": "boolean",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 9,
+            "jsonPath": "repeatEnd",
+            "method": "WebcastGiftMessage",
+            "path": "repeat_end",
+            "protobufType": "int32",
+            "transform": "nonzero-to-boolean"
+          }
+        },
+        "streakable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "giftId",
+        "giftName",
+        "diamondCount",
+        "repeatCount",
+        "comboCount",
+        "groupId",
+        "repeatEnd",
+        "streakable",
+        "method",
+        "msgId",
+        "isHistory"
+      ],
+      "type": "object",
+      "x-native-method": "WebcastGiftMessage"
+    },
+    "IntelComment": {
+      "properties": {
+        "casefolded": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "composition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelComposition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "language": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelLanguage"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "nfc": {
@@ -276,59 +642,16 @@
             "null"
           ]
         },
-        "casefolded": {
+        "normalized": {
           "type": [
             "string",
             "null"
-          ]
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "language": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelLanguage"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "composition": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelComposition"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "unicode": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelUnicode"
-            },
-            {
-              "type": "null"
-            }
           ]
         },
         "obfuscation": {
           "anyOf": [
             {
               "$ref": "#/$defs/IntelObfuscation"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "spam": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelSpam"
             },
             {
               "type": "null"
@@ -345,8 +668,20 @@
             }
           ]
         },
+        "spam": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelSpam"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        },
         "tts": {
-          "description": "HOST-PROJECTED from the selected text view.",
           "anyOf": [
             {
               "$ref": "#/$defs/IntelTts"
@@ -354,94 +689,35 @@
             {
               "type": "null"
             }
+          ],
+          "description": "HOST-PROJECTED from the selected text view."
+        },
+        "unicode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelUnicode"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
-      }
-    },
-    "IntelLanguage": {
-      "type": "object",
-      "properties": {
-        "top": {
-          "type": "string"
-        },
-        "confidence": {
-          "type": "number",
-          "format": "double"
-        },
-        "candidates": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "$ref": "#/$defs/IntelLanguageCandidate"
-          }
-        }
       },
-      "required": [
-        "top",
-        "confidence"
-      ]
-    },
-    "IntelLanguageCandidate": {
-      "type": "object",
-      "properties": {
-        "language": {
-          "type": "string"
-        },
-        "confidence": {
-          "type": "number",
-          "format": "double"
-        }
-      },
-      "required": [
-        "language",
-        "confidence"
-      ]
+      "type": "object"
     },
     "IntelComposition": {
-      "type": "object",
       "properties": {
-        "emojiOnly": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "emojiCount": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
-        "emojiRatio": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "format": "double"
-        },
-        "letters": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
-        "digits": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
         "allCaps": {
           "type": [
             "boolean",
+            "null"
+          ]
+        },
+        "digits": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
             "null"
           ]
         },
@@ -451,94 +727,182 @@
             "null"
           ]
         },
-        "repetitionScore": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "format": "double"
-        },
-        "urls": {
+        "emojiCount": {
+          "format": "uint64",
+          "minimum": 0,
           "type": [
             "integer",
             "null"
-          ],
+          ]
+        },
+        "emojiOnly": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "emojiRatio": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "letters": {
           "format": "uint64",
-          "minimum": 0
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
         },
         "mentions": {
+          "format": "uint64",
+          "minimum": 0,
           "type": [
             "integer",
             "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        }
-      }
-    },
-    "IntelUnicode": {
-      "type": "object",
-      "properties": {
-        "mixedScripts": {
-          "type": [
-            "boolean",
-            "null"
           ]
         },
-        "suspicious": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "score": {
+        "repetitionScore": {
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
-        "invisible": {
+        "urls": {
+          "format": "uint64",
+          "minimum": 0,
           "type": [
             "integer",
             "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
-        "bidirectional": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
-        "confusables": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
+          ]
         }
-      }
+      },
+      "type": "object"
+    },
+    "IntelHandle": {
+      "description": "Language/composition evidence about a stable handle. Never a spoken\nrendering: identity is never rewritten or pronounced from here.",
+      "properties": {
+        "composition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelComposition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "language": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelLanguage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "IntelLanguage": {
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/IntelLanguageCandidate"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "confidence": {
+          "format": "double",
+          "type": "number"
+        },
+        "top": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "top",
+        "confidence"
+      ],
+      "type": "object"
+    },
+    "IntelLanguageCandidate": {
+      "properties": {
+        "confidence": {
+          "format": "double",
+          "type": "number"
+        },
+        "language": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "language",
+        "confidence"
+      ],
+      "type": "object"
+    },
+    "IntelNickname": {
+      "properties": {
+        "language": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelLanguage"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "normalized": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntelTts"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "HOST-PROJECTED from the selected text view."
+        }
+      },
+      "type": "object"
     },
     "IntelObfuscation": {
-      "type": "object",
       "properties": {
+        "confusables": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "detected": {
           "type": [
             "boolean",
             "null"
           ]
         },
-        "score": {
+        "flags": {
+          "items": {
+            "type": "string"
+          },
           "type": [
-            "number",
+            "array",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "leetspeak": {
           "type": [
@@ -546,7 +910,7 @@
             "null"
           ]
         },
-        "repetition": {
+        "mixedScripts": {
           "type": [
             "boolean",
             "null"
@@ -558,70 +922,64 @@
             "null"
           ]
         },
-        "mixedScripts": {
+        "repetition": {
           "type": [
             "boolean",
             "null"
           ]
         },
-        "confusables": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "flags": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "IntelSpam": {
-      "type": "object",
-      "properties": {
         "score": {
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
-        },
-        "detected": {
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "IntelProcessing": {
+      "properties": {
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "IntelPronunciation": {
+      "properties": {
+        "confidence": {
+          "format": "double",
           "type": [
-            "boolean",
+            "number",
             "null"
           ]
         },
-        "reasons": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
-        },
-        "model": {
+        "dialect": {
           "type": [
             "string",
             "null"
           ]
         },
-        "calibrated": {
+        "ipa": {
           "type": [
-            "boolean",
+            "string",
+            "null"
+          ]
+        },
+        "language": {
+          "type": [
+            "string",
             "null"
           ]
         }
-      }
+      },
+      "type": "object"
     },
     "IntelRebus": {
-      "type": "object",
       "properties": {
         "candidate": {
           "type": [
@@ -630,18 +988,18 @@
           ]
         },
         "confidence": {
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "score": {
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
         },
         "strong": {
           "type": [
@@ -649,37 +1007,58 @@
             "null"
           ]
         }
-      }
+      },
+      "type": "object"
     },
-    "IntelTts": {
-      "type": "object",
+    "IntelSpam": {
       "properties": {
-        "text": {
-          "type": "string"
+        "calibrated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
-        "language": {
+        "detected": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "model": {
           "type": [
             "string",
             "null"
           ]
         },
-        "confidence": {
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "score": {
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
-        },
-        "source": {
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "IntelTts": {
+      "properties": {
+        "confidence": {
+          "format": "double",
           "type": [
-            "string",
+            "number",
             "null"
           ]
         },
-        "speak": {
-          "type": "boolean"
-        },
-        "reason": {
+        "language": {
           "type": [
             "string",
             "null"
@@ -694,44 +1073,80 @@
               "type": "null"
             }
           ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "speak": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string"
         }
       },
       "required": [
         "text"
-      ]
+      ],
+      "type": "object"
     },
-    "IntelPronunciation": {
-      "type": "object",
+    "IntelUnicode": {
       "properties": {
-        "ipa": {
+        "bidirectional": {
+          "format": "uint64",
+          "minimum": 0,
           "type": [
-            "string",
+            "integer",
             "null"
           ]
         },
-        "language": {
+        "confusables": {
+          "format": "uint64",
+          "minimum": 0,
           "type": [
-            "string",
+            "integer",
             "null"
           ]
         },
-        "dialect": {
+        "invisible": {
+          "format": "uint64",
+          "minimum": 0,
           "type": [
-            "string",
+            "integer",
             "null"
           ]
         },
-        "confidence": {
+        "mixedScripts": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "score": {
+          "format": "double",
           "type": [
             "number",
             "null"
-          ],
-          "format": "double"
+          ]
+        },
+        "suspicious": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
-      }
+      },
+      "type": "object"
     },
     "IntelUser": {
-      "type": "object",
       "properties": {
         "nickname": {
           "anyOf": [
@@ -753,430 +1168,10 @@
             }
           ]
         }
-      }
-    },
-    "IntelNickname": {
-      "type": "object",
-      "properties": {
-        "normalized": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "language": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelLanguage"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "tts": {
-          "description": "HOST-PROJECTED from the selected text view.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelTts"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
-    "IntelHandle": {
-      "description": "Language/composition evidence about a stable handle. Never a spoken\nrendering: identity is never rewritten or pronounced from here.",
-      "type": "object",
-      "properties": {
-        "language": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelLanguage"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "composition": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntelComposition"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      }
-    },
-    "IntelProcessing": {
-      "type": "object",
-      "properties": {
-        "status": {
-          "type": "string"
-        }
       },
-      "required": [
-        "status"
-      ]
-    },
-    "ChatAutomationData": {
-      "type": "object",
-      "properties": {
-        "comment": {
-          "type": "string",
-          "x-native-source": {
-            "method": "WebcastChatMessage",
-            "path": "content",
-            "jsonPath": "content",
-            "fieldNumber": 3,
-            "protobufType": "string",
-            "cardinality": "optional",
-            "transform": "native"
-          }
-        },
-        "emotes": {
-          "description": "Structured artwork metadata for inline LIVE emotes. Missing on older\nevents and omitted from JSON when the signer found none.",
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ChatAutomationEmote"
-          },
-          "x-native-source": {
-            "method": "WebcastChatMessage",
-            "path": "emotes",
-            "jsonPath": "emotes",
-            "fieldNumber": 13,
-            "protobufType": "message",
-            "cardinality": "repeated",
-            "transform": "normalized-message-array",
-            "messageType": "webcast.model.base.emoji.EmoteWithIndex"
-          }
-        },
-        "method": {
-          "type": "string"
-        },
-        "msgId": {
-          "type": "string"
-        },
-        "isHistory": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "comment",
-        "method",
-        "msgId",
-        "isHistory"
-      ],
-      "x-native-method": "WebcastChatMessage"
-    },
-    "ChatAutomationEmote": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "shortcode": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "imageUrl": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "index": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "int32"
-        },
-        "emoteType": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "int32"
-        },
-        "packageId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "required": [
-        "id"
-      ]
-    },
-    "EmoteChatAutomationData": {
-      "type": "object",
-      "properties": {
-        "emotes": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ChatAutomationEmote"
-          },
-          "x-native-source": {
-            "method": "WebcastEmoteChatMessage",
-            "path": "emote_list",
-            "jsonPath": "emoteList",
-            "fieldNumber": 3,
-            "protobufType": "message",
-            "cardinality": "repeated",
-            "transform": "normalized-message-array",
-            "messageType": "webcast.model.base.emoji.EmoteModel"
-          }
-        },
-        "method": {
-          "type": "string"
-        },
-        "msgId": {
-          "type": "string"
-        },
-        "isHistory": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "method",
-        "msgId",
-        "isHistory"
-      ],
-      "x-native-method": "WebcastEmoteChatMessage"
-    },
-    "GiftAutomationData": {
-      "type": "object",
-      "properties": {
-        "aggregation": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/GiftAggregation"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "giftId": {
-          "type": "string",
-          "x-native-source": {
-            "method": "WebcastGiftMessage",
-            "path": "gift_id",
-            "jsonPath": "giftId",
-            "fieldNumber": 2,
-            "protobufType": "int64",
-            "cardinality": "optional",
-            "transform": "u64-to-string"
-          }
-        },
-        "giftName": {
-          "type": "string",
-          "x-native-source": {
-            "method": "WebcastGiftMessage",
-            "path": "gift.name",
-            "jsonPath": "gift.name",
-            "fieldNumber": 16,
-            "protobufType": "string",
-            "cardinality": "optional",
-            "transform": "native"
-          }
-        },
-        "diamondCount": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0,
-          "x-native-source": {
-            "method": "WebcastGiftMessage",
-            "path": "gift.diamond_count",
-            "jsonPath": "gift.diamondCount",
-            "fieldNumber": 12,
-            "protobufType": "int32",
-            "cardinality": "optional",
-            "transform": "normalized-unsigned"
-          }
-        },
-        "repeatCount": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0,
-          "x-native-source": {
-            "method": "WebcastGiftMessage",
-            "path": "repeat_count",
-            "jsonPath": "repeatCount",
-            "fieldNumber": 5,
-            "protobufType": "int32",
-            "cardinality": "optional",
-            "transform": "normalized-unsigned"
-          }
-        },
-        "comboCount": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0,
-          "x-native-source": {
-            "method": "WebcastGiftMessage",
-            "path": "combo_count",
-            "jsonPath": "comboCount",
-            "fieldNumber": 6,
-            "protobufType": "int32",
-            "cardinality": "optional",
-            "transform": "normalized-unsigned"
-          }
-        },
-        "groupId": {
-          "type": "string",
-          "x-native-source": {
-            "method": "WebcastGiftMessage",
-            "path": "group_id",
-            "jsonPath": "groupId",
-            "fieldNumber": 11,
-            "protobufType": "int64",
-            "cardinality": "optional",
-            "transform": "integer-to-string"
-          }
-        },
-        "repeatEnd": {
-          "type": "boolean",
-          "x-native-source": {
-            "method": "WebcastGiftMessage",
-            "path": "repeat_end",
-            "jsonPath": "repeatEnd",
-            "fieldNumber": 9,
-            "protobufType": "int32",
-            "cardinality": "optional",
-            "transform": "nonzero-to-boolean"
-          }
-        },
-        "streakable": {
-          "type": "boolean"
-        },
-        "giftIconUrl": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "method": {
-          "type": "string"
-        },
-        "msgId": {
-          "type": "string"
-        },
-        "isHistory": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "giftId",
-        "giftName",
-        "diamondCount",
-        "repeatCount",
-        "comboCount",
-        "groupId",
-        "repeatEnd",
-        "streakable",
-        "method",
-        "msgId",
-        "isHistory"
-      ],
-      "x-native-method": "WebcastGiftMessage"
-    },
-    "GiftAggregation": {
-      "type": "object",
-      "properties": {
-        "increment": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "cumulative": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "diamonds": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        }
-      },
-      "required": [
-        "increment",
-        "cumulative",
-        "diamonds"
-      ]
-    },
-    "LikeAutomationData": {
-      "type": "object",
-      "properties": {
-        "aggregation": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/LikeAggregation"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "count": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0,
-          "x-native-source": {
-            "method": "WebcastLikeMessage",
-            "path": "count",
-            "jsonPath": "count",
-            "fieldNumber": 2,
-            "protobufType": "int32",
-            "cardinality": "optional",
-            "transform": "normalized-unsigned"
-          }
-        },
-        "total": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0,
-          "x-native-source": {
-            "method": "WebcastLikeMessage",
-            "path": "total",
-            "jsonPath": "total",
-            "fieldNumber": 3,
-            "protobufType": "int64",
-            "cardinality": "optional",
-            "transform": "normalized-unsigned"
-          }
-        },
-        "method": {
-          "type": "string"
-        },
-        "msgId": {
-          "type": "string"
-        },
-        "isHistory": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "count",
-        "total",
-        "method",
-        "msgId",
-        "isHistory"
-      ],
-      "x-native-method": "WebcastLikeMessage"
+      "type": "object"
     },
     "LikeAggregation": {
-      "type": "object",
       "properties": {
         "global": {
           "anyOf": [
@@ -1198,71 +1193,37 @@
             }
           ]
         }
-      }
-    },
-    "CounterTransition": {
-      "description": "Observed cumulative transition; a goal T crosses iff previous < T <= total.",
-      "type": "object",
-      "properties": {
-        "previous": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "total": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        }
       },
-      "required": [
-        "previous",
-        "total"
-      ]
+      "type": "object"
     },
-    "SocialAutomationData": {
-      "type": "object",
+    "LikeAutomationData": {
       "properties": {
-        "action": {
-          "type": "integer",
-          "format": "int64",
-          "x-native-source": {
-            "method": "WebcastSocialMessage",
-            "path": "action",
-            "jsonPath": "action",
-            "fieldNumber": 4,
-            "protobufType": "int64",
-            "cardinality": "optional",
-            "transform": "native"
-          }
+        "aggregation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LikeAggregation"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
-        "followCount": {
-          "type": "integer",
+        "count": {
           "format": "uint64",
           "minimum": 0,
-          "x-native-source": {
-            "method": "WebcastSocialMessage",
-            "path": "follow_count",
-            "jsonPath": "followCount",
-            "fieldNumber": 6,
-            "protobufType": "int64",
-            "cardinality": "optional",
-            "transform": "normalized-unsigned"
-          }
-        },
-        "shareCount": {
           "type": "integer",
-          "format": "uint64",
-          "minimum": 0,
           "x-native-source": {
-            "method": "WebcastSocialMessage",
-            "path": "share_count",
-            "jsonPath": "shareCount",
-            "fieldNumber": 8,
+            "cardinality": "optional",
+            "fieldNumber": 2,
+            "jsonPath": "count",
+            "method": "WebcastLikeMessage",
+            "path": "count",
             "protobufType": "int32",
-            "cardinality": "optional",
             "transform": "normalized-unsigned"
           }
+        },
+        "isHistory": {
+          "type": "boolean"
         },
         "method": {
           "type": "string"
@@ -1270,49 +1231,62 @@
         "msgId": {
           "type": "string"
         },
-        "isHistory": {
-          "type": "boolean"
+        "total": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 3,
+            "jsonPath": "total",
+            "method": "WebcastLikeMessage",
+            "path": "total",
+            "protobufType": "int64",
+            "transform": "normalized-unsigned"
+          }
         }
       },
       "required": [
-        "action",
-        "followCount",
-        "shareCount",
+        "count",
+        "total",
         "method",
         "msgId",
         "isHistory"
       ],
-      "x-native-method": "WebcastSocialMessage"
+      "type": "object",
+      "x-native-method": "WebcastLikeMessage"
     },
     "MemberAutomationData": {
-      "type": "object",
       "properties": {
-        "memberCount": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0,
-          "x-native-source": {
-            "method": "WebcastMemberMessage",
-            "path": "member_count",
-            "jsonPath": "memberCount",
-            "fieldNumber": 3,
-            "protobufType": "int32",
-            "cardinality": "optional",
-            "transform": "normalized-unsigned"
-          }
-        },
         "action": {
-          "type": "integer",
           "format": "int32",
+          "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
+            "enumType": "webcast.im.MemberMessageAction",
+            "fieldNumber": 10,
+            "jsonPath": "action",
             "method": "WebcastMemberMessage",
             "path": "action",
-            "jsonPath": "action",
-            "fieldNumber": 10,
             "protobufType": "enum",
+            "transform": "native"
+          }
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "memberCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer",
+          "x-native-source": {
             "cardinality": "optional",
-            "transform": "native",
-            "enumType": "webcast.im.MemberMessageAction"
+            "fieldNumber": 3,
+            "jsonPath": "memberCount",
+            "method": "WebcastMemberMessage",
+            "path": "member_count",
+            "protobufType": "int32",
+            "transform": "normalized-unsigned"
           }
         },
         "method": {
@@ -1320,9 +1294,6 @@
         },
         "msgId": {
           "type": "string"
-        },
-        "isHistory": {
-          "type": "boolean"
         }
       },
       "required": [
@@ -1332,66 +1303,81 @@
         "msgId",
         "isHistory"
       ],
+      "type": "object",
       "x-native-method": "WebcastMemberMessage"
     },
-    "RoomStatsAutomationData": {
-      "type": "object",
+    "PluginEmitAutomationData": {
       "properties": {
-        "viewers": {
-          "type": "integer",
-          "format": "uint64",
+        "depth": {
+          "format": "uint32",
           "minimum": 0,
-          "x-native-source": {
-            "method": "WebcastRoomUserSeqMessage",
-            "path": "total",
-            "jsonPath": "total",
-            "fieldNumber": 3,
-            "protobufType": "int64",
-            "cardinality": "optional",
-            "transform": "normalized-unsigned"
-          }
+          "type": "integer"
         },
-        "totalUsers": {
-          "type": "integer",
-          "format": "uint64",
+        "emitType": {
+          "type": "string"
+        },
+        "payload": true
+      },
+      "required": [
+        "emitType",
+        "depth",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "PointsAwardedAutomationData": {
+      "properties": {
+        "currencyName": {
+          "type": "string"
+        },
+        "delta": {
+          "format": "double",
+          "type": "number"
+        },
+        "level": {
+          "format": "uint32",
           "minimum": 0,
-          "x-native-source": {
-            "method": "WebcastRoomUserSeqMessage",
-            "path": "total_user",
-            "jsonPath": "totalUser",
-            "fieldNumber": 7,
-            "protobufType": "int64",
-            "cardinality": "optional",
-            "transform": "normalized-unsigned"
-          }
+          "type": "integer"
         },
-        "popularity": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0,
-          "x-native-source": {
-            "method": "WebcastRoomUserSeqMessage",
-            "path": "popularity",
-            "jsonPath": "popularity",
-            "fieldNumber": 6,
-            "protobufType": "int64",
-            "cardinality": "optional",
-            "transform": "normalized-unsigned"
-          }
+        "reason": {
+          "type": "string"
         },
+        "totalPoints": {
+          "format": "double",
+          "type": "number"
+        },
+        "uniqueId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uniqueId",
+        "delta",
+        "totalPoints",
+        "level",
+        "currencyName",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "RoomStatsAutomationData": {
+      "properties": {
         "anonymous": {
-          "type": "integer",
           "format": "uint64",
           "minimum": 0,
+          "type": "integer",
           "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 8,
+            "jsonPath": "anonymous",
             "method": "WebcastRoomUserSeqMessage",
             "path": "anonymous",
-            "jsonPath": "anonymous",
-            "fieldNumber": 8,
             "protobufType": "int64",
-            "cardinality": "optional",
             "transform": "normalized-unsigned"
           }
+        },
+        "isHistory": {
+          "type": "boolean"
         },
         "method": {
           "type": "string"
@@ -1399,8 +1385,47 @@
         "msgId": {
           "type": "string"
         },
-        "isHistory": {
-          "type": "boolean"
+        "popularity": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 6,
+            "jsonPath": "popularity",
+            "method": "WebcastRoomUserSeqMessage",
+            "path": "popularity",
+            "protobufType": "int64",
+            "transform": "normalized-unsigned"
+          }
+        },
+        "totalUsers": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 7,
+            "jsonPath": "totalUser",
+            "method": "WebcastRoomUserSeqMessage",
+            "path": "total_user",
+            "protobufType": "int64",
+            "transform": "normalized-unsigned"
+          }
+        },
+        "viewers": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 3,
+            "jsonPath": "total",
+            "method": "WebcastRoomUserSeqMessage",
+            "path": "total",
+            "protobufType": "int64",
+            "transform": "normalized-unsigned"
+          }
         }
       },
       "required": [
@@ -1412,177 +1437,152 @@
         "msgId",
         "isHistory"
       ],
+      "type": "object",
       "x-native-method": "WebcastRoomUserSeqMessage"
     },
-    "ConnectionAutomationData": {
-      "type": "object",
-      "properties": {
-        "uniqueId": {
-          "type": "string"
-        },
-        "roomId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "uniqueId",
-        "roomId"
-      ]
-    },
-    "PointsAwardedAutomationData": {
-      "type": "object",
-      "properties": {
-        "uniqueId": {
-          "type": "string"
-        },
-        "delta": {
-          "type": "number",
-          "format": "double"
-        },
-        "totalPoints": {
-          "type": "number",
-          "format": "double"
-        },
-        "level": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "currencyName": {
-          "type": "string"
-        },
-        "reason": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "uniqueId",
-        "delta",
-        "totalPoints",
-        "level",
-        "currencyName",
-        "reason"
-      ]
-    },
-    "PluginEmitAutomationData": {
-      "type": "object",
-      "properties": {
-        "emitType": {
-          "type": "string"
-        },
-        "depth": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "payload": true
-      },
-      "required": [
-        "emitType",
-        "depth",
-        "payload"
-      ]
-    },
-    "CompetitionAutomationData": {
-      "description": "Host-generated competition context. Optional winner and action fields are\npopulated only after the relevant durable state transition.",
-      "type": "object",
-      "properties": {
-        "competitionId": {
-          "type": "string"
-        },
-        "rankingId": {
-          "type": "string"
-        },
-        "creatorId": {
-          "type": "string"
-        },
-        "roomId": {
-          "type": "string"
-        },
-        "generation": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "optionId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "winnerId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "winnerScore": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
-        "selectionMode": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SelectionMode"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "selectionId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "actionId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "actionStatus": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ActionStatus"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "required": [
-        "competitionId",
-        "rankingId",
-        "creatorId",
-        "roomId",
-        "generation"
-      ]
-    },
     "SelectionMode": {
-      "type": "string",
       "enum": [
         "highest_score",
         "uniform_random",
         "weighted_random"
-      ]
+      ],
+      "type": "string"
     },
-    "ActionStatus": {
-      "description": "Public execution status omits action inputs and idempotency keys.",
-      "type": "string",
-      "enum": [
-        "pending",
-        "running",
-        "completed",
-        "failed",
-        "uncertain"
-      ]
+    "SocialAutomationData": {
+      "properties": {
+        "action": {
+          "format": "int64",
+          "type": "integer",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 4,
+            "jsonPath": "action",
+            "method": "WebcastSocialMessage",
+            "path": "action",
+            "protobufType": "int64",
+            "transform": "native"
+          }
+        },
+        "followCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 6,
+            "jsonPath": "followCount",
+            "method": "WebcastSocialMessage",
+            "path": "follow_count",
+            "protobufType": "int64",
+            "transform": "normalized-unsigned"
+          }
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        },
+        "shareCount": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer",
+          "x-native-source": {
+            "cardinality": "optional",
+            "fieldNumber": 8,
+            "jsonPath": "shareCount",
+            "method": "WebcastSocialMessage",
+            "path": "share_count",
+            "protobufType": "int32",
+            "transform": "normalized-unsigned"
+          }
+        }
+      },
+      "required": [
+        "action",
+        "followCount",
+        "shareCount",
+        "method",
+        "msgId",
+        "isHistory"
+      ],
+      "type": "object",
+      "x-native-method": "WebcastSocialMessage"
     }
-  }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Root used by the schema generator so every public automation contract is\nemitted into one deterministic `$defs` collection.",
+  "properties": {
+    "automationCreator": {
+      "$ref": "#/$defs/AutomationCreator"
+    },
+    "automationEvent": {
+      "$ref": "#/$defs/AutomationEvent"
+    },
+    "automationIntel": {
+      "$ref": "#/$defs/EventIntel"
+    },
+    "automationPoints": {
+      "$ref": "#/$defs/AutomationPoints"
+    },
+    "automationUser": {
+      "$ref": "#/$defs/AutomationUser"
+    },
+    "chat": {
+      "$ref": "#/$defs/ChatAutomationData"
+    },
+    "competition": {
+      "$ref": "#/$defs/CompetitionAutomationData"
+    },
+    "connection": {
+      "$ref": "#/$defs/ConnectionAutomationData"
+    },
+    "emoteChat": {
+      "$ref": "#/$defs/EmoteChatAutomationData"
+    },
+    "gift": {
+      "$ref": "#/$defs/GiftAutomationData"
+    },
+    "like": {
+      "$ref": "#/$defs/LikeAutomationData"
+    },
+    "member": {
+      "$ref": "#/$defs/MemberAutomationData"
+    },
+    "pluginEmit": {
+      "$ref": "#/$defs/PluginEmitAutomationData"
+    },
+    "pointsAwarded": {
+      "$ref": "#/$defs/PointsAwardedAutomationData"
+    },
+    "roomStats": {
+      "$ref": "#/$defs/RoomStatsAutomationData"
+    },
+    "social": {
+      "$ref": "#/$defs/SocialAutomationData"
+    }
+  },
+  "required": [
+    "automationUser",
+    "automationCreator",
+    "automationPoints",
+    "automationEvent",
+    "automationIntel",
+    "chat",
+    "emoteChat",
+    "gift",
+    "like",
+    "social",
+    "member",
+    "roomStats",
+    "connection",
+    "pointsAwarded",
+    "pluginEmit",
+    "competition"
+  ],
+  "title": "AutomationContracts",
+  "type": "object"
 }

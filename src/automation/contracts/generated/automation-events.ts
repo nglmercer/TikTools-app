@@ -5,72 +5,72 @@ import type { JsonValue } from './json-value.ts';
 export type ActionStatus = "pending" | "running" | "completed" | "failed" | "uncertain";
 
 export interface AutomationCreator {
-  "uniqueId": string;
   "roomId": string;
+  "uniqueId": string;
 }
 
 export interface AutomationEvent {
-  "id": string;
-  "type": string;
-  "timestamp": number;
   "connectionId"?: string | null;
-  "creator"?: { "uniqueId": string; "roomId": string } | null;
-  "user"?: { "userId": string | null; "uniqueId": string; "nickname": string; "secUid": string; "avatarUrl": string | null } | null;
+  "creator"?: { "roomId": string; "uniqueId": string } | null;
   "data": JsonValue;
-  "points"?: { "delta": number; "total": number; "level": number } | null;
+  "id": string;
+  "intel"?: { "comment": { "casefolded": string | null; "composition": { "allCaps": boolean | null; "digits": number | null; "elongated": boolean | null; "emojiCount": number | null; "emojiOnly": boolean | null; "emojiRatio": number | null; "letters": number | null; "mentions": number | null; "repetitionScore": number | null; "urls": number | null } | null; "language": { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null; "nfc": string | null; "nfkc": string | null; "normalized": string | null; "obfuscation": { "confusables": boolean | null; "detected": boolean | null; "flags": JsonValue[] | null; "leetspeak": boolean | null; "mixedScripts": boolean | null; "punctuationFlood": boolean | null; "repetition": boolean | null; "score": number | null } | null; "rebus": { "candidate": string | null; "confidence": number | null; "score": number | null; "strong": boolean | null } | null; "spam": { "calibrated": boolean | null; "detected": boolean | null; "model": string | null; "reasons": JsonValue[] | null; "score": number | null } | null; "truncated": boolean; "tts": { "confidence": number | null; "language": string | null; "pronunciation": { "confidence": number | null; "dialect": string | null; "ipa": string | null; "language": string | null } | null; "reason": string | null; "source": string | null; "speak": boolean; "text": string } | null; "unicode": { "bidirectional": number | null; "confusables": number | null; "invisible": number | null; "mixedScripts": boolean | null; "score": number | null; "suspicious": boolean | null } | null } | null; "processing": { "status": string } | null; "providers": JsonValue; "user": { "nickname": { "language": { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null; "normalized": string | null; "tts": { "confidence": number | null; "language": string | null; "pronunciation": { "confidence": number | null; "dialect": string | null; "ipa": string | null; "language": string | null } | null; "reason": string | null; "source": string | null; "speak": boolean; "text": string } | null } | null; "uniqueId": { "composition": { "allCaps": boolean | null; "digits": number | null; "elongated": boolean | null; "emojiCount": number | null; "emojiOnly": boolean | null; "emojiRatio": number | null; "letters": number | null; "mentions": number | null; "repetitionScore": number | null; "urls": number | null } | null; "language": { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null } | null } | null } | null;
+  "points"?: { "delta": number; "level": number; "total": number } | null;
   "sourceEventId"?: string | null;
-  "intel"?: { "comment": { "normalized": string | null; "nfc": string | null; "nfkc": string | null; "casefolded": string | null; "truncated": boolean; "language": { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null; "composition": { "emojiOnly": boolean | null; "emojiCount": number | null; "emojiRatio": number | null; "letters": number | null; "digits": number | null; "allCaps": boolean | null; "elongated": boolean | null; "repetitionScore": number | null; "urls": number | null; "mentions": number | null } | null; "unicode": { "mixedScripts": boolean | null; "suspicious": boolean | null; "score": number | null; "invisible": number | null; "bidirectional": number | null; "confusables": number | null } | null; "obfuscation": { "detected": boolean | null; "score": number | null; "leetspeak": boolean | null; "repetition": boolean | null; "punctuationFlood": boolean | null; "mixedScripts": boolean | null; "confusables": boolean | null; "flags": JsonValue[] | null } | null; "spam": { "score": number | null; "detected": boolean | null; "reasons": JsonValue[] | null; "model": string | null; "calibrated": boolean | null } | null; "rebus": { "candidate": string | null; "confidence": number | null; "score": number | null; "strong": boolean | null } | null; "tts": { "text": string; "language": string | null; "confidence": number | null; "source": string | null; "speak": boolean; "reason": string | null; "pronunciation": { "ipa": string | null; "language": string | null; "dialect": string | null; "confidence": number | null } | null } | null } | null; "user": { "nickname": { "normalized": string | null; "language": { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null; "tts": { "text": string; "language": string | null; "confidence": number | null; "source": string | null; "speak": boolean; "reason": string | null; "pronunciation": { "ipa": string | null; "language": string | null; "dialect": string | null; "confidence": number | null } | null } | null } | null; "uniqueId": { "language": { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null; "composition": { "emojiOnly": boolean | null; "emojiCount": number | null; "emojiRatio": number | null; "letters": number | null; "digits": number | null; "allCaps": boolean | null; "elongated": boolean | null; "repetitionScore": number | null; "urls": number | null; "mentions": number | null } | null } | null } | null; "processing": { "status": string } | null; "providers": JsonValue } | null;
+  "timestamp": number;
+  "type": string;
+  "user"?: { "avatarUrl": string | null; "nickname": string; "secUid": string; "uniqueId": string; "userId": string | null } | null;
 }
 
 export interface AutomationPoints {
   "delta": number;
-  "total": number;
   "level": number;
+  "total": number;
 }
 
 export interface AutomationUser {
-  "userId"?: string | null;
-  "uniqueId": string;
+  "avatarUrl"?: string | null;
   "nickname": string;
   "secUid": string;
-  "avatarUrl"?: string | null;
+  "uniqueId": string;
+  "userId"?: string | null;
 }
 
 export interface ChatAutomationData {
   "comment": string;
-  "emotes"?: { "id": string; "shortcode": string | null; "imageUrl": string | null; "index": number | null; "emoteType": number | null; "packageId": string | null }[];
+  "emotes"?: { "emoteType": number | null; "id": string; "imageUrl": string | null; "index": number | null; "packageId": string | null; "shortcode": string | null }[];
+  "isHistory": boolean;
   "method": string;
   "msgId": string;
-  "isHistory": boolean;
 }
 
 export interface ChatAutomationEmote {
+  "emoteType"?: number | null;
   "id": string;
-  "shortcode"?: string | null;
   "imageUrl"?: string | null;
   "index"?: number | null;
-  "emoteType"?: number | null;
   "packageId"?: string | null;
+  "shortcode"?: string | null;
 }
 
 export interface CompetitionAutomationData {
-  "competitionId": string;
-  "rankingId": string;
-  "creatorId": string;
-  "roomId": string;
-  "generation": number;
-  "optionId"?: string | null;
-  "winnerId"?: string | null;
-  "winnerScore"?: number | null;
-  "selectionMode"?: "highest_score" | "uniform_random" | "weighted_random" | null;
-  "selectionId"?: string | null;
   "actionId"?: string | null;
   "actionStatus"?: "pending" | "running" | "completed" | "failed" | "uncertain" | null;
+  "competitionId": string;
+  "creatorId": string;
+  "generation": number;
+  "optionId"?: string | null;
+  "rankingId": string;
+  "roomId": string;
+  "selectionId"?: string | null;
+  "selectionMode"?: "highest_score" | "uniform_random" | "weighted_random" | null;
+  "winnerId"?: string | null;
+  "winnerScore"?: number | null;
 }
 
 export interface ConnectionAutomationData {
-  "uniqueId": string;
   "roomId": string;
+  "uniqueId": string;
 }
 
 export interface CounterTransition {
@@ -79,100 +79,100 @@ export interface CounterTransition {
 }
 
 export interface EmoteChatAutomationData {
-  "emotes"?: { "id": string; "shortcode": string | null; "imageUrl": string | null; "index": number | null; "emoteType": number | null; "packageId": string | null }[];
+  "emotes"?: { "emoteType": number | null; "id": string; "imageUrl": string | null; "index": number | null; "packageId": string | null; "shortcode": string | null }[];
+  "isHistory": boolean;
   "method": string;
   "msgId": string;
-  "isHistory": boolean;
 }
 
 export interface EventIntel {
-  "comment"?: { "normalized": string | null; "nfc": string | null; "nfkc": string | null; "casefolded": string | null; "truncated": boolean; "language": { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null; "composition": { "emojiOnly": boolean | null; "emojiCount": number | null; "emojiRatio": number | null; "letters": number | null; "digits": number | null; "allCaps": boolean | null; "elongated": boolean | null; "repetitionScore": number | null; "urls": number | null; "mentions": number | null } | null; "unicode": { "mixedScripts": boolean | null; "suspicious": boolean | null; "score": number | null; "invisible": number | null; "bidirectional": number | null; "confusables": number | null } | null; "obfuscation": { "detected": boolean | null; "score": number | null; "leetspeak": boolean | null; "repetition": boolean | null; "punctuationFlood": boolean | null; "mixedScripts": boolean | null; "confusables": boolean | null; "flags": JsonValue[] | null } | null; "spam": { "score": number | null; "detected": boolean | null; "reasons": JsonValue[] | null; "model": string | null; "calibrated": boolean | null } | null; "rebus": { "candidate": string | null; "confidence": number | null; "score": number | null; "strong": boolean | null } | null; "tts": { "text": string; "language": string | null; "confidence": number | null; "source": string | null; "speak": boolean; "reason": string | null; "pronunciation": { "ipa": string | null; "language": string | null; "dialect": string | null; "confidence": number | null } | null } | null } | null;
-  "user"?: { "nickname": { "normalized": string | null; "language": { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null; "tts": { "text": string; "language": string | null; "confidence": number | null; "source": string | null; "speak": boolean; "reason": string | null; "pronunciation": { "ipa": string | null; "language": string | null; "dialect": string | null; "confidence": number | null } | null } | null } | null; "uniqueId": { "language": { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null; "composition": { "emojiOnly": boolean | null; "emojiCount": number | null; "emojiRatio": number | null; "letters": number | null; "digits": number | null; "allCaps": boolean | null; "elongated": boolean | null; "repetitionScore": number | null; "urls": number | null; "mentions": number | null } | null } | null } | null;
+  "comment"?: { "casefolded": string | null; "composition": { "allCaps": boolean | null; "digits": number | null; "elongated": boolean | null; "emojiCount": number | null; "emojiOnly": boolean | null; "emojiRatio": number | null; "letters": number | null; "mentions": number | null; "repetitionScore": number | null; "urls": number | null } | null; "language": { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null; "nfc": string | null; "nfkc": string | null; "normalized": string | null; "obfuscation": { "confusables": boolean | null; "detected": boolean | null; "flags": JsonValue[] | null; "leetspeak": boolean | null; "mixedScripts": boolean | null; "punctuationFlood": boolean | null; "repetition": boolean | null; "score": number | null } | null; "rebus": { "candidate": string | null; "confidence": number | null; "score": number | null; "strong": boolean | null } | null; "spam": { "calibrated": boolean | null; "detected": boolean | null; "model": string | null; "reasons": JsonValue[] | null; "score": number | null } | null; "truncated": boolean; "tts": { "confidence": number | null; "language": string | null; "pronunciation": { "confidence": number | null; "dialect": string | null; "ipa": string | null; "language": string | null } | null; "reason": string | null; "source": string | null; "speak": boolean; "text": string } | null; "unicode": { "bidirectional": number | null; "confusables": number | null; "invisible": number | null; "mixedScripts": boolean | null; "score": number | null; "suspicious": boolean | null } | null } | null;
   "processing"?: { "status": string } | null;
   "providers"?: JsonValue;
+  "user"?: { "nickname": { "language": { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null; "normalized": string | null; "tts": { "confidence": number | null; "language": string | null; "pronunciation": { "confidence": number | null; "dialect": string | null; "ipa": string | null; "language": string | null } | null; "reason": string | null; "source": string | null; "speak": boolean; "text": string } | null } | null; "uniqueId": { "composition": { "allCaps": boolean | null; "digits": number | null; "elongated": boolean | null; "emojiCount": number | null; "emojiOnly": boolean | null; "emojiRatio": number | null; "letters": number | null; "mentions": number | null; "repetitionScore": number | null; "urls": number | null } | null; "language": { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null } | null } | null;
 }
 
 export interface GiftAggregation {
-  "increment": number;
   "cumulative": number;
   "diamonds": number;
+  "increment": number;
 }
 
 export interface GiftAutomationData {
-  "aggregation"?: { "increment": number; "cumulative": number; "diamonds": number } | null;
+  "aggregation"?: { "cumulative": number; "diamonds": number; "increment": number } | null;
+  "comboCount": number;
+  "diamondCount": number;
+  "giftIconUrl"?: string | null;
   "giftId": string;
   "giftName": string;
-  "diamondCount": number;
-  "repeatCount": number;
-  "comboCount": number;
   "groupId": string;
-  "repeatEnd": boolean;
-  "streakable": boolean;
-  "giftIconUrl"?: string | null;
+  "isHistory": boolean;
   "method": string;
   "msgId": string;
-  "isHistory": boolean;
+  "repeatCount": number;
+  "repeatEnd": boolean;
+  "streakable": boolean;
 }
 
 export interface IntelComment {
-  "normalized"?: string | null;
+  "casefolded"?: string | null;
+  "composition"?: { "allCaps": boolean | null; "digits": number | null; "elongated": boolean | null; "emojiCount": number | null; "emojiOnly": boolean | null; "emojiRatio": number | null; "letters": number | null; "mentions": number | null; "repetitionScore": number | null; "urls": number | null } | null;
+  "language"?: { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null;
   "nfc"?: string | null;
   "nfkc"?: string | null;
-  "casefolded"?: string | null;
-  "truncated"?: boolean;
-  "language"?: { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null;
-  "composition"?: { "emojiOnly": boolean | null; "emojiCount": number | null; "emojiRatio": number | null; "letters": number | null; "digits": number | null; "allCaps": boolean | null; "elongated": boolean | null; "repetitionScore": number | null; "urls": number | null; "mentions": number | null } | null;
-  "unicode"?: { "mixedScripts": boolean | null; "suspicious": boolean | null; "score": number | null; "invisible": number | null; "bidirectional": number | null; "confusables": number | null } | null;
-  "obfuscation"?: { "detected": boolean | null; "score": number | null; "leetspeak": boolean | null; "repetition": boolean | null; "punctuationFlood": boolean | null; "mixedScripts": boolean | null; "confusables": boolean | null; "flags": JsonValue[] | null } | null;
-  "spam"?: { "score": number | null; "detected": boolean | null; "reasons": JsonValue[] | null; "model": string | null; "calibrated": boolean | null } | null;
+  "normalized"?: string | null;
+  "obfuscation"?: { "confusables": boolean | null; "detected": boolean | null; "flags": JsonValue[] | null; "leetspeak": boolean | null; "mixedScripts": boolean | null; "punctuationFlood": boolean | null; "repetition": boolean | null; "score": number | null } | null;
   "rebus"?: { "candidate": string | null; "confidence": number | null; "score": number | null; "strong": boolean | null } | null;
-  "tts"?: { "text": string; "language": string | null; "confidence": number | null; "source": string | null; "speak": boolean; "reason": string | null; "pronunciation": { "ipa": string | null; "language": string | null; "dialect": string | null; "confidence": number | null } | null } | null;
+  "spam"?: { "calibrated": boolean | null; "detected": boolean | null; "model": string | null; "reasons": JsonValue[] | null; "score": number | null } | null;
+  "truncated"?: boolean;
+  "tts"?: { "confidence": number | null; "language": string | null; "pronunciation": { "confidence": number | null; "dialect": string | null; "ipa": string | null; "language": string | null } | null; "reason": string | null; "source": string | null; "speak": boolean; "text": string } | null;
+  "unicode"?: { "bidirectional": number | null; "confusables": number | null; "invisible": number | null; "mixedScripts": boolean | null; "score": number | null; "suspicious": boolean | null } | null;
 }
 
 export interface IntelComposition {
-  "emojiOnly"?: boolean | null;
+  "allCaps"?: boolean | null;
+  "digits"?: number | null;
+  "elongated"?: boolean | null;
   "emojiCount"?: number | null;
+  "emojiOnly"?: boolean | null;
   "emojiRatio"?: number | null;
   "letters"?: number | null;
-  "digits"?: number | null;
-  "allCaps"?: boolean | null;
-  "elongated"?: boolean | null;
+  "mentions"?: number | null;
   "repetitionScore"?: number | null;
   "urls"?: number | null;
-  "mentions"?: number | null;
 }
 
 export interface IntelHandle {
-  "language"?: { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null;
-  "composition"?: { "emojiOnly": boolean | null; "emojiCount": number | null; "emojiRatio": number | null; "letters": number | null; "digits": number | null; "allCaps": boolean | null; "elongated": boolean | null; "repetitionScore": number | null; "urls": number | null; "mentions": number | null } | null;
+  "composition"?: { "allCaps": boolean | null; "digits": number | null; "elongated": boolean | null; "emojiCount": number | null; "emojiOnly": boolean | null; "emojiRatio": number | null; "letters": number | null; "mentions": number | null; "repetitionScore": number | null; "urls": number | null } | null;
+  "language"?: { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null;
 }
 
 export interface IntelLanguage {
-  "top": string;
-  "confidence": number;
   "candidates"?: JsonValue[] | null;
+  "confidence": number;
+  "top": string;
 }
 
 export interface IntelLanguageCandidate {
-  "language": string;
   "confidence": number;
+  "language": string;
 }
 
 export interface IntelNickname {
+  "language"?: { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null;
   "normalized"?: string | null;
-  "language"?: { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null;
-  "tts"?: { "text": string; "language": string | null; "confidence": number | null; "source": string | null; "speak": boolean; "reason": string | null; "pronunciation": { "ipa": string | null; "language": string | null; "dialect": string | null; "confidence": number | null } | null } | null;
+  "tts"?: { "confidence": number | null; "language": string | null; "pronunciation": { "confidence": number | null; "dialect": string | null; "ipa": string | null; "language": string | null } | null; "reason": string | null; "source": string | null; "speak": boolean; "text": string } | null;
 }
 
 export interface IntelObfuscation {
-  "detected"?: boolean | null;
-  "score"?: number | null;
-  "leetspeak"?: boolean | null;
-  "repetition"?: boolean | null;
-  "punctuationFlood"?: boolean | null;
-  "mixedScripts"?: boolean | null;
   "confusables"?: boolean | null;
+  "detected"?: boolean | null;
   "flags"?: JsonValue[] | null;
+  "leetspeak"?: boolean | null;
+  "mixedScripts"?: boolean | null;
+  "punctuationFlood"?: boolean | null;
+  "repetition"?: boolean | null;
+  "score"?: number | null;
 }
 
 export interface IntelProcessing {
@@ -180,10 +180,10 @@ export interface IntelProcessing {
 }
 
 export interface IntelPronunciation {
+  "confidence"?: number | null;
+  "dialect"?: string | null;
   "ipa"?: string | null;
   "language"?: string | null;
-  "dialect"?: string | null;
-  "confidence"?: number | null;
 }
 
 export interface IntelRebus {
@@ -194,35 +194,35 @@ export interface IntelRebus {
 }
 
 export interface IntelSpam {
-  "score"?: number | null;
-  "detected"?: boolean | null;
-  "reasons"?: JsonValue[] | null;
-  "model"?: string | null;
   "calibrated"?: boolean | null;
+  "detected"?: boolean | null;
+  "model"?: string | null;
+  "reasons"?: JsonValue[] | null;
+  "score"?: number | null;
 }
 
 export interface IntelTts {
-  "text": string;
-  "language"?: string | null;
   "confidence"?: number | null;
+  "language"?: string | null;
+  "pronunciation"?: { "confidence": number | null; "dialect": string | null; "ipa": string | null; "language": string | null } | null;
+  "reason"?: string | null;
   "source"?: string | null;
   "speak"?: boolean;
-  "reason"?: string | null;
-  "pronunciation"?: { "ipa": string | null; "language": string | null; "dialect": string | null; "confidence": number | null } | null;
+  "text": string;
 }
 
 export interface IntelUnicode {
-  "mixedScripts"?: boolean | null;
-  "suspicious"?: boolean | null;
-  "score"?: number | null;
-  "invisible"?: number | null;
   "bidirectional"?: number | null;
   "confusables"?: number | null;
+  "invisible"?: number | null;
+  "mixedScripts"?: boolean | null;
+  "score"?: number | null;
+  "suspicious"?: boolean | null;
 }
 
 export interface IntelUser {
-  "nickname"?: { "normalized": string | null; "language": { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null; "tts": { "text": string; "language": string | null; "confidence": number | null; "source": string | null; "speak": boolean; "reason": string | null; "pronunciation": { "ipa": string | null; "language": string | null; "dialect": string | null; "confidence": number | null } | null } | null } | null;
-  "uniqueId"?: { "language": { "top": string; "confidence": number; "candidates": JsonValue[] | null } | null; "composition": { "emojiOnly": boolean | null; "emojiCount": number | null; "emojiRatio": number | null; "letters": number | null; "digits": number | null; "allCaps": boolean | null; "elongated": boolean | null; "repetitionScore": number | null; "urls": number | null; "mentions": number | null } | null } | null;
+  "nickname"?: { "language": { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null; "normalized": string | null; "tts": { "confidence": number | null; "language": string | null; "pronunciation": { "confidence": number | null; "dialect": string | null; "ipa": string | null; "language": string | null } | null; "reason": string | null; "source": string | null; "speak": boolean; "text": string } | null } | null;
+  "uniqueId"?: { "composition": { "allCaps": boolean | null; "digits": number | null; "elongated": boolean | null; "emojiCount": number | null; "emojiOnly": boolean | null; "emojiRatio": number | null; "letters": number | null; "mentions": number | null; "repetitionScore": number | null; "urls": number | null } | null; "language": { "candidates": JsonValue[] | null; "confidence": number; "top": string } | null } | null;
 }
 
 export interface LikeAggregation {
@@ -233,43 +233,43 @@ export interface LikeAggregation {
 export interface LikeAutomationData {
   "aggregation"?: { "global": { "previous": number; "total": number } | null; "user": { "previous": number; "total": number } | null } | null;
   "count": number;
-  "total": number;
+  "isHistory": boolean;
   "method": string;
   "msgId": string;
-  "isHistory": boolean;
+  "total": number;
 }
 
 export interface MemberAutomationData {
-  "memberCount": number;
   "action": number;
+  "isHistory": boolean;
+  "memberCount": number;
   "method": string;
   "msgId": string;
-  "isHistory": boolean;
 }
 
 export interface PluginEmitAutomationData {
-  "emitType": string;
   "depth": number;
+  "emitType": string;
   "payload": JsonValue;
 }
 
 export interface PointsAwardedAutomationData {
-  "uniqueId": string;
-  "delta": number;
-  "totalPoints": number;
-  "level": number;
   "currencyName": string;
+  "delta": number;
+  "level": number;
   "reason": string;
+  "totalPoints": number;
+  "uniqueId": string;
 }
 
 export interface RoomStatsAutomationData {
-  "viewers": number;
-  "totalUsers": number;
-  "popularity": number;
   "anonymous": number;
+  "isHistory": boolean;
   "method": string;
   "msgId": string;
-  "isHistory": boolean;
+  "popularity": number;
+  "totalUsers": number;
+  "viewers": number;
 }
 
 export type SelectionMode = "highest_score" | "uniform_random" | "weighted_random";
@@ -277,8 +277,8 @@ export type SelectionMode = "highest_score" | "uniform_random" | "weighted_rando
 export interface SocialAutomationData {
   "action": number;
   "followCount": number;
-  "shareCount": number;
+  "isHistory": boolean;
   "method": string;
   "msgId": string;
-  "isHistory": boolean;
+  "shareCount": number;
 }
