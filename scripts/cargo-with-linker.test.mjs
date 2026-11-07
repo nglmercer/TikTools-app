@@ -6,6 +6,7 @@ import {
   parseEnvironmentDump,
   resolveCargoEnvironment,
   resolveMsvcEnvironment,
+  resolveWindowsPerlEnvironment,
 } from './cargo-with-linker.mjs';
 
 const X64_LINKER = 'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER';
@@ -401,4 +402,138 @@ test('parses environment dumps and merges them case-insensitively', () => {
   const merged = mergeEnvironment({ PATH: 'C:\\old', KEEP: '1' }, loaded);
 
   assert.deepEqual(merged, { KEEP: '1', Path: 'C:\\msvc', INCLUDE: 'C:\\a=b' });
+});
+
+test('uses native Windows Perl already on PATH', () => {
+  const environment = { Path: 'C:\\native-perl\\bin' };
+  const resolved = resolveWindowsPerlEnvironment({
+    environment,
+    platform: 'win32',
+    probe: (command, childEnvironment) => {
+      assert.equal(command, 'perl');
+      assert.deepEqual(childEnvironment, environment);
+      return true;
+    },
+    fileExists: () => { throw new Error('installed Perl needs no fallback detection'); },
+  });
+
+  assert.equal(resolved.status, 'available');
+  assert.deepEqual(resolved.environment, environment);
+});
+
+test('configures Strawberry Perl outside PATH without adding its GCC tools', () => {
+  const environment = { Path: 'C:\\msvc;C:\\bin', INCLUDE: 'C:\\include' };
+  const command = 'C:\\Strawberry\\perl\\bin\\perl.exe';
+  const resolved = resolveWindowsPerlEnvironment({
+    environment,
+    platform: 'win32',
+    fileExists: (path) => path === command,
+    probe: (path, childEnvironment) => {
+      assert.deepEqual(childEnvironment, environment);
+      return path === command;
+    },
+  });
+
+  assert.equal(resolved.status, 'configured');
+  assert.equal(resolved.command, command);
+  assert.deepEqual(resolved.environment, { ...environment, OPENSSL_SRC_PERL: command });
+  assert.equal(Object.hasOwn(environment, 'OPENSSL_SRC_PERL'), false);
+});
+
+test('finds native Perl on another system drive and in paths with spaces', () => {
+  for (const [environment, command] of [
+    [{ systemdrive: 'D:' }, 'D:\\Strawberry\\perl\\bin\\perl.exe'],
+    [{ PROGRAMFILES: 'D:\\Program Files' }, 'D:\\Program Files\\Strawberry\\perl\\bin\\perl.exe'],
+    [{ localappdata: 'D:\\Users\\A B\\AppData\\Local' }, 'D:\\Users\\A B\\AppData\\Local\\Programs\\Strawberry\\perl\\bin\\perl.exe'],
+  ]) {
+    const resolved = resolveWindowsPerlEnvironment({
+      environment,
+      platform: 'win32',
+      fileExists: (path) => path === command,
+      probe: (path) => path === command,
+    });
+
+    assert.equal(resolved.status, 'configured');
+    assert.equal(resolved.environment.OPENSSL_SRC_PERL, command);
+  }
+});
+
+test('preserves explicit OpenSSL and Perl overrides including portable installs', () => {
+  for (const environment of [
+    { OPENSSL_SRC_PERL: 'D:\\Portable Perl\\perl.exe', PERL: 'other-perl' },
+    { PERL: 'custom-perl' },
+    { openssl_src_perl: 'D:\\perl.exe' },
+    { OPENSSL_SRC_PERL: '' },
+  ]) {
+    const resolved = resolveWindowsPerlEnvironment({
+      environment,
+      platform: 'win32',
+      probe: () => { throw new Error('explicit Perl configuration must win'); },
+    });
+
+    assert.equal(resolved.status, 'preserved');
+    assert.deepEqual(resolved.environment, environment);
+  }
+});
+
+test('reports missing or incompatible Perl without requiring it for unrelated Cargo commands', () => {
+  for (const fileExists of [() => false, () => true]) {
+    const resolved = resolveWindowsPerlEnvironment({
+      environment: { Path: 'C:\\Git\\usr\\bin' },
+      platform: 'win32',
+      fileExists,
+      probe: () => false,
+    });
+
+    assert.equal(resolved.status, 'unavailable');
+    assert.deepEqual(resolved.environment, { Path: 'C:\\Git\\usr\\bin' });
+  }
+});
+
+test('does not probe Windows Perl on other platforms', () => {
+  for (const platform of ['linux', 'darwin']) {
+    const environment = { PATH: '/usr/bin' };
+    const resolved = resolveWindowsPerlEnvironment({
+      environment,
+      platform,
+      probe: () => { throw new Error('Windows Perl detection must not run'); },
+    });
+
+    assert.equal(resolved.status, 'unchanged');
+    assert.deepEqual(resolved.environment, environment);
+  }
+});
+
+test('detects optional tools using the prepared MSVC environment passed to Cargo', () => {
+  const environment = { Path: 'C:\\VS\\bin', INCLUDE: 'C:\\include', OPENSSL_SRC_PERL: 'C:\\perl.exe' };
+  const calls = [];
+  const resolved = resolveCargoEnvironment({
+    environment,
+    platform: 'win32',
+    hasCommand: (command, platform, childEnvironment) => {
+      assert.equal(platform, 'win32');
+      assert.deepEqual(childEnvironment, { ...environment, ...(command === 'lld-link.exe' ? { RUSTC_WRAPPER: 'kache' } : {}) });
+      calls.push(command);
+      return true;
+    },
+  });
+
+  assert.deepEqual(calls, ['kache', 'lld-link.exe']);
+  assert.equal(resolved.environment.OPENSSL_SRC_PERL, environment.OPENSSL_SRC_PERL);
+  assert.equal(resolved.linker, 'lld-link');
+});
+
+test('discovers native Windows Perl with the real process probe and no Perl on PATH', {
+  skip: process.platform !== 'win32' || process.env.TIKTOOLS_TEST_WINDOWS_PERL !== '1',
+}, () => {
+  const environment = { ...process.env };
+  for (const name of Object.keys(environment)) {
+    if (['path', 'perl', 'openssl_src_perl'].includes(name.toLowerCase())) delete environment[name];
+  }
+  environment.Path = `${process.env.SystemRoot || 'C:\\Windows'}\\System32`;
+  const resolved = resolveWindowsPerlEnvironment({ environment });
+
+  assert.equal(resolved.status, 'configured');
+  assert.match(resolved.environment.OPENSSL_SRC_PERL, /perl\.exe$/i);
+  assert.equal(resolved.environment.Path, environment.Path);
 });

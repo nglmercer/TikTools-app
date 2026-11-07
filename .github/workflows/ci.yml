@@ -301,6 +301,16 @@ jobs:
           choco install llvm --no-progress -y
           echo "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
 
+      - name: Install native Perl for vendored OpenSSL
+        if: runner.os == 'Windows'
+        run: choco install strawberryperl --no-progress -y
+
+      - name: Test Windows build environment detection
+        if: runner.os == 'Windows'
+        env:
+          TIKTOOLS_TEST_WINDOWS_PERL: '1'
+        run: node --test scripts/cargo-with-linker.test.mjs
+
       - name: Cache Cargo dependencies and build output
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -314,6 +324,10 @@ jobs:
 
       - name: Check desktop crate
         run: node scripts/cargo-with-linker.mjs check -p tiktools-desktop --locked
+
+      - name: Build Windows headless development CLI
+        if: runner.os == 'Windows'
+        run: node scripts/cargo-with-linker.mjs build -p tiktools-cli --features local-web --locked
 
       - name: Build Windows desktop release and verify GUI subsystem
         if: runner.os == 'Windows'

@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, win32 } from 'node:path';
 
 const WINDOWS_LINKER_ENVIRONMENTS = [
   'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER',
@@ -19,12 +19,13 @@ const DISABLED_KACHE_VALUES = new Set(['0', 'false', 'no']);
 const VSWHERE_PATH = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe';
 const MSVC_ARCHITECTURES = { x64: 'x64', arm64: 'arm64', ia32: 'x86' };
 
-function commandExists(command, platform = process.platform) {
+function commandExists(command, platform = process.platform, environment = process.env) {
   const lookup = platform === 'win32'
     ? ['where.exe', [command]]
     : ['sh', ['-c', 'command -v "$1" >/dev/null 2>&1', 'sh', command]];
 
   return spawnSync(lookup[0], lookup[1], {
+    env: environment,
     stdio: 'ignore',
     windowsHide: true,
   }).status === 0;
@@ -44,7 +45,7 @@ function resolveKacheWrapper({ environment, cargoEnvironment, hasCommand, platfo
     return 'disabled';
   }
 
-  if (!hasCommand(KACHE_COMMAND, platform)) {
+  if (!hasCommand(KACHE_COMMAND, platform, cargoEnvironment)) {
     return ENABLED_KACHE_VALUES.has(normalized) ? 'missing' : 'unavailable';
   }
 
@@ -95,7 +96,7 @@ export function resolveCargoEnvironment({
       return { environment: cargoEnvironment, linker: 'unchanged', configuredTargets, kache };
     }
 
-    if (!hasCommand('mold', platform)) {
+    if (!hasCommand('mold', platform, cargoEnvironment)) {
       return { environment: cargoEnvironment, linker: 'default', configuredTargets, kache };
     }
 
@@ -114,7 +115,7 @@ export function resolveCargoEnvironment({
     (name) => !unconfiguredTargets.includes(name),
   );
 
-  if (unconfiguredTargets.length === 0 || !hasCommand('lld-link.exe')) {
+  if (unconfiguredTargets.length === 0 || !hasCommand('lld-link.exe', platform, cargoEnvironment)) {
     return { environment: cargoEnvironment, linker: 'default', configuredTargets, kache };
   }
 
@@ -205,6 +206,65 @@ export function resolveMsvcEnvironment({
   return loaded.INCLUDE ? { status: 'loaded', devCmd, environment: loaded } : { status: 'failed', devCmd };
 }
 
+function environmentValue(environment, name) {
+  const key = Object.keys(environment).find((key) => key.toLowerCase() === name.toLowerCase());
+  return key === undefined ? undefined : environment[key];
+}
+
+function probeWindowsPerl(command, environment) {
+  const result = spawnSync(command, ['-e', 'print $^O'], {
+    env: environment,
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  // MSYS/Cygwin Perl uses Unix paths and cannot configure a VC-* build.
+  return result.status === 0 && result.stdout.trim() === 'MSWin32';
+}
+
+export function resolveWindowsPerlEnvironment({
+  environment = process.env,
+  platform = process.platform,
+  fileExists = existsSync,
+  probe = probeWindowsPerl,
+} = {}) {
+  const cargoEnvironment = { ...environment };
+  if (platform !== 'win32') {
+    return { status: 'unchanged', environment: cargoEnvironment };
+  }
+
+  // openssl-src gives OPENSSL_SRC_PERL precedence over PERL. Leave explicit
+  // choices alone, including portable installations outside the usual paths.
+  if (environmentValue(environment, 'OPENSSL_SRC_PERL') !== undefined
+      || environmentValue(environment, 'PERL') !== undefined) {
+    return { status: 'preserved', environment: cargoEnvironment };
+  }
+
+  if (probe('perl', cargoEnvironment)) {
+    return { status: 'available', environment: cargoEnvironment };
+  }
+
+  const roots = [
+    'C:\\Strawberry',
+    win32.join(`${environmentValue(environment, 'SystemDrive') || 'C:'}\\`, 'Strawberry'),
+  ];
+  const programFiles = environmentValue(environment, 'ProgramFiles');
+  const localAppData = environmentValue(environment, 'LOCALAPPDATA');
+  if (programFiles) roots.push(win32.join(programFiles, 'Strawberry'));
+  if (localAppData) roots.push(win32.join(localAppData, 'Programs', 'Strawberry'));
+
+  for (const root of new Set(roots)) {
+    const command = win32.join(root, 'perl', 'bin', 'perl.exe');
+    if (fileExists(command) && probe(command, cargoEnvironment)) {
+      // Set only OpenSSL's interpreter. Adding Strawberry's toolchain to PATH
+      // could replace MSVC tools with the bundled GCC or make.
+      cargoEnvironment.OPENSSL_SRC_PERL = command;
+      return { status: 'configured', command, environment: cargoEnvironment };
+    }
+  }
+
+  return { status: 'unavailable', environment: cargoEnvironment };
+}
+
 function main() {
   const cargoArguments = process.argv.slice(2);
   if (cargoArguments.length === 0) {
@@ -213,7 +273,28 @@ function main() {
     return;
   }
 
-  const resolved = resolveCargoEnvironment();
+  const buildEnvironment = { ...process.env };
+  const msvc = resolveMsvcEnvironment({ environment: buildEnvironment });
+  if (msvc.status === 'loaded') {
+    mergeEnvironment(buildEnvironment, msvc.environment);
+    console.error(`[cargo-with-linker] loaded MSVC developer environment from ${msvc.devCmd}`);
+  } else if (msvc.status === 'failed') {
+    console.error(`[cargo-with-linker] failed to load MSVC developer environment from ${msvc.devCmd}`);
+  } else if (msvc.status === 'unavailable') {
+    console.error('[cargo-with-linker] Visual Studio C++ build tools not found; C build scripts may fail outside a Developer prompt');
+  }
+
+  const perl = resolveWindowsPerlEnvironment({ environment: buildEnvironment });
+  if (perl.status === 'configured') {
+    console.error(`[cargo-with-linker] using Windows Perl for vendored OpenSSL: ${perl.command}`);
+  } else if (perl.status === 'unavailable') {
+    console.error('[cargo-with-linker] native Windows Perl not found; cloud-auth builds require it for vendored OpenSSL');
+    console.error('[cargo-with-linker] install once: winget install --id StrawberryPerl.StrawberryPerl --exact');
+    console.error('[cargo-with-linker] then retry, or set OPENSSL_SRC_PERL to a native Windows perl.exe (see docs/GETTING_STARTED.md)');
+  }
+
+  // Detect optional tools using the same environment Cargo will receive.
+  const resolved = resolveCargoEnvironment({ environment: perl.environment });
   if (resolved.kache === 'missing') {
     console.error('[cargo-with-linker] TIKTOOLS_KACHE is enabled but kache was not found on PATH');
     console.error('[cargo-with-linker] install kache (https://github.com/kunobi-ninja/kache) or unset TIKTOOLS_KACHE');
@@ -225,16 +306,6 @@ function main() {
     console.error('[cargo-with-linker] using kache rustc wrapper');
   } else if (resolved.kache === 'preserved') {
     console.error('[cargo-with-linker] preserving existing RUSTC_WRAPPER');
-  }
-
-  const msvc = resolveMsvcEnvironment({ environment: resolved.environment });
-  if (msvc.status === 'loaded') {
-    mergeEnvironment(resolved.environment, msvc.environment);
-    console.error(`[cargo-with-linker] loaded MSVC developer environment from ${msvc.devCmd}`);
-  } else if (msvc.status === 'failed') {
-    console.error(`[cargo-with-linker] failed to load MSVC developer environment from ${msvc.devCmd}`);
-  } else if (msvc.status === 'unavailable') {
-    console.error('[cargo-with-linker] Visual Studio C++ build tools not found; C build scripts may fail outside a Developer prompt');
   }
 
   if (process.platform === 'win32') {
