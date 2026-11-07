@@ -11,7 +11,7 @@ async function run(command: string[]): Promise<void> {
 
 let pluginRoot = process.env.TIKTOOLS_DEV_PLUGINS_DIR;
 if (!pluginRoot && process.env.TIKTOOLS_SKIP_DEV_PLUGINS !== '1') pluginRoot = await prepareDevelopmentPlugins();
-await run(['node', 'scripts/cargo-with-linker.mjs', 'build', '-p', 'tiktools-cli', '--features', 'local-web', '--locked']);
+await run(['node', 'scripts/cargo-with-linker.mjs', 'build', '-p', 'tiktools-cli', '--no-default-features', '--features', 'local-web', '--locked']);
 if (await isControlHostRunning()) throw new Error('A TikTools control host started during the build. Stop it and retry.');
 
 const binary = join(repositoryRoot, 'target', 'debug', process.platform === 'win32' ? 'tiktools.exe' : 'tiktools');
