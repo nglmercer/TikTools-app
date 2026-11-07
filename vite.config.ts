@@ -1,6 +1,5 @@
 import { defineConfig, type Plugin, type ProxyOptions } from 'vite';
 import vue from '@vitejs/plugin-vue';
-import vueJsx from '@vitejs/plugin-vue-jsx';
 import { readFile } from 'node:fs/promises';
 import { resolve, sep } from 'node:path';
 
@@ -130,7 +129,7 @@ const devOrigin = `http://127.0.0.1:${process.env.TIKTOOLS_WEB_PORT}`;
 
 export default defineConfig({
   root,
-  plugins: [vue(), vueJsx(), localBrowserDevelopment(), pluginAssetServer()],
+  plugins: [vue(), localBrowserDevelopment(), pluginAssetServer()],
   resolve: {
     alias: { '@': root },
   },
