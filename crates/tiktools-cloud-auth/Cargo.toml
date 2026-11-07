@@ -28,4 +28,4 @@ url.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "query", "rustls"] }

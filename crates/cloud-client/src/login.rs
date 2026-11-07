@@ -43,8 +43,8 @@ impl LoginAttempt {
         let origin = parse_origin(origin)?;
         let mut state_bytes = [0_u8; 32];
         let mut verifier_bytes = [0_u8; 48];
-        getrandom::getrandom(&mut state_bytes).map_err(|_| SyncError::Configuration)?;
-        getrandom::getrandom(&mut verifier_bytes).map_err(|_| SyncError::Configuration)?;
+        getrandom::fill(&mut state_bytes).map_err(|_| SyncError::Configuration)?;
+        getrandom::fill(&mut verifier_bytes).map_err(|_| SyncError::Configuration)?;
         let state = URL_SAFE_NO_PAD.encode(state_bytes);
         let verifier = SecretString::from(URL_SAFE_NO_PAD.encode(verifier_bytes));
         verifier_bytes.zeroize();

@@ -12,15 +12,15 @@ os-keychain = ["dep:keyring"]
 
 [dependencies]
 better-auth = { git = "https://github.com/nglmercer/better-auth-rs.git", rev = "c6940517155ff9a123221789b1efc89ef48cb19c", default-features = false }
-base64 = "0.22"
-getrandom = "0.2"
-sha2 = "0.10"
+base64 = "0.23"
+getrandom = "0.4.3"
+sha2 = "0.11"
 zeroize = "1"
 tokio = { version = "1", features = ["sync", "time"] }
 open = { version = "5", optional = true }
 fs2 = "0.4"
 tempfile = "3"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "query", "rustls"] }
 secrecy = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
