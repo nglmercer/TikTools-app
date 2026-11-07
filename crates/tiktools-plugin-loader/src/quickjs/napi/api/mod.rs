@@ -88,13 +88,6 @@ impl<'a> Owned<'a> {
         Self { env, value }
     }
 
-    /// Hands the value to the handle arena.
-    pub fn into_handle(self) -> Handle {
-        let handle = self.env.push(self.value);
-        std::mem::forget(self);
-        handle
-    }
-
     pub fn release(self) -> JSValue {
         let value = self.value;
         std::mem::forget(self);

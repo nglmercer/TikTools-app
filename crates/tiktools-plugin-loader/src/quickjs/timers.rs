@@ -33,10 +33,6 @@ pub(super) struct Timers {
 pub(super) type SharedTimers = Rc<RefCell<Timers>>;
 
 impl Timers {
-    pub(super) fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
     pub(super) fn next_due(&self) -> Option<Instant> {
         self.entries.values().map(|timer| timer.due).min()
     }
