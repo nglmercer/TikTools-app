@@ -193,15 +193,7 @@ impl AppCore {
             // Name the replayed data so a mismatch against a plugin sample
             // (hotkey.pressed ships key "k") or a stale live event reads as
             // a data problem, not a broken trigger.
-            let preview = event.get("data").map(|data| {
-                const MAX_PREVIEW: usize = 120;
-                let text = serde_json::to_string(data).unwrap_or_default();
-                if text.len() > MAX_PREVIEW {
-                    format!("{}…", &text[..MAX_PREVIEW])
-                } else {
-                    text
-                }
-            });
+            let preview = event.get("data").map(event_data_preview);
             let origin = if source == "live" {
                 "the last live event"
             } else {
@@ -341,6 +333,18 @@ impl AppCore {
     }
 }
 
+/// Compact JSON preview of event data for mismatch summaries, truncated
+/// on a character boundary: live chat routinely carries emoji and CJK
+/// text, so slicing at a byte offset would panic.
+fn event_data_preview(data: &Value) -> String {
+    const MAX_PREVIEW: usize = 120;
+    let text = serde_json::to_string(data).unwrap_or_default();
+    match text.char_indices().nth(MAX_PREVIEW) {
+        Some((end, _)) => format!("{}…", &text[..end]),
+        None => text,
+    }
+}
+
 /// Zero-match fire outcome. Always names the fired data (truncated) so a
 /// mismatch reads as a data problem — e.g. sample giftName 'Rose' against
 /// a filter for 'Galaxy' — and says so explicitly when a draft was tested.
@@ -352,16 +356,7 @@ fn fire_no_match(
     pinned: &[String],
     event: &Value,
 ) -> Value {
-    const MAX_PREVIEW: usize = 120;
-    let preview = event.get("data").map(|data| {
-        let text = serde_json::to_string(data).unwrap_or_default();
-        let truncated: String = text.chars().take(MAX_PREVIEW).collect();
-        if text.chars().count() > MAX_PREVIEW {
-            format!("{truncated}…")
-        } else {
-            truncated
-        }
-    });
+    let preview = event.get("data").map(event_data_preview);
     let fired = match preview {
         Some(preview) if !preview.is_empty() => format!(" (fired data: {preview})"),
         _ => String::new(),
@@ -383,4 +378,28 @@ fn fire_no_match(
         "summary": summary,
         "durationMs": now_millis().saturating_sub(started),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::event_data_preview;
+    use serde_json::json;
+
+    #[test]
+    fn data_preview_truncates_multibyte_text_on_a_char_boundary() {
+        // `{"comment":"x` is 13 bytes, so byte 120 lands inside a 4-byte emoji.
+        let data = json!({ "comment": format!("x{}", "😀".repeat(200)) });
+        let preview = event_data_preview(&data);
+        assert!(preview.ends_with('…'));
+        assert_eq!(preview.chars().count(), 121);
+    }
+
+    #[test]
+    fn data_preview_keeps_short_payloads_intact() {
+        let data = json!({ "comment": "hola" });
+        assert_eq!(event_data_preview(&data), r#"{"comment":"hola"}"#);
+        let exact = json!("x".repeat(118));
+        assert_eq!(event_data_preview(&exact).chars().count(), 120);
+        assert!(!event_data_preview(&exact).ends_with('…'));
+    }
 }
