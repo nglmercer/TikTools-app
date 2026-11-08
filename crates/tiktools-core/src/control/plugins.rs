@@ -199,6 +199,10 @@ impl AppCore {
     }
 
     pub fn plugin_set_installed(&self, id: &str, installed: bool) -> Result<(), OperationError> {
+        let _invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
         #[cfg(feature = "cloud-auth")]
@@ -213,6 +217,7 @@ impl AppCore {
             self.plugins.stop(&id)?;
         }
         self.set_plugin_activation(&id, installed, true);
+        drop(_invocation);
         if installed {
             self.start_enabled_event_subscribers();
         }
@@ -239,6 +244,10 @@ impl AppCore {
     }
 
     fn set_enabled_impl(&self, id: &str, enabled: bool) -> Result<(), OperationError> {
+        let _invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
         #[cfg(feature = "persistence")]
         self.db
             .set_plugin_state(id, true, enabled)
@@ -250,6 +259,7 @@ impl AppCore {
         };
         result?;
         self.set_plugin_activation(id, true, enabled);
+        drop(_invocation);
         self.rebuild_processor_index();
         self.refresh_automation_snapshot();
         self.events.publish_domain(if enabled {
@@ -312,18 +322,28 @@ impl AppCore {
     }
 
     pub fn plugin_start(&self, id: &str) -> Result<(), OperationError> {
+        let _invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
         self.plugins.start(&id)?;
+        drop(_invocation);
         self.events
             .publish_domain(DomainEvent::PluginStarted { plugin_id: id });
         Ok(())
     }
 
     pub fn plugin_stop(&self, id: &str) -> Result<(), OperationError> {
+        let _invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
         self.plugins.stop(&id)?;
+        drop(_invocation);
         self.events
             .publish_domain(DomainEvent::PluginStopped { plugin_id: id });
         Ok(())
@@ -528,7 +548,14 @@ impl AppCore {
         });
         let mut logs = Vec::new();
         match self
-            .execute_plugin_action(action_type, &action, &event, &mut logs, !live)
+            .execute_plugin_action(
+                action_type,
+                &action,
+                &event,
+                &crate::automation_runtime::context::ExecutionContext::owner(),
+                &mut logs,
+                !live,
+            )
             .await
         {
             Ok(summary) => {

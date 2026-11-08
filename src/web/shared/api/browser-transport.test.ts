@@ -57,6 +57,35 @@ test('oversized or binary incoming data closes the transport', async () => {
   transport.detach();
 });
 
+test('local owner response cap accommodates full reviews while request queue stays one MiB', async () => {
+  const socket = new Socket();
+  const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });
+  const connected = transport.connect(); socket.open(); await connected;
+  const receive = vi.fn(); transport.attach(receive, vi.fn(), vi.fn());
+  const review = 'source'.repeat(400_000);
+  socket.onmessage?.({ data: review });
+  expect(receive).toHaveBeenCalledWith(review);
+  expect(socket.readyState).toBe(1);
+  expect(() => transport.send('x'.repeat(1024 * 1024 + 1))).toThrow('queue is full');
+  socket.onmessage?.({ data: 'x'.repeat(8 * 1024 * 1024 + 1) });
+  expect(socket.readyState).toBe(3);
+  transport.detach();
+});
+
+test('pre-attachment owner responses keep complete large messages within a bounded buffer', async () => {
+  const socket = new Socket();
+  const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });
+  const connected = transport.connect(); socket.open(); await connected;
+  const source = 'x'.repeat(4 * 1024 * 1024);
+  socket.onmessage?.({ data: `a${source}` });
+  socket.onmessage?.({ data: `b${source}` });
+  const receive = vi.fn(), gap = vi.fn(); transport.attach(receive, vi.fn(), gap);
+  expect(receive).toHaveBeenCalledOnce();
+  expect(receive).toHaveBeenCalledWith(`b${source}`);
+  expect(gap).toHaveBeenCalledOnce();
+  transport.detach();
+});
+
 test('bounds events received before UI attachment and reports a gap', async () => {
   const socket = new Socket();
   const transport = createBrowserTransport({ url: 'ws://127.0.0.1/__local/ws', socket: () => socket as unknown as WebSocket });

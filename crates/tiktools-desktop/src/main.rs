@@ -4,6 +4,8 @@
 )]
 
 mod app;
+#[cfg(feature = "remote-client")]
+mod controller;
 mod event;
 mod icon;
 mod logging;
@@ -11,11 +13,19 @@ mod media;
 mod platform;
 mod plugin_webview;
 mod single_instance;
+mod startup;
 mod tray;
 mod webview;
 mod window;
 
 fn main() {
+    let mode = match startup::Mode::parse(std::env::args().skip(1)) {
+        Ok(mode) => mode,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+    };
     // Handle this before logging, the single-instance lock, or GUI initialization.
     // Release CI runs the actual binary and compares this value to its tag.
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--version")) {
@@ -38,7 +48,16 @@ fn main() {
         let _ = rustls::crypto::ring::default_provider().install_default();
     }
 
-    let log_path = match logging::init() {
+    #[cfg(not(feature = "remote-client"))]
+    if matches!(mode, startup::Mode::Controller(_)) {
+        eprintln!("remote controller support is unavailable in this build");
+        std::process::exit(2);
+    }
+    let log_path = match if matches!(mode, startup::Mode::Controller(_)) {
+        logging::init_controller()
+    } else {
+        logging::init()
+    } {
         Ok(path) => path,
         Err(error) => {
             let log_path = tiktools_core::paths::AppPaths::from_environment()
@@ -52,7 +71,14 @@ fn main() {
         }
     };
 
-    if let Err(error) = app::run(log_path.clone()) {
+    let result = match mode {
+        startup::Mode::Local => app::run(log_path.clone()),
+        #[cfg(feature = "remote-client")]
+        startup::Mode::Controller(profile) => controller::run(profile, log_path.clone()),
+        #[cfg(not(feature = "remote-client"))]
+        startup::Mode::Controller(_) => unreachable!(),
+    };
+    if let Err(error) = result {
         tracing::error!(%error, "TikTools Rust host terminated during startup");
         show_startup_failure(&error.to_string(), &log_path);
         std::process::exit(1);

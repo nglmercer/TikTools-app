@@ -239,6 +239,28 @@ pub(crate) async fn handle_webview_ipc_message(
                 }
             }
         }
+        #[cfg(feature = "remote-client")]
+        InboundRoute::Legacy(value) if value["type"] == "open-controller" => {
+            // A distinct process/window selects transport before host creation.
+            // Fixed argv only: page input never becomes an executable or option.
+            static LAST_OPEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_millis().min(u64::MAX as u128) as u64);
+            let last = LAST_OPEN.load(Ordering::Acquire);
+            if now.saturating_sub(last) >= 3000
+                && LAST_OPEN
+                    .compare_exchange(last, now, Ordering::AcqRel, Ordering::Acquire)
+                    .is_ok()
+            {
+                match std::env::current_exe()
+                    .and_then(|exe| std::process::Command::new(exe).arg("--controller").spawn())
+                {
+                    Ok(_) => {}
+                    Err(error) => tracing::error!(%error,"could not open controller window"),
+                }
+            }
+        }
         InboundRoute::Legacy(value) if try_devtools_command(&value, proxy).is_some() => {}
         InboundRoute::Legacy(value)
             if try_plugin_ui_command(&value, proxy, admission.clone()).is_some() => {}

@@ -1,6 +1,14 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConcurrencyStrategy {
+    CompareAndSet,
+    Additive,
+    ExclusiveTransition,
+}
+
 /// Discoverable method metadata (see `rpc.discover` / `rpc.schema`).
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -14,6 +22,10 @@ pub struct MethodMeta {
     /// Needs a desktop host (native dialogs); headless hosts refuse it.
     #[serde(default)]
     pub requires_desktop: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub concurrency: Option<ConcurrencyStrategy>,
+    #[serde(default)]
+    pub durable_commands: bool,
     pub params_schema: Value,
     pub result_schema: Value,
 }

@@ -46,13 +46,13 @@ use crate::{
 
 /// Last-event memory and admission control for the automation pipeline.
 pub(crate) struct AutomationRuntimeState {
-    pub(crate) last_event: RwLock<Option<serde_json::Value>>,
+    pub(crate) last_event: RwLock<Option<crate::live_events::AutomationEvent>>,
     pub(crate) last_event_at: RwLock<Option<u64>>,
     /// Last observed envelope per event type (`tiktok.gift`, `hotkey.pressed`,
     /// ...). The test harness replays these so emulation runs against real
     /// data instead of generic samples; keyed by type, so one chat message
     /// never evicts the last gift.
-    pub(crate) last_events: RwLock<BTreeMap<String, serde_json::Value>>,
+    pub(crate) last_events: RwLock<BTreeMap<String, crate::live_events::AutomationEvent>>,
     pub(crate) last_events_at: RwLock<BTreeMap<String, u64>>,
     pub(crate) last_context_emit_at: AtomicU64,
     pub(crate) sequence: AtomicU64,
@@ -98,6 +98,9 @@ impl Default for AutomationRuntimeState {
 
 /// Plugin health, activation, and background-task lifecycle.
 pub(crate) struct PluginRuntimeState {
+    /// Orders artifact/activation mutations against final approved invocation
+    /// admission. Acquire before loader catalog and settings leases.
+    pub(crate) invocation_gate: Mutex<()>,
     pub(crate) health: Mutex<BTreeMap<String, PluginHealth>>,
     pub(crate) activation: RwLock<BTreeMap<String, PluginActivation>>,
     /// Bumped on every activation write (enable/disable/install). The
@@ -122,6 +125,7 @@ pub(crate) struct PluginRuntimeState {
 impl Default for PluginRuntimeState {
     fn default() -> Self {
         Self {
+            invocation_gate: Mutex::new(()),
             health: Mutex::new(BTreeMap::new()),
             activation: RwLock::new(BTreeMap::new()),
             activation_revision: AtomicU64::new(1),

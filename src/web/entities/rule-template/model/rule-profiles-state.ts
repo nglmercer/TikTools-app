@@ -474,11 +474,11 @@ export function useRuleProfiles(control: ControlClient) {
     }
   };
 
-  const adoptRule = async (kind: 'event' | 'action', id: string): Promise<void> => {
-    if (activeId.value === DEFAULT_PROFILE_ID) return;
-    if (packs.value.some((pack) => pack.eventIds.includes(id) || pack.actionIds.includes(id))) return;
+  const adoptRule = async (kind: 'event' | 'action', id: string, profileId = activeId.value): Promise<void> => {
+    if (profileId === DEFAULT_PROFILE_ID || !packs.value.some((pack) => pack.id === profileId)) return;
+    if (packs.value.some((pack) => (kind === 'event' ? pack.eventIds : pack.actionIds).includes(id))) return;
     const next = packs.value.map((pack) =>
-      pack.id === activeId.value
+      pack.id === profileId
         ? {
             ...pack,
             eventIds: kind === 'event' ? [...pack.eventIds, id] : pack.eventIds,

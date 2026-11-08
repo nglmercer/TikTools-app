@@ -5,6 +5,8 @@ use std::{
 };
 
 use super::*;
+#[cfg(feature = "persistence")]
+mod approved_observer;
 use tiktools_plugin_api::{
     AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
 };
@@ -123,13 +125,13 @@ async fn native_event_runner_executes_saved_behavior() {
         }]
     }));
 
-    core.publish_automation_event(json!({
+    core.publish_automation_event(AutomationEvent::owner(json!({
         "id": "chat-1",
         "type": "tiktok.chat",
         "timestamp": 1,
         "user": {"uniqueId": "alice"},
         "data": {"comment": "hello"}
-    }))
+    })))
     .await;
 
     let runs = core.automation.recent_runs();
@@ -150,7 +152,7 @@ async fn hotkey_status_event_reaches_the_ui_message_boundary() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter.clone()));
 
-    core.publish_automation_event(json!({
+    core.publish_automation_event(AutomationEvent::owner(json!({
         "id": "hotkey-status-1",
         "type": "hotkey.status",
         "timestamp": 1,
@@ -164,7 +166,7 @@ async fn hotkey_status_event_reaches_the_ui_message_boundary() {
                 "summary": "Global Hotkeys: permission required via raw input (evdev)"
             }]
         }
-    }))
+    })))
     .await;
 
     assert!(emitter
@@ -475,13 +477,13 @@ async fn plugin_typed_event_runs_while_its_plugin_is_enabled() {
     });
     core.automation.replace_snapshot(&snapshot);
 
-    core.publish_automation_event(serde_json::json!({
+    core.publish_automation_event(AutomationEvent::owner(serde_json::json!({
         "id": "hk-1",
         "type": "hotkey.pressed",
         "timestamp": 1,
         "user": {"uniqueId": "alice"},
         "data": {"key": "ctrl+k", "depth": 1}
-    }))
+    })))
     .await;
 
     let runs = core.automation.recent_runs();
@@ -494,13 +496,13 @@ async fn plugin_typed_event_runs_while_its_plugin_is_enabled() {
     disabled["plugins"][0]["enabled"] = serde_json::Value::Bool(false);
     core.automation.replace_snapshot(&disabled);
 
-    core.publish_automation_event(serde_json::json!({
+    core.publish_automation_event(AutomationEvent::owner(serde_json::json!({
         "id": "hk-2",
         "type": "hotkey.pressed",
         "timestamp": 2,
         "user": {"uniqueId": "alice"},
         "data": {"key": "ctrl+k", "depth": 1}
-    }))
+    })))
     .await;
 
     assert_eq!(core.automation.recent_runs().len(), 1);
@@ -524,17 +526,24 @@ async fn plugin_typed_event_respects_declaration_and_capability() {
             "hotkey.pressed",
             &serde_json::json!({"key": "k"}),
             &source,
+            &crate::automation_runtime::context::ExecutionContext::owner(),
         )
         .expect("declared type with capability should publish")
         .expect("declared type should not fall back to plugin.emit");
-    assert_eq!(typed["type"], "hotkey.pressed");
-    assert_eq!(typed["data"]["key"], "k");
-    assert_eq!(typed["sourceEventId"], "src-1");
-    assert_eq!(typed["data"]["depth"], 1);
+    assert_eq!(typed.payload()["type"], "hotkey.pressed");
+    assert_eq!(typed.payload()["data"]["key"], "k");
+    assert_eq!(typed.payload()["sourceEventId"], "src-1");
+    assert_eq!(typed.payload()["data"]["depth"], 1);
 
     // Undeclared types keep the internal plugin.emit channel.
     assert!(core
-        .plugin_typed_event(&manifest, "other.thing", &serde_json::json!({}), &source)
+        .plugin_typed_event(
+            &manifest,
+            "other.thing",
+            &serde_json::json!({}),
+            &source,
+            &crate::automation_runtime::context::ExecutionContext::owner()
+        )
         .expect("undeclared type should not error")
         .is_none());
 
@@ -544,7 +553,13 @@ async fn plugin_typed_event_respects_declaration_and_capability() {
     )
     .expect("fixture manifest should parse");
     let error = core
-        .plugin_typed_event(&bare, "hotkey.pressed", &serde_json::json!({}), &source)
+        .plugin_typed_event(
+            &bare,
+            "hotkey.pressed",
+            &serde_json::json!({}),
+            &source,
+            &crate::automation_runtime::context::ExecutionContext::owner(),
+        )
         .expect_err("missing capability should error");
     assert!(error.contains("events.publish"), "{error}");
 }
@@ -593,10 +608,17 @@ async fn sequential_polled_presses_start_fresh_chains() {
     let mut source = json!({});
     for _ in 0..5 {
         let context = crate::fresh_poll_context(&source);
-        let event =
-            core.make_plugin_event("hotkeys", &context, "hotkey.pressed", json!({"key": "k"}));
-        assert_eq!(event["data"]["depth"], json!(1));
-        source = event.clone();
+        let event = core
+            .make_plugin_event(
+                "hotkeys",
+                &context,
+                "hotkey.pressed",
+                json!({"key": "k"}),
+                &crate::automation_runtime::context::ExecutionContext::owner(),
+            )
+            .unwrap();
+        assert_eq!(event.payload()["data"]["depth"], json!(1));
+        source = event.payload().clone();
         core.publish_automation_event(event).await;
     }
 
@@ -633,7 +655,7 @@ async fn test_event_replays_last_live_event_of_its_trigger() {
     let core = Arc::new(AppCore::new(emitter));
     // A chat arrives after the gift: per-type memory must keep both, so the
     // gift test replays the real gift instead of the newer chat or a sample.
-    core.remember_automation_event(&serde_json::json!({
+    core.remember_automation_event(&AutomationEvent::owner(serde_json::json!({
         "id": "live-gift-1",
         "type": "tiktok.gift",
         "timestamp": 1,
@@ -645,14 +667,14 @@ async fn test_event_replays_last_live_event_of_its_trigger() {
             "giftIconUrl": null, "method": "WebcastGiftMessage",
             "msgId": "9", "isHistory": false
         }
-    }));
-    core.remember_automation_event(&serde_json::json!({
+    })));
+    core.remember_automation_event(&AutomationEvent::owner(serde_json::json!({
         "id": "live-chat-1",
         "type": "tiktok.chat",
         "timestamp": 2,
         "user": {"uniqueId": "other", "nickname": "Other", "secUid": "sec-2", "userId": "8"},
         "data": {"comment": "hi", "method": "WebcastChatMessage", "msgId": "10", "isHistory": false}
-    }));
+    })));
     assert_eq!(
         core.last_event_for("tiktok.gift")
             .as_ref()
@@ -886,13 +908,13 @@ async fn fire_synthetic_event_names_draft_mismatch() {
 async fn fire_prefers_compatible_live_but_falls_back_to_pinned_sample() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter));
-    core.remember_automation_event(&serde_json::json!({
+    core.remember_automation_event(&AutomationEvent::owner(serde_json::json!({
         "id": "live-gift-galaxy",
         "type": "tiktok.gift",
         "timestamp": 1,
         "user": {"uniqueId": "luna_dev", "nickname": "Luna", "secUid": "sec-1", "userId": "7"},
         "data": {"giftId": "9999", "giftName": "Galaxy", "diamondCount": 1000}
-    }));
+    })));
     // Compatible draft replays the real Galaxy, unpinned.
     let galaxy = serde_json::json!({
         "id": "evt-galaxy", "name": "Galaxy gate", "enabled": false,
@@ -963,24 +985,19 @@ async fn fired_events_never_become_live_truth() {
 }
 
 #[tokio::test]
-async fn fire_synthetic_event_refuses_emit_depth_overflow() {
+async fn pasted_synthetic_depth_is_data_instead_of_private_execution_authority() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter));
     let custom = serde_json::json!({
         "data": {"emitType": "loop", "depth": 5, "payload": {}}
     });
+    let record = serde_json::json!({"id":"manual-depth-probe","trigger":"plugin.emit","enabled":false,"actionIds":[],"filters":[]});
     let result = core
-        .fire_synthetic_event("plugin.emit", Some(&custom), None)
+        .fire_synthetic_event("plugin.emit", Some(&custom), Some(&record))
         .await;
-    assert_eq!(result["status"], "error");
-    assert!(
-        result["summary"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("depth limit"),
-        "{}",
-        result["summary"]
-    );
+    assert_eq!(result["status"], "ok");
+    assert_eq!(result["draftMatched"], true);
+    assert_eq!(result["matched"], 1);
 }
 
 #[test]
@@ -1020,10 +1037,10 @@ fn normalized_live_event_publishes_domain_event_before_automation() {
     let mut events = core.events.subscribe_domain();
     // The authoritative fan-out happens on the normalized event alone, with
     // no automation slot, enrichment, or pipeline involved.
-    core.publish_live_domain_event(&serde_json::json!({
+    core.publish_live_domain_event(&AutomationEvent::owner(serde_json::json!({
         "type": "tiktok.chat",
         "data": {"comment": "hello"},
-    }));
+    })));
     let event = events.try_recv().expect("live.event is published");
     match event {
         crate::events::DomainEvent::LiveEvent { event_type, .. } => {
@@ -1033,10 +1050,10 @@ fn normalized_live_event_publishes_domain_event_before_automation() {
     }
     // Non-TikTok automation types (points, hotkeys) have their own topics
     // and must not synthesize a live.event.
-    core.publish_live_domain_event(&serde_json::json!({
+    core.publish_live_domain_event(&AutomationEvent::owner(serde_json::json!({
         "type": "points.awarded",
         "data": {},
-    }));
+    })));
     assert!(events.try_recv().is_err());
 }
 
@@ -1057,10 +1074,10 @@ async fn saturated_automation_slots_do_not_drop_domain_events() {
         );
     }
     let mut events = core.events.subscribe_domain();
-    core.queue_automation_event(serde_json::json!({
+    core.queue_automation_event(AutomationEvent::owner(serde_json::json!({
         "type": "tiktok.chat",
         "data": {"comment": "shed me"},
-    }));
+    })));
     let event = tokio::time::timeout(std::time::Duration::from_secs(5), events.recv())
         .await
         .expect("domain event arrives despite saturation")
@@ -1491,8 +1508,30 @@ fn core_with_fake_plugins(
     ids: &[&str],
 ) -> (Arc<AppCore>, Arc<RecordingEmitter>, PathBuf) {
     let emitter = Arc::new(RecordingEmitter::default());
-    let mut core = AppCore::new(emitter.clone());
     let (manager, root) = fake_hotkey_manager(Arc::clone(&state), ids);
+    // Each fake host needs its own checkpoint owner and databases. Sharing the
+    // process-global AppCore::new home made concurrent shutdown tests fence one
+    // another as superseded hosts, independently of plugin lifecycle behavior.
+    let home = root.join("host");
+    let paths = AppPaths {
+        data: home.join("data"),
+        plugins: home.join("plugins"),
+        plugin_data: home.join("plugin-data"),
+        builtin_plugins: home.join("absent-builtin"),
+        development_plugins: None,
+        logs: home.join("logs"),
+        temp: home.join("temp"),
+        root: home,
+    };
+    paths.ensure_directories().unwrap();
+    for path in [
+        paths.points_database(),
+        paths.automation_database(),
+        paths.analytics_database(),
+    ] {
+        std::fs::File::create(path).unwrap();
+    }
+    let mut core = AppCore::with_paths(emitter.clone(), Arc::new(NoopMediaHost), paths);
     core.plugins = Arc::new(manager);
     (Arc::new(core), emitter, root)
 }
@@ -1911,6 +1950,20 @@ async fn enabled_event_subscriber_starts_with_host_runtime() {
 }
 
 #[tokio::test]
+async fn fake_plugin_hosts_do_not_supersede_each_others_checkpoint_ownership() {
+    let (first, _, first_root) = core_with_fake_hotkeys(Arc::new(FakePluginState::default()));
+    let (second, _, second_root) = core_with_fake_hotkeys(Arc::new(FakePluginState::default()));
+    assert_ne!(first.db.paths().data, second.db.paths().data);
+    first.spawn_plugin_event_poll(&tokio::runtime::Handle::current());
+    second.spawn_plugin_event_poll(&tokio::runtime::Handle::current());
+    tokio::join!(first.shutdown(), second.shutdown());
+    assert!(first.update_shutdown_safe());
+    assert!(second.update_shutdown_safe());
+    let _ = std::fs::remove_dir_all(first_root);
+    let _ = std::fs::remove_dir_all(second_root);
+}
+
+#[tokio::test]
 async fn generic_event_observer_delivers_stable_envelopes_to_running_subscribers() {
     let state = Arc::new(FakePluginState::default());
     let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
@@ -2207,12 +2260,15 @@ async fn hotkey_status_event_reaches_plugin_status_topic() {
     let core = Arc::new(AppCore::new(emitter));
     let mut domain = core.events.subscribe_domain();
     let source = json!({});
-    let event = core.make_plugin_event(
-        "hotkeys",
-        &source,
-        "hotkey.status",
-        json!({"platform": "windows", "backends": []}),
-    );
+    let event = core
+        .make_plugin_event(
+            "hotkeys",
+            &source,
+            "hotkey.status",
+            json!({"platform": "windows", "backends": []}),
+            &crate::automation_runtime::context::ExecutionContext::owner(),
+        )
+        .unwrap();
     core.publish_automation_event(event).await;
 
     let mut saw_event = false;

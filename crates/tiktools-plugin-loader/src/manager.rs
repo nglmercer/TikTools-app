@@ -170,6 +170,7 @@ pub struct PluginManager {
     retired: Mutex<Vec<RetiredWorker>>,
     /// Workers explicitly abandoned past a deadline (outcome unknown).
     abandoned_workers: AtomicU64,
+    isolated_admission: Arc<tokio::sync::Semaphore>,
 }
 
 /// Push-bus buffer: burst headroom for guest-emitted events while core
@@ -195,6 +196,7 @@ impl PluginManager {
             deadlines: Mutex::new(PluginDeadlines::default()),
             retired: Mutex::new(Vec::new()),
             abandoned_workers: AtomicU64::new(0),
+            isolated_admission: Arc::new(tokio::sync::Semaphore::new(16)),
         }
     }
 
@@ -227,6 +229,10 @@ impl PluginManager {
     }
 
     pub fn scan(&self) -> Result<Vec<DiscoveredPlugin>, PluginLoaderError> {
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| lock_poisoned("plugin lifecycle"))?;
         let mut discovered = BTreeMap::new();
         for root in &self.roots {
             if !root.path.exists() {
@@ -377,6 +383,7 @@ impl PluginManager {
             "plugin starting"
         );
         let token = self.next_token.fetch_add(1, Ordering::AcqRel);
+        let artifact_fingerprint = crate::plugin_artifact_fingerprint(&plugin).ok();
         // Runtimes with an owned worker (napi-vm) serve the call queue on
         // their own thread, bypassing the generic worker: one thread per
         // plugin instead of two, with identical queue/deadline semantics.
@@ -421,12 +428,16 @@ impl PluginManager {
                 })?;
             (tx, worker)
         };
+        let artifact_fingerprint = artifact_fingerprint.filter(|before| {
+            crate::plugin_artifact_fingerprint(&plugin).ok().as_ref() == Some(before)
+        });
         // The worker thread is already spawned here, so a poisoned map
         // recovers instead of failing midway through the mutation.
         recover_rwlock_write(&self.instances, "plugin instances").insert(
             id.to_owned(),
             Arc::new(RunningInstance {
                 token,
+                artifact_fingerprint,
                 kind: plugin.manifest.runtime,
                 cold: AtomicBool::new(true),
                 tx,
@@ -663,6 +674,65 @@ impl PluginManager {
         recover_rwlock_read(&self.instances, "plugin instances")
             .get(id)
             .map(|instance| instance.token)
+    }
+
+    /// Exact package identity captured before this runtime generation loaded.
+    /// Missing identity keeps legacy Owner execution available, but cannot be
+    /// used for delegated approval. A disk hash alone cannot identify code
+    /// already loaded by a native worker.
+    pub fn running_artifact_fingerprint(&self, id: &str) -> Option<String> {
+        recover_rwlock_read(&self.instances, "plugin instances")
+            .get(id)
+            .and_then(|instance| instance.artifact_fingerprint.clone())
+    }
+
+    /// Prepare under the host's trusted catalog/settings lease. This reads
+    /// package data and freezes it, but never runs initialization or plugin
+    /// code. The resulting linear value still requires host final admission.
+    pub fn prepare_isolated_call(
+        &self,
+        id: &str,
+        artifact_digest: &str,
+        snapshot_directory: std::path::PathBuf,
+        settings: Value,
+    ) -> Result<crate::PreparedIsolatedPlugin, PluginLoaderError> {
+        let plugin = self
+            .get(id)
+            .ok_or_else(|| PluginLoaderError::NotFound(id.into()))?;
+        if !plugin.available {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin is unavailable".into(),
+            ));
+        }
+        if !plugin.manifest.native_addons.is_empty()
+            && !native_addons_allowed(&plugin.manifest, plugin.source)
+        {
+            return Err(untrusted_native_addons(id));
+        }
+        let runtime = self.runtimes.get(plugin.manifest.runtime).ok_or_else(|| {
+            PluginLoaderError::RuntimeUnavailable("plugin runtime is unavailable".into())
+        })?;
+        crate::PreparedIsolatedPlugin::new(
+            plugin,
+            runtime,
+            snapshot_directory,
+            artifact_digest,
+            settings,
+            Arc::clone(&self.isolated_admission),
+        )
+    }
+
+    /// Orders trusted final admission against every scan/start/stop/retirement.
+    /// The callback must be synchronous and must not reenter lifecycle methods.
+    pub fn with_catalog_lease<R>(
+        &self,
+        apply: impl FnOnce(&Self) -> R,
+    ) -> Result<R, PluginLoaderError> {
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .map_err(|_| lock_poisoned("plugin lifecycle"))?;
+        Ok(apply(self))
     }
 
     pub async fn call_with_generation(

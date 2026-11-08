@@ -6,6 +6,10 @@ use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 /// Hard cap for one request line (bytes, including the newline).
 pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 
+/// Local Owner responses carry bounded saved-source reviews plus metadata.
+/// This is not a request limit or a remote gateway negotiation allowance.
+pub const MAX_OWNER_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
+
 /// Hard cap for the serialized `params` payload of one request.
 pub const MAX_PARAMS_BYTES: usize = 256 * 1024;
 
@@ -29,6 +33,27 @@ pub(crate) async fn read_capped_line<R>(
 where
     R: AsyncBufRead + Unpin,
 {
+    read_capped_line_with_limit(reader, line, MAX_REQUEST_BYTES).await
+}
+
+pub(crate) async fn read_capped_owner_response_line<R>(
+    reader: &mut R,
+    line: &mut Vec<u8>,
+) -> std::io::Result<Option<LineOutcome>>
+where
+    R: AsyncBufRead + Unpin,
+{
+    read_capped_line_with_limit(reader, line, MAX_OWNER_RESPONSE_BYTES).await
+}
+
+async fn read_capped_line_with_limit<R>(
+    reader: &mut R,
+    line: &mut Vec<u8>,
+    limit: usize,
+) -> std::io::Result<Option<LineOutcome>>
+where
+    R: AsyncBufRead + Unpin,
+{
     line.clear();
     let mut total = 0usize;
     let mut too_large = false;
@@ -43,7 +68,7 @@ where
                 let take = index + 1;
                 if !too_large {
                     total += take;
-                    if total > MAX_REQUEST_BYTES {
+                    if total > limit {
                         too_large = true;
                         // Keep the line prefix for id recovery even when a
                         // single chunk blows the cap with `line` still empty.
@@ -64,7 +89,7 @@ where
             None => {
                 if !too_large {
                     total += chunk.len();
-                    if total > MAX_REQUEST_BYTES {
+                    if total > limit {
                         too_large = true;
                         let room = ID_PREFIX_RECOVERY_BYTES.saturating_sub(line.len());
                         line.extend_from_slice(&chunk[..chunk.len().min(room)]);
@@ -104,6 +129,16 @@ where
 {
     let mut bytes = serde_json::to_vec(response)
         .unwrap_or_else(|_| b"{\"jsonrpc\":\"2.0\",\"id\":null}".to_vec());
+    if bytes.len() >= MAX_OWNER_RESPONSE_BYTES {
+        bytes = serde_json::to_vec(&RpcResponse::error(
+            response.id.clone(),
+            ApiError::new(
+                "too_large",
+                "local owner response exceeds its bounded size limit",
+            ),
+        ))
+        .map_err(std::io::Error::other)?;
+    }
     bytes.push(b'\n');
     writer.write_all(&bytes).await?;
     writer.flush().await
@@ -118,6 +153,9 @@ where
     W: AsyncWrite + Unpin,
 {
     let mut bytes = serde_json::to_vec(notification).unwrap_or_else(|_| b"{}".to_vec());
+    if bytes.len() >= MAX_OWNER_RESPONSE_BYTES {
+        bytes = serde_json::to_vec(&crate::gap_notification(1)).map_err(std::io::Error::other)?;
+    }
     bytes.push(b'\n');
     writer.write_all(&bytes).await?;
     writer.flush().await

@@ -1,4 +1,30 @@
-use rusqlite::{params, Connection, OptionalExtension};
+use crate::collaboration::{ResourceVersion, Versioned};
+use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
+mod approvals;
+mod approval_review;
+pub(crate) use approvals::{
+    BehaviorApprovalActivation, BehaviorApprovalBinding, BehaviorApprovalEnableState,
+    BehaviorApprovalSnapshot,
+};
+mod commands;
+mod drafts;
+mod provenance;
+pub(crate) use provenance::{BehaviorAuthority, BehaviorProvenance, BehaviorRuntimeAuthority};
+pub(crate) type BehaviorRuntimeSnapshot = (
+    Versioned<Value>,
+    Vec<(String, String, BehaviorRuntimeAuthority)>,
+);
+mod remote;
+mod review;
+#[cfg(test)]
+mod tests;
+mod versions;
+#[derive(Clone, Copy)]
+pub(crate) enum BehaviorSave {
+    Upsert,
+    Create,
+    Update,
+}
 use serde_json::{json, Value};
 
 use super::{
@@ -8,105 +34,153 @@ use super::{
 
 impl DatabaseManager {
     pub(crate) fn load_behavior_snapshot(&self) -> Result<Value, DatabaseError> {
-        let actions = self.load_behavior_rows("behavior_actions")?;
-        let events = self.load_behavior_rows("behavior_events")?;
-        let plugins = self.load_plugin_states()?;
-        Ok(json!({
-            "actions": actions,
-            "events": events,
-            "plugins": plugins,
-            "actionTypes": [],
-            "translations": {}
-        }))
+        self.load_behavior_snapshot_versioned().map(|v| v.value)
     }
-    pub(crate) fn save_behavior(&self, table: &str, value: &Value) -> Result<Value, DatabaseError> {
-        let object = value.as_object().ok_or_else(|| {
-            DatabaseError::Invalid("behavior record must be an object".to_owned())
-        })?;
-        let id = required_value_string(object, "id")?;
-        let name = required_value_string(object, "name")?;
-        let enabled = object
-            .get("enabled")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
-        let connection = self.open(&self.automation_path())?;
-        let existing: Option<i64> = connection
-            .query_row(
-                &format!("SELECT created_at FROM {table} WHERE id = ?"),
-                [&id],
-                |row| row.get(0),
-            )
-            .optional()?;
-        let created_at = existing.unwrap_or_else(now);
-        let updated_at = now();
-        connection.execute(
-            &format!(
-                "INSERT INTO {table} (id, name, enabled, payload_json, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 ON CONFLICT(id) DO UPDATE SET name = excluded.name,
-                   enabled = excluded.enabled, payload_json = excluded.payload_json,
-                   updated_at = excluded.updated_at"
-            ),
-            params![
-                id,
-                name,
-                bool_int(enabled),
-                serde_json::to_string(value)?,
-                created_at,
-                updated_at
-            ],
-        )?;
-        Ok(value.clone())
+    pub(crate) fn load_behavior_snapshot_versioned(
+        &self,
+    ) -> Result<Versioned<Value>, DatabaseError> {
+        let mut db = self.open(&self.automation_path())?;
+        let tx = db.transaction()?;
+        let snapshot = Self::load_behavior_snapshot_from(&tx)?;
+        tx.commit()?;
+        Ok(snapshot)
     }
-    pub(crate) fn delete_behavior(&self, table: &str, id: &str) -> Result<bool, DatabaseError> {
-        let connection = self.open(&self.automation_path())?;
-        let changed = connection.execute(&format!("DELETE FROM {table} WHERE id = ?"), [id])?;
-        if changed > 0 && table == "behavior_actions" {
-            remove_action_references(&connection, id)?;
+    /// Bodies, versions and trusted authority from one read transaction. The
+    /// sidecar is returned separately and never embedded in editable JSON.
+    #[cfg(test)]
+    pub(crate) fn load_behavior_runtime_snapshot(
+        &self,
+    ) -> Result<BehaviorRuntimeSnapshot, DatabaseError> {
+        let mut db = self.open(&self.automation_path())?;
+        let tx = db.transaction()?;
+        provenance::validate_runtime_catalog(&tx)?;
+        let snapshot = Self::load_behavior_snapshot_from(&tx)?;
+        let authority = provenance::rows(&tx)?;
+        tx.commit()?;
+        Ok((snapshot, authority))
+    }
+    /// Definitions, authority and durable approvals share one read snapshot.
+    /// Approval JSON remains a candidate; it cannot construct a runtime permit.
+    pub(crate) fn load_behavior_runtime_approval_snapshot(
+        &self,
+    ) -> Result<(BehaviorRuntimeSnapshot, Vec<BehaviorApprovalSnapshot>), DatabaseError> {
+        let mut db = self.open(&self.automation_path())?;
+        let tx = db.transaction()?;
+        provenance::validate_runtime_catalog(&tx)?;
+        let snapshot = Self::load_behavior_snapshot_from(&tx)?;
+        let authority = provenance::rows(&tx)?;
+        let approvals = approvals::load(&tx)?;
+        tx.commit()?;
+        Ok(((snapshot, authority), approvals))
+    }
+    // Ordinary owner reads and plugin activation remain available for repair
+    // when provenance is corrupt. Runtime admission uses the trusted loader
+    // above and still fails closed; this helper never installs definitions.
+    fn load_behavior_snapshot_from(db: &Connection) -> Result<Versioned<Value>, DatabaseError> {
+        let actions = versions::rows(db, "behavior_actions")?;
+        let events = versions::rows(db, "behavior_events")?;
+        let plugins = Self::load_plugin_states_from(db)?;
+        let mut meta = actions.resource_versions;
+        meta.extend(events.resource_versions);
+        Ok(Versioned::new(
+            json!({"actions":actions.value,"events":events.value,"plugins":plugins,"actionTypes":[],"translations":{}}),
+            meta,
+        ))
+    }
+    pub(crate) fn behavior_get_versioned(
+        &self,
+        table: &str,
+        id: &str,
+    ) -> Result<Versioned<Option<Value>>, DatabaseError> {
+        versions::scope(table)?;
+        let mut db = self.open(&self.automation_path())?;
+        let tx = db.transaction()?;
+        let value = versions::row(&tx, table, id)?;
+        let revision = versions::current(&tx, table, id)?;
+        let result = Versioned::new(value, vec![versions::version(table, id, revision)?]);
+        tx.commit()?;
+        Ok(result)
+    }
+    fn behavior_transaction<T>(
+        &self,
+        apply: impl FnOnce(&Transaction<'_>) -> Result<T, DatabaseError>,
+    ) -> Result<T, DatabaseError> {
+        let mut db = self.open(&self.automation_path())?;
+        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let result = apply(&tx)?;
+        #[cfg(test)]
+        if std::env::var("TIKTOOLS_BEHAVIOR_CRASH").as_deref() == Ok("before") {
+            std::process::exit(91);
         }
-        Ok(changed > 0)
+        tx.commit()?;
+        #[cfg(test)]
+        if std::env::var("TIKTOOLS_BEHAVIOR_CRASH").as_deref() == Ok("after") {
+            std::process::exit(92);
+        }
+        Ok(result)
     }
-    pub(crate) fn set_behavior_enabled(
+    #[cfg(test)]
+    pub(crate) fn save_behavior(&self, table: &str, value: &Value) -> Result<Value, DatabaseError> {
+        self.save_behavior_versioned(table, value, None, BehaviorSave::Upsert)
+            .map(|v| v.value)
+    }
+    pub(crate) fn save_behavior_versioned(
+        &self,
+        table: &str,
+        value: &Value,
+        expected: Option<&str>,
+        mode: BehaviorSave,
+    ) -> Result<Versioned<Value>, DatabaseError> {
+        self.behavior_transaction(|tx| save_record(tx, table, value, expected, mode))
+    }
+    pub(crate) fn delete_behavior_versioned(
+        &self,
+        table: &str,
+        id: &str,
+        expected: Option<&str>,
+    ) -> Result<Versioned<bool>, DatabaseError> {
+        self.behavior_transaction(|tx| delete_record(tx, table, id, expected))
+    }
+    pub(crate) fn set_behavior_enabled_versioned(
         &self,
         table: &str,
         id: &str,
         enabled: bool,
-    ) -> Result<Value, DatabaseError> {
-        let connection = self.open(&self.automation_path())?;
-        let changed = connection.execute(
-            &format!("UPDATE {table} SET enabled = ?, updated_at = ? WHERE id = ?"),
-            params![bool_int(enabled), now(), id],
-        )?;
-        if changed == 0 {
-            return Err(DatabaseError::Invalid(format!("unknown behavior: {id}")));
-        }
-        self.load_behavior_row(&connection, table, id)
+        expected: Option<&str>,
+    ) -> Result<Versioned<Value>, DatabaseError> {
+        self.behavior_transaction(|tx| set_enabled(tx, table, id, enabled, expected))
     }
-    /// Flips `enabled` for many records in one transaction.
-    /// Missing ids are skipped and reported back so callers can
-    /// prune them; any other error rolls the whole batch back.
-    pub(crate) fn set_behavior_enabled_many(
+    /// Both families and every version/outbox reservation commit together.
+    pub(crate) fn set_behavior_enablement(
         &self,
-        table: &str,
-        updates: &[(String, bool)],
-    ) -> Result<Vec<String>, DatabaseError> {
-        if updates.is_empty() {
-            return Ok(Vec::new());
+        updates: &[(&str, &str, bool)],
+    ) -> Result<Versioned<Vec<(String, String)>>, DatabaseError> {
+        for (table, _, _) in updates {
+            versions::scope(table)?;
         }
-        let mut connection = self.open(&self.automation_path())?;
-        let transaction = connection.transaction()?;
-        let mut missing = Vec::new();
-        for (id, enabled) in updates {
-            let changed = transaction.execute(
-                &format!("UPDATE {table} SET enabled = ?, updated_at = ? WHERE id = ?"),
-                params![bool_int(*enabled), now(), id],
-            )?;
-            if changed == 0 {
-                missing.push(id.clone());
+        self.behavior_transaction(|tx| {
+            let mut missing = Vec::new();
+            let mut meta = std::collections::BTreeMap::new();
+            for (table, id, enabled) in updates {
+                let previous = versions::current(tx, table, id)?;
+                if toggle(tx, table, id, *enabled)?.is_none() {
+                    missing.push((versions::scope(table)?.into(), (*id).into()));
+                    continue;
+                }
+                let v = versions::advance(
+                    tx,
+                    table,
+                    id,
+                    previous,
+                    false,
+                    if *enabled { "enabled" } else { "disabled" },
+                    now(),
+                )?;
+                meta.insert((v.scope.clone(), v.id.clone()), v);
             }
-        }
-        transaction.commit()?;
-        Ok(missing)
+            Ok(Versioned::new(missing, meta.into_values().collect()))
+        })
     }
     pub(crate) fn set_plugin_state(
         &self,
@@ -129,65 +203,7 @@ impl DatabaseManager {
         connection.execute("DELETE FROM behavior_plugins WHERE id = ?", [id])?;
         Ok(())
     }
-    fn load_behavior_row(
-        &self,
-        connection: &Connection,
-        table: &str,
-        id: &str,
-    ) -> Result<Value, DatabaseError> {
-        connection
-            .query_row(
-                &format!("SELECT id, name, enabled, payload_json FROM {table} WHERE id = ?"),
-                [id],
-                |row| {
-                    let id: String = row.get(0)?;
-                    let name: String = row.get(1)?;
-                    let enabled: bool = row.get::<_, i64>(2)? != 0;
-                    let payload: String = row.get(3)?;
-                    Ok((id, name, enabled, payload))
-                },
-            )
-            .map(|(id, name, enabled, payload)| {
-                let mut object = serde_json::from_str::<Value>(&payload)
-                    .ok()
-                    .and_then(|value| value.as_object().cloned())
-                    .unwrap_or_default();
-                object.insert("id".to_owned(), Value::String(id));
-                object.insert("name".to_owned(), Value::String(name));
-                object.insert("enabled".to_owned(), Value::Bool(enabled));
-                Value::Object(object)
-            })
-            .map_err(|_| DatabaseError::Invalid(format!("unknown behavior: {id}")))
-    }
-    fn load_behavior_rows(&self, table: &str) -> Result<Vec<Value>, DatabaseError> {
-        let connection = self.open(&self.automation_path())?;
-        let mut statement = connection.prepare(&format!(
-            "SELECT id, name, enabled, payload_json, created_at, updated_at
-             FROM {table} ORDER BY updated_at DESC, name ASC"
-        ))?;
-        let rows = statement.query_map([], |row| {
-            let id: String = row.get(0)?;
-            let name: String = row.get(1)?;
-            let enabled: bool = row.get::<_, i64>(2)? != 0;
-            let payload: String = row.get(3)?;
-            Ok((id, name, enabled, payload))
-        })?;
-        let mut result = Vec::new();
-        for row in rows {
-            let (id, name, enabled, payload) = row?;
-            let mut object = serde_json::from_str::<Value>(&payload)?
-                .as_object()
-                .cloned()
-                .ok_or_else(|| DatabaseError::Invalid(format!("{table}/{id} is not an object")))?;
-            object.insert("id".to_owned(), Value::String(id));
-            object.insert("name".to_owned(), Value::String(name));
-            object.insert("enabled".to_owned(), Value::Bool(enabled));
-            result.push(Value::Object(object));
-        }
-        Ok(result)
-    }
-    fn load_plugin_states(&self) -> Result<Vec<Value>, DatabaseError> {
-        let connection = self.open(&self.automation_path())?;
+    fn load_plugin_states_from(connection: &Connection) -> Result<Vec<Value>, DatabaseError> {
         let mut statement = connection
             .prepare("SELECT id, installed, enabled FROM behavior_plugins ORDER BY id ASC")?;
         let rows = statement.query_map([], |row| {
@@ -201,15 +217,23 @@ impl DatabaseManager {
     }
 }
 
-fn remove_action_references(connection: &Connection, action_id: &str) -> Result<(), DatabaseError> {
+fn remove_action_references(
+    connection: &Connection,
+    action_id: &str,
+) -> Result<Vec<ResourceVersion>, DatabaseError> {
     let mut statement = connection
-        .prepare("SELECT id, payload_json FROM behavior_events WHERE payload_json IS NOT NULL")?;
+        .prepare("SELECT id, name, enabled, payload_json FROM behavior_events WHERE payload_json IS NOT NULL ORDER BY id")?;
     let rows = statement.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, bool>(2)?,
+            row.get::<_, String>(3)?,
+        ))
     })?;
     let mut updates = Vec::new();
     for row in rows {
-        let (id, payload) = row?;
+        let (id, name, enabled, payload) = row?;
         let mut object = serde_json::from_str::<Value>(&payload)?
             .as_object()
             .cloned()
@@ -222,10 +246,14 @@ fn remove_action_references(connection: &Connection, action_id: &str) -> Result<
         let original = action_ids.len();
         action_ids.retain(|value| value.as_str() != Some(action_id));
         if action_ids.len() != original {
+            object.insert("id".into(), id.clone().into());
+            object.insert("name".into(), name.into());
+            object.insert("enabled".into(), enabled.into());
             updates.push((id, Value::Object(object)));
         }
     }
     drop(statement);
+    let mut metadata = Vec::with_capacity(updates.len());
     for (id, value) in updates {
         let object = value
             .as_object()
@@ -235,10 +263,137 @@ fn remove_action_references(connection: &Connection, action_id: &str) -> Result<
             .get("enabled")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        let previous = versions::current(connection, "behavior_events", &id)?;
         connection.execute(
             "UPDATE behavior_events SET name = ?, enabled = ?, payload_json = ?, updated_at = ? WHERE id = ?",
             params![name, bool_int(enabled), serde_json::to_string(&value)?, now(), id],
         )?;
+        metadata.push(versions::advance(
+            connection,
+            "behavior_events",
+            &id,
+            previous,
+            false,
+            "references-updated",
+            now(),
+        )?);
     }
-    Ok(())
+    Ok(metadata)
+}
+
+fn toggle(
+    db: &Connection,
+    table: &str,
+    id: &str,
+    enabled: bool,
+) -> Result<Option<Value>, DatabaseError> {
+    let Some(mut value) = versions::row(db, table, id)? else {
+        return Ok(None);
+    };
+    value["enabled"] = enabled.into();
+    db.execute(
+        &format!("UPDATE {table} SET enabled=?1,payload_json=?2,updated_at=?3 WHERE id=?4"),
+        params![bool_int(enabled), serde_json::to_string(&value)?, now(), id],
+    )?;
+    Ok(Some(value))
+}
+
+fn save_record(
+    tx: &Transaction<'_>,
+    table: &str,
+    value: &Value,
+    expected: Option<&str>,
+    mode: BehaviorSave,
+) -> Result<Versioned<Value>, DatabaseError> {
+    versions::scope(table)?;
+    let object = value
+        .as_object()
+        .ok_or_else(|| DatabaseError::Invalid("behavior record must be an object".into()))?;
+    let id = required_value_string(object, "id")?;
+    let name = required_value_string(object, "name")?;
+    let enabled = object
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let previous = versions::check(tx, table, &id, expected)?;
+    let created: Option<i64> = tx
+        .query_row(
+            &format!("SELECT created_at FROM {table} WHERE id=?1"),
+            [&id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if matches!(mode, BehaviorSave::Create) && created.is_some() {
+        return Err(DatabaseError::RevisionConflict(versions::version(
+            table, &id, previous,
+        )?));
+    }
+    if matches!(mode, BehaviorSave::Update) && created.is_none() {
+        return Err(DatabaseError::NotFound);
+    }
+    let at = now();
+    tx.execute(
+        &format!(
+            "INSERT INTO {table}(id,name,enabled,payload_json,created_at,updated_at)
+            VALUES (?1,?2,?3,?4,?5,?6) ON CONFLICT(id) DO UPDATE SET
+            name=excluded.name,enabled=excluded.enabled,
+            payload_json=excluded.payload_json,updated_at=excluded.updated_at"
+        ),
+        params![
+            id,
+            name,
+            bool_int(enabled),
+            serde_json::to_string(value)?,
+            created.unwrap_or(at),
+            at
+        ],
+    )?;
+    let version = versions::advance(tx, table, &id, previous, false, "saved", at)?;
+    Ok(Versioned::new(value.clone(), vec![version]))
+}
+
+fn delete_record(
+    tx: &Transaction<'_>,
+    table: &str,
+    id: &str,
+    expected: Option<&str>,
+) -> Result<Versioned<bool>, DatabaseError> {
+    versions::scope(table)?;
+    let previous = versions::check(tx, table, id, expected)?;
+    let removed = tx.execute(&format!("DELETE FROM {table} WHERE id=?1"), [id])? > 0;
+    let cascaded = if removed && table == "behavior_actions" {
+        remove_action_references(tx, id)?
+    } else {
+        Vec::new()
+    };
+    let version = if removed {
+        versions::advance(tx, table, id, previous, true, "deleted", now())?
+    } else {
+        versions::version(table, id, previous)?
+    };
+    let mut metadata = vec![version];
+    metadata.extend(cascaded);
+    Ok(Versioned::new(removed, metadata))
+}
+
+fn set_enabled(
+    tx: &Transaction<'_>,
+    table: &str,
+    id: &str,
+    enabled: bool,
+    expected: Option<&str>,
+) -> Result<Versioned<Value>, DatabaseError> {
+    versions::scope(table)?;
+    let previous = versions::check(tx, table, id, expected)?;
+    let value = toggle(tx, table, id, enabled)?.ok_or(DatabaseError::NotFound)?;
+    let version = versions::advance(
+        tx,
+        table,
+        id,
+        previous,
+        false,
+        if enabled { "enabled" } else { "disabled" },
+        now(),
+    )?;
+    Ok(Versioned::new(value, vec![version]))
 }

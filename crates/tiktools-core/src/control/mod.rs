@@ -9,13 +9,38 @@
 
 mod analytics;
 mod automation;
+mod owner_approval_review;
+pub use owner_approval_review::{
+    OwnerApprovalBlockReason, OwnerApprovalEligibility, OwnerApprovalReviewParams,
+    OwnerApprovalReviewResult, OwnerApprovalStatus, OwnerApprovalStatusKind, OwnerApprovalSubject,
+};
+pub(crate) mod automation_approval;
+pub use automation_approval::{ApprovalActivateParams, ApprovalEnablement, ApprovalRevokeParams};
+pub(crate) mod automation_adoption;
+pub use automation_adoption::{
+    OwnerAdoptionIntent, OwnerAdoptionOutcome, OwnerAdoptionRecord, OwnerAdoptionReview,
+    OwnerAdoptionState, OwnerAdoptionSubmit,
+};
+pub(crate) mod owner_approval;
+pub use owner_approval::{
+    OwnerApprovalIntent, OwnerApprovalOperation, OwnerApprovalOutcome, OwnerApprovalReceipt,
+    OwnerApprovalRecord, OwnerApprovalReviewUnknown, OwnerApprovalState, OwnerApprovalSubmit,
+};
 #[cfg(feature = "cloud-auth")]
 mod cloud_account;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 mod cloud_publisher;
 #[cfg(feature = "cloud-auth")]
 mod cloud_sync;
+mod commands;
 mod competitions;
+mod delivery;
+mod effects;
+pub use effects::{EffectHistory, EffectKind, EffectReceipt, EffectState};
+mod streams;
+#[cfg(feature = "persistence")]
+pub(crate) use commands::CoordinationWorker;
+pub use commands::{CommandCaller, WorkflowMutation};
 #[cfg(test)]
 pub(crate) use competitions::bound_ranking_presentation;
 mod globals;
@@ -27,6 +52,7 @@ mod plugin_packages;
 mod plugin_settings;
 mod plugins;
 mod points;
+pub use points::{valid_currency, PointsAdjustment};
 mod processors;
 mod rankings;
 mod system;
@@ -36,7 +62,8 @@ mod workflows;
 pub use crate::input_access::InputAccessResult;
 pub use analytics::GiftDebugResult;
 pub use automation::{
-    AutomationEnablementMiss, AutomationKind, AutomationSetEnablementResult, ScriptAnalysisResult,
+    AutomationEnablementMiss, AutomationKind, AutomationMutation, AutomationRecords,
+    AutomationSetEnablementResult, ScriptAnalysisResult,
 };
 #[cfg(feature = "cloud-auth")]
 pub use cloud_account::CloudLoginUrl;

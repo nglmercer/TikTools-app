@@ -4,7 +4,16 @@ impl AppCore {
     /// Domain events are authoritative: the normalized event fans out to
     /// WebView/IPC/CLI immediately, before (and independent of) the
     /// automation pipeline, which may throttle or drop on saturation.
-    pub(crate) fn publish_live_domain_event(&self, event: &serde_json::Value) {
+    pub(crate) fn publish_live_domain_event(&self, envelope: &AutomationEvent) -> bool {
+        // The current domain bus/plugin observer has no delegated-context
+        // envelope. Never let a restricted emit become an Owner observation.
+        // This gate precedes diagnostics, domain fan-out and plugin observers.
+        if self.execution_context_guard(envelope.context()).is_err()
+            || envelope.context().depth() >= 3
+        {
+            return false;
+        }
+        let event = envelope.payload();
         if let Some(event_type) = event.get("type").and_then(Value::as_str) {
             if event_type.starts_with("tiktok.") {
                 self.events
@@ -28,10 +37,15 @@ impl AppCore {
                     });
             }
         }
+        true
     }
-    pub(crate) async fn publish_automation_event(self: &Arc<Self>, event: serde_json::Value) {
-        self.publish_live_domain_event(&event);
-        let enriched = self.enrich_automation_event(event).await;
+    pub(crate) async fn publish_automation_event(self: &Arc<Self>, event: AutomationEvent) {
+        if !self.publish_live_domain_event(&event) {
+            return;
+        }
+        let Ok(enriched) = self.enrich_automation_event(event).await else {
+            return;
+        };
         self.remember_automation_event(&enriched);
         Box::pin(self.run_automation_event(enriched)).await;
     }
@@ -40,10 +54,13 @@ impl AppCore {
         not(any(feature = "native-tiktok", feature = "persistence")),
         allow(dead_code)
     )]
-    pub(crate) fn queue_automation_event(self: &Arc<Self>, event: serde_json::Value) {
+    pub(crate) fn queue_automation_event(self: &Arc<Self>, event: AutomationEvent) {
         // Control/UI delivery must never depend on automation capacity.
-        self.publish_live_domain_event(&event);
+        if !self.publish_live_domain_event(&event) {
+            return;
+        }
         let event_type = event
+            .payload()
             .get("type")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("unknown");
@@ -73,7 +90,11 @@ impl AppCore {
             // delays only its own event; failures fail open to the raw event.
             // It already short-circuits when no processors match, so idle
             // rooms pay no enrichment cost.
-            let enriched = core.enrich_automation_event(event).await;
+            // Recheck the context inside the slot, before any processor or
+            // settings read. Replacing the payload never changes authority.
+            let Ok(enriched) = core.enrich_automation_event(event).await else {
+                return;
+            };
             if shutdown.is_cancelled() {
                 return;
             }
@@ -88,7 +109,7 @@ impl AppCore {
         #[cfg(feature = "persistence")]
         self.write_live_session(&context.unique_id, None, false)
             .await;
-        self.publish_automation_event(
+        self.publish_automation_event(AutomationEvent::owner(
             self.make_automation_event_with_context(
                 "tiktok.disconnected",
                 serde_json::to_value(crate::contracts::ConnectionAutomationData {
@@ -99,7 +120,7 @@ impl AppCore {
                 None,
                 &context,
             ),
-        )
+        ))
         .await;
     }
 }

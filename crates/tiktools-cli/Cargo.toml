@@ -11,8 +11,10 @@ name = "tiktools"
 path = "src/main.rs"
 
 [features]
-default = ["cloud-auth"]
+default = ["cloud-auth", "remote-client"]
+remote-client = ["tiktools-client/remote-profiles", "dep:rpassword", "dep:zeroize", "dep:url"]
 local-web = ["dep:axum", "dep:rand"]
+remote-control = ["dep:tiktools-remote"]
 cloud-auth = [
     "tiktools-core/cloud-auth",
     "tiktools-control-api/cloud-auth",
@@ -23,9 +25,19 @@ cloud-auth = [
 tiktools-client = { path = "../tiktools-client" }
 tiktools-control-api = { path = "../tiktools-control-api", features = ["native-tiktok", "http"] }
 tiktools-core = { path = "../tiktools-core" }
+tiktools-remote = { path = "../tiktools-remote", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["signal"] }
 
 axum = { version = "0.8.9", optional = true, features = ["ws"] }
 rand = { version = "0.10.3", optional = true }
+rpassword = { version = "=7.5.4", optional = true }
+zeroize = { version = "1", optional = true }
+url = { workspace = true, optional = true }
+
+[dev-dependencies]
+rcgen = "=0.14.10"
+ring.workspace = true
+tempfile = "3"
+tokio = { workspace = true, features = ["process"] }

@@ -2,14 +2,14 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, RwLock,
+        Arc, Mutex, RwLock,
     },
     time::SystemTime,
 };
 #[cfg(feature = "persistence")]
 use std::{
     collections::VecDeque,
-    sync::{Condvar, Mutex, MutexGuard},
+    sync::{Condvar, MutexGuard},
     time::{Duration, Instant},
 };
 
@@ -17,9 +17,12 @@ use serde_json::{json, Value};
 
 use crate::db::DatabaseManager;
 use crate::ipc::messages::{PartialPointsConfig, PointsConfig};
+use tiktools_plugin_api::sync::{recover_mutex, recover_rwlock_read, recover_rwlock_write};
+
 #[cfg(feature = "persistence")]
-use tiktools_plugin_api::sync::recover_mutex;
-use tiktools_plugin_api::sync::{recover_rwlock_read, recover_rwlock_write};
+mod commands;
+#[cfg(feature = "persistence")]
+mod approved;
 
 /// Default bound for the in-memory hot-viewer cache. SQLite remains the
 /// durable source of truth; viewers outside the cache are reloaded on demand
@@ -296,6 +299,12 @@ pub struct AwardOptions {
 }
 
 pub struct PointsService {
+    /// Serializes a producer's complete read/compute/admit/enqueue operation.
+    /// The viewer lock alone cannot do this: cold reads and enqueue happen
+    /// outside it. The writer never takes this lock and can drain a full
+    /// queue while a producer waits for admission. Lock order is always
+    /// mutation -> config/viewers -> writer queue.
+    mutation: Mutex<()>,
     config: RwLock<PointsConfig>,
     inner: RwLock<PointsInner>,
     next_op: AtomicU64,
@@ -309,6 +318,27 @@ pub struct PointsService {
     writer: Arc<PointsWriterShared>,
     #[cfg(feature = "persistence")]
     writer_thread: Mutex<Option<std::thread::JoinHandle<()>>>,
+    #[cfg(all(test, feature = "persistence"))]
+    before_submit: Mutex<Option<AdmissionPause>>,
+    #[cfg(all(test, feature = "persistence"))]
+    after_command_admission: Mutex<Option<AdmissionPause>>,
+}
+
+#[cfg(all(test, feature = "persistence"))]
+#[derive(Debug)]
+pub(crate) struct AdmissionPause {
+    reached: std::sync::mpsc::SyncSender<()>,
+    resume: std::sync::mpsc::Receiver<()>,
+}
+
+#[cfg(all(test, feature = "persistence"))]
+impl AdmissionPause {
+    pub(crate) fn wait(self) {
+        self.reached
+            .send(())
+            .expect("test observes admission barrier");
+        self.resume.recv().expect("test releases admission barrier");
+    }
 }
 
 /// Durable-write diagnostics for `system.health`. Contains counts only, never
@@ -457,6 +487,8 @@ struct PointsWriterShared {
     /// wedged SQLite without touching the rest of the service.
     #[cfg(test)]
     stall_ms: AtomicU64,
+    #[cfg(test)]
+    before_apply: Mutex<Option<AdmissionPause>>,
 }
 
 #[cfg(feature = "persistence")]
@@ -486,6 +518,8 @@ impl PointsWriterShared {
             admission_timeout_ms: AtomicU64::new(WRITE_ADMISSION_TIMEOUT_MS),
             #[cfg(test)]
             stall_ms: AtomicU64::new(0),
+            #[cfg(test)]
+            before_apply: Mutex::new(None),
         }
     }
 
@@ -605,20 +639,28 @@ fn run_points_writer(database: Arc<DatabaseManager>, shared: Arc<PointsWriterSha
         shared
             .executing
             .fetch_add(batch.len() as u64, Ordering::Relaxed);
+        #[cfg(test)]
+        {
+            let pause = recover_mutex(&shared.before_apply, "points test writer").take();
+            if let Some(pause) = pause {
+                pause.reached.send(()).expect("test observes writer gate");
+                pause.resume.recv().expect("test releases writer gate");
+            }
+        }
         let started = Instant::now();
-        let first_failed =
-            apply_points_batch_resilient(&database, connection.as_mut(), &batch, &shared);
+        apply_points_batch_resilient(&database, connection.as_mut(), &batch, &shared);
         shared
             .executing
             .fetch_sub(batch.len() as u64, Ordering::Relaxed);
         let max_seq = batch.last().map_or(0, PointsWriteOp::seq);
         record_commit_latency(&shared, started.elapsed());
-        match first_failed {
-            Some(failed) => shared
-                .committed_seq
-                .store(failed.saturating_sub(1), Ordering::Release),
-            None => shared.committed_seq.store(max_seq, Ordering::Release),
-        }
+        let failed = shared.first_failed_seq.load(Ordering::Relaxed);
+        let committed = if failed == 0 {
+            max_seq
+        } else {
+            max_seq.min(failed.saturating_sub(1))
+        };
+        shared.committed_seq.store(committed, Ordering::Release);
         shared.resolved_seq.store(max_seq, Ordering::Release);
         shared.batches.fetch_add(1, Ordering::Relaxed);
         shared.wake.notify_all();
@@ -635,7 +677,7 @@ fn apply_points_batch_resilient(
     connection: Option<&mut rusqlite::Connection>,
     batch: &[PointsWriteOp],
     shared: &PointsWriterShared,
-) -> Option<u64> {
+) {
     let Some(connection) = connection else {
         for op in batch {
             tracing::error!(
@@ -644,7 +686,7 @@ fn apply_points_batch_resilient(
             );
             shared.record_failure(op.seq());
         }
-        return batch.first().map(PointsWriteOp::seq);
+        return;
     };
     if let Err(error) = database.apply_points_batch(connection, batch) {
         tracing::error!(
@@ -675,27 +717,26 @@ fn apply_points_batch_resilient(
                 ops = batch.len(),
                 "points batch could not be applied; retrying each op on its own transaction"
             );
-            let mut first_failed = None;
             for op in batch {
                 match database.apply_points_op(connection, op) {
-                    Ok(()) => {}
+                    Ok(()) => {
+                        shared.applied.fetch_add(1, Ordering::Relaxed);
+                    }
                     // Storage itself is failing (full disk, read-only FS);
                     // preservation cannot be guaranteed, so say so loudly
                     // with the exact op identity instead of vanishing.
                     Err(error) => {
                         tracing::error!(%error, seq = op.seq(), "points write failed and cannot be retried further");
                         shared.record_failure(op.seq());
-                        first_failed.get_or_insert_with(|| op.seq());
                     }
                 }
             }
-            return first_failed;
+            return;
         }
     }
     shared
         .applied
         .fetch_add(batch.len() as u64, Ordering::Relaxed);
-    None
 }
 
 #[cfg(feature = "persistence")]
@@ -713,6 +754,7 @@ fn record_commit_latency(shared: &PointsWriterShared, elapsed: Duration) {
 impl Default for PointsService {
     fn default() -> Self {
         Self {
+            mutation: Mutex::new(()),
             config: RwLock::new(PointsConfig::default()),
             inner: RwLock::new(PointsInner::with_capacity(DEFAULT_HOT_VIEWER_CAPACITY)),
             next_op: AtomicU64::new(1),
@@ -722,6 +764,10 @@ impl Default for PointsService {
             writer: Arc::new(PointsWriterShared::new(false)),
             #[cfg(feature = "persistence")]
             writer_thread: Mutex::new(None),
+            #[cfg(all(test, feature = "persistence"))]
+            before_submit: Mutex::new(None),
+            #[cfg(all(test, feature = "persistence"))]
+            after_command_admission: Mutex::new(None),
         }
     }
 }
@@ -733,6 +779,7 @@ impl PointsService {
             .and_then(|value| value.parse::<usize>().ok())
             .unwrap_or(DEFAULT_HOT_VIEWER_CAPACITY);
         let service = Self {
+            mutation: Mutex::new(()),
             config: RwLock::new(PointsConfig::default()),
             inner: RwLock::new(PointsInner::with_capacity(capacity)),
             next_op: AtomicU64::new(1),
@@ -742,6 +789,10 @@ impl PointsService {
             writer: Arc::new(PointsWriterShared::new(false)),
             #[cfg(feature = "persistence")]
             writer_thread: Mutex::new(None),
+            #[cfg(all(test, feature = "persistence"))]
+            before_submit: Mutex::new(None),
+            #[cfg(all(test, feature = "persistence"))]
+            after_command_admission: Mutex::new(None),
         };
         #[cfg(feature = "persistence")]
         {
@@ -808,6 +859,7 @@ impl PointsService {
     /// cold viewers immediately (never ones with unresolved writes); growing
     /// only raises the ceiling, with cold rows reloading from SQLite on demand.
     pub fn set_cache_capacity(&self, capacity: usize) {
+        let _mutation = recover_mutex(&self.mutation, "points mutation");
         let capacity = capacity.clamp(1, 1_000_000);
         let resolved = self.resolved_seq();
         let mut inner = recover_rwlock_write(&self.inner, "points viewers");
@@ -873,29 +925,33 @@ impl PointsService {
     /// permanently failed writes, a dead writer trips the timeout with a
     /// warning.
     #[cfg(feature = "persistence")]
-    fn wait_for_viewer_committed(&self, unique_id: &str) {
+    fn wait_for_viewer_resolved(&self, unique_id: &str) -> bool {
         let seq = recover_rwlock_read(&self.inner, "points viewers").reload_wait_seq(unique_id);
         if seq == 0 || self.resolved_seq() >= seq {
-            return;
+            return true;
         }
-        let deadline = Instant::now() + Duration::from_secs(5);
+        let deadline = Instant::now()
+            + Duration::from_millis(self.writer.admission_timeout_ms.load(Ordering::Relaxed));
         while self.resolved_seq() < seq {
             if Instant::now() >= deadline {
                 tracing::warn!(
                     viewer_seq = seq,
                     resolved = self.resolved_seq(),
-                    "points reload timed out waiting for queued writes; proceeding with durable state"
+                    "points reload timed out waiting for queued writes; refusing a stale reload"
                 );
-                return;
+                return false;
             }
             std::thread::sleep(Duration::from_millis(1));
         }
+        true
     }
 
     /// Direct indexed lookup by identity: hot cache first, then one SQLite
     /// primary-key read that promotes the row into the cache. Returns `None`
-    /// only when the viewer has no record anywhere.
+    /// for an invalid/missing identity or a cold reload that cannot safely
+    /// finish within the writer wait bound.
     pub fn viewer(&self, unique_id: &str) -> Option<Value> {
+        let _mutation = recover_mutex(&self.mutation, "points mutation");
         let needle = clean_unique_id(unique_id)?;
         {
             let mut inner = recover_rwlock_write(&self.inner, "points viewers");
@@ -908,7 +964,9 @@ impl PointsService {
         #[cfg(feature = "persistence")]
         {
             // Never base a reload on state older than our own queued work.
-            self.wait_for_viewer_committed(&needle);
+            if !self.wait_for_viewer_resolved(&needle) {
+                return None;
+            }
             let loaded = self
                 .database
                 .as_ref()
@@ -979,6 +1037,7 @@ impl PointsService {
     /// [`AppCore::shutdown`](crate::AppCore::shutdown) still wraps this in
     /// its own deadline and reports a stuck writer explicitly.
     pub fn shutdown(&self) {
+        let _mutation = recover_mutex(&self.mutation, "points mutation");
         #[cfg(feature = "persistence")]
         {
             {
@@ -1011,6 +1070,7 @@ impl PointsService {
         options: AwardOptions,
     ) -> Option<PointAward> {
         let unique_id = clean_unique_id(unique_id)?;
+        let _mutation = recover_mutex(&self.mutation, "points mutation");
         let config = self.config();
         let base_points = match action {
             PointAction::Manual => options.custom_amount.unwrap_or_default(),
@@ -1026,6 +1086,9 @@ impl PointsService {
             PointAction::Join if config.points_per_join_enabled => config.points_per_join,
             _ => 0.0,
         };
+        if !base_points.is_finite() {
+            return None;
+        }
 
         // O(1) lookup; on a cold miss fall back to one indexed SQLite read
         // (outside the lock) and promote the row. Unknown viewers are
@@ -1046,7 +1109,9 @@ impl PointsService {
             #[cfg(feature = "persistence")]
             if let Some(loaded) = {
                 // Never base an award on state older than our own queued work.
-                self.wait_for_viewer_committed(&unique_id);
+                if !self.wait_for_viewer_resolved(&unique_id) {
+                    return None;
+                }
                 self.database
                     .as_ref()
                     .and_then(|database| database.load_viewer_by_id(&unique_id).ok().flatten())
@@ -1083,14 +1148,17 @@ impl PointsService {
                 .map(|viewer| viewer.points)
                 .unwrap_or_default();
             let total_points = round_points((current_points + awarded).max(0.0));
+            if !awarded.is_finite() || !total_points.is_finite() {
+                return None;
+            }
             let points_per_level = config.points_per_level.max(10.0);
-            let level = (total_points / points_per_level).floor() as u32 + 1;
+            let level = ((total_points / points_per_level).floor() as u32).saturating_add(1);
 
             // Reserve durable-queue space *before* mutating anything. A
             // rejected admission must leave memory exactly as it was, so the
             // hot cache never claims an award SQLite will never hold. This
-            // wait also pins sequence order to queue order: nothing else can
-            // allocate a sequence while this critical section holds `inner`.
+            // wait also pins sequence order to queue order: the mutation
+            // lock remains held until the resulting snapshot is enqueued.
             if !self.wait_write_capacity() {
                 return None;
             }
@@ -1131,6 +1199,8 @@ impl PointsService {
 
         #[cfg(feature = "persistence")]
         {
+            #[cfg(test)]
+            self.pause_before_submit();
             let (seq, snapshot) = persisted;
             self.submit_points_op(PointsWriteOp::Save {
                 seq,
@@ -1146,6 +1216,7 @@ impl PointsService {
     }
 
     pub fn update_config(&self, update: PartialPointsConfig) -> PointsConfig {
+        let _mutation = recover_mutex(&self.mutation, "points mutation");
         let updated = {
             let mut config = recover_rwlock_write(&self.config, "points config");
             update.apply(&mut config);
@@ -1184,11 +1255,25 @@ impl PointsService {
     }
 
     pub fn reset(&self, unique_id: Option<&str>) {
-        let unique_id = unique_id.and_then(clean_unique_id);
+        self.reset_admitted(unique_id);
+    }
+
+    /// The owner emits a reset event only after this admission succeeds.
+    /// Retain the historical public `reset` signature for service callers.
+    pub(crate) fn reset_admitted(&self, unique_id: Option<&str>) -> bool {
+        let _mutation = recover_mutex(&self.mutation, "points mutation");
+        let unique_id = match unique_id {
+            Some(id) => match clean_unique_id(id) {
+                Some(id) => Some(id),
+                // Invalid single-viewer input must never become a full reset.
+                None => return false,
+            },
+            None => None,
+        };
         // Admission first: a rejected reset must not zero memory the durable
         // store will never match.
         if !self.wait_write_capacity() {
-            return;
+            return false;
         }
         let resolved = self.resolved_seq();
         let mut inner = recover_rwlock_write(&self.inner, "points viewers");
@@ -1243,6 +1328,7 @@ impl PointsService {
             }
         }
         inner.evict_cold(resolved);
+        true
     }
 
     pub fn adjust(&self, unique_id: &str, delta: f64) -> Option<PointAward> {
@@ -1250,6 +1336,7 @@ impl PointsService {
         if !delta.is_finite() {
             return None;
         }
+        let _mutation = recover_mutex(&self.mutation, "points mutation");
         // A bounded cache means the viewer may live only in SQLite: reload
         // through the indexed key instead of reporting a durable viewer as
         // unknown.
@@ -1261,7 +1348,9 @@ impl PointsService {
         if !cached {
             #[cfg(feature = "persistence")]
             if let Some(loaded) = {
-                self.wait_for_viewer_committed(&unique_id);
+                if !self.wait_for_viewer_resolved(&unique_id) {
+                    return None;
+                }
                 self.database
                     .as_ref()
                     .and_then(|database| database.load_viewer_by_id(&unique_id).ok().flatten())
@@ -1280,6 +1369,9 @@ impl PointsService {
             let mut inner = recover_rwlock_write(&self.inner, "points viewers");
             let viewer = inner.viewers.get(&unique_id)?;
             let points = round_points((viewer.points + delta).max(0.0));
+            if !points.is_finite() {
+                return None;
+            }
             let level =
                 ((points / config.points_per_level.max(10.0)).floor() as u32).saturating_add(1);
             // Reserve before mutating: a rejected admission leaves the row
@@ -1324,8 +1416,8 @@ impl PointsService {
     }
 
     /// Bounded wait for one free slot in the ordered writer queue. Called
-    /// while the caller holds the viewer lock — that is what makes sequence
-    /// allocation order and queue order the same order.
+    /// while the caller holds the mutation lock through enqueue — that is
+    /// what makes sequence allocation order and queue order the same order.
     ///
     /// There is no synchronous write fallback on this path: an inline write
     /// could jump the queue and win the FIFO race with the ops already in
@@ -1378,6 +1470,15 @@ impl PointsService {
         true
     }
 
+    #[cfg(all(test, feature = "persistence"))]
+    fn pause_before_submit(&self) {
+        let pause = recover_mutex(&self.before_submit, "points test admission").take();
+        if let Some(pause) = pause {
+            pause.reached.send(()).expect("test observes admission");
+            pause.resume.recv().expect("test resumes admission");
+        }
+    }
+
     /// Pushes one op onto the ordered writer queue. Capacity was reserved
     /// through [`Self::wait_write_capacity`] inside the same critical
     /// section that allocated the sequence, so this push cannot block and
@@ -1389,10 +1490,9 @@ impl PointsService {
         }
         let mut state = self.writer.lock_queue();
         if state.closed {
-            // Admission closed between the capacity wait and this push
-            // (shutdown racing an award). The op cannot be made durable
-            // anymore and memory already carries the update, so report the
-            // loss loudly instead of pretending the queue accepted it.
+            // Shutdown shares the mutation lock, so a normal close cannot
+            // race a successfully admitted producer. Keep this defensive
+            // report for an unexpectedly closed writer.
             tracing::error!(
                 seq = op.seq(),
                 "points write rejected: writer queue closed while admitting"
@@ -1411,7 +1511,16 @@ impl PointsService {
 
 fn clean_unique_id(value: &str) -> Option<String> {
     let value = value.trim().trim_start_matches('@');
-    (!value.is_empty()).then_some(value.to_owned())
+    valid_viewer_id(value).then_some(value.to_owned())
+}
+
+pub(crate) fn valid_viewer_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value.trim() == value
+        && !value.starts_with('@')
+        && !value.contains('*')
+        && !value.chars().any(char::is_control)
 }
 
 fn nonnegative_or_one(value: Option<f64>) -> f64 {
@@ -1497,6 +1606,12 @@ fn now_millis() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "persistence")]
+    mod commands;
+    #[cfg(feature = "persistence")]
+    mod approved;
+    #[cfg(feature = "persistence")]
+    mod ordering;
 
     /// Builds an isolated on-disk service plus its temp root. Every
     /// persistence test owns its directory so a crash cannot leak state
@@ -1522,7 +1637,20 @@ mod tests {
             root: root.clone(),
         };
         paths.ensure_directories().expect("temp dirs");
+        for path in [
+            paths.points_database(),
+            paths.automation_database(),
+            paths.analytics_database(),
+        ] {
+            std::fs::File::create(path).expect("private empty fixture database");
+        }
         let database = Arc::new(DatabaseManager::new(paths));
+        // These fixtures mutate schema/locks to test the write path. Finish
+        // the initial WAL transition before the worker and the test open
+        // competing connections; a startup failure would test a different
+        // condition and permanently fail every op, hiding the intended case.
+        #[cfg(feature = "persistence")]
+        drop(database.open_points_writer().expect("fixture WAL setup"));
         let service = PointsService::new(Arc::clone(&database));
         (database, service, root)
     }
@@ -1531,9 +1659,15 @@ mod tests {
     #[cfg(feature = "persistence")]
     fn wait_for_writer_idle(service: &PointsService) {
         let deadline = Instant::now() + Duration::from_secs(10);
+        let admitted = service.writer.admitted.load(Ordering::Acquire);
         loop {
             let diagnostics = service.diagnostics();
-            if diagnostics.writer_queued == 0 && diagnostics.writer_executing == 0 {
+            // Queue/executing gauges can both be zero between dequeue and
+            // starting a batch. Only the resolved watermark proves completion.
+            if diagnostics.resolved_seq >= admitted
+                && diagnostics.writer_queued == 0
+                && diagnostics.writer_executing == 0
+            {
                 return;
             }
             assert!(
@@ -1643,6 +1777,42 @@ mod tests {
         assert_eq!(config.sub_bonus_multiplier, 0.0);
         assert_eq!(config.points_per_level, 10.0);
         assert_eq!(config.currency_name, "Points");
+    }
+
+    #[test]
+    fn invalid_viewer_reset_never_becomes_a_full_reset() {
+        let service = PointsService::default();
+        service.award_points("alice", PointAction::Chat, AwardOptions::default());
+        for id in ["", "  ", "@@", "*", "a\nb", "@ a", &"x".repeat(129)] {
+            service.reset(Some(id));
+            assert_eq!(service.viewer("alice").unwrap()["points"], 1.0, "{id:?}");
+            assert!(service
+                .award_points(id, PointAction::Chat, AwardOptions::default())
+                .is_none());
+        }
+        service.reset(Some(" @alice "));
+        assert_eq!(service.viewer("alice").unwrap()["points"], 0.0);
+    }
+
+    #[test]
+    fn nonfinite_or_overflowing_awards_never_mutate_balances() {
+        let service = PointsService::default();
+        service.award_points("alice", PointAction::Chat, AwardOptions::default());
+        for amount in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, f64::MAX] {
+            assert!(service
+                .award_points(
+                    "alice",
+                    PointAction::Manual,
+                    AwardOptions {
+                        custom_amount: Some(amount),
+                        ..AwardOptions::default()
+                    }
+                )
+                .is_none());
+            assert_eq!(service.viewer("alice").unwrap()["points"], 1.0);
+        }
+        assert!(service.adjust("alice", f64::MAX).is_none());
+        assert_eq!(service.viewer("alice").unwrap()["points"], 1.0);
     }
 
     #[test]

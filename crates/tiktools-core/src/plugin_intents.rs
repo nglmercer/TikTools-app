@@ -5,6 +5,7 @@
 //! translated into application-owned operations.
 
 use super::*;
+use crate::automation_runtime::context::ExecutionContext;
 
 impl AppCore {
     pub(crate) async fn execute_plugin_intents(
@@ -12,12 +13,18 @@ impl AppCore {
         plugin: &tiktools_plugin_loader::DiscoveredPlugin,
         intents: Vec<tiktools_plugin_sdk::HostIntent>,
         event: &Value,
+        context: &ExecutionContext,
         logs: &mut Vec<String>,
         test: bool,
     ) -> Result<Vec<String>, String> {
-        let globals = self.automation_globals();
+        // Native plugin code and its returned intents are distinct effect
+        // boundaries. Never observe rankings, load globals or start an effect
+        // under an unsupported delegated context, including dry-run paths.
+        self.execution_context_guard(context)?;
+        let globals = self.automation_globals(context)?;
         let mut parts = Vec::new();
         for intent in intents {
+            self.execution_context_guard(context)?;
             match intent {
                 tiktools_plugin_sdk::HostIntent::AudioPlay(intent) => {
                     self.capabilities
@@ -38,7 +45,7 @@ impl AppCore {
                         .as_object()
                         .ok_or_else(|| "audio intent must be an object".to_owned())?;
                     parts.push(
-                        self.execute_audio_action(config, event, &globals, logs, test)
+                        self.execute_audio_action(config, event, &globals, context, logs, test)
                             .await?,
                     );
                 }
@@ -49,14 +56,24 @@ impl AppCore {
                             .into_iter()
                             .collect(),
                     );
-                    let published = if let Some(typed) =
-                        self.plugin_typed_event(&plugin.manifest, &event_type, &payload, event)?
-                    {
+                    let published = if let Some(typed) = self.plugin_typed_event(
+                        &plugin.manifest,
+                        &event_type,
+                        &payload,
+                        event,
+                        context,
+                    )? {
                         typed
                     } else {
-                        self.make_internal_automation_event(event, &event_type, payload.clone())
+                        self.make_internal_automation_event(
+                            event,
+                            &event_type,
+                            payload.clone(),
+                            context,
+                        )?
                     };
                     if !test {
+                        self.execution_context_guard(context)?;
                         self.observe_plugin_ranking_event(
                             &plugin.manifest.id,
                             &event_type,
@@ -86,8 +103,12 @@ impl AppCore {
         plugin_id: &str,
         event_type: &str,
         payload: &Value,
-        published: &Value,
+        published: &AutomationEvent,
     ) {
+        if self.execution_context_guard(published.context()).is_err() {
+            return;
+        }
+        let published = published.payload();
         let Some(event_id) = published.get("id").and_then(Value::as_str) else {
             return;
         };
@@ -147,7 +168,9 @@ impl AppCore {
         source: &Value,
         event_type: &str,
         data: Value,
-    ) -> Value {
+        context: &ExecutionContext,
+    ) -> Result<AutomationEvent, String> {
+        let child = context.child().map_err(str::to_owned)?;
         let mut event = json!({
             "id": format!("plugin-event-{}", self.next_sequence()),
             "type": event_type,
@@ -156,10 +179,7 @@ impl AppCore {
             "data": data,
         });
         if let Some(data) = event.get_mut("data").and_then(Value::as_object_mut) {
-            data.insert(
-                "depth".to_owned(),
-                Value::from(self.automation.emit_depth(source).saturating_add(1)),
-            );
+            data.insert("depth".to_owned(), Value::from(child.depth()));
         }
         for key in ["connectionId", "creator", "user"] {
             if let Some(value) = source.get(key) {
@@ -169,7 +189,7 @@ impl AppCore {
         if let Some(source_id) = source.get("id") {
             event["sourceEventId"] = source_id.clone();
         }
-        event
+        Ok(AutomationEvent::new(event, child))
     }
 
     /// Resolves a plugin emit intent to a typed event when the type is one of
@@ -182,7 +202,8 @@ impl AppCore {
         event_type: &str,
         data: &Value,
         source: &Value,
-    ) -> Result<Option<Value>, String> {
+        context: &ExecutionContext,
+    ) -> Result<Option<AutomationEvent>, String> {
         if !declared_event_types(manifest).contains(&event_type.to_owned()) {
             return Ok(None);
         }
@@ -203,7 +224,8 @@ impl AppCore {
             source,
             event_type,
             data.clone(),
-        )))
+            context,
+        )?))
     }
 
     pub(crate) fn make_internal_automation_event(
@@ -211,14 +233,16 @@ impl AppCore {
         source: &Value,
         event_type: &str,
         payload: Value,
-    ) -> Value {
+        context: &ExecutionContext,
+    ) -> Result<AutomationEvent, String> {
+        let child = context.child().map_err(str::to_owned)?;
         let mut event = json!({
             "id": format!("plugin-emit-{}", self.next_sequence()),
             "type": "plugin.emit",
             "timestamp": now_millis(),
             "data": {
                 "emitType": event_type,
-                "depth": self.automation.emit_depth(source).saturating_add(1),
+                "depth": child.depth(),
                 "payload": payload
             }
         });
@@ -230,6 +254,6 @@ impl AppCore {
         if let Some(source_id) = source.get("id") {
             event["sourceEventId"] = source_id.clone();
         }
-        event
+        Ok(AutomationEvent::new(event, child))
     }
 }

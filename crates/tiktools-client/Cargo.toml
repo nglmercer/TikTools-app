@@ -4,9 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Typed Rust SDK over the TikTools control API (direct + IPC)"
+description = "Typed Rust SDK over the TikTools control API (direct, IPC and optional HTTPS/WSS)"
 
 [features]
+remote = ["dep:tiktools-collaboration", "dep:reqwest", "dep:rustls", "dep:rustls-native-certs", "dep:tokio-rustls", "dep:tokio-tungstenite", "dep:tokio-util", "dep:futures-util", "dep:x509-parser", "dep:secrecy", "dep:zeroize", "dep:getrandom", "dep:url", "dep:uuid"]
+remote-profiles = ["remote", "dep:fs2", "dep:tempfile", "dep:keyring", "dep:libc"]
 # Full Cloud surface (account, sync, publisher) for hosts built with the
 # Cloud stack. Also enables the transport and packaging features the
 # publisher operations need from the control API.
@@ -21,3 +23,36 @@ tiktools-control-api = { path = "../tiktools-control-api" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+tiktools-collaboration = { path = "../tiktools-collaboration", optional = true }
+reqwest = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+rustls-native-certs = { version = "0.8.5", optional = true }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"], optional = true }
+tokio-tungstenite = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
+futures-util = { version = "0.3", optional = true }
+ring.workspace = true
+x509-parser = { version = "0.18.1", optional = true }
+secrecy = { version = "0.10", optional = true }
+zeroize = { version = "1", optional = true }
+getrandom = { version = "0.4.3", optional = true }
+url = { workspace = true, optional = true }
+uuid = { version = "1", features = ["v4"], optional = true }
+fs2 = { version = "0.4", optional = true }
+tempfile = { version = "3", optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["sync-secret-service", "crypto-rust", "vendored"], optional = true }
+[target.'cfg(unix)'.dependencies]
+libc = { version = "0.2", optional = true }
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["apple-native"], optional = true }
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["windows-native"], optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tiktools-core = { path = "../tiktools-core" }
+tiktools-remote = { path = "../tiktools-remote" }
+tempfile = "3"
+rcgen = "=0.14.10"

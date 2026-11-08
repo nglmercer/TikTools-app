@@ -1,6 +1,12 @@
+import collaboration from './collaboration.es.ts';
+import automationProposal from './automation-proposal.es.ts';
+import automationApproval from './automation-approval.es.ts';
 import type { MessageSchema } from '../i18n.ts';
 
 export default {
+  collaboration,
+  automationProposal,
+  automationApproval,
   common: {
     ok: 'Aceptar',
     cancel: 'Cancelar',
@@ -65,6 +71,7 @@ export default {
     sections: {
       general: 'General',
       account: 'Cuenta',
+      collaboration: 'Colaboración',
       updates: 'Actualizaciones',
       advanced: 'Avanzado',
     },
@@ -567,6 +574,35 @@ export default {
       missingLead: 'Todo lo que requiere una dependencia, como audio, voz o software de streaming, llega con un plugin.',
       browsePlugins: 'Ver plugins',
     },
+    conflict: {
+      compare: 'Comparar con el anfitrión',
+      compareTitle: 'Revisar cambios de automatización',
+      compareLead: 'Compara la versión inicial, tu borrador y el registro actual del anfitrión. Esto no guarda ni ejecuta nada.',
+      base: 'Versión inicial',
+      candidate: 'Tu borrador',
+      current: 'Versión actual del anfitrión',
+      absent: 'Registro nuevo',
+      deleted: 'El registro no existe en el anfitrión.',
+      memory: 'Esta ejecución',
+      memoryLead: 'Este anfitrión tiene la persistencia desactivada. Los cambios duran solo esta ejecución; no hay comprobación de revisiones.',
+      missingRevision: 'La revisión del registro no está disponible. Lee y compara la versión actual del anfitrión antes de guardar.',
+      waiting: 'Esperando al anfitrión. Puedes seguir editando; los cambios posteriores quedarán sin guardar.',
+      changed: 'El cambio no fue aceptado. Tu borrador se conserva. Lee y revisa la versión del anfitrión antes de volver a enviar.',
+      unconfirmed: 'El resultado del anfitrión no está confirmado. Tu borrador se conserva. Lee y revisa el registro actual antes de volver a enviar.',
+      hostChanged: 'El registro del anfitrión cambió desde que lo abriste. Tu versión inicial y tu borrador se conservan.',
+      reading: 'Leyendo la versión actual del anfitrión…',
+      readCurrent: 'Leer versión actual del anfitrión',
+      useBase: 'Usar esta versión como base del borrador',
+      mergeLead: 'Revisa y edita tu borrador para incluir los cambios del anfitrión que quieras conservar. Actualizar la base mantiene tu borrador; usa Guardar por separado cuando esté listo.',
+      prepareRecreate: 'Preparar recreación con este borrador',
+      recreateLead: 'Este ID no existe. Preparar su recreación conserva tu borrador y usa la revisión de borrado del anfitrión como base. Guardar es una acción aparte.',
+      toggleTitle: '¿Cambiar la activación de la automatización?',
+      enableMessage: '¿Activar «{name}» en este anfitrión usando la versión mostrada?',
+      disableMessage: '¿Desactivar «{name}» en este anfitrión usando la versión mostrada?',
+      confirmToggle: 'Confirmar cambio',
+      recordVersion: '{id} · versión {revision}',
+      alreadyApplied: 'El anfitrión ya tiene el estado solicitado. No hace falta otro cambio.',
+    },
     editor: {
       emptyTitle: 'Nada seleccionado',
       emptyLead: 'Selecciona un evento o una acción para editarlo, o crea uno nuevo.',
@@ -692,6 +728,14 @@ export default {
       'tiktok-connected': 'Conectado',
       'tiktok-disconnected': 'Desconectado',
       'points-awarded': 'Puntos otorgados',
+      'competition-started': 'Comienza una competición',
+      'competition-paused': 'Se pausa una competición',
+      'competition-resumed': 'Se reanuda una competición',
+      'competition-cancelled': 'Se cancela una competición',
+      'competition-finished': 'Termina una competición',
+      'competition-winner-selected': 'Se elige al ganador de una competición',
+      'competition-action-completed': 'Se completa una acción de competición',
+      'competition-action-failed': 'Falla una acción de competición',
       'plugin-emit': 'Evento interno',
     },
     test: {

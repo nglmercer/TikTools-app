@@ -1,5 +1,6 @@
 //! Automation HTTP actions and the shared hardened sender.
 
+use super::context::ExecutionContext;
 use crate::*;
 
 #[cfg(feature = "http")]
@@ -40,15 +41,18 @@ fn resolve_http_action_timeout_ms(config: &serde_json::Map<String, Value>) -> u6
 
 impl AppCore {
     #[cfg(feature = "http")]
+    #[allow(clippy::too_many_arguments)] // Authority remains explicit beside render input.
     pub(crate) async fn execute_http_action(
         self: &Arc<Self>,
         config: &serde_json::Map<String, Value>,
         event: &Value,
         globals: &std::collections::BTreeMap<String, String>,
+        context: &ExecutionContext,
         logs: &mut Vec<String>,
         allowed_hosts: Option<&[String]>,
         test: bool,
     ) -> Result<String, String> {
+        self.execution_context_guard(context)?;
         let raw_url = config
             .get("url")
             .and_then(Value::as_str)
@@ -147,6 +151,7 @@ impl AppCore {
                     timeout_ms,
                 },
                 &configured_host,
+                context,
             )
             .await?;
         let status = sent.status;
@@ -168,7 +173,8 @@ impl AppCore {
                     event,
                     &event_type,
                     json!({"status": status, "ok": (200..300).contains(&status), "body": body}),
-                )),
+                    context,
+                )?),
             )
             .await;
         }
@@ -187,15 +193,18 @@ impl AppCore {
     }
 
     #[cfg(not(feature = "http"))]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn execute_http_action(
         self: &Arc<Self>,
         _config: &serde_json::Map<String, Value>,
         _event: &Value,
         _globals: &std::collections::BTreeMap<String, String>,
+        context: &ExecutionContext,
         _logs: &mut Vec<String>,
         _allowed_hosts: Option<&[String]>,
         _test: bool,
     ) -> Result<String, String> {
+        self.execution_context_guard(context)?;
         Err("HTTP action execution requires the host HTTP capability.".to_owned())
     }
 }
@@ -264,7 +273,9 @@ impl AppCore {
         &self,
         request: &HardenedHttpRequest,
         configured_host: &str,
+        context: &ExecutionContext,
     ) -> Result<HardenedHttpResponse, String> {
+        self.execution_context_guard(context)?;
         let http_client = self.http_client.as_ref().ok_or_else(|| {
             self.http_client_error.clone().unwrap_or_else(|| {
                 "HTTP automation is disabled because its hardened client is unavailable.".to_owned()
@@ -283,6 +294,7 @@ impl AppCore {
         }
         let timeout_ms = request.timeout_ms;
         let started = now_millis();
+        self.execution_context_guard(context)?;
         let response = outgoing
             .timeout(std::time::Duration::from_millis(timeout_ms))
             .send()
@@ -345,7 +357,9 @@ impl AppCore {
         &self,
         _request: &HardenedHttpRequest,
         _configured_host: &str,
+        context: &ExecutionContext,
     ) -> Result<HardenedHttpResponse, String> {
+        self.execution_context_guard(context)?;
         Err("HTTP action execution requires the host HTTP capability.".to_owned())
     }
 }

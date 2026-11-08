@@ -1,7 +1,9 @@
 //! Automation runtime unit tests.
+mod provenance;
+mod versioned;
 
 use super::http_actions::http_error_reason;
-use crate::{AppCore, HostEmitter};
+use crate::{AppCore, AutomationEvent, HostEmitter};
 use serde_json::{json, Value};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -50,13 +52,15 @@ async fn automation_execution_records_outcomes() {
     let event_for =
         |user: &str| json!({"type": "tiktok.chat", "user": {"uniqueId": user}, "data": {}});
     let (completed, ok, failed, _) = automation_counters(&core);
-    core.run_automation_event(event_for("metrics-viewer")).await;
+    core.run_automation_event(AutomationEvent::owner(event_for("metrics-viewer")))
+        .await;
     let (completed2, ok2, failed2, _) = automation_counters(&core);
     assert_eq!(completed2, completed + 1);
     assert_eq!(ok2, ok + 1);
     assert_eq!(failed2, failed);
     // Unknown viewer: the action fails deterministically, counted apart.
-    core.run_automation_event(event_for("metrics-ghost")).await;
+    core.run_automation_event(AutomationEvent::owner(event_for("metrics-ghost")))
+        .await;
     let (completed3, ok3, failed3, _) = automation_counters(&core);
     assert_eq!(completed3, completed + 2);
     assert_eq!(ok3, ok + 1);

@@ -37,7 +37,10 @@ import ConditionTemplateDialog from './ConditionTemplateDialog.vue';
 const props = withDefaults(
   defineProps<{
     event: LiveEvent;
+    baseline?: LiveEvent;
     isNew?: boolean;
+    busy?: boolean;
+    saveBlocked?: boolean;
     actions: readonly LiveAction[];
     eventTypes: readonly PluginEventType[];
     gifts: readonly SearchOption[];
@@ -46,11 +49,12 @@ const props = withDefaults(
     hotkeyStatus?: HotkeyStatusData | null;
     error?: string;
   }>(),
-  { isNew: false, hotkeyStatus: null, error: '' },
+  { baseline: undefined, isNew: false, busy: false, saveBlocked: false, hotkeyStatus: null, error: '' },
 );
 
 const emit = defineEmits<{
   save: [event: LiveEvent];
+  change: [event: LiveEvent];
   delete: [id: string];
   test: [event: LiveEvent];
   fire: [event: LiveEvent];
@@ -70,7 +74,7 @@ const templatesAnchor = shallowRef<HTMLElement | null>(null);
 const configuring = shallowRef<ConditionTemplate | null>(null);
 const configureOpen = ref(false);
 
-const changed = computed(() => props.isNew || JSON.stringify(draft.value) !== JSON.stringify(props.event));
+const changed = computed(() => props.isNew || JSON.stringify(draft.value) !== JSON.stringify(props.baseline ?? props.event));
 const triggerOptions = computed(() =>
   triggers(props.eventTypes).map((option) => ({
     value: option.value,
@@ -111,9 +115,10 @@ const filters = computed({
 watch(
   () => props.event,
   (event) => {
-    draft.value = cloneRecord(event);
+    if (JSON.stringify(event) !== JSON.stringify(draft.value)) draft.value = cloneRecord(event);
   },
 );
+watch(draft, (event) => emit('change', cloneRecord(event)), { deep: true, flush: 'sync' });
 watch(changed, (value) => (dirty.value = value), { immediate: true });
 
 function update(patch: Partial<LiveEvent>): void {
@@ -146,7 +151,7 @@ function confirmDelete(): void {
 }
 
 function discard(): void {
-  draft.value = cloneRecord(props.event);
+  draft.value = cloneRecord(props.baseline ?? props.event);
 }
 </script>
 
@@ -340,6 +345,7 @@ function discard(): void {
         v-if="!isNew"
         size="sm"
         variant="danger"
+        :disabled="busy || saveBlocked"
         @click="deleteOpen = true"
       >
         {{ t('automations.editor.delete') }}
@@ -347,7 +353,7 @@ function discard(): void {
       <span class="event-editor__spacer" />
       <BaseButton
         size="sm"
-        :disabled="!changed || isNew"
+        :disabled="!changed || isNew || busy"
         @click="discard"
       >
         {{ t('automations.editor.discard') }}
@@ -355,7 +361,7 @@ function discard(): void {
       <BaseButton
         size="sm"
         variant="primary"
-        :disabled="!changed"
+        :disabled="!changed || busy || saveBlocked"
         @click="emit('save', draft)"
       >
         {{ t('automations.editor.save') }}
@@ -377,6 +383,7 @@ function discard(): void {
       :title="t('automations.editor.deleteEventTitle')"
       :message="t('automations.editor.deleteEventMessage', { name: draft.name })"
       :confirm-label="t('automations.editor.deleteConfirm')"
+      :busy="busy || saveBlocked"
       danger
       @confirm="confirmDelete"
     />

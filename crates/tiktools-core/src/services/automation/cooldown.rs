@@ -14,7 +14,12 @@ const COOLDOWN_MAP_BOUND: usize = 8_192;
 
 impl AutomationService {
     pub fn claim_event(&self, record: &Value, event: &Value, now: u64) -> bool {
-        if !event_record_matches(record, event) {
+        // Matching, filter re-evaluation and viewer cooldown keys share the
+        // same closed event view for an approved definition.
+        let Some(event) = self.scoped_event(record, event) else {
+            return false;
+        };
+        if !event_record_matches(record, &event) {
             return false;
         }
         let cooldown_ms = record

@@ -16,8 +16,9 @@ mod unix;
 #[cfg(windows)]
 mod windows;
 
-pub use framing::{MAX_PARAMS_BYTES, MAX_REQUEST_BYTES};
-pub use stdio::run_stdio;
+pub(crate) use framing::{read_capped_owner_response_line, LineOutcome};
+pub use framing::{MAX_OWNER_RESPONSE_BYTES, MAX_PARAMS_BYTES, MAX_REQUEST_BYTES};
+pub use stdio::{run_stdio, run_stdio_shared};
 #[cfg(unix)]
 pub(crate) use unix::ipc_socket_path;
 #[cfg(windows)]

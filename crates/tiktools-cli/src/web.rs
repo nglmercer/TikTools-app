@@ -20,7 +20,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use tiktools_control_api::{ControlClient, ControlEvent};
+use tiktools_control_api::{ControlClient, ControlEvent, MAX_OWNER_RESPONSE_BYTES};
 use tokio::{sync::Semaphore, task::JoinSet};
 
 const PAIRING_RENEW_COOLDOWN: Duration = Duration::from_secs(30);
@@ -641,8 +641,19 @@ async fn socket_loop(mut socket: WebSocket, client: ControlClient, app: Arc<App>
                 } else {
                     let client = client.clone();
                     calls.spawn(async move {
-                        match client.call_value(&method, request.get("params").cloned().unwrap_or(json!({}))).await {
-                            Ok(result) => json!({"type": "rpc-response", "response": {"jsonrpc": "2.0", "id": id, "result": result}}),
+                        let metadata = match request.get("meta").filter(|meta|!meta.is_null()) {
+                            Some(meta) => match serde_json::from_value::<tiktools_control_api::RequestMetadata>(meta.clone()) {
+                                Ok(meta) => Some(meta),
+                                Err(_) => return rpc_error(id, "invalid_params", "invalid request metadata"),
+                            },
+                            None => None,
+                        };
+                        match client.call_value_with_meta(&method, request.get("params").cloned().unwrap_or(json!({})), metadata).await {
+                            Ok(result) => {
+                                let mut response = json!({"type": "rpc-response", "response": {"jsonrpc": "2.0", "id": id, "result": result.result}});
+                                if let Some(meta) = result.meta { response["response"]["meta"] = json!(meta); }
+                                response
+                            },
                             Err(error) => {
                                 let mut response = rpc_error(id, &error.code, &error.message);
                                 if let Some(data) = error.data { response["response"]["error"]["data"] = data; }
@@ -659,16 +670,14 @@ async fn socket_loop(mut socket: WebSocket, client: ControlClient, app: Arc<App>
             event = events.recv() => {
                 match event {
                     Ok(ControlEvent::Domain(event)) => tiktools_control_api::event_notification(&event),
+                    Ok(ControlEvent::Reliable(event)) => json!({"jsonrpc":"2.0","method":"event","params":event}),
                     Ok(ControlEvent::Gap { lost }) => json!({"jsonrpc":"2.0", "method":"event.gap", "params":{"lost":lost}}),
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(lost)) => json!({"jsonrpc":"2.0", "method":"event.gap", "params":{"lost":lost}}),
                     Err(_) => break,
                 }
             }
         };
-        let text = outgoing.to_string();
-        if text.len() > MAX_FRAME {
-            break;
-        }
+        let text = bounded_owner_message(outgoing);
         if !matches!(
             tokio::time::timeout(
                 Duration::from_secs(5),
@@ -685,6 +694,38 @@ async fn socket_loop(mut socket: WebSocket, client: ControlClient, app: Arc<App>
 
 fn rpc_error(id: Value, code: &str, message: &str) -> Value {
     json!({"type":"rpc-response", "response":{"jsonrpc":"2.0", "id":id, "error":{"code":code, "message":message}}})
+}
+
+/// The loopback Owner adapter carries complete source reviews. Request limits
+/// and the separately negotiated remote gateway frame limits stay unchanged.
+fn bounded_owner_message(outgoing: Value) -> String {
+    let text = outgoing.to_string();
+    if text.len() <= MAX_OWNER_RESPONSE_BYTES {
+        return text;
+    }
+    let bounded = if let Some(id) = outgoing
+        .get("response")
+        .and_then(|response| response.get("id"))
+    {
+        rpc_error(
+            id.clone(),
+            "too_large",
+            "local owner response exceeds its bounded size limit",
+        )
+    } else {
+        json!({"jsonrpc":"2.0","method":"event.gap","params":{"lost":1,"resync":true}})
+    };
+    let encoded = bounded.to_string();
+    if encoded.len() <= MAX_OWNER_RESPONSE_BYTES {
+        encoded
+    } else {
+        rpc_error(
+            Value::Null,
+            "too_large",
+            "local owner response exceeds its bounded size limit",
+        )
+        .to_string()
+    }
 }
 
 async fn asset(State(app): State<Arc<App>>, headers: HeaderMap, request: Request) -> Response {
@@ -917,6 +958,37 @@ const PAIR_SCRIPT: &str = r#"(() => {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn owner_source_responses_can_exceed_request_frames_but_remain_bounded() {
+        let data = "review-source".repeat(MAX_FRAME / 6);
+        let outgoing = json!({"type":"rpc-response","response":{"jsonrpc":"2.0","id":17,"result":{"source":data}}});
+        let encoded = bounded_owner_message(outgoing);
+        assert!(encoded.len() > MAX_FRAME && encoded.len() < MAX_OWNER_RESPONSE_BYTES);
+        let decoded: Value = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded["response"]["id"], 17);
+        assert_eq!(decoded["response"]["result"]["source"], data);
+        assert_eq!(MAX_FRAME, 1024 * 1024);
+    }
+
+    #[test]
+    fn oversized_owner_rpc_fails_the_original_id_and_oversized_event_reports_a_gap() {
+        let data = "private-source".repeat(MAX_OWNER_RESPONSE_BYTES / 10);
+        let encoded = bounded_owner_message(
+            json!({"type":"rpc-response","response":{"id":18,"result":{"source":data}}}),
+        );
+        assert!(encoded.len() < MAX_OWNER_RESPONSE_BYTES);
+        let decoded: Value = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded["response"]["id"], 18);
+        assert_eq!(decoded["response"]["error"]["code"], "too_large");
+        assert!(decoded["response"].get("result").is_none());
+        assert!(!encoded.contains("private-source"));
+        let event = bounded_owner_message(
+            json!({"jsonrpc":"2.0","method":"event","params":{"source":"x".repeat(MAX_OWNER_RESPONSE_BYTES)}}),
+        );
+        let decoded: Value = serde_json::from_str(&event).unwrap();
+        assert_eq!(decoded["method"], "event.gap");
+        assert_eq!(decoded["params"]["lost"], 1);
+    }
     use super::*;
 
     #[test]

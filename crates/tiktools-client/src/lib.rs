@@ -5,6 +5,7 @@
 //! ```text
 //! TikToolsClient -> ControlApi -> AppCore        (direct, in-process)
 //! TikToolsClient -> IPC -> ControlApi -> AppCore (connected, local socket)
+//! TikToolsClient -> HTTPS/WSS -> ControlApi      (optional remote, no client core)
 //! ```
 //!
 //! Typed methods mirror the registry one-to-one: each RPC name has one
@@ -15,8 +16,12 @@
 pub mod analytics;
 pub mod app;
 pub mod automation;
+pub mod automation_adoption;
+pub mod automation_approval;
+pub mod automation_effects;
 #[cfg(feature = "cloud-auth")]
 pub mod cloud;
+pub mod collaboration;
 pub mod competitions;
 pub mod creators;
 pub mod gifts;
@@ -31,6 +36,8 @@ pub mod processors;
 pub mod publishers;
 pub mod rankings;
 pub mod registry;
+#[cfg(feature = "remote")]
+pub mod remote;
 pub mod rpc;
 pub mod settings;
 #[cfg(feature = "cloud-auth")]
@@ -42,7 +49,10 @@ pub mod validate;
 pub mod widgets;
 pub mod workflows;
 
-pub use tiktools_control_api::{ClientError, ControlApi, ControlClient, ControlEvent, MethodMeta};
+pub use tiktools_control_api::{
+    CallResult, ClientError, ControlApi, ControlClient, ControlEvent, MethodMeta, RequestMetadata,
+    ResponseMetadata,
+};
 pub use validate::validate_params;
 
 use std::sync::{
@@ -65,10 +75,15 @@ static NEXT_DIRECT_ID: AtomicI64 = AtomicI64::new(1);
 /// tests); `Connected` wraps an IPC [`ControlClient`] (CLI against a
 /// running host). Both backends expose identical typed methods and one
 /// [`ControlEvent`] stream shape.
+/// With `remote`, `Remote` uses an authenticated HTTPS/WSS connection. Remote
+/// identity and permissions are always enforced by that host; no local fallback
+/// or automatic business-call retry is performed.
 #[derive(Clone)]
 pub enum TikToolsClient {
     Direct(Arc<ControlApi>),
     Connected(ControlClient),
+    #[cfg(feature = "remote")]
+    Remote(remote::RemoteClient),
 }
 
 impl TikToolsClient {
@@ -90,6 +105,8 @@ impl TikToolsClient {
         match self {
             Self::Direct(api) => api.subscribe_broadcast(),
             Self::Connected(client) => client.subscribe(),
+            #[cfg(feature = "remote")]
+            Self::Remote(client) => client.subscribe(),
         }
     }
 
@@ -111,9 +128,43 @@ impl TikToolsClient {
     where
         P: Serialize,
     {
+        self.call_value_with_meta(method, params, None)
+            .await
+            .map(|response| response.result)
+    }
+
+    pub async fn call_with_meta<P, R>(
+        &self,
+        method: &str,
+        params: P,
+        meta: Option<RequestMetadata>,
+    ) -> Result<CallResult<R>, ClientError>
+    where
+        P: Serialize,
+        R: DeserializeOwned,
+    {
+        let response = self.call_value_with_meta(method, params, meta).await?;
+        Ok(CallResult {
+            result: serde_json::from_value(response.result)
+                .map_err(|_| ClientError::new("protocol", "bad result shape"))?,
+            meta: response.meta,
+        })
+    }
+
+    pub async fn call_value_with_meta<P>(
+        &self,
+        method: &str,
+        params: P,
+        meta: Option<RequestMetadata>,
+    ) -> Result<CallResult<Value>, ClientError>
+    where
+        P: Serialize,
+    {
         match self {
-            Self::Direct(api) => call_direct(api, method, params).await,
-            Self::Connected(client) => client.call_value(method, params).await,
+            Self::Direct(api) => call_direct(api, method, params, meta).await,
+            Self::Connected(client) => client.call_value_with_meta(method, params, meta).await,
+            #[cfg(feature = "remote")]
+            Self::Remote(client) => client.call_value_with_meta(method, params, meta).await,
         }
     }
 
@@ -124,10 +175,14 @@ impl TikToolsClient {
             analytics::METHODS,
             app::METHODS,
             automation::METHODS,
+            automation_adoption::METHODS,
+            automation_approval::METHODS,
+            automation_effects::METHODS,
             #[cfg(feature = "cloud-auth")]
             cloud::METHODS,
             creators::METHODS,
             competitions::METHODS,
+            collaboration::METHODS,
             gifts::METHODS,
             globals::METHODS,
             live::METHODS,
@@ -157,16 +212,21 @@ impl TikToolsClient {
 /// Executes one typed call against an in-process [`ControlApi`],
 /// mapping the RPC response onto the same [`ClientError`] shape the
 /// IPC backend produces so callers never branch on the backend.
-async fn call_direct<P>(api: &ControlApi, method: &str, params: P) -> Result<Value, ClientError>
+async fn call_direct<P>(
+    api: &ControlApi,
+    method: &str,
+    params: P,
+    meta: Option<RequestMetadata>,
+) -> Result<CallResult<Value>, ClientError>
 where
     P: Serialize,
 {
     let params = serde_json::to_value(params)
         .map_err(|error| ClientError::new("protocol", error.to_string()))?;
     let id = NEXT_DIRECT_ID.fetch_add(1, Ordering::Relaxed);
-    let response = api
-        .execute(RpcRequest::new(RpcId::Number(id), method, params))
-        .await;
+    let mut request = RpcRequest::new(RpcId::Number(id), method, params);
+    request.meta = meta;
+    let response = api.execute(request).await;
     if let Some(error) = response.error {
         return Err(ClientError {
             code: error.code,
@@ -174,5 +234,8 @@ where
             data: error.data,
         });
     }
-    Ok(response.result.unwrap_or(Value::Null))
+    Ok(CallResult {
+        result: response.result.unwrap_or(Value::Null),
+        meta: response.meta,
+    })
 }

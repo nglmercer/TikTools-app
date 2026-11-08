@@ -77,6 +77,26 @@ impl PluginRuntime for ProcessPluginRuntime {
         manifest: &PluginManifest,
         directory: &Path,
     ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+        self.load_at(manifest, directory, None)
+    }
+
+    fn load_isolated(
+        &self,
+        manifest: &PluginManifest,
+        directory: &Path,
+        data_directory: &Path,
+    ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+        self.load_at(manifest, directory, Some(data_directory))
+    }
+}
+
+impl ProcessPluginRuntime {
+    fn load_at(
+        &self,
+        manifest: &PluginManifest,
+        directory: &Path,
+        isolated_data: Option<&Path>,
+    ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
         let entry = manifest.entry.as_str();
         let package_root = fs::canonicalize(directory).map_err(|error| {
             PluginLoaderError::Runtime(format!(
@@ -99,12 +119,18 @@ impl PluginRuntime for ProcessPluginRuntime {
         }
 
         let (program, args) = process_command(&entry_path)?;
-        let data_directory = env::var_os("TIKTOOLS_PLUGIN_DATA_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| directory.join(".data"));
-        let storage_file = env::var_os("TIKTOOLS_PLUGIN_STORAGE_FILE")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| data_directory.join("storage.json"));
+        let data_directory = isolated_data.map(Path::to_path_buf).unwrap_or_else(|| {
+            env::var_os("TIKTOOLS_PLUGIN_DATA_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| directory.join(".data"))
+        });
+        let storage_file = if isolated_data.is_some() {
+            data_directory.join("storage.json")
+        } else {
+            env::var_os("TIKTOOLS_PLUGIN_STORAGE_FILE")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| data_directory.join("storage.json"))
+        };
         let mut command = Command::new(program);
         command
             .args(args)

@@ -28,6 +28,10 @@ pub type MediaHostFuture<T> = Pin<Box<dyn Future<Output = Result<T, MediaHostErr
 /// The only desktop functionality required by the framework-independent core.
 /// Implementations must not copy the selected media file.
 pub trait MediaHost: Send + Sync {
+    /// Whether this host provides the default audio output sink.
+    fn supports_audio(&self) -> bool {
+        true
+    }
     fn open_picker(&self, options: MediaPickerOptions) -> MediaHostFuture<Option<PathBuf>>;
     fn play_audio(
         &self,
@@ -84,6 +88,9 @@ pub enum MediaError {
 pub struct NoopMediaHost;
 
 impl MediaHost for NoopMediaHost {
+    fn supports_audio(&self) -> bool {
+        false
+    }
     fn open_picker(&self, _options: MediaPickerOptions) -> MediaHostFuture<Option<PathBuf>> {
         Box::pin(async {
             Err(MediaHostError::Unavailable(

@@ -51,6 +51,6 @@ impl AppCore {
         let event = serde_json::json!({"id": format!("{}-{}", kind.replace('.', "-"), self.next_sequence()),
             "type": kind, "timestamp": crate::now_millis(),
             "creator": {"uniqueId": data.creator_id, "roomId": data.room_id}, "data": data});
-        self.queue_automation_event(event);
+        self.queue_automation_event(crate::live_events::AutomationEvent::owner(event));
     }
 }

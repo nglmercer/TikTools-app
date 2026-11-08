@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import type { ActionTypeDefinition, BehaviorSnapshot, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
+import { ControlCallError, type ControlCallOptions, type RequestMetadata, type RpcParams } from '@/shared/api/control-client.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
+import { proposalFixture } from '@/features/review-automation-proposal/testing/fixture.ts';
 import AutomationsPage from './AutomationsPage.vue';
 
 enableAutoUnmount(afterEach);
@@ -56,12 +58,49 @@ const runs = [
   { id: 'r1', at: Date.now(), status: 'ok', actionId: 'a1', actionName: 'Log gift', eventName: 'Big gifts', summary: 'logged', durationMs: 3, test: false, logs: [] },
 ];
 
-async function mountPage() {
+async function mountPage(intercept?: (method: string, params: RpcParams | undefined, options?: ControlCallOptions) => unknown) {
   const snapshot: BehaviorSnapshot = { actions: [logAction], events: [giftEvent, chatEvent], plugins: [], actionTypes, translations: {} };
-  const { client, calls } = createFakeControlClient((method) => {
-    if (method === 'automation.snapshot') return snapshot;
+  const versions = new Map([['action:a1', '1'], ['event:e1', '1'], ['event:e2', '1']]);
+  const requests: Array<{ method: string; meta?: RequestMetadata }> = [];
+  const { client, calls } = createFakeControlClient((method, params, options) => {
+    requests.push({ method, meta: options?.meta });
+    const overridden = intercept?.(method, params, options);
+    if (overridden !== undefined) return overridden;
+    if (method === 'system.info') return { features: { persistence: true } };
+    if (method === 'automation.snapshot') {
+      options?.onMetadata?.({ resourceVersions: [
+        ...snapshot.actions.map((r) => ({ kind: 'automation', scope: 'action', id: r.id, revision: versions.get(`action:${r.id}`)! })),
+        ...snapshot.events.map((r) => ({ kind: 'automation', scope: 'event', id: r.id, revision: versions.get(`event:${r.id}`)! })),
+      ] });
+      return structuredClone(snapshot);
+    }
     if (method === 'automation.runs') return { runs };
     if (method === 'app.state.get') return { state: {} };
+    if (['automation.get', 'automation.create', 'automation.update', 'automation.delete', 'automation.enable', 'automation.disable'].includes(method)) {
+      const kind = params?.kind as 'event' | 'action';
+      const record = params?.record as LiveAction | LiveEvent | undefined;
+      const id = (params?.id ?? record?.id) as string;
+      const list = (kind === 'action' ? snapshot.actions : snapshot.events) as Array<LiveAction | LiveEvent>;
+      const key = `${kind}:${id}`;
+      const version = versions.get(key) ?? '0';
+      const index = list.findIndex((r) => r.id === id);
+      const metadata = () => ({ resourceVersions: [{ kind: 'automation', scope: kind, id, revision: versions.get(key) ?? '0' }] });
+      if (method === 'automation.get') {
+        if (index < 0) throw new ControlCallError('automation_not_found', 'Deleted on host', metadata());
+        options?.onMetadata?.(metadata()); return list[index];
+      }
+      if (options?.meta?.expectedRevision !== version) throw new ControlCallError('revision_conflict', 'Host changed', metadata());
+      if (method === 'automation.create' && index >= 0) throw new ControlCallError('revision_conflict', 'Already present', metadata());
+      if (method === 'automation.update' && index < 0) throw new ControlCallError('automation_not_found', 'Deleted on host', metadata());
+      versions.set(key, String(BigInt(version) + 1n));
+      if (method === 'automation.delete') {
+        if (index >= 0) list.splice(index, 1);
+        options?.onMetadata?.(metadata()); return { id, deleted: index >= 0 };
+      }
+      const next = structuredClone(record ?? { ...list[index]!, enabled: method === 'automation.enable' });
+      if (index < 0) list.push(next); else list[index] = next;
+      options?.onMetadata?.(metadata()); return next;
+    }
     return {};
   });
   const stores = createStoreHarness(client);
@@ -71,7 +110,7 @@ async function mountPage() {
   const wrapper = mountWithPlugins(AutomationsPage, { attachTo: document.body, global: { plugins: stores.plugins } });
   await flushPromises();
   calls.length = 0;
-  return { wrapper, calls };
+  return { wrapper, calls, requests, snapshot, versions, automation, client };
 }
 
 function buttonByText(wrapper: VueWrapper, label: string) {
@@ -115,10 +154,14 @@ describe('AutomationsPage', () => {
   });
 
   it('toggles a record from the table', async () => {
-    const { wrapper, calls } = await mountPage();
+    const { wrapper, calls, requests } = await mountPage();
     await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
+    expect(calls.some((call) => call.method === 'automation.disable')).toBe(false);
+    expect(document.body.textContent).toContain('e2 · version 1');
+    documentButton('Confirm change').click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'automation.disable')?.params).toEqual({ id: 'e2', kind: 'event' });
+    expect(requests.find((call) => call.method === 'automation.disable')?.meta).toEqual({ expectedRevision: '1' });
   });
 
   it('creates and saves a new event', async () => {
@@ -127,7 +170,7 @@ describe('AutomationsPage', () => {
     await wrapper.get('.event-editor input[type="text"]').setValue('Followers');
     await buttonByText(wrapper, 'Save').trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'automation.update')?.params).toMatchObject({
+    expect(calls.find((call) => call.method === 'automation.create')?.params).toMatchObject({
       kind: 'event',
       record: { name: 'Followers', trigger: 'tiktok.gift' },
     });
@@ -143,7 +186,7 @@ describe('AutomationsPage', () => {
     expect(wrapper.find('.action-editor').exists()).toBe(true);
     await buttonByText(wrapper, 'Save').trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'automation.update')?.params).toMatchObject({
+    expect(calls.find((call) => call.method === 'automation.create')?.params).toMatchObject({
       kind: 'action',
       record: { typeId: 'core.log', name: 'Write to log' },
     });
@@ -246,5 +289,178 @@ describe('AutomationsPage', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('pins the base across background refreshes, preserves a conflicting draft and rebases without resubmitting', async () => {
+    const { wrapper, snapshot, versions, automation, requests, calls } = await mountPage();
+    await selectRow(wrapper, 'Big gifts');
+    await wrapper.get('.event-editor input[type="text"]').setValue('My draft');
+    snapshot.events[0] = { ...giftEvent, name: 'Edited on host', enabled: false };
+    versions.set('event:e1', '2');
+    await automation.refresh(); await flushPromises();
+    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My draft');
+    expect(wrapper.text()).toContain('changed since you opened it');
+    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    expect(requests.find((call) => call.method === 'automation.update')?.meta).toEqual({ expectedRevision: '1' });
+    expect(wrapper.text()).toContain('Your draft is retained');
+    expect((buttonByText(wrapper, 'Save').element as HTMLButtonElement).disabled).toBe(true);
+    await buttonByText(wrapper, 'Compare with host').trigger('click'); await flushPromises();
+    expect(document.body.textContent).toContain('Starting version');
+    expect(document.body.textContent).toContain('Edited on host');
+    expect(document.body.textContent).toContain('My draft');
+    const writes = calls.filter((call) => call.method === 'automation.update').length;
+    documentButton('Use this version as the draft base').click(); await flushPromises();
+    expect(calls.filter((call) => call.method === 'automation.update')).toHaveLength(writes);
+    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My draft');
+    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    expect(requests.filter((call) => call.method === 'automation.update').at(-1)?.meta).toEqual({ expectedRevision: '2' });
+    expect(versions.get('event:e1')).toBe('3');
+    expect(wrapper.text()).not.toContain('Unsaved changes');
+  });
+
+  it('does not reset even an untouched opening base when the host changes it', async () => {
+    const { wrapper, snapshot, versions, automation, requests } = await mountPage();
+    await selectRow(wrapper, 'Big gifts');
+    snapshot.events[0] = { ...giftEvent, name: 'New host name' }; versions.set('event:e1', '2');
+    await automation.refresh(); await flushPromises();
+    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Big gifts');
+    await wrapper.get('.event-editor input[type="text"]').setValue('Edited from old base');
+    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    expect(requests.find((r) => r.method === 'automation.update')?.meta?.expectedRevision).toBe('1');
+  });
+
+  it('keeps a deleted record draft and never falls back from update to create', async () => {
+    const { wrapper, snapshot, versions, automation, calls, requests } = await mountPage();
+    await selectRow(wrapper, 'Big gifts');
+    await wrapper.get('.event-editor input[type="text"]').setValue('Keep this text');
+    snapshot.events.splice(0, 1); versions.set('event:e1', '2');
+    await automation.refresh(); await flushPromises();
+    expect(wrapper.find('.event-editor').exists()).toBe(true);
+    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    expect(calls.some((r) => r.method === 'automation.create')).toBe(false);
+    await buttonByText(wrapper, 'Compare with host').trigger('click'); await flushPromises();
+    expect(document.body.textContent).toContain('This ID is absent');
+    documentButton('Prepare recreation with this draft').click(); await flushPromises();
+    expect(calls.some((r) => r.method === 'automation.create')).toBe(false);
+    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    expect(requests.find((r) => r.method === 'automation.create')?.meta?.expectedRevision).toBe('2');
+    expect(snapshot.events.some((r) => r.id === 'e1' && r.name === 'Keep this text')).toBe(true);
+  });
+
+  it('retains dirty text on a failed save and asks before navigation', async () => {
+    const { wrapper, calls } = await mountPage((method) => {
+      if (method === 'automation.update') return Promise.reject(new ControlCallError('timeout', 'Acknowledgement lost'));
+      return undefined;
+    });
+    await selectRow(wrapper, 'Big gifts');
+    await wrapper.get('.event-editor input[type="text"]').setValue('Unconfirmed draft');
+    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    expect(wrapper.text()).toContain('outcome is unconfirmed');
+    expect(wrapper.text()).toContain('Unsaved changes');
+    expect(calls.filter((r) => r.method === 'automation.update')).toHaveLength(1);
+    await selectRow(wrapper, 'Chat hello');
+    expect(document.body.textContent).toContain('Discard changes?');
+    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Unconfirmed draft');
+  });
+
+  it('preserves newer form edits when a delayed save is acknowledged', async () => {
+    let finish!: (record: LiveEvent) => void;
+    let submitted!: LiveEvent;
+    const pending = new Promise<LiveEvent>((resolve) => { finish = resolve; });
+    const { wrapper, snapshot, versions } = await mountPage((method, params, options) => {
+      if (method !== 'automation.update') return undefined;
+      submitted = params?.record as LiveEvent;
+      options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: 'event', id: 'e1', revision: '2' }] });
+      return pending;
+    });
+    await selectRow(wrapper, 'Big gifts');
+    await wrapper.get('.event-editor input[type="text"]').setValue('Submitted text');
+    await buttonByText(wrapper, 'Save').trigger('click');
+    await wrapper.get('.event-editor input[type="text"]').setValue('Newer text');
+    snapshot.events[0] = submitted; versions.set('event:e1', '2'); finish(submitted);
+    await flushPromises();
+    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Newer text');
+    expect(wrapper.text()).toContain('Unsaved changes');
+    expect((buttonByText(wrapper, 'Save').element as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('a delayed acknowledgement cannot select or clear another editor after explicit navigation', async () => {
+    let finish!: (record: LiveEvent) => void;
+    let submitted!: LiveEvent;
+    const pending = new Promise<LiveEvent>((resolve) => { finish = resolve; });
+    const { wrapper, snapshot, versions } = await mountPage((method, params, options) => {
+      if (method !== 'automation.update') return undefined;
+      submitted = params?.record as LiveEvent;
+      options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: 'event', id: 'e1', revision: '2' }] });
+      return pending;
+    });
+    await selectRow(wrapper, 'Big gifts');
+    await wrapper.get('.event-editor input[type="text"]').setValue('Pending first edit');
+    await buttonByText(wrapper, 'Save').trigger('click');
+    await selectRow(wrapper, 'Chat hello'); documentButton('Discard').click(); await flushPromises();
+    await wrapper.get('.event-editor input[type="text"]').setValue('Second draft');
+    snapshot.events[0] = submitted; versions.set('event:e1', '2'); finish(submitted); await flushPromises();
+    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Second draft');
+    expect(wrapper.text()).toContain('Unsaved changes');
+  });
+
+  it('failed deletion keeps the editor and its unsaved candidate', async () => {
+    const { wrapper } = await mountPage((method) => method === 'automation.delete'
+      ? Promise.reject(new ControlCallError('revision_conflict', 'Changed before delete')) : undefined);
+    await selectRow(wrapper, 'Chat hello');
+    await wrapper.get('.event-editor input[type="text"]').setValue('Keep after delete failed');
+    await buttonByText(wrapper, 'Delete…').trigger('click'); await nextTick(); documentButton('Delete').click(); await flushPromises();
+    expect(wrapper.find('.event-editor').exists()).toBe(true);
+    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Keep after delete failed');
+    expect(wrapper.text()).toContain('Changed before delete');
+  });
+
+  it('canceling enablement restores the committed checkbox without a write', async () => {
+    const { wrapper, calls } = await mountPage();
+    await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
+    await nextTick(); documentButton('Cancel').click(); await flushPromises();
+    expect((wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true);
+    expect(calls.some((r) => r.method === 'automation.disable')).toBe(false);
+  });
+
+  it('an enablement conflict requires a fresh read and another explicit confirmation', async () => {
+    const { wrapper, snapshot, versions, requests } = await mountPage();
+    await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
+    snapshot.events[1] = { ...chatEvent, name: 'New name before confirmation' }; versions.set('event:e2', '2');
+    documentButton('Confirm change').click(); await flushPromises();
+    expect(requests.find((r) => r.method === 'automation.disable')?.meta?.expectedRevision).toBe('1');
+    expect(document.body.textContent).toContain('Host changed');
+    documentButton('Read current host version').click(); await flushPromises();
+    expect(document.body.textContent).toContain('New name before confirmation');
+    expect(requests.filter((r) => r.method === 'automation.disable')).toHaveLength(1);
+    documentButton('Confirm change').click(); await flushPromises();
+    expect(requests.filter((r) => r.method === 'automation.disable').at(-1)?.meta?.expectedRevision).toBe('2');
+  });
+
+  it('reviews saved owner authority and adopts without saving, replacing or enabling the unsaved editor candidate', async () => {
+    const native = proposalFixture();
+    native.source.id = 'e1';
+    native.source.record = structuredClone(giftEvent) as unknown as Record<string, unknown>;
+    native.source.dependencies = [{ id: 'a1', record: structuredClone(logAction) as unknown as Record<string, unknown>,
+      provenance: { authority: { kind: 'owner' }, generation: '1' } }];
+    native.versions.splice(0, native.versions.length,
+      { kind: 'automation', scope: 'event', id: 'e1', revision: '1' },
+      { kind: 'automation', scope: 'action', id: 'a1', revision: '1' });
+    const { wrapper, calls } = await mountPage((method, params, options) =>
+      method === 'automation.review' || method === 'automation.approval.get' || method.startsWith('automation.adoption.') ? native.handle(method, params, options) : undefined);
+    expect(buttonByText(wrapper, 'Review saved authority')).toBeUndefined();
+    expect(buttonByText(wrapper, 'Adoption history').exists()).toBe(true);
+    await selectRow(wrapper, 'Big gifts');
+    await wrapper.get('.event-editor input[type="text"]').setValue('My untouched unsaved draft');
+    await buttonByText(wrapper, 'Review saved authority').trigger('click'); await flushPromises();
+    const review = wrapper.get('.proposal-dialog');
+    expect(review.text()).toContain('Big gifts');
+    expect(review.text()).not.toContain('My untouched unsaved draft');
+    await review.get('[data-test="adoption-acknowledge"]').setValue(true);
+    await review.get('[data-test="adoption-submit"]').trigger('click'); await flushPromises();
+    expect(calls.filter((r) => r.method === 'automation.adoption.submit')).toHaveLength(1);
+    expect(calls.some((r) => ['automation.update', 'automation.create', 'automation.enable'].includes(r.method))).toBe(false);
+    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My untouched unsaved draft');
+    expect(wrapper.text()).toContain('Unsaved changes');
   });
 });

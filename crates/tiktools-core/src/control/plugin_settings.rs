@@ -127,20 +127,9 @@ impl AppCore {
                 plugin.manifest.id
             )));
         }
-        let directory = self
-            .capabilities
-            .ensure_plugin_data_dir(&plugin.manifest)
+        self.capabilities
+            .reset_plugin_settings(&plugin.manifest)
             .map_err(|error| OperationError::internal(error.to_string()))?;
-        let path = directory.join("settings.json");
-        match std::fs::remove_file(&path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => {
-                return Err(OperationError::internal(format!(
-                    "could not reset plugin settings: {error}"
-                )))
-            }
-        }
         self.bump_processor_settings_revision(&plugin.manifest.id);
         self.option_sources.clear();
         self.events

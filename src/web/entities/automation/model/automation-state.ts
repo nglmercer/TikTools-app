@@ -21,10 +21,11 @@ import {
 } from '../../../../automation/plugins/declarative.ts';
 import type { HotkeyStatusData } from '../../../../shared/messages.ts';
 import type { ControlClient } from '@/shared/api/control-client.ts';
-import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
+import { callWithMeta, ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
+import { assertRecord, automationVersions, recordKey, recordRevision, validRevision,
+  type AutomationKind, type AutomationRecord, type AutomationRecordVersion, type AutomationRevision, type AutomationWriteBase,
+} from './record-versions.ts';
 import { mergePluginMessages } from '@/shared/i18n/i18n.ts';
-
-type AutomationKind = 'event' | 'action';
 
 export interface AutomationRunsResult {
   runs: BehaviorRun[];
@@ -53,13 +54,26 @@ export function useAutomation(control: ControlClient) {
   control = owner.client;
   let disposed = false;
 
-  const behavior = ref<BehaviorSnapshot>({
+  const initialSnapshot: BehaviorSnapshot = {
     actions: [],
     events: [],
     plugins: [],
     actionTypes: [],
     translations: {},
+  };
+  const projection = shallowRef<{ snapshot: BehaviorSnapshot; versions: ReadonlyMap<string, string>; persistent: boolean | null }>({
+    snapshot: initialSnapshot, versions: new Map(), persistent: null,
   });
+  const behavior = computed({
+    get: () => projection.value.snapshot,
+    // Legacy test/embedding assignment is a body-only projection, never a
+    // source of checked-write authority for an unrelated version map.
+    set: (snapshot: BehaviorSnapshot) => { projection.value = { snapshot, versions: new Map(), persistent: null }; },
+  });
+  const behaviorVersions = computed(() => projection.value.versions);
+  const persistent = computed(() => projection.value.persistent);
+  const revisionFor = (kind: AutomationKind, id: string): AutomationRevision | undefined =>
+    behaviorVersions.value.get(recordKey(kind, id)) ?? (persistent.value === false ? null : undefined);
   const behaviorRuns = shallowRef<BehaviorRun[]>([]);
   let runsRevision = 0;
   let presentationActive = true;
@@ -113,7 +127,7 @@ export function useAutomation(control: ControlClient) {
     behaviorError.value = '';
   };
 
-  const applySnapshot = (snapshot: BehaviorSnapshot): void => {
+  const applySnapshot = (snapshot: BehaviorSnapshot, versions: ReadonlyMap<string, string>, persistence: boolean | null): void => {
     if (disposed) return;
     mergePluginMessages(snapshot.translations ?? {});
     setPluginEventTypes(snapshot.eventTypes ?? []);
@@ -126,7 +140,7 @@ export function useAutomation(control: ControlClient) {
         available: plugin.available,
       })),
     );
-    behavior.value = snapshot;
+    projection.value = { snapshot, versions, persistent: persistence };
     if (
       !snapshot.plugins.some(
         (plugin) => plugin.descriptor.id === 'hotkeys' && plugin.installed && plugin.enabled,
@@ -202,12 +216,27 @@ export function useAutomation(control: ControlClient) {
     const revision = ++refreshRevision;
     const runsAtStart = runsRevision;
     try {
-      const [snapshot, runs] = await Promise.all([
-        control.call<BehaviorSnapshot>('automation.snapshot', {}),
+      const [snapshot, runs, info] = await Promise.all([
+        callWithMeta<BehaviorSnapshot>(control, 'automation.snapshot', {}),
         control.call<AutomationRunsResult>('automation.runs', {}),
+        control.call<{ features?: { persistence?: boolean } }>('system.info', {}).catch(() => null),
       ]);
       if (disposed || revision !== refreshRevision) return;
-      applySnapshot(snapshot);
+      const versions = automationVersions(snapshot.meta);
+      if (!snapshot.result || !Array.isArray(snapshot.result.actions) || !Array.isArray(snapshot.result.events) ||
+          !Array.isArray(snapshot.result.plugins) || !Array.isArray(snapshot.result.actionTypes) ||
+          !snapshot.result.plugins.every((p) => p?.descriptor && typeof p.descriptor.id === 'string')) {
+        throw new ControlCallError('protocol', 'Invalid automation snapshot.');
+      }
+      for (const [kind, rows] of [['action', snapshot.result.actions], ['event', snapshot.result.events]] as const) {
+        const seen = new Set<string>();
+        for (const row of rows) {
+          assertRecord(row, kind, row?.id);
+          if (typeof row.id !== 'string' || !row.id || seen.has(row.id)) throw new ControlCallError('protocol', 'Ambiguous automation snapshot.');
+          seen.add(row.id);
+        }
+      }
+      applySnapshot(snapshot.result, versions, typeof info?.features?.persistence === 'boolean' ? info.features.persistence : null);
       if (runsAtStart === runsRevision) applyRuns(runs.runs);
     } catch (failure) {
       if (disposed || revision !== refreshRevision) return;
@@ -227,27 +256,57 @@ export function useAutomation(control: ControlClient) {
     await refresh();
   };
 
-  const saveRecord = (
-    kind: AutomationKind,
-    record: LiveAction | LiveEvent,
-  ): Promise<unknown> => {
-    const id = (record as { id?: unknown }).id;
-    if (typeof id === 'string' && id.trim() !== '') {
-      return control.call('automation.update', { id, kind, record }).catch((failure: unknown) => {
-        if (disposed) return;
-        if (failure instanceof ControlCallError && failure.code === 'automation_not_found') {
-          return control.call('automation.create', { kind, record });
-        }
-        throw failure;
-      });
+  const checkedOptions = (revision: AutomationRevision) => {
+    if (disposed) throw new ControlCallError('detached', 'Automation state was disposed.');
+    if (revision === null) {
+      if (persistent.value !== false) throw new ControlCallError('capability_unavailable', 'Read the current record revision before writing.');
+      return undefined;
     }
-    return control.call('automation.create', { kind, record });
+    if (!validRevision(revision)) throw new ControlCallError('invalid_params', 'Invalid automation base revision.');
+    return { meta: { expectedRevision: revision } };
   };
-
-  const setRecordEnabled = (kind: AutomationKind, id: string, enabled: boolean): void => {
-    void mutate(() =>
-      control.call(enabled ? 'automation.enable' : 'automation.disable', { id, kind }),
-    );
+  const readRecord = async (kind: AutomationKind, id: string): Promise<AutomationRecordVersion> => {
+    if (disposed) throw new ControlCallError('detached', 'Automation state was disposed.');
+    try {
+      const response = await callWithMeta<AutomationRecord>(control, 'automation.get', { id, kind });
+      assertRecord(response.result, kind, id);
+      return { record: response.result, revision: recordRevision(response.meta, kind, id, persistent.value === false) };
+    } catch (failure) {
+      if (!(failure instanceof ControlCallError) || failure.code !== 'automation_not_found') throw failure;
+      const data = failure.data as { resourceVersions?: unknown } | undefined;
+      const meta = Array.isArray(data?.resourceVersions) ? { resourceVersions: data.resourceVersions } : undefined;
+      return { record: null, revision: recordRevision(meta, kind, id, persistent.value === false) };
+    }
+  };
+  const mutateVersioned = async <T>(work: () => Promise<T>): Promise<T> => {
+    // An older snapshot read cannot rewind a successful write's refresh.
+    ++refreshRevision;
+    // The page owns its failure/draft scope; a late rejection must not put an
+    // old record's error into a different editor. Legacy handlers report below.
+    const result = await work();
+    if (!disposed) await refresh();
+    return result;
+  };
+  const deleteRecord = (kind: AutomationKind, id: string, revision: AutomationRevision): Promise<void> => {
+    const options = checkedOptions(revision);
+    return mutateVersioned(async () => {
+      const response = await callWithMeta<{ deleted: boolean }>(control, 'automation.delete', { id, kind }, options);
+      const after = recordRevision(response.meta, kind, id, revision === null);
+      if (revision !== null && after !== (response.result.deleted ? String(BigInt(revision) + 1n) : revision)) {
+        throw new ControlCallError('protocol', 'Unexpected automation delete revision.');
+      }
+    });
+  };
+  const setRecordEnabled = (kind: AutomationKind, id: string, enabled: boolean, revision: AutomationRevision): Promise<void> => {
+    const options = checkedOptions(revision);
+    return mutateVersioned(async () => {
+      const response = await callWithMeta<AutomationRecord>(control, enabled ? 'automation.enable' : 'automation.disable', { id, kind }, options);
+      assertRecord(response.result, kind, id);
+      const after = recordRevision(response.meta, kind, id, revision === null);
+      if (response.result.enabled !== enabled || (revision !== null && after !== String(BigInt(revision) + 1n))) {
+        throw new ControlCallError('protocol', 'Unexpected automation enablement acknowledgement.');
+      }
+    });
   };
 
   const testRecord = (
@@ -269,26 +328,26 @@ export function useAutomation(control: ControlClient) {
       });
   };
 
-  const handleSaveAction = (action: LiveAction): void => {
-    void mutate(() => saveRecord('action', action));
+  const handleSaveAction = (action: LiveAction, base: AutomationWriteBase): void => {
+    void mutate(() => saveRecordAndRefresh('action', action, base));
   };
-  const handleDeleteAction = (id: string): void => {
-    void mutate(() => control.call('automation.delete', { id, kind: 'action' }));
+  const handleDeleteAction = (id: string, revision: AutomationRevision): Promise<void> => {
+    return deleteRecord('action', id, revision);
   };
-  const handleSetActionEnabled = (id: string, enabled: boolean): void => {
-    setRecordEnabled('action', id, enabled);
+  const handleSetActionEnabled = (id: string, enabled: boolean, revision: AutomationRevision): Promise<void> => {
+    return setRecordEnabled('action', id, enabled, revision);
   };
   const handleTestAction = (action: LiveAction, trigger?: string): void => {
     testRecord('action', action, trigger);
   };
-  const handleSaveEvent = (event: LiveEvent): void => {
-    void mutate(() => saveRecord('event', event));
+  const handleSaveEvent = (event: LiveEvent, base: AutomationWriteBase): void => {
+    void mutate(() => saveRecordAndRefresh('event', event, base));
   };
-  const handleDeleteEvent = (id: string): void => {
-    void mutate(() => control.call('automation.delete', { id, kind: 'event' }));
+  const handleDeleteEvent = (id: string, revision: AutomationRevision): Promise<void> => {
+    return deleteRecord('event', id, revision);
   };
-  const handleSetEventEnabled = (id: string, enabled: boolean): void => {
-    setRecordEnabled('event', id, enabled);
+  const handleSetEventEnabled = (id: string, enabled: boolean, revision: AutomationRevision): Promise<void> => {
+    return setRecordEnabled('event', id, enabled, revision);
   };
   const handleTestEvent = (event: LiveEvent): void => {
     testRecord('event', event);
@@ -324,25 +383,29 @@ export function useAutomation(control: ControlClient) {
 
   const saveRecordAndRefresh = async (
     kind: AutomationKind,
-    record: LiveAction | LiveEvent,
-  ): Promise<void> => {
-    behaviorError.value = '';
-    try {
-      await saveRecord(kind, record);
-    } catch (failure) {
-      if (disposed) return;
-      behaviorError.value = errorMessage(failure);
-      throw failure;
-    }
-    await refresh();
+    record: AutomationRecord,
+    base: AutomationWriteBase,
+  ): Promise<AutomationRecordVersion> => {
+    const options = checkedOptions(base.revision);
+    return mutateVersioned(async () => {
+      const method = base.create ? 'automation.create' : 'automation.update';
+      const response = await callWithMeta<AutomationRecord>(control, method,
+        base.create ? { kind, record } : { id: record.id, kind, record }, options);
+      assertRecord(response.result, kind, record.id);
+      const revision = recordRevision(response.meta, kind, record.id, base.revision === null);
+      if (base.revision !== null && revision !== String(BigInt(base.revision) + 1n)) {
+        throw new ControlCallError('protocol', 'Unexpected automation save revision.');
+      }
+      return { record: response.result, revision };
+    });
   };
 
   const handleApplyRuleTemplate = (actions: LiveAction[], event: LiveEvent): void => {
     void mutate(async () => {
       for (const action of actions) {
-        await control.call('automation.create', { kind: 'action', record: action });
+        await control.call('automation.create', { kind: 'action', record: action }, checkedOptions(persistent.value === false ? null : '0'));
       }
-      await control.call('automation.create', { kind: 'event', record: event });
+      await control.call('automation.create', { kind: 'event', record: event }, checkedOptions(persistent.value === false ? null : '0'));
     });
   };
 
@@ -351,9 +414,9 @@ export function useAutomation(control: ControlClient) {
   ): Promise<void> => {
     for (const entry of entries) {
       for (const action of entry.actions) {
-        await control.call('automation.create', { kind: 'action', record: action });
+        await control.call('automation.create', { kind: 'action', record: action }, checkedOptions(persistent.value === false ? null : '0'));
       }
-      await control.call('automation.create', { kind: 'event', record: entry.event });
+      await control.call('automation.create', { kind: 'event', record: entry.event }, checkedOptions(persistent.value === false ? null : '0'));
     }
   };
 
@@ -407,6 +470,12 @@ export function useAutomation(control: ControlClient) {
     dispose,
     setPresentationActive,
     behavior,
+    behaviorVersions,
+    persistent,
+    revisionFor,
+    readRecord,
+    deleteRecord,
+    setRecordEnabled,
     behaviorRuns,
     behaviorTestRuns,
     behaviorError,

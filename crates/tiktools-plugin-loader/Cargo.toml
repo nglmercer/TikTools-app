@@ -23,6 +23,7 @@ tiktools-plugin-api = { path = "../tiktools-plugin-api" }
 rquickjs.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 # Required (not optional): the Tokio→worker call bridge is async end to
 # end — Tokio senders plus oneshot responses — so plugin calls no longer
@@ -33,6 +34,11 @@ tokio = { workspace = true }
 tracing.workspace = true
 semver.workspace = true
 libloading = { workspace = true, optional = true }
+
+[target.'cfg(target_os = "android")'.dependencies]
+# QuickJS ships no pre-generated Android bindings. Generate them with the
+# target Clang headers; keep the bindgen toolchain optional on desktop builds.
+rquickjs = { workspace = true, features = ["bindgen"] }
 
 [dev-dependencies]
 tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk" }

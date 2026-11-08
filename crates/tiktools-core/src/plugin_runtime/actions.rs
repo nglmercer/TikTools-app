@@ -1,6 +1,7 @@
 //! Plugin action lookup and execution orchestration.
 
 use super::{manifest_action_declares_field, PluginActionDescriptor};
+use crate::automation_runtime::context::ExecutionContext;
 use crate::*;
 
 impl AppCore {
@@ -9,9 +10,11 @@ impl AppCore {
         type_id: &str,
         action: &Value,
         event: &Value,
+        context: &ExecutionContext,
         logs: &mut Vec<String>,
         test: bool,
     ) -> Result<String, String> {
+        self.execution_context_guard(context)?;
         let Some((plugin, descriptor)) = self.plugin_for_action(type_id) else {
             return Err(format!(
                 "Action type `{type_id}` is not available in this host."
@@ -58,6 +61,7 @@ impl AppCore {
                     action_http,
                     action,
                     event,
+                    context,
                     logs,
                     test,
                 );
@@ -100,6 +104,7 @@ impl AppCore {
         ))
         .map_err(|error| format!("could not encode plugin action: {error}"))?;
         let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&self.plugins));
+        self.execution_context_guard(context)?;
         let response = invoker
             .call(&plugin.manifest.id, &request, action_timeout)
             .await
@@ -112,6 +117,7 @@ impl AppCore {
                 crate::plugin_invoker::InvokeError::Unavailable(reason)
                 | crate::plugin_invoker::InvokeError::Plugin(reason) => reason,
             })?;
+        self.execution_context_guard(context)?;
         self.events
             .publish_domain(crate::events::DomainEvent::PluginProgress {
                 plugin_id: plugin.manifest.id.clone(),
@@ -128,7 +134,7 @@ impl AppCore {
             }
         }
         let mut parts = self
-            .execute_plugin_intents(&plugin, typed.intents, event, logs, test)
+            .execute_plugin_intents(&plugin, typed.intents, event, context, logs, test)
             .await?;
         if let Some(summary) = typed.summary {
             parts.push(summary);

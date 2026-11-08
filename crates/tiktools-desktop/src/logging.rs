@@ -25,6 +25,16 @@ pub fn init() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let paths = AppPaths::from_environment();
     paths.ensure_directories()?;
     let log_path = paths.logs.join("tiktools.log");
+    init_at(log_path)
+}
+
+pub fn init_controller() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let logs = AppPaths::from_environment().logs;
+    fs::create_dir_all(&logs)?;
+    init_at(logs.join("controller.log"))
+}
+
+fn init_at(log_path: PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let writer = RotatingLogWriter::new(&log_path)?;
     let flush_writer = writer.clone();
     tracing_subscriber::fmt()

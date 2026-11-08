@@ -19,6 +19,8 @@ members = [
     "crates/cloud-client",
     "crates/tiktools-cloud-auth",
     "crates/tiktools-cloud-sync",
+    "crates/tiktools-collaboration",
+    "crates/tiktools-remote",
     "crates/tiktools-tiktok",
 ]
 exclude = [

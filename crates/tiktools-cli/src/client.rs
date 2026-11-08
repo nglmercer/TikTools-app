@@ -29,6 +29,35 @@ pub async fn resolve_client(standalone: bool) -> Result<TikToolsClient, ClientEr
         TikToolsClient::connect().await
     }
 }
+pub async fn resolve_selected(
+    standalone: bool,
+    profile: Option<&str>,
+) -> Result<TikToolsClient, ClientError> {
+    if let Some(profile) = profile {
+        if standalone {
+            return Err(ClientError::new(
+                "invalid_params",
+                "remote profiles cannot use standalone mode",
+            ));
+        }
+        #[cfg(feature = "remote-client")]
+        {
+            return tiktools_client::remote::profiles::ProfileManager::system()?
+                .open(profile)
+                .await
+                .map(TikToolsClient::Remote);
+        }
+        #[cfg(not(feature = "remote-client"))]
+        {
+            let _ = profile;
+            return Err(ClientError::new(
+                "unsupported_remote",
+                "remote client support is unavailable in this build",
+            ));
+        }
+    }
+    resolve_client(standalone).await
+}
 
 /// In-process client over [`headless_api`]. Uses the real data
 /// directories unless a [`SandboxHome`] guard redirected `TIKTOOLS_HOME`.
@@ -109,16 +138,16 @@ pub fn exit_code_for(error: &ClientError) -> i32 {
     }
 }
 
-pub fn print_error(json_mode: bool, code: &str, message: &str) {
+pub fn print_error(json_mode: bool, error: &ClientError) {
+    let code = &error.code;
+    let message = &error.message;
     if json_mode {
-        println!(
-            "{}",
-            serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "error": {"code": code, "message": message},
-            })
-        );
+        let mut body =
+            serde_json::json!({"jsonrpc":"2.0","id":1,"error":{"code":code,"message":message}});
+        if let Some(data) = &error.data {
+            body["error"]["data"] = crate::output::redact_secrets(data.clone());
+        }
+        println!("{body}");
     } else {
         eprintln!("tiktools: [{code}] {message}");
     }

@@ -173,6 +173,7 @@ async fn connected_subscribe_receives_domain_events() {
     let mut events = client.subscribe();
     client
         .points_adjust(PointsAdjustParams {
+            expected_currency: None,
             unique_id: "verify-bot".to_owned(),
             delta: 1.0,
         })
@@ -184,6 +185,9 @@ async fn connected_subscribe_receives_domain_events() {
         .expect("stream stays open");
     match event {
         ControlEvent::Domain(event) => assert_eq!(event.topic(), "points.changed"),
+        ControlEvent::Reliable(_) => {
+            panic!("local IPC must not receive remote subscription projections")
+        }
         ControlEvent::Gap { lost } => panic!("unexpected gap of {lost} on a fresh stream"),
     }
 }
@@ -213,6 +217,7 @@ async fn direct_concurrent_calls_and_events() {
     let mut events = client.subscribe();
     client
         .points_adjust(PointsAdjustParams {
+            expected_currency: None,
             unique_id: "verify-bot".to_owned(),
             delta: 1.0,
         })
@@ -224,6 +229,215 @@ async fn direct_concurrent_calls_and_events() {
         .expect("stream stays open");
     match event {
         ControlEvent::Domain(event) => assert_eq!(event.topic(), "points.changed"),
+        ControlEvent::Reliable(_) => {
+            panic!("local IPC must not receive remote subscription projections")
+        }
         ControlEvent::Gap { lost } => panic!("unexpected gap of {lost} on a fresh stream"),
     }
+}
+
+#[tokio::test]
+async fn cli_explicit_command_metadata_preserves_receipts_and_retries_over_ipc() {
+    let home = HomeGuard::set("command-meta");
+    let _host = HostChild::spawn(&home.path).await;
+    let client = TikToolsClient::connect().await.unwrap();
+    let instance = client
+        .collaboration_status()
+        .await
+        .unwrap()
+        .host_instance_id;
+    let params =
+        r#"{"graph":{"id":"cli-workflow","name":"CLI","enabled":false,"nodes":[],"edges":[]}}"#;
+    let invoke = |args: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_tiktools"))
+            .args(args)
+            .env("TIKTOOLS_HOME", &home.path)
+            .output()
+            .unwrap()
+    };
+    let arguments = [
+        "api",
+        "call",
+        "workflows.save",
+        params,
+        "--command-id",
+        "cli-command",
+        "--host-instance-id",
+        &instance,
+        "--expected-revision",
+        "0",
+        "--include-meta",
+        "--format",
+        "json",
+    ];
+    let first = invoke(&arguments);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let first: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(first["meta"]["command"]["commandId"], "cli-command");
+    assert_eq!(first["meta"]["resourceVersions"][0]["revision"], "1");
+    let retry = invoke(&arguments);
+    assert!(retry.status.success());
+    let retry: serde_json::Value = serde_json::from_slice(&retry.stdout).unwrap();
+    assert_eq!(retry, first);
+    let conflict = invoke(&[
+        "api",
+        "call",
+        "workflows.save",
+        params,
+        "--expected-revision",
+        "0",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(conflict.status.code(), Some(1));
+    let conflict: serde_json::Value = serde_json::from_slice(&conflict.stdout).unwrap();
+    assert_eq!(conflict["error"]["code"], "revision_conflict");
+    assert_eq!(
+        conflict["error"]["data"]["resourceVersions"][0]["revision"],
+        "1"
+    );
+    let legacy = invoke(&[
+        "api",
+        "call",
+        "workflows.get",
+        r#"{"id":"cli-workflow"}"#,
+        "--format",
+        "json",
+    ]);
+    assert!(legacy.status.success());
+    let legacy: serde_json::Value = serde_json::from_slice(&legacy.stdout).unwrap();
+    assert_eq!(legacy["id"], "cli-workflow");
+    assert!(legacy.get("meta").is_none());
+    let dry = invoke(&[
+        "api",
+        "call",
+        "workflows.save",
+        params,
+        "--command-id",
+        "dry-command",
+        "--host-instance-id",
+        &instance,
+        "--expected-revision",
+        "1",
+        "--dry-run",
+        "--include-meta",
+        "--format",
+        "json",
+    ]);
+    assert!(dry.status.success());
+    assert_eq!(
+        client
+            .collaboration_commands_get(tiktools_control_api::modules::collaboration::CommandGet {
+                command_id: "dry-command".into(),
+                principal_id: None
+            })
+            .await
+            .unwrap_err()
+            .code,
+        "not_found"
+    );
+    let outcome = invoke(&[
+        "api",
+        "call",
+        "collaboration.commands.get",
+        r#"{"commandId":"cli-command"}"#,
+        "--format",
+        "json",
+    ]);
+    assert!(outcome.status.success());
+    let outcome: serde_json::Value = serde_json::from_slice(&outcome.stdout).unwrap();
+    assert_eq!(outcome["command"]["state"], "succeeded");
+    let point_args = [
+        "api",
+        "call",
+        "points.adjust",
+        r#"{"uniqueId":"cli-viewer","delta":2}"#,
+        "--command-id",
+        "cli-points",
+        "--host-instance-id",
+        &instance,
+        "--include-meta",
+        "--format",
+        "json",
+    ];
+    let first = invoke(&point_args);
+    assert!(
+        first.status.success(),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let first: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(first["result"]["totalPoints"], 2.0);
+    assert_eq!(first["meta"]["resourceVersions"][0]["kind"], "viewer");
+    let retry = invoke(&point_args);
+    assert!(retry.status.success());
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&retry.stdout).unwrap(),
+        first
+    );
+    let cas = invoke(&[
+        "api",
+        "call",
+        "points.adjust",
+        r#"{"uniqueId":"cli-viewer","delta":2}"#,
+        "--command-id",
+        "wrong-cas",
+        "--host-instance-id",
+        &instance,
+        "--expected-revision",
+        "1",
+        "--format",
+        "json",
+    ]);
+    assert_eq!(cas.status.code(), Some(1));
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&cas.stdout).unwrap()["error"]["code"],
+        "invalid_params"
+    );
+    let missing_cas = invoke(&[
+        "api",
+        "call",
+        "workflows.save",
+        params,
+        "--command-id",
+        "missing-cas",
+        "--host-instance-id",
+        &instance,
+        "--format",
+        "json",
+    ]);
+    assert_eq!(missing_cas.status.code(), Some(1));
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&missing_cas.stdout).unwrap()["error"]["code"],
+        "invalid_params"
+    );
+    assert_eq!(
+        client
+            .collaboration_commands_get(tiktools_control_api::modules::collaboration::CommandGet {
+                command_id: "missing-cas".into(),
+                principal_id: None
+            })
+            .await
+            .unwrap_err()
+            .code,
+        "not_found"
+    );
+    let point_outcome = invoke(&[
+        "api",
+        "call",
+        "collaboration.commands.get",
+        r#"{"commandId":"cli-points"}"#,
+        "--format",
+        "json",
+    ]);
+    assert!(point_outcome.status.success());
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&point_outcome.stdout).unwrap()["result"]
+            ["totalPoints"],
+        2.0
+    );
 }

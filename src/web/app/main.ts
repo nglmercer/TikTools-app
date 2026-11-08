@@ -6,6 +6,7 @@ import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
 import { detectLocale } from '@/shared/i18n/locale-preference.ts';
 import App from './App.vue';
+import ControllerRoot from '@/features/controller/ui/ControllerRoot.vue';
 import { createAppRouter } from './router/router.ts';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -14,11 +15,21 @@ import './styles/responsive.css';
 
 declare global {
   interface Window {
+    __tiktools_controller__?: { profile?: string | null };
+    __tiktools_remote_client_available__?: boolean;
     __tiktools_remount__?: () => Promise<void>;
   }
 }
 
 async function mountApp(): Promise<VueApp> {
+  if (window.__tiktools_controller__) {
+    const app = createApp(ControllerRoot).use(i18n)
+      .provide(controlClientKey, createControlClient());
+    await activateLocale(detectLocale());
+    app.mount('#app');
+    notifyFrontendReady();
+    return app;
+  }
   const browser = document.querySelector('meta[name="tiktools-transport"]')?.getAttribute('content') === 'local-web';
   if (browser) document.documentElement.dataset['tiktoolsTransport'] = 'local-web';
   const banner = browser ? document.createElement('div') : null;

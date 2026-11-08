@@ -42,10 +42,7 @@ impl AppCore {
     pub(super) fn load_behavior_snapshot_for_hotkey_sync(&self) -> serde_json::Value {
         #[cfg(feature = "persistence")]
         {
-            self.db.load_behavior_snapshot().unwrap_or_else(|error| {
-                tracing::warn!(%error, "could not load behavior for hotkey synchronization");
-                empty_behavior_snapshot()
-            })
+            self.automation.owner_hotkey_snapshot()
         }
         #[cfg(not(feature = "persistence"))]
         {

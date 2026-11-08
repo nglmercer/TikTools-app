@@ -544,6 +544,13 @@ async fn conflicting_changes_keep_local_on_choice() {
     let outcome = sync_b.sync_now().await.unwrap();
     assert_eq!(outcome.conflicts, vec!["acme.shared".to_owned()]);
 
+    // Merely discovering the conflict must not apply the remote enabled
+    // state to a running local plugin before the user makes a choice.
+    assert!(outcome.remote.iter().all(|r| r.key != "acme.shared"));
+    let unresolved = sync_b.sync_now().await.unwrap();
+    assert_eq!(unresolved.conflicts, vec!["acme.shared".to_owned()]);
+    assert!(unresolved.remote.iter().all(|r| r.key != "acme.shared"));
+
     // Keep local: rebase over the remote revision and upload.
     sync_b.keep_local("acme.shared").unwrap();
     let outcome = sync_b.sync_now().await.unwrap();
@@ -590,6 +597,10 @@ async fn conflicting_changes_take_remote_on_choice() {
     assert_eq!(sync_b.status().await.pending, 0);
     let outcome = sync_b.sync_now().await.unwrap();
     assert!(outcome.conflicts.is_empty());
+    assert!(outcome
+        .remote
+        .iter()
+        .any(|r| r.key == "acme.shared" && r.selection.as_ref().is_some_and(|s| s.enabled)));
     mock.stop();
 }
 

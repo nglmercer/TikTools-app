@@ -1,11 +1,17 @@
 //! Typed `automation.*` methods.
 
-use super::TikToolsClient;
+mod manifest;
+mod review;
+pub(crate) use manifest::validate as validate_manifest_snapshot;
+pub(crate) use review::validate as validate_saved_review;
+
+use super::{CallResult, RequestMetadata, TikToolsClient};
 use serde_json::Value;
 use tiktools_control_api::modules::automation::{
-    AutomationContextParams, AutomationContextResult, AutomationCreateParams,
-    AutomationDeleteResult, AutomationFireParams, AutomationGetParams, AutomationListParams,
-    AutomationListResult, AutomationNodesResult, AutomationRunsResult, AutomationScriptParams,
+    AutomationAdoptParams, AutomationContextParams, AutomationContextResult,
+    AutomationCreateParams, AutomationDeleteResult, AutomationFireParams, AutomationGetParams,
+    AutomationListParams, AutomationListResult, AutomationManifestParams, AutomationNodesResult,
+    AutomationReviewResult, AutomationRunsResult, AutomationScriptParams,
     AutomationSetEnablementParams, AutomationSetEnablementResult, AutomationTestParams,
     AutomationUpdateParams, ScriptAnalysisResult,
 };
@@ -16,6 +22,10 @@ use tiktools_control_api::ClientError;
 /// through its constant, so the coverage list and the methods
 /// cannot drift apart; the parity test pins the list to the registry.
 pub(crate) const METHODS: &[&str] = &[
+    AUTOMATION_ADOPT,
+    AUTOMATION_AUTHORITY_GET,
+    AUTOMATION_REVIEW,
+    AUTOMATION_MANIFEST_GET,
     AUTOMATION_LIST,
     AUTOMATION_GET,
     AUTOMATION_CREATE,
@@ -33,6 +43,10 @@ pub(crate) const METHODS: &[&str] = &[
     AUTOMATION_SNAPSHOT,
 ];
 
+const AUTOMATION_ADOPT: &str = "automation.adopt";
+const AUTOMATION_AUTHORITY_GET: &str = "automation.authority.get";
+const AUTOMATION_REVIEW: &str = "automation.review";
+const AUTOMATION_MANIFEST_GET: &str = "automation.manifest.get";
 const AUTOMATION_LIST: &str = "automation.list";
 const AUTOMATION_GET: &str = "automation.get";
 const AUTOMATION_CREATE: &str = "automation.create";
@@ -50,6 +64,47 @@ const AUTOMATION_RUNS: &str = "automation.runs";
 const AUTOMATION_SNAPSHOT: &str = "automation.snapshot";
 
 impl TikToolsClient {
+    /// Owner-only saved-definition manifest with complete resource versions.
+    /// The preview is not an approval or an execution grant.
+    pub async fn automation_execution_manifest_get(
+        &self,
+        params: AutomationManifestParams,
+    ) -> Result<CallResult<Value>, ClientError> {
+        let response = self
+            .call_with_meta(AUTOMATION_MANIFEST_GET, &params, None)
+            .await?;
+        manifest::validate(&response, &params)?;
+        Ok(response)
+    }
+    /// Explicit local-owner authority transfer. Durable metadata and acknowledgement are required.
+    pub async fn automation_adopt(
+        &self,
+        params: AutomationAdoptParams,
+        meta: RequestMetadata,
+    ) -> Result<CallResult<Value>, ClientError> {
+        self.call_with_meta(AUTOMATION_ADOPT, params, Some(meta))
+            .await
+    }
+    /// Owner-only provenance with the version read in the same transaction.
+    pub async fn automation_authority_get(
+        &self,
+        params: AutomationGetParams,
+    ) -> Result<CallResult<Value>, ClientError> {
+        self.call_with_meta(AUTOMATION_AUTHORITY_GET, params, None)
+            .await
+    }
+    /// Owner-only definition and complete action dependencies from one read transaction.
+    /// The returned versions bind every reviewed record, including absent dependencies.
+    pub async fn automation_review(
+        &self,
+        params: AutomationGetParams,
+    ) -> Result<CallResult<AutomationReviewResult>, ClientError> {
+        let response = self
+            .call_with_meta(AUTOMATION_REVIEW, &params, None)
+            .await?;
+        review::validate(&response, &params)?;
+        Ok(response)
+    }
     /// Behavior events and actions (kind: event, action, all).
     /// RPC method `automation.list`.
     pub async fn automation_list(

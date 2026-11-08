@@ -303,6 +303,8 @@ pub struct FeedEntry {
 struct PublishedEvent {
     event: Arc<DomainEvent>,
     ui_sequence: Option<u64>,
+    /// Host-only routing metadata. JSON can never opt into plugin execution.
+    observer_allowed: bool,
 }
 
 type FeedHistory = Arc<Mutex<std::collections::VecDeque<(u64, Arc<DomainEvent>)>>>;
@@ -311,6 +313,8 @@ type FeedHistory = Arc<Mutex<std::collections::VecDeque<(u64, Arc<DomainEvent>)>
 pub struct EventBus {
     reliable: broadcast::Sender<PublishedEvent>,
     lossy: broadcast::Sender<PublishedEvent>,
+    plugin_reliable: broadcast::Sender<PublishedEvent>,
+    plugin_lossy: broadcast::Sender<PublishedEvent>,
     ui_sequence: Arc<Mutex<u64>>,
     history_subscribers: Arc<std::sync::atomic::AtomicUsize>,
     feed_history: FeedHistory,
@@ -322,9 +326,13 @@ impl EventBus {
     pub fn new(capacity: usize) -> Self {
         let (reliable, _) = broadcast::channel(capacity);
         let (lossy, _) = broadcast::channel(capacity.saturating_mul(4).max(1));
+        let (plugin_reliable, _) = broadcast::channel(capacity);
+        let (plugin_lossy, _) = broadcast::channel(capacity.saturating_mul(4).max(1));
         Self {
             reliable,
             lossy,
+            plugin_reliable,
+            plugin_lossy,
             ui_sequence: Arc::new(Mutex::new(0)),
             history_subscribers: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             feed_history: Arc::new(Mutex::new(std::collections::VecDeque::new())),
@@ -334,7 +342,18 @@ impl EventBus {
     /// Publishes to the reliable or lossy lane by event class. Like
     /// `broadcast::send`, this never blocks and never fails for a slow
     /// subscriber: laggards skip on their own cursor only.
-    pub fn publish_domain(&self, mut event: DomainEvent) {
+    pub fn publish_domain(&self, event: DomainEvent) {
+        self.publish(event, true);
+    }
+
+    /// Preserve state/history/UI delivery without invoking arbitrary plugin
+    /// observers from an approved restricted effect. These events never enter
+    /// the plugin rings, so bursts cannot manufacture executable gap events.
+    pub(crate) fn publish_presentation_domain(&self, event: DomainEvent) {
+        self.publish(event, false);
+    }
+
+    fn publish(&self, mut event: DomainEvent, observer_allowed: bool) {
         if matches!(event, DomainEvent::LiveUiEvent { .. }) {
             // Serialize sequence assignment with publication, so concurrent
             // producers cannot reverse feed sequence order. No wire changes.
@@ -359,22 +378,38 @@ impl EventBus {
                     history.pop_front();
                 }
             }
-            let _ = self.lossy.send(PublishedEvent {
-                event,
-                ui_sequence: Some(*sequence),
-            });
+            self.send(
+                PublishedEvent {
+                    event,
+                    ui_sequence: Some(*sequence),
+                    observer_allowed,
+                },
+                true,
+            );
         } else {
             let lossy = event.is_lossy();
             let published = PublishedEvent {
                 event: Arc::new(event),
                 ui_sequence: None,
+                observer_allowed,
             };
+            self.send(published, lossy);
+        }
+    }
+
+    fn send(&self, published: PublishedEvent, lossy: bool) {
+        if published.observer_allowed {
             let _ = if lossy {
-                self.lossy.send(published)
+                self.plugin_lossy.send(published.clone())
             } else {
-                self.reliable.send(published)
+                self.plugin_reliable.send(published.clone())
             };
         }
+        let _ = if lossy {
+            self.lossy.send(published)
+        } else {
+            self.reliable.send(published)
+        };
     }
 
     /// Read-only bounded recovery shared by headless and browser clients.
@@ -419,7 +454,7 @@ impl EventBus {
 
     /// Whether a presentation subscriber can receive lossy snapshots.
     pub fn has_domain_subscribers(&self) -> bool {
-        self.lossy.receiver_count() > 0
+        self.lossy.receiver_count() > 0 || self.plugin_lossy.receiver_count() > 0
     }
 
     pub fn subscribe_domain(&self) -> DomainSubscription {
@@ -431,6 +466,21 @@ impl EventBus {
     /// request the complete historical contract.
     pub fn subscribe_projection(&self) -> DomainSubscription {
         self.subscribe(false)
+    }
+
+    /// Only executable domain observers use this private subscription. Separate
+    /// rings keep presentation-only traffic outside both plugin calls and the
+    /// executable reliable-gap recovery path.
+    pub(crate) fn subscribe_plugin_domain(&self) -> PluginDomainSubscription {
+        let sequence = self.ui_sequence.lock().unwrap_or_else(|e| e.into_inner());
+        PluginDomainSubscription {
+            inner: DomainSubscription {
+                history_owner: None,
+                reliable: self.plugin_reliable.subscribe(),
+                lossy: self.plugin_lossy.subscribe(),
+                last_ui_sequence: *sequence,
+            },
+        }
     }
 
     pub fn history_requested(&self) -> bool {
@@ -496,6 +546,22 @@ pub struct DomainSubscription {
     lossy: broadcast::Receiver<PublishedEvent>,
     last_ui_sequence: u64,
     history_owner: Option<Arc<std::sync::atomic::AtomicUsize>>,
+}
+
+/// Cannot be constructed from an ordinary presentation subscription.
+pub(crate) struct PluginDomainSubscription {
+    inner: DomainSubscription,
+}
+
+impl PluginDomainSubscription {
+    pub(crate) async fn recv_shared(&mut self) -> Result<Arc<DomainEvent>, DomainRecvError> {
+        loop {
+            let published = self.inner.recv_published().await?;
+            if published.observer_allowed {
+                return Ok(published.event);
+            }
+        }
+    }
 }
 
 impl Drop for DomainSubscription {
@@ -631,6 +697,65 @@ impl DomainSubscription {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn presentation_events_reach_ui_without_entering_executable_observer_rings() {
+        let bus = EventBus::new(4);
+        let mut ui = bus.subscribe_projection();
+        let mut plugin = bus.subscribe_plugin_domain();
+        bus.publish_presentation_domain(DomainEvent::PointsChanged {
+            unique_id: "restricted-viewer".into(),
+            delta: 2.0,
+            total_points: 3.0,
+            level: 1,
+        });
+        assert!(matches!(
+            ui.try_recv(),
+            Ok(DomainEvent::PointsChanged { .. })
+        ));
+        assert!(matches!(
+            plugin.inner.try_recv_published(),
+            Err(DomainTryRecvError::Empty)
+        ));
+        bus.publish_domain(DomainEvent::PointsChanged {
+            unique_id: "owner-viewer".into(),
+            delta: 1.0,
+            total_points: 4.0,
+            level: 1,
+        });
+        let received = plugin.inner.try_recv_published().unwrap();
+        assert!(received.observer_allowed);
+        assert!(
+            matches!(received.event.as_ref(), DomainEvent::PointsChanged { unique_id, .. } if unique_id == "owner-viewer")
+        );
+    }
+
+    #[test]
+    fn restricted_bursts_cannot_generate_plugin_gaps_or_evict_owner_notifications() {
+        let bus = EventBus::new(2);
+        let mut ui = bus.subscribe_projection();
+        let mut plugin = bus.subscribe_plugin_domain();
+        assert!(bus.has_domain_subscribers());
+        bus.publish_domain(DomainEvent::PointsReset { unique_id: None });
+        for _ in 0..32 {
+            bus.publish_presentation_domain(DomainEvent::AutomationRunCompleted {
+                run: serde_json::json!({"observerAllowed":true,"authority":{"kind":"owner"}}),
+            });
+        }
+        assert!(matches!(
+            ui.try_recv(),
+            Err(DomainTryRecvError::ReliableLagged(_))
+        ));
+        let received = plugin.inner.try_recv_published().unwrap();
+        assert!(matches!(
+            received.event.as_ref(),
+            DomainEvent::PointsReset { .. }
+        ));
+        assert!(matches!(
+            plugin.inner.try_recv_published(),
+            Err(DomainTryRecvError::Empty)
+        ));
+    }
 
     #[test]
     fn bounded_ranking_event_fits_plugin_frame_with_maximum_escaped_metadata() {

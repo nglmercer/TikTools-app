@@ -1,104 +1,280 @@
-//! Trigger matching, action lookup, and emit-depth tracking.
-
+//! One atomic index binds matching to the exact event and action definitions.
+use super::authority::owner_record_allowed;
 use super::filters::{event_record_matches, number_u64};
 use super::snapshot::trigger_allowed;
 use super::*;
 
 impl AutomationService {
     pub fn matching_events(&self, event: &Value) -> Vec<Value> {
-        let event_type = event.get("type").and_then(Value::as_str);
-        let trigger_owners = recover_rwlock_read(&self.trigger_owners, "automation trigger owners");
-        let enabled_plugins =
-            recover_rwlock_read(&self.enabled_plugins, "automation enabled plugins");
-        recover_rwlock_read(&self.events, "automation events")
-            .values()
-            .filter(|record| {
-                record.get("enabled").and_then(Value::as_bool) == Some(true)
-                    && record.get("trigger").and_then(Value::as_str) == event_type
-                    && trigger_allowed(
-                        record.get("trigger").and_then(Value::as_str),
-                        &trigger_owners,
-                        &enabled_plugins,
-                    )
-                    && event_record_matches(record, event)
-            })
-            .cloned()
+        self.matching_records(event)
+            .into_iter()
+            .map(|r| r.definition)
             .collect()
     }
-
+    pub(crate) fn matching_records(&self, event: &Value) -> Vec<MatchedRecord> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        let Some(catalog_epoch) = index.catalog_epoch else {
+            return Vec::new();
+        };
+        index
+            .events
+            .values()
+            .filter(|r| {
+                r.generation.is_some()
+                    && r.definition.get("enabled").and_then(Value::as_bool) == Some(true)
+                    && r.definition.get("trigger").and_then(Value::as_str)
+                        == event.get("type").and_then(Value::as_str)
+                    && trigger_allowed(
+                        r.definition.get("trigger").and_then(Value::as_str),
+                        &index.trigger_owners,
+                        &index.enabled_plugins,
+                    )
+                    && record_authorized(&index, &r.definition)
+                    && record_event_matches(&index, &r.definition, event)
+            })
+            .map(|r| MatchedRecord {
+                definition: r.definition.clone(),
+                generation: r.generation,
+                catalog_epoch,
+                actions: select_actions(&index, &r.definition),
+                #[cfg(feature = "persistence")]
+                approval: record_approval(&index, &r.definition),
+            })
+            .collect()
+    }
+    pub(crate) fn manual_record(&self, record: &Value) -> Option<MatchedRecord> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !record_authorized(&index, record) {
+            return None;
+        }
+        let generation = if owner_record_allowed(&index, record) {
+            None
+        } else {
+            Some(index.events.get(record.get("id")?.as_str()?)?.generation?)
+        };
+        Some(MatchedRecord {
+            definition: record.clone(),
+            generation,
+            catalog_epoch: index.catalog_epoch?,
+            actions: select_actions(&index, record),
+            #[cfg(feature = "persistence")]
+            approval: record_approval(&index, record),
+        })
+    }
     pub fn event_record_matches(&self, record: &Value, event: &Value) -> bool {
         event_record_matches(record, event)
     }
-
-    /// Revalidates a previously matched record against live state just
-    /// before execution. Records are matched, then queued behind bounded
-    /// admission; in between, the operator may disable the record or its
-    /// owning plugin, or uninstall either. Executing the stale clone would
-    /// run disabled work, so the live path drops it here. (Explicit manual
-    /// fires bypass this: firing a disabled draft is the operator's direct
-    /// order and goes through `run_matched_records` untouched.)
-    pub fn is_record_live(&self, record: &Value) -> bool {
-        let Some(id) = record.get("id").and_then(Value::as_str) else {
-            return false;
-        };
-        // One lock at a time, in the same order as `matching_events`
-        // (owners, plugins, events): never nest these guards.
-        let trigger = {
-            let events = recover_rwlock_read(&self.events, "automation events");
-            let Some(live) = events.get(id) else {
-                return false; // Removed since matching.
-            };
-            if live.get("enabled").and_then(Value::as_bool) == Some(false) {
-                return false; // Disabled since matching.
-            }
-            live.get("trigger")
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-        };
-        let trigger_owners = recover_rwlock_read(&self.trigger_owners, "automation trigger owners");
-        let enabled_plugins =
-            recover_rwlock_read(&self.enabled_plugins, "automation enabled plugins");
-        super::snapshot::trigger_allowed(trigger.as_deref(), &trigger_owners, &enabled_plugins)
+    /// Approved filters see the same public scalar projection as renderers.
+    /// Unknown/private paths resolve to absence and cannot influence outcomes.
+    pub(crate) fn runtime_event_record_matches(&self, record: &Value, event: &Value) -> bool {
+        self.scoped_event(record, event)
+            .is_some_and(|event| event_record_matches(record, &event))
     }
-
-    pub fn actions_for_event(&self, record: &Value) -> Vec<Value> {
-        let ids = record
-            .get("actionIds")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-            .collect::<Vec<_>>();
-        let actions = recover_rwlock_read(&self.actions, "automation actions");
-        let mut selected = ids
-            .into_iter()
-            .filter_map(|id| actions.get(id))
-            .filter(|action| action.get("enabled").and_then(Value::as_bool) != Some(false))
-            .cloned()
-            .collect::<Vec<_>>();
-        if record.get("runMode").and_then(Value::as_str) == Some("random") && selected.len() > 1 {
-            let index = fastrand::usize(..selected.len());
-            selected = vec![selected.swap_remove(index)];
+    pub(super) fn scoped_event<'a>(
+        &self,
+        record: &Value,
+        event: &'a Value,
+    ) -> Option<std::borrow::Cow<'a, Value>> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !record_authorized(&index, record) {
+            return None;
         }
-        selected
+        if owner_record_allowed(&index, record) {
+            return Some(std::borrow::Cow::Borrowed(event));
+        }
+        #[cfg(feature = "persistence")]
+        return Some(std::borrow::Cow::Owned(
+            crate::services::automation_approval_policy::project_event(event),
+        ));
+        #[cfg(not(feature = "persistence"))]
+        None
     }
-
+    /// Compatibility body check. Actual queued execution additionally uses an
+    /// unforgeable host-side generation token, including delete/recreate ABA.
+    pub fn is_record_live(&self, record: &Value) -> bool {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        record
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(|id| index.events.get(id))
+            .is_some_and(|r| {
+                r.generation.is_some() && r.definition == *record && record_allowed(&index, record)
+            })
+    }
+    pub(crate) fn is_match_live(&self, record: &MatchedRecord) -> bool {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if index.catalog_epoch != Some(record.catalog_epoch)
+            || !record_authorized(&index, &record.definition)
+            || !record_approval_current(&index, record)
+        {
+            return false;
+        }
+        if let Some(generation) = record.generation {
+            if !record
+                .definition
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| index.events.get(id))
+                .is_some_and(|r| {
+                    r.generation == Some(generation) && record_allowed(&index, &r.definition)
+                })
+            {
+                return false;
+            }
+        }
+        record.actions.iter().all(|a| {
+            a.definition
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| index.actions.get(id))
+                .is_some_and(|r| {
+                    r.generation == Some(a.generation)
+                        && r.definition.get("enabled").and_then(Value::as_bool) != Some(false)
+                })
+        })
+    }
+    pub(crate) fn is_step_live(&self, record: &MatchedRecord, action: &MatchedAction) -> bool {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if index.catalog_epoch != Some(record.catalog_epoch)
+            || !record_authorized(&index, &record.definition)
+            || !record_approval_current(&index, record)
+        {
+            return false;
+        }
+        if let Some(generation) = record.generation {
+            if !record
+                .definition
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| index.events.get(id))
+                .is_some_and(|r| {
+                    r.generation == Some(generation) && record_allowed(&index, &r.definition)
+                })
+            {
+                return false;
+            }
+        }
+        if !record.actions.iter().any(|selected| {
+            selected.generation == action.generation && selected.definition == action.definition
+        }) {
+            return false;
+        }
+        action
+            .definition
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(|id| index.actions.get(id))
+            .is_some_and(|r| {
+                r.generation == Some(action.generation)
+                    && r.definition.get("enabled").and_then(Value::as_bool) != Some(false)
+            })
+    }
+    pub fn actions_for_event(&self, record: &Value) -> Vec<Value> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !record_authorized(&index, record) {
+            return Vec::new();
+        }
+        select_actions(&index, record)
+            .into_iter()
+            .map(|a| a.definition)
+            .collect()
+    }
     pub fn emit_depth(&self, event: &Value) -> u64 {
+        let index = recover_rwlock_read(&self.index, "automation index");
         let tracked = event
             .get("type")
             .and_then(Value::as_str)
-            .is_some_and(|event_type| {
-                event_type == "plugin.emit"
-                    || recover_rwlock_read(&self.trigger_owners, "automation trigger owners")
-                        .contains_key(event_type)
-            });
+            .is_some_and(|t| t == "plugin.emit" || index.trigger_owners.contains_key(t));
         if !tracked {
             return 0;
         }
         event
             .get("data")
-            .and_then(|data| data.get("depth"))
+            .and_then(|v| v.get("depth"))
             .and_then(number_u64)
             .unwrap_or_default()
     }
+}
+fn record_allowed(index: &BehaviorIndex, record: &Value) -> bool {
+    record_authorized(index, record)
+        && record.get("enabled").and_then(Value::as_bool) == Some(true)
+        && trigger_allowed(
+            record.get("trigger").and_then(Value::as_str),
+            &index.trigger_owners,
+            &index.enabled_plugins,
+        )
+}
+fn record_approval_current(index: &BehaviorIndex, record: &MatchedRecord) -> bool {
+    #[cfg(feature = "persistence")]
+    return record
+        .approval
+        .as_ref()
+        .is_none_or(|candidate| super::approval::candidate_current(index, candidate));
+    #[cfg(not(feature = "persistence"))]
+    {
+        let _ = (index, record);
+        true
+    }
+}
+fn record_authorized(index: &BehaviorIndex, record: &Value) -> bool {
+    if owner_record_allowed(index, record) {
+        return true;
+    }
+    #[cfg(feature = "persistence")]
+    return super::approval::candidate_for_primary(
+        index,
+        crate::collaboration::AutomationFamily::Event,
+        record,
+    )
+    .is_some();
+    #[cfg(not(feature = "persistence"))]
+    false
+}
+#[cfg(feature = "persistence")]
+fn record_approval(
+    index: &BehaviorIndex,
+    record: &Value,
+) -> Option<super::approval::ApprovalCandidate> {
+    if owner_record_allowed(index, record) {
+        return None;
+    }
+    super::approval::candidate_for_primary(
+        index,
+        crate::collaboration::AutomationFamily::Event,
+        record,
+    )
+}
+fn record_event_matches(index: &BehaviorIndex, record: &Value, event: &Value) -> bool {
+    if owner_record_allowed(index, record) {
+        return event_record_matches(record, event);
+    }
+    #[cfg(feature = "persistence")]
+    return event_record_matches(
+        record,
+        &crate::services::automation_approval_policy::project_event(event),
+    );
+    #[cfg(not(feature = "persistence"))]
+    false
+}
+fn select_actions(index: &BehaviorIndex, record: &Value) -> Vec<MatchedAction> {
+    let mut selected: Vec<_> = record
+        .get("actionIds")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter_map(|id| index.actions.get(id))
+        .filter(|r| r.definition.get("enabled").and_then(Value::as_bool) != Some(false))
+        .filter_map(|r| {
+            Some(MatchedAction {
+                definition: r.definition.clone(),
+                generation: r.generation?,
+            })
+        })
+        .collect();
+    if record.get("runMode").and_then(Value::as_str) == Some("random") && selected.len() > 1 {
+        let i = fastrand::usize(..selected.len());
+        selected = vec![selected.swap_remove(i)];
+    }
+    selected
 }

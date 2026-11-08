@@ -5,24 +5,30 @@
 //! runtime. Native plugins are trusted in-process code; process plugins are
 //! isolated executables with a crash boundary, not an OS sandbox.
 
+mod artifact;
 mod declarative;
 mod discovery;
+mod isolated;
 mod manager;
-mod quickjs;
 mod native;
 mod process;
+mod quickjs;
 #[cfg(test)]
 mod tests;
 mod types;
 mod wasm;
 mod worker;
 
+pub use artifact::plugin_artifact_fingerprint;
 pub use declarative::DeclarativePluginRuntime;
 pub use discovery::plugin_roots;
+pub use isolated::{IsolatedPluginCall, PreparedIsolatedPlugin};
 pub use manager::{PluginManager, RuntimeRegistry};
-pub use quickjs::{native_addons_allowed, QuickJsPluginRuntime, QuickJsPluginRuntime as NapiVmPluginRuntime};
 pub use native::NativePluginRuntime;
 pub use process::ProcessPluginRuntime;
+pub use quickjs::{
+    native_addons_allowed, QuickJsPluginRuntime, QuickJsPluginRuntime as NapiVmPluginRuntime,
+};
 pub use types::{
     DiscoveredPlugin, EmittedEvent, ManagedWorker, PluginInstance, PluginLoaderError, PluginRoot,
     PluginRuntime, PluginSource, WorkerContext,

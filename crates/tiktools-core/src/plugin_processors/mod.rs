@@ -72,13 +72,28 @@ impl AppCore {
     /// Runs the pre-filter enrichment pipeline over one canonical automation
     /// event. Without eligible processors the event returns unchanged;
     /// otherwise every failure fails open to the raw event.
-    pub(crate) async fn enrich_automation_event(self: &Arc<Self>, event: Value) -> Value {
+    pub(crate) async fn enrich_automation_event(
+        self: &Arc<Self>,
+        envelope: AutomationEvent,
+    ) -> Result<AutomationEvent, &'static str> {
+        // A processor may execute arbitrary plugin code and load private
+        // settings before returning an enrichment. Unsupported delegated
+        // observation must fail before either operation, not fail open to an
+        // unscoped Owner event.
+        if self.is_shutdown() {
+            return Err("host is shutting down");
+        }
+        envelope.context().require_owner()?;
+        if envelope.context().depth() >= 3 {
+            return Err("automation event depth limit reached");
+        }
+        let event = envelope.payload();
         let Some(event_type) = event.get("type").and_then(Value::as_str) else {
-            return event;
+            return Ok(envelope);
         };
         let eligible = self.eligible_processors(event_type);
         if eligible.is_empty() {
-            return event;
+            return Ok(envelope);
         }
         let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&self.plugins));
         let outcomes = execute_processors(
@@ -88,10 +103,15 @@ impl AppCore {
             &self.processor_state.slots,
             |id| self.processor_settings_for(id),
             eligible,
-            &event,
+            event,
         )
         .await;
-        merge_processor_outcomes(event, &outcomes)
+        if self.is_shutdown() {
+            return Err("host is shutting down");
+        }
+        envelope.context().require_owner()?;
+        let enriched = merge_processor_outcomes(event.clone(), &outcomes);
+        Ok(envelope.replace_payload(enriched))
     }
 
     /// Settings object delivered inside enrich requests. Reloads from disk

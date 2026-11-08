@@ -6,7 +6,11 @@ use serde_json::Value;
 pub use tiktools_core::control::{
     AutomationEnablementMiss, AutomationSetEnablementResult, ScriptAnalysisResult,
 };
-use tiktools_core::{control::AutomationKind, AppCore};
+use tiktools_core::{
+    collaboration::{CommandRequest, Versioned},
+    control::{AutomationKind, AutomationMutation, CommandCaller},
+    AppCore,
+};
 
 use crate::{error::ApiError, modules::Empty, router::ControlRouter};
 
@@ -31,6 +35,51 @@ pub struct AutomationGetParams {
     pub id: String,
     #[serde(default)]
     pub kind: Option<String>,
+}
+
+/// A saved definition only; caller JSON cannot provide authority or a candidate.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AutomationManifestParams {
+    pub kind: AutomationKind,
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "camelCase", deny_unknown_fields)]
+pub enum AutomationReviewAuthority {
+    Owner,
+    Delegated {
+        #[serde(rename = "principalId")]
+        principal_id: String,
+        #[serde(rename = "sessionId")]
+        session_id: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AutomationReviewProvenance {
+    pub authority: AutomationReviewAuthority,
+    pub generation: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AutomationReviewDependency {
+    pub id: String,
+    pub record: Option<Value>,
+    pub provenance: Option<AutomationReviewProvenance>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AutomationReviewResult {
+    pub kind: AutomationKind,
+    pub id: String,
+    pub record: Option<Value>,
+    pub provenance: Option<AutomationReviewProvenance>,
+    pub dependencies: Vec<AutomationReviewDependency>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -156,119 +205,275 @@ fn parse_kind(raw: Option<&str>, default: AutomationKind) -> Result<AutomationKi
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AutomationAdoptParams {
+    pub id: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+    pub acknowledge_authority: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reviewed_versions: Option<Vec<tiktools_core::collaboration::ResourceVersion>>,
+}
 pub fn register(router: &mut ControlRouter) {
-    router.register_typed::<AutomationListParams, AutomationListResult, _, _>(
+    router.register_versioned::<AutomationManifestParams, Value, _, _>(
+        "automation.manifest.get",
+        "Owner-only exact definition and delegated effect manifest preview; never approval",
+        false,
+        |core, context, params, meta| async move {
+            owner_metadata(context, meta, false)?;
+            crate::modules::blocking_task("automation.manifest.get", move || {
+                core.automation_execution_manifest(params.kind, &params.id)
+            })
+            .await?
+            .map_err(ApiError::from)
+        },
+    );
+    router.register_versioned::<AutomationGetParams, AutomationReviewResult, _, _>(
+        "automation.review",
+        "Owner-only atomic definition, provenance and dependency review",
+        false,
+        |core, context, params, meta| async move {
+            owner_metadata(context, meta, false)?;
+            let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
+            let result = crate::modules::blocking_task("automation.review", move || {
+                core.automation_review(kind, &params.id)
+            })
+            .await??;
+            let value = serde_json::from_value(result.value)
+                .map_err(|_| ApiError::new("internal", "invalid behavior review response"))?;
+            Ok(tiktools_core::collaboration::Versioned::new(
+                value,
+                result.resource_versions,
+            ))
+        },
+    );
+    router.register_versioned::<AutomationAdoptParams, Value, _, _>(
+        "automation.adopt",
+        "Explicit owner authority transfer; always leaves delegated record disabled",
+        true,
+        |core, context, params, meta| async move {
+            if !matches!(context, crate::RequestContext::LocalOwner) {
+                return Err(crate::context::forbidden());
+            }
+            if !params.acknowledge_authority {
+                return Err(ApiError::new(
+                    "confirmation_required",
+                    "review and acknowledge owner authority transfer",
+                ));
+            }
+            let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
+            mutate(
+                core,
+                context,
+                meta,
+                AutomationMutation::Adopt {
+                    kind,
+                    id: params.id,
+                    reviewed_versions: params.reviewed_versions,
+                },
+            )
+            .await
+        },
+    );
+    router.set_durable_commands("automation.adopt", true);
+    router.register_versioned::<AutomationGetParams, Value, _, _>(
+        "automation.authority.get",
+        "Owner-only retained behavior provenance and generation",
+        false,
+        |core, context, params, meta| async move {
+            owner_metadata(context, meta, false)?;
+            let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
+            crate::modules::blocking_task("automation.authority.get", move || {
+                core.automation_authority(kind, &params.id)
+            })
+            .await?
+            .map_err(ApiError::from)
+        },
+    );
+    router.register_versioned::<AutomationListParams, AutomationListResult, _, _>(
         "automation.list",
         "Behavior events and actions (kind: event, action, all)",
         false,
-        |core: Arc<AppCore>, params: AutomationListParams| async move {
-            let kind = params
+        |core, context, params, meta| async move {
+            let scope = read_scope(context, meta)?;
+            let kind = match params
                 .kind
                 .as_deref()
                 .unwrap_or("all")
                 .trim()
-                .to_ascii_lowercase();
-            let (events, actions) = match kind.as_str() {
-                "event" | "events" => (core.automation_list(AutomationKind::Event), Vec::new()),
-                "action" | "actions" => (Vec::new(), core.automation_list(AutomationKind::Action)),
-                "all" | "" => (
-                    core.automation_list(AutomationKind::Event),
-                    core.automation_list(AutomationKind::Action),
-                ),
-                other => {
-                    return Err::<AutomationListResult, ApiError>(ApiError::invalid_params(
-                        format!("unknown automation kind `{other}`"),
-                    ))
-                }
+                .to_ascii_lowercase()
+                .as_str()
+            {
+                "event" | "events" => Some(AutomationKind::Event),
+                "action" | "actions" => Some(AutomationKind::Action),
+                "all" | "" => None,
+                _ => return Err(ApiError::invalid_params("unknown automation kind")),
             };
-            Ok(AutomationListResult { events, actions })
+            Ok(
+                crate::modules::blocking_task("automation.list", move || match scope {
+                    Some((grant, bytes)) => core.automation_list_scoped(&grant, kind, bytes),
+                    None => core.automation_list_versioned(kind),
+                })
+                .await??
+                .map(|(events, actions)| AutomationListResult { events, actions }),
+            )
         },
     );
-    router.register_typed::<AutomationGetParams, Value, _, _>(
+    router.register_versioned::<AutomationGetParams, Value, _, _>(
         "automation.get",
         "One behavior event or action by id",
         false,
-        |core: Arc<AppCore>, params: AutomationGetParams| async move {
+        |core, context, params, meta| async move {
+            let scope = read_scope(context, meta)?;
             let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
-            core.automation_get(kind, &params.id)
-                .map_err(|error| ApiError::from(error).scoped_not_found("automation_not_found"))
+            let result = crate::modules::blocking_task("automation.get", move || match scope {
+                Some((grant, bytes)) => core.automation_get_scoped(&grant, kind, &params.id, bytes),
+                None => core.automation_get_versioned(kind, &params.id),
+            })
+            .await??;
+            match result.value {
+                Some(value) => Ok(tiktools_core::collaboration::Versioned::new(
+                    value,
+                    result.resource_versions,
+                )),
+                None => {
+                    let mut error =
+                        ApiError::new("automation_not_found", "automation record does not exist");
+                    error.data =
+                        Some(serde_json::json!({"resourceVersions":result.resource_versions}));
+                    Err(error)
+                }
+            }
         },
     );
-    router.register_typed::<AutomationCreateParams, Value, _, _>(
+    router.register_versioned::<AutomationCreateParams, Value, _, _>(
         "automation.create",
         "Creates a behavior event or action (id generated when omitted)",
         true,
-        |core: Arc<AppCore>, params: AutomationCreateParams| async move {
+        |core, context, params, meta| async move {
             let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
-            core.automation_create(kind, params.record)
-                .map_err(ApiError::from)
+            mutate(
+                core,
+                context,
+                meta,
+                AutomationMutation::Create {
+                    kind,
+                    record: params.record,
+                },
+            )
+            .await
         },
     );
-    router.register_typed::<AutomationUpdateParams, Value, _, _>(
+    router.register_versioned::<AutomationUpdateParams, Value, _, _>(
         "automation.update",
         "Replaces a behavior event or action (must already exist)",
         true,
-        |core: Arc<AppCore>, params: AutomationUpdateParams| async move {
+        |core, context, params, meta| async move {
             let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
-            core.automation_update(kind, &params.id, params.record)
-                .map_err(|error| ApiError::from(error).scoped_not_found("automation_not_found"))
+            mutate(
+                core,
+                context,
+                meta,
+                AutomationMutation::Update {
+                    kind,
+                    id: params.id,
+                    record: params.record,
+                },
+            )
+            .await
         },
     );
-    router.register_typed::<AutomationGetParams, AutomationDeleteResult, _, _>(
+    router.register_versioned::<AutomationGetParams, AutomationDeleteResult, _, _>(
         "automation.delete",
         "Deletes a behavior event or action",
         true,
-        |core: Arc<AppCore>, params: AutomationGetParams| async move {
+        |core, context, params, meta| async move {
             let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
-            core.automation_delete(kind, &params.id)
-                .map(|deleted| AutomationDeleteResult {
-                    id: params.id,
-                    deleted,
+            let id = params.id;
+            mutate(
+                core,
+                context,
+                meta,
+                AutomationMutation::Delete {
+                    kind,
+                    id: id.clone(),
+                },
+            )
+            .await
+            .map(|value| {
+                value.map(|result| AutomationDeleteResult {
+                    id,
+                    deleted: result
+                        .get("deleted")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
                 })
-                .map_err(ApiError::from)
+            })
         },
     );
-    router.register_typed::<AutomationGetParams, Value, _, _>(
+    for (method, enabled) in [("automation.enable", true), ("automation.disable", false)] {
+        router.register_versioned::<AutomationGetParams, Value, _, _>(
+            method,
+            "Sets behavior event or action enablement",
+            true,
+            move |core, context, params, meta| async move {
+                let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
+                mutate(
+                    core,
+                    context,
+                    meta,
+                    AutomationMutation::SetEnabled {
+                        kind,
+                        id: params.id,
+                        enabled,
+                    },
+                )
+                .await
+            },
+        );
+    }
+    for method in [
+        "automation.create",
+        "automation.update",
+        "automation.adopt",
+        "automation.delete",
         "automation.enable",
-        "Enables a behavior event or action",
-        true,
-        |core: Arc<AppCore>, params: AutomationGetParams| async move {
-            let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
-            core.automation_set_enabled(kind, &params.id, true)
-                .map_err(|error| ApiError::from(error).scoped_not_found("automation_not_found"))
-        },
-    );
-    router.register_typed::<AutomationGetParams, Value, _, _>(
         "automation.disable",
-        "Disables a behavior event or action",
-        true,
-        |core: Arc<AppCore>, params: AutomationGetParams| async move {
-            let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
-            core.automation_set_enabled(kind, &params.id, false)
-                .map_err(|error| ApiError::from(error).scoped_not_found("automation_not_found"))
-        },
-    );
-    router.register_typed::<AutomationSetEnablementParams, AutomationSetEnablementResult, _, _>(
-        "automation.set_enablement",
-        "Applies many behavior enable/disable updates in one pass (missing ids are reported, not an error)",
-        true,
-        |core: Arc<AppCore>, params: AutomationSetEnablementParams| async move {
-            if params.updates.len() > 512 {
-                return Err(ApiError::invalid_params(
-                    "at most 512 enablement updates per request",
-                ));
-            }
-            let updates = params
-                .updates
-                .iter()
-                .map(|update| {
-                    let kind = AutomationKind::from_str(&update.kind).map_err(ApiError::from)?;
-                    Ok((kind, update.id.clone(), update.enabled))
+    ] {
+        router.set_durable_commands(method, true);
+    }
+    router
+        .register_versioned::<AutomationSetEnablementParams, AutomationSetEnablementResult, _, _>(
+            "automation.set_enablement",
+            "Atomic owner bulk enablement across behavior families",
+            true,
+            |core, context, params, meta| async move {
+                owner_metadata(context, meta, false)?;
+                if params.updates.len() > 512 {
+                    return Err(ApiError::invalid_params(
+                        "at most 512 enablement updates per request",
+                    ));
+                }
+                let updates = params
+                    .updates
+                    .into_iter()
+                    .map(|u| {
+                        AutomationKind::from_str(&u.kind)
+                            .map(|kind| (kind, u.id, u.enabled))
+                            .map_err(ApiError::from)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                crate::modules::blocking_task("automation.set_enablement", move || {
+                    core.automation_set_enablement_versioned(&updates)
                 })
-                .collect::<Result<Vec<_>, ApiError>>()?;
-            core.automation_set_enablement_bulk(&updates)
+                .await?
                 .map_err(ApiError::from)
-        },
+            },
+        );
+    router.set_concurrency(
+        "automation.set_enablement",
+        crate::registry::ConcurrencyStrategy::ExclusiveTransition,
     );
     router.register_typed::<AutomationContextParams, AutomationContextResult, _, _>(
         "automation.context",
@@ -376,17 +581,118 @@ pub fn register(router: &mut ControlRouter) {
             })
         },
     );
-    router.register_typed::<Empty, Value, _, _>(
+    router.register_versioned::<Empty, Value, _, _>(
         "automation.snapshot",
-        "Merged behavior snapshot: records plus the live runtime catalog",
+        "Merged owner behavior snapshot and runtime catalog",
         false,
-        |core: Arc<AppCore>, _params: Empty| async move {
-            // Snapshot load plus catalog merge stays off Tokio workers.
-            let snapshot = crate::modules::blocking_task("automation.snapshot", move || {
-                core.behavior_snapshot()
+        |core, context, _, meta| async move {
+            owner_metadata(context, meta, false)?;
+            crate::modules::blocking_task("automation.snapshot", move || {
+                core.behavior_snapshot_versioned()
             })
-            .await?;
-            Ok::<Value, ApiError>(snapshot)
+            .await?
+            .map_err(ApiError::from)
         },
     );
+}
+
+fn owner_metadata(
+    context: crate::RequestContext,
+    metadata: Option<crate::RequestMetadata>,
+    allow_revision: bool,
+) -> Result<Option<String>, ApiError> {
+    if !matches!(context, crate::RequestContext::LocalOwner) {
+        return Err(crate::context::forbidden());
+    }
+    let metadata = metadata.unwrap_or_default();
+    if metadata.command_id.is_some() || metadata.host_instance_id.is_some() {
+        return Err(ApiError::invalid_params(
+            "this automation operation does not accept durable command metadata",
+        ));
+    }
+    if !allow_revision && metadata.expected_revision.is_some() {
+        return Err(ApiError::invalid_params(
+            "this automation operation does not accept a single expectedRevision",
+        ));
+    }
+    Ok(metadata.expected_revision)
+}
+
+fn read_scope(
+    context: crate::RequestContext,
+    metadata: Option<crate::RequestMetadata>,
+) -> Result<Option<(tiktools_core::collaboration::Grant, usize)>, ApiError> {
+    owner_metadata(crate::RequestContext::LocalOwner, metadata, false)?;
+    match context {
+        crate::RequestContext::LocalOwner => Ok(None),
+        crate::RequestContext::Remote(session) => Ok(Some((
+            session.grant()?,
+            session
+                .connection_limits()
+                .map_or(256 * 1024, |l| l.frame_bytes / 2),
+        ))),
+    }
+}
+
+async fn mutate(
+    core: Arc<AppCore>,
+    context: crate::RequestContext,
+    metadata: Option<crate::RequestMetadata>,
+    operation: AutomationMutation,
+) -> Result<Versioned<Value>, ApiError> {
+    crate::modules::blocking_task("automation.mutate", move || {
+        let metadata = metadata.unwrap_or_default();
+        if let Some(command_id) = metadata.command_id {
+            let request = CommandRequest {
+                command_id,
+                host_instance_id: metadata
+                    .host_instance_id
+                    .ok_or_else(|| ApiError::invalid_params("hostInstanceId is required"))?,
+                expected_revision: metadata
+                    .expected_revision
+                    .ok_or_else(|| ApiError::invalid_params("expectedRevision is required"))?,
+            };
+            let caller = match context {
+                crate::RequestContext::LocalOwner => CommandCaller::LocalOwner,
+                crate::RequestContext::Remote(session) => {
+                    CommandCaller::Remote(session.authorization()?)
+                }
+            };
+            return core
+                .automation_command(caller, request, operation)
+                .map_err(ApiError::from)
+                .map_err(|e| e.scoped_not_found("automation_not_found"));
+        }
+        if matches!(context, crate::RequestContext::Remote(_)) {
+            return Err(crate::context::forbidden());
+        }
+        if metadata.host_instance_id.is_some() {
+            return Err(ApiError::invalid_params(
+                "commandId is required with hostInstanceId",
+            ));
+        }
+        let expected = metadata.expected_revision.as_deref();
+        match operation {
+            AutomationMutation::Adopt { .. } => {
+                return Err(ApiError::invalid_params(
+                    "adoption requires durable command metadata",
+                ))
+            }
+            AutomationMutation::Create { kind, record } => {
+                core.automation_create_versioned(kind, record, expected)
+            }
+            AutomationMutation::Update { kind, id, record } => {
+                core.automation_update_versioned(kind, &id, record, expected)
+            }
+            AutomationMutation::Delete { kind, id } => core
+                .automation_delete_versioned(kind, &id, expected)
+                .map(|v| v.map(|deleted| serde_json::json!({"id":id,"deleted":deleted}))),
+            AutomationMutation::SetEnabled { kind, id, enabled } => {
+                core.automation_set_enabled_versioned(kind, &id, enabled, expected)
+            }
+        }
+        .map_err(ApiError::from)
+        .map_err(|e| e.scoped_not_found("automation_not_found"))
+    })
+    .await?
 }

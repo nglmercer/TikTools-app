@@ -367,7 +367,7 @@ mod tests {
 
 /// Per-type identity namespace. TikTok message-ID semantics are not
 /// assumed uniform across event kinds.
-fn event_tag(base: &tiktools_tiktok::events::CanonicalLiveEvent) -> u8 {
+pub(crate) fn event_tag(base: &tiktools_tiktok::events::CanonicalLiveEvent) -> u8 {
     use tiktools_tiktok::events::CanonicalLiveEvent;
     match base {
         CanonicalLiveEvent::Chat(_) => 1,

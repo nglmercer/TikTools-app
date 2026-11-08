@@ -26,7 +26,10 @@ import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 const props = withDefaults(
   defineProps<{
     action: LiveAction;
+    baseline?: LiveAction;
     isNew?: boolean;
+    busy?: boolean;
+    saveBlocked?: boolean;
     actionTypes: readonly ActionTypeDefinition[];
     testRuns: readonly BehaviorRun[];
     globals: Readonly<Record<string, string>>;
@@ -35,11 +38,12 @@ const props = withDefaults(
     openMediaPicker?: OpenMediaPicker;
     error?: string;
   }>(),
-  { isNew: false, openMediaPicker: undefined, error: '' },
+  { baseline: undefined, isNew: false, busy: false, saveBlocked: false, openMediaPicker: undefined, error: '' },
 );
 
 const emit = defineEmits<{
   save: [action: LiveAction];
+  change: [action: LiveAction];
   delete: [id: string];
   test: [action: LiveAction];
   loadOptions: [source: string, refresh: boolean];
@@ -61,7 +65,7 @@ const optionErrors = computed(() =>
 );
 const permissions = computed(() => deriveActionPermissions(draft.value, type.value));
 const runs = computed(() => props.testRuns.filter((run) => run.actionId === draft.value.id));
-const changed = computed(() => props.isNew || JSON.stringify(draft.value) !== JSON.stringify(props.action));
+const changed = computed(() => props.isNew || JSON.stringify(draft.value) !== JSON.stringify(props.baseline ?? props.action));
 const origin = computed(() => {
   const source = type.value?.source;
   if (!source) return draft.value.typeId;
@@ -86,9 +90,10 @@ function requestOptions(refresh: boolean): void {
 watch(
   () => props.action,
   (action) => {
-    draft.value = cloneRecord(action);
+    if (JSON.stringify(action) !== JSON.stringify(draft.value)) draft.value = cloneRecord(action);
   },
 );
+watch(draft, (action) => emit('change', cloneRecord(action)), { deep: true, flush: 'sync' });
 watch(() => type.value?.id, () => requestOptions(false), { immediate: true });
 watch(changed, (value) => (dirty.value = value), { immediate: true });
 
@@ -230,6 +235,7 @@ function confirmDelete(): void {
         v-if="!isNew"
         size="sm"
         variant="danger"
+        :disabled="busy || saveBlocked"
         @click="deleteOpen = true"
       >
         {{ t('automations.editor.delete') }}
@@ -237,15 +243,15 @@ function confirmDelete(): void {
       <span class="action-editor__spacer" />
       <BaseButton
         size="sm"
-        :disabled="!changed || isNew"
-        @click="draft = cloneRecord(action)"
+        :disabled="!changed || isNew || busy"
+        @click="draft = cloneRecord(baseline ?? action)"
       >
         {{ t('automations.editor.discard') }}
       </BaseButton>
       <BaseButton
         size="sm"
         variant="primary"
-        :disabled="!changed"
+        :disabled="!changed || busy || saveBlocked"
         @click="emit('save', draft)"
       >
         {{ t('automations.editor.save') }}
@@ -256,6 +262,7 @@ function confirmDelete(): void {
       :title="t('automations.editor.deleteActionTitle')"
       :message="t('automations.editor.deleteActionMessage', { name: draft.name })"
       :confirm-label="t('automations.editor.deleteConfirm')"
+      :busy="busy || saveBlocked"
       danger
       @confirm="confirmDelete"
     />

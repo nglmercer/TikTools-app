@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { createApp, type Plugin } from 'vue';
-import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
+import type { ControlCallOptions, ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
 
 export interface RecordedCall {
@@ -8,14 +8,14 @@ export interface RecordedCall {
   params: RpcParams | undefined;
 }
 
-export function createFakeControlClient(handler: (method: string, params: RpcParams | undefined) => unknown) {
+export function createFakeControlClient(handler: (method: string, params: RpcParams | undefined, options?: ControlCallOptions) => unknown) {
   const calls: RecordedCall[] = [];
   const client: ControlClient = {
     attach: () => {},
     detach: () => {},
-    call: (async (method: string, params?: RpcParams) => {
+    call: (async (method: string, params?: RpcParams, options?: ControlCallOptions) => {
       calls.push({ method, params });
-      return handler(method, params);
+      return handler(method, params, options);
     }) as ControlClient['call'],
     onTopic: () => () => {},
     onPush: () => () => {},

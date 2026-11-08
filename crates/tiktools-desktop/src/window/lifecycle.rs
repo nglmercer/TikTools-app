@@ -48,6 +48,14 @@ impl DesktopApp {
         emitter: Arc<crate::event::EventLoopEmitter>,
     ) -> Self {
         let control = Arc::new(ControlApi::new(core.clone()));
+        // Winit constructs this host outside an entered Tokio context.
+        // Durable metadata delivery still belongs to the host lifecycle.
+        core.start_coordination_worker_on(&runtime);
+        #[cfg(feature = "remote-control")]
+        {
+            core.set_collaboration_gateway_available(true);
+            runtime.spawn(tiktools_remote::supervise(Arc::clone(&control)));
+        }
         let domain_mailbox = emitter.mailbox.clone();
         // Persistent local IPC shares the desktop's one AppCore: the CLI
         // and agents observe the same runtime the WebView drives. The
@@ -209,6 +217,7 @@ impl DesktopApp {
             // so the Winit window never sees these keys. The script reloads
             // in-page and asks the host for the inspector.
             .with_initialization_script(crate::webview::MAIN_INIT_SCRIPT)
+            .with_initialization_script(if cfg!(feature = "remote-client") { "window.__tiktools_remote_client_available__ = true;" } else { "window.__tiktools_remote_client_available__ = false;" })
             .with_navigation_handler(move |url| {
                 if is_update_releases_url(&url) {
                     if let Err(error) = open::that_detached(UPDATE_RELEASES_URL) {

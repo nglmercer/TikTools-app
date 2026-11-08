@@ -1,0 +1,22 @@
+[package]
+name = "tiktools-collaboration"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Host-owned collaborative LIVE identity, grants and durable sessions"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+thiserror.workspace = true
+rusqlite = { workspace = true, features = ["bundled"] }
+ring.workspace = true
+getrandom = "0.4.3"
+fs2 = "0.4"
+uuid = { version = "1", features = ["v4"] }
+url.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

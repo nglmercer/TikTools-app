@@ -197,3 +197,81 @@ fn stale_records_are_not_live_after_disable_or_remove() {
     // Records without identity never execute.
     assert!(!service.is_record_live(&json!({"enabled": true})));
 }
+
+#[test]
+fn queued_matches_bind_exact_dependencies_and_reject_identical_delete_recreate() {
+    let service = AutomationService::default();
+    let snapshot = json!({"actions":[{"id":"action","enabled":true,"typeId":"core.log","config":{"message":"original"}}],"events":[{"id":"event","enabled":true,"trigger":"tiktok.chat","filters":[],"actionIds":["action"]}]});
+    let input = json!({"type":"tiktok.chat"});
+    service.replace_snapshot(&snapshot);
+    let original = service.matching_records(&input).pop().unwrap();
+    assert!(service.is_match_live(&original));
+    // No-op read/projection refresh preserves admission tokens.
+    service.replace_snapshot(&snapshot);
+    assert!(service.is_match_live(&original));
+    service.upsert_action(json!({"id":"unrelated","enabled":true,"typeId":"core.log"}));
+    assert!(service.is_match_live(&original));
+    service.upsert_action(snapshot["actions"][0].clone());
+    assert!(!service.is_match_live(&original));
+    assert!(!service.is_step_live(&original, &original.actions[0]));
+    let current = service.matching_records(&input).pop().unwrap();
+    service.remove_event("event");
+    service.upsert_event(snapshot["events"][0].clone());
+    assert!(!service.is_match_live(&current));
+    let current = service.matching_records(&input).pop().unwrap();
+    service.remove_action("action");
+    service.upsert_action(snapshot["actions"][0].clone());
+    service.upsert_event(snapshot["events"][0].clone());
+    assert!(!service.is_match_live(&current));
+    let current = service.matching_records(&input).pop().unwrap();
+    let mut changed = snapshot["events"][0].clone();
+    changed["filters"] = json!([{"field":"user.uniqueId","operator":"eq","value":"other"}]);
+    service.upsert_event(changed);
+    assert!(!service.is_match_live(&current));
+}
+
+#[test]
+fn persisted_revision_changes_cancel_tokens_even_when_the_body_is_identical() {
+    use crate::collaboration::{ResourceKind, ResourceVersion};
+    let service = AutomationService::default();
+    let snapshot = json!({"actions":[{"id":"same","enabled":true,"typeId":"core.log"}],"events":[{"id":"same","enabled":true,"trigger":"tiktok.chat","filters":[],"actionIds":["same"]}]});
+    let mut versions = vec![
+        ResourceVersion {
+            kind: ResourceKind::Automation,
+            scope: "action".into(),
+            id: "same".into(),
+            revision: "1".into(),
+        },
+        ResourceVersion {
+            kind: ResourceKind::Automation,
+            scope: "event".into(),
+            id: "same".into(),
+            revision: "1".into(),
+        },
+    ];
+    service.replace_snapshot_versioned(&snapshot, &versions);
+    let token = service
+        .matching_records(&json!({"type":"tiktok.chat"}))
+        .pop()
+        .unwrap();
+    versions[0].revision = "2".into();
+    service.replace_snapshot_versioned(&snapshot, &versions);
+    assert!(!service.is_match_live(&token));
+    let token = service
+        .matching_records(&json!({"type":"tiktok.chat"}))
+        .pop()
+        .unwrap();
+    versions[1].revision = "2".into();
+    service.replace_snapshot_versioned(&snapshot, &versions);
+    assert!(!service.is_match_live(&token));
+    let token = service
+        .matching_records(&json!({"type":"tiktok.chat"}))
+        .pop()
+        .unwrap();
+    service.index.write().unwrap().sequence = u64::MAX;
+    service.upsert_action(snapshot["actions"][0].clone());
+    assert!(!service.is_match_live(&token));
+    assert!(service
+        .matching_records(&json!({"type":"tiktok.chat"}))
+        .is_empty());
+}

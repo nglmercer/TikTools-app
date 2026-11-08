@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import type { LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
+import type { AutomationRecordVersion, AutomationWriteBase } from '@/entities/automation/model/record-versions.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
@@ -72,22 +73,18 @@ export const useRuleProfilesStore = defineStore('rule-profiles', () => {
     }
   }
 
-  async function saveAction(action: LiveAction): Promise<void> {
-    try {
-      await automation.saveRecordAndRefresh('action', action);
-    } catch {
-      return;
-    }
-    await profiles.adoptRule('action', action.id);
+  async function saveAction(action: LiveAction, base: AutomationWriteBase): Promise<AutomationRecordVersion> {
+    const profile = profiles.activeId.value;
+    const result = await automation.saveRecordAndRefresh('action', action, base);
+    await profiles.adoptRule('action', action.id, profile);
+    return result;
   }
 
-  async function saveEvent(event: LiveEvent): Promise<void> {
-    try {
-      await automation.saveRecordAndRefresh('event', event);
-    } catch {
-      return;
-    }
-    await profiles.adoptRule('event', event.id);
+  async function saveEvent(event: LiveEvent, base: AutomationWriteBase): Promise<AutomationRecordVersion> {
+    const profile = profiles.activeId.value;
+    const result = await automation.saveRecordAndRefresh('event', event, base);
+    await profiles.adoptRule('event', event.id, profile);
+    return result;
   }
 
   return {

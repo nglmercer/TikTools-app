@@ -62,6 +62,92 @@ async fn connect_retry() -> ControlClient {
     panic!("could not connect to the test IPC host");
 }
 
+#[cfg(feature = "persistence")]
+#[tokio::test]
+async fn ipc_keeps_a_complete_owner_approval_review_larger_than_one_request_frame() {
+    use tiktools_core::{control::AutomationKind, paths::AppPaths, NoopMediaHost};
+    let _env = lock_env().await;
+    let home = isolated_home("large-owner-review");
+    let paths = AppPaths {
+        root: home.clone(),
+        data: home.join("data"),
+        plugins: home.join("plugins"),
+        plugin_data: home.join("plugin-data"),
+        builtin_plugins: home.join("absent"),
+        development_plugins: None,
+        logs: home.join("logs"),
+        temp: home.join("temp"),
+    };
+    paths.ensure_directories().unwrap();
+    for path in [
+        paths.points_database(),
+        paths.automation_database(),
+        paths.analytics_database(),
+    ] {
+        std::fs::File::create(path).unwrap();
+    }
+    let core = Arc::new(AppCore::with_paths(
+        Arc::new(NullEmitter),
+        Arc::new(NoopMediaHost),
+        paths,
+    ));
+    let source = "x".repeat(160 * 1024);
+    let mut action_ids = Vec::new();
+    for index in 0..8 {
+        let id = format!("large-review-{index}");
+        core.automation_create(AutomationKind::Action,json!({"id":id,"name":"Large saved log","enabled":false,"typeId":"core.log","config":{"message":source}})).unwrap();
+        action_ids.push(id);
+    }
+    core.automation_create(AutomationKind::Event,json!({"id":"large-owner-event","name":"Large saved review","enabled":false,"trigger":"tiktok.chat","actionIds":action_ids})).unwrap();
+    let server = tokio::spawn({
+        let api = Arc::new(ControlApi::new(core.clone()));
+        async move { tiktools_control_api::run_ipc_shared(api).await }
+    });
+    let client = within("connect large review", connect_retry()).await;
+    let response = within(
+        "large owner approval review",
+        client.call_value_with_meta(
+            "automation.approval.review",
+            json!({"kind":"event","id":"large-owner-event"}),
+            None,
+        ),
+    )
+    .await
+    .unwrap();
+    let bytes = serde_json::to_vec(&response.result).unwrap().len();
+    assert!(
+        bytes > tiktools_control_api::MAX_REQUEST_BYTES
+            && bytes < tiktools_control_api::MAX_OWNER_RESPONSE_BYTES
+    );
+    assert_eq!(
+        response.result["source"]["dependencies"]
+            .as_array()
+            .unwrap()
+            .len(),
+        8
+    );
+    assert_eq!(
+        response.result["source"]["dependencies"][7]["record"]["config"]["message"],
+        source
+    );
+    assert_eq!(response.meta.unwrap().resource_versions.len(), 9);
+    let pong = within(
+        "ping after large owner review",
+        client.call_value("system.ping", json!({})),
+    )
+    .await
+    .unwrap();
+    assert_eq!(pong["ok"], true);
+    core.shutdown().await;
+    within("large review IPC shutdown", server)
+        .await
+        .unwrap()
+        .unwrap();
+    drop(client);
+    drop(core);
+    let _ = std::fs::remove_dir_all(home);
+}
+
 #[tokio::test]
 async fn ipc_roundtrip_serves_discover_and_domain_methods() {
     let _env = lock_env().await;
@@ -316,6 +402,9 @@ async fn event_subscription_receives_domain_events_without_blocking_rpc() {
         tiktools_control_api::ControlEvent::Gap { lost } => {
             panic!("unexpected gap (lost {lost}) on an idle stream");
         }
+        tiktools_control_api::ControlEvent::Reliable(_) => {
+            panic!("local IPC must not receive remote subscription projections")
+        }
     }
 
     // RPC still works after events interleaved on the stream.
@@ -392,6 +481,9 @@ async fn event_subscription_continues_after_burst() {
         // attached for later events.
         tiktools_control_api::ControlEvent::Gap { lost } => {
             assert!(lost > 0, "gap must count the lost events");
+        }
+        tiktools_control_api::ControlEvent::Reliable(_) => {
+            panic!("local IPC must not receive remote subscription projections")
         }
     }
 
@@ -606,4 +698,63 @@ async fn connect_to_idle_endpoint_returns_host_unavailable() {
     assert_eq!(error.code, "host_unavailable", "unexpected code: {error:?}");
 
     let _ = std::fs::remove_dir_all(&home);
+}
+
+#[cfg(feature = "persistence")]
+#[tokio::test]
+async fn ipc_preserves_resource_versions_preconditions_and_conflict_details() {
+    let _env = lock_env().await;
+    let home = isolated_home("versions");
+    let core = Arc::new(AppCore::new(Arc::new(NullEmitter)));
+    let api = Arc::new(ControlApi::new(core.clone()));
+    let server = tokio::spawn(tiktools_control_api::run_ipc_shared(api.clone()));
+    let client = within("connect versions", connect_retry()).await;
+    let created = client
+        .call_value_with_meta(
+            "workflows.save",
+            json!({"graph":{"id":"shared","name":"Shared"}}),
+            Some(tiktools_control_api::RequestMetadata {
+                expected_revision: Some("0".into()),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(created.result["id"], "shared");
+    assert_eq!(created.meta.unwrap().resource_versions[0].revision, "1");
+    core.workflow_set_enabled("shared", true).unwrap();
+    let conflict = client
+        .call_value_with_meta(
+            "workflows.delete",
+            json!({"id":"shared"}),
+            Some(tiktools_control_api::RequestMetadata {
+                expected_revision: Some("1".into()),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(conflict.code, "revision_conflict");
+    assert_eq!(
+        conflict.data.unwrap()["resourceVersions"][0]["revision"],
+        "2"
+    );
+    let read = client
+        .call_value_with_meta("workflows.get", json!({"id":"shared"}), None)
+        .await
+        .unwrap();
+    assert_eq!(read.result["enabled"], true);
+    assert_eq!(read.meta.unwrap().resource_versions[0].revision, "2");
+    let legacy = client
+        .call_value("workflows.get", json!({"id":"shared"}))
+        .await
+        .unwrap();
+    assert_eq!(legacy["id"], "shared");
+    assert!(legacy.get("meta").is_none());
+    core.shutdown().await;
+    within("stop versions host", server).await.unwrap().unwrap();
+    drop(client);
+    drop(api);
+    drop(core);
+    std::fs::remove_dir_all(home).unwrap();
 }

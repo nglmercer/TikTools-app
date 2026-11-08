@@ -34,7 +34,7 @@ impl AppCore {
         let shutdown = self.plugin_state.observer_shutdown.clone();
         // Subscribe before spawning so an event published immediately after
         // this method returns cannot race the observer's first poll.
-        let subscription = self.events.subscribe_projection();
+        let subscription = self.events.subscribe_plugin_domain();
         tracing::info!("plugin event observer started");
         let task = runtime.spawn(async move {
             run_observer(core, shutdown, subscription).await;

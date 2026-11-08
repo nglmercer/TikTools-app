@@ -1,5 +1,10 @@
 # Cloud Sync (Desktop multi-device plugin selections)
 
+This feature syncs plugin selections, not collaborative LIVE state. For the
+two-PC moderator/agent implementation plan, see
+[Collaborative LIVE management](LIVE-COLLABORATION.md) and its
+[implementation specification](LIVE-COLLABORATION-SPEC.md).
+
 PR7 (`feat/desktop-cloud-sync`, stacked on PR6) adds opt-in sync of the
 `plugin-selections` collection through RemakeBackend. It reuses the pinned
 `cloud-client` sync engine with no new protocol.
@@ -31,6 +36,8 @@ PR7 (`feat/desktop-cloud-sync`, stacked on PR6) adds opt-in sync of the
    (enabled flag; tombstone disables). Unknown plugins are skipped, versions
    never trigger installs, and applying never re-stages — that is what
    prevents sync loops.
+   Records with unresolved pending local edits are withheld from application;
+   discovering a conflict never changes the local plugin before a user choice.
 5. Conflicts resolve explicitly: `sync.resolve {key, keepLocal:true}`
    rebases for the next upload; `keepLocal:false` drops the edit and applies
    the remote value immediately. `SyncStatus.conflicts` lists them.

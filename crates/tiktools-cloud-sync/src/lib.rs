@@ -419,6 +419,10 @@ impl SyncCoordinator {
                 .state
                 .entries
                 .iter()
+                // A remote value is not a local decision while an edit is
+                // pending. In particular, conflicted values must wait for
+                // keep_local/take_remote instead of changing a running plugin.
+                .filter(|(_, entry)| entry.pending.is_none())
                 .filter_map(|(key, entry)| {
                     entry.remote.as_ref().map(|record| RemoteSelection {
                         key: key.clone(),

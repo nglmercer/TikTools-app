@@ -170,7 +170,7 @@ impl AppCore {
         self.events
             .publish_domain(crate::events::DomainEvent::GiftsCatalog { gifts });
 
-        self.queue_automation_event(
+        self.queue_automation_event(AutomationEvent::owner(
             self.make_automation_event(
                 "tiktok.connected",
                 serde_json::to_value(crate::contracts::ConnectionAutomationData {
@@ -180,7 +180,7 @@ impl AppCore {
                 .expect("connection automation data must serialize"),
                 None,
             ),
-        );
+        ));
     }
     #[cfg(feature = "native-tiktok")]
     pub(crate) async fn handle_live_event(self: &Arc<Self>, event: NativeLiveEvent) {
@@ -409,7 +409,18 @@ impl AppCore {
         // Originals are delivered before any persistence work. Backfill only
         // reads their journal; it never calls this admission path again.
         if let Some(automation) = automation {
-            self.queue_automation_event(automation);
+            let envelope = AutomationEvent::owner(automation);
+            #[cfg(feature = "persistence")]
+            let envelope = match context.as_ref().and_then(|context| {
+                crate::services::effects::EffectExecution::native(&event, context).ok()
+            }) {
+                Some(execution) => {
+                    let (payload, authority) = envelope.into_parts();
+                    AutomationEvent::new(payload, authority.with_execution(execution))
+                }
+                None => envelope,
+            };
+            self.queue_automation_event(envelope);
         }
         let points = if let Some((mut ui, action, mut options, reason)) =
             self.ui_event_and_points(&event)
@@ -1116,7 +1127,7 @@ impl AppCore {
                         None => self.make_automation_event("points.awarded", data, None),
                     };
                     event["id"] = json!(format!("points-awarded-{}", effect.correlation));
-                    self.queue_automation_event(event);
+                    self.queue_automation_event(AutomationEvent::owner(event));
                 }
                 self.emit_leaderboard_if_due();
             }

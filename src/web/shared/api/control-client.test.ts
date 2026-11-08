@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createControlClient } from './control-client.ts';
+import { callWithMeta, createControlClient } from './control-client.ts';
 
 type MockIpc = {
   sent: string[];
@@ -43,7 +43,7 @@ function hostMessage(): (raw: string) => void {
   return receive!;
 }
 
-function respond(id: string, payload: { result?: unknown; error?: unknown }): void {
+function respond(id: string, payload: { result?: unknown; error?: unknown; meta?: unknown }): void {
   hostMessage()(JSON.stringify({ type: 'rpc-response', response: { id, ...payload } }));
 }
 
@@ -65,6 +65,50 @@ describe('createControlClient', () => {
       });
       respond(sentId(), { result: { ok: true } });
       await expect(pending).resolves.toEqual({ ok: true });
+      control.detach();
+    });
+
+    it('correlates revisions beside results and sends top-level preconditions', async () => {
+      const ipc = installMockIpc();
+      const control = createControlClient();
+      control.attach();
+      const pending = callWithMeta<{ id: string }>(control, 'workflows.save', { graph: { id: 'welcome' } }, { meta: { expectedRevision: '3' } });
+      expect(JSON.parse(ipc.sent[0]!)).toMatchObject({ meta: { expectedRevision: '3' }, params: { graph: { id: 'welcome' } } });
+      const meta = { resourceVersions: [{ kind: 'workflow', id: 'welcome', scope: 'host', revision: '4' }] };
+      respond(sentId(), { result: { id: 'welcome' }, meta });
+      await expect(pending).resolves.toEqual({ result: { id: 'welcome' }, meta });
+      const legacy = control.call('workflows.get', { id: 'welcome' });
+      respond(sentId(), { result: { id: 'welcome' }, meta });
+      await expect(legacy).resolves.toEqual({ id: 'welcome' });
+      control.detach();
+    });
+
+    it('preserves durable command receipts and host fencing beside domain results', async () => {
+      const ipc = installMockIpc();
+      const control = createControlClient();
+      control.attach();
+      const pending = callWithMeta(control, 'workflows.delete', { id: 'welcome' }, { meta: { commandId: 'delete-once', hostInstanceId: 'host-instance', expectedRevision: '3' } });
+      expect(JSON.parse(ipc.sent[0]!)).toMatchObject({ meta: { commandId: 'delete-once', hostInstanceId: 'host-instance', expectedRevision: '3' } });
+      const meta = { resourceVersions: [{ kind: 'workflow', id: 'welcome', scope: 'host', revision: '4' }], hostInstanceId: 'host-instance', command: { commandId: 'delete-once', state: 'succeeded', resource: { kind: 'workflow', id: 'welcome', scope: 'host' }, committedAt: 1794000000000 } };
+      respond(sentId(), { result: { id: 'welcome', deleted: true }, meta });
+      await expect(pending).resolves.toEqual({ result: { id: 'welcome', deleted: true }, meta });
+      const expired = callWithMeta(control, 'collaboration.commands.get', { commandId: 'delete-once' });
+      respond(sentId(), { error: { code: 'command_expired', message: 'unknown historical outcome', data: { commandId: 'delete-once', state: 'unknown' } } });
+      await expect(expired).rejects.toMatchObject({ code: 'command_expired', data: { commandId: 'delete-once', state: 'unknown' } });
+      control.detach();
+    });
+
+    it('retains conflict versions and rejects malformed response metadata', async () => {
+      installMockIpc();
+      const control = createControlClient();
+      control.attach();
+      const conflict = callWithMeta(control, 'workflows.save', { graph: {} }, { meta: { expectedRevision: '1' } });
+      const data = { resourceVersions: [{ kind: 'workflow', id: 'welcome', scope: 'host', revision: '2' }] };
+      respond(sentId(), { error: { code: 'revision_conflict', message: 'reload', data } });
+      await expect(conflict).rejects.toMatchObject({ code: 'revision_conflict', data });
+      const malformed = callWithMeta(control, 'workflows.get', { id: 'welcome' });
+      respond(sentId(), { result: {}, meta: { resourceVersions: [{ revision: 'invalid' }] } });
+      await expect(malformed).rejects.toMatchObject({ code: 'protocol' });
       control.detach();
     });
 

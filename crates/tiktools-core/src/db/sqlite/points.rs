@@ -42,6 +42,13 @@ const VIEWER_COLUMNS_SQL: &str = "SELECT unique_id, user_id, nickname, avatar_ur
                     total_shares, first_seen, last_seen
              FROM viewers";
 
+mod commands;
+mod approved;
+mod projection;
+#[cfg(test)]
+mod tests;
+mod versions;
+
 impl DatabaseManager {
     pub(crate) fn load_points_config(&self) -> Result<PointsConfig, DatabaseError> {
         let connection = self.open(&self.points_path())?;
@@ -167,6 +174,7 @@ impl DatabaseManager {
             transaction.prepare("UPDATE viewers SET points = 0, level = 1 WHERE unique_id = ?")?;
         let mut reset_all = transaction.prepare("UPDATE viewers SET points = 0, level = 1")?;
         let mut clear_tx = transaction.prepare("DELETE FROM points_transactions")?;
+        let mut versions = versions::Reservations::new(&transaction)?;
         for op in batch {
             match op {
                 PointsWriteOp::Save {
@@ -218,6 +226,7 @@ impl DatabaseManager {
                     }
                 },
             }
+            versions.reserve(&transaction, op)?;
         }
         drop(upsert);
         drop(insert_tx);
@@ -225,6 +234,7 @@ impl DatabaseManager {
         drop(reset_one);
         drop(reset_all);
         drop(clear_tx);
+        drop(versions);
         transaction.commit()?;
         Ok(())
     }
@@ -240,6 +250,7 @@ impl DatabaseManager {
     ) -> Result<(), DatabaseError> {
         let transaction = connection.transaction()?;
         apply_points_op_on(&transaction, op)?;
+        versions::Reservations::new(&transaction)?.reserve(&transaction, op)?;
         transaction.commit()?;
         Ok(())
     }

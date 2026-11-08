@@ -1,5 +1,7 @@
 #[cfg(feature = "native-tiktok")]
 pub(crate) mod dedup;
+mod envelope;
+pub(crate) use envelope::AutomationEvent;
 mod handlers;
 #[cfg(feature = "native-tiktok")]
 pub(crate) mod ingress;

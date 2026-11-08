@@ -15,13 +15,18 @@ mod client;
 mod commands;
 mod host;
 mod output;
+#[cfg(feature = "remote-client")]
+mod remote;
 #[cfg(feature = "local-web")]
 mod web;
 
 const USAGE: &str = "\
-usage: tiktools [--json] [--standalone] <command> [args]
+usage: tiktools [--json] [--standalone | --remote-profile NAME] <command> [args]
 
 commands:
+  remote pair --url https://host --profile NAME [--fingerprint SHA256] [--invite-stdin]
+         | inspect --url https://host | list | show NAME | forget NAME
+         | trust NAME --fingerprint SHA256 --confirm
   plugin list | get <id> | install <file.plugin> [--replace] | uninstall <id> [--purge]
          | install <id[@version]|registry:id|https-url> [--yes] [--allow-unsigned] [--no-wait]
          | search <query> [--category c] [--registry r] [--page N] | inspect <spec>
@@ -63,6 +68,7 @@ commands:
     | schema <method> [--format json|human]
     | call <method> [params-json] [--timeout SEC] [--dry-run] [--confirm]
     |      [--redact|--secrets-visible] [--explain] [--format json|human]
+    |      [--expected-revision N] [--command-id ID --host-instance-id ID] [--include-meta]
     | events [--topics t,...] [--timeout SEC] [--max-events N]
     | verify [--coverage|--smoke] [--sandbox] [--timeout SEC]
   rpc <method> [params-json]
@@ -83,6 +89,10 @@ commands run against the running host over local IPC by default; when no
 host is running they fail with host_unavailable instead of starting a
 second runtime. --standalone runs the command against an isolated
 in-process runtime instead. json values may use @path to read from a file.
+--remote-profile NAME selects an approved HTTPS/WSS profile and never falls
+back to a local runtime. It cannot be combined with --standalone, serving,
+the local web adapter or local api verify. remote pair reads invitations
+privately; no invitation or credential secret is accepted as a process argument.
 --json prints the raw result object to stdout; without it, lists print one
 line per item.
 live connect/pick read the session cookie from --session-cookie or the
@@ -99,12 +109,23 @@ fn main() {
 
 fn run() -> i32 {
     let raw: Vec<String> = std::env::args().skip(1).collect();
+    let (raw, remote_profile) = match remote_selection(raw) {
+        Ok(result) => result,
+        Err(message) => {
+            eprintln!("tiktools: {message}");
+            return 2;
+        }
+    };
     let json_mode = raw.iter().any(|arg| arg == "--json");
     let standalone = raw.iter().any(|arg| arg == "--standalone");
     let args: Vec<String> = raw
         .into_iter()
         .filter(|arg| arg != "--json" && arg != "--standalone")
         .collect();
+    if let Some(error) = selection_error(&args, standalone, remote_profile.as_deref()) {
+        eprintln!("tiktools: {error}");
+        return 2;
+    }
     if args.is_empty() || args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
         print!("{USAGE}");
         return 0;
@@ -123,7 +144,7 @@ fn run() -> i32 {
             return 3;
         }
     };
-    let code = runtime.block_on(dispatch(args, json_mode, standalone));
+    let code = runtime.block_on(dispatch(args, json_mode, standalone, remote_profile));
     // Tokio's blocking stdin read cannot be cancelled while a pipe stays
     // open. Hosts have already awaited AppCore cleanup; do not let idle
     // stdio keep SIGINT/SIGTERM shutdown waiting forever on runtime drop.
@@ -131,7 +152,21 @@ fn run() -> i32 {
     code
 }
 
-async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
+async fn dispatch(
+    args: Vec<String>,
+    json_mode: bool,
+    standalone: bool,
+    remote_profile: Option<String>,
+) -> i32 {
+    if args.first().is_some_and(|arg| arg == "remote") {
+        #[cfg(feature = "remote-client")]
+        return remote::run(&args[1..], json_mode).await;
+        #[cfg(not(feature = "remote-client"))]
+        {
+            eprintln!("tiktools: rebuild with --features remote-client");
+            return 2;
+        }
+    }
     if args.first().is_some_and(|arg| arg == "web") {
         #[cfg(feature = "local-web")]
         return web::run(&args[1..], standalone).await;
@@ -163,9 +198,13 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
         }
         Err(commands::CommandError::Call(error)) => {
             let exit = client::exit_code_for(&error);
-            client::print_error(json_mode, &error.code, &error.message);
+            client::print_error(json_mode, &error);
             return exit;
         }
+    };
+    let json_mode = match &plan {
+        commands::Plan::Api(command) => command.output_json().unwrap_or(json_mode),
+        _ => json_mode,
     };
     // Sandbox verification forces an isolated throwaway runtime even
     // without --standalone, so CI and agents can verify safely anywhere.
@@ -179,14 +218,72 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
         };
         return execute_and_print(&client::direct_client(), plan, json_mode).await;
     }
-    let resolved = match client::resolve_client(standalone).await {
+    let resolved = match client::resolve_selected(standalone, remote_profile.as_deref()).await {
         Ok(resolved) => resolved,
         Err(error) => {
-            client::print_error(json_mode, &error.code, &error.message);
+            client::print_error(json_mode, &error);
             return 3;
         }
     };
     execute_and_print(&resolved, plan, json_mode).await
+}
+
+fn remote_selection(raw: Vec<String>) -> Result<(Vec<String>, Option<String>), String> {
+    let mut remaining = Vec::new();
+    let mut profile = None;
+    let mut args = raw.into_iter();
+    while let Some(arg) = args.next() {
+        if arg == "--remote-profile" || arg.starts_with("--remote-profile=") {
+            if profile.is_some() {
+                return Err("--remote-profile was supplied more than once".into());
+            }
+            let name = if let Some((_, name)) = arg.split_once('=') {
+                name.to_owned()
+            } else {
+                args.next().ok_or("--remote-profile requires a name")?
+            };
+            if name.is_empty()
+                || name.len() > 64
+                || !name
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+                || name.starts_with('-')
+            {
+                return Err("invalid remote profile name".into());
+            }
+            profile = Some(name);
+        } else {
+            remaining.push(arg);
+        }
+    }
+    Ok((remaining, profile))
+}
+fn selection_error(
+    args: &[String],
+    standalone: bool,
+    profile: Option<&str>,
+) -> Option<&'static str> {
+    if profile.is_some() && !cfg!(feature = "remote-client") {
+        return Some("remote profiles are unavailable; rebuild with --features remote-client");
+    }
+    if profile.is_some() {
+        if standalone {
+            return Some("--remote-profile cannot be combined with --standalone");
+        }
+        if args
+            .first()
+            .is_some_and(|s| matches!(s.as_str(), "host" | "web" | "remote"))
+            || commands::serve_plan(args).is_ok_and(|p| p.is_some())
+            || args.first().is_some_and(|s| s == "api")
+                && args.get(1).is_some_and(|s| s == "verify")
+        {
+            return Some("remote profiles cannot start a local host, web adapter, profile command or local verifier");
+        }
+    }
+    if standalone && args.first().is_some_and(|s| s == "remote") {
+        return Some("remote profile management cannot use --standalone");
+    }
+    None
 }
 
 async fn execute_and_print(
@@ -211,8 +308,54 @@ async fn execute_and_print(
         }
         Err(error) => {
             let exit = client::exit_code_for(&error);
-            client::print_error(json_mode, &error.code, &error.message);
+            client::print_error(json_mode, &error);
             exit
         }
+    }
+}
+
+#[cfg(test)]
+mod remote_selection_tests {
+    use super::*;
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|s| s.to_string()).collect()
+    }
+    #[test]
+    fn remote_selection_is_explicit_and_rejects_duplicate_or_missing_names() {
+        let (rest, profile) = remote_selection(args(&[
+            "--remote-profile",
+            "desk",
+            "--json",
+            "live",
+            "status",
+        ]))
+        .unwrap();
+        assert_eq!(profile.as_deref(), Some("desk"));
+        assert_eq!(rest, args(&["--json", "live", "status"]));
+        for values in [
+            vec!["--remote-profile"],
+            vec!["--remote-profile="],
+            vec!["--remote-profile", "../desk"],
+            vec!["--remote-profile", "desk", "--remote-profile=other"],
+        ] {
+            assert!(remote_selection(args(&values)).is_err());
+        }
+    }
+    #[test]
+    fn selected_remote_profiles_cannot_construct_a_local_runtime() {
+        for values in [
+            vec!["host", "--ipc"],
+            vec!["host", "--stdio"],
+            vec!["rpc", "--stdio"],
+            vec!["web", "--assets", "somewhere"],
+            vec!["api", "verify", "--sandbox"],
+            vec!["remote", "list"],
+        ] {
+            assert!(selection_error(&args(&values), false, Some("desk")).is_some());
+        }
+        assert!(selection_error(&args(&["live", "status"]), true, Some("desk")).is_some());
+        #[cfg(feature = "remote-client")]
+        assert!(selection_error(&args(&["live", "status"]), false, Some("desk")).is_none());
+        assert!(selection_error(&args(&["remote", "list"]), true, None).is_some());
     }
 }

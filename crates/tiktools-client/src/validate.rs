@@ -8,10 +8,18 @@ use serde::Deserialize;
 use tiktools_control_api::modules::analytics::AnalyticsSummaryParams;
 use tiktools_control_api::modules::app::{AppStateGetParams, AppStateSetParams};
 use tiktools_control_api::modules::automation::{
-    AutomationCreateParams, AutomationFireParams, AutomationGetParams, AutomationListParams,
-    AutomationScriptParams, AutomationSetEnablementParams, AutomationTestParams,
-    AutomationUpdateParams,
+    AutomationAdoptParams, AutomationCreateParams, AutomationFireParams, AutomationGetParams,
+    AutomationListParams, AutomationManifestParams, AutomationScriptParams,
+    AutomationSetEnablementParams, AutomationTestParams, AutomationUpdateParams,
 };
+use tiktools_control_api::modules::automation_adoption::{
+    OwnerAdoptionEmpty, OwnerAdoptionReview, OwnerAdoptionSubmit,
+};
+use tiktools_control_api::modules::automation_approval::{
+    ApprovalActivateParams, ApprovalRevokeParams, OwnerApprovalEmpty, OwnerApprovalReviewParams,
+    OwnerApprovalReviewUnknown, OwnerApprovalSubmit,
+};
+use tiktools_control_api::modules::automation_effects::{EffectGetParams, EffectHistoryParams};
 use tiktools_control_api::modules::competitions::{
     CompetitionActionId, CompetitionId, CompetitionResultsRequest,
     Definition as CompetitionDefinition, ResolveCompetitionAction, SelectWinner,
@@ -66,6 +74,49 @@ use tiktools_control_api::modules::Empty;
 pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), ClientError> {
     let invalid = |error: serde_json::Error| ClientError::new("invalid_params", error.to_string());
     match method {
+        "collaboration.hello" => {
+            validate::<tiktools_control_api::modules::collaboration::HelloParams>(params)
+        }
+        "collaboration.me" => validate::<Empty>(params),
+        "collaboration.subscribe" => {
+            validate::<tiktools_control_api::modules::collaboration::SubscribeParams>(params)
+        }
+        "collaboration.snapshot" => {
+            validate::<tiktools_control_api::modules::collaboration::SnapshotParams>(params)
+        }
+        "collaboration.resume" => {
+            validate::<tiktools_control_api::modules::collaboration::ResumeParams>(params)
+        }
+        "collaboration.commands.get" => {
+            validate::<tiktools_control_api::modules::collaboration::CommandGet>(params)
+        }
+        "collaboration.status" => validate::<Empty>(params),
+        "collaboration.invites.list"
+        | "collaboration.requests.list"
+        | "collaboration.sessions.list"
+        | "collaboration.principals.list" => {
+            validate::<tiktools_control_api::modules::collaboration::ListQuery>(params)
+        }
+        "collaboration.configure" => {
+            validate::<tiktools_control_api::modules::collaboration::ConfigureInput>(params)
+        }
+        "collaboration.invites.create" => {
+            validate::<tiktools_control_api::modules::collaboration::InviteCreate>(params)
+        }
+        "collaboration.invites.revoke"
+        | "collaboration.requests.approve"
+        | "collaboration.requests.reject"
+        | "collaboration.sessions.revoke"
+        | "collaboration.principals.get"
+        | "collaboration.principals.revoke" => {
+            validate::<tiktools_control_api::modules::collaboration::IdParams>(params)
+        }
+        "collaboration.grants.set" => {
+            validate::<tiktools_control_api::modules::collaboration::GrantSet>(params)
+        }
+        "collaboration.audit.list" => {
+            validate::<tiktools_control_api::modules::collaboration::AuditQuery>(params)
+        }
         "plugins.ui.assets" => PluginIdParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
@@ -91,6 +142,37 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
                 .map(|_| ())
                 .map_err(invalid)
         }
+        "automation.adopt" => AutomationAdoptParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "automation.adoption.get" | "automation.adoption.resolve" => {
+            validate::<OwnerAdoptionEmpty>(params)
+        }
+        "automation.adoption.submit" => validate::<OwnerAdoptionSubmit>(params),
+        "automation.adoption.review_unknown" => validate::<OwnerAdoptionReview>(params),
+        "automation.approval.activate" => validate::<ApprovalActivateParams>(params),
+        "automation.approval.revoke" => validate::<ApprovalRevokeParams>(params),
+        "automation.approval.review" => validate::<OwnerApprovalReviewParams>(params),
+        "automation.approval.get" | "automation.approval.resolve" => {
+            validate::<OwnerApprovalEmpty>(params)
+        }
+        "automation.approval.submit" => validate::<OwnerApprovalSubmit>(params),
+        "automation.approval.review_unknown" => validate::<OwnerApprovalReviewUnknown>(params),
+        "automation.effects.get" => serde_json::from_value::<EffectGetParams>(params.clone())
+            .map_err(invalid)?
+            .validate()
+            .map_err(|error| ClientError::new(error.code, error.message)),
+        "automation.effects.history" => serde_json::from_value::<EffectHistoryParams>(params.clone())
+            .map_err(invalid)?
+            .validate()
+            .map_err(|error| ClientError::new(error.code, error.message)),
+        "automation.authority.get" => AutomationGetParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "automation.review" => AutomationGetParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "automation.manifest.get" => validate::<AutomationManifestParams>(params),
         "automation.list" => AutomationListParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
@@ -260,10 +342,17 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         | "rankings.pause" | "rankings.resume" => {
             RankingId::deserialize(params).map(|_| ()).map_err(invalid)
         }
-        "points.config.get" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
+        "points.config.get" | "points.info" => {
+            Empty::deserialize(params).map(|_| ()).map_err(invalid)
+        }
         "points.config.set" => PartialPointsConfig::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
+        "points.view" => {
+            tiktools_control_api::modules::points::PointsViewParams::deserialize(params)
+                .map(|_| ())
+                .map_err(invalid)
+        }
         "points.viewer.get" => PointsViewerParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),

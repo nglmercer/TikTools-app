@@ -52,6 +52,18 @@ const emit = defineEmits<{
   setEnabled: [kind: LibraryTab, id: string, enabled: boolean];
 }>();
 
+// The checkbox reflects committed state while the page confirms a transition.
+// Remount only the last requested checkbox to undo its native optimistic tick.
+const lastToggle = shallowRef<{ kind: LibraryTab; id: string; generation: number } | null>(null);
+let toggleGeneration = 0;
+function requestToggle(kind: LibraryTab, id: string, enabled: boolean): void {
+  lastToggle.value = { kind, id, generation: ++toggleGeneration };
+  emit('setEnabled', kind, id, enabled);
+}
+function checkboxKey(kind: LibraryTab, id: string): number {
+  return lastToggle.value?.kind === kind && lastToggle.value.id === id ? lastToggle.value.generation : 0;
+}
+
 const tab = defineModel<LibraryTab>('tab', { required: true });
 const selected = defineModel<string | null>('selected', { default: null });
 const eventQuery = defineModel<string>('eventQuery', { default: '' });
@@ -231,9 +243,10 @@ const sort = computed({
         >
           <template #cell-enabled="{ row }">
             <BaseCheckbox
+              :key="checkboxKey('events', row.id)"
               :model-value="row.enabled"
               :aria-label="t('automations.library.enable', { name: row.name })"
-              @update:model-value="emit('setEnabled', 'events', row.id, $event)"
+              @update:model-value="requestToggle('events', row.id, $event)"
             />
           </template>
           <template #cell-name="{ row }">
@@ -270,9 +283,10 @@ const sort = computed({
         >
           <template #cell-enabled="{ row }">
             <BaseCheckbox
+              :key="checkboxKey('actions', row.id)"
               :model-value="row.enabled"
               :aria-label="t('automations.library.enable', { name: row.name })"
-              @update:model-value="emit('setEnabled', 'actions', row.id, $event)"
+              @update:model-value="requestToggle('actions', row.id, $event)"
             />
           </template>
           <template #cell-name="{ row }">

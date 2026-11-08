@@ -13,6 +13,49 @@ declare global {
 
 export type RpcParams = Record<string, unknown>;
 
+export interface RequestMetadata {
+  expectedRevision?: string;
+  commandId?: string;
+  hostInstanceId?: string;
+}
+export interface ResourceVersion {
+  kind: string;
+  id: string;
+  scope: string;
+  revision: string;
+}
+export interface CommandReceipt {
+  commandId: string;
+  state: 'accepted' | 'running' | 'succeeded' | 'failed' | 'unknown';
+  resource?: { kind: string; id: string; scope: string };
+  committedAt?: number;
+}
+export interface ResponseMetadata {
+  resourceVersions: ResourceVersion[];
+  command?: CommandReceipt;
+  hostInstanceId?: string;
+  [field: string]: unknown;
+}
+export interface ControlCallOptions {
+  signal?: AbortSignal;
+  meta?: RequestMetadata;
+  onMetadata?: (meta: ResponseMetadata | undefined) => void;
+}
+export interface CallResult<T> {
+  result: T;
+  meta?: ResponseMetadata;
+}
+
+/** Metadata-aware calls retain the domain payload's existing shape. */
+export async function callWithMeta<T = unknown>(
+  control: ControlClient, method: string, params?: RpcParams,
+  options?: Omit<ControlCallOptions, 'onMetadata'>,
+): Promise<CallResult<T>> {
+  let meta: ResponseMetadata | undefined;
+  const result = await control.call<T>(method, params, { ...options, onMetadata: (value) => { meta = value; } });
+  return { result, meta };
+}
+
 export class ControlCallError extends Error {
   readonly code: string;
   readonly data?: unknown;
@@ -36,7 +79,7 @@ export type GapHandler = (lost: number) => void;
 export type Unsubscribe = () => void;
 
 type PendingCall = {
-  resolve: (result: unknown) => void;
+  resolve: (result: unknown, meta?: ResponseMetadata) => void;
   reject: (error: ControlCallError) => void;
   timer: ReturnType<typeof setTimeout>;
   cleanupAbort: () => void;
@@ -45,6 +88,7 @@ type PendingCall = {
 type RpcResponseWire = {
   id?: number | string | null;
   result?: unknown;
+  meta?: unknown;
   error?: { code?: unknown; message?: unknown; data?: unknown };
 };
 
@@ -60,6 +104,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function isResponseMetadata(value: unknown): value is ResponseMetadata {
+  if (!isRecord(value) || !Array.isArray(value['resourceVersions'])) return false;
+  if (value['hostInstanceId'] !== undefined && typeof value['hostInstanceId'] !== 'string') return false;
+  const command = value['command'];
+  if (command !== undefined) {
+    if (!isRecord(command) || typeof command['commandId'] !== 'string' ||
+        !['accepted', 'running', 'succeeded', 'failed', 'unknown'].includes(String(command['state']))) return false;
+    if (command['committedAt'] !== undefined && (typeof command['committedAt'] !== 'number' || !Number.isSafeInteger(command['committedAt']))) return false;
+    const resource = command['resource'];
+    if (resource !== undefined && (!isRecord(resource) || typeof resource['kind'] !== 'string' || typeof resource['id'] !== 'string' || typeof resource['scope'] !== 'string')) return false;
+  }
+  return value['resourceVersions'].every((version: unknown) => isRecord(version) &&
+    typeof version['kind'] === 'string' && typeof version['id'] === 'string' &&
+    typeof version['scope'] === 'string' && typeof version['revision'] === 'string' &&
+    /^(0|[1-9][0-9]*)$/.test(version['revision']));
+}
+
 export interface PresentationView {
   feed: boolean;
   behavior: boolean;
@@ -72,7 +133,7 @@ export interface ControlClient {
   diagnostics?(): { pending: number; capacity: number; overloaded: number; topicCount?: number; topicSubscriptions?: number; pushSubscriptions?: number };
   attach(): void;
   detach(): void;
-  call<T = unknown>(method: string, params?: RpcParams, options?: { signal?: AbortSignal }): Promise<T>;
+  call<T = unknown>(method: string, params?: RpcParams, options?: ControlCallOptions): Promise<T>;
   onTopic<T = unknown>(topic: string, handler: TopicHandler<T>): Unsubscribe;
   onPush(type: HostMessage['type'], handler: PushHandler): Unsubscribe;
   onTransportError(handler: TransportErrorHandler): Unsubscribe;
@@ -143,7 +204,12 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
           typeof response.error.message === 'string' ? response.error.message : 'request failed';
         call.reject(new ControlCallError(code, message, response.error.data));
       } else {
-        call.resolve(response.result ?? null);
+        const metadata = response.meta;
+        if (metadata !== undefined && metadata !== null && !isResponseMetadata(metadata)) {
+          call.reject(new ControlCallError('protocol', 'invalid response metadata'));
+          return;
+        }
+        call.resolve(response.result ?? null, metadata ?? undefined);
       }
       return;
     }
@@ -282,7 +348,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
       pending.clear();
     },
 
-    call<T = unknown>(method: string, params?: RpcParams, options?: { signal?: AbortSignal }): Promise<T> {
+    call<T = unknown>(method: string, params?: RpcParams, options?: ControlCallOptions): Promise<T> {
       return new Promise<T>((resolve, reject) => {
         const signal = options?.signal;
         if (signal?.aborted) { reject(new ControlCallError('cancelled', 'control request owner disposed')); return; }
@@ -305,6 +371,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
         let payload: string;
         try {
           payload = JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {},
+            ...(options?.meta === undefined ? {} : { meta: options.meta }),
             ...(presentationGeneration === null ? {} : { pageGeneration: presentationGeneration }),
           });
         } catch (error) {
@@ -337,7 +404,11 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
           reject(error);
         }, timeoutMs);
         pending.set(id, {
-          resolve: (result) => resolve(result as T),
+          resolve: (result, meta) => {
+            try { options?.onMetadata?.(meta); }
+            catch { reject(new ControlCallError('client', 'could not process response metadata')); return; }
+            resolve(result as T);
+          },
           reject,
           timer,
           cleanupAbort,

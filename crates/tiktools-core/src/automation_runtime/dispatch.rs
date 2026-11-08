@@ -1,6 +1,8 @@
 //! Automation dispatch: test harnesses and live event fan-out.
 
+use super::context::ExecutionContext;
 use super::samples::{cohere_gift_pair, pin_event_to_record};
+use crate::live_events::AutomationEvent;
 use crate::*;
 
 impl AppCore {
@@ -22,7 +24,7 @@ impl AppCore {
                     .get("trigger")
                     .and_then(Value::as_str)
                     .is_none_or(|record_trigger| record_trigger == trigger)
-                    && self.automation.event_record_matches(record, &event)
+                    && self.automation.runtime_event_record_matches(record, &event)
             });
             if compatible {
                 event["timestamp"] = Value::from(now_millis());
@@ -54,6 +56,15 @@ impl AppCore {
         event_override: Option<&Value>,
         record: Option<&Value>,
     ) -> Value {
+        let manual = match record {
+            Some(record) => match self.automation.manual_record(record) {
+                Some(matched) => Some(matched),
+                None => {
+                    return json!({"status":"error","error":"authority_required","summary":"Definition requires explicit owner adoption or delegated execution approval.","matched":0,"draftMatched":false})
+                }
+            },
+            None => None,
+        };
         let started = now_millis();
         let (mut event, source) = match event_override {
             Some(custom) if custom.is_object() => (custom.clone(), "custom"),
@@ -77,9 +88,19 @@ impl AppCore {
         // Same order as the live pipeline: domain fan-out first (widgets and
         // subscribers always see a fired event), then enrichment, then the
         // match that decides whether any action executes.
-        self.publish_live_domain_event(&event);
-        let enriched = self.enrich_automation_event(event).await;
-        if self.automation.emit_depth(&enriched) >= 3 {
+        let event = AutomationEvent::owner(event);
+        if !self.publish_live_domain_event(&event) {
+            return json!({"status":"error","error":"authority_required","matched":0,"draftMatched":false});
+        }
+        let envelope = match self.enrich_automation_event(event).await {
+            Ok(event) => event,
+            Err(_) => {
+                return json!({"status":"error","error":"authority_required","matched":0,"draftMatched":false})
+            }
+        };
+        let enriched = envelope.payload();
+        let incoming = envelope.context();
+        if incoming.depth() >= 3 {
             return json!({
                 "trigger": trigger,
                 "eventSource": source,
@@ -92,12 +113,14 @@ impl AppCore {
             });
         }
         let draft_id = record.and_then(|record| record.get("id").and_then(Value::as_str));
-        let saved: Vec<Value> = self
+        let saved: Vec<_> = self
             .automation
-            .matching_events(&enriched)
+            .matching_records(enriched)
             .into_iter()
             .filter(|matched| {
-                draft_id.is_none_or(|id| matched.get("id").and_then(Value::as_str) != Some(id))
+                draft_id.is_none_or(|id| {
+                    matched.definition.get("id").and_then(Value::as_str) != Some(id)
+                })
             })
             .collect();
         let draft_name = record
@@ -105,7 +128,9 @@ impl AppCore {
             .unwrap_or("Event");
         let draft_matched = record.is_some_and(|record| {
             record.get("trigger").and_then(Value::as_str) == Some(trigger)
-                && self.automation.event_record_matches(record, &enriched)
+                && self
+                    .automation
+                    .runtime_event_record_matches(record, enriched)
         });
         // Deliberately NOT remembered as last-live: a fired synthetic must
         // never become "live" truth, or the next probe would replay this
@@ -118,13 +143,13 @@ impl AppCore {
                 started,
                 record.map(|_| draft_name),
                 &pinned,
-                &enriched,
+                enriched,
             );
         }
-        self.run_matched_records(saved, &enriched).await;
+        self.run_matched_records(saved, enriched, incoming).await;
         if draft_matched {
-            if let Some(record) = record {
-                self.run_matched_records(vec![record.clone()], &enriched)
+            if let Some(record) = manual {
+                self.run_matched_records(vec![record], enriched, incoming)
                     .await;
             }
         }
@@ -181,6 +206,9 @@ impl AppCore {
     }
 
     pub(crate) async fn test_event(self: &Arc<Self>, record: &Value) -> Value {
+        let Some(matched) = self.automation.manual_record(record) else {
+            return json!({"status":"error","test":true,"error":"authority_required","summary":"Definition requires explicit owner adoption or delegated execution approval."});
+        };
         let started = now_millis();
         let trigger = record
             .get("trigger")
@@ -189,7 +217,7 @@ impl AppCore {
         let (mut event, source) = self.test_event_for(trigger, Some(record));
         let pinned = self.pin_sample_to_record(&mut event, source, record);
 
-        if !self.automation.event_record_matches(record, &event) {
+        if !self.automation.runtime_event_record_matches(record, &event) {
             // Name the replayed data so a mismatch against a plugin sample
             // (hotkey.pressed ships key "k") or a stale live event reads as
             // a data problem, not a broken trigger.
@@ -229,7 +257,7 @@ impl AppCore {
             });
         }
 
-        let actions = self.automation.actions_for_event(record);
+        let actions = &matched.actions;
         if actions.is_empty() {
             let summary = "The event has no saved actions to test.";
             return json!({
@@ -249,10 +277,26 @@ impl AppCore {
         }
 
         let mut runs = Vec::with_capacity(actions.len());
-        for action in &actions {
+        let Ok(context) = self
+            .record_execution_context(&matched, &ExecutionContext::owner())
+            .await
+        else {
+            return json!({"status":"error","test":true,"error":"authority_required","summary":"Saved execution approval is unavailable."});
+        };
+        for action in actions {
+            if !self.action_still_current(&matched, action).await {
+                runs.push(json!({"status":"error","error":"authority_required","summary":"Saved definition or execution approval has changed."}));
+                break;
+            }
             runs.push(
-                self.execute_action(action, &event, Some(record), true)
-                    .await,
+                self.execute_action_with_context(
+                    &action.definition,
+                    &event,
+                    Some(&matched.definition),
+                    &context,
+                    true,
+                )
+                .await,
             );
         }
         let failed = runs
@@ -283,12 +327,17 @@ impl AppCore {
         result
     }
 
-    pub(crate) async fn run_automation_event(self: &Arc<Self>, event: Value) {
-        if self.automation.emit_depth(&event) >= 3 {
+    pub(crate) async fn run_automation_event(self: &Arc<Self>, event: AutomationEvent) {
+        let (event, incoming) = event.into_parts();
+        if self.execution_context_guard(&incoming).is_err() {
+            tracing::warn!("automation execution context rejected");
+            return;
+        }
+        if incoming.depth() >= 3 {
             tracing::warn!(event_type = ?event.get("type"), "automation emit depth limit reached");
             return;
         }
-        let matched = self.automation.matching_events(&event);
+        let matched = self.automation.matching_records(&event);
         // Match outcome only (counts), never event contents: key data must
         // not end up in logs.
         tracing::debug!(
@@ -301,11 +350,11 @@ impl AppCore {
         // disabled or removed meanwhile. Stale clones never execute here.
         // Explicit manual fires bypass this via `run_matched_records`.
         let started = now_millis();
-        let live: Vec<Value> = matched
+        let live: Vec<_> = matched
             .into_iter()
-            .filter(|record| self.automation.is_record_live(record))
+            .filter(|record| self.automation.is_match_live(record))
             .collect();
-        self.run_matched_records(live, &event).await;
+        self.run_matched_records(live, &event, &incoming).await;
         self.automation_state
             .events_completed
             .fetch_add(1, Ordering::Relaxed);
@@ -318,14 +367,61 @@ impl AppCore {
     /// cooldown claim per record, then every referenced action, for real.
     /// Outcomes are counted so overload (rejected admissions) stays
     /// distinguishable from plugin failures.
-    async fn run_matched_records(self: &Arc<Self>, records: Vec<Value>, event: &Value) {
+    pub(super) async fn run_matched_records(
+        self: &Arc<Self>,
+        records: Vec<crate::services::MatchedRecord>,
+        event: &Value,
+        incoming: &ExecutionContext,
+    ) {
         for record in records {
-            if !self.automation.claim_event(&record, event, now_millis()) {
+            if self.execution_context_guard(incoming).is_err() {
+                break;
+            }
+            if !self.claim_matched_record(&record, event).await {
                 continue;
             }
-            for action in self.automation.actions_for_event(&record) {
+            let Ok(context) = self.record_execution_context(&record, incoming).await else {
+                continue;
+            };
+            let mut action_occurrences = std::collections::BTreeMap::<&str, u32>::new();
+            for action in &record.actions {
+                if self.execution_context_guard(incoming).is_err() {
+                    break;
+                }
+                if !self.action_still_current(&record, action).await {
+                    break;
+                }
+                let Some(action_id) = action.definition.get("id").and_then(Value::as_str) else {
+                    break;
+                };
+                let occurrence = action_occurrences.entry(action_id).or_default();
+                let slot = *occurrence;
+                let Some(next) = occurrence.checked_add(1) else {
+                    break;
+                };
+                *occurrence = next;
+                // Stable saved identities plus a per-action occurrence keep
+                // retries/replays on the original key when unrelated actions
+                // are inserted or reordered. JSON event IDs never participate.
+                let Ok(action_context) = context.effect_named_slot(
+                    record
+                        .definition
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or(""),
+                    action_id,
+                    slot,
+                ) else {
+                    break;
+                };
                 let run = self
-                    .execute_action(&action, event, Some(&record), false)
+                    .execute_action_with_context(
+                        &action.definition,
+                        event,
+                        Some(&record.definition),
+                        &action_context,
+                        false,
+                    )
                     .await;
                 if run.get("status").and_then(Value::as_str) == Some("ok") {
                     self.automation_state
@@ -336,6 +432,50 @@ impl AppCore {
                         .actions_failed
                         .fetch_add(1, Ordering::Relaxed);
                 }
+            }
+        }
+    }
+    async fn claim_matched_record(
+        &self,
+        record: &crate::services::MatchedRecord,
+        event: &Value,
+    ) -> bool {
+        if !self
+            .stable_automation(|| self.automation.is_match_live(record))
+            .await
+        {
+            return false;
+        }
+        self.automation
+            .claim_event(&record.definition, event, now_millis())
+    }
+    pub(super) async fn action_still_current(
+        &self,
+        record: &crate::services::MatchedRecord,
+        action: &crate::services::MatchedAction,
+    ) -> bool {
+        self.stable_automation(|| self.automation.is_step_live(record, action))
+            .await
+    }
+    async fn stable_automation(&self, check: impl Fn() -> bool) -> bool {
+        loop {
+            let settled = self.automation_write_settled.notified();
+            tokio::pin!(settled);
+            settled.as_mut().enable();
+            if self.is_shutdown() || self.automation_mutations.is_poisoned() {
+                return false;
+            }
+            let epoch = self.automation_write_epoch.load(Ordering::Acquire);
+            if epoch >= u64::MAX - 1 {
+                return false;
+            }
+            if !epoch.is_multiple_of(2) {
+                settled.await;
+                continue;
+            }
+            let valid = check();
+            if self.automation_write_epoch.load(Ordering::Acquire) == epoch {
+                return valid;
             }
         }
     }

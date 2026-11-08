@@ -1,5 +1,10 @@
 import type { ControlTransport } from './control-transport.ts';
 
+// Local Owner source reviews may be larger than incoming request frames.
+// Remote controller transports retain their independent negotiated limits.
+const OWNER_RESPONSE_BYTES = 8 * 1024 * 1024;
+const REQUEST_QUEUE_BYTES = 1024 * 1024;
+
 /** No queued/replayed requests: accepted mutations may finish after disconnect. */
 export function createBrowserTransport(options: {
   url: string;
@@ -52,11 +57,11 @@ export function createBrowserTransport(options: {
       current.onmessage = (event) => {
         if (socket !== current || stopped) return;
         if (typeof event.data !== 'string') { current.close(); return; }
-        if (new TextEncoder().encode(event.data).length > 1024 * 1024) { current.close(); return; }
+        const size = new TextEncoder().encode(event.data).length;
+        if (size > OWNER_RESPONSE_BYTES) { current.close(); return; }
         if (receive) receive(event.data);
         else {
-          const size = new TextEncoder().encode(event.data).length;
-          while (initialMessages.length >= 256 || initialBytes + size > 1024 * 1024) {
+          while (initialMessages.length >= 256 || initialBytes + size > OWNER_RESPONSE_BYTES) {
             const dropped = initialMessages.shift();
             if (dropped === undefined) break;
             initialBytes -= new TextEncoder().encode(dropped).length;
@@ -85,7 +90,7 @@ export function createBrowserTransport(options: {
     connect,
     send(message) {
       if (socket?.readyState !== 1) throw new Error('local browser connection is unavailable');
-      if (socket.bufferedAmount + new TextEncoder().encode(message).length > 1024 * 1024) {
+      if (socket.bufferedAmount + new TextEncoder().encode(message).length > REQUEST_QUEUE_BYTES) {
         throw new Error('local browser send queue is full');
       }
       socket.send(message);

@@ -11,9 +11,12 @@
 //! Windows named pipe), WebView bridge, tests, AI agents.
 
 pub mod client;
+pub mod context;
 pub mod error;
+pub mod metadata;
 pub mod modules;
 pub mod ownership;
+pub mod policy;
 pub mod registry;
 pub mod request;
 pub mod response;
@@ -21,14 +24,16 @@ pub mod router;
 pub mod transport;
 
 pub use client::{ClientError, ControlClient, ControlEvent};
+pub use context::{RemoteCapability, RemoteSession, RequestContext};
 pub use error::ApiError;
+pub use metadata::{CallResult, RequestMetadata, ResponseMetadata};
 pub use registry::MethodMeta;
 pub use request::{RpcId, RpcRequest};
 pub use response::RpcResponse;
 pub use router::ControlRouter;
 pub use transport::{
-    run_ipc, run_ipc_shared, run_ipc_shared_with_ready, run_stdio, IPC_NAME, MAX_PARAMS_BYTES,
-    MAX_REQUEST_BYTES,
+    run_ipc, run_ipc_shared, run_ipc_shared_with_ready, run_stdio, run_stdio_shared, IPC_NAME,
+    MAX_OWNER_RESPONSE_BYTES, MAX_PARAMS_BYTES, MAX_REQUEST_BYTES,
 };
 
 use std::sync::Arc;
@@ -53,6 +58,7 @@ pub struct ControlApi {
 impl ControlApi {
     pub fn new(core: Arc<AppCore>) -> Self {
         core.start_competition_timer();
+        core.start_coordination_worker();
         let mut router = ControlRouter::new();
         Self::register_all(&mut router);
         Self { core, router }
@@ -63,6 +69,7 @@ impl ControlApi {
     /// builds hosts from it and out-of-tree parity tests enumerate it.
     pub fn register_all(router: &mut ControlRouter) {
         modules::system::register(router);
+        modules::collaboration::register(router);
         modules::plugins::register(router);
         #[cfg(feature = "plugin-install")]
         modules::packages::register(router);
@@ -80,6 +87,9 @@ impl ControlApi {
         modules::rankings::register(router);
         modules::competitions::register(router);
         modules::automation::register(router);
+        modules::automation_adoption::register(router);
+        modules::automation_approval::register(router);
+        modules::automation_effects::register(router);
         modules::processors::register(router);
         modules::media::register(router);
         modules::app::register(router);
@@ -111,6 +121,79 @@ impl ControlApi {
         }
         let registry = std::sync::Arc::new(std::sync::RwLock::new(MethodRegistry::default()));
         modules::rpc::register(router, std::sync::Arc::clone(&registry));
+        // Side-effect metadata never grants authority. Each supported method
+        // needs explicit policy; unlisted methods stay denied.
+        for name in ["live.status", "live.monitor.status", "ui.feed.backfill"] {
+            router.set_remote_policy(
+                name,
+                policy::RemotePolicy::Capability(RemoteCapability::LiveRead),
+            );
+        }
+        router.set_remote_policy(
+            "workflows.disable",
+            policy::RemotePolicy::Capability(RemoteCapability::WorkflowsToggle),
+        );
+        router.set_remote_policy(
+            "workflows.delete",
+            policy::RemotePolicy::Capability(RemoteCapability::WorkflowsEdit),
+        );
+        for name in ["automation.list", "automation.get"] {
+            router.set_remote_policy(
+                name,
+                policy::RemotePolicy::Capability(RemoteCapability::AutomationRead),
+            );
+        }
+        router.set_remote_policy(
+            "automation.disable",
+            policy::RemotePolicy::Capability(RemoteCapability::AutomationToggle),
+        );
+        router.set_remote_policy(
+            "automation.delete",
+            policy::RemotePolicy::Capability(RemoteCapability::AutomationEdit),
+        );
+        for name in ["automation.create", "automation.update"] {
+            router.set_remote_policy(
+                name,
+                policy::RemotePolicy::Capability(RemoteCapability::AutomationEdit),
+            );
+        }
+
+        for name in [
+            "points.viewer.get",
+            "points.leaderboard",
+            "points.info",
+            "points.view",
+        ] {
+            router.set_remote_policy(
+                name,
+                policy::RemotePolicy::Capability(RemoteCapability::PointsRead),
+            );
+        }
+        router.set_remote_policy(
+            "points.adjust",
+            policy::RemotePolicy::Capability(RemoteCapability::PointsAdjust),
+        );
+        router.set_remote_policy(
+            "collaboration.commands.get",
+            policy::RemotePolicy::Capability(RemoteCapability::CommandsRead),
+        );
+        for name in [
+            "rpc.discover",
+            "rpc.schema",
+            "collaboration.hello",
+            "collaboration.me",
+            "collaboration.subscribe",
+            "collaboration.snapshot",
+            "collaboration.resume",
+        ] {
+            router.set_remote_policy(name, policy::RemotePolicy::Authenticated);
+        }
+        for name in ["workflows.list", "workflows.get"] {
+            router.set_remote_policy(
+                name,
+                policy::RemotePolicy::Capability(RemoteCapability::WorkflowsRead),
+            );
+        }
         // Snapshot after every module (including rpc.*) registered so
         // discovery lists the discovery methods themselves. The lock is
         // local to this call and no registered handler can run while the
@@ -126,8 +209,371 @@ impl ControlApi {
         &self.router
     }
 
+    /// Reauthorize a queued remote response immediately before network send.
+    pub fn authorize_remote(&self, session: &RemoteSession, method: &str) -> Result<(), ApiError> {
+        self.router
+            .get(method)
+            .map(|entry| entry.remote_policy)
+            .unwrap_or_default()
+            .authorize(session)?;
+        // Shared backfill is not filtered by creator. Use a scoped projection
+        // before exposing history under a creator-restricted LIVE grant.
+        if method == "ui.feed.backfill"
+            && session
+                .grant()?
+                .resources
+                .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
+        {
+            return Err(context::forbidden());
+        }
+        if matches!(method, "workflows.disable" | "workflows.delete")
+            && !session
+                .grant()?
+                .capabilities
+                .contains(&RemoteCapability::WorkflowsRead)
+        {
+            return Err(context::forbidden());
+        }
+        let grant = session.grant()?;
+        if method.starts_with("automation.") && !policy::automation_read_allowed(&grant) {
+            return Err(context::forbidden());
+        }
+        let can_read_domain = grant
+            .capabilities
+            .contains(&RemoteCapability::WorkflowsRead)
+            || grant.capabilities.contains(&RemoteCapability::PointsRead)
+                && !grant
+                    .resources
+                    .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
+            || policy::automation_read_allowed(&grant);
+        if matches!(
+            method,
+            "collaboration.commands.get"
+                | "collaboration.subscribe"
+                | "collaboration.snapshot"
+                | "collaboration.resume"
+        ) && !can_read_domain
+        {
+            return Err(context::forbidden());
+        }
+        if matches!(
+            method,
+            "points.adjust"
+                | "points.viewer.get"
+                | "points.leaderboard"
+                | "points.info"
+                | "points.view"
+        ) && (!grant.capabilities.contains(&RemoteCapability::PointsRead)
+            || grant
+                .resources
+                .contains_key(&tiktools_core::collaboration::ResourceKind::Live))
+        {
+            return Err(context::forbidden());
+        }
+        Ok(())
+    }
+
+    pub fn authorize_remote_response(
+        &self,
+        session: &RemoteSession,
+        method: &str,
+        result: &Value,
+    ) -> Result<(), ApiError> {
+        self.authorize_remote(session, method)?;
+        let grant = session.grant()?;
+        if matches!(
+            method,
+            "points.adjust" | "points.viewer.get" | "points.leaderboard" | "points.view"
+        ) {
+            let allowed = |row: &Value| {
+                row.get("uniqueId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| {
+                        grant
+                            .allows_resource(tiktools_core::collaboration::ResourceKind::Viewer, id)
+                    })
+            };
+            let permitted = match method {
+                "points.view" => {
+                    result
+                        .get("viewers")
+                        .and_then(Value::as_array)
+                        .is_some_and(|rows| rows.iter().all(allowed))
+                        && result
+                            .get("selected")
+                            .is_some_and(|v| v.is_null() || allowed(v))
+                        && result.get("selectedId").is_some_and(|v| {
+                            v.is_null()
+                                || v.as_str().is_some_and(|id| {
+                                    grant.allows_resource(
+                                        tiktools_core::collaboration::ResourceKind::Viewer,
+                                        id,
+                                    )
+                                })
+                        })
+                }
+                "points.adjust" => allowed(result),
+                "points.viewer.get" => result.get("viewer").is_some_and(allowed),
+                _ => result
+                    .get("viewers")
+                    .and_then(Value::as_array)
+                    .is_some_and(|rows| rows.iter().all(allowed)),
+            };
+            if !permitted
+                || (method == "points.adjust"
+                    && grant.max_points_delta.is_some_and(|max| {
+                        !result
+                            .get("delta")
+                            .and_then(Value::as_f64)
+                            .is_some_and(|n| n.is_finite() && n.abs() <= max)
+                    }))
+            {
+                return Err(context::forbidden());
+            }
+        }
+        if matches!(
+            method,
+            "collaboration.subscribe" | "collaboration.snapshot" | "collaboration.resume"
+        ) {
+            let id = result
+                .get("subscriptionId")
+                .and_then(Value::as_str)
+                .ok_or_else(context::forbidden)?;
+            let revision = result
+                .get("grantRevision")
+                .and_then(Value::as_str)
+                .ok_or_else(context::forbidden)?;
+            self.core
+                .collaboration_stream_validate(
+                    &session.authorization()?,
+                    session.connection_id().ok_or_else(context::forbidden)?,
+                    id,
+                    revision,
+                    result.get("snapshotId").and_then(Value::as_str),
+                )
+                .map_err(ApiError::from)?;
+        }
+        if matches!(
+            method,
+            "workflows.list" | "workflows.get" | "workflows.disable" | "workflows.delete"
+        ) {
+            let allowed = |record: &Value| {
+                record.get("id").and_then(Value::as_str).is_some_and(|id| {
+                    grant.allows_resource(tiktools_core::collaboration::ResourceKind::Workflow, id)
+                })
+            };
+            let permitted = if method != "workflows.list" {
+                allowed(result)
+            } else {
+                result
+                    .get("workflows")
+                    .and_then(Value::as_array)
+                    .is_some_and(|rows| rows.iter().all(allowed))
+            };
+            if !permitted {
+                return Err(context::forbidden());
+            }
+        }
+        if method.starts_with("automation.")
+            && !policy::automation_result_allowed(&grant, method, result)
+        {
+            return Err(context::forbidden());
+        }
+        if method == "collaboration.commands.get" {
+            if result.get("principalId").and_then(Value::as_str) != Some(session.principal_id()) {
+                return Err(context::forbidden());
+            }
+            let resource = result
+                .pointer("/command/resource")
+                .ok_or_else(context::forbidden)?;
+            let kind = match resource.get("kind").and_then(Value::as_str) {
+                Some("workflow")
+                    if grant
+                        .capabilities
+                        .contains(&RemoteCapability::WorkflowsRead) =>
+                {
+                    tiktools_core::collaboration::ResourceKind::Workflow
+                }
+                Some("viewer")
+                    if grant.capabilities.contains(&RemoteCapability::PointsRead)
+                        && !grant
+                            .resources
+                            .contains_key(&tiktools_core::collaboration::ResourceKind::Live) =>
+                {
+                    tiktools_core::collaboration::ResourceKind::Viewer
+                }
+                Some("automation") if policy::automation_read_allowed(&grant) => {
+                    tiktools_core::collaboration::ResourceKind::Automation
+                }
+                _ => return Err(context::forbidden()),
+            };
+            let scope = resource
+                .get("scope")
+                .and_then(Value::as_str)
+                .ok_or_else(context::forbidden)?;
+            if !resource
+                .get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| grant.allows_scoped_resource(kind, scope, id))
+            {
+                return Err(context::forbidden());
+            }
+            if kind == tiktools_core::collaboration::ResourceKind::Automation {
+                if tiktools_core::collaboration::AutomationFamily::from_scope(scope).is_none() {
+                    return Err(context::forbidden());
+                }
+                // A retained outcome must be just as narrow as the live
+                // command response. Expired-outcome errors carry target only.
+                if let Some(method) = result.get("method").and_then(Value::as_str) {
+                    if !matches!(
+                        method,
+                        "automation.disable"
+                            | "automation.delete"
+                            | "automation.create"
+                            | "automation.update"
+                    ) || (matches!(method, "automation.disable" | "automation.delete")
+                        && scope != "event")
+                        || !result.get("result").is_some_and(|v| {
+                            policy::automation_result_allowed(&grant, method, v)
+                                && v.get("id") == resource.get("id")
+                                && (!matches!(method, "automation.create" | "automation.update")
+                                    || v.get("kind").and_then(Value::as_str) == Some(scope))
+                        })
+                        || !result
+                            .get("resourceVersions")
+                            .and_then(Value::as_array)
+                            .is_some_and(|rows| {
+                                rows.len() == 1
+                                    && rows.iter().all(|v| {
+                                        v.get("kind") == resource.get("kind")
+                                            && v.get("scope") == resource.get("scope")
+                                            && v.get("id") == resource.get("id")
+                                    })
+                            })
+                    {
+                        return Err(context::forbidden());
+                    }
+                }
+            }
+        }
+        if matches!(method, "live.status" | "live.monitor.status") {
+            if let Some(ids) = grant
+                .resources
+                .get(&tiktools_core::collaboration::ResourceKind::Live)
+            {
+                if !result
+                    .get("uniqueId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| ids.contains(id))
+                {
+                    return Err(context::forbidden());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Resource-bound command failures must obey the same egress policy as
+    /// successful outcomes, including while queued behind other socket work.
+    pub fn authorize_remote_failure(
+        &self,
+        session: &RemoteSession,
+        method: &str,
+        data: Option<&Value>,
+    ) -> Result<(), ApiError> {
+        self.authorize_remote(session, method)?;
+        if matches!(
+            method,
+            "workflows.get"
+                | "workflows.list"
+                | "workflows.disable"
+                | "workflows.delete"
+                | "points.viewer.get"
+                | "points.leaderboard"
+                | "points.view"
+                | "points.adjust"
+                | "automation.list"
+                | "automation.get"
+                | "automation.disable"
+                | "automation.delete"
+                | "automation.create"
+                | "automation.update"
+        ) {
+            if let Some(versions) = data
+                .and_then(|data| data.get("resourceVersions"))
+                .and_then(Value::as_array)
+            {
+                let grant = session.grant()?;
+                let (kind, wire) = if method.starts_with("automation.") {
+                    (
+                        tiktools_core::collaboration::ResourceKind::Automation,
+                        "automation",
+                    )
+                } else if method.starts_with("points.") {
+                    (tiktools_core::collaboration::ResourceKind::Viewer, "viewer")
+                } else {
+                    (
+                        tiktools_core::collaboration::ResourceKind::Workflow,
+                        "workflow",
+                    )
+                };
+                if versions.iter().any(|v| {
+                    v.get("kind").and_then(Value::as_str) != Some(wire)
+                        || !v.get("id").and_then(Value::as_str).is_some_and(|id| {
+                            v.get("scope").and_then(Value::as_str).is_some_and(|scope| {
+                                grant.allows_scoped_resource(kind, scope, id)
+                                    && (!matches!(
+                                        method,
+                                        "automation.disable" | "automation.delete"
+                                    ) || scope == "event")
+                            })
+                        })
+                }) {
+                    return Err(context::forbidden());
+                }
+            }
+        }
+        if let Some(data) = data.filter(|data| {
+            method == "collaboration.commands.get" && data.pointer("/command/resource").is_some()
+        }) {
+            return self.authorize_remote_response(session, method, data);
+        }
+        Ok(())
+    }
+
     /// Executes one validated request.
     pub async fn execute(&self, request: RpcRequest) -> RpcResponse {
+        self.execute_with_context(&RequestContext::LocalOwner, request)
+            .await
+    }
+
+    /// Remote gateways MUST use this path with a transport-authenticated
+    /// session. Identity and grants cannot come from request params.
+    pub async fn execute_with_context(
+        &self,
+        context: &RequestContext,
+        request: RpcRequest,
+    ) -> RpcResponse {
+        let mut response = self.execute_authorized(context, request).await;
+        if matches!(context, RequestContext::Remote(_)) {
+            if let Some(error) = &mut response.error {
+                policy::redact_remote_failure(error);
+            }
+        }
+        response
+    }
+
+    async fn execute_authorized(
+        &self,
+        context: &RequestContext,
+        request: RpcRequest,
+    ) -> RpcResponse {
+        if let RequestContext::Remote(session) = context {
+            let authorization = self.authorize_remote(session, &request.method);
+            if let Err(error) = authorization {
+                return RpcResponse::error(request.id, error);
+            }
+        }
         if let Some(version) = request.jsonrpc.as_deref() {
             if version != "2.0" {
                 return RpcResponse::error(
@@ -139,14 +585,136 @@ impl ControlApi {
         let Some(entry) = self.router.get(&request.method) else {
             return RpcResponse::error(request.id, ApiError::method_not_found(&request.method));
         };
+        if let Some(meta) = &request.meta {
+            // Never acknowledge command metadata that a method cannot enforce.
+            if (meta.command_id.is_some() || meta.host_instance_id.is_some())
+                && !entry.meta.durable_commands
+            {
+                return RpcResponse::error(
+                    request.id,
+                    ApiError::new(
+                        "unsupported_remote",
+                        "this method does not support durable commands",
+                    ),
+                );
+            }
+            if (meta.command_id.is_some() || meta.host_instance_id.is_some())
+                && (meta.command_id.is_none()
+                    || meta.host_instance_id.is_none()
+                    || (entry.meta.concurrency
+                        == Some(registry::ConcurrencyStrategy::CompareAndSet)
+                        && meta.expected_revision.is_none()))
+            {
+                return RpcResponse::error(
+                    request.id,
+                    ApiError::invalid_params(
+                        "commandId and hostInstanceId are required; compare-and-set also requires expectedRevision",
+                    ),
+                );
+            }
+            if meta.expected_revision.is_some()
+                && entry.meta.concurrency != Some(registry::ConcurrencyStrategy::CompareAndSet)
+            {
+                return RpcResponse::error(
+                    request.id,
+                    ApiError::invalid_params("this method does not accept expectedRevision"),
+                );
+            }
+        }
         if request.params_size() > MAX_PARAMS_BYTES {
             return RpcResponse::error(request.id, ApiError::too_large());
         }
         let params = request.params_object();
-        let outcome =
-            tokio::time::timeout(REQUEST_TIMEOUT, (entry.handler)(self.core.clone(), params)).await;
+        if let RequestContext::Remote(session) = context {
+            if request.method == "rpc.discover" {
+                if let Err(error) = serde_json::from_value::<modules::Empty>(params) {
+                    return RpcResponse::error(
+                        request.id,
+                        ApiError::invalid_params(error.to_string()),
+                    );
+                }
+                let methods: Vec<_> = self
+                    .router
+                    .metadata()
+                    .into_iter()
+                    .filter(|meta| {
+                        self.router
+                            .get(&meta.name)
+                            .is_some_and(|_| self.authorize_remote(session, &meta.name).is_ok())
+                    })
+                    .collect();
+                return match session.authorize(None) {
+                    Ok(()) => {
+                        RpcResponse::success(request.id, serde_json::json!({"methods": methods}))
+                    }
+                    Err(error) => RpcResponse::error(request.id, error),
+                };
+            }
+            if request.method == "rpc.schema" {
+                let params = match serde_json::from_value::<modules::rpc::SchemaParams>(params) {
+                    Ok(params) => params,
+                    Err(error) => {
+                        return RpcResponse::error(
+                            request.id,
+                            ApiError::invalid_params(error.to_string()),
+                        )
+                    }
+                };
+                let Some(entry) = self.router.get(&params.method) else {
+                    return RpcResponse::error(request.id, context::forbidden());
+                };
+                if let Err(error) = self.authorize_remote(session, &params.method) {
+                    return RpcResponse::error(request.id, error);
+                }
+                return match serde_json::to_value(&entry.meta) {
+                    Ok(meta) => RpcResponse::success(request.id, meta),
+                    Err(_) => RpcResponse::error(
+                        request.id,
+                        ApiError::internal("schema serialization failed"),
+                    ),
+                };
+            }
+        }
+        let outcome = tokio::time::timeout(
+            REQUEST_TIMEOUT,
+            (entry.handler)(self.core.clone(), context.clone(), params, request.meta),
+        )
+        .await;
+        // Do not disclose a result after an in-flight revocation/expiry.
+        if let RequestContext::Remote(session) = context {
+            let authorization = match &outcome {
+                Ok(Ok(result)) => {
+                    self.authorize_remote_response(session, &request.method, &result.value)
+                }
+                Ok(Err(error)) => {
+                    self.authorize_remote_failure(session, &request.method, error.data.as_ref())
+                }
+                Err(_) => self.authorize_remote(session, &request.method),
+            };
+            if let Err(error) = authorization {
+                return RpcResponse::error(request.id, error);
+            }
+        }
         match outcome {
-            Ok(Ok(result)) => RpcResponse::success(request.id, result),
+            Ok(Ok(result)) => {
+                let mut response = RpcResponse::success(
+                    request.id,
+                    if matches!(context, RequestContext::Remote(_)) {
+                        policy::redact_remote_result(&request.method, result.value)
+                    } else {
+                        result.value
+                    },
+                );
+                response.meta =
+                    result
+                        .resource_versions
+                        .map(|resource_versions| ResponseMetadata {
+                            resource_versions,
+                            command: result.command,
+                            host_instance_id: result.host_instance_id,
+                        });
+                response
+            }
             Ok(Err(error)) => RpcResponse::error(request.id, error),
             Err(_) => RpcResponse::error(request.id, ApiError::timeout()),
         }
@@ -154,6 +722,15 @@ impl ControlApi {
 
     /// Parses one raw JSON value (a stdio/IPC line) and executes it.
     pub async fn execute_value(&self, raw: &Value) -> RpcResponse {
+        self.execute_value_with_context(&RequestContext::LocalOwner, raw)
+            .await
+    }
+
+    pub async fn execute_value_with_context(
+        &self,
+        context: &RequestContext,
+        raw: &Value,
+    ) -> RpcResponse {
         let id = RpcId::extract(raw);
         let Some(object) = raw.as_object() else {
             return RpcResponse::error(id, ApiError::invalid_params("request must be an object"));
@@ -173,13 +750,36 @@ impl ControlApi {
                 ApiError::invalid_params("method must be 1..=128 characters"),
             );
         }
+        // Preserve policy-before-validation for hidden methods, including a
+        // malformed metadata envelope supplied by a remote caller.
+        if let RequestContext::Remote(session) = context {
+            if let Err(error) = self.authorize_remote(session, method) {
+                return RpcResponse::error(id, error);
+            }
+        }
+        let meta = match object.get("meta").filter(|value| !value.is_null()) {
+            Some(value) => match serde_json::from_value::<RequestMetadata>(value.clone()) {
+                Ok(meta) => Some(meta),
+                Err(_) => {
+                    return RpcResponse::error(
+                        id,
+                        ApiError::invalid_params("invalid request metadata"),
+                    )
+                }
+            },
+            None => None,
+        };
         let params = object.get("params").cloned().unwrap_or(Value::Null);
-        self.execute(RpcRequest {
-            jsonrpc: None,
-            id,
-            method: method.to_owned(),
-            params,
-        })
+        self.execute_with_context(
+            context,
+            RpcRequest {
+                jsonrpc: None,
+                id,
+                method: method.to_owned(),
+                params,
+                meta,
+            },
+        )
         .await
     }
 
@@ -243,6 +843,73 @@ pub fn gap_notification(lost: u64) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn remote_storage_failures_omit_owner_diagnostics_but_local_failures_keep_them() {
+        struct Emitter;
+        impl tiktools_core::HostEmitter for Emitter {
+            fn emit(&self, _: tiktools_core::ipc::messages::HostMessage) {}
+        }
+        let root = std::env::temp_dir().join(format!(
+            "tt-private-error-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let paths = tiktools_core::paths::AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("builtins"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root: root.clone(),
+        };
+        paths.ensure_directories().unwrap();
+        let core = Arc::new(AppCore::with_paths(
+            Arc::new(Emitter),
+            Arc::new(tiktools_core::NoopMediaHost),
+            paths,
+        ));
+        let mut router = ControlRouter::new();
+        router.register_typed::<modules::Empty, Value, _, _>(
+            "test.failure",
+            "fixture",
+            false,
+            |_, _| async {
+                let mut error =
+                    ApiError::internal("SQL trigger failed at /private/owner.db: secret-marker");
+                error.data = Some(serde_json::json!({"diagnostic":"secret-marker"}));
+                Err(error)
+            },
+        );
+        router.set_remote_policy("test.failure", policy::RemotePolicy::Authenticated);
+        let api = ControlApi {
+            core: core.clone(),
+            router,
+        };
+        let session = RemoteSession::new("remote", "session", [], Duration::from_secs(60)).unwrap();
+        let call = || RpcRequest::new(RpcId::Number(1), "test.failure", serde_json::json!({}));
+        let remote = api
+            .execute_with_context(&RequestContext::Remote(session), call())
+            .await
+            .error
+            .unwrap();
+        assert_eq!(remote.code, "internal");
+        assert!(remote.data.is_none());
+        assert!(!remote.message.contains("secret-marker"));
+        assert!(!remote.message.contains("/private"));
+        let local = api.execute(call()).await.error.unwrap();
+        assert!(local.message.contains("secret-marker"));
+        assert!(local.data.is_some());
+        core.shutdown().await;
+        drop(api);
+        drop(core);
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn plugin_and_automation_topics_map_to_event_notifications() {

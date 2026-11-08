@@ -7,7 +7,9 @@ rust-version.workspace = true
 description = "Thin Winit/Wry desktop host for TikTools"
 
 [features]
-default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth"]
+default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth", "remote-control", "remote-client"]
+remote-client = ["dep:tiktools-client"]
+remote-control = ["persistence", "dep:tiktools-remote"]
 devtools = ["wry/devtools"]
 live-benchmark = ["tiktools-core/live-benchmark"]
 plugin-install = ["tiktools-core/plugin-install"]
@@ -17,6 +19,8 @@ cloud-auth = ["tiktools-core/cloud-auth", "tiktools-control-api/cloud-auth"]
 
 [dependencies]
 tiktools-core = { path = "../tiktools-core", features = ["native-tiktok"] }
+tiktools-client = { path = "../tiktools-client", features = ["remote-profiles"], optional = true }
+tiktools-remote = { path = "../tiktools-remote", optional = true }
 tiktools-control-api = { path = "../tiktools-control-api", features = ["app-update"] }
 tiktools-plugin-api = { path = "../tiktools-plugin-api" }
 serde_json.workspace = true
@@ -35,6 +39,9 @@ rodio.workspace = true
 open = "5.4.5"
 
 [dev-dependencies]
+rcgen = "=0.14.10"
+ring.workspace = true
+tempfile = "3"
 tiktools-plugin-loader = { path = "../tiktools-plugin-loader" }
 
 [target.'cfg(target_os = "linux")'.dependencies]

@@ -17,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 pub(crate) async fn run_observer(
     core: Arc<AppCore>,
     shutdown: CancellationToken,
-    mut subscription: crate::events::DomainSubscription,
+    mut subscription: crate::events::PluginDomainSubscription,
 ) {
     let mut workers: BTreeMap<String, WorkerHandle> = BTreeMap::new();
     let mut tasks = tokio::task::JoinSet::new();

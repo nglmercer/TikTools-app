@@ -11,10 +11,17 @@ impl AppCore {
             + 1
     }
 
-    pub(crate) fn remember_automation_event(&self, event: &serde_json::Value) {
+    pub(crate) fn remember_automation_event(&self, envelope: &AutomationEvent) {
+        // Remembered values later feed Owner previews and native plugin polls.
+        // Keep the private context and reject unsupported scoped writes rather
+        // than leaving a raw payload that those consumers could elevate.
+        if self.execution_context_guard(envelope.context()).is_err() {
+            return;
+        }
+        let event = envelope.payload();
         let now = now_millis();
         *recover_rwlock_write(&self.automation_state.last_event, "automation event") =
-            Some(event.clone());
+            Some(envelope.clone());
         *recover_rwlock_write(&self.automation_state.last_event_at, "automation timestamp") =
             Some(now);
         if let Some(event_type) = event.get("type").and_then(Value::as_str) {
@@ -22,7 +29,7 @@ impl AppCore {
                 &self.automation_state.last_events,
                 "automation event by type",
             )
-            .insert(event_type.to_owned(), event.clone());
+            .insert(event_type.to_owned(), envelope.clone());
             recover_rwlock_write(
                 &self.automation_state.last_events_at,
                 "automation timestamp by type",
@@ -81,8 +88,14 @@ impl AppCore {
 
     /// Last automation event observed, for context panels and test previews.
     pub fn automation_context(&self) -> (Option<Value>, Option<u64>) {
-        let event =
-            recover_rwlock_read(&self.automation_state.last_event, "automation event").clone();
+        let remembered = recover_rwlock_read(&self.automation_state.last_event, "automation event");
+        let Some(event) = remembered
+            .as_ref()
+            .filter(|event| event.context().is_owner())
+        else {
+            return (None, None);
+        };
+        let event = Some(event.payload().clone());
         let captured_at =
             *recover_rwlock_read(&self.automation_state.last_event_at, "automation timestamp");
         (event, captured_at)
@@ -96,13 +109,17 @@ impl AppCore {
             "automation event by type",
         )
         .get(event_type)
-        .cloned()
+        .filter(|event| event.context().is_owner())
+        .map(|event| event.payload().clone())
     }
 
     /// Per-type variant of [`AppCore::automation_context`]: the last envelope
     /// of `event_type` plus when it was captured.
     pub fn automation_context_for(&self, event_type: &str) -> (Option<Value>, Option<u64>) {
         let event = self.last_event_for(event_type);
+        if event.is_none() {
+            return (None, None);
+        }
         let captured_at = recover_rwlock_read(
             &self.automation_state.last_events_at,
             "automation timestamp by type",

@@ -55,7 +55,14 @@ impl AppCore {
         });
         let mut logs = Vec::new();
         match self
-            .execute_plugin_action(HOTKEY_BIND_ACTION, &action, &json!({}), &mut logs, false)
+            .execute_plugin_action(
+                HOTKEY_BIND_ACTION,
+                &action,
+                &json!({}),
+                &crate::automation_runtime::context::ExecutionContext::owner(),
+                &mut logs,
+                false,
+            )
             .await
         {
             Ok(summary) => {

@@ -6,6 +6,7 @@ import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
 import CloudAccountDiagnostics from '@/features/cloud-account/ui/CloudAccountDiagnostics.vue';
 import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
 import CloudSyncEditor from '@/features/cloud-sync/ui/CloudSyncEditor.vue';
+import CollaborationEditor from '@/features/manage-collaboration/ui/CollaborationEditor.vue';
 import AppUpdater from '@/features/app-updater/ui/AppUpdater.vue';
 import LanguageSelect from '@/features/change-language/ui/LanguageSelect.vue';
 import RuntimeGlobalsEditor from '@/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
@@ -20,11 +21,12 @@ import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconUser from '@/shared/ui/icon/icons/IconUser.vue';
 import BaseList from '@/shared/ui/list/BaseList.vue';
 
-type SettingsSection = 'general' | 'account' | 'updates' | 'advanced';
+type SettingsSection = 'general' | 'account' | 'collaboration' | 'updates' | 'advanced';
 
 const sections: ReadonlyArray<{ id: SettingsSection; icon: Component }> = [
   { id: 'general', icon: markRaw(IconGear) },
   { id: 'account', icon: markRaw(IconUser) },
+  { id: 'collaboration', icon: markRaw(IconUser) },
   { id: 'updates', icon: markRaw(IconRefresh) },
   { id: 'advanced', icon: markRaw(IconPuzzle) },
 ];
@@ -88,6 +90,9 @@ const locale = computed<Locale>({
       <template v-else-if="section === 'account'">
         <CloudAccountEditor />
         <CloudSyncEditor />
+      </template>
+      <template v-else-if="section === 'collaboration'">
+        <CollaborationEditor />
       </template>
       <template v-else-if="section === 'updates'">
         <AppUpdater />

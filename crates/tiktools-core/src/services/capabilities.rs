@@ -4,7 +4,13 @@
 //! native plugins can still call OS APIs directly, so their manifest entries
 //! document intent and the host API remains the enforceable surface.
 
-use std::{collections::BTreeMap, fs, io, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    fs,
+    io::{self, Write},
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
 
 use serde_json::Value;
 use thiserror::Error;
@@ -117,11 +123,59 @@ pub fn redact_secret_settings(manifest: &PluginManifest, values: &Value) -> Valu
 #[derive(Debug, Clone)]
 pub struct CapabilityBroker {
     plugin_data_root: PathBuf,
+    settings_gate: Arc<Mutex<()>>,
+    boot_identity: Option<String>,
+}
+
+/// Host-created identity of the settings snapshot. It contains no settings
+/// hashes or values, and cannot be reconstructed from plugin-authored JSON.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PluginSettingsBinding {
+    pub(crate) boot_identity: String,
+    pub(crate) generation: String,
+}
+
+fn new_generation() -> io::Result<String> {
+    let mut bytes = [0_u8; 32];
+    getrandom::fill(&mut bytes).map_err(|error| io::Error::other(error.to_string()))?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+/// Persist before publishing the generation or settings. A crash after the
+/// generation write but before a settings write invalidates earlier approvals
+/// conservatively; it never revives the previous settings identity.
+fn atomic_settings_write(directory: &Path, name: &str, bytes: &[u8]) -> io::Result<()> {
+    let temporary = directory.join(format!(".{name}.{}.tmp", new_generation()?));
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let result = (|| {
+        let mut file = options.open(&temporary)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        fs::rename(&temporary, directory.join(name))?;
+        #[cfg(unix)]
+        fs::File::open(directory)?.sync_all()?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
 }
 
 impl CapabilityBroker {
     pub fn new(plugin_data_root: PathBuf) -> Self {
-        Self { plugin_data_root }
+        Self {
+            plugin_data_root,
+            settings_gate: Arc::new(Mutex::new(())),
+            boot_identity: new_generation().ok(),
+        }
     }
 
     pub fn plugin_data_root(&self) -> &PathBuf {
@@ -172,6 +226,17 @@ impl CapabilityBroker {
         &self,
         manifest: &PluginManifest,
     ) -> Result<Value, CapabilityError> {
+        let _lease = self
+            .settings_gate
+            .lock()
+            .map_err(|_| io::Error::other("plugin settings lease is unavailable"))?;
+        self.load_plugin_settings_unlocked(manifest)
+    }
+
+    fn load_plugin_settings_unlocked(
+        &self,
+        manifest: &PluginManifest,
+    ) -> Result<Value, CapabilityError> {
         let path = self.ensure_plugin_data_dir(manifest)?.join("settings.json");
         let stored = match fs::read_to_string(path) {
             Ok(value) => {
@@ -185,6 +250,54 @@ impl CapabilityBroker {
         // Schema defaults apply to every consumer (probes, actions, option
         // sources, display) so first-run behavior matches a saved config.
         Ok(apply_settings_defaults(manifest, &stored))
+    }
+
+    /// Hold this through final effect admission. Every host settings writer,
+    /// including reset and token provisioning, uses the same lease. Callers
+    /// must not await or reenter settings operations in `apply`.
+    pub(crate) fn with_plugin_settings_binding<R>(
+        &self,
+        manifest: &PluginManifest,
+        apply: impl FnOnce(PluginSettingsBinding, Value) -> Result<R, String>,
+    ) -> Result<R, String> {
+        let _lease = self
+            .settings_gate
+            .lock()
+            .map_err(|_| "plugin settings lease is unavailable".to_owned())?;
+        let boot_identity = self
+            .boot_identity
+            .clone()
+            .ok_or_else(|| "plugin settings identity is unavailable".to_owned())?;
+        let directory = self
+            .ensure_plugin_data_dir(manifest)
+            .map_err(|error| error.to_string())?;
+        let generation_path = directory.join(".settings-generation");
+        let generation = match fs::read_to_string(&generation_path) {
+            Ok(generation)
+                if generation.len() == 64
+                    && generation.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
+            {
+                generation
+            }
+            Ok(_) => return Err("plugin settings generation is invalid".into()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                let generation = new_generation().map_err(|error| error.to_string())?;
+                atomic_settings_write(&directory, ".settings-generation", generation.as_bytes())
+                    .map_err(|error| error.to_string())?;
+                generation
+            }
+            Err(error) => return Err(error.to_string()),
+        };
+        let settings = self
+            .load_plugin_settings_unlocked(manifest)
+            .map_err(|error| error.to_string())?;
+        apply(
+            PluginSettingsBinding {
+                boot_identity,
+                generation,
+            },
+            settings,
+        )
     }
 
     /// Raw stored values for host-internal use (execution, option fetch,
@@ -212,6 +325,10 @@ impl CapabilityBroker {
         manifest: &PluginManifest,
         values: &BTreeMap<String, Value>,
     ) -> Result<Value, CapabilityError> {
+        let _lease = self
+            .settings_gate
+            .lock()
+            .map_err(|_| io::Error::other("plugin settings lease is unavailable"))?;
         // A secret that round-trips as the placeholder keeps its stored
         // value; only a changed value overwrites it. Placeholder text is
         // never persisted, so the file cannot fill with bullets.
@@ -219,7 +336,7 @@ impl CapabilityBroker {
         let secrets = secret_setting_keys(manifest);
         if !secrets.is_empty() {
             let stored = self
-                .load_plugin_settings(manifest)
+                .load_plugin_settings_unlocked(manifest)
                 .unwrap_or_else(|_| Value::Object(Default::default()));
             let stored = stored.as_object();
             for key in &secrets {
@@ -239,18 +356,39 @@ impl CapabilityBroker {
             }
         }
         let directory = self.ensure_plugin_data_dir(manifest)?;
-        let path = directory.join("settings.json");
-        let temporary = directory.join("settings.json.tmp");
         let payload = serde_json::to_vec(&merged).map_err(|error| {
             CapabilityError::Io(io::Error::new(io::ErrorKind::InvalidData, error))
         })?;
-        fs::write(&temporary, payload)?;
-        fs::rename(&temporary, &path)?;
+        let generation = new_generation()?;
+        atomic_settings_write(&directory, ".settings-generation", generation.as_bytes())?;
+        atomic_settings_write(&directory, "settings.json", &payload)?;
         // The file keeps exactly what was sent; the echo overlays defaults
         // so it matches what a later load returns.
         let stored = Value::Object(merged.into_iter().collect());
         let stored = apply_settings_defaults(manifest, &stored);
         Ok(redact_secret_settings(manifest, &stored))
+    }
+
+    pub(crate) fn reset_plugin_settings(
+        &self,
+        manifest: &PluginManifest,
+    ) -> Result<(), CapabilityError> {
+        let _lease = self
+            .settings_gate
+            .lock()
+            .map_err(|_| io::Error::other("plugin settings lease is unavailable"))?;
+        let directory = self.ensure_plugin_data_dir(manifest)?;
+        let generation = new_generation()?;
+        atomic_settings_write(&directory, ".settings-generation", generation.as_bytes())?;
+        match fs::remove_file(directory.join("settings.json")) {
+            Ok(()) => {
+                #[cfg(unix)]
+                fs::File::open(directory)?.sync_all()?;
+                Ok(())
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(error.into()),
+        }
     }
 }
 
@@ -272,6 +410,64 @@ mod tests {
             }"#,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn settings_identity_is_durable_rotates_on_equal_writes_and_cannot_revive_after_restart() {
+        let root =
+            std::env::temp_dir().join(format!("tiktools-settings-binding-{}", fastrand::u128(..)));
+        let broker = CapabilityBroker::new(root.clone());
+        let manifest = manifest();
+        let binding = |broker: &CapabilityBroker| {
+            broker
+                .with_plugin_settings_binding(&manifest, |binding, _| Ok(binding))
+                .unwrap()
+        };
+        let initial = binding(&broker);
+        assert_eq!(initial, binding(&broker.clone()));
+        let values = BTreeMap::from([("value".to_owned(), Value::from("a"))]);
+        broker.save_plugin_settings(&manifest, &values).unwrap();
+        let first = binding(&broker);
+        broker.save_plugin_settings(&manifest, &values).unwrap();
+        let second = binding(&broker);
+        assert_ne!(initial.generation, first.generation);
+        assert_ne!(first.generation, second.generation);
+        let reloaded = binding(&CapabilityBroker::new(root.clone()));
+        assert_eq!(second.generation, reloaded.generation);
+        assert_ne!(second.boot_identity, reloaded.boot_identity);
+        broker.reset_plugin_settings(&manifest).unwrap();
+        assert_ne!(second.generation, binding(&broker).generation);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn settings_writer_cannot_cross_final_binding_lease() {
+        let root =
+            std::env::temp_dir().join(format!("tiktools-settings-lease-{}", fastrand::u128(..)));
+        let broker = CapabilityBroker::new(root.clone());
+        let manifest = manifest();
+        let (started, start_rx) = std::sync::mpsc::channel();
+        let (finished, finish_rx) = std::sync::mpsc::channel();
+        let mut worker = None;
+        broker
+            .with_plugin_settings_binding(&manifest, |_, _| {
+                let writer = broker.clone();
+                let manifest = manifest.clone();
+                worker = Some(std::thread::spawn(move || {
+                    started.send(()).unwrap();
+                    writer
+                        .save_plugin_settings(&manifest, &BTreeMap::new())
+                        .unwrap();
+                    finished.send(()).unwrap();
+                }));
+                start_rx.recv().unwrap();
+                assert!(finish_rx.try_recv().is_err());
+                Ok(())
+            })
+            .unwrap();
+        worker.unwrap().join().unwrap();
+        finish_rx.recv().unwrap();
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

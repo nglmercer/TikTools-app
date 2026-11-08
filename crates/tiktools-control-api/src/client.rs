@@ -20,9 +20,12 @@ use std::{
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use tiktools_plugin_api::sync::recover_mutex;
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf};
 
-use crate::{transport, MAX_REQUEST_BYTES, REQUEST_TIMEOUT};
+use crate::{
+    transport, CallResult, RequestMetadata, ResponseMetadata, RpcId, RpcRequest, MAX_REQUEST_BYTES,
+    REQUEST_TIMEOUT,
+};
 
 /// Connected-control event broadcast capacity. Slow subscribers lag and skip,
 /// never block RPC responses.
@@ -137,7 +140,7 @@ impl AsyncWrite for ClientStream {
 }
 
 type PendingMap =
-    Arc<Mutex<HashMap<i64, tokio::sync::oneshot::Sender<Result<Value, ClientError>>>>>;
+    Arc<Mutex<HashMap<i64, tokio::sync::oneshot::Sender<Result<CallResult<Value>, ClientError>>>>>;
 
 /// Maps a poisoned pending-call map to a typed client error. The
 /// poisoning is logged with the shared lock-recovery target so the
@@ -162,7 +165,12 @@ fn pending_poisoned() -> ClientError {
 #[allow(clippy::large_enum_variant)]
 pub enum ControlEvent {
     Domain(tiktools_core::events::DomainEvent),
-    Gap { lost: u64 },
+    /// Permission-filtered remote projection. Keep the recovery watermark;
+    /// never coerce it into a business event or discard its subscription ID.
+    Reliable(tiktools_core::collaboration::ReliableEvent),
+    Gap {
+        lost: u64,
+    },
 }
 
 struct ReaderLifetime(tokio::task::AbortHandle);
@@ -245,20 +253,50 @@ impl ControlClient {
             .map_err(|error| ClientError::protocol(format!("bad result shape: {error}")))
     }
 
+    /// Metadata-aware typed call. Legacy wrappers can keep returning only result.
+    pub async fn call_with_meta<P, R>(
+        &self,
+        method: &str,
+        params: P,
+        meta: Option<RequestMetadata>,
+    ) -> Result<CallResult<R>, ClientError>
+    where
+        P: Serialize,
+        R: DeserializeOwned,
+    {
+        let response = self.call_value_with_meta(method, params, meta).await?;
+        Ok(CallResult {
+            result: serde_json::from_value(response.result)
+                .map_err(|_| ClientError::protocol("bad result shape"))?,
+            meta: response.meta,
+        })
+    }
+
     /// Untyped call used by generic `rpc` passthroughs.
     pub async fn call_value<P>(&self, method: &str, params: P) -> Result<Value, ClientError>
+    where
+        P: Serialize,
+    {
+        self.call_value_with_meta(method, params, None)
+            .await
+            .map(|response| response.result)
+    }
+
+    /// Preserves version metadata through response correlation.
+    pub async fn call_value_with_meta<P>(
+        &self,
+        method: &str,
+        params: P,
+        meta: Option<RequestMetadata>,
+    ) -> Result<CallResult<Value>, ClientError>
     where
         P: Serialize,
     {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let params = serde_json::to_value(params)
             .map_err(|error| ClientError::protocol(error.to_string()))?;
-        let request = serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "method": method,
-            "params": params,
-        });
+        let mut request = RpcRequest::new(RpcId::Number(id), method, params);
+        request.meta = meta;
         let mut bytes = serde_json::to_vec(&request)
             .map_err(|error| ClientError::protocol(error.to_string()))?;
         bytes.push(b'\n');
@@ -340,20 +378,42 @@ async fn reader_task(
     pending: PendingMap,
     events: tokio::sync::broadcast::Sender<ControlEvent>,
 ) {
+    let mut line = Vec::with_capacity(4096);
     loop {
-        let mut line = String::new();
-        match reader.read_line(&mut line).await {
-            Ok(0) => {
+        match transport::read_capped_owner_response_line(&mut reader, &mut line).await {
+            Ok(None) => {
                 tracing::debug!("control IPC stream closed by host");
                 break;
             }
-            Ok(_) => {}
+            Ok(Some(transport::LineOutcome::Ok)) => {}
+            Ok(Some(transport::LineOutcome::TooLarge)) => {
+                let prefix = String::from_utf8_lossy(&line);
+                if let RpcId::Number(id) = RpcId::extract_from_prefix(&prefix) {
+                    if let Some(sender) =
+                        recover_mutex(&pending, "control client pending").remove(&id)
+                    {
+                        let _ = sender.send(Err(ClientError::new(
+                            "too_large",
+                            "local owner response exceeds its bounded size limit",
+                        )));
+                    }
+                } else {
+                    // An oversized notification cannot become silently missing
+                    // authoritative state. This channel never invokes plugins.
+                    let _ = events.send(ControlEvent::Gap { lost: 1 });
+                }
+                continue;
+            }
             Err(error) => {
                 tracing::warn!(%error, "control IPC stream read failed");
                 break;
             }
         }
-        handle_client_line(&line, &pending, &events);
+        let Ok(line) = std::str::from_utf8(&line) else {
+            tracing::warn!("control IPC stream contains invalid UTF-8");
+            break;
+        };
+        handle_client_line(line, &pending, &events);
     }
     // The host went away: fail every still-pending call so concurrent
     // waiters never hang until their timeout.
@@ -405,6 +465,22 @@ fn handle_client_line(
     if value.get("method").and_then(Value::as_str) == Some("event") {
         match value.get("params") {
             Some(params) => {
+                if params.get("subscriptionId").is_some() {
+                    match serde_json::from_value::<tiktools_core::collaboration::ReliableEvent>(
+                        params.clone(),
+                    ) {
+                        Ok(event)
+                            if tiktools_core::collaboration::stream_sequence(&event.sequence)
+                                .is_ok_and(|n| n > 0) =>
+                        {
+                            let _ = events.send(ControlEvent::Reliable(event));
+                        }
+                        _ => {
+                            let _ = events.send(ControlEvent::Gap { lost: 0 });
+                        }
+                    }
+                    return;
+                }
                 match serde_json::from_value::<tiktools_core::events::DomainEvent>(params.clone()) {
                     Ok(event) => {
                         let _ = events.send(ControlEvent::Domain(event));
@@ -449,7 +525,17 @@ fn handle_client_line(
             data: error.get("data").cloned(),
         }));
     } else if let Some(result) = value.get("result").cloned() {
-        let _ = sender.send(Ok(result));
+        let meta = match value.get("meta").filter(|meta| !meta.is_null()) {
+            Some(meta) => match serde_json::from_value::<ResponseMetadata>(meta.clone()) {
+                Ok(meta) => Some(meta),
+                Err(_) => {
+                    let _ = sender.send(Err(ClientError::protocol("bad response metadata")));
+                    return;
+                }
+            },
+            None => None,
+        };
+        let _ = sender.send(Ok(CallResult { result, meta }));
     } else {
         tracing::warn!(
             response_id,
@@ -534,7 +620,7 @@ mod client_line_tests {
     fn listen(
         pending: &PendingMap,
         id: i64,
-    ) -> tokio::sync::oneshot::Receiver<Result<Value, ClientError>> {
+    ) -> tokio::sync::oneshot::Receiver<Result<CallResult<Value>, ClientError>> {
         let (sender, receiver) = tokio::sync::oneshot::channel();
         pending
             .lock()
@@ -588,7 +674,7 @@ mod client_line_tests {
             .expect("resolves promptly")
             .expect("sender alive")
             .expect("valid response resolves");
-        assert_eq!(outcome, serde_json::json!({"ok": true}));
+        assert_eq!(outcome.result, serde_json::json!({"ok": true}));
         assert!(subscriber.try_recv().is_err());
     }
 
@@ -606,6 +692,36 @@ mod client_line_tests {
             event,
             ControlEvent::Domain(tiktools_core::events::DomainEvent::LiveDisconnected)
         ));
+    }
+
+    #[tokio::test]
+    async fn reliable_notifications_preserve_recovery_fields_and_malformed_sequences_force_a_gap() {
+        let (pending, events) = harness();
+        let mut listener = events.subscribe();
+        let event = tiktools_core::collaboration::ReliableEvent {
+            topic: "workflow.changed".into(),
+            data: serde_json::json!({"id":"welcome","change":"saved"}),
+            host_instance_id: "instance-a".into(),
+            subscription_id: "stream-a".into(),
+            sequence: "9007199254740993".into(),
+            event_id: "event-a".into(),
+            resource: tiktools_core::collaboration::ResourceVersion {
+                kind: tiktools_core::collaboration::ResourceKind::Workflow,
+                scope: "host".into(),
+                id: "welcome".into(),
+                revision: "42".into(),
+            },
+            actor: tiktools_core::collaboration::StreamActor {
+                principal_id: "moderator".into(),
+            },
+            command_id: Some("once".into()),
+        };
+        let mut notification = serde_json::json!({"jsonrpc":"2.0","method":"event","params":event});
+        handle_client_line(&notification.to_string(), &pending, &events);
+        assert_eq!(listener.try_recv().unwrap(), ControlEvent::Reliable(event));
+        notification["params"]["sequence"] = serde_json::json!("01");
+        handle_client_line(&notification.to_string(), &pending, &events);
+        assert_eq!(listener.try_recv().unwrap(), ControlEvent::Gap { lost: 0 });
     }
 
     #[tokio::test]
@@ -659,7 +775,7 @@ mod client_line_tests {
             .expect("resolves promptly")
             .expect("sender alive")
             .expect("valid response resolves");
-        assert_eq!(outcome, serde_json::json!({"ok": true}));
+        assert_eq!(outcome.result, serde_json::json!({"ok": true}));
     }
 
     #[tokio::test]
@@ -677,7 +793,7 @@ mod client_line_tests {
             .expect("resolves promptly")
             .expect("sender alive")
             .expect("valid response resolves");
-        assert_eq!(outcome, serde_json::json!({"ok": true}));
+        assert_eq!(outcome.result, serde_json::json!({"ok": true}));
         // The response path recovers, so the sticky flag is cleared: later
         // acquisitions behave normally instead of re-reporting poison, and
         // no pending sender leaks.
@@ -719,6 +835,64 @@ mod client_line_tests {
             .expect("sender alive");
         let error = outcome.expect_err("closed host must fail pending calls");
         assert_eq!(error.code, "transport");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn oversized_local_owner_reply_fails_its_call_without_abandoning_the_ipc_stream() {
+        use tokio::io::AsyncBufReadExt;
+        let (ours, peer) = tokio::net::UnixStream::pair().unwrap();
+        let client = ControlClient::from_stream(ClientStream::Unix(ours));
+        let (read, mut write) = tokio::io::split(peer);
+        let mut reader = BufReader::new(read);
+        let queued = tokio::spawn({
+            let client = client.clone();
+            async move {
+                client
+                    .call_value("system.ping", serde_json::json!({}))
+                    .await
+            }
+        });
+        let mut request = String::new();
+        reader.read_line(&mut request).await.unwrap();
+        let request: Value = serde_json::from_str(&request).unwrap();
+        let oversized = format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":{},\"result\":\"{}\"}}\n",
+            request["id"],
+            "x".repeat(crate::MAX_OWNER_RESPONSE_BYTES)
+        );
+        write.write_all(oversized.as_bytes()).await.unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(5), queued)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(result.code, "too_large");
+        let later = tokio::spawn({
+            let client = client.clone();
+            async move {
+                client
+                    .call_value("system.ping", serde_json::json!({}))
+                    .await
+            }
+        });
+        let mut request = String::new();
+        reader.read_line(&mut request).await.unwrap();
+        let request: Value = serde_json::from_str(&request).unwrap();
+        let response = format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":{},\"result\":{{\"ok\":true}}}}\n",
+            request["id"]
+        );
+        write.write_all(response.as_bytes()).await.unwrap();
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(5), later)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap()["ok"],
+            true
+        );
+        assert!(!client.is_closed());
     }
     #[cfg(unix)]
     #[tokio::test]

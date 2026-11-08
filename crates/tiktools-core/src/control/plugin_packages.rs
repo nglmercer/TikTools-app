@@ -188,6 +188,16 @@ impl AppCore {
             let worker_core = Arc::clone(&core);
             let worker_job = Arc::clone(&job);
             let result = tokio::task::spawn_blocking(move || {
+                let _invocation =
+                    worker_core
+                        .plugin_state
+                        .invocation_gate
+                        .lock()
+                        .map_err(|_| {
+                            crate::plugin_packages::unavailable(
+                                "plugin invocation lease is unavailable",
+                            )
+                        })?;
                 installer.rollback(
                     &plugin_id,
                     version.as_deref(),
@@ -682,6 +692,9 @@ impl AppCore {
         let core = Arc::clone(self);
         let worker_job = Arc::clone(job);
         tokio::task::spawn_blocking(move || {
+            let _invocation = core.plugin_state.invocation_gate.lock().map_err(|_| {
+                crate::plugin_packages::unavailable("plugin invocation lease is unavailable")
+            })?;
             installer.commit(
                 &prepared,
                 &CommitOptions {

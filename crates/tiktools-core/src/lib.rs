@@ -17,6 +17,7 @@ pub mod ipc;
 pub mod paths;
 pub mod platform;
 pub mod services;
+pub use tiktools_collaboration as collaboration;
 
 mod automation_runtime;
 #[cfg(feature = "cloud-auth")]
@@ -30,6 +31,7 @@ mod hotkey_bindings;
 pub mod input_access;
 mod ipc_handlers;
 mod live_events;
+pub(crate) use live_events::AutomationEvent;
 pub mod live_monitor;
 mod persistence;
 mod plugin_diagnostics;
@@ -128,12 +130,27 @@ pub(crate) struct PluginHealth {
 /// The Rust application service graph. Each subsystem has separate ownership
 /// so a future database/live/plugin implementation can be tested in isolation.
 pub struct AppCore {
+    collaboration: Mutex<Option<Arc<collaboration::CollaborationService>>>,
+    collaboration_gateway_available: AtomicBool,
+    coordination_events: tokio::sync::broadcast::Sender<Arc<collaboration::CoordinationEvent>>,
+    coordination_streams: collaboration::StreamHub,
+    automation_mutations: Mutex<()>,
+    automation_write_epoch: AtomicU64,
+    automation_write_settled: tokio::sync::Notify,
+    #[cfg(feature = "persistence")]
+    coordination_gate: Mutex<()>,
+    #[cfg(feature = "persistence")]
+    owner_adoption_gate: Mutex<()>,
+    #[cfg(feature = "persistence")]
+    coordination_worker: control::CoordinationWorker,
     #[cfg(feature = "app-update")]
     app_updater: RwLock<Option<Arc<tiktools_app_update::AppUpdater>>>,
     pub live: Arc<LiveService>,
     live_monitor: live_monitor::LiveMonitor,
     pub points: Arc<PointsService>,
     pub automation: Arc<AutomationService>,
+    #[cfg(feature = "persistence")]
+    pub(crate) effects: Result<services::effects::EffectJournal, String>,
     pub capabilities: Arc<CapabilityBroker>,
     pub media: Arc<dyn MediaHost>,
     pub plugins: Arc<PluginManager>,
@@ -220,6 +237,41 @@ pub struct AppCore {
 }
 
 impl AppCore {
+    /// Open the private collaboration store on the caller's blocking pool.
+    /// Local-only startup creates no credentials, listener or extra database.
+    pub fn collaboration(
+        &self,
+    ) -> Result<Arc<collaboration::CollaborationService>, collaboration::Error> {
+        if !cfg!(feature = "persistence") {
+            return Err(collaboration::Error::Disabled);
+        }
+        let mut current = self.collaboration.lock().map_err(|_| {
+            collaboration::Error::Invalid("collaboration state lock is unavailable")
+        })?;
+        if let Some(service) = current.as_ref() {
+            return Ok(Arc::clone(service));
+        }
+        let service = Arc::new(collaboration::CollaborationService::open(
+            &self.db.paths().data.join("collaboration"),
+        )?);
+        service.update_gateway_status(|status| {
+            status.available = self.collaboration_gateway_available.load(Ordering::SeqCst)
+        })?;
+        *current = Some(Arc::clone(&service));
+        Ok(service)
+    }
+
+    /// Only the native host enables its compiled-in network component. This
+    /// never starts a listener or opens a database by itself.
+    pub fn set_collaboration_gateway_available(&self, available: bool) {
+        self.collaboration_gateway_available
+            .store(available, Ordering::SeqCst);
+        if let Ok(current) = self.collaboration.lock() {
+            if let Some(service) = current.as_ref() {
+                let _ = service.update_gateway_status(|status| status.available = available);
+            }
+        }
+    }
     /// Enable the desktop updater only from the native desktop host. The key is
     /// fixed at build time; control clients cannot choose a key or endpoint.
     #[cfg(feature = "app-update")]
@@ -267,7 +319,10 @@ impl AppCore {
         Self::with_paths(emitter, media, AppPaths::from_environment())
     }
 
-    fn with_paths(
+    /// Constructs an owner host with explicit application paths. Embedders and
+    /// isolated network fixtures can avoid process-wide path overrides. Remote
+    /// controllers use the client transport and must not construct a core.
+    pub fn with_paths(
         emitter: Arc<dyn HostEmitter>,
         media: Arc<dyn MediaHost>,
         paths: AppPaths,
@@ -328,12 +383,28 @@ impl AppCore {
 
         let automation = Arc::new(AutomationService::default());
         #[cfg(feature = "persistence")]
-        let plugin_activation = match db.load_behavior_snapshot() {
-            Ok(snapshot) => {
-                automation.replace_snapshot(&snapshot);
-                crate::plugin_runtime::activation_from_snapshot(&snapshot)
+        let plugin_activation = match db.load_behavior_runtime_approval_snapshot() {
+            Ok(((snapshot, provenance), approvals)) => {
+                let authorities = provenance
+                    .into_iter()
+                    .map(|(scope, id, p)| ((scope, id), p.into()))
+                    .collect();
+                automation.replace_snapshot_trusted_with_approvals(
+                    &snapshot.value,
+                    &snapshot.resource_versions,
+                    authorities,
+                    approvals,
+                );
+                crate::plugin_runtime::activation_from_snapshot(&snapshot.value)
             }
-            Err(_) => BTreeMap::new(),
+            Err(_) => {
+                automation.quarantine();
+                db.load_behavior_snapshot_versioned()
+                    .map(|snapshot| {
+                        crate::plugin_runtime::activation_from_snapshot(&snapshot.value)
+                    })
+                    .unwrap_or_default()
+            }
         };
         #[cfg(not(feature = "persistence"))]
         let plugin_activation: BTreeMap<String, crate::plugin_runtime::PluginActivation> =
@@ -360,6 +431,19 @@ impl AppCore {
         #[cfg(feature = "native-tiktok")]
         let live_points_work = services::points_work::PointsWorkService::new(Arc::clone(&points));
         let core = Self {
+            collaboration: Mutex::new(None),
+            collaboration_gateway_available: AtomicBool::new(false),
+            coordination_events: tokio::sync::broadcast::channel(1024).0,
+            coordination_streams: collaboration::StreamHub::default(),
+            automation_mutations: Mutex::new(()),
+            automation_write_epoch: AtomicU64::new(0),
+            automation_write_settled: tokio::sync::Notify::new(),
+            #[cfg(feature = "persistence")]
+            coordination_gate: Mutex::new(()),
+            #[cfg(feature = "persistence")]
+            owner_adoption_gate: Mutex::new(()),
+            #[cfg(feature = "persistence")]
+            coordination_worker: control::CoordinationWorker::default(),
             #[cfg(feature = "app-update")]
             app_updater: RwLock::new(None),
             live: Arc::new(live),
@@ -368,6 +452,9 @@ impl AppCore {
             #[cfg(feature = "native-tiktok")]
             live_points_work,
             automation,
+            #[cfg(feature = "persistence")]
+            effects: services::effects::EffectJournal::open(db.clone())
+                .map_err(|error| error.to_string()),
             capabilities,
             media,
             plugins,
@@ -536,6 +623,10 @@ impl AppCore {
             PackageOrigin::File,
             SignaturePolicy::AllowWithConsent,
         )?;
+        let _invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                plugin_packages::unavailable("plugin invocation lease is unavailable")
+            })?;
         let outcome = packages.installer.commit(
             &prepared,
             &CommitOptions {
@@ -556,6 +647,10 @@ impl AppCore {
         purge_data: bool,
     ) -> Result<(), tiktools_plugin_installer::InstallError> {
         use tiktools_plugin_installer::{InstallError, InstallErrorCode};
+        let _invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                plugin_packages::unavailable("plugin invocation lease is unavailable")
+            })?;
         let packages = self.plugin_packages()?;
         let plugin = self
             .plugins
@@ -606,8 +701,12 @@ impl AppCore {
                 finished.await;
             }
         }
+        self.automation_write_settled.notify_waiters();
         #[cfg(feature = "persistence")]
-        self.stop_competition_action_worker().await;
+        {
+            self.stop_coordination().await;
+            self.stop_competition_action_worker().await;
+        }
         {
             let _operation = self.live_monitor.operation.lock().await;
             self.stop_live_monitor().await;

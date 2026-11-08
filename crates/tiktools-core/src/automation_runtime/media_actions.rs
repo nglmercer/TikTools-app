@@ -1,5 +1,6 @@
 //! Local media actions (audio playback) for automations and scripts.
 
+use super::context::ExecutionContext;
 use crate::*;
 
 impl AppCore {
@@ -8,9 +9,11 @@ impl AppCore {
         config: &serde_json::Map<String, Value>,
         event: &Value,
         globals: &std::collections::BTreeMap<String, String>,
+        context: &ExecutionContext,
         logs: &mut Vec<String>,
         test: bool,
     ) -> Result<String, String> {
+        self.execution_context_guard(context)?;
         let configured = config
             .get("fileRef")
             .or_else(|| config.get("file"))
@@ -50,6 +53,7 @@ impl AppCore {
             }
             return Ok(summary);
         }
+        self.execution_context_guard(context)?;
         let result = self
             .play_audio(
                 file.clone(),

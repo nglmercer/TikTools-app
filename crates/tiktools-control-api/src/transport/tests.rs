@@ -1,6 +1,9 @@
 //! Transport unit tests.
 
 use super::framing::{read_capped_line, LineOutcome, MAX_REQUEST_BYTES};
+use super::framing::{
+    read_capped_owner_response_line, write_notification, write_response, MAX_OWNER_RESPONSE_BYTES,
+};
 use super::server::{drain_events, serve_stream};
 use crate::ControlApi;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
@@ -322,6 +325,73 @@ async fn overlong_lines_error_without_breaking_framing() {
         Some(LineOutcome::Ok)
     ));
     assert!(String::from_utf8_lossy(&line).contains("\"id\":2"));
+}
+
+#[tokio::test]
+async fn owner_response_reader_has_a_distinct_finite_cap_and_keeps_line_alignment() {
+    let input = format!(
+        "{{\"id\":1,\"result\":\"{}\"}}\n{{\"id\":2,\"result\":true}}\n",
+        "x".repeat(MAX_REQUEST_BYTES + 4096)
+    );
+    let mut reader = tokio::io::BufReader::new(input.as_bytes());
+    let mut line = Vec::new();
+    assert!(matches!(
+        read_capped_owner_response_line(&mut reader, &mut line)
+            .await
+            .unwrap(),
+        Some(LineOutcome::Ok)
+    ));
+    assert!(line.len() > MAX_REQUEST_BYTES && line.len() < MAX_OWNER_RESPONSE_BYTES);
+    assert!(matches!(
+        read_capped_owner_response_line(&mut reader, &mut line)
+            .await
+            .unwrap(),
+        Some(LineOutcome::Ok)
+    ));
+    let oversized = format!(
+        "{{\"id\":3,\"result\":\"{}\"}}\n{{\"id\":4,\"result\":true}}\n",
+        "x".repeat(MAX_OWNER_RESPONSE_BYTES)
+    );
+    let mut reader = tokio::io::BufReader::new(oversized.as_bytes());
+    assert!(matches!(
+        read_capped_owner_response_line(&mut reader, &mut line)
+            .await
+            .unwrap(),
+        Some(LineOutcome::TooLarge)
+    ));
+    assert!(line.len() <= 256);
+    assert_eq!(
+        crate::RpcId::extract_from_prefix(&String::from_utf8_lossy(&line)),
+        crate::RpcId::Number(3)
+    );
+    assert!(matches!(
+        read_capped_owner_response_line(&mut reader, &mut line)
+            .await
+            .unwrap(),
+        Some(LineOutcome::Ok)
+    ));
+    assert!(String::from_utf8_lossy(&line).contains("\"id\":4"));
+}
+
+#[tokio::test]
+async fn local_owner_writers_reject_oversized_replies_with_original_identity_and_notifications_with_gap(
+) {
+    let response = crate::RpcResponse::success(
+        crate::RpcId::Number(91),
+        serde_json::json!({"source":"private".repeat(MAX_OWNER_RESPONSE_BYTES/6)}),
+    );
+    let mut encoded = Vec::new();
+    write_response(&mut encoded, &response).await.unwrap();
+    assert!(encoded.len() < MAX_OWNER_RESPONSE_BYTES);
+    let decoded: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+    assert_eq!(decoded["id"], 91);
+    assert_eq!(decoded["error"]["code"], "too_large");
+    assert!(decoded.get("result").is_none());
+    encoded.clear();
+    write_notification(&mut encoded,&serde_json::json!({"method":"event","params":{"source":"x".repeat(MAX_OWNER_RESPONSE_BYTES)}})).await.unwrap();
+    let decoded: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+    assert_eq!(decoded["method"], "event.gap");
+    assert_eq!(decoded["params"]["lost"], 1);
 }
 
 #[tokio::test]

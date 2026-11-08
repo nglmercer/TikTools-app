@@ -41,9 +41,9 @@ fn initializes_compatible_schemas_and_round_trips_records() {
         "nodes": [],
         "edges": []
     });
-    let saved = database.save_workflow(&graph).unwrap();
+    let saved = database.save_workflow(&graph, None).unwrap().value;
     assert_eq!(saved["id"], "workflow-1");
-    assert_eq!(database.load_workflows().unwrap().len(), 1);
+    assert_eq!(database.load_workflows().unwrap().value.len(), 1);
 
     let action = json!({"id":"action-1","name":"Action","enabled":true,"type":"code"});
     database.save_behavior("behavior_actions", &action).unwrap();
@@ -1314,4 +1314,268 @@ fn competition_gift_admission_commits_identity_combo_and_score_together() {
     );
 
     let _ = fs::remove_dir_all(paths.root);
+}
+
+#[test]
+fn workflow_versions_include_local_toggles_and_keep_delete_recreate_tombstones() {
+    let paths = paths();
+    paths.ensure_directories().unwrap();
+    let db = DatabaseManager::new(paths.clone());
+    let graph = json!({"id":"welcome","name":"Welcome","enabled":false,"nodes":[],"edges":[],"custom":{"keep":true}});
+    let missing = db.load_workflow("welcome").unwrap();
+    assert!(missing.value.is_none());
+    assert_eq!(missing.resource_versions[0].revision, "0");
+    assert_eq!(
+        db.save_workflow(&graph, Some("0"))
+            .unwrap()
+            .resource_versions[0]
+            .revision,
+        "1"
+    );
+    let toggled = db.set_workflow_enabled("welcome", true, None).unwrap();
+    assert_eq!(toggled.resource_versions[0].revision, "2");
+    assert_eq!(toggled.value["graph"]["custom"]["keep"], true);
+    assert_eq!(toggled.value["graph"]["enabled"], true);
+    assert!(
+        matches!(db.save_workflow(&graph, Some("1")), Err(DatabaseError::RevisionConflict(version)) if version.revision=="2")
+    );
+    assert!(
+        matches!(db.delete_workflow("welcome", Some("1")), Err(DatabaseError::RevisionConflict(version)) if version.revision=="2")
+    );
+    assert_eq!(
+        db.delete_workflow("welcome", Some("2"))
+            .unwrap()
+            .resource_versions[0]
+            .revision,
+        "3"
+    );
+    let tombstone = db.load_workflow("welcome").unwrap();
+    assert!(tombstone.value.is_none());
+    assert_eq!(tombstone.resource_versions[0].revision, "3");
+    let reopened = DatabaseManager::new(paths.clone());
+    assert_eq!(reopened.load_workflow("welcome").unwrap(), tombstone);
+    assert!(
+        matches!(reopened.save_workflow(&graph, Some("0")), Err(DatabaseError::RevisionConflict(version)) if version.revision=="3")
+    );
+    let recreated = reopened.save_workflow(&graph, Some("3")).unwrap();
+    assert_eq!(recreated.resource_versions[0].revision, "4");
+    assert_eq!(
+        reopened.load_workflows().unwrap().resource_versions,
+        recreated.resource_versions
+    );
+    let absent = reopened
+        .delete_workflow("never-created", Some("0"))
+        .unwrap();
+    assert!(!absent.value);
+    assert_eq!(absent.resource_versions[0].revision, "0");
+    let conn = db.open(&db.automation_path()).unwrap();
+    let outbox: Vec<(i64,String)> = conn.prepare("SELECT revision,change FROM control_resource_outbox WHERE resource_id='welcome' ORDER BY cursor").unwrap().query_map([], |row| Ok((row.get(0)?,row.get(1)?))).unwrap().collect::<Result<_,_>>().unwrap();
+    assert_eq!(
+        outbox,
+        [
+            (1, "saved".into()),
+            (2, "enabled".into()),
+            (3, "deleted".into()),
+            (4, "saved".into())
+        ]
+    );
+    drop(conn);
+    fs::remove_dir_all(paths.root).unwrap();
+}
+
+#[test]
+fn concurrent_workflow_saves_with_one_revision_have_one_winner() {
+    let paths = paths();
+    paths.ensure_directories().unwrap();
+    let db = DatabaseManager::new(paths.clone());
+    db.save_workflow(&json!({"id":"concurrent","name":"Original"}), None)
+        .unwrap();
+    let gate = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let workers: Vec<_> = ["Moderator", "Owner"]
+        .into_iter()
+        .map(|name| {
+            let db = db.clone();
+            let gate = gate.clone();
+            std::thread::spawn(move || {
+                gate.wait();
+                db.save_workflow(&json!({"id":"concurrent","name":name}), Some("1"))
+            })
+        })
+        .collect();
+    let results: Vec<_> = workers
+        .into_iter()
+        .map(|worker| worker.join().unwrap())
+        .collect();
+    assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+    assert_eq!(results.iter().filter(|result|matches!(result, Err(DatabaseError::RevisionConflict(version)) if version.revision=="2")).count(), 1);
+    let winner = results.into_iter().find_map(Result::ok).unwrap();
+    let stored = db.load_workflow("concurrent").unwrap();
+    assert_eq!(stored.value.as_ref(), Some(&winner.value));
+    assert_eq!(stored.resource_versions, winner.resource_versions);
+    let conn = db.open(&db.automation_path()).unwrap();
+    assert_eq!(
+        conn.query_row("SELECT count(*) FROM control_resource_outbox", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap(),
+        2
+    );
+    drop(conn);
+    fs::remove_dir_all(paths.root).unwrap();
+}
+
+#[test]
+fn workflow_invalidation_failure_rolls_back_graph_revision_and_delete() {
+    let paths = paths();
+    paths.ensure_directories().unwrap();
+    let db = DatabaseManager::new(paths.clone());
+    let graph = json!({"id":"atomic","name":"Original","enabled":false});
+    let original = db.save_workflow(&graph, None).unwrap();
+    let conn = db.open(&db.automation_path()).unwrap();
+    conn.execute_batch("CREATE TRIGGER fail_workflow_invalidation BEFORE INSERT ON control_resource_outbox BEGIN SELECT RAISE(ABORT,'test'); END").unwrap();
+    assert!(db
+        .save_workflow(&json!({"id":"atomic","name":"Replacement"}), Some("1"))
+        .is_err());
+    assert!(db.set_workflow_enabled("atomic", true, None).is_err());
+    assert!(db.delete_workflow("atomic", Some("1")).is_err());
+    assert!(db
+        .save_workflow(&json!({"id":"new","name":"New"}), Some("0"))
+        .is_err());
+    let current = db.load_workflow("atomic").unwrap();
+    assert_eq!(current.value, Some(original.value));
+    assert_eq!(current.resource_versions, original.resource_versions);
+    assert_eq!(
+        db.load_workflow("new").unwrap().resource_versions[0].revision,
+        "0"
+    );
+    assert_eq!(
+        conn.query_row("SELECT count(*) FROM control_resource_outbox", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap(),
+        1
+    );
+    drop(conn);
+    fs::remove_dir_all(paths.root).unwrap();
+}
+
+#[test]
+fn legacy_workflow_migration_preserves_graph_and_seeds_only_once() {
+    let paths = paths();
+    paths.ensure_directories().unwrap();
+    let conn = rusqlite::Connection::open(paths.automation_database()).unwrap();
+    conn.execute_batch("CREATE TABLE automation_workflows(id TEXT PRIMARY KEY,name TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 0,graph_json TEXT NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)").unwrap();
+    let graph = json!({"id":"legacy","name":"Legacy","enabled":true,"nodes":[{"id":"keep-me"}]});
+    conn.execute(
+        "INSERT INTO automation_workflows VALUES ('legacy','Legacy',1,?1,7,8)",
+        [graph.to_string()],
+    )
+    .unwrap();
+    drop(conn);
+    let db = DatabaseManager::new(paths.clone());
+    let migrated = db.load_workflow("legacy").unwrap();
+    assert_eq!(migrated.value.as_ref().unwrap()["graph"], graph);
+    assert_eq!(migrated.value.as_ref().unwrap()["createdAt"], 7);
+    assert_eq!(migrated.resource_versions[0].revision, "1");
+    assert_eq!(
+        db.set_workflow_enabled("legacy", false, Some("1"))
+            .unwrap()
+            .resource_versions[0]
+            .revision,
+        "2"
+    );
+    let reopened = DatabaseManager::new(paths.clone());
+    assert_eq!(
+        reopened.load_workflow("legacy").unwrap().resource_versions[0].revision,
+        "2"
+    );
+    fs::remove_dir_all(paths.root).unwrap();
+}
+
+#[test]
+fn invalid_or_exhausted_workflow_versions_cannot_change_business_state() {
+    let paths = paths();
+    paths.ensure_directories().unwrap();
+    let db = DatabaseManager::new(paths.clone());
+    let graph = json!({"id":"bounded","name":"Original"});
+    db.save_workflow(&graph, None).unwrap();
+    for expected in ["", "01", "+1", "-1", "9223372036854775808"] {
+        assert!(matches!(
+            db.save_workflow(&graph, Some(expected)),
+            Err(DatabaseError::Invalid(_))
+        ));
+        assert!(matches!(
+            db.set_workflow_enabled("bounded", true, Some(expected)),
+            Err(DatabaseError::Invalid(_))
+        ));
+        assert!(matches!(
+            db.delete_workflow("bounded", Some(expected)),
+            Err(DatabaseError::Invalid(_))
+        ));
+    }
+    assert_eq!(
+        db.load_workflow("bounded").unwrap().resource_versions[0].revision,
+        "1"
+    );
+    let conn = db.open(&db.automation_path()).unwrap();
+    conn.execute(
+        "UPDATE control_resource_versions SET revision=?1",
+        [i64::MAX],
+    )
+    .unwrap();
+    assert!(db
+        .save_workflow(&json!({"id":"bounded","name":"Overflow"}), None)
+        .is_err());
+    let stored = db.load_workflow("bounded").unwrap();
+    assert_eq!(stored.resource_versions[0].revision, i64::MAX.to_string());
+    assert_eq!(stored.value.unwrap()["graph"], graph);
+    assert_eq!(
+        conn.query_row("SELECT count(*) FROM control_resource_outbox", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .unwrap(),
+        1
+    );
+    drop(conn);
+    fs::remove_dir_all(paths.root).unwrap();
+}
+
+#[test]
+fn workflow_writes_reject_unbounded_or_ambiguous_ids_before_creating_outbox_rows() {
+    let paths = paths();
+    paths.ensure_directories().unwrap();
+    let db = DatabaseManager::new(paths.clone());
+    for id in [
+        "".to_owned(),
+        " ".to_owned(),
+        " padded".to_owned(),
+        "padded ".to_owned(),
+        "*".to_owned(),
+        "line\nbreak".to_owned(),
+        "x".repeat(129),
+        "é".repeat(65),
+    ] {
+        assert!(matches!(
+            db.save_workflow(&json!({"id":id,"name":"Invalid"}), None),
+            Err(DatabaseError::Invalid(_))
+        ));
+        assert!(matches!(
+            db.delete_workflow(&id, None),
+            Err(DatabaseError::Invalid(_))
+        ));
+        assert!(matches!(
+            db.set_workflow_enabled(&id, true, None),
+            Err(DatabaseError::Invalid(_))
+        ));
+    }
+    assert!(db.load_workflows().unwrap().value.is_empty());
+    assert!(db.pending_coordination().unwrap().is_empty());
+    let valid = "é".repeat(64);
+    db.save_workflow(&json!({"id":valid,"name":"Bounded unicode ID"}), None)
+        .unwrap();
+    assert_eq!(
+        db.load_workflow(&valid).unwrap().resource_versions[0].revision,
+        "1"
+    );
+    fs::remove_dir_all(paths.root).unwrap();
 }

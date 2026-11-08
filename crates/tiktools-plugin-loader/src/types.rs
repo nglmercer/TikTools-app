@@ -66,6 +66,19 @@ pub trait PluginRuntime: Send + Sync {
         manifest: &PluginManifest,
         directory: &Path,
     ) -> Result<Box<dyn PluginInstance>, PluginLoaderError>;
+    /// Fresh one-shot instance with a host-created per-call data directory.
+    /// The default is appropriate for native/VM adapters that have no process
+    /// settings contract. Native OS access remains trusted and unrestricted;
+    /// this method does not claim to provide an OS sandbox.
+    fn load_isolated(
+        &self,
+        manifest: &PluginManifest,
+        directory: &Path,
+        data_directory: &Path,
+    ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+        let _ = data_directory;
+        self.load(manifest, directory)
+    }
     /// Optionally provide a runtime-owned worker thread that serves the
     /// manager's call queue directly, bypassing the generic
     /// `run_instance_worker` thread. Runtimes whose state is `!Send`

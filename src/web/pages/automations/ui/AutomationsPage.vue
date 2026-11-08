@@ -4,6 +4,13 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, shallowRef, watch } 
 import { routeLocationKey, routerKey } from 'vue-router';
 import type { ActionTypeDefinition, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { useAutomationControls } from '@/features/manage-automations/model/use-automation-controls.ts';
+import { useAutomationEditor } from '@/features/edit-automation-record/model/automation-editor.ts';
+import AutomationEditorReview from '@/features/edit-automation-record/ui/AutomationEditorReview.vue';
+import AutomationEditNotice from '@/features/edit-automation-record/ui/AutomationEditNotice.vue';
+import AutomationProposalReview from '@/features/review-automation-proposal/ui/AutomationProposalReview.vue';
+import AutomationApprovalReview from '@/features/review-automation-approval/ui/AutomationApprovalReview.vue';
+import { recordKey, type AutomationKind, type AutomationRevision } from '@/entities/automation/model/record-versions.ts';
+import { errorMessage } from '@/shared/api/control-client.ts';
 import {
   availableActionTypeIds,
   createActionFromType,
@@ -43,6 +50,12 @@ type Editing =
 
 const { t } = useAutomationText();
 const automation = useAutomationControls();
+const editor = useAutomationEditor({
+  read: automation.readRecord,
+  save: (kind, record, base) => kind === 'event'
+    ? automation.saveEvent(record as LiveEvent, base) : automation.saveAction(record as LiveAction, base),
+  remove: automation.deleteRecord,
+});
 const { leaderboard } = storeToRefs(usePointsStore());
 const saved = loadViewState().behavior;
 
@@ -52,8 +65,18 @@ const eventQuery = ref(saved?.eventQuery ?? '');
 const actionQuery = ref(saved?.actionQuery ?? '');
 const eventSort = ref<RecordSort>(isRecordSort(saved?.eventSort) ? saved.eventSort : 'name');
 const actionSort = ref<RecordSort>(isRecordSort(saved?.actionSort) ? saved.actionSort : 'name');
-const draft = shallowRef<Editing | null>(null);
-const dirty = ref(false);
+const dirty = editor.dirty;
+const reviewOpen = ref(false);
+const proposalReviewOpen = ref(false);
+const proposalReviewPanel = ref<{ openReview: () => void } | null>(null);
+const approvalReviewOpen = ref(false);
+const approvalReviewPanel = ref<{ openReview: () => void } | null>(null);
+const toggleOpen = ref(false);
+const toggleBusy = ref(false);
+const toggleNeedsReview = ref(false);
+const toggleSatisfied = ref(false);
+const toggleError = ref('');
+const toggleTarget = shallowRef<{ kind: AutomationKind; id: string; name: string; enabled: boolean; revision: AutomationRevision } | null>(null);
 const pending = shallowRef<(() => void) | null>(null);
 const discardOpen = ref(false);
 const pickerOpen = ref(false);
@@ -104,28 +127,49 @@ const viewers = computed<SearchOption[]>(() =>
 );
 
 const editing = computed<Editing | null>(() => {
-  if (draft.value) return draft.value;
-  const id = selected.value;
-  if (!id) return null;
-  if (tab.value === 'events') {
-    const record = snapshot.value.events.find((event) => event.id === id);
-    return record ? { kind: 'event', record, isNew: false } : null;
-  }
-  const record = snapshot.value.actions.find((action) => action.id === id);
-  return record ? { kind: 'action', record, isNew: false } : null;
+  const state = editor.state.value;
+  if (!state) return null;
+  return state.kind === 'event' ? { kind: 'event', record: state.candidate as LiveEvent, isNew: state.create }
+    : { kind: 'action', record: state.candidate as LiveAction, isNew: state.create };
 });
+const eventBaseline = computed(() => editor.state.value?.kind === 'event' ? editor.state.value.base as LiveEvent | null : null);
+const actionBaseline = computed(() => editor.state.value?.kind === 'action' ? editor.state.value.base as LiveAction | null : null);
+const proposalTarget = computed(() => {
+  const state = editor.state.value;
+  if (!state || state.create) return null;
+  const rows = state.kind === 'event' ? snapshot.value.events : snapshot.value.actions;
+  return rows.some((row) => row.id === state.candidate.id) ? { kind: state.kind, id: state.candidate.id } : null;
+});
+const proposalVersions = computed(() => {
+  const versions = new Map<string, string>();
+  for (const [kind, rows] of [['event', snapshot.value.events], ['action', snapshot.value.actions]] as const) {
+    for (const row of rows) {
+      const revision = automation.revisionFor(kind, row.id);
+      if (typeof revision === 'string') versions.set(recordKey(kind, row.id), revision);
+    }
+  }
+  return versions;
+});
+const hostChanged = computed(() => {
+  const state = editor.state.value;
+  if (!state || state.create || state.revision === null || state.revision === undefined) return false;
+  const revision = automation.revisionFor(state.kind, state.candidate.id);
+  return revision === undefined || (typeof revision === 'string' && BigInt(revision) > BigInt(state.revision));
+});
+
+function resetEditor(): void { editor.close(); reviewOpen.value = false; }
 
 const librarySelected = computed<string | null>({
   get: () => selected.value,
-  set: (next) => guard(() => {
-    draft.value = null;
+  set: (next) => { if (next === selected.value) return; guard(() => {
+    resetEditor();
     selected.value = next;
-  }),
+  }); },
 });
 const libraryTab = computed<LibraryTab>({
   get: () => tab.value,
   set: (next) => guard(() => {
-    draft.value = null;
+    resetEditor();
     tab.value = next;
     selected.value = null;
   }),
@@ -142,14 +186,13 @@ function guard(run: () => void): void {
 
 function confirmDiscard(): void {
   discardOpen.value = false;
-  dirty.value = false;
   pending.value?.();
   pending.value = null;
 }
 
 function closeEditor(): void {
   guard(() => {
-    draft.value = null;
+    resetEditor();
     selected.value = null;
   });
 }
@@ -157,7 +200,7 @@ function closeEditor(): void {
 function onSheetKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape' || event.defaultPrevented) return;
   if (!isNarrow.value || !editing.value) return;
-  if (discardOpen.value || pickerOpen.value || templatesOpen.value || profileImportOpen.value) return;
+  if (discardOpen.value || pickerOpen.value || templatesOpen.value || profileImportOpen.value || reviewOpen.value || proposalReviewOpen.value || approvalReviewOpen.value || toggleOpen.value) return;
   closeEditor();
 }
 
@@ -167,7 +210,7 @@ function newEvent(trigger?: string): void {
     const record = createEvent(t('automations.editor.newEventName'));
     if (trigger) record.trigger = trigger;
     selected.value = record.id;
-    draft.value = { kind: 'event', record, isNew: true };
+    editor.open('event', record, automation.persistent.value === false ? null : '0', true);
   });
 }
 
@@ -187,33 +230,72 @@ function newAction(type: ActionTypeDefinition): void {
     tab.value = 'actions';
     const record = createActionFromType(type, localizedText);
     selected.value = record.id;
-    draft.value = { kind: 'action', record, isNew: true };
+    editor.open('action', record, automation.persistent.value === false ? null : '0', true);
   });
 }
 
 function saveEvent(event: LiveEvent): void {
-  automation.saveEvent(event);
-  dirty.value = false;
-  draft.value = { kind: 'event', record: event, isNew: false };
+  editor.change(event);
+  void editor.save();
 }
 
 function saveAction(action: LiveAction): void {
-  automation.saveAction(action);
-  dirty.value = false;
-  draft.value = { kind: 'action', record: action, isNew: false };
+  editor.change(action);
+  void editor.save();
 }
 
 function removeRecord(kind: LibraryTab, id: string): void {
-  if (kind === 'events') automation.deleteEvent(id);
-  else automation.deleteAction(id);
-  dirty.value = false;
-  draft.value = null;
-  selected.value = null;
+  if (editing.value?.record.id !== id || editing.value.kind !== (kind === 'events' ? 'event' : 'action')) return;
+  void editor.remove().then(() => {
+    if (!editor.state.value && selected.value === id && tab.value === kind) selected.value = null;
+  });
 }
 
 function setEnabled(kind: LibraryTab, id: string, enabled: boolean): void {
-  if (kind === 'events') automation.setEventEnabled(id, enabled);
-  else automation.setActionEnabled(id, enabled);
+  if (toggleBusy.value || toggleOpen.value) return;
+  const family = kind === 'events' ? 'event' : 'action';
+  const record = (kind === 'events' ? snapshot.value.events : snapshot.value.actions).find((r) => r.id === id);
+  const revision = automation.revisionFor(family, id);
+  toggleError.value = '';
+  if (!record || revision === undefined) { toggleError.value = t('automations.conflict.missingRevision'); return; }
+  toggleTarget.value = { kind: family, id, name: record.name, enabled, revision };
+  toggleNeedsReview.value = false; toggleSatisfied.value = false; toggleOpen.value = true;
+}
+
+async function confirmToggle(): Promise<void> {
+  const target = toggleTarget.value;
+  if (!target || toggleBusy.value || toggleNeedsReview.value || toggleSatisfied.value) return;
+  toggleBusy.value = true;
+  try {
+    await automation.setRecordEnabled(target.kind, target.id, target.enabled, target.revision);
+    toggleOpen.value = false;
+  } catch (failure) {
+    toggleError.value = errorMessage(failure);
+    toggleNeedsReview.value = true;
+  } finally { toggleBusy.value = false; }
+}
+
+async function reviewToggle(): Promise<void> {
+  const target = toggleTarget.value;
+  if (!target || toggleBusy.value) return;
+  toggleBusy.value = true;
+  try {
+    const current = await automation.readRecord(target.kind, target.id);
+    if (!current.record) { toggleError.value = t('automations.conflict.deleted'); return; }
+    toggleTarget.value = { ...target, name: current.record.name, revision: current.revision };
+    toggleSatisfied.value = current.record.enabled === target.enabled;
+    toggleNeedsReview.value = false;
+    toggleError.value = toggleSatisfied.value ? t('automations.conflict.alreadyApplied') : '';
+  } catch (failure) { toggleError.value = errorMessage(failure); }
+  finally { toggleBusy.value = false; }
+}
+
+function compare(): void {
+  reviewOpen.value = true;
+  void editor.readForReview();
+}
+function useReviewedBase(): void {
+  if (editor.adoptReview()) reviewOpen.value = false;
 }
 
 function importTemplates(templates: RuleTemplate[], done: (added: number) => void): void {
@@ -228,20 +310,21 @@ function applyProfile(profile: RuleProfile, applied: AppliedRuleTemplate[]): voi
 
 function switchProfile(id: string): void {
   guard(() => {
-    draft.value = null;
+    resetEditor();
     selected.value = null;
     void automation.switchProfile(id);
   });
 }
 
 watch(
-  () => [snapshot.value.events, snapshot.value.actions] as const,
+  () => [selected.value, tab.value, snapshot.value.events, snapshot.value.actions] as const,
   () => {
-    const current = draft.value;
-    if (!current || current.isNew) return;
-    const list: readonly { id: string }[] = current.kind === 'event' ? snapshot.value.events : snapshot.value.actions;
-    if (list.some((record) => record.id === current.record.id) && !dirty.value) draft.value = null;
+    if (editor.state.value || !selected.value) return;
+    const kind = tab.value === 'events' ? 'event' : 'action';
+    const record = (kind === 'event' ? snapshot.value.events : snapshot.value.actions).find((r) => r.id === selected.value);
+    if (record) editor.open(kind, record, automation.revisionFor(kind, record.id));
   },
+  { immediate: true },
 );
 
 const persist = debounce(() => {
@@ -262,7 +345,7 @@ onMounted(() => {
   window.addEventListener('keydown', onSheetKeydown);
 });
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
+onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', onSheetKeydown); });
 </script>
 
 <template>
@@ -290,6 +373,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
         </template>
         {{ t('automations.templates.open') }}
       </BaseButton>
+      <AutomationProposalReview
+        v-if="automation.persistent.value === true"
+        ref="proposalReviewPanel"
+        v-model:open="proposalReviewOpen"
+        :target="proposalTarget"
+        :host-versions="proposalVersions"
+      />
+      <AutomationApprovalReview
+        v-if="automation.persistent.value === true"
+        ref="approvalReviewPanel"
+        v-model:open="approvalReviewOpen"
+        :target="proposalTarget"
+        :host-versions="proposalVersions"
+      />
       <span class="automations-page__spacer" />
       <HotkeyIndicator
         :plugins="snapshot.plugins"
@@ -349,10 +446,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
             />
           </template>
           <template #end>
+            <AutomationEditNotice
+              :edit="editor.state.value"
+              :host-changed="hostChanged"
+              :memory="automation.persistent.value === false"
+              @compare="compare"
+            />
             <EventEditor
               v-if="editing?.kind === 'event'"
-              :key="editing.record.id"
-              v-model:dirty="dirty"
+              :key="editor.state.value?.token"
+              :baseline="eventBaseline ?? undefined"
+              :busy="editor.state.value?.busy"
+              :save-blocked="editor.saveBlocked.value"
               :event="editing.record"
               :is-new="editing.isNew"
               :actions="actions"
@@ -363,14 +468,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
               :hotkey-status="automation.hotkeyStatus.value"
               :error="automation.error.value"
               @save="saveEvent"
+              @change="editor.change"
               @delete="removeRecord('events', $event)"
               @test="automation.testEvent"
               @fire="automation.fireEvent"
             />
             <ActionEditor
               v-else-if="editing?.kind === 'action'"
-              :key="editing.record.id"
-              v-model:dirty="dirty"
+              :key="editor.state.value?.token"
+              :baseline="actionBaseline ?? undefined"
+              :busy="editor.state.value?.busy"
+              :save-blocked="editor.saveBlocked.value"
               :action="editing.record"
               :is-new="editing.isNew"
               :action-types="snapshot.actionTypes"
@@ -381,6 +489,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
               :open-media-picker="automation.openMediaPicker"
               :error="automation.error.value"
               @save="saveAction"
+              @change="editor.change"
               @delete="removeRecord('actions', $event)"
               @test="automation.testAction"
               @load-options="automation.loadOptions"
@@ -448,12 +557,36 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
             {{ t('common.back') }}
           </BaseButton>
           <span class="automations-page__sheet-title">{{ editing.record.name }}</span>
+          <BaseButton
+            v-if="automation.persistent.value === true && proposalTarget"
+            class="automations-page__proposal-button"
+            size="sm"
+            @click="proposalReviewPanel?.openReview()"
+          >
+            {{ t('automationProposal.open') }}
+          </BaseButton>
+          <BaseButton
+            v-if="automation.persistent.value === true && proposalTarget"
+            size="sm"
+            data-test="approval-open"
+            @click="approvalReviewPanel?.openReview()"
+          >
+            {{ t('automationApproval.open') }}
+          </BaseButton>
         </header>
         <div class="automations-page__sheet-body">
+          <AutomationEditNotice
+            :edit="editor.state.value"
+            :host-changed="hostChanged"
+            :memory="automation.persistent.value === false"
+            @compare="compare"
+          />
           <EventEditor
             v-if="editing.kind === 'event'"
-            :key="editing.record.id"
-            v-model:dirty="dirty"
+            :key="editor.state.value?.token"
+            :baseline="eventBaseline ?? undefined"
+            :busy="editor.state.value?.busy"
+            :save-blocked="editor.saveBlocked.value"
             :event="editing.record"
             :is-new="editing.isNew"
             :actions="actions"
@@ -464,14 +597,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
             :hotkey-status="automation.hotkeyStatus.value"
             :error="automation.error.value"
             @save="saveEvent"
+            @change="editor.change"
             @delete="removeRecord('events', $event)"
             @test="automation.testEvent"
             @fire="automation.fireEvent"
           />
           <ActionEditor
             v-else
-            :key="editing.record.id"
-            v-model:dirty="dirty"
+            :key="editor.state.value?.token"
+            :baseline="actionBaseline ?? undefined"
+            :busy="editor.state.value?.busy"
+            :save-blocked="editor.saveBlocked.value"
             :action="editing.record"
             :is-new="editing.isNew"
             :action-types="snapshot.actionTypes"
@@ -482,6 +618,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
             :open-media-picker="automation.openMediaPicker"
             :error="automation.error.value"
             @save="saveAction"
+            @change="editor.change"
             @delete="removeRecord('actions', $event)"
             @test="automation.testAction"
             @load-options="automation.loadOptions"
@@ -519,6 +656,48 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
       danger
       @confirm="confirmDiscard"
     />
+    <AutomationEditorReview
+      v-model:open="reviewOpen"
+      :edit="editor.state.value"
+      :review="editor.review.value"
+      :busy="editor.reading.value"
+      :error="editor.readError.value"
+      :can-adopt="editor.canAdoptReview.value"
+      @refresh="editor.readForReview"
+      @adopt="useReviewedBase"
+    />
+    <BaseConfirmDialog
+      v-model:open="toggleOpen"
+      :title="t('automations.conflict.toggleTitle')"
+      :message="t(toggleTarget?.enabled ? 'automations.conflict.enableMessage' : 'automations.conflict.disableMessage', { name: toggleTarget?.name ?? '' })"
+      :confirm-label="t('automations.conflict.confirmToggle')"
+      :busy="toggleBusy || toggleNeedsReview || toggleSatisfied"
+      @confirm="confirmToggle"
+    >
+      <p class="automations-page__target">
+        {{ t('automations.conflict.recordVersion', { id: toggleTarget?.id ?? '', revision: toggleTarget?.revision ?? t('automations.conflict.memory') }) }}
+      </p>
+      <p
+        v-if="toggleError"
+        role="alert"
+      >
+        {{ toggleError }}
+      </p>
+      <BaseButton
+        v-if="toggleNeedsReview"
+        :disabled="toggleBusy"
+        @click="reviewToggle"
+      >
+        {{ t('automations.conflict.readCurrent') }}
+      </BaseButton>
+    </BaseConfirmDialog>
+    <p
+      v-if="toggleError && !toggleOpen"
+      class="automations-page__banner automations-page__banner--error"
+      role="alert"
+    >
+      {{ toggleError }}
+    </p>
   </div>
 </template>
 
@@ -565,6 +744,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onSheetKeydown));
   border-color: var(--color-danger);
   color: var(--color-danger-hover);
 }
+
+.automations-page__target { overflow-wrap: anywhere; }
+.automations-page__proposal-button { height: auto; max-width: 45%; min-height: var(--control-height-sm); white-space: normal; }
 
 .automations-page__workspace {
   flex: 1;

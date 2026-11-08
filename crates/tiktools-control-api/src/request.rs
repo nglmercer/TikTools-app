@@ -154,6 +154,8 @@ pub struct RpcRequest {
     pub method: String,
     #[serde(default)]
     pub params: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<crate::RequestMetadata>,
 }
 
 impl RpcRequest {
@@ -163,6 +165,7 @@ impl RpcRequest {
             id,
             method: method.into(),
             params,
+            meta: None,
         }
     }
 

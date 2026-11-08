@@ -15,7 +15,20 @@ pub(crate) use analytics::writer::{AnalyticsWrite, AnalyticsWriter};
 #[cfg(feature = "persistence")]
 pub use sqlite::DatabaseError;
 #[cfg(feature = "persistence")]
+pub(crate) use sqlite::validate_owner_approval_input;
+#[cfg(feature = "persistence")]
 pub(crate) use sqlite::{ActionClaimOutcome, GiftInput, GiftOutcome, ScoredInput, ScoredOutcome};
+#[cfg(feature = "persistence")]
+pub(crate) use sqlite::{
+    BehaviorApprovalActivation, BehaviorApprovalBinding, BehaviorApprovalEnableState,
+    BehaviorApprovalSnapshot,
+};
+#[cfg(feature = "persistence")]
+pub(crate) use sqlite::{BehaviorAuthority, BehaviorRuntimeAuthority, BehaviorSave};
+#[cfg(feature = "persistence")]
+pub(crate) use sqlite::{CommandDatabase, CommandTransaction};
+#[cfg(feature = "persistence")]
+pub(crate) use sqlite::{DeliveryToken, PendingDelivery};
 
 #[cfg(feature = "persistence")]
 pub use analytics::{

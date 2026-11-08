@@ -53,9 +53,15 @@ impl AppCore {
         Ok(existed)
     }
 
-    /// Render-path snapshot. Infallible: actions render with whatever loads.
-    pub(crate) fn automation_globals(&self) -> BTreeMap<String, String> {
-        self.globals_snapshot()
+    /// Authority is checked at the read boundary, including plugin-intent and
+    /// declarative-HTTP rereads. Unsupported delegated access never loads the
+    /// unrestricted snapshot, even if its caller forgot an earlier guard.
+    pub(crate) fn automation_globals(
+        &self,
+        context: &crate::automation_runtime::context::ExecutionContext,
+    ) -> Result<BTreeMap<String, String>, String> {
+        self.execution_context_guard(context)?;
+        Ok(self.globals_snapshot())
     }
 
     fn globals_snapshot(&self) -> BTreeMap<String, String> {

@@ -2,8 +2,9 @@
 
 use super::TikToolsClient;
 use tiktools_control_api::modules::points::{
-    PartialPointsConfig, PointAward, PointsAdjustParams, PointsConfig, PointsLeaderboardParams,
-    PointsLeaderboardResult, PointsResetParams, PointsViewerParams, PointsViewerResult,
+    PartialPointsConfig, PointAward, PointsAdjustParams, PointsConfig, PointsInfo,
+    PointsLeaderboardParams, PointsLeaderboardResult, PointsResetParams, PointsViewParams,
+    PointsViewResult, PointsViewerParams, PointsViewerResult,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::modules::OkResult;
@@ -13,6 +14,8 @@ use tiktools_control_api::ClientError;
 /// through its constant, so the coverage list and the methods
 /// cannot drift apart; the parity test pins the list to the registry.
 pub(crate) const METHODS: &[&str] = &[
+    POINTS_INFO,
+    POINTS_VIEW,
     POINTS_CONFIG_GET,
     POINTS_CONFIG_SET,
     POINTS_VIEWER_GET,
@@ -22,6 +25,8 @@ pub(crate) const METHODS: &[&str] = &[
 ];
 
 const POINTS_CONFIG_GET: &str = "points.config.get";
+const POINTS_VIEW: &str = "points.view";
+const POINTS_INFO: &str = "points.info";
 const POINTS_CONFIG_SET: &str = "points.config.set";
 const POINTS_VIEWER_GET: &str = "points.viewer.get";
 const POINTS_ADJUST: &str = "points.adjust";
@@ -29,6 +34,17 @@ const POINTS_LEADERBOARD: &str = "points.leaderboard";
 const POINTS_RESET: &str = "points.reset";
 
 impl TikToolsClient {
+    pub async fn points_view(
+        &self,
+        params: PointsViewParams,
+    ) -> Result<PointsViewResult, ClientError> {
+        self.call(POINTS_VIEW, params).await
+    }
+
+    /// The points unit label without earning configuration.
+    pub async fn points_info(&self) -> Result<PointsInfo, ClientError> {
+        self.call(POINTS_INFO, Empty::default()).await
+    }
     /// Current points configuration.
     /// RPC method `points.config.get`.
     pub async fn points_config_get(&self) -> Result<PointsConfig, ClientError> {

@@ -12,6 +12,8 @@ pub struct RpcResponse {
     pub result: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<RpcErrorBody>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<crate::ResponseMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -29,6 +31,7 @@ impl RpcResponse {
             id,
             result: Some(result),
             error: None,
+            meta: None,
         }
     }
 
@@ -37,6 +40,7 @@ impl RpcResponse {
             jsonrpc: "2.0",
             id,
             result: None,
+            meta: None,
             error: Some(RpcErrorBody {
                 code: error.code,
                 message: error.message,

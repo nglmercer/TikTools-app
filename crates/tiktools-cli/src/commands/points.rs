@@ -85,7 +85,11 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
         ),
         Command::Adjust { unique_id, delta } => result_value(
             client
-                .points_adjust(PointsAdjustParams { unique_id, delta })
+                .points_adjust(PointsAdjustParams {
+                    unique_id,
+                    delta,
+                    expected_currency: None,
+                })
                 .await?,
         ),
         Command::Leaderboard { limit } => result_value(

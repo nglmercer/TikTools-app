@@ -13,7 +13,9 @@
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use tiktools_client::{validate_params, ClientError, ControlEvent, TikToolsClient};
+use tiktools_client::{
+    validate_params, ClientError, ControlEvent, RequestMetadata, TikToolsClient,
+};
 use tiktools_control_api::modules::rpc::SchemaParams;
 
 use super::args::{flag_value, parse_json_value, positional, split_first};
@@ -31,6 +33,8 @@ pub enum Command {
         method: String,
         params: Value,
         timeout_secs: Option<u64>,
+        metadata: Option<RequestMetadata>,
+        include_meta: bool,
         dry_run: bool,
         confirm: bool,
         secrets_visible: bool,
@@ -48,6 +52,18 @@ pub enum Command {
         timeout_secs: Option<u64>,
         json: Option<bool>,
     },
+}
+
+impl Command {
+    pub fn output_json(&self) -> Option<bool> {
+        match self {
+            Self::Discover { json }
+            | Self::Schema { json, .. }
+            | Self::Call { json, .. }
+            | Self::Verify { json, .. } => *json,
+            Self::Events { .. } => None,
+        }
+    }
 }
 
 /// True for `api verify --sandbox`, which the dispatcher routes to an
@@ -70,8 +86,16 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
             json: parse_format(rest)?,
         }),
         "call" => {
-            let method = positional(rest, 0, "api call <method> [params-json] [flags]")?;
-            let params = positional_args(rest)
+            validate_call_flags(rest)?;
+            let positionals = positional_args(rest);
+            if positionals.len() > 2 {
+                return Err("unexpected api call arguments".to_owned().into());
+            }
+            let method = positionals
+                .first()
+                .ok_or_else(|| "api call <method> [params-json] [flags]".to_owned())?
+                .to_string();
+            let params = positionals
                 .get(1)
                 .map(|raw| parse_json_value(raw))
                 .transpose()?
@@ -86,6 +110,8 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
                 method,
                 params,
                 timeout_secs: parse_timeout(rest)?,
+                metadata: parse_metadata(rest)?,
+                include_meta: rest.iter().any(|arg| arg == "--include-meta"),
                 dry_run: rest.iter().any(|arg| arg == "--dry-run"),
                 confirm: rest.iter().any(|arg| arg == "--confirm"),
                 secrets_visible,
@@ -115,7 +141,15 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
 
 /// Positional arguments (everything that is not a `--flag` or a flag value).
 fn positional_args(args: &[String]) -> Vec<&String> {
-    const VALUE_FLAGS: &[&str] = &["--timeout", "--max-events", "--format", "--topics"];
+    const VALUE_FLAGS: &[&str] = &[
+        "--timeout",
+        "--max-events",
+        "--format",
+        "--topics",
+        "--command-id",
+        "--host-instance-id",
+        "--expected-revision",
+    ];
     let mut positionals = Vec::new();
     let mut index = 0;
     while index < args.len() {
@@ -132,6 +166,101 @@ fn positional_args(args: &[String]) -> Vec<&String> {
         index += 1;
     }
     positionals
+}
+
+fn validate_call_flags(args: &[String]) -> Result<(), CommandError> {
+    let values = [
+        "--timeout",
+        "--format",
+        "--command-id",
+        "--host-instance-id",
+        "--expected-revision",
+    ];
+    let switches = [
+        "--dry-run",
+        "--confirm",
+        "--redact",
+        "--secrets-visible",
+        "--explain",
+        "--include-meta",
+    ];
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        if values.contains(&arg) {
+            if args
+                .get(index + 1)
+                .is_none_or(|value| value.starts_with("--"))
+            {
+                return Err(format!("{arg} requires a value").into());
+            }
+            index += 2;
+        } else if arg.starts_with("--") && !switches.contains(&arg) {
+            return Err(format!("unknown api call flag `{arg}`").into());
+        } else {
+            index += 1;
+        }
+    }
+    Ok(())
+}
+
+fn parse_metadata(args: &[String]) -> Result<Option<RequestMetadata>, CommandError> {
+    fn read(args: &[String], flag: &str) -> Result<Option<String>, CommandError> {
+        let mut positions = args
+            .iter()
+            .enumerate()
+            .filter(|(_, arg)| arg.as_str() == flag);
+        let Some((index, _)) = positions.next() else {
+            return Ok(None);
+        };
+        if positions.next().is_some() {
+            return Err(format!("{flag} must occur once").into());
+        }
+        let value = args
+            .get(index + 1)
+            .filter(|value| !value.starts_with("--"))
+            .ok_or_else(|| format!("{flag} requires a value"))?;
+        Ok(Some(value.clone()))
+    }
+    let metadata = RequestMetadata {
+        command_id: read(args, "--command-id")?,
+        host_instance_id: read(args, "--host-instance-id")?,
+        expected_revision: read(args, "--expected-revision")?,
+    };
+    if metadata.command_id.is_none()
+        && metadata.host_instance_id.is_none()
+        && metadata.expected_revision.is_none()
+    {
+        return Ok(None);
+    }
+    if let Some(revision) = &metadata.expected_revision {
+        if revision
+            .parse::<i64>()
+            .ok()
+            .filter(|number| *number >= 0 && number.to_string() == *revision)
+            .is_none()
+        {
+            return Err(
+                "--expected-revision requires a canonical nonnegative integer"
+                    .to_owned()
+                    .into(),
+            );
+        }
+    }
+    if metadata.command_id.is_some() || metadata.host_instance_id.is_some() {
+        let (Some(id), Some(instance)) = (&metadata.command_id, &metadata.host_instance_id) else {
+            return Err("--command-id and --host-instance-id are required together"
+                .to_owned()
+                .into());
+        };
+        tiktools_core::collaboration::AdditiveCommandRequest {
+            command_id: id.clone(),
+            host_instance_id: instance.clone(),
+        }
+        .validate()
+        .map_err(|_| "invalid command metadata".to_owned())?;
+    }
+    Ok(Some(metadata))
 }
 
 fn parse_format(args: &[String]) -> Result<Option<bool>, CommandError> {
@@ -212,6 +341,8 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Output
             method,
             params,
             timeout_secs,
+            metadata,
+            include_meta,
             dry_run,
             confirm,
             secrets_visible,
@@ -224,6 +355,8 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Output
                     method: &method,
                     params,
                     timeout_secs,
+                    metadata,
+                    include_meta,
                     dry_run,
                     confirm,
                     secrets_visible,
@@ -254,6 +387,8 @@ struct CallArgs<'a> {
     method: &'a str,
     params: Value,
     timeout_secs: Option<u64>,
+    metadata: Option<RequestMetadata>,
+    include_meta: bool,
     dry_run: bool,
     confirm: bool,
     secrets_visible: bool,
@@ -270,8 +405,35 @@ async fn execute_call(client: &TikToolsClient, args: CallArgs<'_>) -> Result<Out
         })
         .await?;
     validate_params(args.method, &args.params)?;
+    if let Some(metadata) = &args.metadata {
+        if metadata.command_id.is_some() && !meta.durable_commands {
+            return Err(ClientError::new(
+                "unsupported_remote",
+                "this method does not support durable commands",
+            ));
+        }
+        if metadata.expected_revision.is_some()
+            && meta.concurrency
+                != Some(tiktools_control_api::registry::ConcurrencyStrategy::CompareAndSet)
+        {
+            return Err(ClientError::new(
+                "invalid_params",
+                "this method does not accept expectedRevision",
+            ));
+        }
+        if metadata.command_id.is_some()
+            && meta.concurrency
+                == Some(tiktools_control_api::registry::ConcurrencyStrategy::CompareAndSet)
+            && metadata.expected_revision.is_none()
+        {
+            return Err(ClientError::new(
+                "invalid_params",
+                "compare-and-set commands require expectedRevision",
+            ));
+        }
+    }
     if args.explain {
-        explain_call(&meta, &args.params);
+        explain_call(&meta, &args.params, args.metadata.as_ref());
     }
     if args.dry_run {
         return Ok(Output::new(
@@ -293,20 +455,39 @@ async fn execute_call(client: &TikToolsClient, args: CallArgs<'_>) -> Result<Out
         Some(secs) => {
             match tokio::time::timeout(
                 Duration::from_secs(secs),
-                client.call_value(args.method, &args.params),
+                client.call_value_with_meta(args.method, &args.params, args.metadata.clone()),
             )
             .await
             {
                 Ok(outcome) => outcome?,
                 Err(_) => {
-                    return Err(ClientError::new(
+                    let mut error = ClientError::new(
                         "timeout",
-                        format!("call timed out after {secs}s"),
-                    ));
+                        format!(
+                            "call timed out after {secs}s; accepted operation may still complete"
+                        ),
+                    );
+                    if let Some(id) = args
+                        .metadata
+                        .as_ref()
+                        .and_then(|meta| meta.command_id.as_ref())
+                    {
+                        error.data = Some(json!({"commandId":id,"state":"unknown"}));
+                    }
+                    return Err(error);
                 }
             }
         }
-        None => client.call_value(args.method, &args.params).await?,
+        None => {
+            client
+                .call_value_with_meta(args.method, &args.params, args.metadata)
+                .await?
+        }
+    };
+    let result = if args.include_meta {
+        json!({"result":result.result,"meta":result.meta})
+    } else {
+        result.result
     };
     Ok(
         Output::new("api-call", redact_output(result, args.secrets_visible))
@@ -316,7 +497,17 @@ async fn execute_call(client: &TikToolsClient, args: CallArgs<'_>) -> Result<Out
 
 /// Prints the call plan to stderr (stdout stays pure result). Params are
 /// always redacted here: `--explain` must never leak secrets.
-fn explain_call(meta: &tiktools_client::MethodMeta, params: &Value) {
+fn explain_call(
+    meta: &tiktools_client::MethodMeta,
+    params: &Value,
+    metadata: Option<&RequestMetadata>,
+) {
+    if let Some(metadata) = metadata {
+        eprintln!(
+            "metadata: {}",
+            serde_json::to_string(metadata).unwrap_or_default()
+        );
+    }
     let mut flags = Vec::new();
     if meta.side_effect {
         flags.push("writes");
@@ -352,6 +543,10 @@ async fn stream_events(
     timeout_secs: Option<u64>,
     max_events: Option<u64>,
 ) -> Result<(), ClientError> {
+    #[cfg(feature = "remote-client")]
+    if let TikToolsClient::Remote(remote) = client {
+        return crate::remote::events(remote.clone(), topics, timeout_secs, max_events).await;
+    }
     eprintln!("tiktools: listening for events (Ctrl-C to stop)");
     let mut events = client.subscribe();
     let deadline = timeout_secs.map(|secs| tokio::time::Instant::now() + Duration::from_secs(secs));
@@ -368,6 +563,13 @@ async fn stream_events(
             None => events.recv().await,
         };
         match event {
+            Ok(ControlEvent::Reliable(event)) => {
+                if !topic_allowed(topics, &event.topic) {
+                    continue;
+                }
+                println!("{}", serde_json::to_string(&event).unwrap_or_default());
+                printed += 1;
+            }
             Ok(ControlEvent::Domain(event)) => {
                 if !topic_allowed(topics, event.topic()) {
                     continue;
@@ -568,5 +770,92 @@ mod tests {
         assert!(topic_allowed(&["live.*".to_owned()], "live.event"));
         assert!(!topic_allowed(&["live.*".to_owned()], "lively"));
         assert!(!topic_allowed(&["points.changed".to_owned()], "points"));
+    }
+}
+
+#[cfg(test)]
+mod command_metadata_tests {
+    use super::*;
+    fn args(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(|part| part.to_string()).collect()
+    }
+    #[test]
+    fn command_metadata_flags_are_not_domain_params_and_can_precede_the_method() {
+        let command = parse(&args(&[
+            "call",
+            "--expected-revision",
+            "7",
+            "workflows.save",
+            "{}",
+            "--command-id",
+            "stable-id",
+            "--host-instance-id",
+            "instance-id",
+            "--include-meta",
+        ]))
+        .unwrap_or_else(|_| panic!("valid metadata"));
+        let Command::Call {
+            method,
+            params,
+            metadata,
+            include_meta,
+            ..
+        } = command
+        else {
+            panic!("call expected");
+        };
+        assert_eq!(method, "workflows.save");
+        assert_eq!(params, json!({}));
+        assert!(include_meta);
+        let metadata = metadata.unwrap();
+        assert_eq!(metadata.expected_revision.as_deref(), Some("7"));
+        assert_eq!(metadata.command_id.as_deref(), Some("stable-id"));
+    }
+    #[test]
+    fn malformed_command_flags_fail_before_a_host_can_execute_anything() {
+        for flags in [
+            vec!["--command-id", "only-id"],
+            vec!["--command-id=ignored-before"],
+            vec!["--expected-revision", "01"],
+            vec!["--expected-revision"],
+            vec!["--expected-revision", "1", "--expected-revision", "1"],
+            vec!["--unknown"],
+        ] {
+            let mut input = vec!["call", "workflows.save", "{}"];
+            input.extend(flags);
+            assert!(matches!(parse(&args(&input)), Err(CommandError::Usage(_))));
+        }
+        assert!(parse(&args(&[
+            "call",
+            "workflows.delete",
+            "{}",
+            "--expected-revision",
+            "3"
+        ]))
+        .is_ok());
+    }
+
+    #[test]
+    fn additive_metadata_has_no_compare_and_set_precondition() {
+        let command = parse(&args(&[
+            "call",
+            "points.adjust",
+            "{\"uniqueId\":\"alice\",\"delta\":2}",
+            "--command-id",
+            "once",
+            "--host-instance-id",
+            "host",
+            "--include-meta",
+        ]))
+        .unwrap_or_else(|_| panic!("valid additive metadata"));
+        let Command::Call {
+            metadata: Some(metadata),
+            ..
+        } = command
+        else {
+            panic!("call metadata expected")
+        };
+        assert_eq!(metadata.command_id.as_deref(), Some("once"));
+        assert!(metadata.expected_revision.is_none());
     }
 }

@@ -4,6 +4,7 @@ use super::{
     build_declarative_request, declarative_auth_label, declarative_request_line,
     redact_endpoint_secrets, with_auth_hint, DeclarativeBuild,
 };
+use crate::automation_runtime::context::ExecutionContext;
 use serde_json::{json, Map, Value};
 use std::sync::Arc;
 use tiktools_plugin_api::PluginManifest;
@@ -11,15 +12,18 @@ use tiktools_plugin_api::PluginManifest;
 impl crate::AppCore {
     /// Executes a v3 action descriptor's `http` block through the automation
     /// HTTP engine. Test runs describe the request without sending it.
+    #[allow(clippy::too_many_arguments)] // Preserve authority separately from plugin payload.
     pub(crate) async fn execute_declarative_action(
         self: &Arc<Self>,
         plugin: &tiktools_plugin_loader::DiscoveredPlugin,
         action_http: &Value,
         action: &Value,
         event: &Value,
+        context: &ExecutionContext,
         logs: &mut Vec<String>,
         test: bool,
     ) -> Result<String, String> {
+        self.execution_context_guard(context)?;
         // Fail fast under bursts: no unbounded gameplay queue. Opt-in actions
         // share a conservative process-wide budget below REPOapi's 20 rps.
         static IN_FLIGHT: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
@@ -184,7 +188,8 @@ impl crate::AppCore {
             .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
             .unwrap_or_default();
         let allowed = vec![host];
-        let globals = self.automation_globals();
+        self.execution_context_guard(context)?;
+        let globals = self.automation_globals(context)?;
         // One request line per call so plugin/TTS logs show exactly what was
         // sent: method, path, and whether credentials were attached. The
         // token value itself never appears here.
@@ -196,7 +201,15 @@ impl crate::AppCore {
             ));
         }
         let summary = self
-            .execute_http_action(&fetch, event, &globals, logs, Some(&allowed), false)
+            .execute_http_action(
+                &fetch,
+                event,
+                &globals,
+                context,
+                logs,
+                Some(&allowed),
+                false,
+            )
             .await
             .map_err(|error| {
                 with_auth_hint(
@@ -268,7 +281,7 @@ impl crate::AppCore {
             }
         }
         let sent = self
-            .send_hardened_http_request(&request, &host)
+            .send_hardened_http_request(&request, &host, &ExecutionContext::owner())
             .await
             .map_err(|error| redact_endpoint_secrets(&error, &endpoint.secrets))?;
         if !(200..300).contains(&sent.status) {
@@ -550,6 +563,7 @@ mod sonicboom_action_http_tests {
                     &document["actionTypes"][0]["http"],
                     &json!({"config":{"text":"test"}}),
                     &json!({}),
+                    &ExecutionContext::owner(),
                     &mut logs,
                     false,
                 )

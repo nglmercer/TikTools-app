@@ -4,6 +4,82 @@ use crate::ipc::messages::PointsConfig;
 
 use super::{points::insert_points_config, util::now, DatabaseError, DatabaseManager};
 
+// Shared definitions, instantiated in each business database so resource writes
+// and their coordination reservations always share a SQLite transaction.
+const COORDINATION_SCHEMA: &str = r#"
+-- Co-located with business writes: compare-and-set, tombstones and invalidation
+-- reservation commit together, including writes from legacy local callers.
+CREATE TABLE IF NOT EXISTS control_resource_versions (
+  kind TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  revision INTEGER NOT NULL CHECK(revision > 0),
+  deleted INTEGER NOT NULL CHECK(deleted IN (0, 1)),
+  PRIMARY KEY(kind, scope, resource_id)
+);
+CREATE TABLE IF NOT EXISTS control_resource_outbox (
+  cursor INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  change TEXT NOT NULL,
+  committed_at INTEGER NOT NULL,
+  UNIQUE(kind, scope, resource_id, revision)
+);
+CREATE TABLE IF NOT EXISTS control_commands (
+  principal_id TEXT NOT NULL,
+  command_id TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  method TEXT NOT NULL,
+  resource_kind TEXT NOT NULL,
+  resource_scope TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  host_instance_id TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('accepted','running','succeeded','failed','unknown')),
+  committed_at INTEGER NOT NULL,
+  result_json TEXT,
+  versions_json TEXT,
+  outcome_expired INTEGER NOT NULL DEFAULT 0 CHECK(outcome_expired IN (0,1)),
+  PRIMARY KEY(principal_id, command_id)
+);
+CREATE INDEX IF NOT EXISTS idx_control_commands_retention ON control_commands(committed_at);
+-- Audit delivery may retry independently of the original business command.
+-- No params, graphs, scripts, credentials or chat are copied into this outbox.
+CREATE TABLE IF NOT EXISTS control_command_outbox (
+  event_id TEXT PRIMARY KEY,
+  principal_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  command_id TEXT NOT NULL,
+  method TEXT NOT NULL,
+  resource_kind TEXT NOT NULL,
+  resource_scope TEXT NOT NULL,
+  resource_id TEXT NOT NULL,
+  before_revision TEXT NOT NULL,
+  after_revision TEXT NOT NULL,
+  outcome_code TEXT NOT NULL,
+  committed_at INTEGER NOT NULL,
+  dispatched_at INTEGER,
+  UNIQUE(principal_id, command_id)
+);
+CREATE TABLE IF NOT EXISTS control_outbox_delivery (
+  resource_cursor INTEGER PRIMARY KEY REFERENCES control_resource_outbox(cursor) ON DELETE CASCADE,
+  delivered_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS control_command_resources (
+  event_id TEXT PRIMARY KEY REFERENCES control_command_outbox(event_id) ON DELETE CASCADE,
+  resource_cursor INTEGER NOT NULL UNIQUE REFERENCES control_resource_outbox(cursor) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_control_command_delivery ON control_command_outbox(committed_at,event_id) WHERE dispatched_at IS NULL;
+-- Old command reservations can be linked without confusing a no-op delete
+-- with the earlier command that actually produced the same resource revision.
+INSERT OR IGNORE INTO control_command_resources(event_id,resource_cursor)
+  SELECT c.event_id,r.cursor FROM control_command_outbox c JOIN control_resource_outbox r
+  ON c.resource_kind=r.kind AND c.resource_scope=r.scope AND c.resource_id=r.resource_id
+  AND c.after_revision=CAST(r.revision AS TEXT) WHERE c.before_revision<>c.after_revision;
+"#;
+
 const POINTS_SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS points_config (
   id INTEGER PRIMARY KEY,
@@ -52,6 +128,9 @@ CREATE TABLE IF NOT EXISTS points_transactions (
 -- full-table scans. Both serve the bounded hot-cache design.
 CREATE INDEX IF NOT EXISTS idx_points_transactions_viewer ON points_transactions(unique_id);
 CREATE INDEX IF NOT EXISTS idx_viewers_points ON viewers(points DESC);
+-- Remote and cold-cache boards need the complete deterministic order. The
+-- original points-only index stays compatible with older local consumers.
+CREATE INDEX IF NOT EXISTS idx_viewers_rank ON viewers(points DESC,total_coins DESC,total_chats DESC,unique_id ASC);
 CREATE TABLE IF NOT EXISTS creator_history (
   unique_id TEXT PRIMARY KEY,
   room_id TEXT,
@@ -76,6 +155,23 @@ CREATE TABLE IF NOT EXISTS gift_catalog (
 );
 "#;
 const AUTOMATION_SCHEMA: &str = r#"
+-- Fixed-size private metadata only. Identity tombstones are never pruned:
+-- expiration can hide an outcome but must never authorize another dispatch.
+CREATE TABLE IF NOT EXISTS automation_external_effect_host (
+  singleton INTEGER PRIMARY KEY CHECK(singleton=1),
+  instance_id TEXT NOT NULL CHECK(length(instance_id)=64)
+);
+CREATE TABLE IF NOT EXISTS automation_external_effects (
+  effect_id TEXT PRIMARY KEY CHECK(length(effect_id)=64),
+  kind TEXT NOT NULL CHECK(kind IN ('http','audio','plugin')),
+  binding_digest TEXT NOT NULL CHECK(length(binding_digest)=64),
+  request_digest TEXT NOT NULL CHECK(length(request_digest)=64),
+  instance_id TEXT NOT NULL CHECK(length(instance_id)=64),
+  state TEXT NOT NULL CHECK(state IN ('accepted','dispatched','succeeded','failed','unknown')),
+  accepted_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  outcome_expired INTEGER NOT NULL DEFAULT 0 CHECK(outcome_expired IN (0,1))
+);
 CREATE TABLE IF NOT EXISTS aggregation_definitions (
   id TEXT PRIMARY KEY,
   creator_id TEXT NOT NULL,
@@ -257,6 +353,8 @@ CREATE TABLE IF NOT EXISTS automation_workflows (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
+INSERT OR IGNORE INTO control_resource_versions(kind, scope, resource_id, revision, deleted)
+  SELECT 'workflow', 'host', id, 1, 0 FROM automation_workflows;
 CREATE TABLE IF NOT EXISTS behavior_actions (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -279,11 +377,97 @@ CREATE TABLE IF NOT EXISTS behavior_plugins (
   enabled INTEGER NOT NULL DEFAULT 1,
   updated_at INTEGER NOT NULL
 );
+-- Metadata only: the owner's WebView/browser never owns a durable command ID
+-- or stores proposal source. One unresolved authority transfer spans clients.
+CREATE TABLE IF NOT EXISTS owner_automation_adoptions (
+  command_id TEXT PRIMARY KEY,
+  pending INTEGER NOT NULL CHECK(pending IN (0,1)),
+  payload_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_adoption_pending
+  ON owner_automation_adoptions(pending) WHERE pending=1;
+-- Metadata-only approval/revocation intents share native admission with the
+-- adoption journal. Reviewed versions/digests/plans contain no source or grant.
+CREATE TABLE IF NOT EXISTS owner_automation_approvals (
+  command_id TEXT PRIMARY KEY,
+  pending INTEGER NOT NULL CHECK(pending IN (0,1)),
+  payload_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_approval_pending
+  ON owner_automation_approvals(pending) WHERE pending=1;
+-- Approval identities survive definition deletion and command-result pruning.
+-- No legacy enabled record acquires an approval during migration.
+CREATE TABLE IF NOT EXISTS behavior_execution_approvals (
+  scope TEXT NOT NULL CHECK(scope IN ('action','event')),
+  resource_id TEXT NOT NULL,
+  generation INTEGER NOT NULL CHECK(generation > 0),
+  state TEXT NOT NULL CHECK(state IN ('active','invalidated','revoked')),
+  policy_version INTEGER NOT NULL CHECK(policy_version > 0),
+  manifest_digest TEXT NOT NULL,
+  binding_json TEXT NOT NULL,
+  owner_principal_id TEXT NOT NULL,
+  owner_session_id TEXT NOT NULL,
+  approved_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY(scope,resource_id)
+);
+CREATE TABLE IF NOT EXISTS behavior_execution_approval_dependencies (
+  approval_scope TEXT NOT NULL CHECK(approval_scope IN ('action','event')),
+  approval_id TEXT NOT NULL,
+  position INTEGER NOT NULL CHECK(position >= 0 AND position <= 512),
+  definition_scope TEXT NOT NULL CHECK(definition_scope IN ('action','event')),
+  definition_id TEXT NOT NULL,
+  revision INTEGER NOT NULL CHECK(revision >= 0),
+  provenance_generation INTEGER CHECK(provenance_generation > 0),
+  present INTEGER NOT NULL CHECK(present IN (0,1)),
+  content_digest TEXT,
+  PRIMARY KEY(approval_scope,approval_id,position),
+  UNIQUE(approval_scope,approval_id,definition_scope,definition_id)
+);
+CREATE INDEX IF NOT EXISTS idx_behavior_execution_approval_reverse
+  ON behavior_execution_approval_dependencies(definition_scope,definition_id);
+-- Authority is host-owned and independent of editable JSON. Tombstones retain
+-- provenance so delete/recreate cannot claim an owner/other-principal ID.
+BEGIN IMMEDIATE;
+CREATE TABLE IF NOT EXISTS behavior_provenance (
+  scope TEXT NOT NULL CHECK(scope IN ('action','event')),
+  resource_id TEXT NOT NULL,
+  authority TEXT NOT NULL CHECK(authority IN ('owner','delegated')),
+  principal_id TEXT,
+  session_id TEXT,
+  generation INTEGER NOT NULL CHECK(generation > 0),
+  PRIMARY KEY(scope,resource_id),
+  CHECK((authority='owner' AND principal_id IS NULL AND session_id IS NULL) OR
+        (authority='delegated' AND principal_id IS NOT NULL AND length(principal_id)>0 AND session_id IS NOT NULL AND length(session_id)>0))
+);
+CREATE TABLE IF NOT EXISTS behavior_provenance_migration (
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  version INTEGER NOT NULL CHECK(version=1)
+);
+-- Seed legacy versions with authority once; a later missing version is corrupt
+-- retained history, not a newly discovered legacy definition.
+INSERT OR IGNORE INTO control_resource_versions(kind,scope,resource_id,revision,deleted)
+  SELECT 'automation','action',id,1,0 FROM behavior_actions
+  WHERE NOT EXISTS(SELECT 1 FROM behavior_provenance_migration WHERE id=1);
+INSERT OR IGNORE INTO control_resource_versions(kind,scope,resource_id,revision,deleted)
+  SELECT 'automation','event',id,1,0 FROM behavior_events
+  WHERE NOT EXISTS(SELECT 1 FROM behavior_provenance_migration WHERE id=1);
+INSERT OR IGNORE INTO behavior_provenance(scope,resource_id,authority,generation)
+  SELECT scope,resource_id,'owner',1 FROM control_resource_versions
+  WHERE kind='automation' AND scope IN ('action','event')
+    AND NOT EXISTS(SELECT 1 FROM behavior_provenance_migration WHERE id=1);
+INSERT OR IGNORE INTO behavior_provenance_migration(id,version) VALUES (1,1);
+COMMIT;
+
 "#;
 impl DatabaseManager {
     pub(in crate::db) fn initialize_schema(&self) -> Result<(), DatabaseError> {
         let points = self.open(&self.points_path())?;
         points.execute_batch(POINTS_SCHEMA)?;
+        points.execute_batch(COORDINATION_SCHEMA)?;
+        points.execute_batch("INSERT OR IGNORE INTO control_resource_versions(kind,scope,resource_id,revision,deleted) SELECT 'viewer','host',unique_id,1,0 FROM viewers;")?;
         let count: i64 =
             points.query_row("SELECT COUNT(*) FROM points_config", [], |row| row.get(0))?;
         if count == 0 {
@@ -292,6 +476,8 @@ impl DatabaseManager {
         }
 
         let automation = self.open(&self.automation_path())?;
+        // The workflow seed references the shared version table.
+        automation.execute_batch(COORDINATION_SCHEMA)?;
         automation.execute_batch(AUTOMATION_SCHEMA)?;
 
         self.ensure_analytics_schema()?;

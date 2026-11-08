@@ -22,7 +22,11 @@ Rust must be at least 1.95; ARM64 native Rust reports host
 `aarch64-linux-android`. A Linux/glibc toolchain or a cross-compilation result
 does not validate native Termux. `protobuf` provides Bionic-native `protoc`;
 Android QuickJS bindings are generated using Clang. SQLite is bundled.
-OpenSSL development files are not required by the CLI's Rust TLS stack.
+The CLI's Rust TLS stack does not require OpenSSL. The optional Cloud account
+currently pulls a separate WebAuthn/OpenSSL dependency; a cross toolchain
+without target OpenSSL can check the CLI with
+`--no-default-features --features remote-client`. That configuration omits
+Cloud login/sync features.
 
 If `protoc --version` reports missing C++ symbols despite current packages,
 inspect `LD_LIBRARY_PATH`: agent launchers may inject an older bundled C++
@@ -65,6 +69,13 @@ Stop with Ctrl-C, SIGTERM, or:
 ```bash
 ./target/debug/tiktools api call system.shutdown '{}' --confirm
 ```
+
+Native remote CLI profiles are experimental; see the
+[client guide](LIVE-COLLABORATION-CLIENT.md). Android/Termux currently has no
+selected remote credential-store backend, so persisted-profile pairing/opening
+fails explicitly. Local IPC and standalone commands remain available. An SDK
+caller can supply remote credentials in memory. Android-only QuickJS bindings
+are generated through the loader's target-specific `bindgen` feature.
 
 The ownership guard protects startup and stale-socket recovery. Do not manually
 remove locks while a host is running. SIGKILL cannot flush pending writes;

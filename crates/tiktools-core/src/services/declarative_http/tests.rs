@@ -757,7 +757,7 @@ async fn repo_posts_send_nested_json_and_unique_execution_keys() {
     for status in [200, 400, 401, 404, 409, 422, 429, 500, 501, 503, 504] {
         let result = core.execute_declarative_action(&plugin, descriptor,
             &json!({"config":{"enemyId":"fixture\"\\\n{{ untouched }}","quantity":2,"positionMode":"random_player"}}),
-            &json!({}), &mut Vec::new(), false).await;
+            &json!({}), &crate::automation_runtime::context::ExecutionContext::owner(), &mut Vec::new(), false).await;
         if status == 200 {
             assert!(result.is_ok(), "{result:?}");
         } else {
@@ -854,7 +854,7 @@ async fn repo_bursts_reject_excess_work_without_queueing() {
         let plugin = plugin.clone();
         tasks.spawn(async move { core.execute_declarative_action(&plugin,
             &json!({"method":"POST","path":"/api/enemies/clear","bodyJson":{},"idempotency":{"enabled":true}}),
-            &json!({}), &json!({}), &mut Vec::new(), false).await });
+            &json!({}), &json!({}), &crate::automation_runtime::context::ExecutionContext::owner(), &mut Vec::new(), false).await });
     }
     let mut accepted = 0;
     let mut rejected = 0;

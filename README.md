@@ -15,6 +15,14 @@ That workflow builds the Rust CLI directly. Frontend tools are optional.
 - One `AppCore` behind a typed JSON-RPC control API shared by the Vue UI,
   the `tiktools` CLI, local IPC, and agents, with `DomainEvent` streaming
   to every client.
+- Experimental authenticated HTTPS/WSS host, native remote CLI profiles and
+  separate desktop controller with scoped workflows, closed automation status,
+  confirmed whole-event disable/delete and a bounded live points
+  board and viewer lookup. Desktop and SDK/CLI can disable/delete permitted
+  workflows and adjust points through durable commands with outcome recovery.
+  The controller also provides explicit private draft saves and host/draft
+  comparison. See the
+  [native client guide](docs/LIVE-COLLABORATION-CLIENT.md) for setup and limits.
 - Rust-owned SQLite persistence for points, creators, gifts, workflows, and
   behavior records.
 - Bounded JavaScript automation and plugins through the embedded QuickJS (`rquickjs`) runtime.
@@ -125,7 +133,10 @@ cargo run -p tiktools-desktop --locked -- --install-plugin acme.tts
 ```text
 crates/tiktools-desktop/       Winit, Wry, tray, UI-thread bridge, control IPC
 crates/tiktools-control-api/   JSON-RPC router, transports, client, discovery
-crates/tiktools-cli/           IPC-first CLI over the control API
+crates/tiktools-collaboration/ Private host invitations, sessions, grants, audit
+crates/tiktools-remote/        Optional authenticated HTTPS/WSS host gateway
+crates/tiktools-client/        Typed direct/IPC SDK and optional native remote client
+crates/tiktools-cli/           IPC-first CLI with explicit remote profiles
 crates/tiktools-core/          Control operations, services, SQLite, points, events
 crates/tiktools-plugin-api/    Versioned manifest, protocol, capabilities, ABI
 crates/tiktools-plugin-sdk/    Typed plugin trait, adapters, result compatibility
@@ -204,6 +215,12 @@ Session cookies stay in memory and must never be committed or logged.
 - [Getting Started](docs/GETTING_STARTED.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Control API](docs/CONTROL_API.md)
+- [Collaborative LIVE design and roadmap](docs/LIVE-COLLABORATION.md)
+- [Collaborative LIVE implementation specification](docs/LIVE-COLLABORATION-SPEC.md)
+- [Experimental HTTPS/WSS gateway setup](docs/LIVE-COLLABORATION-TRANSPORT.md)
+- [Owner collaboration settings and access management](docs/LIVE-COLLABORATION-OWNER.md)
+- [Desktop command journal and recovery](docs/LIVE-COLLABORATION-CLIENT-COMMANDS.md)
+- [Automation consistency and delegated execution](docs/LIVE-COLLABORATION-AUTOMATION.md)
 - [Development Guide](docs/DEVELOPMENT.md)
 - [Native Termux / Android development](docs/TERMUX.md)
 - [Termux agent workflow](docs/TERMUX_AGENT_WORKFLOW.md)

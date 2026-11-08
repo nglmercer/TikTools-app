@@ -39,6 +39,7 @@ describe('SettingsPage', () => {
     expect(wrapper.findAll('[role="option"]').map((option) => option.text())).toEqual([
       'General',
       'Account',
+      'Collaboration',
       'Updates',
       'Advanced',
     ]);
@@ -46,7 +47,7 @@ describe('SettingsPage', () => {
 
   it('switches the section through the route query', async () => {
     const { wrapper, router } = await mountPage();
-    await wrapper.findAll('[role="option"]')[3]!.trigger('pointerdown');
+    await wrapper.findAll('[role="option"]').find((item) => item.text() === 'Advanced')!.trigger('pointerdown');
     await flushPromises();
     expect(router.currentRoute.value.query.section).toBe('advanced');
     expect(wrapper.findAll('legend').map((legend) => legend.text())).toContain('Runtime globals');

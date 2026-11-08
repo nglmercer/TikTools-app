@@ -39,18 +39,19 @@ impl AppCore {
             self.record_plugin_drops(&plugin_id, 1);
             return;
         }
-        let source = fresh_poll_context(
-            &recover_rwlock_read(&self.automation_state.last_event, "automation event")
-                .clone()
-                .unwrap_or_else(|| json!({})),
-        );
-        self.publish_automation_event(self.make_plugin_event(
+        // Owner plugin producers may replay only remembered Owner payloads.
+        // A retained scoped envelope must never become ambient Owner context.
+        let source = fresh_poll_context(&self.automation_context().0.unwrap_or_else(|| json!({})));
+        let Ok(event) = self.make_plugin_event(
             &plugin_id,
             &source,
             &emitted.event_type,
             emitted.data,
-        ))
-        .await;
+            &crate::automation_runtime::context::ExecutionContext::owner(),
+        ) else {
+            return;
+        };
+        self.publish_automation_event(event).await;
         self.record_plugin_success(&plugin_id);
     }
 }

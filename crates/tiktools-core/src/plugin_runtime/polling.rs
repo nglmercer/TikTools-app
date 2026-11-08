@@ -44,11 +44,9 @@ impl AppCore {
         if candidates.is_empty() {
             return;
         }
-        let source = fresh_poll_context(
-            &recover_rwlock_read(&self.automation_state.last_event, "automation event")
-                .clone()
-                .unwrap_or_else(|| json!({})),
-        );
+        // Preserve the remembered event's private authority boundary: only
+        // Owner payloads are eligible to become fresh native plugin context.
+        let source = fresh_poll_context(&self.automation_context().0.unwrap_or_else(|| json!({})));
         const MAX_CONCURRENT_POLLS: usize = 6;
         let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&self.plugins));
         let mut tasks = tokio::task::JoinSet::new();
@@ -173,13 +171,16 @@ impl AppCore {
             // `plugin.event` domain event (and records diagnostics)
             // before enrichment/execution, so control-plane visibility
             // never depends on automation success.
-            self.publish_automation_event(self.make_plugin_event(
+            let Ok(event) = self.make_plugin_event(
                 &plugin_id,
                 source,
                 &event_type,
                 data,
-            ))
-            .await;
+                &crate::automation_runtime::context::ExecutionContext::owner(),
+            ) else {
+                continue;
+            };
+            self.publish_automation_event(event).await;
         }
     }
 }
