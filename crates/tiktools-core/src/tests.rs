@@ -2742,3 +2742,40 @@ async fn cloud_sync_remote_never_installs_or_stages() {
     assert!(status.conflicts.is_empty());
     core.shutdown().await;
 }
+
+#[cfg(all(feature = "cloud-auth", unix))]
+#[tokio::test]
+async fn unusable_cloud_sync_directory_degrades_instead_of_panicking() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = std::env::temp_dir().join(format!(
+        "tiktools-unsafe-sync-{}-{}",
+        std::process::id(),
+        now_millis()
+    ));
+    // The sync store refuses group/world-accessible directories; before the
+    // fix this aborted `AppCore` construction for the whole host.
+    let sync_dir = root.join("data").join("cloud-sync");
+    std::fs::create_dir_all(&sync_dir).unwrap();
+    std::fs::set_permissions(&sync_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let paths = crate::paths::AppPaths {
+        data: root.join("data"),
+        plugins: root.join("plugins"),
+        plugin_data: root.join("plugin-data"),
+        builtin_plugins: root.join("builtin"),
+        development_plugins: None,
+        logs: root.join("logs"),
+        temp: root.join("temp"),
+        root: root.clone(),
+    };
+    let core = Arc::new(AppCore::with_paths(
+        Arc::new(RecordingEmitter::default()),
+        Arc::new(NoopMediaHost),
+        paths,
+    ));
+    let error = core.sync_status().await.unwrap_err();
+    assert_eq!(error.code, "unavailable");
+    assert_eq!(error.data.as_ref().unwrap()["reason"], "storage");
+    assert_eq!(core.sync_set_enabled(true).unwrap_err().code, "unavailable");
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}

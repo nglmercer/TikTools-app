@@ -293,11 +293,10 @@ impl AppCore {
     /// enabled and an account is known; never fails the local operation.
     #[cfg(feature = "cloud-auth")]
     fn stage_selection(&self, id: &str, version: &str, enabled: bool) {
-        if let Err(error) = self
-            .sync
-            .coordinator()
-            .record_local_change(id, version, enabled)
-        {
+        let Ok(coordinator) = self.sync.coordinator() else {
+            return;
+        };
+        if let Err(error) = coordinator.record_local_change(id, version, enabled) {
             tracing::warn!(plugin = %id, %error, "cloud sync staging failed");
         }
     }
@@ -306,7 +305,10 @@ impl AppCore {
     /// semantics as [`Self::stage_selection`].
     #[cfg(feature = "cloud-auth")]
     fn stage_removal(&self, id: &str) {
-        if let Err(error) = self.sync.coordinator().record_local_removal(id) {
+        let Ok(coordinator) = self.sync.coordinator() else {
+            return;
+        };
+        if let Err(error) = coordinator.record_local_removal(id) {
             tracing::warn!(plugin = %id, %error, "cloud sync staging failed");
         }
     }
