@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -99,9 +99,11 @@ test('repository manifests only use keys the schema knows', () => {
   const schema = JSON.parse(readFileSync(join(import.meta.dir, '..', 'plugin.schema.json'), 'utf8')) as {
     properties: Record<string, unknown>;
   };
-  const root = join(import.meta.dir, '..', '..', '..');
-  for (const manifest of ['tests/fixtures/plugins/sonicboom.plugin.json', 'tests/fixtures/plugins/audio-process.plugin.json']) {
-    const parsed = JSON.parse(readFileSync(join(root, manifest), 'utf8')) as Record<string, unknown>;
+  const fixtures = join(import.meta.dir, '..', '..', '..', 'tests', 'fixtures', 'plugins');
+  const manifests = readdirSync(fixtures).filter((name) => name.endsWith('.plugin.json'));
+  expect(manifests.length).toBeGreaterThan(0);
+  for (const manifest of manifests) {
+    const parsed = JSON.parse(readFileSync(join(fixtures, manifest), 'utf8')) as Record<string, unknown>;
     for (const key of Object.keys(parsed)) {
       if (key === '$schema' || key === 'apiVersion') continue;
       expect(Object.keys(schema.properties)).toContain(key);
