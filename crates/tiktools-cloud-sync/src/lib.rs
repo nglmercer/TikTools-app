@@ -123,6 +123,15 @@ pub struct SyncCoordinator {
     syncing: Arc<AtomicBool>,
 }
 
+/// Clears the `syncing` flag when dropped, including on cancellation.
+struct RunningGuard<'a>(&'a AtomicBool);
+
+impl Drop for RunningGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
 impl SyncCoordinator {
     /// `dir` holds the state store and the opt-in file. It must be private
     /// to the device; [`StateStore`] enforces that on open.
@@ -325,8 +334,12 @@ impl SyncCoordinator {
         {
             return Err(SyncCoordError::AlreadyRunning);
         }
+        // Release the run flag even when the caller drops this future
+        // mid-sync (the control plane enforces a per-request timeout);
+        // otherwise every later run reports `AlreadyRunning` until restart.
+        let running = RunningGuard(&self.syncing);
         let outcome = self.sync_inner().await;
-        self.syncing.store(false, Ordering::SeqCst);
+        drop(running);
         {
             let mut runtime = self.runtime.lock().await;
             match &outcome {
