@@ -379,16 +379,16 @@ async fn start(assets: PathBuf, port: u16, join_origin: Option<String>) -> Resul
     let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
         .await
         .map_err(|error| error.to_string())?;
-    let authority = format!(
-        "127.0.0.1:{}",
-        listener
-            .local_addr()
-            .map_err(|error| error.to_string())?
-            .port()
-    );
+    let bound_port = listener
+        .local_addr()
+        .map_err(|error| error.to_string())?
+        .port();
+    let authority = format!("127.0.0.1:{bound_port}");
     let origin = format!("http://{authority}");
     let pairing = mint_pairing()?;
-    let pairing_path = pairing_file(port);
+    // Key the readout by the bound port: with `--port 0` the requested
+    // port is not where `web --print-code --port N` will look.
+    let pairing_path = pairing_file(bound_port);
     publish_pairing_code(&pairing_path, &pairing);
     let join_base = join_origin.unwrap_or_else(|| origin.clone());
     eprintln!(
