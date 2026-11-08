@@ -16,6 +16,11 @@ const { t } = useI18n();
 const model = useApprovalReview(useControlClient());
 const journal = model.journal;
 const source = computed(() => model.review.value?.source ?? null);
+const customTrigger = computed(() => {
+  const trigger = source.value?.kind === 'event' ? source.value.record?.['trigger'] : null;
+  return typeof trigger === 'string' && !trigger.startsWith('tiktok.') ? trigger : null;
+});
+const hasScript = computed(() => model.review.value?.manifest?.effects.some((effect) => effect.kind === 'script') ?? false);
 const revision = (kind: AutomationKind, id: string): string => model.reviewVersions.value.get(recordKey(kind, id)) ?? '0';
 const date = (value: number): string => new Date(value).toLocaleString();
 const eligibilityKey = computed(() => ({ 'definition-missing': 'definitionMissing', 'no-delegated-subjects': 'noDelegatedSubjects',
@@ -140,6 +145,18 @@ defineExpose({ openReview });
         :definition="source"
         :revision="revision(source.kind, source.id)"
       />
+      <p
+        v-if="customTrigger"
+        data-test="approval-scoped-trigger"
+      >
+        {{ t('automationApproval.scopedTrigger', { topic: customTrigger }) }}
+      </p>
+      <p
+        v-if="hasScript"
+        data-test="approval-script-policy"
+      >
+        {{ t('automationApproval.scriptPolicy') }}
+      </p>
 
       <section class="approval-section">
         <h3>{{ t('automationProposal.dependencies', { count: source.dependencies.length }) }}</h3>

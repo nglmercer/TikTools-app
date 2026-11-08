@@ -143,4 +143,16 @@ impl AutomationService {
     pub fn validate_script(&self, source: &str) -> Result<(), String> {
         self.script.validate(source)
     }
+
+    /// Synchronous, thread-confined evaluator for an already approved saved
+    /// script. Call from an owned blocking task, without any host leases held.
+    #[cfg(feature = "persistence")]
+    pub(crate) fn evaluate_scoped_script(
+        &self,
+        source: &str,
+        event: &Value,
+        cancelled: impl Fn() -> bool + Send + Sync + 'static,
+    ) -> Result<Value, String> {
+        self.script.evaluate_scoped(source, event, cancelled)
+    }
 }

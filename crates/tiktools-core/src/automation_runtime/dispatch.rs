@@ -329,7 +329,7 @@ impl AppCore {
 
     pub(crate) async fn run_automation_event(self: &Arc<Self>, event: AutomationEvent) {
         let (event, incoming) = event.into_parts();
-        if self.execution_context_guard(&incoming).is_err() {
+        if self.automation_dispatch_guard(&incoming).is_err() {
             tracing::warn!("automation execution context rejected");
             return;
         }
@@ -337,7 +337,26 @@ impl AppCore {
             tracing::warn!(event_type = ?event.get("type"), "automation emit depth limit reached");
             return;
         }
-        let matched = self.automation.matching_records(&event);
+        let event = if incoming.is_owner() {
+            event
+        } else {
+            match incoming.projected_event(&event) {
+                Ok(event) => event,
+                Err(_) => return,
+            }
+        };
+        let matched = if incoming.is_owner() {
+            self.automation.matching_records(&event)
+        } else {
+            #[cfg(feature = "persistence")]
+            {
+                self.automation.matching_records_scoped(&event)
+            }
+            #[cfg(not(feature = "persistence"))]
+            {
+                return;
+            }
+        };
         // Match outcome only (counts), never event contents: key data must
         // not end up in logs.
         tracing::debug!(
@@ -374,18 +393,20 @@ impl AppCore {
         incoming: &ExecutionContext,
     ) {
         for record in records {
-            if self.execution_context_guard(incoming).is_err() {
+            if self.automation_dispatch_guard(incoming).is_err() {
                 break;
-            }
-            if !self.claim_matched_record(&record, event).await {
-                continue;
             }
             let Ok(context) = self.record_execution_context(&record, incoming).await else {
                 continue;
             };
+            // Inherited subjects must be allowed to observe this saved child
+            // rule before its cooldown or any action is admitted.
+            if !self.claim_matched_record(&record, event, &context).await {
+                continue;
+            }
             let mut action_occurrences = std::collections::BTreeMap::<&str, u32>::new();
             for action in &record.actions {
-                if self.execution_context_guard(incoming).is_err() {
+                if self.automation_dispatch_guard(&context).is_err() {
                     break;
                 }
                 if !self.action_still_current(&record, action).await {
@@ -435,10 +456,11 @@ impl AppCore {
             }
         }
     }
-    async fn claim_matched_record(
+    pub(super) async fn claim_matched_record(
         &self,
         record: &crate::services::MatchedRecord,
         event: &Value,
+        context: &ExecutionContext,
     ) -> bool {
         if !self
             .stable_automation(|| self.automation.is_match_live(record))
@@ -446,8 +468,37 @@ impl AppCore {
         {
             return false;
         }
-        self.automation
-            .claim_event(&record.definition, event, now_millis())
+        if context.is_owner() {
+            return self
+                .automation
+                .claim_event(&record.definition, event, now_millis());
+        }
+        #[cfg(feature = "persistence")]
+        {
+            let event = crate::services::automation_approval_policy::project_event(event);
+            let Ok(_writer) = self.automation_gate() else {
+                return false;
+            };
+            context
+                .with_current_chain(&self.automation, |identities| {
+                    Ok(self.automation.claim_projected_event(
+                        &record.definition,
+                        &event,
+                        now_millis(),
+                        || {
+                            !self.is_shutdown()
+                                && identities
+                                    .iter()
+                                    .all(|identity| identity.check_deadline().is_ok())
+                        },
+                    ))
+                })
+                .unwrap_or(false)
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            false
+        }
     }
     pub(super) async fn action_still_current(
         &self,

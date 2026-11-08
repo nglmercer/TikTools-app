@@ -16,6 +16,32 @@ async function reviewed() {
   return { host, model };
 }
 describe('owner delegated approval review', () => {
+  it('accepts eligible exact HTTP, audio, emit and reviewed script policies while rejecting mismatched effects', () => {
+    const cases = [
+      { type: 'core.fetch', kind: 'http', caps: ['http.request'], config: { url: 'https://hooks.example/live', maxResponseBytes: 1024 } },
+      { type: 'core.audio.play', kind: 'audio', caps: ['audio.play'], config: { fileRef: { path: '/media/alert.wav' }, volume: 0.5, overlap: 'drop' } },
+      { type: 'core.emit', kind: 'emit', caps: ['events.emit'], config: { type: 'moderator.alert', data: {} } },
+      { type: 'core.code', kind: 'script', caps: ['scripts.execute', 'live.read'], config: { source: 'return { log: ["reviewed"] };' } },
+    ] as const;
+    for (const policy of cases) {
+      const host = approvalFixture();
+      Object.assign(host.source.dependencies[0]!.record!, { typeId: policy.type, config: policy.config });
+      host.subjects[0]!.grant.capabilities = [...new Set([...host.subjects[0]!.grant.capabilities, ...policy.caps])];
+      host.subjects[0]!.grant.effects = {
+        http: [{ origin: 'https://hooks.example', methods: ['POST'], paths: ['/live'], queryFields: [], headerNames: [], renderFields: [], bodyFields: [], allowTextBody: false, maxBodyBytes: 0, maxResponseBytes: 1024, allowPrivateNetwork: false }],
+        audio: [{ fileRefs: ['/media/alert.wav'], output: 'host-default', maxVolume: 0.5, overlaps: ['drop'] }], emitTopics: ['moderator.alert'],
+      };
+      const raw = host.review();
+      Object.assign(raw.manifest!.effects[0]!, { kind: policy.kind, decision: policy.kind === 'script' ? 'review-required' : 'classified', renderFields: [], dynamicTarget: policy.kind === 'script', requiredCapabilities: [...policy.caps], reasons: policy.kind === 'script' ? ['opaque-script'] : [] });
+      if (policy.kind === 'script') raw.manifest!.reasons.push('opaque-script');
+      const meta = { resourceVersions: host.versions, hostInstanceId: host.state.hostInstanceId };
+      expect(parseApprovalReview(raw, meta, host.source).manifest?.effects[0]!.kind).toBe(policy.kind);
+      const mismatched = copy(raw); mismatched.manifest!.effects[0]!.kind = 'plugin';
+      expect(() => parseApprovalReview(mismatched, meta, host.source)).toThrow(ControlCallError);
+      const privateField = copy(raw); privateField.manifest!.effects[0]!.renderFields = ['event.settings.secret'];
+      expect(() => parseApprovalReview(privateField, meta, host.source)).toThrow(ControlCallError);
+    }
+  });
   it('accepts exact typed effect restrictions alongside legacy five-field grants', () => {
     const host = approvalFixture();
     host.subjects[0]!.grant.effects = { http: [], audio: [], emitTopics: ['moderator.alert'] };

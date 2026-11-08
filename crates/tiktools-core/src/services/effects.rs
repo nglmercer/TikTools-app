@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 // Two named saved identities use 16 components per event/action hop. Three
 // trusted emit levels fit without weakening the separate runtime depth limit.
-const MAX_SLOT_DEPTH: usize = 64;
+const MAX_SLOT_DEPTH: usize = 96;
 
 /// One trusted execution root and its stable child/action slot path. Clone this
 /// through queues and retries; creating a fresh root explicitly starts new work.
@@ -137,6 +137,8 @@ impl EffectKind {
             Self::Http => "http",
             Self::Audio => "audio",
             Self::Plugin => "plugin",
+            Self::Emit => "emit",
+            Self::Script => "script",
         }
     }
 }

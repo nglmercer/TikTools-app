@@ -13,11 +13,12 @@ version-4 intent journal. A private native JSON proposal editor submits disabled
 author copies. Owner-only execution-manifest previews and persisted subject resolution are
 implemented. Private execution contexts now travel through event publication,
 queues, enrichment, actions, nested emits and remembered events. Manifest
-approval/activation/revocation and a first closed log/delay/points execution
-policy are implemented and locally tested. The Owner approval native
+approval/activation/revocation and a closed log/delay/points/HTTP/audio execution
+policy are implemented. Its v3 extension adds exact-topic scoped emits and
+bounded scripts, preserving inherited grants through downstream rules. The Owner approval native
 coordinator/UI are now implemented, with atomic source/effect/grant review,
 explicit dependency state plans and original-result recovery. Wider effect
-policies and remote activation remain unfinished. The
+policies, HTTP response emission, delegated plugins and remote activation remain unfinished. The
 release acceptance matrix remains open.
 
 The current implementation and exact API/SDK receipt contract are in
@@ -29,6 +30,9 @@ points authorize every subject at the ordered durable writer. Scoped outcomes
 are presentation-only and never invoke plugin observers, including bulk history
 published by a later Owner action. The earlier context foundation below
 describes the generic guard, which remains Owner-only for unsupported effects.
+Custom-topic delegated rules accept only approved scoped input and need an exact
+topic grant from every author. Script-derived HTTP keeps a conservative flow
+requirement for all public input fields, including through nested emitted events.
 
 ## Actual execution paths
 
@@ -463,8 +467,10 @@ Trusted child depth increases independently of JSON, cannot reset at a nested
 boundary and refuses further emits at the limit. A pasted depth value is display
 data, not an execution-authority or loop-control credential.
 
-Core emits, script emits/results, HTTP response emits and native plugin intents
-carry the existing context into typed child events. The HTTP sender, audio,
+Core emits, script emits/results and the existing Owner HTTP response/plugin
+paths carry explicit context into typed child events. Approved scoped HTTP
+response emission remains unavailable pending a response-read/flow policy.
+The HTTP sender, audio,
 plugin/native invocation, declarative HTTP and plugin-intent handlers require
 explicit context. Guards precede templates, settings, observations and effects;
 plugin results are checked again after invocation before progress/intents. The
@@ -475,9 +481,11 @@ retain the original event data under the same context.
 
 Remembered latest/per-type events retain complete private envelopes. Owner
 context panels, manual replay and native poll-context getters filter scoped
-events rather than returning their payload as new Owner input. Current scoped
-publication/memory writes remain denied, and the retained-memory tests also
-exercise scoped entries directly to protect the future read boundary.
+events rather than returning their payload as new Owner input. Approved scoped
+emits use a separate public-projection presentation/matching path that bypasses
+executable observers and processors. Scoped writes into Owner preview memory
+remain denied; retained-memory tests also exercise scoped entries directly to
+protect that read boundary.
 
 This context foundation alone is not a delegated execution permit. Unsupported
 non-Owner effects remain denied before
@@ -490,7 +498,19 @@ typed destination/path/option grants and durable accepted/dispatched/outcome
 records, with stable trusted native/action identities and no retained-effect
 replay. Plugin artifact/settings binding and one-shot workers remain groundwork;
 delegated plugin execution is still unavailable without effective isolation.
-Scoped emits/scripts, remaining effects and full acceptance remain pending. The
+The v3 extension adds scoped emits, incoming-scoped-only custom triggers and
+separately bounded QuickJS evaluation. Emit and Script handoffs have private
+metadata-only receipt kinds alongside HTTP/audio. A handoff bound to the complete
+evaluated script input/result is reserved before any returned effect; every retained invocation
+refuses all returned intents rather than resuming or reordering earlier work.
+Delegated VM admission is limited to four concurrent evaluations without a
+queued backlog; a busy host rejects before allocating a VM or a Script receipt.
+Script-flow restrictions are monotone through context intersection and child
+events. Each descendant HTTP sink requires all 18 public input fields within one
+complete rule per subject. Captured console/returned logs share bounded budgets,
+and returned effects retain their own current capabilities/resources.
+Plugin effects, HTTP response emission, remaining domains and full acceptance
+remain pending. The
 [approval and activation contract](LIVE-COLLABORATION-APPROVAL.md) specifies the
 implemented core transition and remaining policies.
 
@@ -594,8 +614,9 @@ real OS credential stores remain separate operational gates.
 
 The behavior owner editor, trusted provenance and disabled authoring API are
 implemented as described above. Native remote JSON proposals and manifest
-previews now have their separate boundaries; delegated execution remains an
-unfinished gate.
+previews now have their separate boundaries. The closed delegated policy now
+supports log/delay/points/HTTP/audio/scoped emits/scripts; broader delegated
+execution and full release acceptance remain unfinished.
 
 The following work remains part of the full plan:
 
@@ -613,7 +634,8 @@ The following work remains part of the full plan:
    resolve current host authorization across expiry, disconnect, revocation
    and restart. The new non-deserializable batch resolver implements that lookup
    without bearer tokens or activity touches. Its admission is now wired into
-   core execution and the durable points sink; other sinks remain denied.
+   core execution, durable points and the supported HTTP/audio/emit/script
+   sinks. Plugin/native-input/TTS and other unsupported paths remain denied.
 3. **Execution manifests and approval.** Classify every referenced action,
    script, plugin, resource and host effect. An approved manifest binds exact
    definition revision/hash, principal/session and grant revision. Unclassifiable
@@ -638,8 +660,10 @@ The following work remains part of the full plan:
 4. **Authority through execution.** The private context/envelope now travels
    through queueing, scripts, emitted events, nested automation and plugin/host
    intents, with conjunctive subject intersection and explicit unsupported
-   denial. Complete approved effect-specific authorization; a remote emit must not
-   become an unrestricted owner action through another trigger. Reauthorize
+   denial. The v3 policy now authorizes scoped emits/scripts and preserves
+   restrictions when an emitted event triggers an Owner-authored rule. Extend
+   that enforceable boundary to remaining effect policies; an emitted event must
+   never become an unrestricted Owner action. Reauthorize
    queued/unstarted effects and final dispatch under current live grants. Grant
    removal stops future delegated execution. Resolve dynamic targets after
    rendering, enforce exact resource/delta/action/field limits, and never render
@@ -653,15 +677,30 @@ The following work remains part of the full plan:
    observation can mutate rankings/competitions before ordinary event
    publication and needs the same guard. Filter every globals/settings read,
    including plugin-intent and declarative-HTTP rereads; endpoint authentication
-   and reserved secret globals need explicit host authority. Current grants do
-   not yet define all raw HTTP, media, emitted-event or secret/global effects.
+   and reserved secret globals need explicit host authority. Typed grants now
+   cover bounded HTTP, local audio and exact emitted topics; HTTP response reads,
+   TTS/native input, plugin invocation and secret/global access still need their
+   separate policies.
    Native plugin effects can occur inside invocation; checking only returned
    intents is insufficient. Unsupported delegated effects must remain denied
    while each policy and final sink is completed.
 5. **External-effect outcomes.** Persist acceptance before dispatch, fence
    duplicates, and represent crashes at the dispatch/completion boundary as
-   unknown rather than replay. Cover plugin actions, HTTP, audio/TTS, native input
-   and competition winner dispatch. Headless hosts reject unavailable output.
+   unknown rather than replay. HTTP/audio/emit handoffs and complete Script
+   invocation handoffs are implemented, with no retained-intent replay. Extend
+   equivalent isolation and outcomes to plugin actions, TTS, native input and
+   competition winner dispatch. Headless hosts reject unavailable output.
+   Direct approved `core.points`/subtract runtime adjustments still need an
+   atomic private execution identity in the points transaction. Their existing
+   scoped writer preserves limits and ordering but does not consume
+   `EffectExecution`; a supported native message redelivered after restart or
+   in-memory replay-window expiry can therefore apply a direct adjustment again.
+   Existing remote points commands already have durable deduplication, and the
+   Script/Emit journal protects their own emitted subtrees. Extend the approved
+   points transaction using the existing command-ledger primitives, preserving
+   existing-viewer/no-subscriber-bonus semantics, raw/effective delta checks,
+   current authorization on fresh and retained paths, tombstones and no
+   historical hot-cache overwrite or repeated notification.
 6. **Remote controller/editor completion.** The distinct native JSON proposal
    surface now uses explicit private storage, inspected base selection and
    fixed durable create/update operations. Owner provenance/adoption review and

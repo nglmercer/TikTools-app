@@ -107,6 +107,145 @@ fn delegated_effect(record: Value, grant: &Grant) -> ExecutionManifest {
 }
 
 #[test]
+fn scoped_custom_trigger_requires_every_authors_exact_topic_and_capability() {
+    let mut review = event_review(&[action("child", "core.log", json!({"message":"scoped"}))]);
+    review.value["record"]["trigger"] = json!("moderator.alert");
+    review.value["provenance"] = provenance(Some(("a", "s-a")), "1");
+    review.value["dependencies"][0]["provenance"] = provenance(Some(("b", "s-b")), "1");
+    let first = effect_grant();
+    let mut second = effect_grant();
+    let capture = |second: &Grant| {
+        build(
+            &review,
+            ManifestSubjects {
+                host_id: "host",
+                subjects: &[
+                    ManifestSubject {
+                        principal_id: "a",
+                        session_id: "s-a",
+                        grant_revision: "1",
+                        configuration_revision: "1",
+                        grant: &first,
+                    },
+                    ManifestSubject {
+                        principal_id: "b",
+                        session_id: "s-b",
+                        grant_revision: "1",
+                        configuration_revision: "1",
+                        grant: second,
+                    },
+                ],
+            },
+        )
+        .unwrap()
+    };
+    let allowed = capture(&second);
+    assert_eq!(allowed.reasons, [ManifestReason::ApprovalRequired]);
+    assert!(!allowed.execution_authorized);
+    second.effects.emit_topics.clear();
+    assert!(capture(&second)
+        .reasons
+        .contains(&ManifestReason::ResourceForbidden));
+    second = effect_grant();
+    second.capabilities.remove(&Capability::EventsEmit);
+    assert!(capture(&second)
+        .reasons
+        .contains(&ManifestReason::MissingCapability));
+    review.value["record"]["trigger"] = json!("MODERATOR.alert");
+    let malformed = build(
+        &review,
+        ManifestSubjects {
+            host_id: "host",
+            subjects: &[
+                ManifestSubject {
+                    principal_id: "a",
+                    session_id: "s-a",
+                    grant_revision: "1",
+                    configuration_revision: "1",
+                    grant: &first,
+                },
+                ManifestSubject {
+                    principal_id: "b",
+                    session_id: "s-b",
+                    grant_revision: "1",
+                    configuration_revision: "1",
+                    grant: &first,
+                },
+            ],
+        },
+    )
+    .unwrap();
+    assert!(malformed
+        .reasons
+        .contains(&ManifestReason::InvalidConfiguration));
+}
+
+#[test]
+fn scoped_script_source_and_emit_payload_have_explicit_admission_bounds() {
+    let grant = effect_grant();
+    let oversized = delegated_effect(
+        action(
+            "script",
+            "core.code",
+            json!({"source":"x".repeat(crate::services::SCOPED_SCRIPT_LIMITS.source_bytes + 1)}),
+        ),
+        &grant,
+    );
+    assert!(oversized.effects[0]
+        .reasons
+        .contains(&ManifestReason::InvalidConfiguration));
+    let emit = delegated_effect(
+        action(
+            "emit",
+            "core.emit",
+            json!({"type":"MODERATOR.ALERT","data":{"message":"{{event.data.comment}}"}}),
+        ),
+        &grant,
+    );
+    assert_eq!(emit.effects[0].decision, EffectDecision::Classified);
+    assert!(emit.effects[0]
+        .required_capabilities
+        .contains(&Capability::LiveRead));
+    assert!(emit.effects[0]
+        .required_capabilities
+        .contains(&Capability::EventsEmit));
+    let oversized = delegated_effect(
+        action(
+            "emit",
+            "core.emit",
+            json!({"type":"moderator.alert","data":{"message":"x".repeat(64 * 1024)}}),
+        ),
+        &grant,
+    );
+    assert!(oversized.effects[0]
+        .reasons
+        .contains(&ManifestReason::InvalidConfiguration));
+    let nested = delegated_effect(
+        action(
+            "emit",
+            "core.emit",
+            json!({"type":"moderator.alert","data":{"nested":[{"message":"{{event.data.comment}}"}]}}),
+        ),
+        &grant,
+    );
+    assert_eq!(nested.effects[0].render_fields, ["event.data.comment"]);
+    assert!(nested.effects[0]
+        .required_capabilities
+        .contains(&Capability::LiveRead));
+    let nested_global = delegated_effect(
+        action(
+            "emit",
+            "core.emit",
+            json!({"type":"moderator.alert","data":{"nested":[{"message":"{{globals.secret}}"}]}}),
+        ),
+        &grant,
+    );
+    assert!(nested_global.effects[0]
+        .reasons
+        .contains(&ManifestReason::GlobalAccessRequiresPolicy));
+}
+
+#[test]
 fn external_effects_require_their_current_capabilities_and_exact_typed_scopes() {
     let grant = effect_grant();
     let http = action(

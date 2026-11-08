@@ -116,3 +116,13 @@ fn dry_run_validators_match_closed_host_params_and_semantic_bounds() {
         "method_not_found"
     );
 }
+
+#[test]
+fn metadata_receipts_accept_only_the_closed_scoped_flow_effect_kinds() {
+    let id = "a".repeat(64);
+    for (name, kind) in [("emit", EffectKind::Emit), ("script", EffectKind::Script)] {
+        let mut value = row(&id);
+        value["kind"] = json!(name);
+        assert_eq!(get(&response(value), &id).unwrap().unwrap().kind, kind);
+    }
+}

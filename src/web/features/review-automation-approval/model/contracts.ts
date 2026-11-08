@@ -1,6 +1,7 @@
 import type { Grant, Capability } from '@/entities/collaboration/api/types.ts';
 import { capabilities } from '@/entities/collaboration/api/types.ts';
 import { parseGrant } from '@/entities/collaboration/lib/grants.ts';
+import { publicEffectRenderFields } from '@/entities/collaboration/lib/effects.ts';
 import type { AutomationKind } from '@/entities/automation/model/record-versions.ts';
 import { parseReview, stableJson, type CapturedReview, type ProposalReview, type ProposalTarget, type Provenance } from '@/features/review-automation-proposal/model/contracts.ts';
 import { digest, exact, invalid, object, positive, text } from './native-contracts.ts';
@@ -86,6 +87,19 @@ function parseSummary(raw: unknown): ApprovalSummary {
   return raw as unknown as ApprovalSummary;
 }
 
+function eligibleEffect(effect: ManifestEffect): boolean {
+  const kinds = { 'core.log': 'log', 'core.delay': 'delay', 'core.points': 'points', 'core.points.subtract': 'points',
+    'core.fetch': 'http', 'audio.play': 'audio', 'core.audio.play': 'audio', 'core.emit': 'emit', 'core.code': 'script' } as const;
+  if (!effect.typeId || kinds[effect.typeId as keyof typeof kinds] !== effect.kind || effect.decision === 'unsupported' ||
+    effect.dynamicTarget && !['points', 'http', 'audio', 'script'].includes(effect.kind) ||
+    effect.renderFields.some((field) => !publicEffectRenderFields.includes(field as typeof publicEffectRenderFields[number])) ||
+    effect.reasons.some((reason) => !['approval-required', 'dynamic-target'].includes(reason) && !(reason === 'opaque-script' && effect.kind === 'script'))) return false;
+  return (effect.kind !== 'script' || effect.reasons.includes('opaque-script') && effect.requiredCapabilities.includes('scripts.execute') && effect.requiredCapabilities.includes('live.read')) &&
+    (effect.kind !== 'http' || effect.requiredCapabilities.includes('http.request')) &&
+    (effect.kind !== 'audio' || effect.requiredCapabilities.includes('audio.play')) &&
+    (effect.kind !== 'emit' || effect.requiredCapabilities.includes('events.emit'));
+}
+
 /** One saved-source/manifest/subject/status snapshot. No editor candidate or
  * independently refreshed effect description can replace this captured review. */
 export function parseApprovalReview(raw: unknown, meta: unknown, target: ProposalTarget): CapturedApprovalReview {
@@ -125,8 +139,9 @@ export function parseApprovalReview(raw: unknown, meta: unknown, target: Proposa
     manifest = { policyVersion: 1, digestAlgorithm: 'sha256-canonical-json-v1', hostId: raw.hostId, subjects: pins,
       primary: bindings[0]!, dependencies: bindings.slice(1), effects, reasons: m.reasons, executionAuthorized: false, manifestDigest: m.manifestDigest };
   }
-  if (eligibility.eligible && (!manifest || !source.record || subjects.length === 0 || manifest.reasons.some((r) => !['approval-required', 'dynamic-target'].includes(r)) ||
-      manifest.effects.some((e) => !['core.log', 'core.delay', 'core.points', 'core.points.subtract'].includes(e.typeId ?? '') || e.decision === 'unsupported'))) return invalid();
+  if (eligibility.eligible && (!manifest || !source.record || subjects.length === 0 || manifest.reasons.some((r) => !['approval-required', 'dynamic-target', 'opaque-script'].includes(r)) ||
+      manifest.reasons.includes('opaque-script') && !manifest.effects.some((e) => e.kind === 'script' && e.reasons.includes('opaque-script')) ||
+      manifest.effects.some((e) => !eligibleEffect(e)))) return invalid();
   if (approval.current && (!eligibility.eligible || !manifest || approval.manifestDigest !== manifest.manifestDigest || approval.policyVersion !== manifest.policyVersion)) return invalid();
   return { source: source as ProposalReview, versions: reviewed.versions, hostId: raw.hostId, hostInstanceId: raw.hostInstanceId, manifest, subjects, eligibility, approval,
     fingerprint: stableJson({ source, versions: reviewed.versions, manifest, subjects, eligibility, approval, hostId: raw.hostId, hostInstanceId: raw.hostInstanceId }) };

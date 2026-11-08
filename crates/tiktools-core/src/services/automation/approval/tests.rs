@@ -199,6 +199,140 @@ fn any_full_closure_body_change_or_in_memory_mutation_invalidates_old_approval()
 }
 
 #[test]
+fn borrowed_definition_fence_rejects_stale_body_generation_revision_and_authority() {
+    let f = Fixture::new();
+    let mut index = recover_rwlock_write(&f.service.index, "automation index");
+    let fence = capture(&index, AutomationFamily::Action, "a").unwrap();
+    let original_record = index.actions["a"].clone();
+    let original_authorities = index.authorities.clone();
+    assert!(fence_current(&index, &fence));
+    for change in [
+        "body",
+        "generation",
+        "missing_generation",
+        "revision",
+        "missing_revision",
+        "consistent_new_revision",
+        "deleted",
+        "owner",
+        "principal",
+        "session",
+        "provenance_generation",
+        "sidecar_revision",
+        "missing_authority",
+        "missing_record",
+    ] {
+        let mut authority = crate::db::BehaviorRuntimeAuthority {
+            authority: crate::db::BehaviorAuthority::Delegated {
+                principal_id: "principal-a".into(),
+                session_id: "session-a".into(),
+            },
+            generation: 9,
+            revision: 7,
+            deleted: false,
+        };
+        match change {
+            "body" => {
+                index.actions.get_mut("a").unwrap().definition["config"]["message"] =
+                    json!("stale source")
+            }
+            "generation" => {
+                index.actions.get_mut("a").unwrap().generation = Some(fence.generation + 1)
+            }
+            "missing_generation" => index.actions.get_mut("a").unwrap().generation = None,
+            "revision" => index.actions.get_mut("a").unwrap().persisted_revision = Some("8".into()),
+            "missing_revision" => index.actions.get_mut("a").unwrap().persisted_revision = None,
+            "consistent_new_revision" => {
+                index.actions.get_mut("a").unwrap().persisted_revision = Some("8".into());
+                authority.revision = 8;
+            }
+            "deleted" => authority.deleted = true,
+            "owner" => authority.authority = crate::db::BehaviorAuthority::Owner,
+            "principal" => {
+                authority.authority = crate::db::BehaviorAuthority::Delegated {
+                    principal_id: "different-principal".into(),
+                    session_id: "session-a".into(),
+                }
+            }
+            "session" => {
+                authority.authority = crate::db::BehaviorAuthority::Delegated {
+                    principal_id: "principal-a".into(),
+                    session_id: "different-session".into(),
+                }
+            }
+            "provenance_generation" => authority.generation += 1,
+            "sidecar_revision" => authority.revision += 1,
+            "missing_authority" | "missing_record" => {}
+            _ => unreachable!(),
+        }
+        index
+            .authorities
+            .as_mut()
+            .unwrap()
+            .insert(fence.authority_key.clone(), authority.into());
+        if change == "missing_authority" {
+            index
+                .authorities
+                .as_mut()
+                .unwrap()
+                .remove(&fence.authority_key);
+        }
+        if change == "missing_record" {
+            index.actions.remove("a");
+        }
+        assert!(!fence_current(&index, &fence), "{change}");
+        index.actions.insert("a".into(), original_record.clone());
+        index.authorities = original_authorities.clone();
+        assert!(fence_current(&index, &fence), "restored after {change}");
+    }
+    let mut wrong_key = fence.clone();
+    wrong_key.authority_key = ("event".into(), "e".into());
+    assert!(!fence_current(&index, &wrong_key));
+    let mut wrong_family = fence;
+    wrong_family.family = AutomationFamily::Event;
+    assert!(!fence_current(&index, &wrong_family));
+}
+
+#[test]
+fn borrowed_candidate_checks_keep_runtime_catalog_approval_and_full_closure_fences() {
+    let f = Fixture::new();
+    let candidate = f
+        .service
+        .approval_candidate(f.action(), Some(f.event()))
+        .unwrap();
+    let mut index = recover_rwlock_write(&f.service.index, "automation index");
+    assert!(candidate_current(&index, &candidate));
+    let identity = index.identity.clone();
+    index.identity = std::sync::Arc::new(());
+    assert!(!candidate_current(&index, &candidate));
+    index.identity = identity;
+    let catalog = index.catalog_epoch;
+    index.catalog_epoch = None;
+    assert!(!candidate_current(&index, &candidate));
+    index.catalog_epoch = Some(candidate.catalog_epoch.saturating_add(1));
+    assert!(!candidate_current(&index, &candidate));
+    index.catalog_epoch = catalog;
+    index.authority_available = false;
+    assert!(!candidate_current(&index, &candidate));
+    index.authority_available = true;
+    let approval = index.approvals.remove(&candidate.approval_key).unwrap();
+    assert!(!candidate_current(&index, &candidate));
+    let mut new_approval = approval.clone();
+    new_approval.generation = "2".into();
+    index
+        .approvals
+        .insert(candidate.approval_key.clone(), new_approval);
+    assert!(!candidate_current(&index, &candidate));
+    index
+        .approvals
+        .insert(candidate.approval_key.clone(), approval);
+    assert!(candidate_current(&index, &candidate));
+    // The unselected, disabled branch remains part of every current check.
+    index.actions.get_mut("b").unwrap().definition["config"]["ms"] = json!(2);
+    assert!(!candidate_current(&index, &candidate));
+}
+
+#[test]
 fn approved_filters_only_see_the_public_scalar_event_projection() {
     let mut f = Fixture::new();
     // Rebuild the bound digest to represent a trusted saved filter definition.

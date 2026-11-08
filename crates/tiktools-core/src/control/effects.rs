@@ -10,6 +10,8 @@ pub enum EffectKind {
     Http,
     Audio,
     Plugin,
+    Emit,
+    Script,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

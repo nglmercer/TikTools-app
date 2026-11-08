@@ -19,6 +19,28 @@ async function mountReview(host = approvalFixture(), selected = true) {
   return { host, wrapper };
 }
 describe('owner delegated execution approval UI', () => {
+  it('labels scoped custom triggers and opaque script data flow in English and Spanish', async () => {
+    const host = approvalFixture();
+    host.source.record!['trigger'] = 'moderator.alert';
+    host.source.dependencies[0]!.record!['typeId'] = 'core.code';
+    host.source.dependencies[0]!.record!['config'] = { source: 'return { log: [event.user.uniqueId] };' };
+    host.subjects[0]!.grant.capabilities.push('scripts.execute', 'events.emit');
+    host.subjects[0]!.grant.effects = { http: [], audio: [], emitTopics: ['moderator.alert'] };
+    host.overrides.set('automation.approval.review', (params, options) => {
+      const result = host.handle('automation.approval.review', params, options) as ReturnType<typeof host.review>;
+      Object.assign(result.manifest!.effects[0]!, { kind: 'script', decision: 'review-required', renderFields: [], dynamicTarget: true, requiredCapabilities: ['scripts.execute', 'live.read'], reasons: ['opaque-script'] });
+      result.manifest!.reasons.push('opaque-script');
+      return result;
+    });
+    const { wrapper } = await mountReview(host);
+    await wrapper.get('[data-test="approval-open"]').trigger('click'); await flushPromises();
+    expect(wrapper.get('[data-test="approval-scoped-trigger"]').text()).toContain('moderator.alert');
+    expect(wrapper.get('[data-test="approval-scoped-trigger"]').text()).toContain('already approved delegated execution');
+    expect(wrapper.get('[data-test="approval-script-policy"]').text()).toContain('all public input fields in one HTTP rule');
+    await activateLocale('es'); await nextTick();
+    expect(wrapper.get('[data-test="approval-scoped-trigger"]').text()).toContain('ejecución delegada ya aprobada');
+    expect(wrapper.get('[data-test="approval-script-policy"]').text()).toContain('todos los campos públicos de entrada en una misma regla HTTP');
+  });
   it('shows one explicitly read saved closure, escaped source, exact effects, field pins and author restrictions', async () => {
     const { host, wrapper } = await mountReview();
     expect(host.calls.some((c) => c.method === 'automation.approval.review')).toBe(false);

@@ -65,6 +65,9 @@ pub(crate) struct AutomationRuntimeState {
         allow(dead_code)
     )]
     pub(crate) slots: Arc<tokio::sync::Semaphore>,
+    /// No backlog of detached, memory-heavy delegated VMs on the blocking pool.
+    #[cfg(feature = "persistence")]
+    pub(crate) scoped_script_slots: Arc<tokio::sync::Semaphore>,
     /// Saturation diagnostics: admitted vs. rejected automation work.
     pub(crate) admitted: AtomicU64,
     pub(crate) rejected: AtomicU64,
@@ -86,6 +89,10 @@ impl Default for AutomationRuntimeState {
             last_context_emit_at: AtomicU64::new(0),
             sequence: AtomicU64::new(0),
             slots: Arc::new(tokio::sync::Semaphore::new(32)),
+            #[cfg(feature = "persistence")]
+            scoped_script_slots: Arc::new(tokio::sync::Semaphore::new(
+                crate::services::SCOPED_SCRIPT_LIMITS.max_concurrent_evaluations,
+            )),
             admitted: AtomicU64::new(0),
             rejected: AtomicU64::new(0),
             events_completed: AtomicU64::new(0),

@@ -488,7 +488,24 @@ pub(crate) fn build(
                 // Arbitrary emitted/plugin trigger contracts need their own
                 // catalog and propagation policy, not an inferred owner grant.
                 if !trigger.starts_with("tiktok.") {
-                    reasons.insert(ManifestReason::PluginBindingUnavailable);
+                    if subjects.subjects.is_empty() {
+                        reasons.insert(ManifestReason::PluginBindingUnavailable);
+                    } else if !crate::collaboration::valid_emit_topic(trigger) {
+                        reasons.insert(ManifestReason::InvalidConfiguration);
+                    } else {
+                        // A custom topic is an incoming scoped event contract,
+                        // never permission to trust Owner/plugin-origin input.
+                        // Runtime additionally requires an approved incoming
+                        // context; this exact source digest binds the trigger.
+                        for subject in subjects.subjects {
+                            if !subject.grant.capabilities.contains(&Capability::EventsEmit) {
+                                reasons.insert(ManifestReason::MissingCapability);
+                            }
+                            if !subject.grant.allows_emit_topic(trigger) {
+                                reasons.insert(ManifestReason::ResourceForbidden);
+                            }
+                        }
+                    }
                 }
             }
             _ => {

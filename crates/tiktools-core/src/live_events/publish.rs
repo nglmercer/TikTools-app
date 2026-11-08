@@ -1,6 +1,67 @@
 use crate::*;
 
 impl AppCore {
+    /// Approved emitted input has its own data/control path. It reaches local
+    /// presentation and scoped rule matching, never executable domain/plugin
+    /// observers, enrichment processors or Owner test-preview memory.
+    #[cfg_attr(not(feature = "persistence"), allow(dead_code))]
+    pub(crate) async fn publish_scoped_automation_event(
+        self: &Arc<Self>,
+        envelope: AutomationEvent,
+    ) -> Result<(), String> {
+        if !envelope.context().is_approved() {
+            return Err("scoped publication requires an approved execution context".into());
+        }
+        #[cfg(feature = "persistence")]
+        {
+            let payload = envelope.context().projected_event(envelope.payload())?;
+            let topic = payload
+                .get("type")
+                .and_then(Value::as_str)
+                .ok_or("scoped event type is unavailable")?;
+            if !crate::collaboration::valid_emit_topic(topic)
+                || normalize_emit_type(topic).as_deref() != Ok(topic)
+            {
+                return Err("scoped event type is invalid".into());
+            }
+            {
+                let _writer = self.automation_gate().map_err(|error| error.to_string())?;
+                envelope
+                    .context()
+                    .with_current_chain(&self.automation, |identities| {
+                        if self.is_shutdown()
+                            || identities
+                                .iter()
+                                .any(|identity| !identity.grant().allows_emit_topic(topic))
+                        {
+                            return Err("scoped event is outside inherited execution scope".into());
+                        }
+                        for identity in identities {
+                            identity
+                                .check_deadline()
+                                .map_err(|_| "scoped execution subject has expired")?;
+                        }
+                        self.events.publish_presentation_domain(
+                            crate::events::DomainEvent::LiveEvent {
+                                event_type: topic.to_owned(),
+                                event: payload.clone(),
+                            },
+                        );
+                        Ok(())
+                    })?;
+            }
+            // No processor, Owner observer publication or remember call may
+            // be inserted here; the retained private context is authoritative.
+            Box::pin(self.run_automation_event(envelope.replace_payload(payload))).await;
+            Ok(())
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = envelope;
+            Err("scoped publication requires persistence".into())
+        }
+    }
+
     /// Domain events are authoritative: the normalized event fans out to
     /// WebView/IPC/CLI immediately, before (and independent of) the
     /// automation pipeline, which may throttle or drop on saturation.

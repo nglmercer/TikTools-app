@@ -23,6 +23,10 @@ That workflow builds the Rust CLI directly. Frontend tools are optional.
   The controller also provides explicit private draft saves and host/draft
   comparison. See the
   [native client guide](docs/LIVE-COLLABORATION-CLIENT.md) for setup and limits.
+- Owner-reviewed delegated automations with current permission checks, scoped
+  HTTP/audio, exact-topic emitted rules and bounded scripts. Runtime receipts
+  prevent retained script/emission intents from being repeated; see the
+  [approval policy and remaining gates](docs/LIVE-COLLABORATION-APPROVAL.md).
 - Rust-owned SQLite persistence for points, creators, gifts, workflows, and
   behavior records.
 - Bounded JavaScript automation and plugins through the embedded QuickJS (`rquickjs`) runtime.

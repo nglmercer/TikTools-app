@@ -163,7 +163,7 @@ CREATE TABLE IF NOT EXISTS automation_external_effect_host (
 );
 CREATE TABLE IF NOT EXISTS automation_external_effects (
   effect_id TEXT PRIMARY KEY CHECK(length(effect_id)=64),
-  kind TEXT NOT NULL CHECK(kind IN ('http','audio','plugin')),
+  kind TEXT NOT NULL CHECK(kind IN ('http','audio','plugin','emit','script')),
   binding_digest TEXT NOT NULL CHECK(length(binding_digest)=64),
   request_digest TEXT NOT NULL CHECK(length(request_digest)=64),
   instance_id TEXT NOT NULL CHECK(length(instance_id)=64),
@@ -475,15 +475,166 @@ impl DatabaseManager {
             insert_points_config(&points, &config, now())?;
         }
 
-        let automation = self.open(&self.automation_path())?;
+        let mut automation = self.open(&self.automation_path())?;
         // The workflow seed references the shared version table.
         automation.execute_batch(COORDINATION_SCHEMA)?;
         automation.execute_batch(AUTOMATION_SCHEMA)?;
+        migrate_effect_kinds(&mut automation)?;
 
         self.ensure_analytics_schema()?;
         Ok(())
     }
     pub(in crate::db) fn open(&self, path: &std::path::Path) -> Result<Connection, DatabaseError> {
         Ok(Connection::open(path)?)
+    }
+}
+
+/// Extend the unreleased journal's closed kind constraint without deleting any
+/// accepted/unknown/tombstoned identity. Copy/constraint validation and rename
+/// are one owned SQLite transaction; failure leaves the old table intact.
+fn migrate_effect_kinds(db: &mut Connection) -> Result<(), DatabaseError> {
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let schema: String = tx.query_row(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='automation_external_effects'",
+        [],
+        |row| row.get(0),
+    )?;
+    if !schema.contains("'script'") {
+        tx.execute_batch("CREATE TABLE automation_external_effects_v2 (
+          effect_id TEXT PRIMARY KEY CHECK(length(effect_id)=64),
+          kind TEXT NOT NULL CHECK(kind IN ('http','audio','plugin','emit','script')),
+          binding_digest TEXT NOT NULL CHECK(length(binding_digest)=64),
+          request_digest TEXT NOT NULL CHECK(length(request_digest)=64),
+          instance_id TEXT NOT NULL CHECK(length(instance_id)=64),
+          state TEXT NOT NULL CHECK(state IN ('accepted','dispatched','succeeded','failed','unknown')),
+          accepted_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+          outcome_expired INTEGER NOT NULL DEFAULT 0 CHECK(outcome_expired IN (0,1))
+        );
+        INSERT INTO automation_external_effects_v2 SELECT effect_id,kind,binding_digest,request_digest,instance_id,state,accepted_at,updated_at,outcome_expired FROM automation_external_effects;
+        DROP TABLE automation_external_effects;
+        ALTER TABLE automation_external_effects_v2 RENAME TO automation_external_effects;")?;
+        let kinds: String = tx.query_row("SELECT sql FROM sqlite_master WHERE type='table' AND name='automation_external_effects'", [], |row| row.get(0))?;
+        if !kinds.contains("'script'") {
+            return Err(DatabaseError::Invalid(
+                "effect journal migration failed".into(),
+            ));
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod effect_migration_tests {
+    use super::*;
+    fn old_schema(db: &Connection, emit: bool) {
+        let kinds = if emit {
+            "'http','audio','plugin','emit'"
+        } else {
+            "'http','audio','plugin'"
+        };
+        db.execute_batch(&format!(
+            "CREATE TABLE automation_external_effects (
+          effect_id TEXT PRIMARY KEY CHECK(length(effect_id)=64),
+          kind TEXT NOT NULL CHECK(kind IN ({kinds})),
+          binding_digest TEXT NOT NULL, request_digest TEXT NOT NULL, instance_id TEXT NOT NULL,
+          state TEXT NOT NULL, accepted_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+          outcome_expired INTEGER NOT NULL DEFAULT 0);"
+        ))
+        .unwrap();
+        for (index, state) in ["accepted", "dispatched", "succeeded", "failed", "unknown"]
+            .iter()
+            .enumerate()
+        {
+            db.execute(
+                "INSERT INTO automation_external_effects VALUES(?1,'http',?2,?3,?4,?5,10,20,?6)",
+                rusqlite::params![
+                    format!("{index:064x}"),
+                    "b".repeat(64),
+                    "c".repeat(64),
+                    "d".repeat(64),
+                    state,
+                    i32::from(index == 4)
+                ],
+            )
+            .unwrap();
+        }
+    }
+    type EffectRow = (
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        i64,
+        i64,
+        bool,
+    );
+    fn rows(db: &Connection) -> Vec<EffectRow> {
+        let mut stmt = db
+            .prepare("SELECT * FROM automation_external_effects ORDER BY effect_id")
+            .unwrap();
+        stmt.query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get(7)?,
+                row.get(8)?,
+            ))
+        })
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+    }
+    #[test]
+    fn legacy_effect_migration_preserves_every_retained_identity_and_accepts_new_kinds() {
+        for emit in [false, true] {
+            let mut db = Connection::open_in_memory().unwrap();
+            old_schema(&db, emit);
+            let before = rows(&db);
+            migrate_effect_kinds(&mut db).unwrap();
+            migrate_effect_kinds(&mut db).unwrap();
+            assert_eq!(rows(&db), before);
+            for (index, kind) in ["emit", "script"].into_iter().enumerate() {
+                db.execute("INSERT INTO automation_external_effects VALUES(?1,?2,?3,?3,?3,'unknown',10,20,0)",
+                    rusqlite::params![format!("{:064x}",100+index),kind,"a".repeat(64)]).unwrap();
+            }
+            assert_eq!(rows(&db).len(), 7);
+        }
+    }
+    #[test]
+    fn invalid_legacy_effect_migration_rolls_back_without_erasing_history() {
+        let mut db = Connection::open_in_memory().unwrap();
+        old_schema(&db, false);
+        db.execute(
+            "UPDATE automation_external_effects SET state='corrupt' WHERE effect_id=?1",
+            [format!("{:064x}", 0)],
+        )
+        .unwrap();
+        let before = rows(&db);
+        assert!(migrate_effect_kinds(&mut db).is_err());
+        assert_eq!(rows(&db), before);
+        let schema: String = db
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE name='automation_external_effects'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(!schema.contains("'script'"));
+        let shadow: i64 = db
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name='automation_external_effects_v2'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(shadow, 0);
     }
 }

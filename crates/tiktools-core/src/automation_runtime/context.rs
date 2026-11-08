@@ -12,6 +12,7 @@ enum Authority {
     Approved {
         subjects: ExecutionAuthorizations,
         permits: Vec<crate::services::RuntimeApprovalPermit>,
+        owner_rules: Vec<crate::services::RuntimeOwnerRuleFence>,
     },
     Denied,
 }
@@ -19,6 +20,7 @@ enum Authority {
 pub(crate) struct ExecutionContext {
     authority: Authority,
     depth: u8,
+    script_flow: bool,
     #[cfg(feature = "persistence")]
     execution: Option<crate::services::effects::EffectExecution>,
 }
@@ -29,6 +31,7 @@ impl ExecutionContext {
         Self {
             authority: Authority::Owner,
             depth: 0,
+            script_flow: false,
             #[cfg(feature = "persistence")]
             execution: crate::services::effects::EffectExecution::fresh().ok(),
         }
@@ -37,6 +40,7 @@ impl ExecutionContext {
         Self {
             authority: Authority::Denied,
             depth: 0,
+            script_flow: false,
             #[cfg(feature = "persistence")]
             execution: crate::services::effects::EffectExecution::fresh().ok(),
         }
@@ -52,6 +56,7 @@ impl ExecutionContext {
         Ok(Self {
             authority: Authority::Restricted(subjects),
             depth: 0,
+            script_flow: false,
             #[cfg(feature = "persistence")]
             execution: crate::services::effects::EffectExecution::fresh().ok(),
         })
@@ -77,6 +82,7 @@ impl ExecutionContext {
         Ok(Self {
             authority: self.authority.clone(),
             depth,
+            script_flow: self.script_flow,
             #[cfg(feature = "persistence")]
             execution: self.execution.clone(),
         })
@@ -106,13 +112,16 @@ impl ExecutionContext {
                 Authority::Approved {
                     subjects: a,
                     permits: ap,
+                    owner_rules: ar,
                 },
                 Authority::Approved {
                     subjects: b,
                     permits: bp,
+                    owner_rules: br,
                 },
             ) => {
-                if ap.len().saturating_add(bp.len()) > 16 {
+                if ap.len().saturating_add(bp.len()) > 16 || ar.len().saturating_add(br.len()) > 16
+                {
                     return Err("execution approval intersection exceeds its bound");
                 }
                 Authority::Approved {
@@ -120,12 +129,14 @@ impl ExecutionContext {
                         .intersect(b)
                         .map_err(|_| "execution subject intersection is unavailable")?,
                     permits: ap.iter().chain(bp).cloned().collect(),
+                    owner_rules: ar.iter().chain(br).cloned().collect(),
                 }
             }
         };
         Ok(Self {
             authority,
             depth: self.depth.max(other.depth),
+            script_flow: self.script_flow || other.script_flow,
             #[cfg(feature = "persistence")]
             execution: self.execution.clone(),
         })
@@ -141,7 +152,9 @@ impl ExecutionContext {
                 .map(|_| ())
                 .map_err(|_| "saved execution subjects are unavailable"),
             #[cfg(feature = "persistence")]
-            Authority::Approved { subjects, permits } => subjects
+            Authority::Approved {
+                subjects, permits, ..
+            } => subjects
                 .with_current(|identities| {
                     for permit in permits {
                         permit.check_subjects(identities)?;
@@ -185,18 +198,82 @@ impl ExecutionContext {
             return Err("automation emit depth limit reached".into());
         }
         #[cfg(feature = "persistence")]
-        if let Authority::Approved { subjects, permits } = &self.authority {
+        if let Authority::Approved {
+            subjects,
+            permits,
+            owner_rules,
+        } = &self.authority
+        {
             return subjects
                 .with_current(|identities| {
                     for permit in permits {
                         permit.check_subjects(identities).map_err(str::to_owned)?;
                     }
-                    automation.with_current_approvals(permits, action, || apply(identities))
+                    automation
+                        .with_current_approvals(permits, owner_rules, action, || apply(identities))
                 })
                 .map_err(|_| "saved execution subjects are unavailable".to_owned())?;
         }
         let _ = (action, automation, apply);
         Err("delegated execution approval is unavailable".into())
+    }
+
+    /// Retain every inherited subject/definition fence during scoped event
+    /// admission. This supplies no new action cover and cannot promote Owner.
+    #[cfg(feature = "persistence")]
+    pub(crate) fn with_current_chain<R>(
+        &self,
+        automation: &crate::services::AutomationService,
+        apply: impl FnOnce(&[crate::collaboration::ExecutionIdentity]) -> Result<R, String>,
+    ) -> Result<R, String> {
+        if self.depth >= DEPTH_LIMIT {
+            return Err("automation emit depth limit reached".into());
+        }
+        let Authority::Approved {
+            subjects,
+            permits,
+            owner_rules,
+        } = &self.authority
+        else {
+            return Err("delegated execution approval is unavailable".into());
+        };
+        subjects
+            .with_current(|identities| {
+                for permit in permits {
+                    permit.check_subjects(identities).map_err(str::to_owned)?;
+                }
+                automation.with_current_execution_chain(permits, owner_rules, || apply(identities))
+            })
+            .map_err(|_| "saved execution subjects are unavailable".to_owned())?
+    }
+
+    #[cfg_attr(not(feature = "persistence"), allow(dead_code))]
+    pub(crate) fn mark_script_flow(mut self) -> Self {
+        self.script_flow = true;
+        self
+    }
+    // Currently consumed only by the optional HTTP sink and scoped tests.
+    #[cfg_attr(not(feature = "http"), allow(dead_code))]
+    pub(crate) fn has_script_flow(&self) -> bool {
+        self.script_flow
+    }
+
+    #[cfg_attr(not(feature = "persistence"), allow(dead_code))]
+    pub(crate) fn effect_child_slot(&self, namespace: &str, slot: u32) -> Result<Self, String> {
+        #[cfg(feature = "persistence")]
+        {
+            let execution = self
+                .execution()?
+                .named_child("derived-output", namespace)
+                .and_then(|execution| execution.child(slot))
+                .map_err(|error| error.to_string())?;
+            Ok(self.clone().with_execution(execution))
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = (namespace, slot);
+            Ok(self.clone())
+        }
     }
     #[cfg(feature = "persistence")]
     pub(crate) fn with_execution(
@@ -247,6 +324,28 @@ impl ExecutionContext {
 }
 
 impl AppCore {
+    /// Dispatch admits only trusted Owner or an approved retained chain. This
+    /// guard is separate from the Owner-only generic transport/read guard.
+    pub(crate) fn automation_dispatch_guard(
+        &self,
+        context: &ExecutionContext,
+    ) -> Result<(), String> {
+        if context.is_owner() {
+            return self.execution_context_guard(context);
+        }
+        if self.is_shutdown() {
+            return Err("host is shutting down".into());
+        }
+        #[cfg(feature = "persistence")]
+        {
+            let _writer = self.automation_gate().map_err(|error| error.to_string())?;
+            context.with_current_chain(&self.automation, |_| Ok(()))
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            Err("delegated execution requires persistence".into())
+        }
+    }
     /// Final unsupported-effect guard, before globals/settings, plugins or
     /// effect sinks. Shutdown applies even to otherwise trusted Owner work.
     /// Keep this guard Owner-only. Approved delegated effects need separate,
@@ -268,11 +367,61 @@ impl AppCore {
         incoming: &ExecutionContext,
     ) -> Result<ExecutionContext, &'static str> {
         #[cfg(feature = "persistence")]
-        if let Some(candidate) = record.approval_candidate() {
-            return self.approved_candidate_context(candidate, incoming).await;
+        {
+            let context = if let Some(candidate) = record.approval_candidate() {
+                self.approved_candidate_context(candidate, incoming).await?
+            } else if incoming.is_approved() {
+                let fence = self
+                    .automation
+                    .owner_rule_fence(record)
+                    .ok_or("saved Owner rule binding is unavailable")?;
+                let mut context = incoming.clone();
+                let Authority::Approved { owner_rules, .. } = &mut context.authority else {
+                    return Err("scoped rule authority is unavailable");
+                };
+                if owner_rules.len() >= 16 {
+                    return Err("execution Owner rule intersection exceeds its bound");
+                }
+                owner_rules.push(fence);
+                context
+            } else {
+                incoming.clone()
+            };
+            if incoming.is_approved() {
+                let id = record
+                    .definition
+                    .get("id")
+                    .and_then(serde_json::Value::as_str)
+                    .ok_or("saved child rule identity is unavailable")?;
+                context
+                    .with_current_chain(&self.automation, |identities| {
+                        use crate::collaboration::{AutomationFamily, Capability, ResourceKind};
+                        if identities.iter().any(|identity| {
+                            let grant = identity.grant();
+                            !grant.capabilities.contains(&Capability::AutomationRead)
+                                || !grant.capabilities.contains(&Capability::LiveRead)
+                                || !grant.allows_automation(AutomationFamily::Event, id)
+                                || grant.resources.contains_key(&ResourceKind::Live)
+                        }) {
+                            Err(
+                                "inherited execution subject cannot observe the child rule input"
+                                    .into(),
+                            )
+                        } else {
+                            Ok(())
+                        }
+                    })
+                    .map_err(|_| {
+                        "inherited execution subject cannot observe the child rule input"
+                    })?;
+            }
+            Ok(context)
         }
-        let _ = record;
-        Ok(incoming.clone())
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = record;
+            Ok(incoming.clone())
+        }
     }
 
     #[cfg(feature = "persistence")]
@@ -281,6 +430,9 @@ impl AppCore {
         candidate: crate::services::ApprovalCandidate,
         incoming: &ExecutionContext,
     ) -> Result<ExecutionContext, &'static str> {
+        if candidate.requires_scoped_input() && !incoming.is_approved() {
+            return Err("this saved approval requires approved scoped input");
+        }
         let core = self.clone();
         let approved = tokio::task::spawn_blocking(move || {
             let required = candidate.required_subjects()?;
@@ -297,8 +449,10 @@ impl AppCore {
                 authority: Authority::Approved {
                     subjects,
                     permits: vec![permit],
+                    owner_rules: Vec::new(),
                 },
                 depth: 0,
+                script_flow: false,
                 #[cfg(feature = "persistence")]
                 execution: crate::services::effects::EffectExecution::fresh().ok(),
             })

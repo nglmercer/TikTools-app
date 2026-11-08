@@ -15,6 +15,7 @@ mod execution;
 #[cfg(feature = "persistence")]
 mod external_effects;
 mod approved_effects;
+mod approved_flow;
 mod http_actions;
 mod media_actions;
 pub(crate) mod samples;

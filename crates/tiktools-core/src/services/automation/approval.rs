@@ -88,6 +88,7 @@ pub(super) fn install(
 struct DefinitionFence {
     family: AutomationFamily,
     id: String,
+    authority_key: (String, String),
     definition: Value,
     revision: String,
     generation: u64,
@@ -99,10 +100,23 @@ struct DefinitionFence {
 #[derive(Clone)]
 pub(crate) struct ApprovalCandidate {
     index_identity: std::sync::Arc<()>,
+    approval_key: (String, String),
     approval: crate::db::BehaviorApprovalSnapshot,
     review: Versioned<Value>,
     definitions: Vec<DefinitionFence>,
     catalog_epoch: u64,
+}
+impl ApprovalCandidate {
+    pub(crate) fn requires_scoped_input(&self) -> bool {
+        self.definitions.iter().any(|fence| {
+            fence.family == AutomationFamily::Event
+                && fence
+                    .definition
+                    .get("trigger")
+                    .and_then(Value::as_str)
+                    .is_some_and(|trigger| !trigger.starts_with("tiktok."))
+        })
+    }
 }
 
 /// No public constructor, Serialize or Deserialize: only an exact persisted
@@ -112,6 +126,22 @@ pub(crate) struct RuntimeApprovalPermit {
     candidate: ApprovalCandidate,
     manifest: manifest::ExecutionManifest,
     configuration_revisions: BTreeMap<(String, String), String>,
+}
+
+/// Receiving approved scoped input never transfers Owner authority. This
+/// private fence pins the saved Owner rule and its entire action closure.
+#[derive(Clone)]
+pub(crate) struct RuntimeOwnerRuleFence {
+    index_identity: std::sync::Arc<()>,
+    definitions: Vec<DefinitionFence>,
+    catalog_epoch: u64,
+}
+impl RuntimeOwnerRuleFence {
+    fn authorizes_action(&self, action: &Value) -> bool {
+        self.definitions
+            .iter()
+            .any(|fence| fence.family == AutomationFamily::Action && fence.definition == *action)
+    }
 }
 
 fn provenance(authority: &RuntimeAuthority) -> Option<Value> {
@@ -131,10 +161,8 @@ fn capture(index: &BehaviorIndex, family: AutomationFamily, id: &str) -> Option<
         AutomationFamily::Action => index.actions.get(id),
         AutomationFamily::Event => index.events.get(id),
     }?;
-    let authority = index
-        .authorities
-        .as_ref()?
-        .get(&(family.scope().into(), id.into()))?;
+    let authority_key = (family.scope().into(), id.into());
+    let authority = index.authorities.as_ref()?.get(&authority_key)?;
     if authority.is_deleted()
         || record.persisted_revision.as_deref() != authority.resource_revision()
     {
@@ -143,11 +171,41 @@ fn capture(index: &BehaviorIndex, family: AutomationFamily, id: &str) -> Option<
     Some(DefinitionFence {
         family,
         id: id.into(),
+        authority_key,
         definition: record.definition.clone(),
         revision: record.persisted_revision.clone()?,
         generation: record.generation?,
         authority: authority.clone(),
     })
+}
+
+/// Borrow the installed record and sidecar during frequent VM authority
+/// checks. Capture owns the original snapshots; polling must not clone their
+/// JSON, revision/subject strings or composite lookup keys again. Callers keep
+/// their existing runtime-identity, catalog and approval-generation fences.
+fn fence_current(index: &BehaviorIndex, fence: &DefinitionFence) -> bool {
+    if fence.authority_key.0 != fence.family.scope() || fence.authority_key.1 != fence.id {
+        return false;
+    }
+    let record = match fence.family {
+        AutomationFamily::Action => index.actions.get(fence.id.as_str()),
+        AutomationFamily::Event => index.events.get(fence.id.as_str()),
+    };
+    let authority = index
+        .authorities
+        .as_ref()
+        .and_then(|authorities| authorities.get(&fence.authority_key));
+    match (record, authority) {
+        (Some(record), Some(authority)) => {
+            !authority.is_deleted()
+                && record.persisted_revision.as_deref() == authority.resource_revision()
+                && record.persisted_revision.as_deref() == Some(fence.revision.as_str())
+                && record.generation == Some(fence.generation)
+                && record.definition == fence.definition
+                && authority == &fence.authority
+        }
+        _ => false,
+    }
 }
 
 pub(super) fn candidate_for_primary(
@@ -214,6 +272,7 @@ pub(super) fn candidate_for_primary(
     }
     Some(ApprovalCandidate {
         index_identity: index.identity.clone(),
+        approval_key: (approval.scope.clone(), approval.id.clone()),
         approval: approval.clone(),
         review,
         definitions,
@@ -322,6 +381,59 @@ impl RuntimeApprovalPermit {
 }
 
 impl AutomationService {
+    pub(crate) fn owner_rule_fence(&self, record: &MatchedRecord) -> Option<RuntimeOwnerRuleFence> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !index.authority_available
+            || index.catalog_epoch != Some(record.catalog_epoch)
+            || record.approval.is_some()
+        {
+            return None;
+        }
+        let primary = capture(
+            &index,
+            AutomationFamily::Event,
+            record.definition.get("id")?.as_str()?,
+        )?;
+        if primary.definition != record.definition
+            || record.generation != Some(primary.generation)
+            || !primary.authority.is_owner()
+            || primary.definition.get("enabled").and_then(Value::as_bool) != Some(true)
+        {
+            return None;
+        }
+        let ids = primary.definition.get("actionIds")?.as_array()?;
+        if ids.len() > 512 || ids.iter().any(|id| id.as_str().is_none()) {
+            return None;
+        }
+        let ids = ids
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<BTreeSet<_>>();
+        let mut definitions = Vec::with_capacity(ids.len() + 1);
+        for id in ids {
+            let action = capture(&index, AutomationFamily::Action, id)?;
+            if !action.authority.is_owner() {
+                return None;
+            }
+            definitions.push(action);
+        }
+        if record.actions.iter().any(|action| {
+            !definitions.iter().any(|fence| {
+                fence.family == AutomationFamily::Action
+                    && fence.generation == action.generation
+                    && fence.definition == action.definition
+            })
+        }) {
+            return None;
+        }
+        definitions.push(primary);
+        Some(RuntimeOwnerRuleFence {
+            index_identity: index.identity.clone(),
+            definitions,
+            catalog_epoch: record.catalog_epoch,
+        })
+    }
+
     pub(crate) fn approval_candidate(
         &self,
         action: &Value,
@@ -344,19 +456,54 @@ impl AutomationService {
     pub(crate) fn with_current_approvals<R>(
         &self,
         permits: &[RuntimeApprovalPermit],
+        owner_rules: &[RuntimeOwnerRuleFence],
         action: &Value,
         apply: impl FnOnce() -> Result<R, String>,
     ) -> Result<R, String> {
         let index = recover_rwlock_read(&self.index, "automation index");
-        if permits.is_empty()
-            || permits
+        if !execution_chain_current(&index, permits, owner_rules)
+            || !(permits
                 .iter()
-                .any(|permit| !permit.authorizes_action(action) || !permit_current(&index, permit))
+                .any(|permit| permit.authorizes_action(action))
+                || owner_rules
+                    .iter()
+                    .any(|rule| rule.authorizes_action(action)))
         {
             return Err("saved approval definition binding has changed".into());
         }
         apply()
     }
+
+    pub(crate) fn with_current_execution_chain<R>(
+        &self,
+        permits: &[RuntimeApprovalPermit],
+        owner_rules: &[RuntimeOwnerRuleFence],
+        apply: impl FnOnce() -> Result<R, String>,
+    ) -> Result<R, String> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !execution_chain_current(&index, permits, owner_rules) {
+            return Err("inherited saved execution binding has changed".into());
+        }
+        apply()
+    }
+}
+
+fn execution_chain_current(
+    index: &BehaviorIndex,
+    permits: &[RuntimeApprovalPermit],
+    owner_rules: &[RuntimeOwnerRuleFence],
+) -> bool {
+    !permits.is_empty()
+        && permits.iter().all(|permit| permit_current(index, permit))
+        && owner_rules.iter().all(|rule| {
+            std::sync::Arc::ptr_eq(&index.identity, &rule.index_identity)
+                && index.authority_available
+                && index.catalog_epoch == Some(rule.catalog_epoch)
+                && rule
+                    .definitions
+                    .iter()
+                    .all(|fence| fence.authority.is_owner() && fence_current(index, fence))
+        })
 }
 
 pub(super) fn candidate_current(index: &BehaviorIndex, candidate: &ApprovalCandidate) -> bool {
@@ -367,21 +514,16 @@ pub(super) fn candidate_current(index: &BehaviorIndex, candidate: &ApprovalCandi
         return false;
     }
     let approval = &candidate.approval;
-    if index
-        .approvals
-        .get(&(approval.scope.clone(), approval.id.clone()))
-        != Some(approval)
+    if candidate.approval_key.0 != approval.scope
+        || candidate.approval_key.1 != approval.id
+        || index.approvals.get(&candidate.approval_key) != Some(approval)
     {
         return false;
     }
-    candidate.definitions.iter().all(|fence| {
-        capture(index, fence.family, &fence.id).is_some_and(|current| {
-            current.generation == fence.generation
-                && current.revision == fence.revision
-                && current.definition == fence.definition
-                && current.authority == fence.authority
-        })
-    })
+    candidate
+        .definitions
+        .iter()
+        .all(|fence| fence_current(index, fence))
 }
 
 fn permit_current(index: &BehaviorIndex, permit: &RuntimeApprovalPermit) -> bool {

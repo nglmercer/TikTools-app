@@ -191,6 +191,8 @@ impl AppCore {
                 | "core.fetch"
                 | "audio.play"
                 | "core.audio.play"
+                | "core.emit"
+                | "core.code"
         ) {
             self.core_action_guard(action, context)?;
         } else {
@@ -214,6 +216,9 @@ impl AppCore {
                 })
             }
             "core.emit" => {
+                if context.is_approved() {
+                    return self.execute_approved_emit_action(action, config, event, context, logs, test).await;
+                }
                 let event_type = normalize_emit_type(
                     config
                         .get("type")
@@ -289,6 +294,9 @@ impl AppCore {
                 }
             }
             "core.code" => {
+                if context.is_approved() {
+                    return self.execute_approved_script_action(action, config, event, context, logs, test).await;
+                }
                 let source = config
                     .get("source")
                     .and_then(Value::as_str)
@@ -515,6 +523,8 @@ impl AppCore {
                     | "core.fetch"
                     | "audio.play"
                     | "core.audio.play"
+                    | "core.emit"
+                    | "core.code"
             )
         {
             return Err("effect policy is unavailable".into());
@@ -529,14 +539,23 @@ impl AppCore {
             }
             let required = match type_id {
                 "core.fetch" => Some(Capability::HttpRequest),
+                "core.emit" => Some(Capability::EventsEmit),
+                "core.code" => Some(Capability::ScriptsExecute),
                 "audio.play" | "core.audio.play" => Some(Capability::AudioPlay),
                 _ => None,
             };
             if required.is_some_and(|cap| !grant.capabilities.contains(&cap)) {
                 return Err("execution subject lacks the effect capability".into());
             }
+            if type_id == "core.code" && !grant.capabilities.contains(&Capability::LiveRead) {
+                return Err("execution subject cannot read script inputs".into());
+            }
             let config = action.get("config").cloned().unwrap_or_else(|| json!({}));
-            let fields = crate::services::automation_manifest::effect_render_fields(&config)?;
+            let fields = if type_id == "core.code" {
+                Vec::new()
+            } else {
+                crate::services::automation_manifest::effect_render_fields(&config)?
+            };
             if !fields.is_empty() && !grant.capabilities.contains(&Capability::LiveRead) {
                 return Err("execution subject cannot render LIVE fields".into());
             }

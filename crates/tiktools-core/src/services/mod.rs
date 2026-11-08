@@ -32,7 +32,9 @@ pub(crate) mod token_provision;
 
 pub use app_state::AppStateService;
 #[cfg(feature = "persistence")]
-pub(crate) use automation::approval::{ApprovalCandidate, RuntimeApprovalPermit};
+pub(crate) use automation::approval::{
+    ApprovalCandidate, RuntimeApprovalPermit, RuntimeOwnerRuleFence,
+};
 pub use automation::moderation::{
     moderation_penalty_action_record, moderation_penalty_event_record, validate_penalty_points,
     MODERATION_BLOCKED_PATH, MODERATION_POINTS_ACTION_TYPE, MODERATION_VIEWER_TEMPLATE,
@@ -60,3 +62,5 @@ pub(crate) use points::PointsWriteOp;
 pub use points::{AwardOptions, PointAction, PointAward, PointsService, ViewerState};
 pub use points::{PointsDiagnostics, DEFAULT_HOT_VIEWER_CAPACITY};
 pub use script::ScriptService;
+#[cfg(feature = "persistence")]
+pub(crate) use script::SCOPED_SCRIPT_LIMITS;

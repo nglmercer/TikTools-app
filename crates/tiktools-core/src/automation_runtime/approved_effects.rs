@@ -211,9 +211,18 @@ impl AppCore {
                     }
                 })
                 .transpose()?;
-            let fields = crate::services::automation_manifest::effect_render_fields(
+            let mut fields = crate::services::automation_manifest::effect_render_fields(
                 &Value::Object(config.clone()),
             )?;
+            // Opaque script computation cannot erase the provenance of values
+            // by returning them as literals, even across emitted child rules.
+            if context.has_script_flow() {
+                fields.extend(
+                    crate::services::automation_approval_policy::script_http_render_fields(),
+                );
+                fields.sort();
+                fields.dedup();
+            }
             let limit = config
                 .get("maxResponseBytes")
                 .map(|value| {
@@ -361,7 +370,7 @@ impl AppCore {
 }
 
 #[cfg(feature = "persistence")]
-async fn complete_external_effect(
+pub(super) async fn complete_external_effect(
     dispatch: crate::services::effects::EffectDispatch,
     outcome: EffectOutcome,
 ) -> Result<(), String> {

@@ -15,6 +15,11 @@ use std::{
 use rquickjs::{Context, Ctx, Function, Object, Runtime, Value as JsValue};
 use serde_json::Value;
 
+#[cfg(feature = "persistence")]
+mod scoped;
+#[cfg(feature = "persistence")]
+pub(crate) use scoped::SCOPED_SCRIPT_LIMITS;
+
 const MAX_SOURCE_BYTES: usize = 128 * 1024;
 const MAX_JSON_BYTES: usize = 2 * 1024 * 1024;
 /// QuickJS calls the interrupt handler roughly every 10k bytecode ops, so
@@ -36,13 +41,15 @@ impl ScriptService {
         let tripped = Rc::new(Cell::new(false));
         install_budget(&runtime, Rc::clone(&tripped));
         let outcome = context.with(|ctx| {
-            ctx.eval::<JsValue, _>(function).map(|_| ()).map_err(|error| {
-                if tripped.get() {
-                    BUDGET_MESSAGE.to_owned()
-                } else {
-                    describe_error(&ctx, error)
-                }
-            })
+            ctx.eval::<JsValue, _>(function)
+                .map(|_| ())
+                .map_err(|error| {
+                    if tripped.get() {
+                        BUDGET_MESSAGE.to_owned()
+                    } else {
+                        describe_error(&ctx, error)
+                    }
+                })
         });
         drop(context);
         drop(runtime);
@@ -236,7 +243,14 @@ mod tests {
             .unwrap();
         assert_eq!(
             result,
-            json!(["undefined", "undefined", "undefined", "undefined", "undefined", "undefined"])
+            json!([
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined"
+            ])
         );
     }
 

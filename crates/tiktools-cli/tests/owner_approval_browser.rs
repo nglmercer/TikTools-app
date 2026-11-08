@@ -85,6 +85,24 @@ fn event(locale: &str) -> Value {
         "provenance":{"authority":{"kind":"owner"},"generation":"999"}})
 }
 
+fn script_action(locale: &str) -> Value {
+    let source = format!(
+        "if (typeof globals !== 'object' || Object.keys(globals).length || Object.keys(inputs).length) throw new Error('scoped inputs unavailable'); console.log('script-console-{locale}'); return {{log:['script-runtime-{locale}:' + event.user.uniqueId]}};"
+    );
+    json!({"id":format!("script-action-{locale}"),"name":format!("Moderator script action {locale}"),
+        "enabled":false,"typeId":"core.code","config":{"source":source},
+        "source":format!("approval-script-source-{locale}"),
+        "provenance":{"authority":{"kind":"owner"},"generation":"999"}})
+}
+
+fn script_event(locale: &str) -> Value {
+    json!({"id":format!("script-event-{locale}"),"name":format!("Moderator script event {locale}"),
+        "enabled":false,"trigger":"tiktok.chat","filters":[],"cooldownMs":0,"cooldownScope":"global",
+        "runMode":"all","actionIds":[format!("script-action-{locale}")],
+        "source":format!("approval-script-source-{locale}"),
+        "provenance":{"authority":{"kind":"owner"},"generation":"999"}})
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "requires built dist/web, Bun and Playwright Chromium; run explicitly"]
 async fn actual_owner_approval_activation_revocation_and_reload_keep_delegated_authority() {
@@ -132,6 +150,19 @@ async fn actual_owner_approval_activation_revocation_and_reload_keep_delegated_a
             _ => panic!("isolated proposal author was not approved"),
         };
         let remote = RemoteClient::connect(&endpoint, &credentials, ClientKind::Agent).await.unwrap();
+        // Keep this independent author alive when the Spanish original case
+        // revokes its author before Owner revocation. Script execution gets no
+        // points authority, so the original final balance remains unchanged.
+        let script_invitation = rpc(&home, "collaboration.invites.create", json!({"grant":{"capabilities":["automation.read","automation.edit","commands.read","live.read","scripts.execute"]}}), true).await.unwrap();
+        let mut script_pairing = endpoint.begin_pairing(script_invitation["inviteId"].as_str().unwrap(),
+            &SecretString::from(script_invitation["secret"].as_str().unwrap().to_owned()), "Browser scoped script author", ClientKind::Agent).await.unwrap();
+        assert!(rpc(&home, "collaboration.requests.approve", json!({"id":script_pairing.request_id}), false).await.is_some());
+        let script_credentials = match script_pairing.poll().await.unwrap() {
+            PairingPoll::Approved(credentials) => credentials,
+            _ => panic!("isolated script author was not approved"),
+        };
+        assert_ne!(script_credentials.principal_id(), credentials.principal_id());
+        let script_remote = RemoteClient::connect(&endpoint, &script_credentials, ClientKind::Agent).await.unwrap();
         assert!(rpc(&home, "points.adjust", json!({"uniqueId":"alice","delta":0}), false).await.is_some());
         for locale in ["en", "es"] {
             assert!(rpc(&home,"automation.create",json!({"kind":"action","record":{"id":format!("owner-{locale}"),"name":format!("Owner action {locale}"),"enabled":false,"typeId":"core.log","config":{"message":"owner-only-source"}}}),false).await.is_some());
@@ -146,6 +177,18 @@ async fn actual_owner_approval_activation_revocation_and_reload_keep_delegated_a
                 assert_eq!(trusted["provenance"]["authority"]["kind"], "delegated");
                 assert_eq!(trusted["provenance"]["authority"]["principalId"], credentials.principal_id());
                 assert_eq!(trusted["provenance"]["authority"]["sessionId"], credentials.session_id());
+            }
+            for (kind, record) in [("action", script_action(locale)), ("event", script_event(locale))] {
+                let id = record["id"].as_str().unwrap().to_owned();
+                let created = script_remote.call_value_with_meta("automation.create", json!({"kind":kind,"record":record}), Some(tiktools_client::RequestMetadata {
+                    command_id: Some(format!("script-fixture-{kind}-{id}")), host_instance_id: Some(script_remote.hello().host_instance_id.clone()), expected_revision: Some("0".into()),
+                })).await.unwrap();
+                assert_eq!(created.result, json!({"kind":kind,"id":id,"enabled":false,"pendingReview":true}));
+                assert_eq!(created.meta.unwrap().resource_versions[0].revision, "1");
+                let trusted = rpc(&home,"automation.review",json!({"kind":kind,"id":id}),false).await.unwrap();
+                assert_eq!(trusted["provenance"]["authority"]["kind"],"delegated");
+                assert_eq!(trusted["provenance"]["authority"]["principalId"],script_credentials.principal_id());
+                assert_eq!(trusted["provenance"]["authority"]["sessionId"],script_credentials.session_id());
             }
         }
         let owner_url = format!("http://127.0.0.1:{web_port}");
@@ -163,8 +206,10 @@ async fn actual_owner_approval_activation_revocation_and_reload_keep_delegated_a
         assert!(output.status.success(), "owner approval browser failed:\n{}\n{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
         let journal = rpc(&home, "automation.approval.get", json!({}), false).await.unwrap();
         assert!(journal["pending"].is_null());
-        assert_eq!(journal["recent"].as_array().unwrap().len(), 4);
+        assert_eq!(journal["recent"].as_array().unwrap().len(), 8);
         assert!(!journal.to_string().contains("approval-source-"));
+        assert!(!journal.to_string().contains("approval-script-source-"));
+        assert!(!journal.to_string().contains("script-runtime-"));
         for locale in ["en", "es"] {
             let review = rpc(&home, "automation.approval.review", json!({"kind":"event","id":format!("proposal-{locale}")}), false).await.unwrap();
             assert_eq!(review["approval"]["state"], "revoked");
@@ -176,10 +221,30 @@ async fn actual_owner_approval_activation_revocation_and_reload_keep_delegated_a
             assert_eq!(review["source"]["dependencies"][1]["record"]["enabled"], false);
             assert_eq!(review["source"]["dependencies"][2]["record"]["enabled"], false);
             assert_eq!(review["source"]["dependencies"][2]["provenance"]["authority"]["kind"], "owner");
+            let script_review = rpc(&home,"automation.approval.review",json!({"kind":"event","id":format!("script-event-{locale}")}),false).await.unwrap();
+            assert_eq!(script_review["approval"]["state"],"revoked");
+            assert_eq!(script_review["approval"]["current"],false);
+            assert_eq!(script_review["source"]["record"]["enabled"],true);
+            assert_eq!(script_review["source"]["provenance"]["authority"]["principalId"],script_credentials.principal_id());
+            assert_eq!(script_review["source"]["dependencies"][0]["record"]["id"],format!("script-action-{locale}"));
+            assert_eq!(script_review["source"]["dependencies"][0]["record"]["enabled"],true);
+            assert_eq!(script_review["source"]["dependencies"][0]["record"]["typeId"],"core.code");
+            assert_eq!(script_review["source"]["dependencies"][0]["record"]["config"],script_action(locale)["config"]);
+            assert_eq!(script_review["source"]["dependencies"][0]["provenance"]["authority"]["kind"],"delegated");
+        }
+        let runs=rpc(&home,"automation.runs",json!({}),false).await.unwrap();
+        for locale in ["en","es"] {
+            let script_runs=runs["runs"].as_array().unwrap().iter().filter(|run|run["actionId"]==format!("script-action-{locale}")).collect::<Vec<_>>();
+            assert_eq!(script_runs.len(),1);
+            assert_eq!(script_runs[0]["status"],"ok");
+            assert_eq!(script_runs[0]["eventId"],format!("script-event-{locale}"));
+            assert!(script_runs[0]["logs"].as_array().unwrap().contains(&json!(format!("script-runtime-{locale}:alice"))));
+            assert!(script_runs[0]["logs"].as_array().unwrap().contains(&json!(format!("script-console-{locale}"))));
         }
         assert_eq!(rpc(&home,"points.viewer.get",json!({"uniqueId":"alice"}),false).await.unwrap()["viewer"]["points"], 4.0);
         assert!(host.try_wait().unwrap().is_none());
         remote.close();
+        script_remote.close();
         let _ = web.kill().await; let _ = web.wait().await;
         let _ = rpc(&home, "system.shutdown", json!({}), false).await;
         let _ = host.kill().await; let _ = host.wait().await;

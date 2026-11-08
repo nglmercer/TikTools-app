@@ -5,10 +5,11 @@ Status: **partial implementation, locally tested**. The host now has
 durable approval/activation/revocation, API/SDK contracts and a closed core
 execution policy. The native owner approval coordinator and Owner UI are now
 implemented and locally verified through the packaged browser/IPC/Core path.
-Scoped HTTP/audio sinks and metadata-only external-effect recovery are now
-implemented; verification for this slice is recorded in the validation document.
-Plugin execution, scoped emitted responses/scripts and full collaboration
-acceptance remain pending.
+Scoped HTTP/audio sinks, exact-topic emits, bounded scripts and metadata-only
+external-effect recovery are implemented. Approved custom-topic rules accept
+only already approved scoped input. Verification is recorded separately in the
+validation document. Delegated plugin execution, HTTP response emission and
+full collaboration acceptance remain pending.
 The [automation specification](LIVE-COLLABORATION-AUTOMATION.md)
 and [full collaboration contract](LIVE-COLLABORATION-SPEC.md) remain authoritative.
 
@@ -147,12 +148,14 @@ storage contains neither source nor pending command identities.
 
 ## Implemented core execution policy
 
-Private policy `core-log-delay-points-http-audio-v2` admits exact saved
+Private policy `core-log-delay-points-http-audio-emit-script-v3` admits exact saved
 `core.log`, `core.delay`, `core.points`, `core.points.subtract`, `core.fetch`,
-`audio.play` and `core.audio.play` definitions. Every referenced action,
+`audio.play`, `core.audio.play`, `core.emit` and `core.code` definitions. Every referenced action,
 including disabled and random-unselected actions, must satisfy the policy.
-Missing dependencies, scripts, arbitrary emits, HTTP response emission and
-plugin actions still reject approval. Existing approvals bound to the earlier
+Missing dependencies, forbidden topics or fields, HTTP response emission and
+plugin actions still reject approval. Opaque-script review applies only to the
+exact saved `core.code` source and never adds a returned effect's permissions.
+Existing approvals bound to an earlier
 private policy require a fresh saved-source review and activation; updating
 code never silently upgrades an approval.
 
@@ -164,8 +167,8 @@ are removed. Whole-object fields and globals cannot be approved. The exact
 allowlist lives in
 [the private host policy](../crates/tiktools-core/src/services/automation_approval_policy.rs).
 Delegated rendering checks byte limits before allocating expanded output:
-8 KiB URL/header values, 256 KiB HTTP body, 4 KiB audio path, 64 KiB log and
-256-byte points viewer. These limits are part of the private approval binding;
+8 KiB URL/header values, 256 KiB HTTP body, 4 KiB audio path, 64 KiB log,
+64 KiB emitted JSON and 256-byte points viewer. These limits are part of the private approval binding;
 repeated public template spans cannot create unbounded intermediate strings.
 Delegated rendering always uses empty globals. Event-trigger approval also
 requires `live.read`, even for a literal log action.
@@ -379,8 +382,9 @@ The Grant JSON retains its original five fields when no external scopes exist.
 A nonempty optional sixth `effects` field contains closed `http`, `audio` and
 `emitTopics` collections. New capabilities are `http.request`, `audio.play`,
 `events.emit` and `scripts.execute`. A capability alone grants no destination
-or file. Emit/script schemas are available for permission editing, while those
-runtime policies remain unavailable in this slice. Limits and validation live
+or file. Emit topics require `events.emit` and an exact normalized topic from
+every retained subject; scripts require `scripts.execute` plus `live.read`.
+Limits and validation live
 in [the typed grant policy](../crates/tiktools-collaboration/src/effects.rs).
 
 HTTP requires one complete rule from **each** retained execution subject;
@@ -402,8 +406,9 @@ request client with proxies and redirects disabled. It rechecks the exact
 approval, all current grants/configuration revisions and deadlines after DNS
 and through the durable dispatch commit. Replies expose status/duration only;
 response bodies, destination queries and transport errors are not placed in
-scoped run output. Nonempty `emitResponseAs` remains unavailable until scoped
-emitted-event execution is implemented.
+scoped run output. Nonempty `emitResponseAs` remains unavailable: HTTP response
+read/flow authorization needs a separate policy, even though ordinary scoped
+emit execution is now supported.
 
 Audio rules bind exact canonical file paths, output `host-default`, a finite
 maximum volume from zero to one and explicit `allow`/`restart`/`drop` overlap
@@ -414,6 +419,47 @@ permissions**, not sealed file-content or inode grants: local replacement of an
 authorized path is outside this contract. Owner audio behavior remains on its
 existing local path.
 
+Approved emits use a separate publication path. Nested payload strings are
+inventoried at review and rendered under byte/depth/node limits. Every sink
+checks all current subjects' exact topic grants, commits its durable handoff,
+and publishes a private child envelope. The payload is reprojected to the closed
+public event fields before local presentation and scoped rule matching. It
+never enters executable plugin/domain observers, enrichment processors or Owner
+test-preview memory. Typed child depth and all ancestor approvals survive.
+
+A delegated event with a non-`tiktok.*` trigger must store an exact lowercase
+normalized topic and every subject must retain `events.emit` for that topic.
+Its approval is valid only for an already approved incoming context. Owner or
+plugin-origin input cannot start it. An Owner-authored downstream rule retains
+the incoming subjects and a private fence over its complete saved closure;
+every referenced event/action resource and final points delta or effect must
+still fit every inherited grant. The Owner review UI labels this input condition.
+
+Approved scripts run in a separate blocking worker using a fresh QuickJS
+runtime, the public event projection and empty inputs/host globals. There are
+no host I/O APIs. Console output is captured with returned logs rather than
+traced through an Owner callback. The scoped evaluator bounds source to 128 KiB,
+result to 256 KiB, JSON depth to 32, nodes to 8192 and total effect intents to
+64. It permits at most 40 log entries, each at most 4096 bytes, within a 64 KiB
+aggregate log budget. VM limits are 64 MiB memory, 512 KiB stack, five seconds,
+2000 interrupts and 2000 pending jobs. The host admits at most four concurrent
+delegated VM evaluations, with no queued backlog. Saturation rejects before VM
+allocation or a Script receipt. The owned blocking worker retains its admission
+permit through VM unwind, including when the awaiting caller is cancelled.
+Current authorization/cancellation is
+checked before, during and after evaluation, and each returned effect is
+separately reauthorized at its final sink. These actual evaluator limits are
+part of the private approval binding.
+
+An opaque script can turn public input into apparent literals. Therefore every
+HTTP request derived from a script must authorize **all 18 public input fields**
+in one complete HTTP rule from each subject, regardless of which fields were
+present or apparently used. A private script-flow marker is monotone through
+child events and context intersections; emitting and triggering another rule
+cannot erase it. Script capability never substitutes for HTTP, audio, topic,
+viewer, amount or plugin permissions. The binding records this conservative
+flow policy explicitly.
+
 Only approved delegated external sinks use the private durable effect journal.
 Trusted native ingress derives its root from the actual creator/room/method/
 canonical event kind/upstream message ID, never editable JSON `event.id`.
@@ -423,6 +469,15 @@ ID and the occurrence among repeated references select stable child slots;
 reordering unrelated actions never creates a new identity for old work.
 Changing source or rendered request under an existing identity is a conflict,
 not permission to dispatch again.
+
+Before dispatching any returned script intent, the host reserves a Script
+handoff bound to the complete bounded evaluated input/result; only digests and
+receipt metadata are persisted. Every retained Script
+state refuses **all** returned effects, including when reevaluation would change
+their order or count. This prevents moving earlier work to a fresh child slot.
+Per-category stable child slots identify emitted, HTTP and audio intents.
+The binding records `retained-invocations-never-reemit-intents-v1`; no receipt
+authorizes resuming a partially executed plan automatically.
 
 A fresh effect commits `accepted`, then rechecks authority through a durable
 `dispatched` transition before handing work to the sink. SQLite admission and
@@ -440,11 +495,17 @@ Owner-only reads `automation.effects.get` (`effectId`) and
 `automation.effects.history` (`before`, `limit` from 1 to 100) expose only opaque
 identity, kind, state, timestamps and expiry metadata. They are explicitly denied
 to remote callers and accept no command metadata. There is no retry/replay RPC.
+The closed receipt-kind set is `http`, `audio`, `plugin`, `emit` and `script`;
+the plugin kind does not make delegated plugin invocation available. The host
+migrates the earlier three-kind table constraint while retaining identities,
+states and deduplication tombstones.
 Recovery is initialized once at host startup; failed journal recovery blocks
 receipt reads and new effect admission. No request bodies, URLs, media paths,
 plugin settings, credentials, response bodies or raw errors enter this journal.
 See [runtime handoff](../crates/tiktools-core/src/automation_runtime/external_effects.rs),
-[HTTP/audio sinks](../crates/tiktools-core/src/automation_runtime/approved_effects.rs)
+[HTTP/audio sinks](../crates/tiktools-core/src/automation_runtime/approved_effects.rs),
+[scoped emit/script sinks](../crates/tiktools-core/src/automation_runtime/approved_flow.rs),
+[bounded scoped evaluator](../crates/tiktools-core/src/services/script/scoped.rs)
 and [durable storage](../crates/tiktools-core/src/db/sqlite/effects.rs).
 
 Plugin package/settings binding and one-shot protocol isolation are groundwork:

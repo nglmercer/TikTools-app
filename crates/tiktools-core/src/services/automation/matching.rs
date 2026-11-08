@@ -12,6 +12,16 @@ impl AutomationService {
             .collect()
     }
     pub(crate) fn matching_records(&self, event: &Value) -> Vec<MatchedRecord> {
+        self.matching_records_for_input(event, false)
+    }
+    #[cfg(feature = "persistence")]
+    pub(crate) fn matching_records_scoped(&self, event: &Value) -> Vec<MatchedRecord> {
+        self.matching_records_for_input(
+            &crate::services::automation_approval_policy::project_event(event),
+            true,
+        )
+    }
+    fn matching_records_for_input(&self, event: &Value, scoped: bool) -> Vec<MatchedRecord> {
         let index = recover_rwlock_read(&self.index, "automation index");
         let Some(catalog_epoch) = index.catalog_epoch else {
             return Vec::new();
@@ -30,6 +40,8 @@ impl AutomationService {
                         &index.enabled_plugins,
                     )
                     && record_authorized(&index, &r.definition)
+                    && input_source_allowed(&index, &r.definition, scoped)
+                    && (!scoped || public_filter_paths(&r.definition))
                     && record_event_matches(&index, &r.definition, event)
             })
             .map(|r| MatchedRecord {
@@ -194,6 +206,54 @@ impl AutomationService {
             .and_then(number_u64)
             .unwrap_or_default()
     }
+}
+
+fn input_source_allowed(index: &BehaviorIndex, record: &Value, scoped: bool) -> bool {
+    #[cfg(feature = "persistence")]
+    return scoped
+        || record_approval(index, record).is_none_or(|approval| !approval.requires_scoped_input());
+    #[cfg(not(feature = "persistence"))]
+    {
+        let _ = (index, record);
+        !scoped
+    }
+}
+
+/// Reject private/unknown filter paths before evaluating even negative or
+/// absence predicates. Scoped input cannot cause an Owner rule to inspect
+/// arbitrary fields by selecting a permissive operator.
+pub(crate) fn public_filter_paths(record: &Value) -> bool {
+    let Some(filters) = record.get("filters") else {
+        return true;
+    };
+    let Some(filters) = filters.as_array() else {
+        return false;
+    };
+    filters.len() <= 256
+        && filters.iter().all(|filter| {
+            let Some(raw) = filter.get("path").and_then(Value::as_str) else {
+                return false;
+            };
+            if raw.len() > 256 {
+                return false;
+            }
+            let raw = raw
+                .trim()
+                .trim_start_matches("{{")
+                .trim_end_matches("}}")
+                .trim();
+            let path = raw.strip_prefix("event.").unwrap_or(raw);
+            let path = path.strip_prefix("event").unwrap_or(path);
+            let parts = path
+                .trim_matches('.')
+                .split('.')
+                .filter(|part| !part.is_empty())
+                .collect::<Vec<_>>();
+            !parts.is_empty()
+                && !parts[0].starts_with("event")
+                && crate::collaboration::PUBLIC_EFFECT_RENDER_FIELDS
+                    .contains(&format!("event.{}", parts.join(".")).as_str())
+        })
 }
 fn record_allowed(index: &BehaviorIndex, record: &Value) -> bool {
     record_authorized(index, record)

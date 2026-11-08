@@ -247,7 +247,8 @@ and family/version/dependency/subject relationships. See the
 Owner-only `automation.effects.get {effectId}` and
 `automation.effects.history {before:null|effectId,limit:1..100}` inspect bounded
 metadata-only external-effect receipts. Results expose opaque identity, effect
-kind, accepted/dispatched/succeeded/failed/unknown state, timestamps and expiry.
+kind (`http`, `audio`, `plugin`, `emit` or `script`),
+accepted/dispatched/succeeded/failed/unknown state, timestamps and expiry.
 They contain no request, destination, file path, settings or response data.
 All remote sessions are denied at ingress and egress, including all-capability
 sessions. Caller command metadata is rejected. Retained/expired/unknown effects

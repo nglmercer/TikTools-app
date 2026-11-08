@@ -69,12 +69,13 @@ fn receipt(value: &Value) -> Result<EffectReceipt, ClientError> {
         .as_u64()
         .filter(|time| *time >= accepted && *time <= 9_007_199_254_740_991)
         .ok_or_else(protocol)?;
-    if !matches!(row["kind"].as_str(), Some("http" | "audio" | "plugin"))
-        || !matches!(
-            row["state"].as_str(),
-            Some("accepted" | "dispatched" | "succeeded" | "failed" | "unknown")
-        )
-        || row["outcomeExpired"].as_bool().is_none()
+    if !matches!(
+        row["kind"].as_str(),
+        Some("http" | "audio" | "plugin" | "emit" | "script")
+    ) || !matches!(
+        row["state"].as_str(),
+        Some("accepted" | "dispatched" | "succeeded" | "failed" | "unknown")
+    ) || row["outcomeExpired"].as_bool().is_none()
         || (row["outcomeExpired"] == true && row["state"] != "unknown")
     {
         return Err(protocol());

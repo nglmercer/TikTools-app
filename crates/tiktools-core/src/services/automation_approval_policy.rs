@@ -17,7 +17,9 @@ pub(crate) fn bindings(
     if manifest.reasons.iter().any(|reason| {
         !matches!(
             reason,
-            ManifestReason::ApprovalRequired | ManifestReason::DynamicTarget
+            ManifestReason::ApprovalRequired
+                | ManifestReason::DynamicTarget
+                | ManifestReason::OpaqueScript
         )
     }) {
         return Err("saved execution closure does not satisfy the approval policy".into());
@@ -30,10 +32,12 @@ pub(crate) fn bindings(
                 | EffectKind::Points
                 | EffectKind::Http
                 | EffectKind::Audio
+                | EffectKind::Emit
+                | EffectKind::Script
         ) || effect.dynamic_target
             && !matches!(
                 effect.kind,
-                EffectKind::Points | EffectKind::Http | EffectKind::Audio
+                EffectKind::Points | EffectKind::Http | EffectKind::Audio | EffectKind::Script
             )
             || effect
                 .render_fields
@@ -43,11 +47,33 @@ pub(crate) fn bindings(
                 !matches!(
                     reason,
                     ManifestReason::ApprovalRequired | ManifestReason::DynamicTarget
-                )
+                ) && !(*reason == ManifestReason::OpaqueScript && effect.kind == EffectKind::Script)
             })
+            || effect.kind == EffectKind::Script
+                && (effect.type_id.as_deref() != Some("core.code")
+                    || !effect.reasons.contains(&ManifestReason::OpaqueScript)
+                    || !effect
+                        .required_capabilities
+                        .contains(&crate::collaboration::Capability::ScriptsExecute)
+                    || !effect
+                        .required_capabilities
+                        .contains(&crate::collaboration::Capability::LiveRead))
+            || effect.kind == EffectKind::Emit
+                && (effect.type_id.as_deref() != Some("core.emit")
+                    || !effect
+                        .required_capabilities
+                        .contains(&crate::collaboration::Capability::EventsEmit))
         {
             return Err("effect or rendered field has no delegated execution policy".into());
         }
+    }
+    if manifest.reasons.contains(&ManifestReason::OpaqueScript)
+        && !manifest.effects.iter().any(|effect| {
+            effect.kind == EffectKind::Script
+                && effect.reasons.contains(&ManifestReason::OpaqueScript)
+        })
+    {
+        return Err("opaque script review is not bound to an exact script effect".into());
     }
     let configurations: Vec<_> = identities
         .iter()
@@ -58,19 +84,49 @@ pub(crate) fn bindings(
             })
         })
         .collect();
+    let script_limits = crate::services::SCOPED_SCRIPT_LIMITS;
     Ok(json!({
         "policyVersion":1,
-        "effectPolicy":"core-log-delay-points-http-audio-v2",
+        "effectPolicy":"core-log-delay-points-http-audio-emit-script-v3",
         "renderPolicy":"public-live-scalars-bounded-v2",
         "publicFields":PUBLIC_FIELDS,
         "globals":false,
         "renderLimits":{
             "urlBytes":8192,"headerValueBytes":8192,"bodyBytes":262144,
-            "audioPathBytes":4096,"logBytes":65536,"pointsViewerBytes":256
+            "audioPathBytes":4096,"logBytes":65536,"pointsViewerBytes":256,
+            "emitPayloadBytes":65536
+        },
+        "emitPolicy":"current-all-subjects-exact-normalized-topic-v1",
+        "derivedAuthorityPolicy":"private-context-preserved-v1",
+        "triggerPolicy":"tiktok-or-approved-scoped-input-v1",
+        "customTriggerAdmission":"approved-incoming-context-only-v1",
+        "scriptPolicy":"exact-source-public-input-empty-globals-per-intent-v1",
+        "scriptHttpFlowPolicy":"all-public-input-fields-v1",
+        "scriptHandoffPolicy":"retained-invocations-never-reemit-intents-v1",
+        "scriptHttpRenderFields":PUBLIC_FIELDS,
+        "scriptLimits":{
+            "sourceBytes":script_limits.source_bytes,"resultBytes":script_limits.result_bytes,
+            "maxDepth":script_limits.max_depth,"maxNodes":script_limits.max_nodes,
+            "totalIntents":script_limits.max_intents,"logBytes":script_limits.max_log_bytes,
+            "individualLogBytes":script_limits.max_log_entry_bytes,"logEntries":script_limits.max_log_entries,
+            "memoryBytes":script_limits.memory_bytes,"stackBytes":script_limits.stack_bytes,
+            "wallClockMs":script_limits.wall_clock_ms,"interrupts":script_limits.max_interrupts,
+            "pendingJobs":script_limits.max_pending_jobs,
+            "maxConcurrentEvaluations":script_limits.max_concurrent_evaluations
         },
         "configurations":configurations,
         "viewerAdmission":"current-all-subjects-exact-viewer-and-delta-v1"
     }))
+}
+
+/// Opaque scripts may turn any projected input into an apparent literal. Keep
+/// this complete conservative flow set on every descendant HTTP sink, even
+/// after nested emits, so template syntax cannot launder event-derived data.
+pub(crate) fn script_http_render_fields() -> Vec<String> {
+    PUBLIC_FIELDS
+        .iter()
+        .map(|field| (*field).to_owned())
+        .collect()
 }
 
 /// Render delegated templates without building an unbounded expansion. Event
@@ -206,6 +262,187 @@ pub(crate) fn project_event(event: &Value) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::collaboration::{AutomationFamily, Capability, Grant, HttpEffectRequest};
+    use crate::services::automation_manifest::{DefinitionBinding, EffectDecision, ManifestEffect};
+
+    fn manifest(kind: EffectKind) -> ExecutionManifest {
+        let script = kind == EffectKind::Script;
+        ExecutionManifest {
+            policy_version: 1,
+            digest_algorithm: "sha256-canonical-json-v1",
+            host_id: "host".into(),
+            subjects: vec![],
+            primary: DefinitionBinding {
+                kind: AutomationFamily::Action,
+                id: "saved".into(),
+                revision: "1".into(),
+                exists: true,
+                content_digest: Some("a".repeat(64)),
+                provenance: None,
+            },
+            dependencies: vec![],
+            effects: vec![ManifestEffect {
+                family: AutomationFamily::Action,
+                id: "saved".into(),
+                type_id: Some(
+                    if script {
+                        "core.code"
+                    } else if kind == EffectKind::Emit {
+                        "core.emit"
+                    } else {
+                        "core.log"
+                    }
+                    .into(),
+                ),
+                kind,
+                enabled: Some(true),
+                decision: if script {
+                    EffectDecision::ReviewRequired
+                } else {
+                    EffectDecision::Classified
+                },
+                render_fields: vec![],
+                dynamic_target: script,
+                required_capabilities: if script {
+                    vec![Capability::ScriptsExecute, Capability::LiveRead]
+                } else if kind == EffectKind::Emit {
+                    vec![Capability::EventsEmit]
+                } else {
+                    vec![]
+                },
+                reasons: if script {
+                    vec![ManifestReason::OpaqueScript]
+                } else {
+                    vec![]
+                },
+            }],
+            reasons: if script {
+                vec![
+                    ManifestReason::ApprovalRequired,
+                    ManifestReason::OpaqueScript,
+                ]
+            } else {
+                vec![ManifestReason::ApprovalRequired]
+            },
+            execution_authorized: false,
+            manifest_digest: "b".repeat(64),
+        }
+    }
+
+    #[test]
+    fn v3_binds_scoped_trigger_script_flow_and_actual_evaluator_limits() {
+        let binding = bindings(&manifest(EffectKind::Script), &[]).unwrap();
+        assert_eq!(
+            binding["effectPolicy"],
+            "core-log-delay-points-http-audio-emit-script-v3"
+        );
+        assert_eq!(
+            binding["triggerPolicy"],
+            "tiktok-or-approved-scoped-input-v1"
+        );
+        assert_eq!(
+            binding["customTriggerAdmission"],
+            "approved-incoming-context-only-v1"
+        );
+        assert_eq!(
+            binding["scriptHttpFlowPolicy"],
+            "all-public-input-fields-v1"
+        );
+        assert_eq!(
+            binding["scriptHandoffPolicy"],
+            "retained-invocations-never-reemit-intents-v1"
+        );
+        assert_eq!(binding["scriptHttpRenderFields"], json!(PUBLIC_FIELDS));
+        assert_eq!(
+            binding["scriptLimits"]["sourceBytes"],
+            crate::services::SCOPED_SCRIPT_LIMITS.source_bytes
+        );
+        assert_eq!(
+            binding["scriptLimits"]["resultBytes"],
+            crate::services::SCOPED_SCRIPT_LIMITS.result_bytes
+        );
+        assert_eq!(
+            binding["scriptLimits"]["pendingJobs"],
+            crate::services::SCOPED_SCRIPT_LIMITS.max_pending_jobs
+        );
+        assert_eq!(
+            binding["scriptLimits"]["maxConcurrentEvaluations"],
+            crate::services::SCOPED_SCRIPT_LIMITS.max_concurrent_evaluations
+        );
+        // Adding an actual engine/admission limit requires its policy pin.
+        assert_eq!(
+            binding["scriptLimits"].as_object().unwrap().len(),
+            serde_json::to_value(crate::services::SCOPED_SCRIPT_LIMITS)
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .len()
+        );
+        assert_eq!(binding["renderLimits"]["emitPayloadBytes"], 65536);
+        assert!(!manifest(EffectKind::Script).execution_authorized);
+        assert!(bindings(&manifest(EffectKind::Emit), &[]).is_ok());
+    }
+
+    #[test]
+    fn opaque_source_review_cannot_admit_other_effects_fields_or_missing_capabilities() {
+        let mut wrong = manifest(EffectKind::Log);
+        wrong.effects[0].reasons.push(ManifestReason::OpaqueScript);
+        wrong.reasons.push(ManifestReason::OpaqueScript);
+        assert!(bindings(&wrong, &[]).is_err());
+        let mut missing = manifest(EffectKind::Script);
+        missing.effects[0]
+            .required_capabilities
+            .retain(|cap| *cap != Capability::ScriptsExecute);
+        assert!(bindings(&missing, &[]).is_err());
+        let mut private = manifest(EffectKind::Script);
+        private.effects[0]
+            .render_fields
+            .push("event.settings.secret".into());
+        assert!(bindings(&private, &[]).is_err());
+        let mut global = manifest(EffectKind::Script);
+        global
+            .reasons
+            .push(ManifestReason::GlobalAccessRequiresPolicy);
+        assert!(bindings(&global, &[]).is_err());
+        let mut plugin = manifest(EffectKind::Script);
+        plugin.effects[0].kind = EffectKind::Plugin;
+        assert!(bindings(&plugin, &[]).is_err());
+        let mut wrong_type = manifest(EffectKind::Script);
+        wrong_type.effects[0].type_id = Some("untrusted.script".into());
+        assert!(bindings(&wrong_type, &[]).is_err());
+        let mut unbound = manifest(EffectKind::Log);
+        unbound.reasons.push(ManifestReason::OpaqueScript);
+        assert!(bindings(&unbound, &[]).is_err());
+    }
+
+    #[test]
+    fn script_literal_outputs_retain_all_public_input_fields_for_one_complete_http_rule() {
+        let mut grant: Grant = serde_json::from_value(json!({
+            "capabilities":["http.request","live.read","scripts.execute"],"resources":{},"settingsFields":{},"actions":{},"maxPointsDelta":null,
+            "effects":{"http":[{"origin":"https://hooks.example","methods":["POST"],"paths":["/live"],"queryFields":[],"headerNames":[],"renderFields":[],"bodyFields":["message"],"allowTextBody":false,"maxBodyBytes":1024,"maxResponseBytes":1024,"allowPrivateNetwork":false}],"audio":[],"emitTopics":[]}
+        })).unwrap();
+        let flow = script_http_render_fields();
+        let request = HttpEffectRequest {
+            method: "POST",
+            url: "https://hooks.example/live",
+            header_names: &[],
+            render_fields: &flow,
+            body: Some(r#"{"message":"apparent literal from opaque script"}"#),
+            response_limit: 1024,
+            allow_private_network: false,
+        };
+        assert_eq!(flow.len(), PUBLIC_FIELDS.len());
+        assert!(!grant.allows_http_effect(&request));
+        let mut other = grant.effects.http[0].clone();
+        grant.effects.http[0].render_fields = flow[..9].iter().cloned().collect();
+        other.render_fields = flow[9..].iter().cloned().collect();
+        grant.effects.http.push(other);
+        assert!(!grant.allows_http_effect(&request));
+        grant.effects.http[0].render_fields = flow.iter().cloned().collect();
+        assert!(grant.allows_http_effect(&request));
+        grant.capabilities.remove(&Capability::HttpRequest);
+        assert!(!grant.allows_http_effect(&request));
+    }
     #[test]
     fn projection_is_closed_and_scalar_even_for_public_named_objects() {
         let event = json!({"id":"e","type":"tiktok.chat","user":{"uniqueId":"alice","token":"secret"},"data":{"comment":{"secret":"no"},"count":2,"plugin":{"token":"no"}},"globals":{"secret":"no"},"authority":{"kind":"owner"}});

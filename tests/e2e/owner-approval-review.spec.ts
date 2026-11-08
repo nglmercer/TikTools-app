@@ -16,6 +16,7 @@ const binary = process.env['TIKTOOLS_OWNER_APPROVAL_BINARY'];
 const shots = '/home/meme/.cache/tiktools-test-runs';
 type Json = Record<string, unknown>;
 interface SentRequest { method: string; params: Json; meta?: unknown }
+interface AutomationRun { id: string; actionId: string; eventId: string; status: string; logs: string[]; test: boolean }
 type Review = Pick<CapturedApprovalReview, 'source' | 'manifest' | 'subjects' | 'approval' | 'eligibility' | 'hostId' | 'hostInstanceId'> & { kind: 'action' | 'event'; id: string };
 // The local adapter's pairing code is one-use. Share its isolated test cookie
 // in this worker's memory only; never persist credentials to a storage file.
@@ -46,7 +47,7 @@ async function openReview(page: Page): Promise<Locator> {
 }
 async function noBrowserJournal(page: Page, locale: string, commands: string[]): Promise<void> {
   const storage = await page.evaluate(() => JSON.stringify({ local: Object.entries(localStorage), session: Object.entries(sessionStorage) }));
-  for (const forbidden of ['owner-approval-', `approval-source-${locale}`, `approval-script-${locale}`, `Unsaved approval draft ${locale}`, ...commands]) {
+  for (const forbidden of ['owner-approval-', `approval-source-${locale}`, `approval-script-${locale}`, `approval-script-source-${locale}`, `script-runtime-${locale}`, `script-console-${locale}`, `Unsaved approval draft ${locale}`, ...commands]) {
     expect(storage).not.toContain(forbidden);
   }
 }
@@ -61,6 +62,29 @@ async function balance(): Promise<number> {
 }
 async function fire(): Promise<void> {
   await rpc('automation.fire', { trigger: 'tiktok.chat', event: { user: { uniqueId: 'alice' }, data: { comment: 'Explicit isolated approval fixture' } } });
+}
+async function scriptRuns(actionId: string): Promise<AutomationRun[]> {
+  return (await rpc<{ runs: AutomationRun[] }>('automation.runs')).runs.filter((run) => run.actionId === actionId && !run.test);
+}
+async function completedSubmission(request: SentRequest): Promise<ApprovalState> {
+  let settled: ApprovalState | undefined;
+  // Historical successes belong to earlier commands. Wait for the exact
+  // submitted transition to become a native terminal receipt, not for text
+  // already visible in the journal or an older operation of the same kind.
+  await expect.poll(async () => {
+    settled = await rpc<ApprovalState>('automation.approval.get');
+    const record = settled.recent.find((entry) => entry.intent.kind === request.params['kind'] &&
+      entry.intent.id === request.params['id'] && entry.intent.operation === request.params['operation'] &&
+      entry.intent.expectedRevision === request.params['expectedRevision'] &&
+      entry.intent.hostInstanceId === request.params['hostInstanceId']);
+    return { outcome: record?.outcome ?? null, pending: settled.pending !== null };
+  }).toEqual({ outcome: 'succeeded', pending: false });
+  return settled!;
+}
+async function closeReview(page: Page, view: Locator, locale: 'en' | 'es'): Promise<void> {
+  await view.locator('.base-dialog__footer').getByRole('button', { name: locale === 'es' ? 'Cerrar' : 'Close', exact: true }).click();
+  const sheet = page.locator('.automations-page__sheet');
+  if (await sheet.isVisible()) await sheet.getByRole('button', { name: locale === 'es' ? 'Atrás' : 'Back', exact: true }).click();
 }
 
 for (const locale of ['en', 'es'] as const) {
@@ -124,12 +148,13 @@ for (const locale of ['en', 'es'] as const) {
     await view.locator('.base-dialog__body').evaluate((body) => { body.scrollTop = 0; });
     await view.screenshot({ path: `${shots}/owner-approval-${locale}-review.png` });
     await view.getByTestId('approval-submit').click();
-    await expect(view.getByTestId('approval-journal')).toContainText(words.succeeded);
-    const state = await rpc<ApprovalState>('automation.approval.get');
+    await expect.poll(() => sent.length).toBe(1);
+    const request = sent[0]!;
+    const state = await completedSubmission(request);
     const activation = state.recent.find((entry) => entry.intent.id === id && entry.intent.operation === 'activate')!;
     expect(activation.outcome).toBe('succeeded');
     expect(state.pending).toBeNull();
-    const request = sent[0]!;
+    await expect(view.getByTestId('approval-journal').getByRole('listitem').filter({ hasText: activation.intent.commandId })).toContainText(words.succeeded);
     expect(request.meta).toBeUndefined();
     expect(Object.keys(request.params).sort()).toEqual(['operation', 'kind', 'id', 'expectedRevision', 'hostId', 'hostInstanceId', 'reviewedVersions', 'manifestDigest', 'enablePlan', 'acknowledgeEffects'].sort());
     expect(request.params['enablePlan']).toEqual([{ kind: 'event', id, enabled: true }, { kind: 'action', id, enabled: true }]);
@@ -182,7 +207,11 @@ for (const locale of ['en', 'es'] as const) {
     }
     await view.getByTestId('approval-revoke-acknowledge').check();
     await view.getByTestId('approval-revoke').click();
-    await expect.poll(async () => (await rpc<ApprovalState>('automation.approval.get')).recent[0]?.intent.operation).toBe('revoke');
+    await expect.poll(() => sent.length).toBe(2);
+    const revocationState = await completedSubmission(sent[1]!);
+    const revocation = revocationState.recent.find((entry) => entry.intent.id === id && entry.intent.operation === 'revoke')!;
+    expect(revocation.outcome).toBe('succeeded');
+    await expect(view.getByTestId('approval-journal').getByRole('listitem').filter({ hasText: revocation.intent.commandId })).toContainText(words.succeeded);
     const revoked = await rpc<Review>('automation.approval.review', { kind: 'event', id });
     expect(revoked.approval.state).toBe('revoked');
     expect(revoked.approval.current).toBe(false);
@@ -195,6 +224,110 @@ for (const locale of ['en', 'es'] as const) {
     await noBrowserJournal(page, locale, (await rpc<ApprovalState>('automation.approval.get')).recent.map((entry) => entry.intent.commandId));
     await noOverflow(view);
     await view.screenshot({ path: `${shots}/owner-approval-${locale}-revoked.png` });
+
+    // A second, independently paired author keeps this positive script case
+    // available after the Spanish original author has been revoked above.
+    // Preserve every original random-points case and its native command IDs.
+    const scriptEvent = `script-event-${locale}`;
+    const scriptAction = `script-action-${locale}`;
+    await closeReview(page, view, locale);
+    await page.locator('.automation-library tbody tr').filter({ hasText: `Moderator script event ${locale}` }).click();
+    view = await openReview(page);
+    const scriptOriginal = await rpc<Review>('automation.approval.review', { kind: 'event', id: scriptEvent });
+    expect(scriptOriginal.eligibility.eligible).toBe(true);
+    expect(scriptOriginal.source.record?.['enabled']).toBe(false);
+    expect(scriptOriginal.source.provenance?.authority.kind).toBe('delegated');
+    expect(scriptOriginal.source.dependencies.map((dependency) => dependency.id)).toEqual([scriptAction]);
+    expect(scriptOriginal.source.dependencies[0]!.record?.['enabled']).toBe(false);
+    expect(scriptOriginal.source.dependencies[0]!.record?.['typeId']).toBe('core.code');
+    expect(scriptOriginal.source.dependencies[0]!.provenance?.authority.kind).toBe('delegated');
+    expect(scriptOriginal.subjects[0]!.principalId).not.toBe(active.subjects[0]!.principalId);
+    expect(scriptOriginal.subjects[0]!.grant.capabilities).toContain('scripts.execute');
+    expect(scriptOriginal.subjects[0]!.grant.capabilities).toContain('live.read');
+    expect(scriptOriginal.subjects[0]!.grant.capabilities).not.toContain('points.adjust');
+    expect(scriptOriginal.manifest!.effects[0]!.kind).toBe('script');
+    expect(scriptOriginal.manifest!.effects[0]!.requiredCapabilities).toEqual(expect.arrayContaining(['scripts.execute', 'live.read']));
+    expect(JSON.parse(await view.getByTestId('approval-source').locator('pre').innerText())).toEqual(scriptOriginal.source.record);
+    await expect(view.getByTestId('approval-effect')).toHaveCount(1);
+    await expect(view.getByTestId('approval-script-policy')).toBeVisible();
+    await expect(view.getByTestId('approval-script-policy')).toHaveText(words.scriptPolicy);
+    const scriptSource = view.getByTestId('approval-dependency-source-' + scriptAction);
+    await scriptSource.locator('xpath=ancestor::details[1]').locator(':scope > summary').click();
+    expect(JSON.parse(await scriptSource.locator('pre').innerText())).toEqual(scriptOriginal.source.dependencies[0]!.record);
+    expect((scriptOriginal.source.dependencies[0]!.record?.['config'] as Json)['source']).toContain(`script-runtime-${locale}`);
+    await expect(view.getByTestId('approval-submit')).toBeDisabled();
+    await expect(view.getByTestId('approval-plan-include-' + scriptAction)).not.toBeChecked();
+    await view.getByTestId('approval-plan-include-' + scriptAction).check();
+    await expect(view.getByTestId('approval-plan-enabled-' + scriptAction)).toBeChecked();
+    await view.getByTestId('approval-acknowledge').check();
+    await expect(view.getByTestId('approval-submit')).toBeEnabled();
+    await noOverflow(view);
+    await view.locator('.base-dialog__body').evaluate((body) => { body.scrollTop = 0; });
+    await view.screenshot({ path: `${shots}/owner-approval-script-${locale}-review.png` });
+    await view.getByTestId('approval-submit').click();
+    await expect.poll(() => sent.length).toBe(3);
+    const scriptState = await completedSubmission(sent[2]!);
+    const scriptActivation = scriptState.recent.find((entry) => entry.intent.id === scriptEvent && entry.intent.operation === 'activate')!;
+    expect(scriptActivation.outcome).toBe('succeeded');
+    expect(scriptState.pending).toBeNull();
+    await expect(view.getByTestId('approval-journal').getByRole('listitem').filter({ hasText: scriptActivation.intent.commandId })).toContainText(words.succeeded);
+    expect(sent).toHaveLength(3);
+    expect(sent[2]!.meta).toBeUndefined();
+    expect(Object.keys(sent[2]!.params).sort()).toEqual(Object.keys(request.params).sort());
+    expect(sent[2]!.params['enablePlan']).toEqual([{ kind: 'event', id: scriptEvent, enabled: true }, { kind: 'action', id: scriptAction, enabled: true }]);
+    const scriptActive = await rpc<Review>('automation.approval.review', { kind: 'event', id: scriptEvent });
+    expect(scriptActive.approval.current).toBe(true);
+    expect(scriptActive.approval.manifestDigest).toBe(scriptActivation.receipt!.manifestDigest);
+    expect(scriptActive.approval.manifestDigest).not.toBe(scriptOriginal.manifest!.manifestDigest);
+    expect(scriptActive.source.dependencies[0]!.record?.['enabled']).toBe(true);
+    expect(scriptActive.source.dependencies[0]!.provenance?.authority.kind).toBe('delegated');
+    expect(scriptActive.source.dependencies[0]!.record?.['config']).toEqual(scriptOriginal.source.dependencies[0]!.record?.['config']);
+    const beforeScriptBalance = await balance();
+    expect(await scriptRuns(scriptAction)).toHaveLength(0);
+    await fire();
+    await expect.poll(async () => (await scriptRuns(scriptAction)).length).toBe(1);
+    const scriptRun = (await scriptRuns(scriptAction))[0]!;
+    expect(scriptRun.status).toBe('ok');
+    expect(scriptRun.eventId).toBe(scriptEvent);
+    expect(scriptRun.logs).toContain(`script-runtime-${locale}:alice`);
+    expect(scriptRun.logs).toContain(`script-console-${locale}`);
+    expect(await balance()).toBe(beforeScriptBalance);
+    await noBrowserJournal(page, locale, scriptState.recent.map((entry) => entry.intent.commandId));
+
+    await page.reload();
+    const scriptSheet = page.locator('.automations-page__sheet');
+    if (locale === 'es') await expect(scriptSheet).toBeVisible();
+    if (await scriptSheet.isVisible()) await scriptSheet.getByRole('button', { name: locale === 'es' ? 'Atrás' : 'Back', exact: true }).click();
+    await page.getByTestId('approval-history').filter({ visible: true }).first().click();
+    view = dialog(page);
+    await expect(view.getByTestId('approval-journal')).toContainText(scriptActivation.intent.commandId);
+    await expect(view.getByTestId('approval-journal')).toContainText(activation.intent.commandId);
+    await expect(view.getByTestId('approval-source')).toHaveCount(0);
+    expect(sent).toHaveLength(3);
+    await noBrowserJournal(page, locale, scriptState.recent.map((entry) => entry.intent.commandId));
+    await closeReview(page, view, locale);
+    await page.locator('.automation-library tbody tr').filter({ hasText: `Moderator script event ${locale}` }).click();
+    view = await openReview(page);
+    await expect(view.getByTestId('approval-status')).toContainText(words.active);
+    await view.getByTestId('approval-revoke-acknowledge').check();
+    await view.getByTestId('approval-revoke').click();
+    await expect.poll(() => sent.length).toBe(4);
+    const scriptRevocationState = await completedSubmission(sent[3]!);
+    const scriptRevocation = scriptRevocationState.recent.find((entry) => entry.intent.id === scriptEvent && entry.intent.operation === 'revoke')!;
+    expect(scriptRevocation.outcome).toBe('succeeded');
+    await expect(view.getByTestId('approval-journal').getByRole('listitem').filter({ hasText: scriptRevocation.intent.commandId })).toContainText(words.succeeded);
+    const scriptRevoked = await rpc<Review>('automation.approval.review', { kind: 'event', id: scriptEvent });
+    expect(scriptRevoked.approval.state).toBe('revoked');
+    expect(scriptRevoked.approval.current).toBe(false);
+    expect(sent).toHaveLength(4);
+    expect(sent[3]!.params['operation']).toBe('revoke');
+    expect(Object.keys(sent[3]!.params).sort()).toEqual(Object.keys(sent[1]!.params).sort());
+    await fire();
+    expect(await scriptRuns(scriptAction)).toHaveLength(1);
+    expect(await balance()).toBe(beforeScriptBalance);
+    await noBrowserJournal(page, locale, (await rpc<ApprovalState>('automation.approval.get')).recent.map((entry) => entry.intent.commandId));
+    await noOverflow(view);
+    await view.screenshot({ path: `${shots}/owner-approval-script-${locale}-revoked.png` });
     expect(methods).not.toContain('automation.approval.activate');
     expect(methods).not.toContain('automation.approval.revoke');
     expect(methods).not.toContain('automation.adoption.submit');

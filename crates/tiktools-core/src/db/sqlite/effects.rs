@@ -51,6 +51,8 @@ fn read_effect(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoredEffect> {
         "http" => EffectKind::Http,
         "audio" => EffectKind::Audio,
         "plugin" => EffectKind::Plugin,
+        "emit" => EffectKind::Emit,
+        "script" => EffectKind::Script,
         _ => return Err(rusqlite::Error::InvalidQuery),
     };
     let state = match row.get::<_, String>(5)?.as_str() {

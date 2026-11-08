@@ -211,10 +211,12 @@ pub(super) fn classify(entry: &Entry<'_>, subjects: &[ManifestSubject<'_>]) -> M
             }
             if let Some(data) = config.get("data") {
                 if let Some(data) = data.as_object() {
-                    // This path renders direct string members, not nested JSON.
-                    for value in data.values().filter(|v| v.is_string()) {
-                        render_fields(value, &mut fields, &mut reasons, 0);
+                    if serde_json::to_vec(data).is_ok_and(|bytes| bytes.len() > 64 * 1024) {
+                        reasons.insert(ManifestReason::InvalidConfiguration);
                     }
+                    // Approved emit rendering walks nested objects and arrays;
+                    // inventory every value before permitting that execution.
+                    render_fields(&Value::Object(data.clone()), &mut fields, &mut reasons, 0);
                 } else {
                     reasons.insert(ManifestReason::InvalidConfiguration);
                 }
@@ -294,7 +296,10 @@ pub(super) fn classify(entry: &Entry<'_>, subjects: &[ManifestSubject<'_>]) -> M
             if config
                 .get("source")
                 .and_then(Value::as_str)
-                .is_none_or(str::is_empty)
+                .is_none_or(|source| {
+                    source.is_empty()
+                        || source.len() > crate::services::SCOPED_SCRIPT_LIMITS.source_bytes
+                })
             {
                 reasons.insert(ManifestReason::InvalidConfiguration);
             }
@@ -348,9 +353,14 @@ pub(super) fn classify(entry: &Entry<'_>, subjects: &[ManifestSubject<'_>]) -> M
                             let render_fields = fields.iter().cloned().collect::<Vec<_>>();
                             let response_limit = match config.get("maxResponseBytes") {
                                 None => crate::collaboration::MAX_EFFECT_RESPONSE_BYTES,
-                                Some(value) => value.as_u64().and_then(|n| usize::try_from(n).ok()).unwrap_or(0),
+                                Some(value) => value
+                                    .as_u64()
+                                    .and_then(|n| usize::try_from(n).ok())
+                                    .unwrap_or(0),
                             };
-                            if response_limit == 0 || response_limit > crate::collaboration::MAX_EFFECT_RESPONSE_BYTES {
+                            if response_limit == 0
+                                || response_limit > crate::collaboration::MAX_EFFECT_RESPONSE_BYTES
+                            {
                                 reasons.insert(ManifestReason::InvalidConfiguration);
                             }
                             let request = crate::collaboration::HttpEffectRequest {

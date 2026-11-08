@@ -27,10 +27,77 @@ adoption recovery are now connected to the UI and a host-native journal.
 Native remote JSON proposal editing now uses explicit private files and fixed
 create/update operations. Owner-only durable core approval is now implemented;
 scoped HTTP/audio execution and durable external-effect receipts are now available.
-Broader remote activation, plugin/script/emitted-event policies and full product
-acceptance remain pending.
+The v3 policy adds bounded scripts and exact-topic scoped emits with inherited
+authority through downstream rules. Broader remote activation, delegated plugin
+execution, HTTP response emission and full product acceptance remain pending.
 
-## Scoped HTTP/audio and external-effect recovery — latest extension
+## Scoped scripts and emitted rules — latest extension
+
+The closed delegated policy now accepts saved `core.code` and `core.emit`.
+Custom-topic approvals accept only already-approved scoped input. Every child
+retains the complete incoming subject chain and current saved-definition fences,
+including an Owner-authored downstream rule. Scoped publication uses a closed
+public projection and bypasses executable observers, processors and Owner replay
+memory. Unknown/private filter paths fail closed. Final cooldown admission holds
+the current authorization and definition fences through its mutation, so a
+revoked queued rule cannot consume a cooldown.
+
+Scripts run in a separate bounded QuickJS VM with no host APIs, globals or
+settings. Four concurrent evaluations are admitted without a queued backlog;
+cancellation retains the permit until the VM unwinds. Current authority, saved
+source and deadlines are rechecked during evaluation and before effects.
+Console and returned logs share bounded budgets. Script-derived HTTP requires
+all 18 public input fields in one complete rule per subject, including through
+emitted child rules. HTTP response emission and delegated plugins remain denied.
+
+The private journal reserves the complete Script invocation before any returned
+log or intent and gives emitted handoffs their own identities. Retained,
+uncertain or semantically changed invocations do not replay returned effects.
+The SQLite migration preserves existing identities, outcomes and expired-result
+tombstones atomically while adding the `emit` and `script` receipt kinds. Owner
+receipt reads remain metadata-only; no new remote route is exposed.
+
+Executed evidence:
+
+- Final full core suite: **680 passed, 10 ignored helper entry points**, with
+  persistence/native/HTTP/plugin/Cloud features and `--test-threads=4`. Coverage
+  includes actual HTTP dispatch, script-to-emit-to-Owner points/HTTP rules,
+  sticky field restrictions, source/grant revocation, bounded depth/rendering,
+  four-VM saturation, stable invocation identities, atomic journal migration,
+  borrowed definition-fence checks and four final cooldown regressions.
+- API/SDK/authorization suites: **267 passed**: SDK **112 library + 8
+  integration**, collaboration **58**, and control API **34 library + 55
+  integration**. Seven opt-in SDK fixtures remain ignored. The strict SDK now
+  accepts the two new known receipt kinds without accepting unknown kinds.
+- Whole frontend: **774 tests across 130 files passed**. Final `vue-tsc`, full
+  ESLint with zero allowed warnings and production Vite build passed. The
+  approval review accepts the exact v3 type/kind contract and explains custom
+  input, source review and script-flow restrictions in English and Spanish.
+- The actual packaged Owner browser fixture passed both English desktop and
+  Spanish 390-pixel cases against one isolated IPC host and two independently
+  paired TLS/WSS author clients. It exercises explicit script source review,
+  enable/activation, captured logs, reload recovery, revocation, eight native
+  approval receipts and no source/command identities in WebStorage. Screenshot
+  review confirmed readable wrapping and no horizontal overflow. A fixture race
+  was fixed by waiting for each exact persisted receipt rather than any earlier
+  successful receipt.
+- Final seven-package all-target Clippy (`--no-deps -- -D warnings`), featureless
+  core check and normal Desktop/CLI build passed. The featureless check retains
+  the existing empty native-pump warning. The normal build used CLI
+  `remote-control,local-web` and explicitly unset `TIKTOOLS_CLOUD_ORIGIN`.
+
+Logs are under `/home/meme/.cache/tiktools-test-runs/` with the `scoped-flow-`
+and `scoped-emit-script-frontend-` prefixes. Earlier sections retain historical
+counts and limitations; only this implemented slice supersedes their pending
+script/emitted-rule statements. Direct approved points adjustments still need
+transactional private execution deduplication for native redelivery after
+restart or replay-window expiry; durable remote points commands already have
+their own identities. Remaining domains, plugins/response policies, platform and
+real-keychain checks, load acceptance and physical two-PC LIVE acceptance remain
+open. No real TikTok LIVE, production account or backend service was used.
+RemakeBackend runtime/schema and the optional relay were not changed.
+
+## Scoped HTTP/audio and external-effect recovery — previous extension
 
 The closed delegated policy now includes saved `core.fetch`, `audio.play` and
 `core.audio.play`, with exact current typed grants and approval/configuration

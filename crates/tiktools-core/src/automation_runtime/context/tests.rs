@@ -68,6 +68,7 @@ struct Fixture {
     core: Option<Arc<AppCore>>,
     paths: AppPaths,
     identity: Authenticated,
+    authorization: Authorization,
 }
 impl Fixture {
     fn new() -> Self {
@@ -143,10 +144,12 @@ impl Fixture {
             )
             .unwrap();
         let identity = s.authenticate(&c.access_token, false, false).unwrap();
+        let authorization = s.authenticate_live(&c.access_token, false, false).unwrap();
         Self {
             core: Some(core),
             paths,
             identity,
+            authorization,
         }
     }
     fn core(&self) -> &Arc<AppCore> {
@@ -164,6 +167,8 @@ impl Fixture {
         .unwrap()
     }
 }
+
+mod scoped_flow;
 impl Drop for Fixture {
     fn drop(&mut self) {
         drop(self.core.take());
