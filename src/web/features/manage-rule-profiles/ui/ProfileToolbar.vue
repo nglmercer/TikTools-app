@@ -17,6 +17,7 @@ import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 const props = defineProps<{
   packs: readonly ProfilePack[];
   activeId: string;
+  disabled?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -57,6 +58,7 @@ function openMenu(event: MouseEvent): void {
 }
 
 function onMenu(action: MenuAction): void {
+  if (props.disabled) return;
   if (action.id === 'create') {
     name.value = '';
     createOpen.value = true;
@@ -66,6 +68,7 @@ function onMenu(action: MenuAction): void {
 }
 
 function create(): void {
+  if (props.disabled) return;
   const value = name.value.trim();
   if (!value) return;
   createOpen.value = false;
@@ -73,6 +76,7 @@ function create(): void {
 }
 
 function confirmDelete(): void {
+  if (props.disabled) return;
   deleteOpen.value = false;
   if (active.value) emit('delete', active.value.id);
 }
@@ -90,12 +94,14 @@ function confirmDelete(): void {
       :model-value="activeId"
       :options="options"
       size="sm"
+      :disabled="disabled"
       @update:model-value="$event && $event !== activeId && emit('switch', $event)"
     />
     <BaseIconButton
       :label="t('automations.profile.menu')"
       size="sm"
       aria-haspopup="menu"
+      :disabled="disabled"
       @click="openMenu"
     >
       <IconMoreVertical />
@@ -128,7 +134,7 @@ function confirmDelete(): void {
       <template #footer>
         <BaseButton
           variant="primary"
-          :disabled="!name.trim()"
+          :disabled="disabled || !name.trim()"
           @click="create"
         >
           {{ t('automations.profile.createConfirm') }}

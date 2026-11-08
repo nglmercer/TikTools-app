@@ -15,7 +15,7 @@ const open = defineModel<boolean>('open', { default: false });
 const { t } = useI18n();
 const model = useProposalReview(useControlClient());
 const journal = model.journal;
-const busy = computed(() => journal.busy.value || model.approvals.busy.value || model.definitions.busy.value || model.gate.busy.value || model.reading.value);
+const busy = computed(() => journal.busy.value || model.approvals.busy.value || model.definitions.busy.value || model.library.busy.value || model.gate.busy.value || model.reading.value);
 const unknownAcknowledged = ref(false);
 const source = computed(() => model.review.value?.source ?? null);
 const reviewVersions = computed(() => new Map(model.review.value?.versions.map((v) => [recordKey(v.scope as AutomationKind, v.id), v.revision]) ?? []));
@@ -27,9 +27,10 @@ watch(() => props.target, (next, previous) => {
   if (next?.kind !== previous?.kind || next?.id !== previous?.id) unknownAcknowledged.value = false;
 }, { immediate: true });
 watch(() => props.hostVersions, model.observe, { immediate: true });
-watch([journal.state, model.approvals.state, model.definitions.state], model.observeHost);
+watch([journal.state, model.approvals.state, model.definitions.state, model.library.state], model.observeHost);
 watch(() => `${journal.state.value?.hostId}:${journal.state.value?.hostInstanceId}:${journal.state.value?.pending?.commandId}`, () => { unknownAcknowledged.value = false; });
-watch(() => JSON.stringify([model.definitions.state.value, model.approvals.state.value]), () => { unknownAcknowledged.value = false; });
+watch(() => JSON.stringify([model.definitions.state.value, model.library.state.value, model.approvals.state.value]), () => { unknownAcknowledged.value = false; });
+watch(model.gate.owner, (owner) => { if (owner && owner !== 'adoption') unknownAcknowledged.value = false; }, { flush: 'sync' });
 watch(open, (value) => { if (!value) { unknownAcknowledged.value = false; model.closeReview(); } });
 onMounted(() => { void model.refreshJournals(); });
 onBeforeUnmount(model.dispose);
@@ -69,6 +70,12 @@ defineExpose({ openReview });
     :title="t('automationProposal.title')"
     :width="900"
   >
+    <p
+      v-if="model.library.state.value?.pending"
+      role="alert"
+    >
+      {{ t('libraryRecovery.otherPending') }}
+    </p>
     <p
       v-if="model.definitions.state.value?.pending"
       role="alert"

@@ -2,6 +2,8 @@
 mod approval_commands;
 mod commands;
 mod execution_manifest;
+#[cfg(feature = "persistence")]
+mod library;
 mod remote;
 mod versioned;
 pub use commands::AutomationMutation;

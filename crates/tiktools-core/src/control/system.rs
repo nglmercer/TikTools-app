@@ -427,6 +427,8 @@ impl AppCore {
             }
             state
         };
+        #[cfg(feature = "persistence")]
+        let state = self.library_app_state_projection(keys, state)?;
         Ok(state)
     }
 
@@ -444,6 +446,10 @@ impl AppCore {
             return Err(OperationError::invalid(
                 "app state value exceeds 65536 characters",
             ));
+        }
+        #[cfg(feature = "persistence")]
+        if super::owner_library::LIBRARY_STATE_KEYS.contains(&key) {
+            return self.library_app_state_set(key, value);
         }
         self.app_state.set(key.to_owned(), value.to_owned());
         #[cfg(feature = "persistence")]

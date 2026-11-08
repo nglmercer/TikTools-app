@@ -20,6 +20,7 @@ const hasPending = computed(() => !!pending.value);
 const consentKey = computed(() => JSON.stringify([props.selectionKey, journal.state.value]));
 watch(consentKey, () => { acknowledged.value = false; }, { flush: 'sync' });
 watch(open, () => { acknowledged.value = false; });
+watch(journal.gate.owner, (owner) => { if (owner && owner !== 'definition') acknowledged.value = false; }, { flush: 'sync' });
 watch(journal.recoveryEpoch, () => emit('recovered'));
 watch(journal.state, (state) => emit('observed', state), { immediate: true });
 onMounted(() => { void journal.refresh(); });

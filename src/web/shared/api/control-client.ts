@@ -380,10 +380,11 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
           );
           return;
         }
-        if (textEncoder.encode(payload).length > MAX_WEBVIEW_REQUEST_BYTES) {
+        const requestLimit = method === 'automation.library.submit' ? 8 * 1024 * 1024 + 64 * 1024 : MAX_WEBVIEW_REQUEST_BYTES;
+        if (textEncoder.encode(payload).length > requestLimit) {
           const error = new ControlCallError(
             'too_large',
-            `request ${method} exceeds the ${MAX_WEBVIEW_REQUEST_BYTES}-byte limit`,
+            `request ${method} exceeds the ${requestLimit}-byte limit`,
           );
           reportTransportError(error.message);
           reject(error);

@@ -8,6 +8,55 @@ use super::server::{drain_events, serve_stream};
 use crate::ControlApi;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
+#[test]
+fn only_the_exact_local_library_submit_has_the_larger_request_allowance() {
+    assert_eq!(
+        crate::owner_params_bytes("automation.library.submit"),
+        8 * 1024 * 1024
+    );
+    assert_eq!(
+        crate::owner_request_bytes("automation.library.submit"),
+        crate::MAX_OWNER_LIBRARY_REQUEST_BYTES
+    );
+    for method in [
+        "automation.library.snapshot",
+        "automation.library.get",
+        "automation.library.resolve",
+        "automation.library.review_unknown",
+        "automation.library.submit.extra",
+        "app.state.set",
+        "automation.definition.submit",
+        "plugins.action",
+        "",
+    ] {
+        assert_eq!(
+            crate::owner_params_bytes(method),
+            crate::MAX_PARAMS_BYTES,
+            "{method}"
+        );
+        assert_eq!(
+            crate::owner_request_bytes(method),
+            MAX_REQUEST_BYTES,
+            "{method}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn owner_request_reader_accepts_library_sized_lines_under_a_finite_ceiling() {
+    let input = format!(
+        "{{\"id\":1,\"method\":\"automation.library.submit\",\"params\":{{\"source\":\"{}\"}}}}\n",
+        "s".repeat(MAX_REQUEST_BYTES + 1024)
+    );
+    let mut reader = tokio::io::BufReader::new(input.as_bytes());
+    let mut line = Vec::new();
+    assert!(matches!(
+        read_capped_line(&mut reader, &mut line).await.unwrap(),
+        Some(LineOutcome::Ok)
+    ));
+    assert!(line.len() > MAX_REQUEST_BYTES && line.len() < crate::MAX_OWNER_LIBRARY_REQUEST_BYTES);
+}
+
 /// Drives one request plus one domain event through the NDJSON framing
 /// over an in-memory duplex (no sockets needed).
 #[tokio::test]
@@ -307,7 +356,7 @@ async fn burst_lags_connection_with_gap_but_stays_alive() {
 async fn overlong_lines_error_without_breaking_framing() {
     let input = format!(
         "{{\"id\":1,\"method\":\"{}}}\n{{\"id\":2,\"method\":\"system.ping\"}}\n",
-        "x".repeat(MAX_REQUEST_BYTES)
+        "x".repeat(crate::MAX_OWNER_LIBRARY_REQUEST_BYTES)
     );
     let mut reader = tokio::io::BufReader::new(input.as_bytes());
     let mut line = Vec::new();

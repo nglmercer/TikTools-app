@@ -49,6 +49,7 @@ export function useAutomationControls() {
     profilePacks: profileRefs.packs as unknown as Readonly<Ref<readonly ProfilePack[]>>,
     activeProfileId: profileRefs.activeId,
     profileError: profileRefs.error,
+    profileLoading: profileRefs.loading,
     profileNotice: profileRefs.notice,
     openMediaPicker: plugins.openMediaPicker,
     openPlugins: () => navigation.open('plugins'),
@@ -72,6 +73,7 @@ export function useAutomationControls() {
     createProfile: profiles.createProfile,
     deleteProfile: profiles.deleteProfile,
     exportProfile: profiles.exportProfile,
+    loadProfiles: profiles.loadProfiles,
   };
 }
 

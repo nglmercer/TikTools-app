@@ -37,6 +37,7 @@ export function proposalFixture() {
   let definitionState: DefinitionState | null = null;
   let serial = 0;
   function handle(method: string, params: RpcParams | undefined, options?: ControlCallOptions): unknown {
+    if (method === 'automation.library.get') return copy({ hostId: state.hostId, hostInstanceId: state.hostInstanceId, pending: null, recent: [] });
     if (method === 'automation.definition.get') return copy(definitionState ?? { hostId: state.hostId, hostInstanceId: state.hostInstanceId, pending: null, recent: [] });
     if (method === 'automation.adoption.get' || method === 'automation.adoption.resolve') return copy(state);
     if (method === 'automation.approval.get') return copy(approvalState);

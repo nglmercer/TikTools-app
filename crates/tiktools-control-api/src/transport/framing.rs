@@ -3,8 +3,29 @@
 use crate::{ApiError, ControlApi, RpcResponse};
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 
-/// Hard cap for one request line (bytes, including the newline).
+/// Ordinary request-line allowance (bytes, including the newline).
 pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
+
+/// The sole larger local-Owner input is a complete library transaction.
+/// Remote gateways keep their own smaller negotiated request allowance.
+pub const MAX_OWNER_LIBRARY_PARAMS_BYTES: usize = 8 * 1024 * 1024;
+pub const MAX_OWNER_LIBRARY_REQUEST_BYTES: usize = MAX_OWNER_LIBRARY_PARAMS_BYTES + 64 * 1024;
+
+pub fn owner_request_bytes(method: &str) -> usize {
+    if method == "automation.library.submit" {
+        MAX_OWNER_LIBRARY_REQUEST_BYTES
+    } else {
+        MAX_REQUEST_BYTES
+    }
+}
+
+pub fn owner_params_bytes(method: &str) -> usize {
+    if method == "automation.library.submit" {
+        MAX_OWNER_LIBRARY_PARAMS_BYTES
+    } else {
+        MAX_PARAMS_BYTES
+    }
+}
 
 /// Local Owner responses carry bounded saved-source reviews plus metadata.
 /// This is not a request limit or a remote gateway negotiation allowance.
@@ -23,7 +44,9 @@ pub(crate) enum LineOutcome {
 /// hanging it until timeout. Must cover the `{"jsonrpc","id",...}` prefix.
 const ID_PREFIX_RECOVERY_BYTES: usize = 256;
 
-/// Reads one `\n`-terminated line capped at [`MAX_REQUEST_BYTES`]. Overlong
+/// Reads one local-Owner line under the finite library request ceiling. After
+/// parsing, `execute_line` enforces the ordinary limit for every other method.
+/// Overlong
 /// lines are discarded through the terminator so framing stays aligned,
 /// keeping only an id-recovery prefix in `line`.
 pub(crate) async fn read_capped_line<R>(
@@ -33,7 +56,7 @@ pub(crate) async fn read_capped_line<R>(
 where
     R: AsyncBufRead + Unpin,
 {
-    read_capped_line_with_limit(reader, line, MAX_REQUEST_BYTES).await
+    read_capped_line_with_limit(reader, line, MAX_OWNER_LIBRARY_REQUEST_BYTES).await
 }
 
 pub(crate) async fn read_capped_owner_response_line<R>(
@@ -115,7 +138,17 @@ pub(crate) async fn execute_line(api: &ControlApi, line: &[u8]) -> RpcResponse {
         );
     }
     match serde_json::from_str::<serde_json::Value>(trimmed) {
-        Ok(raw) => api.execute_value(&raw).await,
+        Ok(raw) => {
+            let method = raw
+                .get("method")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
+            if line.len() > owner_request_bytes(method) {
+                RpcResponse::error(crate::RpcId::extract(&raw), ApiError::too_large())
+            } else {
+                api.execute_value(&raw).await
+            }
+        }
         Err(error) => RpcResponse::error(
             crate::RpcId::extract_from_prefix(trimmed),
             ApiError::invalid_params(format!("invalid JSON: {error}")),

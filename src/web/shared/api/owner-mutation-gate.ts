@@ -1,7 +1,7 @@
 import { computed, shallowRef } from 'vue';
 import { ControlCallError, type ControlClient } from './control-client.ts';
 
-export type OwnerMutation = 'definition' | 'adoption' | 'approval';
+export type OwnerMutation = 'definition' | 'adoption' | 'approval' | 'library';
 function createGate() {
   const owner = shallowRef<OwnerMutation | null>(null);
   const busy = computed(() => owner.value !== null);

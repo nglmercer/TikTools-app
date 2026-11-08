@@ -419,3 +419,91 @@ fn native_definition_validation_accepts_each_zero_revision_union_without_caller_
         "invalid_params"
     );
 }
+
+#[test]
+fn library_validation_covers_closed_nested_operations_and_source_free_recovery() {
+    for method in [
+        "automation.library.snapshot",
+        "automation.library.get",
+        "automation.library.resolve",
+    ] {
+        assert!(tiktools_client::validate_params(method, &serde_json::json!({})).is_ok());
+        for extra in [
+            serde_json::json!({"commandId":"chosen"}),
+            serde_json::json!({"expectedRevision":"0"}),
+            serde_json::json!({"source":{}}),
+        ] {
+            assert_eq!(
+                tiktools_client::validate_params(method, &extra)
+                    .unwrap_err()
+                    .code,
+                "invalid_params"
+            );
+        }
+    }
+    let entry = serde_json::json!({"actions":[{"id":"action"}],"event":{"id":"event"}});
+    for mutation in [
+        serde_json::json!({"operation":"create-profile","id":"profile","name":"Profile","description":""}),
+        serde_json::json!({"operation":"switch-profile","id":"profile"}),
+        serde_json::json!({"operation":"delete-profile","id":"profile"}),
+        serde_json::json!({"operation":"apply-template","entry":entry,"profileId":"default"}),
+        serde_json::json!({"operation":"import-profile","profile":{"id":"profile","name":"Profile","description":""},"entries":[entry]}),
+        serde_json::json!({"operation":"assign-record","kind":"action","id":"action","profileId":"profile"}),
+        serde_json::json!({"operation":"import-templates","templates":[{"id":"template"}]}),
+        serde_json::json!({"operation":"delete-template","id":"template"}),
+    ] {
+        let input = serde_json::json!({"mutation":mutation,"expectedRevision":"0","definitionDigest":"a".repeat(64),"hostId":"host","hostInstanceId":"instance"});
+        assert!(tiktools_client::validate_params("automation.library.submit", &input).is_ok());
+        for required in [
+            "mutation",
+            "expectedRevision",
+            "definitionDigest",
+            "hostId",
+            "hostInstanceId",
+        ] {
+            let mut bad = input.clone();
+            bad.as_object_mut().unwrap().remove(required);
+            assert_eq!(
+                tiktools_client::validate_params("automation.library.submit", &bad)
+                    .unwrap_err()
+                    .code,
+                "invalid_params"
+            );
+        }
+        for field in ["commandId", "authority", "proof", "permit", "record"] {
+            let mut bad = input.clone();
+            bad[field] = serde_json::json!({});
+            assert_eq!(
+                tiktools_client::validate_params("automation.library.submit", &bad)
+                    .unwrap_err()
+                    .code,
+                "invalid_params"
+            );
+            let mut nested = input.clone();
+            nested["mutation"][field] = serde_json::json!({});
+            assert_eq!(
+                tiktools_client::validate_params("automation.library.submit", &nested)
+                    .unwrap_err()
+                    .code,
+                "invalid_params"
+            );
+        }
+        let mut numeric = input;
+        numeric["expectedRevision"] = serde_json::json!(0);
+        assert!(tiktools_client::validate_params("automation.library.submit", &numeric).is_err());
+    }
+    let review =
+        serde_json::json!({"commandId":"owner-library-original","acknowledgeUnknown":true});
+    assert!(tiktools_client::validate_params("automation.library.review_unknown", &review).is_ok());
+    let mut missing = review.clone();
+    missing
+        .as_object_mut()
+        .unwrap()
+        .remove("acknowledgeUnknown");
+    assert!(
+        tiktools_client::validate_params("automation.library.review_unknown", &missing).is_err()
+    );
+    let mut extra = review;
+    extra["mutation"] = serde_json::json!({});
+    assert!(tiktools_client::validate_params("automation.library.review_unknown", &extra).is_err());
+}

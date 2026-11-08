@@ -202,8 +202,7 @@ fn definition_failure(error: crate::db::DatabaseError) -> OperationError {
     }
 }
 
-#[cfg(feature = "persistence")]
-fn validate_source(value: &Value) -> Result<(), OperationError> {
+pub(crate) fn validate_source(value: &Value) -> Result<(), OperationError> {
     let mut stack = vec![(value, 0usize)];
     let mut nodes = 0usize;
     while let Some((value, depth)) = stack.pop() {

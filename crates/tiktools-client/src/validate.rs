@@ -23,6 +23,9 @@ use tiktools_control_api::modules::automation_definition::{
     OwnerDefinitionEmpty, OwnerDefinitionReviewUnknown, OwnerDefinitionSubmit,
 };
 use tiktools_control_api::modules::automation_effects::{EffectGetParams, EffectHistoryParams};
+use tiktools_control_api::modules::automation_library::{
+    OwnerLibraryEmpty, OwnerLibraryReviewUnknown, OwnerLibrarySubmit,
+};
 use tiktools_control_api::modules::competitions::{
     CompetitionActionId, CompetitionId, CompetitionResultsRequest,
     Definition as CompetitionDefinition, ResolveCompetitionAction, SelectWinner,
@@ -166,6 +169,11 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         }
         "automation.definition.submit" => validate::<OwnerDefinitionSubmit>(params),
         "automation.definition.review_unknown" => validate::<OwnerDefinitionReviewUnknown>(params),
+        "automation.library.snapshot" | "automation.library.get" | "automation.library.resolve" => {
+            validate::<OwnerLibraryEmpty>(params)
+        }
+        "automation.library.submit" => validate::<OwnerLibrarySubmit>(params),
+        "automation.library.review_unknown" => validate::<OwnerLibraryReviewUnknown>(params),
         "automation.effects.get" => serde_json::from_value::<EffectGetParams>(params.clone())
             .map_err(invalid)?
             .validate()

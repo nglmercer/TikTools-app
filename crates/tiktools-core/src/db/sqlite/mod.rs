@@ -6,6 +6,7 @@
 //! destructive migration.
 
 mod aggregations;
+mod automation_library;
 mod behavior;
 pub(crate) use behavior::{
     BehaviorApprovalActivation, BehaviorApprovalBinding, BehaviorApprovalEnableState,
@@ -27,6 +28,7 @@ mod owner_adoption;
 mod owner_approval;
 pub(crate) use owner_approval::validate_owner_approval_input;
 mod owner_definition;
+mod owner_library;
 pub(crate) use owner_definition::validate_owner_definition_input;
 mod points;
 mod schema;
@@ -43,6 +45,8 @@ pub(super) use super::DatabaseManager;
 pub enum DatabaseError {
     #[error("an owner authority transition is unresolved")]
     OwnerAdoptionPending,
+    #[error("automation definitions changed; review the library again")]
+    LibraryDefinitionConflict,
     #[error("points currency changed; review the current label")]
     CurrencyChanged,
     #[error("SQLite error: {0}")]

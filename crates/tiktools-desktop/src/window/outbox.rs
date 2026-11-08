@@ -6,6 +6,18 @@ pub(crate) fn encode_bounded(value: &impl serde::Serialize) -> Result<String, se
     encode_with_limit(value, MAX_OUTBOUND_BYTES)
 }
 
+pub(crate) fn encode_owner_rpc_bounded(
+    value: &impl serde::Serialize,
+) -> Result<String, serde_json::Error> {
+    encode_with_limit(value, MAX_OWNER_RPC_BYTES)
+}
+fn message_limit(value: &serde_json::Value) -> usize {
+    if value.get("type").and_then(serde_json::Value::as_str) == Some("rpc-response") {
+        MAX_OWNER_RPC_BYTES
+    } else {
+        MAX_OUTBOUND_BYTES
+    }
+}
 fn encode_with_limit(
     value: &impl serde::Serialize,
     limit: usize,
@@ -54,12 +66,13 @@ const MAX_RELIABLE_WEBVIEW_BACKLOG: usize = 1024;
 /// evicted to stay under these bounds.
 pub(crate) const MAX_RELIABLE_MESSAGES: usize = 4096;
 
-pub(crate) const MAX_RELIABLE_BYTES: usize = 16 * 1024 * 1024;
+pub(crate) const MAX_RELIABLE_BYTES: usize = 32 * 1024 * 1024;
 
 /// Maximum messages delivered in one UI tick through one `evaluate_script`.
 pub(crate) const MAX_BATCH_PER_TICK: usize = 128;
 pub(crate) const MAX_BATCH_BYTES: usize = 4 * 1024 * 1024;
 pub(crate) const MAX_OUTBOUND_BYTES: usize = 1024 * 1024;
+pub(crate) const MAX_OWNER_RPC_BYTES: usize = tiktools_control_api::MAX_OWNER_RESPONSE_BYTES;
 pub(crate) const MAX_LOSSY_BYTES: usize = 8 * 1024 * 1024;
 
 /// Delivery class for one queued WebView message. This is the single
@@ -208,6 +221,7 @@ impl QueuedWebviewMessage {
         body: Option<String>,
     ) -> Result<Self, serde_json::Error> {
         let plugin = plugin_route(value);
+        let limit = message_limit(value);
         #[derive(serde::Serialize)]
         struct Compatible<'a> {
             #[serde(rename = "apiVersion")]
@@ -218,11 +232,16 @@ impl QueuedWebviewMessage {
         let body = if plugin.is_some() && value.get("apiVersion").is_none() {
             encode_bounded(&Compatible { version: 1, value })?
         } else if let Some(body) = body {
+            if body.len() > limit {
+                return Err(serde_json::Error::io(std::io::Error::other(
+                    "outbound payload exceeds transport limit",
+                )));
+            }
             body
         } else {
-            encode_bounded(value)?
+            encode_with_limit(value, limit)?
         };
-        let javascript_literal = encode_with_limit(&body, 2 * MAX_OUTBOUND_BYTES + 2)?;
+        let javascript_literal = encode_with_limit(&body, 2 * limit + 2)?;
         Ok(Self {
             body: body.into(),
             javascript_literal: Some(javascript_literal.into()),
@@ -331,6 +350,7 @@ impl WebviewOutbox {
             "reliableCapacity": MAX_RELIABLE_MESSAGES, "reliableByteCapacity": MAX_RELIABLE_BYTES,
             "lossyCapacity": MAX_PENDING_WEBVIEW_MESSAGES, "lossyByteCapacity": MAX_LOSSY_BYTES,
             "maxItemBytes": MAX_OUTBOUND_BYTES,
+            "maxOwnerRpcBytes": MAX_OWNER_RPC_BYTES,
         })
     }
 
@@ -421,7 +441,7 @@ impl WebviewOutbox {
             self.dropped_while_failed = self.dropped_while_failed.saturating_add(1);
             return;
         }
-        if body.len() > MAX_OUTBOUND_BYTES {
+        if body.len() > MAX_OWNER_RPC_BYTES {
             self.fail();
             return;
         }
@@ -430,6 +450,7 @@ impl WebviewOutbox {
                 Ok(message) => self.push_prepared(message),
                 Err(_) => self.fail(),
             },
+            Err(_) if body.len() > MAX_OUTBOUND_BYTES => self.fail(),
             Err(_) => match encode_with_limit(&body, 2 * MAX_OUTBOUND_BYTES + 2) {
                 Ok(literal) => self.push_prepared(QueuedWebviewMessage {
                     body: body.into(),
@@ -580,17 +601,18 @@ impl WebviewOutbox {
         let mut batch = Vec::new();
         let mut bytes = 0;
         while batch.len() < MAX_BATCH_PER_TICK {
-            if self
-                .reliable
-                .front()
-                .is_some_and(|body| body.bytes() > MAX_BATCH_BYTES.saturating_sub(bytes))
-            {
+            if self.reliable.front().is_some_and(|body| {
+                !batch.is_empty() && body.bytes() > MAX_BATCH_BYTES.saturating_sub(bytes)
+            }) {
                 break;
             }
             if let Some(body) = self.reliable.pop_front() {
                 self.reliable_bytes = self.reliable_bytes.saturating_sub(body.bytes());
                 bytes += body.bytes();
                 batch.push(body);
+                if bytes >= MAX_BATCH_BYTES {
+                    break;
+                }
             } else {
                 break;
             }
@@ -856,6 +878,33 @@ mod admission_stress {
         mailbox.shutdown();
         assert!(!mailbox.push("{}".to_owned()));
         assert!(mailbox.drain().0.is_empty());
+    }
+
+    #[test]
+    fn large_owner_rpc_drains_alone_with_escaped_literal_without_widening_event_budget() {
+        let value = serde_json::json!({"type":"rpc-response","response":{"id":"library","result":{"source":"\"".repeat(3 * 1024 * 1024)}}});
+        assert!(encode_bounded(&value).is_err());
+        let encoded = encode_owner_rpc_bounded(&value).unwrap();
+        assert!(encoded.len() > MAX_OUTBOUND_BYTES && encoded.len() < MAX_OWNER_RPC_BYTES);
+        let mut mailbox = ForwardMailbox::default();
+        mailbox.push(encoded);
+        let (batch, failed, _) = mailbox.drain();
+        assert!(!failed);
+        assert_eq!(batch.len(), 1);
+        assert!(batch[0].javascript_literal.as_ref().unwrap().len() > MAX_BATCH_BYTES);
+        let literal: String =
+            serde_json::from_str(batch[0].javascript_literal.as_ref().unwrap()).unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&literal).unwrap(),
+            value
+        );
+        assert!(mailbox.drain().0.is_empty());
+
+        let mut events = WebviewOutbox::new();
+        events.push_value(
+            &serde_json::json!({"type":"live-event","source":"x".repeat(MAX_OUTBOUND_BYTES + 1)}),
+        );
+        assert!(events.transport_failed());
     }
 
     #[test]

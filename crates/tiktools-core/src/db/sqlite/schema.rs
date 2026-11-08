@@ -407,6 +407,24 @@ CREATE TABLE IF NOT EXISTS owner_automation_definitions (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_definition_pending
   ON owner_automation_definitions(pending) WHERE pending=1;
+CREATE TABLE IF NOT EXISTS automation_library_catalog (
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  revision INTEGER NOT NULL CHECK(typeof(revision)='integer' AND revision>=0),
+  catalog_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS automation_library_migration (
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  version INTEGER NOT NULL CHECK(version=1)
+);
+CREATE TABLE IF NOT EXISTS owner_automation_library (
+  command_id TEXT PRIMARY KEY,
+  pending INTEGER NOT NULL CHECK(pending IN (0,1)),
+  payload_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_library_pending
+  ON owner_automation_library(pending) WHERE pending=1;
 -- Approval identities survive definition deletion and command-result pruning.
 -- No legacy enabled record acquires an approval during migration.
 CREATE TABLE IF NOT EXISTS behavior_execution_approvals (

@@ -23,8 +23,8 @@ use tiktools_plugin_api::sync::recover_mutex;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf};
 
 use crate::{
-    transport, CallResult, RequestMetadata, ResponseMetadata, RpcId, RpcRequest, MAX_REQUEST_BYTES,
-    REQUEST_TIMEOUT,
+    owner_request_bytes, transport, CallResult, RequestMetadata, ResponseMetadata, RpcId,
+    RpcRequest, REQUEST_TIMEOUT,
 };
 
 /// Connected-control event broadcast capacity. Slow subscribers lag and skip,
@@ -300,7 +300,7 @@ impl ControlClient {
         let mut bytes = serde_json::to_vec(&request)
             .map_err(|error| ClientError::protocol(error.to_string()))?;
         bytes.push(b'\n');
-        if bytes.len() > MAX_REQUEST_BYTES {
+        if bytes.len() > owner_request_bytes(method) {
             return Err(ClientError::new(
                 "too_large",
                 "request exceeds the size limit",

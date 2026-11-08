@@ -9,13 +9,18 @@
 use std::collections::BTreeSet;
 
 use serde_json::{Map, Value};
-use tiktools_client::TikToolsClient;
-use tiktools_control_api::modules::app::{AppStateGetParams, AppStateSetParams};
-use tiktools_control_api::modules::automation::AutomationCreateParams;
+use tiktools_client::{
+    automation_library::{
+        OwnerLibraryAcknowledgement, OwnerLibraryEntry, OwnerLibraryMutation, OwnerLibraryProfile,
+        OwnerLibrarySnapshot, OwnerLibrarySubmit,
+    },
+    TikToolsClient,
+};
 use tiktools_control_api::ClientError;
 use tiktools_core::services::templates::{
-    instantiate_template, merge_params, param_defaults, parse_profile, parse_rule_template,
-    parse_rule_template_list, template_requirements, RuleTemplate, CUSTOM_TEMPLATES_KEY,
+    instantiate_template_bounded, merge_params, param_defaults, parse_profile, parse_rule_template,
+    parse_rule_template_list, template_requirements, RuleTemplate, TemplateInstantiationBudget,
+    TemplateInstantiationError,
 };
 
 use super::args::{flag_value, flag_values, positional, split_first};
@@ -219,13 +224,9 @@ fn known_triggers(snapshot: &Value) -> BTreeSet<String> {
     triggers
 }
 
-async fn check_requirements(
-    client: &TikToolsClient,
-    templates: &[RuleTemplate],
-) -> Result<(), ClientError> {
-    let snapshot = client.automation_snapshot().await?;
-    let available = available_action_types(&snapshot);
-    let triggers = known_triggers(&snapshot);
+fn check_requirements(snapshot: &Value, templates: &[RuleTemplate]) -> Result<(), ClientError> {
+    let available = available_action_types(snapshot);
+    let triggers = known_triggers(snapshot);
     let mut problems = Vec::new();
     for template in templates {
         let (type_ids, trigger) = template_requirements(template);
@@ -252,37 +253,17 @@ async fn check_requirements(
 }
 
 async fn read_gallery(client: &TikToolsClient) -> Result<Vec<RuleTemplate>, ClientError> {
-    let result = client
-        .app_state_get(AppStateGetParams {
-            keys: Some(vec![CUSTOM_TEMPLATES_KEY.to_owned()]),
-        })
-        .await?;
-    let Some(raw) = result.state.get(CUSTOM_TEMPLATES_KEY) else {
-        return Ok(Vec::new());
-    };
-    if raw.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-    let value: Value = serde_json::from_str(raw)
-        .map_err(|error| invalid(format!("stored template gallery is corrupt: {error}")))?;
-    let (templates, _) = parse_rule_template_list(&value);
-    Ok(templates)
-}
-
-async fn write_gallery(
-    client: &TikToolsClient,
-    templates: &[RuleTemplate],
-) -> Result<(), ClientError> {
-    let value = serde_json::to_value(templates)
-        .map_err(|error| invalid(format!("could not encode gallery: {error}")))?;
     client
-        .app_state_set(AppStateSetParams {
-            key: CUSTOM_TEMPLATES_KEY.to_owned(),
-            value: serde_json::to_string(&value)
-                .map_err(|error| invalid(format!("could not encode gallery: {error}")))?,
+        .automation_library_snapshot()
+        .await?
+        .catalog
+        .templates
+        .iter()
+        .map(|template| {
+            parse_rule_template(template)
+                .map_err(|e| invalid(format!("stored template gallery is corrupt: {e}")))
         })
-        .await?;
-    Ok(())
+        .collect()
 }
 
 fn apply_disabled(actions: &mut [Value], event: &mut Value) {
@@ -296,46 +277,80 @@ fn apply_disabled(actions: &mut [Value], event: &mut Value) {
     }
 }
 
-async fn create_rule(
-    client: &TikToolsClient,
-    mut actions: Vec<Value>,
-    mut event: Value,
-    disabled: bool,
-) -> Result<Value, ClientError> {
+fn frozen_entry(mut actions: Vec<Value>, mut event: Value, disabled: bool) -> OwnerLibraryEntry {
     if disabled {
         apply_disabled(&mut actions, &mut event);
     }
-    let mut created_actions = Vec::with_capacity(actions.len());
-    for action in actions {
-        let created = client
-            .automation_create(AutomationCreateParams {
-                kind: Some("action".to_owned()),
-                record: action,
-            })
-            .await?;
-        created_actions.push(created);
-    }
-    let created_event = client
-        .automation_create(AutomationCreateParams {
-            kind: Some("event".to_owned()),
-            record: event,
-        })
-        .await?;
-    result_value(serde_json::json!({"actions": created_actions, "event": created_event}))
+    OwnerLibraryEntry { actions, event }
 }
 
-fn plan_value(template: &RuleTemplate, params: &Map<String, Value>) -> Value {
+fn frozen_gallery(templates: &[RuleTemplate]) -> Result<Vec<Value>, ClientError> {
+    let mut gallery: Vec<Value> = Vec::new();
+    for template in templates {
+        // A profile may instantiate one reusable template with several param
+        // sets. Keep the former gallery upsert order without duplicate IDs.
+        gallery
+            .retain(|value| value.get("id").and_then(Value::as_str) != Some(template.id.as_str()));
+        gallery.push(
+            serde_json::to_value(template)
+                .map_err(|e| invalid(format!("could not encode template: {e}")))?,
+        );
+    }
+    Ok(gallery)
+}
+
+async fn submit_library(
+    client: &TikToolsClient,
+    snapshot: OwnerLibrarySnapshot,
+    mutation: OwnerLibraryMutation,
+) -> Result<OwnerLibraryAcknowledgement, ClientError> {
+    let submission = client
+        .automation_library_submit(OwnerLibrarySubmit {
+            mutation,
+            expected_revision: snapshot.revision,
+            definition_digest: snapshot.definition_digest,
+            host_id: snapshot.host_id,
+            host_instance_id: snapshot.host_instance_id,
+        })
+        .await?;
+    if let Some(acknowledgement) = submission.acknowledgement {
+        return Ok(acknowledgement);
+    }
+    let rejected = submission
+        .state
+        .recent
+        .first()
+        .filter(|r| r.outcome == tiktools_client::automation_library::OwnerLibraryOutcome::Rejected)
+        .and_then(|r| r.error_code.as_deref());
+    let mut error=ClientError::new(rejected.unwrap_or("unconfirmed"),"The native library outcome requires review; inspect automation.library.get before another operation.");
+    error.data = Some(serde_json::json!({"state":submission.state}));
+    Err(error)
+}
+
+fn expansion_error(_: TemplateInstantiationError) -> ClientError {
+    ClientError::new(
+        "too_large",
+        "Template expansion exceeds its bounded import budget.",
+    )
+}
+
+fn plan_value(
+    template: &RuleTemplate,
+    params: &Map<String, Value>,
+    budget: &mut TemplateInstantiationBudget,
+) -> Result<Value, ClientError> {
     let defaults = param_defaults(template.params.as_ref());
     let merged = merge_params(&[&defaults, params]);
-    let instantiated = instantiate_template(template, &merged, None, &[]);
+    let instantiated = instantiate_template_bounded(template, &merged, None, &[], budget)
+        .map_err(expansion_error)?;
     let (type_ids, trigger) = template_requirements(template);
-    serde_json::json!({
+    Ok(serde_json::json!({
         "template": template.id,
         "params": merged,
         "actions": instantiated.actions,
         "event": instantiated.event,
         "requirements": {"actionTypeIds": type_ids, "trigger": trigger},
-    })
+    }))
 }
 
 pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value, ClientError> {
@@ -367,23 +382,18 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                     "--event-name/--action-name apply to single-template imports only".to_owned(),
                 ));
             }
+            let mut budget = TemplateInstantiationBudget::new();
             if dry_run {
                 let plans: Vec<Value> = templates
                     .iter()
-                    .map(|template| plan_value(template, &params))
-                    .collect();
+                    .map(|template| plan_value(template, &params, &mut budget))
+                    .collect::<Result<_, _>>()?;
                 return result_value(serde_json::json!({"dryRun": true, "plans": plans}));
             }
-            check_requirements(client, &templates).await?;
-            if save {
-                let mut gallery = read_gallery(client).await?;
-                for template in &templates {
-                    gallery.retain(|entry| entry.id != template.id);
-                    gallery.push(template.clone());
-                }
-                write_gallery(client, &gallery).await?;
-            }
+            // Freeze source and generated IDs once before any host read.
+            // One reviewed transaction stores the complete graph and gallery.
             let mut imported = Vec::with_capacity(templates.len());
+            let mut entries = Vec::with_capacity(templates.len());
             for template in &templates {
                 let defaults = param_defaults(template.params.as_ref());
                 let merged = merge_params(&[&defaults, &params]);
@@ -391,17 +401,36 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                     .clone()
                     .map(|name| vec![name])
                     .unwrap_or_default();
-                let instantiated =
-                    instantiate_template(template, &merged, event_name.as_deref(), &action_names);
-                let created =
-                    create_rule(client, instantiated.actions, instantiated.event, disabled).await?;
+                let instantiated = instantiate_template_bounded(
+                    template,
+                    &merged,
+                    event_name.as_deref(),
+                    &action_names,
+                    &mut budget,
+                )
+                .map_err(expansion_error)?;
+                let entry = frozen_entry(instantiated.actions, instantiated.event, disabled);
                 imported.push(serde_json::json!({
                     "template": template.id,
-                    "actions": created.get("actions"),
-                    "event": created.get("event"),
+                    "actions": entry.actions,
+                    "event": entry.event,
                 }));
+                entries.push(entry);
             }
-            result_value(serde_json::json!({"imported": imported, "savedToGallery": save}))
+            let gallery = save.then(|| frozen_gallery(&templates)).transpose()?;
+            let snapshot = client.automation_library_snapshot().await?;
+            check_requirements(&snapshot.definitions, &templates)?;
+            let first = entries.remove(0);
+            let mutation = OwnerLibraryMutation::ApplyTemplate {
+                entry: first,
+                profile_id: snapshot.catalog.active_id.clone(),
+                additional_entries: (!entries.is_empty()).then_some(entries),
+                templates: gallery,
+            };
+            let acknowledgement = submit_library(client, snapshot, mutation).await?;
+            result_value(
+                serde_json::json!({"imported": imported, "savedToGallery": save,"acknowledgement":acknowledgement}),
+            )
         }
         Command::Export {
             event_id,
@@ -489,14 +518,26 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
             result_value(serde_json::json!({"templates": templates}))
         }
         Command::Delete { template_id } => {
-            let mut gallery = read_gallery(client).await?;
-            let before = gallery.len();
-            gallery.retain(|entry| entry.id != template_id);
-            if gallery.len() == before {
+            let snapshot = client.automation_library_snapshot().await?;
+            if !snapshot
+                .catalog
+                .templates
+                .iter()
+                .any(|entry| entry.get("id").and_then(Value::as_str) == Some(template_id.as_str()))
+            {
                 return Err(invalid(format!("template {template_id} not in gallery")));
             }
-            write_gallery(client, &gallery).await?;
-            result_value(serde_json::json!({"deleted": template_id}))
+            let acknowledgement = submit_library(
+                client,
+                snapshot,
+                OwnerLibraryMutation::DeleteTemplate {
+                    id: template_id.clone(),
+                },
+            )
+            .await?;
+            result_value(
+                serde_json::json!({"deleted": template_id,"acknowledgement":acknowledgement}),
+            )
         }
         Command::ProfileImport {
             path,
@@ -517,54 +558,68 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                 .iter()
                 .map(|entry| entry.template.clone())
                 .collect();
+            let mut budget = TemplateInstantiationBudget::new();
             if dry_run {
                 let plans: Vec<Value> = profile
                     .entries
                     .iter()
-                    .map(|entry| {
+                    .map(|entry| -> Result<Value, ClientError> {
                         let defaults = param_defaults(entry.template.params.as_ref());
                         let merged =
                             merge_params(&[&defaults, &profile.params, &entry.params, &params]);
-                        let instantiated =
-                            instantiate_template(&entry.template, &merged, None, &[]);
+                        let instantiated = instantiate_template_bounded(
+                            &entry.template,
+                            &merged,
+                            None,
+                            &[],
+                            &mut budget,
+                        )
+                        .map_err(expansion_error)?;
                         let (type_ids, trigger) = template_requirements(&entry.template);
-                        serde_json::json!({
+                        Ok(serde_json::json!({
                             "template": entry.template.id,
                             "params": merged,
                             "actions": instantiated.actions,
                             "event": instantiated.event,
                             "requirements": {"actionTypeIds": type_ids, "trigger": trigger},
-                        })
+                        }))
                     })
-                    .collect();
+                    .collect::<Result<_, _>>()?;
                 return result_value(
                     serde_json::json!({"dryRun": true, "profile": profile.id, "plans": plans}),
                 );
             }
-            check_requirements(client, &templates).await?;
-            if save {
-                let mut gallery = read_gallery(client).await?;
-                for template in &templates {
-                    gallery.retain(|entry| entry.id != template.id);
-                    gallery.push(template.clone());
-                }
-                write_gallery(client, &gallery).await?;
-            }
             let mut imported = Vec::with_capacity(profile.entries.len());
+            let mut entries = Vec::with_capacity(profile.entries.len());
             for entry in &profile.entries {
                 let defaults = param_defaults(entry.template.params.as_ref());
                 let merged = merge_params(&[&defaults, &profile.params, &entry.params, &params]);
-                let instantiated = instantiate_template(&entry.template, &merged, None, &[]);
-                let created =
-                    create_rule(client, instantiated.actions, instantiated.event, disabled).await?;
+                let instantiated =
+                    instantiate_template_bounded(&entry.template, &merged, None, &[], &mut budget)
+                        .map_err(expansion_error)?;
+                let frozen = frozen_entry(instantiated.actions, instantiated.event, disabled);
                 imported.push(serde_json::json!({
                     "template": entry.template.id,
-                    "actions": created.get("actions"),
-                    "event": created.get("event"),
+                    "actions": frozen.actions,
+                    "event": frozen.event,
                 }));
+                entries.push(frozen);
             }
+            let gallery = save.then(|| frozen_gallery(&templates)).transpose()?;
+            let snapshot = client.automation_library_snapshot().await?;
+            check_requirements(&snapshot.definitions, &templates)?;
+            let mutation = OwnerLibraryMutation::ImportProfile {
+                profile: OwnerLibraryProfile {
+                    id: profile.id.clone(),
+                    name: profile.name,
+                    description: profile.description,
+                },
+                entries,
+                templates: gallery,
+            };
+            let acknowledgement = submit_library(client, snapshot, mutation).await?;
             result_value(
-                serde_json::json!({"profile": profile.id, "imported": imported, "savedToGallery": save}),
+                serde_json::json!({"profile": profile.id, "imported": imported, "savedToGallery": save,"acknowledgement":acknowledgement}),
             )
         }
         Command::ProfileExport { out, name } => {

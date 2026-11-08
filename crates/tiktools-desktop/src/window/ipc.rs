@@ -28,7 +28,16 @@ pub(crate) fn parse_batch_ack(raw: &str) -> Option<(u64, u64)> {
 
 /// Raw inbound bound shared with local IPC. Checked before any parsing.
 pub(crate) fn webview_request_too_large(raw: &str) -> bool {
-    raw.len() > tiktools_control_api::MAX_REQUEST_BYTES
+    raw.len() > tiktools_control_api::MAX_OWNER_LIBRARY_REQUEST_BYTES
+}
+pub(crate) fn webview_parsed_request_too_large(raw: &str, value: &serde_json::Value) -> bool {
+    raw.len()
+        > tiktools_control_api::owner_request_bytes(
+            value
+                .get("method")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default(),
+        )
 }
 
 /// Allocation-free control-shape probe used only to route oversized-payload
@@ -146,6 +155,22 @@ pub(crate) async fn handle_webview_ipc_message(
         return;
     }
     match classify_inbound_message(&raw) {
+        InboundRoute::Control(value) if webview_parsed_request_too_large(&raw, &value) => {
+            emit_rpc_response_for_generation(
+                emitter,
+                generation,
+                &tiktools_control_api::RpcResponse::error(
+                    tiktools_control_api::RpcId::extract(&value),
+                    tiktools_control_api::ApiError::new(
+                        "too_large",
+                        "request exceeds the local method frame budget",
+                    ),
+                ),
+            );
+        }
+        InboundRoute::Legacy(_) if raw.len() > tiktools_control_api::MAX_REQUEST_BYTES => {
+            tracing::warn!("legacy WebView message exceeds its frame budget");
+        }
         InboundRoute::Control(value) if !page_generation_matches(&value, generation) => {
             emit_rpc_response_for_generation(
                 emitter,
@@ -464,7 +489,7 @@ pub(crate) fn emit_rpc_response(
         kind: "rpc-response",
         response,
     };
-    match super::outbox::encode_bounded(&payload) {
+    match super::outbox::encode_owner_rpc_bounded(&payload) {
         Ok(payload) => emitter.send(payload),
         Err(error) => {
             tracing::error!(%error, "RPC response exceeds transport limit");
@@ -482,7 +507,7 @@ fn emit_rpc_response_for_generation(
         kind: "rpc-response",
         response,
     };
-    match super::outbox::encode_bounded(&payload) {
+    match super::outbox::encode_owner_rpc_bounded(&payload) {
         Ok(payload) => emitter.send_generation(payload, Some(generation)),
         Err(_) if emitter.generation.load(Ordering::Acquire) == generation => emitter.fail(),
         Err(_) => {}

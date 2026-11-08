@@ -4890,6 +4890,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
+name = "ryu-js"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04d056b875a9d2e6cb9a61d127afee9ac5999b9f87bcb32079d1318e505be714"
+
+[[package]]
 name = "salsa20"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5847,6 +5853,7 @@ dependencies = [
  "ring",
  "rustls",
  "rustls-native-certs",
+ "ryu-js",
  "secrecy",
  "serde",
  "serde_json",
@@ -5928,6 +5935,7 @@ name = "tiktools-control-api"
 version = "4.0.2"
 dependencies = [
  "libc",
+ "rusqlite",
  "schemars",
  "serde",
  "serde_json",
@@ -5953,6 +5961,7 @@ dependencies = [
  "reqwest 0.13.5",
  "rquickjs",
  "rusqlite",
+ "ryu-js",
  "schemars",
  "secrecy",
  "semver",

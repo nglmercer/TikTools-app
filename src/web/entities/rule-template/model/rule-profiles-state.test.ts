@@ -73,6 +73,9 @@ test('profile import parses entries and rejects non-profiles', () => {
     'this is a template document; import it as a template',
   ]);
   expect(parseRuleProfile({ ...PROFILE, profileVersion: 2 }).ok).toBe(false);
+  expect(parseRuleProfile({ ...PROFILE, id: 'a' }).ok).toBe(true);
+  expect(parseRuleProfile({ ...PROFILE, id: 'Perfil 🌹' }).ok).toBe(true);
+  expect(parseRuleProfile({ ...PROFILE, id: 'default' }).ok).toBe(false);
   expect(parseRuleProfile({ ...PROFILE, templates: [] }).ok).toBe(false);
   expect(
     parseRuleProfile({ ...PROFILE, templates: [{ template: { nope: true }, params: {} }] }).ok,
@@ -140,7 +143,7 @@ test('register stores the pack and marks it active', async () => {
   const parsed = parseRuleProfile(PROFILE);
   expect(parsed.ok).toBe(true);
   if (!parsed.ok) return;
-  const state = useRuleProfiles(client);
+  const state = useRuleProfiles(client, () => false);
   await state.registerPack(parsed.profile, instantiateProfile(parsed.profile));
   expect(state.activeId.value).toBe('board');
   expect(state.packs.value).toHaveLength(1);
@@ -199,7 +202,7 @@ test('switch enables the target, disables everything else, prunes deleted rules'
     }
     throw new Error(`unexpected ${method}`);
   });
-  const state = useRuleProfiles(client);
+  const state = useRuleProfiles(client, () => false);
   await state.loadProfiles();
   expect(state.activeId.value).toBe('a');
   await state.switchProfile('b', { eventIds: ['ea', 'eb', 'loose'], actionIds: ['aa'] });
@@ -240,7 +243,7 @@ test('switch aborts without moving the active marker on host errors', async () =
     }
     throw new ControlCallError('internal', 'boom');
   });
-  const state = useRuleProfiles(client);
+  const state = useRuleProfiles(client, () => false);
   await state.loadProfiles();
   await expect(state.switchProfile('a', { eventIds: ['ea'], actionIds: [] })).rejects.toThrow('boom');
   expect(state.activeId.value).toBe('a');
@@ -270,7 +273,7 @@ test('delete removes the pack and its rules, falling back to default', async () 
     }
     throw new Error(`unexpected ${method}`);
   });
-  const state = useRuleProfiles(client);
+  const state = useRuleProfiles(client, () => false);
   await state.loadProfiles();
   await state.deletePack('a');
   expect(deleted).toEqual([
@@ -295,7 +298,7 @@ test('create makes an empty pack with a unique slug and keeps active', async () 
     }
     return { ok: true };
   });
-  const state = useRuleProfiles(client);
+  const state = useRuleProfiles(client, () => false);
   await state.loadProfiles();
   const pack = await state.createPack('Board');
   expect(pack.id).toBe('board-2');
@@ -316,7 +319,7 @@ test('hand-saved rules adopt into the active non-default pack only', async () =>
     }
     return { ok: true };
   });
-  const state = useRuleProfiles(client);
+  const state = useRuleProfiles(client, () => false);
   await state.loadProfiles();
   calls.length = 0;
   await state.adoptRule('event', 'fresh');
@@ -349,7 +352,7 @@ test('export mirrors the CLI profile shape and skips action-less events', () => 
 
 test('malformed sidecar loads empty with an error, active falls back to default', async () => {
   const { client } = fakeControl(async () => ({ state: { 'behavior.profiles.packs': 'nope' } }));
-  const state = useRuleProfiles(client);
+  const state = useRuleProfiles(client, () => false);
   await state.loadProfiles();
   expect(state.packs.value).toEqual([]);
   expect(state.activeId.value).toBe(DEFAULT_PROFILE_ID);

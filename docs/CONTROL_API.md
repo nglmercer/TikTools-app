@@ -13,8 +13,11 @@ delegated log/delay/points definitions; see the
 bindings, native Owner review/recovery methods and pending effect policies.
 `automation.approval.review|get|submit|resolve|review_unknown` now support the
 Owner dialog without caller-generated command IDs. Local Owner responses have
-a separate bounded 8 MiB allowance for complete reviews; request and remote
-gateway limits are unchanged. Remaining domain
+a separate bounded 8 MiB allowance for complete reviews. The new LocalOwner
+`automation.library.submit` alone accepts up to 8 MiB of params and 8 MiB plus
+64 KiB of request framing; other request and all remote gateway limits are
+unchanged. Atomic profile/template library contracts are implemented under
+validation as described below. Remaining domain
 writes and complete controller acceptance remain pending. Workflow, points and
 automation subscriptions, coherent summary pages and replay are implemented.
 Local-owner
@@ -68,7 +71,9 @@ Event notification (interleaved when streaming is enabled):
 {"jsonrpc": "2.0", "method": "event", "params": {"topic": "plugin.progress", "data": {}}}
 ```
 
-Limits: 1 MiB per request line, 256 KiB params, 150 s per request.
+Ordinary limits: 1 MiB per request line, 256 KiB params, 150 s per request.
+LocalOwner `automation.library.submit` alone allows 8 MiB params and 8 MiB plus
+64 KiB request framing; remote allowances are unchanged.
 
 ## Version metadata
 
@@ -272,13 +277,80 @@ review; an existing known result wins over an unknown acknowledgement.
 The generic CLI requires `--confirm` for submit because its union includes
 deletion; ordinary in-app Save retains its existing explicit button action.
 
-The native journal shares pending admission with adoption and approval.
+The native journal shares pending admission with adoption, approval and library.
 Create/update source is bounded to 256 KiB/depth 64/65,536 nodes; toggle output
 and action-delete cascade versions are checked under the writer before effect
 to keep native recovery inside the finite Owner response budget. Action deletion
 may include all affected event versions, rather than one primary-only receipt.
 Typed SDK methods are `automation_definition_get`, `_submit`, `_resolve` and
 `_review_unknown`. See the [Owner editor and recovery contract](LIVE-COLLABORATION-AUTOMATION.md#native-owner-definition-intents).
+
+## Native Owner library API
+
+These five strict LocalOwner-only methods are implemented contracts under
+validation. Remote sessions are denied at ingress and egress, even with every
+capability; the isolated controller bridge cannot forward them. Caller command
+metadata is forbidden.
+
+| Method | Parameters | Result |
+| --- | --- | --- |
+| `automation.library.snapshot` | `{}` | `{hostId,hostInstanceId,revision,definitionDigest,catalog,definitions,resourceVersions}` |
+| `automation.library.get` | `{}` | Metadata-only `{hostId,hostInstanceId,pending,recent}` |
+| `automation.library.submit` | `{mutation,expectedRevision,definitionDigest,hostId,hostInstanceId}` | `{state,acknowledgement}` |
+| `automation.library.resolve` | `{}` | Original-result lookup and metadata state |
+| `automation.library.review_unknown` | `{commandId,acknowledgeUnknown:true}` | Final original-result lookup and explicit uncertainty archival |
+
+The closed `mutation.operation` union is `create-profile`, `switch-profile`,
+`delete-profile`, `apply-template`, `import-profile`, `assign-record`,
+`import-templates` or `delete-template`. An apply carries `{entry,profileId}`
+and optional `additionalEntries`/`templates`; a profile import carries
+`{profile,entries}` and optional `templates`. Entries contain exact staged
+`{actions,event}` bodies/IDs. Optional gallery and graph additions commit with
+profile registration in the same business transaction. See the
+[complete operation fields and semantics](LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions).
+
+Catalog is `{packs,activeId,templates}`. Snapshot captures catalog plus all
+saved action/event source and qualified versions coherently. Catalog CAS and
+definitionDigest both fence submit, including newly appearing/deleted graph IDs.
+The host generates the native command ID before dispatch. Fresh success may
+return an acknowledgement `{value,resourceVersions,command,hostInstanceId}`;
+value is `{revision,catalogDigest,definitionDigest,versionsDigest,affectedResources}`.
+The catalog version is first, then unique final action/event versions sorted
+by `(scope,id)`; count includes catalog. Recovery returns at most 16 recent
+metadata records and never source, another dispatch or historical state install.
+All four Owner journals share pending admission. Unknown outcomes require
+explicit archival and current review before fresh work, with no ID regeneration
+or automatic retry. The generic CLI submit requires `--confirm`.
+
+The three reserved legacy profile/gallery app-state keys migrate once from
+PointsDB into a revision-zero AutomationDB catalog, retaining old values.
+Legacy reads project canonical state; typed single-key compatibility writes
+commit catalog/version/outbox before acknowledgement. Corruption fails closed.
+The native library transaction atomically commits graph/catalog, provenance,
+approval invalidations, versions, original command result and outboxes; it does
+not grant delegated execution or transfer authority.
+
+Library-only SHA-256 canonical JSON sorts object keys by Unicode scalar value,
+keeps array order and exact native integer decimals, and uses ECMAScript
+shortest finite floats (`1.0` → `1`, `-0` → `0`). Command hash input is
+`{method:"automation.library.apply",params:{mutation,definitionDigest},expectedRevision}`.
+Definition digest includes full ID-sorted actions/events and sorted qualified
+versions; versionsDigest hashes the exact primary-first vector. Other protocol
+hashes are unchanged. Browser review rejects unsafe source integers instead of
+approving rounded data.
+
+Snapshot/source is bounded to 8 MiB, catalog to 4 MiB, each new record/template
+to 256 KiB/depth 64/65,536 nodes and explicit new graph batches to 512 targets.
+There is no 512-record cap on existing workspaces or bulk affected results.
+Final version bytes reserve 256 KiB for native responses/history; precommit
+snapshot admission also reserves measured runtime-catalog overhead and 8 KiB
+of envelope headroom. Any oversized business result rolls back. Typed SDK
+methods are `automation_library_snapshot`, `_get`, `_submit`, `_resolve` and
+`_review_unknown`. CLI template/profile imports use this atomic flow, including
+optional gallery saves. Evidence is recorded in
+[validation](LIVE-COLLABORATION-VALIDATION.md).
+
+## External effect receipts
 
 Owner-only `automation.effects.get {effectId}` and
 `automation.effects.history {before:null|effectId,limit:1..100}` inspect bounded

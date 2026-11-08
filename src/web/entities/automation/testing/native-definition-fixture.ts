@@ -1,5 +1,6 @@
 import { ControlCallError, type ControlCallOptions, type ResourceVersion, type RpcParams } from '@/shared/api/control-client.ts';
 import type { DefinitionIntent, DefinitionState } from '../model/definition-contracts.ts';
+import { nativeLibraryHost } from '@/entities/rule-template/testing/native-library-fixture.ts';
 
 const copy = <T>(value: T): T => structuredClone(value);
 /** Opt-in native protocol fixture around an existing in-memory business host. */
@@ -8,7 +9,9 @@ export function nativeDefinitionHost(business: (method: string, params: RpcParam
   let serial = 0;
   let loseReply = false;
   const transitions = { adoptionPending: false, approvalPending: false };
+  const library = nativeLibraryHost(business, () => ({ hostId: state.hostId, hostInstanceId: state.hostInstanceId }));
   async function handle(method: string, params?: RpcParams, options?: ControlCallOptions): Promise<unknown> {
+    if (method.startsWith('automation.library.')) return library.handle(method, params);
     if (method === 'automation.definition.get') return copy(state);
     if (method === 'automation.adoption.get' || method === 'automation.approval.get') {
       const adoption = method === 'automation.adoption.get';
@@ -57,5 +60,5 @@ export function nativeDefinitionHost(business: (method: string, params: RpcParam
     return { state: copy(state), acknowledgement: { value, resourceVersions: versions, hostInstanceId: state.hostInstanceId,
       command: { commandId: intent.commandId, state: 'succeeded', resource: { kind: 'automation', scope: kind, id }, committedAt: 2 } } };
   }
-  return { handle, transitions, state: () => state, replaceState: (next: DefinitionState) => { state = copy(next); }, loseNextReply: () => { loseReply = true; } };
+  return { handle, library, transitions, state: () => state, replaceState: (next: DefinitionState) => { state = copy(next); }, loseNextReply: () => { loseReply = true; } };
 }

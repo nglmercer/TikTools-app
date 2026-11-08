@@ -8,6 +8,7 @@ pub(crate) use approvals::{
 };
 mod commands;
 mod drafts;
+pub(super) mod library;
 mod provenance;
 pub(crate) use provenance::{BehaviorAuthority, BehaviorProvenance, BehaviorRuntimeAuthority};
 pub(crate) type BehaviorRuntimeSnapshot = (
@@ -163,7 +164,7 @@ impl DatabaseManager {
             let mut missing = Vec::new();
             let mut meta = std::collections::BTreeMap::new();
             for (table, id, enabled) in updates {
-                let previous = versions::current(tx, table, id)?;
+                let previous = versions::check(tx, table, id, None)?;
                 if toggle(tx, table, id, *enabled)?.is_none() {
                     missing.push((versions::scope(table)?.into(), (*id).into()));
                     continue;

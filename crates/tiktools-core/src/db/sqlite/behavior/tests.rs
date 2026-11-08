@@ -317,6 +317,79 @@ fn bulk_both_families_rolls_back_every_write_when_one_version_or_outbox_fails() 
 }
 
 #[test]
+fn bulk_missing_both_sidecars_rejects_without_owner_promotion_and_rolls_back_earlier_family() {
+    for (valid_table, corrupt_table) in [
+        ("behavior_actions", "behavior_events"),
+        ("behavior_events", "behavior_actions"),
+    ] {
+        let f = Fixture::new();
+        f.db.save_behavior_versioned(
+            valid_table,
+            &action("valid"),
+            Some("0"),
+            BehaviorSave::Create,
+        )
+        .unwrap();
+        f.db.save_behavior_versioned(
+            corrupt_table,
+            &action("corrupt"),
+            Some("0"),
+            BehaviorSave::Create,
+        )
+        .unwrap();
+        let c = f.db.open(&f.db.automation_path()).unwrap();
+        let valid_scope = versions::scope(valid_table).unwrap();
+        let corrupt_scope = versions::scope(corrupt_table).unwrap();
+        c.execute("DELETE FROM control_resource_versions WHERE kind='automation' AND scope=?1 AND resource_id='corrupt'", [corrupt_scope]).unwrap();
+        c.execute(
+            "DELETE FROM behavior_provenance WHERE scope=?1 AND resource_id='corrupt'",
+            [corrupt_scope],
+        )
+        .unwrap();
+        // Do not mask synthesized Owner authority with a duplicate old outbox
+        // UNIQUE error when the old implementation recreates revision one.
+        c.execute("DELETE FROM control_resource_outbox WHERE kind='automation' AND scope=?1 AND resource_id='corrupt'", [corrupt_scope]).unwrap();
+        let before = f.count();
+        let before_row = |table: &str, id: &str| -> (i64, String, i64) {
+            c.query_row(
+                &format!("SELECT enabled,payload_json,updated_at FROM {table} WHERE id=?1"),
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .unwrap()
+        };
+        let valid_before = before_row(valid_table, "valid");
+        let corrupt_before = before_row(corrupt_table, "corrupt");
+        // The old current(...)=0 path succeeded here and minted Owner authority
+        // for the corrupt live row after first changing the valid record.
+        assert!(matches!(
+            f.db.set_behavior_enablement(&[
+                (valid_table, "valid", false),
+                (corrupt_table, "corrupt", false),
+            ]),
+            Err(DatabaseError::Invalid(_))
+        ));
+        assert_eq!(before_row(valid_table, "valid"), valid_before);
+        assert_eq!(before_row(corrupt_table, "corrupt"), corrupt_before);
+        assert_eq!(f.count(), before);
+        assert_eq!(versions::current(&c, valid_table, "valid").unwrap(), 1);
+        assert_eq!(versions::current(&c, corrupt_table, "corrupt").unwrap(), 0);
+        assert_eq!(c.query_row("SELECT count(*) FROM control_resource_versions WHERE kind='automation' AND scope=?1 AND resource_id='corrupt'",[corrupt_scope],|r|r.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(
+            c.query_row(
+                "SELECT count(*) FROM behavior_provenance WHERE scope=?1 AND resource_id='corrupt'",
+                [corrupt_scope],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            0
+        );
+        let retained:(String,i64)=c.query_row("SELECT authority,generation FROM behavior_provenance WHERE scope=?1 AND resource_id='valid'",[valid_scope],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        assert_eq!(retained, ("owner".into(), 1));
+    }
+}
+
+#[test]
 fn competing_cas_saves_have_one_winner_and_consistent_snapshot_metadata() {
     let f = Fixture::new();
     f.db.save_behavior("behavior_actions", &action("action"))

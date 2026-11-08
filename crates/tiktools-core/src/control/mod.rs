@@ -33,6 +33,17 @@ pub use owner_definition::{
     OwnerDefinitionReviewUnknown, OwnerDefinitionState, OwnerDefinitionSubmission,
     OwnerDefinitionSubmit,
 };
+pub(crate) mod owner_library;
+pub use owner_library::{
+    owner_library_canonical_json, owner_library_command_hash, owner_library_command_params,
+    owner_library_definition_digest, owner_library_digest, owner_library_versions_digest,
+    validate_owner_library_submit, OwnerLibraryAcknowledgement, OwnerLibraryCatalog,
+    OwnerLibraryEntry, OwnerLibraryIntent, OwnerLibraryMutation, OwnerLibraryOperation,
+    OwnerLibraryOutcome, OwnerLibraryPack, OwnerLibraryProfile, OwnerLibraryReceipt,
+    OwnerLibraryRecord, OwnerLibraryReviewUnknown, OwnerLibrarySnapshot, OwnerLibraryState,
+    OwnerLibrarySubmission, OwnerLibrarySubmit, OWNER_LIBRARY_MAX_BYTES,
+    OWNER_LIBRARY_MAX_CATALOG_BYTES, OWNER_LIBRARY_MAX_RECORDS,
+};
 #[cfg(feature = "cloud-auth")]
 mod cloud_account;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]

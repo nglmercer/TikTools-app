@@ -1,3 +1,4 @@
+import { instantiateBoundedTemplates } from '../lib/bounded-expansion.ts';
 
 import { ref } from 'vue';
 
@@ -5,7 +6,6 @@ import type { JsonObject } from '../../../../automation/types.ts';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import {
-  applyRuleTemplate,
   parseRuleTemplate,
   ruleParamDefaults,
   RULE_TEMPLATE_ID_PATTERN,
@@ -51,7 +51,7 @@ function readText(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (trimmed === '') return null;
-  return trimmed.slice(0, max);
+  return Array.from(trimmed).slice(0, max).join('');
 }
 
 function readParams(value: unknown): JsonObject | null {
@@ -66,9 +66,11 @@ export function parseRuleProfile(value: unknown): { ok: true; profile: RuleProfi
   if (value['profileVersion'] !== PROFILE_VERSION) {
     return { ok: false, errors: [`unsupported profileVersion (want ${PROFILE_VERSION})`] };
   }
-  const id = readText(value['id'], 64);
-  if (!id || !RULE_TEMPLATE_ID_PATTERN.test(id)) {
-    errors.push('id must match [a-z0-9][a-z0-9._-]{1,63}');
+  const rawId = value['id'];
+  const id = typeof rawId === 'string' && rawId !== '' && rawId !== DEFAULT_PROFILE_ID && Array.from(rawId).length <= 64 &&
+    rawId.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '') === rawId && !/\p{Cc}/u.test(rawId) ? rawId : null;
+  if (!id) {
+    errors.push('id must be a nonreserved canonical profile ID of 1–64 characters');
   }
   const name = readText(value['name'], 80);
   if (!name) errors.push('name is required');
@@ -132,7 +134,7 @@ export function mergedEntryParams(profile: RuleProfile, entry: RuleProfileEntry,
 }
 
 export function instantiateProfile(profile: RuleProfile, overrides: JsonObject = {}): AppliedRuleTemplate[] {
-  return profile.templates.map((entry) => applyRuleTemplate(entry.template, mergedEntryParams(profile, entry, overrides)));
+  return instantiateBoundedTemplates(profile.templates.map((entry) => ({ template: entry.template, params: mergedEntryParams(profile, entry, overrides) })));
 }
 
 export function profileParamSchema(profile: RuleProfile): { schema: JsonObject; defaults: JsonObject } | null {
@@ -313,7 +315,7 @@ export interface ProfileUniverse {
   actionIds: string[];
 }
 
-export function useRuleProfiles(control: ControlClient) {
+export function useRuleProfiles(control: ControlClient, persistence: () => boolean | null = () => null) {
   const packs = ref<ProfilePack[]>([]);
   const activeId = ref<string>(DEFAULT_PROFILE_ID);
   const loading = ref(false);
@@ -343,6 +345,7 @@ export function useRuleProfiles(control: ControlClient) {
   };
 
   const persist = async (next: ProfilePack[], active: string): Promise<void> => {
+    if (persistence() !== false) throw new ControlCallError('capability_unavailable', 'Persistent profile changes require the native atomic library.');
     await Promise.all([
       control.call('app.state.set', { key: PACKS_KEY, value: JSON.stringify(next) }),
       control.call('app.state.set', { key: ACTIVE_KEY, value: active }),
@@ -431,7 +434,8 @@ export function useRuleProfiles(control: ControlClient) {
     let id = base;
     let counter = 2;
     while (packs.value.some((pack) => pack.id === id)) {
-      id = `${base}-${counter}`.slice(0, 64);
+      const suffix = `-${counter}`;
+      id = `${base.slice(0, 64 - suffix.length)}${suffix}`;
       counter += 1;
     }
     const pack: ProfilePack = { id, name: name.trim().slice(0, 80), description: '', eventIds: [], actionIds: [] };
@@ -495,7 +499,7 @@ export function useRuleProfiles(control: ControlClient) {
     }
   };
 
-  const setError = (message: string): void => {
+  const setError = (message: string | null): void => {
     error.value = message;
   };
 

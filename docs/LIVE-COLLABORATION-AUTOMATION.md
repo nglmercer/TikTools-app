@@ -19,7 +19,10 @@ bounded scripts, preserving inherited grants through downstream rules. The Owner
 coordinator/UI are now implemented, with atomic source/effect/grant review,
 explicit dependency state plans and original-result recovery. Wider effect
 policies, HTTP response emission, delegated plugins and remote activation remain unfinished. The
-release acceptance matrix remains open.
+release acceptance matrix remains open. Atomic Owner profile/template library
+transitions, native recovery and CLI imports are implemented contracts under
+validation; their executed evidence belongs in the
+[validation record](LIVE-COLLABORATION-VALIDATION.md).
 
 The current implementation and exact API/SDK receipt contract are in
 [delegated approval and activation](LIVE-COLLABORATION-APPROVAL.md). Approvals
@@ -309,6 +312,138 @@ for outcome lookup without resending source. It cannot adopt definitions; the
 host-native owner journal is separate. See the
 [native proposal contract](LIVE-COLLABORATION-CLIENT-COMMANDS.md#native-automation-proposal-editor).
 
+## Atomic Owner library transitions
+
+The local Owner's profile and custom-template catalog now resides beside the
+action/event graph in `tiktok-automation.db`. `automation.library.snapshot {}`
+returns `{hostId,hostInstanceId,revision,definitionDigest,catalog,definitions,resourceVersions}`.
+The catalog is `{packs,activeId,templates}`; packs contain
+`{id,name,description,eventIds,actionIds}`. Catalog, full saved definitions and
+their family-qualified versions come from one SQLite read transaction. The host
+then adds the runtime catalog for display. This is an Owner source review;
+remote principals and the isolated controller cannot use any library method.
+
+`automation.library.submit` accepts the closed wrapper
+`{mutation,expectedRevision,definitionDigest,hostId,hostInstanceId}`. The exact
+catalog revision and complete definition-universe digest are both required:
+ordinary edits, newly appearing IDs and deleted IDs invalidate the reviewed
+universe even if catalog membership did not change. The eight mutations are:
+
+| `mutation.operation` | Remaining mutation fields | Effect |
+| --- | --- | --- |
+| `create-profile` | `id,name,description` | Add an empty named pack |
+| `switch-profile` | `id` | Rewrite enabled states over the full live action/event universe and select the pack; Default selects unowned records |
+| `delete-profile` | `id` | Delete its live graph members, coalesce action-reference cascades and remove membership |
+| `apply-template` | `entry,profileId,additionalEntries?,templates?` | Create the exact staged graph and assign it to the requested pack or Default; optional graph/gallery additions share the transaction |
+| `import-profile` | `profile,entries,templates?` | Create staged entries, replace that pack's descriptor/membership, select it and optionally update the gallery |
+| `assign-record` | `kind,id,profileId` | Assign an existing unowned record to an existing named pack; Default/already-owned assignment is a checked no-op |
+| `import-templates` | `templates` | Upsert gallery documents by their exact IDs |
+| `delete-template` | `id` | Remove a gallery document; an absent ID is a checked no-op |
+
+An entry is `{actions:[fullRecord...],event:fullRecord}`. Its event references
+its exact ordered staged action IDs. `additionalEntries` permits up to 31 more
+entries after the primary; profile imports permit up to 32 entries. Optional
+gallery batches permit up to 128 documents. Duplicate gallery IDs within one
+submission fail; an existing gallery ID is replaced under the reviewed catalog
+CAS. UI collision handling stages fresh IDs before submission; the host never
+regenerates IDs or transforms a collision into a create/update fallback.
+New graph targets require revision zero and cannot reuse retained tombstones.
+
+The host persists a metadata-only native intent before dispatch. One immediate
+FULL-synchronous AutomationDB transaction checks command identity, catalog CAS
+and the complete universe digest, then writes definitions, catalog, retained
+versions/provenance, approval invalidations, command result and both outboxes.
+Every accepted mutation, including a checked no-op, advances the catalog once.
+Existing source retains its trusted authority; switching, deleting or importing
+does not adopt a delegated record or authorize execution. Only the exact
+`automation/library/catalog` version is exempt from behavior provenance and
+must match the canonical catalog revision/deleted state; unknown scopes fail
+closed.
+
+Delete-profile removes all target member IDs, including already absent IDs,
+from every remaining pack. Multiple deleted actions cause at most one final
+revision per surviving affected event. References to an already absent action
+are not an invented deletion cascade. Fresh graph creation clears its newly
+created IDs from stale memberships in every existing pack before honoring the
+explicit requested pack or Default. Replacing an imported pack leaves its old
+graph present and unowned unless another pack still owns it. Ordinary assignment
+does not implicitly transfer ownership between packs.
+
+The first catalog access copies the three retained PointsDB `app_state` keys
+`behavior.profiles.packs`, `behavior.profiles.active` and
+`behavior.templates.custom` once into a revision-zero AutomationDB catalog.
+Legacy data is retained untouched. Duplicate identities, malformed documents
+and oversized/corrupt state fail without dropping selected entries or partially
+initializing the catalog. Subsequent legacy reads project the three values
+coherently from the canonical catalog. Generic state reads never allocate the
+retained legacy blobs. A legacy reserved-key write is typed and commits one
+catalog revision plus invalidation in AutomationDB before acknowledgement;
+persistence failure cannot be reported as a successful memory-only save.
+Separate legacy key writes do not form a multi-key atomic operation.
+
+The native methods `automation.library.get`, `.resolve` and `.review_unknown`
+use the same metadata-only state shape as the other Owner journals, with one
+pending intent and at most 16 recent records. Review-unknown requires
+`{commandId,acknowledgeUnknown:true}` and performs a final original-result lookup.
+All four Owner journals—adoption, approval, single definition and library—check
+each other's pending state atomically and share UI admission. Reload, recovery
+and uncertainty archival neither recover source nor replay a mutation. A new
+attempt requires current saved-state review and fresh consent; staged IDs stay
+frozen for the original attempt. Caller-generated command metadata is forbidden.
+
+A fresh success may return `{state,acknowledgement}`. The acknowledgement is
+`{value,resourceVersions,command,hostInstanceId}`, where value is
+`{revision,catalogDigest,definitionDigest,versionsDigest,affectedResources}`.
+Its version vector starts with `automation/library/catalog`, followed by unique
+final action/event versions sorted by `(scope,id)`. The count includes catalog.
+Recovery verifies the immutable original result's operation/target/base/digest
+bindings and returns metadata history, without installing historical source.
+The retained business envelope contains these bindings and the receipt only.
+
+Library hashes use SHA-256 of canonical JSON: object keys sort by Unicode
+scalar value, arrays preserve order, strings use ordinary JSON escaping,
+integers retain exact native decimal values and finite floats use ECMAScript
+shortest formatting (`1.0` becomes `1`, `-0` becomes `0`). The command hash covers
+`{method:"automation.library.apply",params:{mutation,definitionDigest},expectedRevision}`.
+The definition digest covers ID-sorted full `actions`/`events` and family/ID-sorted
+definition versions; the catalog digest covers the catalog, and versionsDigest
+covers the exact primary-first receipt vector. This encoding is private to the
+new library protocol; older command hashes retain their existing contracts.
+Browser review refuses source integers outside its safe display range rather
+than silently approving rounded data; native integer inspection stays exact.
+
+The source/snapshot budget is 8 MiB and the catalog budget is 4 MiB. Newly
+created graph records and submitted templates have a 256 KiB/depth-64/65,536-node
+bound. Explicit new graph batches contain at most 512 targets; existing
+workspaces, switches, deletes and snapshots have no 512-record universe cap.
+Retained legacy rows can exceed the new-record byte bound while still fitting
+the bounded snapshot. Rewritten toggle output must fit the record bound. SQL
+byte admission precedes source decoding. Final serialized versions must fit
+8 MiB minus 256 KiB of native result/history headroom. Under the host writer,
+the coordinator measures current runtime-catalog overhead and subtracts it
+from the complete post-write snapshot budget before commit, in addition to
+8 KiB envelope headroom. Oversized results roll back the whole business change.
+Independent later runtime-catalog changes remain separate changes.
+
+CLI template/profile imports now stage all IDs, obtain one current snapshot and
+submit one library mutation, including optional saved gallery documents and
+profile registration. Actual imports and dry runs measure resolved record JSON
+before allocating expanded strings or cloning sole-parameter trees, sharing an
+8 MiB entry budget across the whole import. Inline object interpolation counts
+its serialized text with outer-string escaping and guards raw depth/nodes before
+serialization; repeated small placeholders cannot bypass per-record limits.
+They no longer report a sequence of graph saves and a
+PointsDB pack write as an atomic import. The Owner editor's ordinary definition
+save and later profile assignment remain distinct confirmed operations. A known
+successful save stays saved if membership assignment fails; assignment is staged
+explicitly and cannot silently resubmit the definition.
+
+Implementation: [native coordinator](../crates/tiktools-core/src/control/owner_library/runtime.rs),
+[catalog/migration](../crates/tiktools-core/src/db/sqlite/automation_library.rs),
+[atomic business transition](../crates/tiktools-core/src/db/sqlite/behavior/library.rs),
+[native journal](../crates/tiktools-core/src/db/sqlite/owner_library.rs) and
+[API contract](CONTROL_API.md#native-owner-library-api).
+
 ## Implemented execution admission
 
 The runtime installs actions, events, trigger ownership and active-plugin state
@@ -560,8 +695,8 @@ there is no additional execution-approval checkbox.
 
 `owner_automation_definitions` stores bounded metadata and source fingerprints,
 never definition source, credentials or grants. One shared native coordinator
-and reciprocal transactional pending checks cover definition, adoption and
-approval journals. The begin transaction commits before the existing durable
+and reciprocal transactional pending checks cover definition, adoption,
+approval and library journals. The begin transaction commits before the existing durable
 business command runs under command-coordination then automation-writer gates.
 Ordinary definition writes preserve trusted provenance; they never adopt a
 delegated record or install a delegated execution approval.
@@ -588,15 +723,16 @@ unavailable historical result.
 **Definition changes** opens selection-independent native history/recovery,
 also reachable from the narrow editor sheet without discarding a draft. A
 recovered result invalidates the current editor's review/base consent and keeps
-newer text. All three Owner mutation flows share frontend in-flight admission
+newer text. All four Owner mutation flows share frontend in-flight admission
 and observe each other's pending/recovery state; native admission also covers
 independent windows. Source/command identities never enter WebStorage.
 Successful definition acknowledgement is kept distinct from subsequent profile
 assignment failure, so a profile error does not resend an already-saved record.
 
-Template imports, profile-wide operations and other multi-record transitions
-retain separate semantics; this coordinator covers the five single-record
-operations only. Physical two-PC/platform/load acceptance remains open.
+Template imports and profile-wide transitions use the separate
+[atomic library coordinator](#atomic-owner-library-transitions); the definition
+coordinator covers the five single-record operations only. Other domain
+ledgers and physical two-PC/platform/load acceptance remain open.
 
 **Compare with host** reads the current body/revision or tombstone and shows the
 opening version, candidate and current host definition. The operator can edit
@@ -606,7 +742,7 @@ An absent ID offers **Prepare recreation with this draft**, using its retained
 tombstone; **Save** is a separate action. A changed candidate invalidates an
 already displayed review. No candidate is automatically saved to disk or Cloud.
 
-Library enablement changes require confirmation of the frozen target ID/revision.
+Single-record enablement changes require confirmation of the frozen target ID/revision.
 Cancel restores the committed checkbox. Conflicts/unconfirmed results require a
 fresh read and another explicit confirmation; an already matching current state
 does not submit another toggle. Editor deletion uses its pinned base and existing
@@ -614,15 +750,16 @@ confirmation. Failure preserves the draft; newer edits made during a successful
 delete remain available for review. Owner profile-wide enablement remains its
 separate atomic owner transition, not a single-record revision check.
 
-A saved rule's profile adoption uses the profile captured when saving began,
-even if the operator switches profiles before acknowledgement. Action/event
-membership is distinct for identical raw IDs. Sidecar profile errors do not turn
-an acknowledged business save into an unconfirmed write.
+A saved rule's membership assignment is staged separately for explicit library
+review using its captured family/ID and requested profile. Changing selection or
+profile cannot silently retarget that confirmation. Action/event membership is
+distinct for identical raw IDs. Assignment failure does not turn an acknowledged
+business save into an unconfirmed write or trigger another definition save.
 
 The owner forms and review are available in English and Spanish; narrow review
 buttons retain their full labels. These are local-owner behavior editors. Native
 remote JSON proposal editing and owner adoption review now have their separate
-surfaces. Delegated manifest approval and graph execution remain unfinished.
+surfaces. Broader delegated effect policies and graph execution remain unfinished.
 These owner forms do not submit a proposal under a remote identity.
 
 ## Implemented native controller contract
@@ -683,9 +820,10 @@ The following work remains part of the full plan:
 1. **Owner definition intent recovery.** Native single-record create/update,
    deletion and enable/disable now have original-ID recovery, complete Owner
    editor integration, host/revision fences and a shared pending gate with
-   adoption/approval. Keep summary bodies separate from definition drafts.
-   Extend coherent native intent semantics to remaining multi-record/profile
-   and template operations, with their own complete acceptance coverage.
+   adoption/approval/library. The eight atomic profile/template library
+   transitions and compound CLI imports are implemented under validation above.
+   Keep summary bodies separate from definition drafts and finish their complete
+   acceptance coverage; this does not complete other domain ledgers or effects.
 2. **Complete approval bindings over trusted provenance.** The sidecar, one-time
    migration, retained tombstones, disabled authoring, explicit owner adoption
    and runtime quarantine are implemented. The core approval now binds every
@@ -765,7 +903,7 @@ The following work remains part of the full plan:
 6. **Remote controller/editor completion.** The distinct native JSON proposal
    surface now uses explicit private storage, inspected base selection and
    fixed durable create/update operations. Owner provenance/adoption review and
-   all three native journals are implemented with original-ID outcome recovery.
+   all four Owner native journals are implemented with original-ID outcome recovery.
    Complete the remaining domain editors, manifest approvals and host-output
    labels under their respective policies. Neither editor grants remote
    execution authority.
@@ -794,8 +932,9 @@ dirty-state clearing have been replaced. It MUST continue to:
   intent and revision zero; reusing a deleted ID requires review of its retained
   tombstone. Never turn `automation_not_found` into an automatic create.
 - Preserve the draft and dirty state on conflicts, deletion, transport failure
-  and unconfirmed outcomes. An unconfirmed save requires a current read and
-  explicit review before another submission; it has no durable command ID yet.
+  and unconfirmed outcomes. An unconfirmed save retains its host-native durable
+  command identity; resolve that original outcome without resubmission. A fresh
+  save requires current review after recovery or explicit uncertainty archival.
 - Mark a draft clean only after a successful acknowledgement bound to the same
   family, ID and submitted draft generation. Edits made during that request
   remain dirty. A late reply must not select, overwrite or mark a different

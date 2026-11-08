@@ -55,6 +55,7 @@ export function approvalFixture() {
       manifest: manifest(), subjects: manifestAvailable ? subjects : [], eligibility, approval });
   }
   function handle(method: string, params: RpcParams | undefined, options?: ControlCallOptions): unknown {
+    if (method === 'automation.library.get') return copy({ hostId: state.hostId, hostInstanceId: state.hostInstanceId, pending: null, recent: [] });
     if (method === 'automation.definition.get') return copy(definitionState ?? { hostId: state.hostId, hostInstanceId: state.hostInstanceId, pending: null, recent: [] });
     if (method === 'automation.approval.get' || method === 'automation.approval.resolve') return copy(state);
     if (method === 'automation.adoption.get') return copy(adoptionState);

@@ -140,6 +140,15 @@ describe('createControlClient', () => {
       control.detach();
     });
 
+    it('allows a bounded complete local library submission while other methods retain their ceiling', async () => {
+      const ipc = installMockIpc(); const control = createControlClient(); control.attach();
+      const pending = control.call('automation.library.submit', { blob: 'x'.repeat(2 * 1024 * 1024) });
+      expect(ipc.sent).toHaveLength(1);
+      respond(sentId(), { result: { accepted: true } }); await expect(pending).resolves.toEqual({ accepted: true });
+      await expect(control.call('automation.library.submit', { blob: 'x'.repeat(8 * 1024 * 1024 + 64 * 1024) })).rejects.toMatchObject({ code: 'too_large' });
+      expect(ipc.sent).toHaveLength(1); control.detach();
+    });
+
     it('rejects the pending call when the host reports too_large with its id', async () => {
       installMockIpc();
       const control = createControlClient();

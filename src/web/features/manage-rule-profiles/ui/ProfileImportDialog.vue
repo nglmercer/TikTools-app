@@ -14,6 +14,7 @@ import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
 import BaseFileDrop from '@/shared/ui/file-drop/BaseFileDrop.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
+import { ControlCallError } from '@/shared/api/control-client.ts';
 
 const props = withDefaults(
   defineProps<{
@@ -30,6 +31,8 @@ const { t } = useI18n();
 const staged = ref<{ source: string; profile: RuleProfile } | null>(null);
 const problems = ref<string[]>([]);
 const values = ref<JsonObject>({});
+const candidate = ref<AppliedRuleTemplate[] | null>(null);
+watch(values, () => { if (!props.working) candidate.value = null; }, { deep: true });
 
 const settings = computed(() => (staged.value ? profileParamSchema(staged.value.profile) : null));
 const messages = computed(() => [...problems.value, ...(props.error ? [props.error] : [])]);
@@ -42,6 +45,7 @@ watch(open, (value) => {
 });
 
 function stage(text: string, source: string): void {
+  candidate.value = null;
   const parsed = parseRuleProfileImport(text);
   if (!parsed.profile) {
     staged.value = null;
@@ -60,11 +64,14 @@ function onError(message: string): void {
 
 function apply(): void {
   const pending = staged.value;
-  if (!pending) {
+  if (!pending || props.working) {
     problems.value = [t('automations.import.empty')];
     return;
   }
-  emit('apply', pending.profile, instantiateProfile(pending.profile, settings.value ? { ...values.value } : {}));
+  try { candidate.value ??= instantiateProfile(pending.profile, settings.value ? { ...values.value } : {}); }
+  catch (failure) { problems.value = [t(failure instanceof ControlCallError && failure.code === 'too_large' ? 'libraryRecovery.expansionTooLarge' : 'libraryRecovery.expansionInvalid')]; return; }
+  problems.value = [];
+  emit('apply', pending.profile, candidate.value);
 }
 </script>
 

@@ -1,6 +1,6 @@
 
 import type { JsonObject, JsonValue } from '../../../../automation/types.ts';
-import { createActionId, createEventId } from '../../../../automation/behavior/schema.ts';
+import { boundedSubstitute, instantiateBoundedTemplates } from './bounded-expansion.ts';
 import type {
   CooldownScope,
   EventFilter,
@@ -25,8 +25,6 @@ const OPERATORS: readonly FilterOperator[] = [
   'gte', 'gt', 'lte', 'lt', 'eq', 'neq', 'contains', 'starts-with', 'in', 'is-true', 'is-false',
 ];
 
-const PARAMS_PATTERN = /\{\{\s*params\.([a-zA-Z0-9_.]+)\s*\}\}/g;
-const SOLE_PARAMS_PATTERN = /^\{\{\s*params\.([a-zA-Z0-9_.]+)\s*\}\}$/;
 
 export interface RuleTemplateAction {
   name: string;
@@ -67,9 +65,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function readText(value: unknown, max: number): string | null {
   if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
+  const trimmed = value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '');
   if (trimmed === '') return null;
-  return trimmed.slice(0, max);
+  return Array.from(trimmed).slice(0, max).join('');
 }
 
 function readLocalized(value: unknown, max: number): TemplateText | null {
@@ -87,43 +85,8 @@ function readLocalized(value: unknown, max: number): TemplateText | null {
   return localized;
 }
 
-function readPath(params: JsonObject, path: string): JsonValue | undefined {
-  let current: JsonValue | undefined = params;
-  for (const part of path.split('.')) {
-    if (!current || typeof current !== 'object' || Array.isArray(current)) return undefined;
-    current = (current as JsonObject)[part];
-  }
-  return current;
-}
-
-function scalarText(value: JsonValue | undefined): string {
-  if (value === undefined || value === null) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  try {
-    return JSON.stringify(value) ?? '';
-  } catch {
-    return '';
-  }
-}
-
 export function substituteRuleParams(value: JsonValue, params: JsonObject): JsonValue {
-  if (typeof value === 'string') {
-    const sole = SOLE_PARAMS_PATTERN.exec(value);
-    if (sole?.[1]) {
-      const raw = readPath(params, sole[1]);
-      return raw === undefined ? '' : raw;
-    }
-    PARAMS_PATTERN.lastIndex = 0;
-    return value.replace(PARAMS_PATTERN, (_span, path: string) => scalarText(readPath(params, path)));
-  }
-  if (Array.isArray(value)) return value.map((entry) => substituteRuleParams(entry, params));
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as JsonObject).map(([key, entry]) => [key, substituteRuleParams(entry as JsonValue, params)]),
-    );
-  }
-  return value;
+  return boundedSubstitute(value, params);
 }
 
 export function ruleParamDefaults(params: JsonObject | undefined): JsonObject {
@@ -133,7 +96,7 @@ export function ruleParamDefaults(params: JsonObject | undefined): JsonObject {
   const defaults: JsonObject = {};
   for (const [key, field] of Object.entries(properties as JsonObject)) {
     if (field && typeof field === 'object' && !Array.isArray(field) && 'default' in field) {
-      defaults[key] = (field as JsonObject).default as JsonValue;
+      Object.defineProperty(defaults, key, { value: (field as JsonObject).default as JsonValue, enumerable: true, configurable: true, writable: true });
     }
   }
   return defaults;
@@ -310,30 +273,7 @@ export function applyRuleTemplate(
   params: JsonObject,
   overrides: { eventName?: string; actionNames?: string[] } = {},
 ): AppliedRuleTemplate {
-  const actions: LiveAction[] = template.actions.map((action, index) => ({
-    schemaVersion: 2,
-    id: createActionId(),
-    name: overrides.actionNames?.[index]?.trim() || (substituteRuleParams(action.name, params) as string),
-    typeId: action.typeId,
-    enabled: action.enabled,
-    config: substituteRuleParams(action.config, params) as JsonObject,
-  }));
-  const eventName = overrides.eventName?.trim() || (substituteRuleParams(template.event.name, params) as string);
-  return {
-    actions,
-    event: {
-      schemaVersion: 1,
-      id: createEventId(),
-      name: eventName,
-      enabled: template.event.enabled,
-      trigger: template.event.trigger,
-      filters: substituteRuleParams(template.event.filters as unknown as JsonObject, params) as unknown as EventFilter[],
-      cooldownMs: template.event.cooldownMs,
-      cooldownScope: template.event.cooldownScope,
-      actionIds: actions.map((action) => action.id),
-      runMode: template.event.runMode,
-    },
-  };
+  return instantiateBoundedTemplates([{ template, params, overrides }])[0]!;
 }
 
 export function exportRuleTemplate(template: RuleTemplate): string {

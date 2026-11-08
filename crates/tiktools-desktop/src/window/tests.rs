@@ -4,7 +4,7 @@ use super::domain_events::forward_domain_events;
 use super::ipc::{
     classify_inbound_message, is_app_update_install_command, is_devtools_command_value,
     is_frontend_ready_fast, is_open_devtools_fast, is_probably_control_rpc,
-    webview_request_too_large, InboundRoute,
+    webview_parsed_request_too_large, webview_request_too_large, InboundRoute,
 };
 use super::outbox::{
     classify_webview_message, WebviewOutbox, MAX_BATCH_PER_TICK, MAX_PENDING_WEBVIEW_MESSAGES,
@@ -381,11 +381,29 @@ fn oversized_bursts_drain_in_capped_batches() {
 
 #[test]
 fn oversized_webview_requests_are_rejected_at_the_boundary() {
-    let limit = tiktools_control_api::MAX_REQUEST_BYTES;
+    let limit = tiktools_control_api::MAX_OWNER_LIBRARY_REQUEST_BYTES;
     assert!(!webview_request_too_large(&"x".repeat(limit)));
     assert!(webview_request_too_large(&"x".repeat(limit + 1)));
     assert!(is_probably_control_rpc(r#"{"method":"system.ping"}"#));
     assert!(!is_probably_control_rpc(r#"{"type":"disconnect"}"#));
+}
+
+#[test]
+fn only_the_exact_owner_library_submit_gets_the_large_local_request_budget() {
+    for method in [
+        "automation.library.submit",
+        "automation.library.resolve",
+        "automation.library.submit.other",
+        "automation.update",
+    ] {
+        let value = serde_json::json!({"method":method,"params":{"blob":"x".repeat(tiktools_control_api::MAX_REQUEST_BYTES),"note":"automation.library.submit"}});
+        let raw = serde_json::to_string(&value).unwrap();
+        assert!(!webview_request_too_large(&raw));
+        assert_eq!(
+            webview_parsed_request_too_large(&raw, &value),
+            method != "automation.library.submit"
+        );
+    }
 }
 
 fn forwarder_test_core(tag: &str) -> (Arc<AppCore>, std::path::PathBuf) {
@@ -564,8 +582,8 @@ fn reliable_lane_trips_safety_policy_by_count() {
 #[test]
 fn reliable_lane_trips_safety_policy_by_bytes() {
     let mut outbox = WebviewOutbox::new();
-    // 17 one-megabyte critical messages exceed the 16 MiB policy with
-    // far fewer than 4096 messages.
+    // Bodies plus prepared JavaScript literals exceed the 32 MiB policy
+    // with far fewer than 4096 messages.
     let big = format!(
         r#"{{"type":"rpc-response","response":{{"blob":"{}"}}}}"#,
         "x".repeat(1024 * 1024 - 128)

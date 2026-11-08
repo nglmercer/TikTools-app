@@ -27,6 +27,7 @@ import { assertRecord, automationVersions, recordKey, recordRevision, validRevis
 } from './record-versions.ts';
 import { mergePluginMessages } from '@/shared/i18n/i18n.ts';
 import { definitionJournal } from './definition-journal.ts';
+import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 
 export interface AutomationRunsResult {
   runs: BehaviorRun[];
@@ -53,6 +54,7 @@ export interface LastHotkeyEvent {
 export function useAutomation(control: ControlClient) {
   // Keep native journals shared with all review surfaces on the injected host.
   const definitions = definitionJournal(control);
+  const library = libraryJournal(control);
   const owner = ownControlSubscriptions(control);
   control = owner.client;
   let disposed = false;
@@ -68,14 +70,16 @@ export function useAutomation(control: ControlClient) {
     snapshot: initialSnapshot, versions: new Map(), persistent: null, host: null,
   });
   const behavior = computed({
-    get: () => projection.value.snapshot,
+    get: () => projection.value.persistent !== false && library.snapshot.value ? library.snapshot.value.definitions : projection.value.snapshot,
     // Legacy test/embedding assignment is a body-only projection, never a
     // source of checked-write authority for an unrelated version map.
-    set: (snapshot: BehaviorSnapshot) => { projection.value = { snapshot, versions: new Map(), persistent: null, host: null }; },
+    set: (snapshot: BehaviorSnapshot) => { library.snapshot.value = null; projection.value = { snapshot, versions: new Map(), persistent: null, host: null }; },
   });
-  const behaviorVersions = computed(() => projection.value.versions);
+  const behaviorVersions = computed(() => projection.value.persistent !== false && library.snapshot.value
+    ? new Map(library.snapshot.value.resourceVersions.map((version) => [recordKey(version.scope as AutomationKind, version.id), version.revision])) : projection.value.versions);
   const persistent = computed(() => projection.value.persistent);
-  const sourceHost = computed(() => projection.value.host);
+  const sourceHost = computed(() => projection.value.persistent !== false && library.snapshot.value ?
+    { hostId: library.snapshot.value.hostId, hostInstanceId: library.snapshot.value.hostInstanceId } : projection.value.host);
   const revisionFor = (kind: AutomationKind, id: string): AutomationRevision | undefined =>
     behaviorVersions.value.get(recordKey(kind, id)) ?? (persistent.value === false ? null : undefined);
   const behaviorRuns = shallowRef<BehaviorRun[]>([]);
@@ -220,12 +224,13 @@ export function useAutomation(control: ControlClient) {
     const revision = ++refreshRevision;
     const runsAtStart = runsRevision;
     try {
-      const before = persistent.value === false ? null : await definitions.fetchState().catch(() => null);
-      const [snapshot, runs, info] = await Promise.all([
-        callWithMeta<BehaviorSnapshot>(control, 'automation.snapshot', {}),
+      const [runs, info] = await Promise.all([
         control.call<AutomationRunsResult>('automation.runs', {}),
         control.call<{ features?: { persistence?: boolean } }>('system.info', {}).catch(() => null),
       ]);
+      const memory = info?.features?.persistence === false;
+      const coherent = memory ? null : await library.readSnapshot();
+      const snapshot = coherent ? { result: coherent.definitions, meta: { resourceVersions: coherent.resourceVersions } } : await callWithMeta<BehaviorSnapshot>(control, 'automation.snapshot', {});
       if (disposed || revision !== refreshRevision) return;
       const versions = automationVersions(snapshot.meta);
       if (!snapshot.result || !Array.isArray(snapshot.result.actions) || !Array.isArray(snapshot.result.events) ||
@@ -241,10 +246,8 @@ export function useAutomation(control: ControlClient) {
           seen.add(row.id);
         }
       }
-      const memory = info?.features?.persistence === false;
-      const after = memory ? null : await definitions.fetchState().catch(() => null);
-      if (disposed || revision !== refreshRevision) return;
-      const host = checkedReadHost(before, after);
+      const host = coherent && { hostId: coherent.hostId, hostInstanceId: coherent.hostInstanceId };
+      if (coherent) { library.installSnapshot(coherent); if (library.snapshot.value !== coherent) return; }
       applySnapshot(snapshot.result, versions, typeof info?.features?.persistence === 'boolean' ? info.features.persistence : null, host);
       if (runsAtStart === runsRevision) applyRuns(runs.runs);
     } catch (failure) {
@@ -440,8 +443,14 @@ export function useAutomation(control: ControlClient) {
     });
   };
 
-  const handleApplyRuleTemplate = (actions: LiveAction[], event: LiveEvent): void => {
-    void mutate(async () => {
+  const handleApplyRuleTemplate = async (actions: LiveAction[], event: LiveEvent): Promise<void> => {
+    if (persistent.value !== false) {
+      const context = library.snapshot.value;
+      if (!context) throw new ControlCallError('capability_unavailable', 'Read the current library first.');
+      await library.request({ operation: 'apply-template', entry: { actions, event }, profileId: context.catalog.activeId }, context);
+      await refresh(); return;
+    }
+    await mutate(async () => {
       for (const action of actions) {
         await control.call('automation.create', { kind: 'action', record: action }, checkedOptions(persistent.value === false ? null : '0'));
       }
@@ -452,6 +461,7 @@ export function useAutomation(control: ControlClient) {
   const createProfileRecords = async (
     entries: Array<{ actions: LiveAction[]; event: LiveEvent }>,
   ): Promise<void> => {
+    if (persistent.value !== false) throw new ControlCallError('capability_unavailable', 'Persistent profile graphs require the native atomic library.');
     for (const entry of entries) {
       for (const action of entry.actions) {
         await control.call('automation.create', { kind: 'action', record: action }, checkedOptions(persistent.value === false ? null : '0'));

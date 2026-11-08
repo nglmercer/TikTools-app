@@ -9,7 +9,10 @@ use super::{
 impl DatabaseManager {
     pub(crate) fn load_app_state(&self) -> Result<Map<String, Value>, DatabaseError> {
         let connection = self.open(&self.points_path())?;
-        let mut statement = connection.prepare("SELECT key, value FROM app_state")?;
+        // Reserved library metadata has its own bounded migration and coherent
+        // AutomationDB projection. Never allocate retained legacy source here,
+        // including during startup and unrelated state reads.
+        let mut statement = connection.prepare("SELECT key, value FROM app_state WHERE key NOT IN ('behavior.profiles.packs','behavior.profiles.active','behavior.templates.custom')")?;
         let rows = statement.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
         })?;

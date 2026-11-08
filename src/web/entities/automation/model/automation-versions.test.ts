@@ -23,7 +23,7 @@ function fixture() {
     if (method === 'automation.runs') return { runs: [] };
     if (method === 'automation.snapshot') {
       const body = structuredClone(snapshot);
-      if (metadata) options?.onMetadata?.(meta());
+      if (metadata) options?.onMetadata?.({ resourceVersions: body.actions.map((record) => ({ kind: 'automation', scope: 'action', id: record.id, revision })) });
       const hold = holdNextSnapshot; holdNextSnapshot = undefined;
       return hold ? hold.then(() => body) : body;
     }
@@ -98,7 +98,9 @@ test('a successful body without revision acknowledgement is unconfirmed and cann
   expect(f.requests.filter((r) => r.method === 'automation.update')).toHaveLength(1);
   expect(f.requests.find((r) => r.method === 'automation.update')?.meta).toEqual({ expectedRevision: '1' });
   await f.automation.refresh();
-  expect(f.automation.revisionFor('action', 'same')).toBeUndefined();
+  // A malformed coherent snapshot cannot replace the last valid source/base.
+  expect(f.automation.revisionFor('action', 'same')).toBe('1');
+  expect(f.automation.behaviorError.value).toContain('Invalid native Owner library');
   f.automation.dispose();
 });
 

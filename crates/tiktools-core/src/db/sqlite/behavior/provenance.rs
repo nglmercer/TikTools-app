@@ -107,7 +107,7 @@ pub(super) fn validate_runtime_catalog(db: &Connection) -> Result<(), DatabaseEr
         }
     }
     let invalid: bool = db.query_row(
-        "SELECT EXISTS(SELECT 1 FROM control_resource_versions v LEFT JOIN behavior_provenance p ON p.scope=v.scope AND p.resource_id=v.resource_id WHERE v.kind='automation' AND (v.scope NOT IN ('action','event') OR v.revision<=0 OR v.deleted NOT IN (0,1) OR p.resource_id IS NULL))",
+        "SELECT EXISTS(SELECT 1 FROM control_resource_versions v LEFT JOIN behavior_provenance p ON p.scope=v.scope AND p.resource_id=v.resource_id WHERE v.kind='automation' AND NOT(v.scope='library' AND v.resource_id='catalog') AND (v.scope NOT IN ('action','event') OR v.revision<=0 OR v.deleted NOT IN (0,1) OR p.resource_id IS NULL))",
         [],
         |r| r.get(0),
     )?;
@@ -116,6 +116,7 @@ pub(super) fn validate_runtime_catalog(db: &Connection) -> Result<(), DatabaseEr
             "behavior authority is missing or inconsistent".into(),
         ));
     }
+    super::super::automation_library::validate_runtime_version(db)?;
     Ok(())
 }
 pub(super) fn rows(

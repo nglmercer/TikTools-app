@@ -4,7 +4,9 @@ Status: implemented owner administration UI, updated 2026-11-08. Scoped
 workflow/event deactivation/deletion, points adjustments, native automation status
 and API/SDK/CLI disabled author-only behavior drafts are available. Enabled
 remote definitions, complete domain UI and physical two-PC acceptance remain
-pending.
+pending. Native Owner profile/template transactions and compound CLI imports
+are implemented contracts under validation; executed evidence stays in the
+validation record.
 See the [product plan](LIVE-COLLABORATION.md),
 [transport contract](LIVE-COLLABORATION-TRANSPORT.md),
 [controller guide](LIVE-COLLABORATION-CLIENT.md) and
@@ -184,9 +186,52 @@ an author is unavailable or the primary has been deleted.
 **Approval history** restores the native pending operation and metadata receipts
 after reload. **Resolve original outcome** queries the existing command and
 never repeats it. Review unknown outcomes explicitly before archiving them;
-then read the saved state again and provide new consent. Approval and adoption
-share a pending gate across Owner windows. Saved source, IDs and credentials do
+then read the saved state again and provide new consent. Approval, adoption,
+single-definition changes and library transitions share a pending gate across
+Owner windows. Saved source, IDs and credentials do
 not enter browser storage. See [the detailed contract](LIVE-COLLABORATION-APPROVAL.md).
+
+## Manage profiles and templates
+
+Owner profile creation/switch/deletion, template application, profile import,
+record assignment and custom gallery import/deletion now use a native library
+coordinator. Review the current host's catalog and full saved graph before
+submitting. The host checks both the catalog revision and complete definition
+digest; an unrelated new/deleted definition can require a fresh review rather
+than silently changing the switch/delete universe.
+
+Template/profile imports stage their exact action/event IDs once. The graph,
+pack registration and optional saved gallery documents commit together, including
+compound CLI imports. A collision rejects the whole transition. Gallery import
+replaces an existing matching ID only under the reviewed catalog version;
+the UI can explicitly stage fresh IDs for copies. Importing a replacement pack
+leaves its old graph available in Default unless another pack owns it.
+
+Switching rewrites the complete live universe, including already matching
+enabled states. Deleting a pack coalesces reference cleanup and prunes its IDs
+from other packs, including already absent IDs. Creating a fresh graph removes
+its IDs from stale pack memberships before honoring the requested pack or
+Default. Existing record assignment never implicitly transfers it from another
+pack. These operations preserve trusted delegated authority and invalidate old
+approvals when definitions change; they do not authorize execution.
+
+Library history contains one pending operation and bounded metadata receipts.
+**Resolve original outcome** only checks that original command; reload and
+uncertainty review never resubmit source or regenerate IDs. A pending operation
+in any of the four Owner journals blocks fresh native changes. After resolution
+or explicit unknown archival, review current state and provide fresh consent.
+A manual definition save and subsequent membership assignment are distinct:
+if the save is confirmed and assignment fails, keep the record saved and stage
+assignment explicitly rather than saving again.
+
+Existing profile/gallery app-state values are copied once from PointsDB into
+the AutomationDB catalog without deleting the old values. Legacy reads use the
+canonical projection. Typed compatibility writes acknowledge only a committed
+catalog/version/outbox change; separate legacy key writes are not a single
+transaction. Corrupt legacy data fails visibly without silently dropping packs
+or templates. Large workspaces are admitted by byte budgets, with no 512-record
+cap on their existing universe; 512 bounds only newly staged graph targets.
+See [the exact library/API and recovery contract](LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions).
 
 ## Manage access
 

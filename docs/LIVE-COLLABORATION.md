@@ -33,6 +33,10 @@ accounts and `plugin-selections`, not LIVE rooms or remote command execution.
 The direct-host design below requires no backend runtime/schema change; an
 outbound Internet rendezvous/relay would be a separate backend implementation.
 Cloud package-service moderator/admin roles do not grant LIVE authority.
+The backend now also has a separate Cloud v2 catalog/library and five-collection
+HTTP sync contract at commit `0c552b3`. Desktop's current cloud adapter remains
+v1; see the [v2 handoff review](CLOUD-SYNC.md#backend-v2-handoff-reviewed-on-2026-11-08)
+for the subsequent adapter, migration and acceptance work.
 Executed checks and remaining acceptance are tracked in
 [the validation record](LIVE-COLLABORATION-VALIDATION.md).
 
@@ -82,7 +86,8 @@ Owner-only durable approval/activation/revocation and a first delegated policy
 for saved log/delay/points actions are now implemented and locally tested;
 see [the approval contract](LIVE-COLLABORATION-APPROVAL.md). The Owner approval
 UI and native recovery coordinator are now implemented, including a shared
-pending gate with adoption and native single-record definition changes. Scoped HTTP/audio effects, exact-topic emits and
+pending gate with adoption, native single-record definition changes and library
+transitions. Scoped HTTP/audio effects, exact-topic emits and
 bounded scripts now use current grant checks and durable non-replaying handoff
 records. Emitted child rules retain every incoming subject and saved-definition
 fence. Approved custom-topic rules accept only already-approved scoped input.
@@ -92,7 +97,26 @@ editor now pins base versions, retains conflicting drafts and requires explicit
 comparison/rebase/recreation before a separate save. Owner create/update/delete
 and enable/disable now use host-generated native intents and original-result
 recovery; only the original fresh response can advance an editor from its saved
-body. Recovery preserves newer text and never resends a mutation. Complete the remaining
+body. Recovery preserves newer text and never resends a mutation.
+
+The eight native Owner library transitions now atomically manage profiles,
+template/profile graph application, membership and custom gallery documents.
+Their coherent catalog/definition snapshot fences one AutomationDB business
+transaction, with host-generated intent, original-result recovery, preserved
+provenance, approval invalidations and outboxes. Optional compound gallery/graph
+fields also make CLI imports and pack registration atomic. The three legacy
+PointsDB keys migrate once into the canonical AutomationDB catalog; old values
+remain and legacy reads/writes use typed canonical compatibility. All four
+Owner journals share pending admission. Library operation contracts are
+implemented under validation; see
+[atomic library transitions](LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions)
+for frozen-ID recovery, primary-first receipts, cross-language hashes and
+8 MiB/4 MiB/new-target bounds. Existing universes have no 512-record cap.
+Manual definition saves and membership assignment remain distinct known
+outcomes. This slice does not complete the other domains, broader effect
+policies, physical two-PC/LIVE, platform or sustained-load acceptance.
+
+Complete the remaining
 execution gates before exposing broader remote activation or effects. Direct host
 collaboration still requires no RemakeBackend runtime/schema change; an Internet
 relay is a separate scope.
@@ -133,7 +157,7 @@ proposed remote behavior.
 | Browser identity | Independent approved remote cookie sessions, Origin/CSRF checks and single-use WSS tickets | Complete browser controller lifecycle and recovery |
 | Desktop | Separate native controller/bridge, scoped workflow/points views, durable commands, private confirmed draft saves and conflict comparison; owner settings | Full domain shell, desktop trust management and platform acceptance |
 | Workflow save | Transactional revisions/CAS, durable owner commands, recoverable outbox delivery and audit indexing, including legacy local callers | External-effect recovery and delegated remote effect policy |
-| Executable behavior | Atomic revisions, checked owner editor, native proposal/stop board, trusted provenance/adoption, exact manifests/contexts, durable core approval/revocation, Owner approval UI and native recovery, approved log/delay/points sinks | Plugin/settings bindings, broader effect policies, external-effect recovery and full domain acceptance |
+| Executable behavior | Atomic revisions, checked owner editor, native proposal/stop board, trusted provenance/adoption, exact manifests/contexts, durable core approval/revocation and four Owner native journals; atomic profile/template library and CLI imports under validation | Broader effect policies/isolation, remaining effect recovery, full domain and physical/platform/load acceptance |
 | SDK/CLI | Typed direct/IPC/HTTPS-WSS backends, isolated desktop bridge, OS credential profiles, explicit remote selection and recoverable workflow event streams | All-domain completion and platform acceptance |
 | Permissions | Local-owner administration, persistent scoped grants, remote reads and durable workflow disable/delete | Complete resource/event policies, other writes and delegated-effect enforcement |
 

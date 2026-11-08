@@ -90,7 +90,12 @@ export function createBrowserTransport(options: {
     connect,
     send(message) {
       if (socket?.readyState !== 1) throw new Error('local browser connection is unavailable');
-      if (socket.bufferedAmount + new TextEncoder().encode(message).length > REQUEST_QUEUE_BYTES) {
+      const bytes = new TextEncoder().encode(message).length;
+      let limit = REQUEST_QUEUE_BYTES;
+      if (bytes > REQUEST_QUEUE_BYTES && bytes <= 8 * 1024 * 1024 + 64 * 1024) {
+        try { if ((JSON.parse(message) as { method?: unknown }).method === 'automation.library.submit') limit = 8 * 1024 * 1024 + 64 * 1024; } catch { /* malformed frames retain the ordinary ceiling */ }
+      }
+      if (socket.bufferedAmount + bytes > limit) {
         throw new Error('local browser send queue is full');
       }
       socket.send(message);

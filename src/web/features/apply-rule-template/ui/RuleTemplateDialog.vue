@@ -17,6 +17,7 @@ import {
 } from '@/entities/rule-template/lib/rule-templates.ts';
 import { parseRuleTemplateImport } from '@/entities/rule-template/model/rule-templates-state.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
+import { ControlCallError } from '@/shared/api/control-client.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
 import BaseFileDrop from '@/shared/ui/file-drop/BaseFileDrop.vue';
@@ -34,12 +35,13 @@ const props = withDefaults(
     snapshot: BehaviorSnapshot;
     customTemplates: readonly RuleTemplate[];
     customError?: string | null;
+    working?: boolean;
   }>(),
-  { customError: null },
+  { customError: null, working: false },
 );
 
 const emit = defineEmits<{
-  apply: [actions: LiveAction[], event: LiveEvent];
+  apply: [actions: LiveAction[], event: LiveEvent, done: (success: boolean) => void];
   import: [templates: RuleTemplate[], done: (added: number) => void];
   deleteCustom: [id: string];
 }>();
@@ -60,6 +62,9 @@ const staged = ref<{ source: string; templates: RuleTemplate[] } | null>(null);
 const importErrors = ref<string[]>([]);
 const imported = ref(0);
 const importing = ref(false);
+const applying = ref(false);
+const candidate = ref<ReturnType<typeof applyRuleTemplate> | null>(null);
+watch([eventName, actionNames, params], () => { if (!applying.value && !props.working) candidate.value = null; }, { deep: true });
 
 const templates = computed(() => [...BUILTIN_RULE_TEMPLATES, ...props.customTemplates]);
 const availableTypes = computed(() => availableActionTypeIds(props.snapshot.plugins, props.snapshot.actionTypes));
@@ -94,6 +99,7 @@ watch(open, (value) => {
 });
 
 function configure(template: RuleTemplate): void {
+  candidate.value = null;
   selected.value = template;
   eventName.value = template.event.name;
   actionNames.value = template.actions.map((action) => action.name);
@@ -123,12 +129,16 @@ function validate(template: RuleTemplate): string {
 
 function apply(): void {
   const template = selected.value;
-  if (!template) return;
-  error.value = validate(template);
-  if (error.value) return;
-  const applied = applyRuleTemplate(template, { ...params.value }, { eventName: eventName.value, actionNames: actionNames.value });
-  emit('apply', applied.actions, applied.event);
-  open.value = false;
+  if (!template || props.working || applying.value) return;
+  let applied: ReturnType<typeof applyRuleTemplate>;
+  try {
+    error.value = validate(template);
+    if (error.value) return;
+    applied = candidate.value ?? applyRuleTemplate(template, { ...params.value }, { eventName: eventName.value, actionNames: actionNames.value });
+  }
+  catch (failure) { error.value = t(failure instanceof ControlCallError && failure.code === 'too_large' ? 'libraryRecovery.expansionTooLarge' : 'libraryRecovery.expansionInvalid'); return; }
+  candidate.value = applied; applying.value = true;
+  emit('apply', applied.actions, applied.event, (success) => { applying.value = false; if (success) { candidate.value = null; open.value = false; } });
 }
 
 function download(template: RuleTemplate): void {

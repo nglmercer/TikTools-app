@@ -1,3 +1,4 @@
+import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { definitionJournal } from '@/entities/automation/model/definition-journal.ts';
 import { ownerMutationGate } from '@/shared/api/owner-mutation-gate.ts';
 import { computed, ref, shallowRef, watch } from 'vue';
@@ -13,6 +14,7 @@ export function useApprovalReview(control: ControlClient) {
   const journal = approvalJournal(control);
   const adoption = adoptionJournal(control);
   const definitions = definitionJournal(control);
+  const library = libraryJournal(control);
   const gate = ownerMutationGate(control);
   const target = shallowRef<ProposalTarget | null>(null);
   const review = shallowRef<CapturedApprovalReview | null>(null);
@@ -34,14 +36,15 @@ export function useApprovalReview(control: ControlClient) {
     sameHost(review.value, journal.state.value) && sameHost(review.value, adoption.state.value) &&
     !journal.state.value.pending && !adoption.state.value.pending && !journal.unavailable.value && !adoption.unavailable.value &&
     !!definitions.state.value && sameHost(review.value, definitions.state.value) && !definitions.state.value.pending &&
-    !definitions.unavailable.value && !definitions.busy.value && !gate.busy.value &&
+    !definitions.unavailable.value && !definitions.busy.value && !!library.state.value && sameHost(review.value!, library.state.value) &&
+    !library.state.value.pending && !library.unavailable.value && !library.busy.value && !gate.busy.value &&
     !journal.busy.value && !adoption.busy.value && !reading.value && !stale.value);
   const activateEligible = computed(() => transitionReady.value && sourcePrecisionSafe.value && review.value!.eligibility.eligible);
   const revokeEligible = computed(() => transitionReady.value && review.value!.approval.state !== 'none');
   const canActivate = computed(() => activateEligible.value && acknowledged.value);
   const canRevoke = computed(() => revokeEligible.value && revokeAcknowledged.value);
 
-  const stopJournalWatch = watch([journal.state, adoption.state, definitions.state], (next, previous) => {
+  const stopJournalWatch = watch([journal.state, adoption.state, definitions.state, library.state], (next, previous) => {
     const transitions = (states: typeof next) => states.map((s) => s ? { pending: s.pending, recent: s.recent } : null);
     if (stableJson(transitions(next)) !== stableJson(transitions(previous))) {
       unknownAcknowledged.value = false;
@@ -51,7 +54,7 @@ export function useApprovalReview(control: ControlClient) {
     observeHost();
   }, { flush: 'sync' });
 
-  const stopGateWatch = watch(gate.owner, (owner) => { if (owner && owner !== 'approval' && review.value) invalidate('changed'); }, { flush: 'sync' });
+  const stopGateWatch = watch(gate.owner, (owner) => { if (owner && owner !== 'approval') { unknownAcknowledged.value = false; if (review.value) invalidate('changed'); } }, { flush: 'sync' });
 
   function resetConsent(): void { acknowledged.value = false; revokeAcknowledged.value = false; unknownAcknowledged.value = false; }
   function invalidate(reason: 'changed' | 'hostChanged'): void { stale.value = true; resetConsent(); notice.value = reason; }
@@ -71,7 +74,7 @@ export function useApprovalReview(control: ControlClient) {
     if (review.value && projectionChanged(review.value, versions, observedReviewed)) invalidate('changed');
   }
   function observeHost(): void {
-    if (review.value && [journal.state.value, adoption.state.value, definitions.state.value].some((host) => host && !sameHost(review.value!, host))) invalidate('hostChanged');
+    if (review.value && [journal.state.value, adoption.state.value, definitions.state.value, library.state.value].some((host) => host && !sameHost(review.value!, host))) invalidate('hostChanged');
   }
   function includeDependency(id: string, included: boolean): void {
     const dependency = review.value?.source.dependencies.find((d) => d.id === id);
@@ -94,10 +97,10 @@ export function useApprovalReview(control: ControlClient) {
     const response = await callWithMeta(control, 'automation.approval.review', target);
     return parseApprovalReview(response.result, response.meta, target);
   }
-  async function refreshJournals(): Promise<void> { await journal.refresh(); await adoption.refresh(); await definitions.refresh(); }
+  async function refreshJournals(): Promise<void> { await journal.refresh(); await adoption.refresh(); await definitions.refresh(); await library.refresh(); }
   async function readSaved(): Promise<void> {
     const selected = target.value;
-    if (!selected || disposed || reading.value || journal.busy.value || adoption.busy.value || definitions.busy.value || gate.busy.value) return;
+    if (!selected || disposed || reading.value || journal.busy.value || adoption.busy.value || definitions.busy.value || library.busy.value || gate.busy.value) return;
     const capturedToken = token;
     const epoch = ++readEpoch;
     reading.value = true; resetConsent(); error.value = ''; notice.value = '';
@@ -123,9 +126,10 @@ export function useApprovalReview(control: ControlClient) {
       const host = await journal.fetchState();
       const other = await adoption.fetchState();
       const definition = await definitions.fetchState();
+      const libraryState = await library.fetchState();
       if (disposed || token !== capturedToken || review.value !== captured) return;
-      if (!sameHost(captured, host) || !sameHost(captured, other) || !sameHost(captured, definition)) { invalidate('hostChanged'); return; }
-      if (host.pending || other.pending || definition.pending) return;
+      if (!sameHost(captured, host) || !sameHost(captured, other) || !sameHost(captured, definition) || !sameHost(captured, libraryState)) { invalidate('hostChanged'); return; }
+      if (host.pending || other.pending || definition.pending || libraryState.pending) return;
       const fresh = await readResponse(captured.source);
       if (disposed || token !== capturedToken || review.value !== captured) return;
       if (fresh.fingerprint !== captured.fingerprint || projectionChanged(captured, versions, observedReviewed)) { invalidate('changed'); return; }
@@ -178,7 +182,7 @@ export function useApprovalReview(control: ControlClient) {
   }
   const reviewVersions = computed(() => new Map(review.value?.versions.map((v) => [recordKey(v.scope as ProposalTarget['kind'], v.id), v.revision]) ?? []));
   function dispose(): void { disposed = true; ++token; ++readEpoch; stopJournalWatch(); stopGateWatch(); review.value = null; resetConsent(); }
-  return { journal, adoption, definitions, gate, target, review, reading, acknowledged, revokeAcknowledged, unknownAcknowledged, enablePlan, stale, notice, error,
+  return { journal, adoption, definitions, library, gate, target, review, reading, acknowledged, revokeAcknowledged, unknownAcknowledged, enablePlan, stale, notice, error,
     sourcePrecisionSafe, activateEligible, revokeEligible, canActivate, canRevoke, reviewVersions, select, closeReview, observe, observeHost, includeDependency, setDependencyEnabled,
     readSaved, refreshJournals, activate: () => transition('activate'), revoke: () => transition('revoke'), resolveOriginal, reviewUnknown, finalDependencyState, dispose };
 }

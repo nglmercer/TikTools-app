@@ -159,6 +159,9 @@ for (const locale of ['en', 'es'] as const) {
     await storageIsPrivate(page, locale, [original.intent.commandId]);
 
     await page.reload();
+    // The saved selection and its narrow editor restore with the source
+    // snapshot. Wait for that snapshot before deciding whether to close it.
+    await expect(page.locator('.automation-library tbody tr').filter({ hasText: actionName })).toBeVisible();
     await select(page, 'action', actionName, words);
     view = await history(page);
     await expect(view.getByTestId('definition-receipt').filter({ hasText: original.intent.commandId })).toHaveCount(1);
@@ -222,7 +225,10 @@ for (const locale of ['en', 'es'] as const) {
     expect(sent).toHaveLength(8); expect(new Set(commands).size).toBe(8);
     expect(methods.filter((method) => /^automation\.(create|update|delete|enable|disable)$/.test(method))).toEqual([]);
     await storageIsPrivate(page, locale, commands);
-    await page.reload(); view = await history(page);
+    await page.reload();
+    await expect(page.locator('.automation-library tbody tr').filter({ hasText: `Native created action ${locale}` })).toBeVisible();
+    await expect(page.getByTestId('library-loading')).toHaveCount(0);
+    view = await history(page);
     for (const command of commands) await expect(view.getByTestId('definition-receipt').filter({ hasText: command })).toHaveCount(1);
     expect(JSON.stringify(await rpc('automation.definition.get'))).not.toContain(`definition-source-${locale}`);
     expect(failures).toEqual([]);

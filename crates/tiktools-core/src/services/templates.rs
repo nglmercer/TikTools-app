@@ -14,6 +14,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::control::fresh_record_id;
+mod bounded;
+pub use bounded::{
+    instantiate_template_bounded, TemplateInstantiationBudget, TemplateInstantiationError,
+};
 
 pub const RULE_TEMPLATE_VERSION: u64 = 1;
 pub const PROFILE_VERSION: u64 = 1;
@@ -470,6 +474,9 @@ pub fn parse_profile(value: &Value) -> Result<Profile, TemplateErrors> {
 }
 
 fn read_param_path(params: &Map<String, Value>, path: &str) -> Option<Value> {
+    read_param_path_ref(params, path).cloned()
+}
+fn read_param_path_ref<'a>(params: &'a Map<String, Value>, path: &str) -> Option<&'a Value> {
     let mut current: Option<&Value> = None;
     for (depth, part) in path.split('.').enumerate() {
         if part.is_empty() {
@@ -481,7 +488,7 @@ fn read_param_path(params: &Map<String, Value>, path: &str) -> Option<Value> {
             current = current?.as_object()?.get(part);
         }
     }
-    current.cloned()
+    current
 }
 
 fn scalar_text(value: Option<Value>) -> String {
@@ -618,6 +625,43 @@ pub fn instantiate_template(
     event_name: Option<&str>,
     action_names: &[String],
 ) -> InstantiatedRule {
+    let action_ids: Vec<String> = template
+        .actions
+        .iter()
+        .map(|_| fresh_record_id("act"))
+        .collect();
+    let event_id = fresh_record_id("evt");
+    instantiate_template_with_ids(
+        template,
+        params,
+        event_name,
+        action_names,
+        &action_ids,
+        &event_id,
+    )
+}
+fn substituted_name(text: &str, params: &Map<String, Value>) -> String {
+    // A non-string sole param has always produced an empty name. Inspect it
+    // by reference so that this fallback never clones a discarded object.
+    if let Some(path) = sole_params_span(text) {
+        return read_param_path_ref(params, &path)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned();
+    }
+    substitute_string(text, params)
+        .as_str()
+        .unwrap_or_default()
+        .to_owned()
+}
+fn instantiate_template_with_ids(
+    template: &RuleTemplate,
+    params: &Map<String, Value>,
+    event_name: Option<&str>,
+    action_names: &[String],
+    ids: &[String],
+    event_id: &str,
+) -> InstantiatedRule {
     let actions: Vec<Value> = template
         .actions
         .iter()
@@ -628,15 +672,10 @@ pub fn instantiate_template(
                 .map(|name| name.trim())
                 .filter(|name| !name.is_empty())
                 .map(str::to_owned)
-                .unwrap_or_else(|| {
-                    substitute_params(&Value::String(action.name.clone()), params)
-                        .as_str()
-                        .unwrap_or_default()
-                        .to_owned()
-                });
+                .unwrap_or_else(|| substituted_name(&action.name, params));
             serde_json::json!({
                 "schemaVersion": 2,
-                "id": fresh_record_id("act"),
+                "id": ids[index],
                 "name": name,
                 "typeId": action.type_id,
                 "enabled": action.enabled,
@@ -652,19 +691,14 @@ pub fn instantiate_template(
         .map(str::trim)
         .filter(|name| !name.is_empty())
         .map(str::to_owned)
-        .unwrap_or_else(|| {
-            substitute_params(&Value::String(template.event.name.clone()), params)
-                .as_str()
-                .unwrap_or_default()
-                .to_owned()
-        });
+        .unwrap_or_else(|| substituted_name(&template.event.name, params));
     let filters = substitute_params(
         &serde_json::to_value(&template.event.filters).unwrap_or(Value::Array(Vec::new())),
         params,
     );
     let event = serde_json::json!({
         "schemaVersion": 1,
-        "id": fresh_record_id("evt"),
+        "id": event_id,
         "name": name,
         "enabled": template.event.enabled,
         "trigger": template.event.trigger,

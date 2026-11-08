@@ -4,6 +4,7 @@ import { ownerMutationGate } from '@/shared/api/owner-mutation-gate.ts';
 import { sourceNumbersSafe } from '@/shared/lib/json-source.ts';
 import { validRevision, type AutomationHost } from './record-versions.ts';
 import { cloneRecord } from '../lib/automation-records.ts';
+import { parseLibraryState } from '@/entities/rule-template/model/library-contracts.ts';
 import { parseDefinitionState, parseDefinitionSubmission, parsePeerState, type DefinitionAcknowledgement, type DefinitionState, type DefinitionWrite } from './definition-contracts.ts';
 
 const sameHost = (a: { hostId: string; hostInstanceId: string }, b: { hostId: string; hostInstanceId: string }) => a.hostId === b.hostId && a.hostInstanceId === b.hostInstanceId;
@@ -77,15 +78,16 @@ function createJournal(control: ControlClient) {
     return gate.run('definition', async () => {
       busy.value = true; error.value = '';
       try {
-        const [host, adoption, approval] = await Promise.all([
+        const [host, adoption, approval, library] = await Promise.all([
           fetchState(),
           control.call('automation.adoption.get', {}).then((v) => parsePeerState(v, 'owner-adopt-')),
           control.call('automation.approval.get', {}).then((v) => parsePeerState(v, 'owner-approval-')),
+          control.call('automation.library.get', {}).then(parseLibraryState),
         ]);
-        if (!sameHost(captured, host) || !sameHost(host, adoption) || !sameHost(host, approval)) {
+        if (!sameHost(captured, host) || !sameHost(host, adoption) || !sameHost(host, approval) || !sameHost(host, library)) {
           throw new ControlCallError('host_restarted', 'The Owner host changed. Read and review the current definition.');
         }
-        if (host.pending || adoption.pending || approval.pending) {
+        if (host.pending || adoption.pending || approval.pending || library.pending) {
           throw new ControlCallError('command_pending', 'Resolve or review the pending Owner operation first.');
         }
         const { id, ...rest } = capturedInput;

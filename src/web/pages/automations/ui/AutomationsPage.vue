@@ -9,6 +9,9 @@ import AutomationEditorReview from '@/features/edit-automation-record/ui/Automat
 import AutomationEditNotice from '@/features/edit-automation-record/ui/AutomationEditNotice.vue';
 import AutomationProposalReview from '@/features/review-automation-proposal/ui/AutomationProposalReview.vue';
 import AutomationApprovalReview from '@/features/review-automation-approval/ui/AutomationApprovalReview.vue';
+import OwnerLibraryChanges from '@/features/recover-owner-library/ui/OwnerLibraryChanges.vue';
+import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
+import { useControlClient } from '@/shared/api/use-control-client.ts';
 import OwnerDefinitionRecovery from '@/features/recover-owner-definition/ui/OwnerDefinitionRecovery.vue';
 import type { DefinitionState } from '@/entities/automation/model/definition-contracts.ts';
 import { recordKey, type AutomationHost, type AutomationKind, type AutomationRevision } from '@/entities/automation/model/record-versions.ts';
@@ -52,11 +55,19 @@ type Editing =
 
 const { t } = useAutomationText();
 const automation = useAutomationControls();
+const library = libraryJournal(useControlClient());
+const libraryPanel = ref<{ openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const editor = useAutomationEditor({
   read: automation.readRecord,
   save: (kind, record, base) => kind === 'event'
     ? automation.saveEvent(record as LiveEvent, base) : automation.saveAction(record as LiveAction, base),
   remove: automation.deleteRecord,
+});
+watch(library.state, (next, previous) => {
+  if (JSON.stringify(next) !== JSON.stringify(previous)) {
+    editor.requireRecoveryReview();
+    toggleNeedsReview.value = true;
+  }
 });
 const observedDefinitionState = shallowRef<DefinitionState | null>(null);
 watch([editor.state, automation.sourceHost, observedDefinitionState], ([edit, host, journal]) => {
@@ -93,6 +104,13 @@ const discardOpen = ref(false);
 const pickerOpen = ref(false);
 const templatesOpen = ref(false);
 const profileImportOpen = ref(false);
+const retryingLibrary = ref(false);
+async function retryLibrary(): Promise<void> {
+  if (retryingLibrary.value) return;
+  retryingLibrary.value = true;
+  try { await automation.loadProfiles(); }
+  finally { retryingLibrary.value = false; }
+}
 // Wide enough for the four event columns without truncating triggers.
 const libraryWidth = ref(600);
 const runsHeight = ref(200);
@@ -316,6 +334,11 @@ function useReviewedBase(): void {
   if (editor.adoptReview()) reviewOpen.value = false;
 }
 
+function applyTemplate(actions: LiveAction[], event: LiveEvent, done: (success: boolean) => void): void {
+  void automation.applyTemplate(actions, event).then(() => done(true), () => done(false));
+}
+function createProfile(name: string): void { void automation.createProfile(name).catch(() => {}); }
+function deleteProfile(id: string): void { void automation.deleteProfile(id).catch(() => {}); }
 function importTemplates(templates: RuleTemplate[], done: (added: number) => void): void {
   void automation.importTemplates(templates).then(done, () => done(0));
 }
@@ -323,14 +346,14 @@ function importTemplates(templates: RuleTemplate[], done: (added: number) => voi
 function applyProfile(profile: RuleProfile, applied: AppliedRuleTemplate[]): void {
   void automation.applyProfile(profile, applied).then(() => {
     if (!automation.profileError.value) profileImportOpen.value = false;
-  });
+  }).catch(() => {});
 }
 
 function switchProfile(id: string): void {
   guard(() => {
     resetEditor();
     selected.value = null;
-    void automation.switchProfile(id);
+    void automation.switchProfile(id).catch(() => {});
   });
 }
 
@@ -372,9 +395,10 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
       <ProfileToolbar
         :packs="packs"
         :active-id="automation.activeProfileId.value"
+        :disabled="automation.profileLoading.value"
         @switch="switchProfile"
-        @create="automation.createProfile"
-        @delete="automation.deleteProfile"
+        @create="createProfile"
+        @delete="deleteProfile"
         @export="automation.exportProfile"
         @import="profileImportOpen = true"
       />
@@ -384,6 +408,7 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
       />
       <BaseButton
         size="sm"
+        :disabled="automation.profileLoading.value"
         @click="templatesOpen = true"
       >
         <template #icon>
@@ -405,6 +430,12 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
         @recovered="recoveredDefinition"
         @observed="observedDefinitionState = $event"
       />
+      <OwnerLibraryChanges
+        v-if="automation.persistent.value !== false"
+        ref="libraryPanel"
+        :selection-key="`${tab}:${selected ?? ''}:${editor.state.value?.candidate.id ?? ''}`"
+        @recovered="recoveredDefinition"
+      />
       <AutomationApprovalReview
         v-if="automation.persistent.value === true"
         ref="approvalReviewPanel"
@@ -421,6 +452,22 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
         @request-access="automation.requestHotkeyAccess()"
       />
     </header>
+    <div
+      v-if="automation.profileLoading.value"
+      class="automations-page__banner"
+      data-test="library-loading"
+      role="status"
+    >
+      {{ t('libraryRecovery.loading') }}
+      <BaseButton
+        size="sm"
+        :disabled="retryingLibrary"
+        data-test="library-retry-loading"
+        @click="retryLibrary"
+      >
+        {{ t('libraryRecovery.retryLoading') }}
+      </BaseButton>
+    </div>
     <p
       v-if="automation.profileError.value"
       class="automations-page__banner automations-page__banner--error"
@@ -581,11 +628,20 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
             </template>
             {{ t('common.back') }}
           </BaseButton>
+          <BaseButton
+            v-if="automation.persistent.value !== false"
+            size="sm"
+            :disabled="!libraryPanel || libraryPanel.busy"
+            data-test="library-history"
+            @click="libraryPanel?.openHistory()"
+          >
+            {{ t(libraryPanel?.hasPending ? 'libraryRecovery.pendingButton' : 'libraryRecovery.history') }}
+          </BaseButton>
           <span class="automations-page__sheet-title">{{ editing.record.name }}</span>
           <BaseButton
             v-if="automation.persistent.value === true || automation.sourceHost.value !== null"
             size="sm"
-            :disabled="definitionRecoveryPanel?.busy"
+            :disabled="!definitionRecoveryPanel || definitionRecoveryPanel.busy"
             data-test="definition-history"
             @click="definitionRecoveryPanel?.openHistory()"
           >
@@ -673,13 +729,15 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
       :snapshot="snapshot"
       :custom-templates="automation.customTemplates.value"
       :custom-error="automation.templateError.value"
-      @apply="automation.applyTemplate"
+      :working="library.working.value || library.gate.busy.value"
+      @apply="applyTemplate"
       @import="importTemplates"
       @delete-custom="automation.deleteCustomTemplate"
     />
     <ProfileImportDialog
       v-model:open="profileImportOpen"
       :error="automation.profileError.value"
+      :working="library.working.value || library.gate.busy.value"
       @apply="applyProfile"
     />
     <BaseConfirmDialog

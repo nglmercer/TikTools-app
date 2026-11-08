@@ -99,6 +99,11 @@ fn legacy_audit(
         (ResourceKind::Automation, "disabled") => "automation.disable",
         (ResourceKind::Automation, "deleted") => "automation.delete",
         (ResourceKind::Automation, "references-updated") => "automation.references.update",
+        (ResourceKind::Automation, "library-updated")
+            if resource.scope == "library" && resource.id == "catalog" =>
+        {
+            "automation.library.apply"
+        }
         _ => {
             return Err(DatabaseError::Invalid(
                 "unclassified resource invalidation".into(),

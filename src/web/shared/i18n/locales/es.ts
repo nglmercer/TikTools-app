@@ -1,3 +1,4 @@
+import libraryRecovery from './library-recovery.es.ts';
 import collaboration from './collaboration.es.ts';
 import automationProposal from './automation-proposal.es.ts';
 import automationApproval from './automation-approval.es.ts';
@@ -9,6 +10,7 @@ export default {
   automationProposal,
   automationApproval,
   definitionRecovery,
+  libraryRecovery,
   common: {
     ok: 'Aceptar',
     cancel: 'Cancelar',

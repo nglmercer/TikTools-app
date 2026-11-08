@@ -32,8 +32,9 @@ pub use request::{RpcId, RpcRequest};
 pub use response::RpcResponse;
 pub use router::ControlRouter;
 pub use transport::{
-    run_ipc, run_ipc_shared, run_ipc_shared_with_ready, run_stdio, run_stdio_shared, IPC_NAME,
-    MAX_OWNER_RESPONSE_BYTES, MAX_PARAMS_BYTES, MAX_REQUEST_BYTES,
+    owner_params_bytes, owner_request_bytes, run_ipc, run_ipc_shared, run_ipc_shared_with_ready,
+    run_stdio, run_stdio_shared, IPC_NAME, MAX_OWNER_LIBRARY_PARAMS_BYTES,
+    MAX_OWNER_LIBRARY_REQUEST_BYTES, MAX_OWNER_RESPONSE_BYTES, MAX_PARAMS_BYTES, MAX_REQUEST_BYTES,
 };
 
 use std::sync::Arc;
@@ -91,6 +92,7 @@ impl ControlApi {
         modules::automation_approval::register(router);
         modules::automation_definition::register(router);
         modules::automation_effects::register(router);
+        modules::automation_library::register(router);
         modules::processors::register(router);
         modules::media::register(router);
         modules::app::register(router);
@@ -622,7 +624,12 @@ impl ControlApi {
                 );
             }
         }
-        if request.params_size() > MAX_PARAMS_BYTES {
+        let params_limit = if matches!(context, RequestContext::LocalOwner) {
+            owner_params_bytes(&request.method)
+        } else {
+            MAX_PARAMS_BYTES
+        };
+        if request.params_size() > params_limit {
             return RpcResponse::error(request.id, ApiError::too_large());
         }
         let params = request.params_object();

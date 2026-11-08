@@ -2,6 +2,7 @@ import { storeToRefs } from 'pinia';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { parsePluginNavId } from '../../../automation/plugins/declarative.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
+import { definitionJournal } from '@/entities/automation/model/definition-journal.ts';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
 import { filterEvents } from '@/entities/live-event/lib/event-filter.ts';
 import { emoteImageFailureCount } from '@/entities/live-event/lib/emote-failures.ts';
@@ -12,10 +13,14 @@ import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
 import { usePointsStore } from '@/entities/points/model/points-store.ts';
 import { useProcessorsStore } from '@/entities/processor/model/processors-store.ts';
 import { useRuleProfilesStore } from '@/entities/rule-template/model/rule-profiles-store.ts';
+import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
+import { adoptionJournal } from '@/features/review-automation-proposal/model/adoption-journal.ts';
+import { approvalJournal } from '@/features/review-automation-approval/model/approval-journal.ts';
 import { useAppUpdaterStore } from '@/features/app-updater/model/updater-store.ts';
 import { useGlobalsStore } from '@/entities/runtime-global/model/globals-store.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { recoverOwnerJournalsOnReconnect } from '@/shared/api/owner-journal-reconnect.ts';
 import { useNavigationStore } from '@/shared/model/navigation-store.ts';
 import type { AppTab } from '@/types.ts';
 
@@ -35,6 +40,9 @@ export function useAppRuntime() {
   const profiles = useRuleProfilesStore();
   const discovery = useDiscoveryStore();
   const appUpdater = useAppUpdaterStore();
+  const stopJournalRecovery = recoverOwnerJournalsOnReconnect(control, [
+    definitionJournal(control), libraryJournal(control), adoptionJournal(control), approvalJournal(control),
+  ]);
   const { events, autoScroll, filter, searchQuery } = storeToRefs(live);
 
   let disposed = false;
@@ -210,6 +218,7 @@ export function useAppRuntime() {
   onUnmounted(() => {
     presentationMounted = false;
     disposed = true;
+    stopJournalRecovery();
     offGap();
     offHostVisibility();
     document.removeEventListener('visibilitychange', onVisibilityChange);

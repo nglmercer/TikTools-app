@@ -10,6 +10,9 @@ external-effect recovery are implemented. Approved custom-topic rules accept
 only already approved scoped input. Verification is recorded separately in the
 validation document. Delegated plugin execution, HTTP response emission and
 full collaboration acceptance remain pending.
+Atomic Owner profile/template library transitions are implemented under
+validation and share the native pending gate; see the
+[library contract](LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions).
 The [automation specification](LIVE-COLLABORATION-AUTOMATION.md)
 and [full collaboration contract](LIVE-COLLABORATION-SPEC.md) remain authoritative.
 
@@ -114,8 +117,10 @@ requires a fresh review instead of being silently upgraded.
 Local Owner IPC and browser responses have a separate finite 8 MiB transport
 limit so a valid complete review above 1 MiB is not disconnected. Oversized
 responses become a correlated `too_large` error, and oversized notifications
-request UI resynchronization. The 1 MiB request limit, 256 KiB params limit and
-separately negotiated remote gateway limits are unchanged.
+request UI resynchronization. Approval requests retain the 1 MiB request and
+256 KiB params limits. The separate LocalOwner library-submit method has its
+own 8 MiB params/8 MiB plus 64 KiB framing allowance; negotiated remote gateway
+limits are unchanged.
 
 The native methods are:
 
@@ -140,13 +145,24 @@ credentials. Receipt verification checks exact method/hash/target/base/host and
 the complete final revision plan. History/result persistence failure preserves
 the pending identity; storage ambiguity is never classified as a safe retry.
 
-Activation and revocation share a pending gate with Owner adoption and native
-single-record definition changes. All three UI flows observe that gate and
+Activation and revocation share a pending gate with Owner adoption, native
+single-record definition changes and atomic library transitions. All four
+Owner journals check reciprocal pending state in the same admission transaction;
+their UI flows observe that gate and
 invalidate consent when another journal changes. Recovery or archiving
 uncertainty clears prior consent
 and requires a fresh explicit saved-source review before another transition.
 Reload restores the native journal and does not resend the operation. Browser
 storage contains neither source nor pending command identities.
+
+Profile switches, profile deletion/cascades and template/profile imports use
+the same definition version/provenance transitions and approval invalidation
+helpers in one AutomationDB business transaction. They preserve Delegated
+origin and cannot adopt or silently approve an enabled definition. Catalog
+metadata itself has the exact `automation/library/catalog` version relation,
+not fictitious Owner behavior provenance. A manual editor save and later pack
+assignment remain separate known outcomes; membership failure cannot undo or
+cause automatic replay of a confirmed save.
 
 ## Implemented core execution policy
 

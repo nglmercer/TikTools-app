@@ -27,7 +27,9 @@ adoption recovery are now connected to the UI and a host-native journal.
 Single-record Owner definition create/update/delete/enable/disable now also use
 native intent persistence and original-outcome recovery, with reviewed host
 identity and revision fences in the editor and shared admission across all
-three Owner journals.
+four Owner journals. Atomic Owner library operations now commit profile/template
+catalog changes, graph changes, versions, provenance and delivery metadata in one
+AutomationDB transaction, with a separate native recovery journal.
 Native remote JSON proposal editing now uses explicit private files and fixed
 create/update operations. Owner-only durable core approval is now implemented;
 scoped HTTP/audio execution and durable external-effect receipts are now available.
@@ -35,7 +37,84 @@ The v3 policy adds bounded scripts and exact-topic scoped emits with inherited
 authority through downstream rules. Broader remote activation, delegated plugin
 execution, HTTP response emission and full product acceptance remain pending.
 
-## Native Owner definition intents — latest extension
+## Atomic Owner library transitions — latest extension
+
+The eight closed `automation.library.submit` operations cover profile creation,
+switching, deletion and import; template application, import and deletion; and
+record membership assignment. Compound imports create the complete graph and
+catalog together. Each accepted operation advances the catalog revision once,
+including a no-op. Submission captures the coherent source digest, catalog
+revision and host identity; original-outcome recovery returns metadata and never
+replays the source mutation. All four native Owner journals share admission.
+
+The three legacy profile/template app-state keys migrate once from PointsDB
+into AutomationDB without deleting the original data. Compatibility reads and
+writes project through the new catalog. Version/provenance checks fail closed
+for legacy bulk enablement as well as graph changes and cascades. Catalog/source
+digests are checked independently by native storage, SDK and browser, including
+integer, floating-point and Unicode cases.
+
+The Owner UI presents an explicit library review and retains newer drafts after
+lost replies, reconnects or late callbacks. A known successful definition save
+and its optional profile assignment remain two distinct operations: membership
+uses the direct post-save snapshot and verifies the saved body, version and host
+before staging its own review. A newer background refresh cannot replace that
+captured fence. Reconnect refreshes the original journals without replaying or
+adopting source. Template expansion checks the whole batch before constructing
+large expanded strings/trees, including CLI dry runs.
+
+Initial profile/template controls also wait for a coherent library snapshot;
+the UI shows loading and allows an explicit read retry after failure. This
+prevents a fast create click from closing its form before a large initial
+snapshot is available. Explicit nonpersistent mode keeps its own loading path.
+
+Executed evidence:
+
+- Final full core suite: **755 passed, 13 ignored helper entry points**, plus
+  **8 integration tests passed**, with persistence/native/HTTP/plugin/Cloud
+  features and `--test-threads=4`. The new library parent exercises **56 real
+  process terminations**: eight operations at seven intent/business/result
+  boundaries, reopening the same database and recovering without replay. The
+  existing 70-case single-definition process-death parent also passes.
+  Coverage includes bounded expansion, reciprocal pending admission, migration,
+  cascades, digest conflicts and atomic rollback of missing legacy sidecars.
+- API/SDK/authorization: **302 passed**, with seven opt-in helpers ignored:
+  SDK **129 library + 12 integration**, collaboration **59**, control API
+  **39 library + 63 integration**. Coverage includes real IPC payloads above
+  1 MiB, bounded framing, 600-record snapshots, exact hashes and Owner-only
+  ingress/egress authorization.
+- Desktop window tests: **57 passed**, including large escaped RPC delivery
+  and exact-method inbound limits. CLI template-import integration tests:
+  **7 passed**, including bounded expansion before dispatch.
+- Frontend: **833 tests across 141 files passed**, with final TypeScript,
+  ESLint and production Vite checks. Regressions cover reconnect, post-save
+  snapshot supersession, preserved text/other staged reviews, exact membership
+  target/profile display in English and Spanish and the post-commit refresh
+  barrier, initial loading/read retry and explicit nonpersistent mode.
+- Actual packaged Vue → local Owner adapter → IPC → Core library acceptance
+  passed in English desktop and Spanish at 390 pixels. All eight operations
+  produced **16 distinct successful native receipts**; lost successful replies,
+  newer candidate text, reconnect, reload/history and WebStorage isolation were
+  verified without replay or new command IDs. A bounded six-record expansion
+  crossed 1 MiB in both the submitted frame and real coherent snapshot, with
+  exact source/float comparisons. Cascading profile deletion reports the four
+  final resources once. The final parent passed in **92.07 seconds**.
+  The existing single-definition browser fixture also passed both layouts,
+  preserving its **16 successful receipts**, in **28.98 seconds**. Both histories
+  were visually reviewed and checked for horizontal overflow. Reload helpers
+  wait for coherent boot completion before clicking recovery controls.
+- Seven-package all-target Clippy (`--no-deps -- -D warnings`), selected Rustfmt
+  and featureless core check passed. The featureless check retains the existing
+  unused native-pump stub warning. The normal Desktop/CLI build passed with CLI
+  `remote-control,local-web` and `TIKTOOLS_CLOUD_ORIGIN` explicitly unset.
+
+Logs use the `owner-library-`, `owner-reconnect-`, `library-after-write-`,
+`library-readiness-` and `library-mirror-` prefixes in
+`/home/meme/.cache/tiktools-test-runs/`. No real LIVE/account/backend was used.
+Backend v2 source review and the next Desktop integration work are recorded in
+[Cloud sync](CLOUD-SYNC.md#backend-v2-handoff-reviewed-on-2026-11-08).
+
+## Native Owner definition intents — previous extension
 
 The persistent Owner editor and library toggles use the closed
 `automation.definition.submit` contract. The native host records its own command

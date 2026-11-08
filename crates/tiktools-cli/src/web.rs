@@ -20,11 +20,15 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
-use tiktools_control_api::{ControlClient, ControlEvent, MAX_OWNER_RESPONSE_BYTES};
+use tiktools_control_api::{
+    owner_request_bytes, ControlClient, ControlEvent, MAX_OWNER_LIBRARY_REQUEST_BYTES,
+    MAX_OWNER_RESPONSE_BYTES,
+};
 use tokio::{sync::Semaphore, task::JoinSet};
 
 const PAIRING_RENEW_COOLDOWN: Duration = Duration::from_secs(30);
 const SESSION_LIFETIME: Duration = Duration::from_secs(3600);
+#[cfg(test)]
 const MAX_FRAME: usize = 1024 * 1024;
 /// Lifetime of a pairing code, in seconds. Bounds the in-memory check in
 /// `pair` and the runtime-file readout the same way.
@@ -600,8 +604,8 @@ async fn upgrade(
         Ok(client) => client,
         Err(_) => return (StatusCode::SERVICE_UNAVAILABLE, "host_unavailable").into_response(),
     };
-    ws.max_message_size(MAX_FRAME)
-        .max_frame_size(MAX_FRAME)
+    ws.max_message_size(MAX_OWNER_LIBRARY_REQUEST_BYTES)
+        .max_frame_size(MAX_OWNER_LIBRARY_REQUEST_BYTES)
         .on_upgrade(move |socket| async move {
             let _permit = permit;
             socket_loop(socket, client, app).await;
@@ -634,7 +638,9 @@ async fn socket_loop(mut socket: WebSocket, client: ControlClient, app: Arc<App>
                 let Ok(request) = serde_json::from_str::<Value>(&raw) else { break; };
                 let id = request.get("id").cloned().unwrap_or(Value::Null);
                 let method = request.get("method").and_then(Value::as_str).unwrap_or("").to_string();
-                if calls.len() >= 32 {
+                if raw.len() > owner_request_bytes(&method) {
+                    rpc_error(id, "too_large", "request exceeds its method size limit")
+                } else if calls.len() >= 32 {
                     rpc_error(id, "overloaded", "too many pending calls")
                 } else if request.get("jsonrpc").and_then(Value::as_str) != Some("2.0") || method.is_empty() || !(id.is_string() || id.is_number()) {
                     rpc_error(id, "invalid_request", "expected a JSON-RPC request with an id")

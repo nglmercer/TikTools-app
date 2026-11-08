@@ -565,6 +565,7 @@ impl DatabaseManager {
         if pending(&tx, host)?.is_some()
             || super::owner_adoption::has_pending(&tx, host)?
             || super::owner_approval::has_pending(&tx, host)?
+            || super::owner_library::has_pending(&tx, host)?
         {
             return Err(DatabaseError::OwnerAdoptionPending);
         }

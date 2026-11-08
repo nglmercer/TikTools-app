@@ -9,6 +9,48 @@ PR7 (`feat/desktop-cloud-sync`, stacked on PR6) adds opt-in sync of the
 `plugin-selections` collection through RemakeBackend. It reuses the pinned
 `cloud-client` sync engine with no new protocol.
 
+## Backend v2 handoff reviewed on 2026-11-08
+
+The sibling RemakeBackend repository is clean on `master` at `0c552b3`
+(`feat(cloud): add single-instance v2 catalog, library and workspace sync`).
+Its current contract is `docs/CLOUD-API-V2.md`; `docs/CLOUD-REDESIGN.md` and the
+latest section of `docs/IMPLEMENTATION-STATUS.md` supersede older roadmap gaps.
+This Desktop still uses the vendored v1 client/coordinator described below.
+
+The backend now implements a generation-scoped plugin catalog, a revisioned
+private/public template/profile library with independent moderation, and HTTP
+workspace sync for `plugin-selections`, `rule-templates`, `profiles`,
+`plugin-settings` and `preferences`. V2 has separate tables/cursors, conditional
+ETags, tombstones, account quotas and a bounded change feed with snapshot rebuild.
+It serves account configuration; LIVE management continues through the host's
+separate scoped collaboration transport.
+
+The next integration must preserve the following boundaries:
+
+- Port the backend-owned v2 transport/contracts while preserving Desktop auth
+  and local state fixes. Its new `workspace.rs` calls are stateless; the existing
+  backend `SyncState`/`StateStore` and this Desktop coordinator remain v1-only.
+- Add a versioned, durable v2 pending/conflict/cursor store bound to account and
+  pinned origin. Explicitly stage existing selections once, then run one engine;
+  keep v1 and v2 cursors and pending edits distinct during cutover.
+- Pin the operator's instance and independent trust roots. Complete catalog and
+  library reads before applying reviewed imports through the native atomic
+  [Owner library transition](LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions).
+  Resolve local `secretRef` values through a defined local policy; preserve
+  unsupported source without silently renaming, dropping or activating it.
+- Check cloud portability explicitly: backend documents have a 256 KiB ceiling,
+  depth 24, 8,192 nodes, bounded strings and ASCII document IDs. The broader
+  local library limits do not imply cloud portability.
+- Prove v2 populated-database upgrade/restore and actual Desktop offline,
+  lost-response, account-switch, conflict and expired-cursor rebuild behavior.
+  The maintained backend recovery drill currently stops before v2. Its admin
+  Playwright CSRF case does not exercise an authenticated rejected-Origin write,
+  and backend CI has no admin build/Playwright job; close those evidence gaps.
+
+The backend status records prior workspace/PostgreSQL/SDK checks; this handoff
+review inspected current source and tests without redeploying or migrating a
+database. Backend v2 integration and production acceptance remain separate work.
+
 ## Components
 
 | Area | Location |

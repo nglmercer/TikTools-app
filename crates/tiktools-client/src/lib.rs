@@ -20,6 +20,7 @@ pub mod automation_adoption;
 pub mod automation_approval;
 pub mod automation_definition;
 pub mod automation_effects;
+pub mod automation_library;
 #[cfg(feature = "cloud-auth")]
 pub mod cloud;
 pub mod collaboration;
@@ -180,6 +181,7 @@ impl TikToolsClient {
             automation_approval::METHODS,
             automation_definition::METHODS,
             automation_effects::METHODS,
+            automation_library::METHODS,
             #[cfg(feature = "cloud-auth")]
             cloud::METHODS,
             creators::METHODS,

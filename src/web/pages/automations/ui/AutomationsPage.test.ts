@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import type { ActionTypeDefinition, BehaviorSnapshot, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
+import { definitionJournal } from '@/entities/automation/model/definition-journal.ts';
+import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { ControlCallError, type ControlCallOptions, type RequestMetadata, type RpcParams } from '@/shared/api/control-client.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
@@ -59,7 +61,7 @@ const runs = [
   { id: 'r1', at: Date.now(), status: 'ok', actionId: 'a1', actionName: 'Log gift', eventName: 'Big gifts', summary: 'logged', durationMs: 3, test: false, logs: [] },
 ];
 
-async function mountPage(intercept?: (method: string, params: RpcParams | undefined, options?: ControlCallOptions) => unknown) {
+async function mountPage(intercept?: (method: string, params: RpcParams | undefined, options?: ControlCallOptions) => unknown, waitForInitial = true) {
   const snapshot: BehaviorSnapshot = { actions: [logAction], events: [giftEvent, chatEvent], plugins: [], actionTypes, translations: {} };
   const versions = new Map([['action:a1', '1'], ['event:e1', '1'], ['event:e2', '1']]);
   const requests: Array<{ method: string; meta?: RequestMetadata }> = [];
@@ -106,12 +108,13 @@ async function mountPage(intercept?: (method: string, params: RpcParams | undefi
   }).handle);
   const stores = createStoreHarness(client);
   const automation = stores.use(() => useAutomationStore());
-  await automation.refresh();
+  const initializing = automation.refresh();
+  if (waitForInitial) await initializing;
   stores.use(() => useLiveFeedStore()).giftCatalog = [{ id: '1', name: 'Rose', diamondCount: 1 }];
   const wrapper = mountWithPlugins(AutomationsPage, { attachTo: document.body, global: { plugins: stores.plugins } });
   await flushPromises();
   calls.length = 0;
-  return { wrapper, calls, requests, snapshot, versions, automation, client };
+  return { wrapper, calls, requests, snapshot, versions, automation, client, initializing };
 }
 
 function buttonByText(wrapper: VueWrapper, label: string) {
@@ -128,6 +131,39 @@ async function selectRow(wrapper: VueWrapper, name: string) {
 }
 
 describe('AutomationsPage', () => {
+  it('blocks profile and template changes until the initial coherent library is read and permits a read-only retry after failure', async () => {
+    let reject!: (failure: unknown) => void;
+    const held = new Promise<never>((_resolve, fail) => { reject = fail; });
+    let blocked = true;
+    const f = await mountPage((method) => method === 'automation.snapshot' && blocked ? held : undefined, false);
+    const profile = f.wrapper.get('.profile-toolbar [role="combobox"]');
+    const menu = f.wrapper.get('.profile-toolbar [aria-haspopup="menu"]');
+    expect(profile.attributes('disabled')).toBeDefined(); expect(menu.attributes('disabled')).toBeDefined();
+    expect(buttonByText(f.wrapper, 'From template…').attributes('disabled')).toBeDefined();
+    expect(f.wrapper.get('[data-test="library-loading"]').text()).toContain('Loading saved profiles');
+    expect(f.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
+    await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click'); await flushPromises();
+    blocked = false; reject(new Error('initial snapshot unavailable')); await f.initializing; await flushPromises();
+    expect(f.wrapper.text()).toContain('initial snapshot unavailable');
+    expect(menu.attributes('disabled')).toBeDefined();
+    await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click'); await flushPromises();
+    expect(profile.attributes('disabled')).toBeUndefined(); expect(menu.attributes('disabled')).toBeUndefined();
+    expect(buttonByText(f.wrapper, 'From template…').attributes('disabled')).toBeUndefined();
+    expect(f.wrapper.find('[data-test="library-loading"]').exists()).toBe(false);
+    expect(f.wrapper.text()).not.toContain('initial snapshot unavailable');
+    expect(f.calls.some((call) => call.method === 'automation.library.submit' || call.method === 'app.state.set')).toBe(false);
+    await menu.trigger('click'); await nextTick();
+    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((entry) => entry.textContent?.trim() === 'New profile…')!.click();
+    await flushPromises();
+    await f.wrapper.get('input[maxlength="80"]').setValue('Ready profile');
+    documentButton('Create').click(); await flushPromises();
+    const library = libraryJournal(f.client);
+    expect(library.draft.value?.context.definitions.actions[0]?.name).toBe('Log gift');
+    expect(library.draft.value?.mutation).toMatchObject({ operation: 'create-profile', name: 'Ready profile' });
+    library.dismiss(); await flushPromises();
+    f.automation.dispose();
+  });
+
   it('lists events and opens the editor with a readable summary', async () => {
     const { wrapper } = await mountPage();
     const rows = wrapper.findAll('.automation-library tbody tr');
@@ -225,8 +261,12 @@ describe('AutomationsPage', () => {
     await nextTick();
     documentButton('Create event and actions').click();
     await flushPromises();
-    const created = calls.filter((call) => call.method === 'automation.create').map((call) => call.params?.kind);
-    expect(created).toEqual(['action', 'event']);
+    expect(calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
+    documentButton('Apply reviewed changes').click(); await flushPromises();
+    const created = calls.filter((call) => call.method === 'automation.library.submit');
+    expect(created).toHaveLength(1);
+    expect(created[0]?.params?.mutation).toMatchObject({ operation: 'apply-template', profileId: 'default', entry: { event: { name: expect.any(String) }, actions: [{ name: expect.any(String) }] } });
+    expect(calls.some((call) => call.method === 'automation.create')).toBe(false);
   });
 
   it('explains Run test and Fire now on hover', async () => {
@@ -274,7 +314,7 @@ describe('AutomationsPage', () => {
       removeListener: () => {},
     }));
     try {
-      const { wrapper } = await mountPage();
+      const { wrapper, client } = await mountPage();
       expect(wrapper.find('.automations-page__workspace').exists()).toBe(false);
       expect(wrapper.find('.automations-page__sheet').exists()).toBe(false);
       await selectRow(wrapper, 'Big gifts');
@@ -283,6 +323,24 @@ describe('AutomationsPage', () => {
       expect(sheet.attributes('role')).toBe('dialog');
       expect(sheet.get('.automations-page__sheet-title').text()).toBe('Big gifts');
       expect(wrapper.find('.automations-page__sheet .event-editor').exists()).toBe(true);
+      const original = client.call.bind(client);
+      let release!: () => void;
+      const loading = new Promise<void>((resolve) => { release = resolve; });
+      const calls = vi.spyOn(client, 'call').mockImplementation((async (method, params, options) => {
+        if (method === 'automation.definition.get' || method === 'automation.library.get') await loading;
+        return original(method, params, options);
+      }) as typeof client.call);
+      const definitions = definitionJournal(client); const library = libraryJournal(client);
+      const refreshing = Promise.all([definitions.refresh(), library.refresh()]); await nextTick();
+      expect(sheet.get('[data-test="definition-history"]').attributes('disabled')).toBeDefined();
+      expect(sheet.get('[data-test="library-history"]').attributes('disabled')).toBeDefined();
+      release(); await refreshing; await flushPromises();
+      expect(sheet.get('[data-test="definition-history"]').attributes('disabled')).toBeUndefined();
+      expect(sheet.get('[data-test="library-history"]').attributes('disabled')).toBeUndefined();
+      await sheet.get('[data-test="definition-history"]').trigger('click'); await flushPromises();
+      expect(wrapper.findAll('.definition-recovery[open]')).toHaveLength(1);
+      await wrapper.get('.definition-recovery [aria-label="Close"]').trigger('click'); await flushPromises();
+      calls.mockRestore();
       await buttonByText(wrapper, 'Back').trigger('click');
       await nextTick();
       expect(wrapper.find('.automations-page__sheet').exists()).toBe(false);

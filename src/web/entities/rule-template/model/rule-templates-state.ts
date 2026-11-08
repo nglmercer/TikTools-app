@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 
 import type { ControlClient } from '@/shared/api/control-client.ts';
-import { errorMessage } from '@/shared/api/control-client.ts';
+import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import {
   BUILTIN_RULE_TEMPLATES,
   MAX_RULE_TEMPLATE_BYTES,
@@ -29,7 +29,7 @@ export function parseRuleTemplateImport(text: string): { templates: RuleTemplate
   return parseRuleTemplateList(value);
 }
 
-export function useRuleTemplates(control: ControlClient) {
+export function useRuleTemplates(control: ControlClient, persistence: () => boolean | null = () => null) {
   const custom = ref<RuleTemplate[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -59,6 +59,7 @@ export function useRuleTemplates(control: ControlClient) {
   };
 
   const persist = async (next: RuleTemplate[]): Promise<void> => {
+    if (persistence() !== false) throw new ControlCallError('capability_unavailable', 'Persistent template changes require the native atomic library.');
     await control.call('app.state.set', {
       key: CUSTOM_TEMPLATES_KEY,
       value: JSON.stringify(next.map(({ custom: _dropped, ...document }) => {

@@ -4,7 +4,9 @@
 //! exercised without touching real user data or a running host.
 
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
+use std::{io::Read, thread};
 
 use serde_json::Value;
 
@@ -24,20 +26,116 @@ fn isolated_home(label: &str) -> PathBuf {
         std::process::id()
     ));
     std::fs::create_dir_all(&path).expect("create isolated home");
+    std::fs::create_dir_all(path.join("data")).unwrap();
+    for file in [
+        "tiktok-points.db",
+        "tiktok-automation.db",
+        "tiktok-analytics.db",
+    ] {
+        std::fs::File::create(path.join("data").join(file)).unwrap();
+    }
     path
 }
 
-fn run(home: &std::path::Path, args: &[&str]) -> (bool, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_tiktools"))
+fn command(home: &std::path::Path, args: &[&str]) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_tiktools"));
+    command
         .args(args)
         .env("TIKTOOLS_HOME", home)
-        .output()
-        .expect("spawn tiktools");
+        .env("TIKTOOLS_CLOUD_ORIGIN", "")
+        .env_remove("TIKTOOLS_SESSION_COOKIE");
+    for (key, folder) in [
+        ("TIKTOOLS_DATA_DIR", "data"),
+        ("TIKTOOLS_PLUGINS_DIR", "plugins"),
+        ("TIKTOOLS_PLUGIN_DATA_DIR", "plugin-data"),
+        ("TIKTOOLS_BUILTIN_PLUGINS_DIR", "builtins"),
+        ("TIKTOOLS_DEV_PLUGINS_DIR", "dev-plugins"),
+        ("TIKTOOLS_LOG_DIR", "logs"),
+        ("TIKTOOLS_TEMP_DIR", "temp"),
+    ] {
+        command.env(key, home.join(folder));
+    }
+    command
+}
+
+fn run(home: &std::path::Path, args: &[&str]) -> (bool, String, String) {
+    let output = command(home, args).output().expect("spawn tiktools");
     (
         output.status.success(),
         String::from_utf8_lossy(&output.stdout).into_owned(),
         String::from_utf8_lossy(&output.stderr).into_owned(),
     )
+}
+
+fn rejects_expansion_before_effect(home: &std::path::Path, args: &[&str]) {
+    let mut full = vec!["--standalone", "--json"];
+    full.extend(args.iter());
+    let started = Instant::now();
+    let mut child = command(home, &full)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn bounded import");
+    // Drain both pipes while polling, just as Command::output does. A regression
+    // that prints expanded source must not deadlock this deadline assertion.
+    fn drain(mut reader: impl Read + Send + 'static) -> thread::JoinHandle<Vec<u8>> {
+        thread::spawn(move || {
+            let mut captured = Vec::new();
+            reader
+                .by_ref()
+                .take(16 * 1024)
+                .read_to_end(&mut captured)
+                .unwrap();
+            std::io::copy(&mut reader, &mut std::io::sink()).unwrap();
+            captured
+        })
+    }
+    let stdout = drain(child.stdout.take().unwrap());
+    let stderr = drain(child.stderr.take().unwrap());
+    let mut timed_out = false;
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if started.elapsed() > Duration::from_secs(10) {
+            let _ = child.kill();
+            timed_out = true;
+            break child.wait().unwrap();
+        }
+        thread::sleep(Duration::from_millis(10));
+    };
+    let stdout = stdout.join().unwrap();
+    let stderr = stderr.join().unwrap();
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&stdout),
+        String::from_utf8_lossy(&stderr)
+    );
+    assert!(
+        !timed_out,
+        "bounded import exceeded its 10-second deadline: {args:?}; captured output: {text}"
+    );
+    assert!(!status.success(), "oversized expansion was accepted");
+    assert!(
+        text.contains("too_large") && text.contains("Template expansion exceeds"),
+        "{text}"
+    );
+    assert!(
+        !text.contains("private-expansion-source"),
+        "error exposed source"
+    );
+}
+
+fn no_import_effects(home: &std::path::Path) {
+    let library = run_json(home, &["api", "call", "automation.library.snapshot", "{}"]);
+    assert_eq!(library["definitions"]["actions"], serde_json::json!([]));
+    assert_eq!(library["definitions"]["events"], serde_json::json!([]));
+    assert_eq!(library["catalog"]["packs"], serde_json::json!([]));
+    assert_eq!(library["catalog"]["templates"], serde_json::json!([]));
+    let state = run_json(home, &["api", "call", "automation.library.get", "{}"]);
+    assert!(state["pending"].is_null());
+    assert_eq!(state["recent"], serde_json::json!([]));
 }
 
 fn run_json(home: &std::path::Path, args: &[&str]) -> Value {
@@ -128,6 +226,14 @@ fn template_import_creates_records_and_gallery_entry() {
     assert!(customs
         .iter()
         .any(|entry| entry.get("id").and_then(Value::as_str) == Some("minecraft-gift-command")));
+    let native = run_json(&home, &["api", "call", "automation.library.get", "{}"]);
+    assert!(native["pending"].is_null());
+    assert_eq!(native["recent"].as_array().unwrap().len(), 1);
+    assert_eq!(native["recent"][0]["intent"]["operation"], "apply-template");
+    assert_eq!(
+        imported["acknowledgement"]["command"]["commandId"],
+        native["recent"][0]["intent"]["commandId"]
+    );
 
     let _ = std::fs::remove_dir_all(&home);
 }
@@ -224,6 +330,19 @@ fn profile_import_creates_all_rules_then_exports() {
         list.get("actions").and_then(Value::as_array).map(Vec::len),
         Some(6)
     );
+    let library = run_json(&home, &["api", "call", "automation.library.snapshot", "{}"]);
+    assert_eq!(library["catalog"]["activeId"], "minecraft-gifts");
+    assert_eq!(
+        library["catalog"]["packs"][0]["eventIds"]
+            .as_array()
+            .unwrap()
+            .len(),
+        6
+    );
+    assert_eq!(library["catalog"]["templates"].as_array().unwrap().len(), 6);
+    let native = run_json(&home, &["api", "call", "automation.library.get", "{}"]);
+    assert_eq!(native["recent"].as_array().unwrap().len(), 1);
+    assert_eq!(native["recent"][0]["intent"]["operation"], "import-profile");
 
     let out = home.join("roundtrip.tikprofile.json");
     let exported = run_json(
@@ -241,4 +360,145 @@ fn profile_import_creates_all_rules_then_exports() {
     assert_eq!(doc.get("profileVersion"), Some(&Value::Number(1.into())));
 
     let _ = std::fs::remove_dir_all(&home);
+}
+
+#[test]
+fn multi_template_import_is_one_native_transaction_and_no_save_keeps_gallery_empty() {
+    let home = isolated_home("template-native-batch");
+    let original: Value = serde_json::from_str(
+        &std::fs::read_to_string(repo_path(
+            "tests/fixtures/templates/minecraft-gift-command.tiktemplate.json",
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let mut second = original.clone();
+    second["id"] = Value::String("second-template".into());
+    let document = home.join("templates.json");
+    std::fs::write(
+        &document,
+        serde_json::to_vec(&vec![original, second]).unwrap(),
+    )
+    .unwrap();
+    let imported = run_json(
+        &home,
+        &[
+            "template",
+            "import",
+            document.to_str().unwrap(),
+            "--no-save",
+            "--disabled",
+        ],
+    );
+    assert_eq!(imported["imported"].as_array().unwrap().len(), 2);
+    assert_eq!(imported["savedToGallery"], false);
+    let library = run_json(&home, &["api", "call", "automation.library.snapshot", "{}"]);
+    assert_eq!(
+        library["definitions"]["actions"].as_array().unwrap().len(),
+        2
+    );
+    assert_eq!(
+        library["definitions"]["events"].as_array().unwrap().len(),
+        2
+    );
+    assert_eq!(library["catalog"]["templates"], serde_json::json!([]));
+    for key in ["actions", "events"] {
+        assert!(library["definitions"][key]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row["enabled"] == false));
+    }
+    let native = run_json(&home, &["api", "call", "automation.library.get", "{}"]);
+    assert_eq!(native["recent"].as_array().unwrap().len(), 1);
+    assert_eq!(native["recent"][0]["receipt"]["affectedResources"], 5);
+    let _ = std::fs::remove_dir_all(home);
+}
+
+#[test]
+fn reusable_profile_template_creates_each_graph_but_upserts_one_gallery_copy() {
+    let home = isolated_home("profile-reused-template");
+    let mut profile: Value = serde_json::from_str(
+        &std::fs::read_to_string(repo_path(
+            "tests/fixtures/profiles/minecraft-gifts.tikprofile.json",
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let first = profile["templates"][0].clone();
+    profile["id"] = Value::String("reused-profile".into());
+    profile["name"] = Value::String("Reusable profile".into());
+    profile["templates"] = serde_json::json!([first, first]);
+    let file = home.join("reused.tikprofile.json");
+    std::fs::write(&file, serde_json::to_vec(&profile).unwrap()).unwrap();
+    let result = run_json(
+        &home,
+        &["template", "profile-import", file.to_str().unwrap()],
+    );
+    assert_eq!(result["imported"].as_array().unwrap().len(), 2);
+    let library = run_json(&home, &["api", "call", "automation.library.snapshot", "{}"]);
+    assert_eq!(
+        library["definitions"]["actions"].as_array().unwrap().len(),
+        2
+    );
+    assert_eq!(
+        library["definitions"]["events"].as_array().unwrap().len(),
+        2
+    );
+    assert_eq!(library["catalog"]["templates"].as_array().unwrap().len(), 1);
+    assert_eq!(library["catalog"]["activeId"], "reused-profile");
+    let history = run_json(&home, &["api", "call", "automation.library.get", "{}"]);
+    assert_eq!(history["recent"].as_array().unwrap().len(), 1);
+    let _ = std::fs::remove_dir_all(home);
+}
+
+#[test]
+fn oversized_string_expansion_fails_before_materializing_graph_gallery_or_native_intent() {
+    let home = isolated_home("template-expansion-bound");
+    let template = serde_json::json!({"templateVersion":1,"id":"expansion-template","title":"Expansion fixture","description":"","icon":"plugin",
+        "params":{"type":"object","properties":{"p":{"type":"string","default":"private-expansion-source".repeat(500)}}},
+        "actions":[{"name":"Expanded action","typeId":"core.log","enabled":false,"config":{"message":"{{params.p}}".repeat(2000)}}],
+        "event":{"name":"Expanded event","enabled":false,"trigger":"tiktok.chat","filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all"}});
+    let template_file = home.join("expansion.tiktemplate.json");
+    std::fs::write(&template_file, serde_json::to_vec(&template).unwrap()).unwrap();
+    let profile = serde_json::json!({"profileVersion":1,"id":"expansion-profile","name":"Expansion profile","description":"","params":{},"templates":[{"template":template,"params":{}}]});
+    let profile_file = home.join("expansion.tikprofile.json");
+    std::fs::write(&profile_file, serde_json::to_vec(&profile).unwrap()).unwrap();
+    for (verb, path) in [
+        ("import", &template_file),
+        ("profile-import", &profile_file),
+    ] {
+        assert!(std::fs::metadata(path).unwrap().len() < 65_536);
+        for dry in [false, true] {
+            let mut args = vec!["template", verb, path.to_str().unwrap()];
+            if dry {
+                args.push("--dry-run");
+            }
+            rejects_expansion_before_effect(&home, &args);
+        }
+    }
+    no_import_effects(&home);
+    let _ = std::fs::remove_dir_all(home);
+}
+
+#[test]
+fn profile_expansion_shares_one_aggregate_budget_across_actual_and_dry_run_entries() {
+    let home = isolated_home("profile-aggregate-expansion");
+    let actions:Vec<_>=(0..8).map(|index|serde_json::json!({"name":format!("Action {index}"),"typeId":"core.log","enabled":false,"config":{"message":"{{params.p}}".repeat(7)}})).collect();
+    let template = serde_json::json!({"templateVersion":1,"id":"aggregate-template","title":"Aggregate fixture","description":"","icon":"plugin","actions":actions,
+        "event":{"name":"Aggregate event","enabled":false,"trigger":"tiktok.chat","filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all"}});
+    let profile = serde_json::json!({"profileVersion":1,"id":"aggregate-profile","name":"Aggregate profile","description":"","params":{"p":"s".repeat(32_000)},
+        "templates":vec![serde_json::json!({"template":template,"params":{}});5]});
+    let file = home.join("aggregate.tikprofile.json");
+    std::fs::write(&file, serde_json::to_vec(&profile).unwrap()).unwrap();
+    assert!(std::fs::metadata(&file).unwrap().len() < 65_536);
+    for dry in [false, true] {
+        let mut args = vec!["template", "profile-import", file.to_str().unwrap()];
+        if dry {
+            args.push("--dry-run");
+        }
+        rejects_expansion_before_effect(&home, &args);
+    }
+    no_import_effects(&home);
+    let _ = std::fs::remove_dir_all(home);
 }

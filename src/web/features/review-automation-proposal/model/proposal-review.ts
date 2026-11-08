@@ -1,3 +1,4 @@
+import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { definitionJournal } from '@/entities/automation/model/definition-journal.ts';
 import { ownerMutationGate } from '@/shared/api/owner-mutation-gate.ts';
 import { computed, ref, shallowRef, watch } from 'vue';
@@ -11,6 +12,7 @@ export function useProposalReview(control: ControlClient) {
   const journal = adoptionJournal(control);
   const approvals = approvalJournal(control);
   const definitions = definitionJournal(control);
+  const library = libraryJournal(control);
   const gate = ownerMutationGate(control);
   const target = shallowRef<ProposalTarget | null>(null);
   const review = shallowRef<CapturedReview | null>(null);
@@ -29,11 +31,12 @@ export function useProposalReview(control: ControlClient) {
     !!journal.state.value && sameHost(review.value, journal.state.value) && !journal.state.value.pending &&
     !!approvals.state.value && sameHost(review.value, approvals.state.value) && !approvals.state.value.pending &&
     !!definitions.state.value && sameHost(review.value, definitions.state.value) && !definitions.state.value.pending &&
-    !definitions.unavailable.value && !definitions.busy.value && !gate.busy.value &&
+    !definitions.unavailable.value && !definitions.busy.value && !!library.state.value && sameHost(review.value!, library.state.value) &&
+    !library.state.value.pending && !library.unavailable.value && !library.busy.value && !gate.busy.value &&
     !journal.unavailable.value && !journal.busy.value && !approvals.unavailable.value && !approvals.busy.value && !reading.value && !stale.value);
   const canAdopt = computed(() => adoptEligible.value && acknowledged.value);
 
-  const stopJournalWatch = watch([approvals.state, journal.state, definitions.state], (next, previous) => {
+  const stopJournalWatch = watch([approvals.state, journal.state, definitions.state, library.state], (next, previous) => {
     if (!review.value) return;
     const transitions = (states: typeof next) => states.map((s) => s ? { pending: s.pending, recent: s.recent } : null);
     if (stableJson(transitions(next)) !== stableJson(transitions(previous))) invalidate('changed');
@@ -64,19 +67,19 @@ export function useProposalReview(control: ControlClient) {
     if (review.value && projectionChanged(review.value, versions, observedReviewed)) invalidate('changed');
   }
   function observeHost(): void {
-    if (review.value && [journal.state.value, approvals.state.value, definitions.state.value].some((host) => host && !sameHost(review.value!, host))) invalidate('hostChanged');
+    if (review.value && [journal.state.value, approvals.state.value, definitions.state.value, library.state.value].some((host) => host && !sameHost(review.value!, host))) invalidate('hostChanged');
   }
-  async function refreshJournals(): Promise<void> { await approvals.refresh(); await journal.refresh(); await definitions.refresh(); }
+  async function refreshJournals(): Promise<void> { await approvals.refresh(); await journal.refresh(); await definitions.refresh(); await library.refresh(); }
   async function readSaved(): Promise<void> {
     const selected = target.value;
-    if (!selected || disposed || reading.value || journal.busy.value || approvals.busy.value || definitions.busy.value || gate.busy.value) return;
+    if (!selected || disposed || reading.value || journal.busy.value || approvals.busy.value || definitions.busy.value || library.busy.value || gate.busy.value) return;
     const capturedToken = token;
     const epoch = ++readEpoch;
     reading.value = true; acknowledged.value = false; error.value = ''; notice.value = ''; review.value = null;
     try {
       const host = await journal.refresh();
       await approvals.refresh();
-      await definitions.refresh();
+      await definitions.refresh(); await library.refresh();
       if (!host || disposed || capturedToken !== token || epoch !== readEpoch) return;
       const response = await callWithMeta(control, 'automation.review', { kind: selected.kind, id: selected.id });
       if (disposed || capturedToken !== token || epoch !== readEpoch) return;
@@ -100,9 +103,10 @@ export function useProposalReview(control: ControlClient) {
       const other = await approvals.fetchState();
       const host = await journal.fetchState();
       const definition = await definitions.fetchState();
+      const libraryState = await library.fetchState();
       if (disposed || token !== capturedToken || review.value !== captured) return;
-      if (!sameHost(captured, host) || !sameHost(captured, other) || !sameHost(captured, definition)) { invalidate('hostChanged'); return; }
-      if (host.pending || other.pending || definition.pending) return;
+      if (!sameHost(captured, host) || !sameHost(captured, other) || !sameHost(captured, definition) || !sameHost(captured, libraryState)) { invalidate('hostChanged'); return; }
+      if (host.pending || other.pending || definition.pending || libraryState.pending) return;
       const response = await callWithMeta(control, 'automation.review', { kind: captured.source.kind, id: captured.source.id });
       if (disposed || token !== capturedToken || review.value !== captured) return;
       const fresh = parseReview(response.result, response.meta, captured.source);
@@ -144,5 +148,5 @@ export function useProposalReview(control: ControlClient) {
     if (pending && !disposed && token === capturedToken) invalidate('changed');
   }
   function dispose(): void { disposed = true; ++token; ++readEpoch; stopJournalWatch(); stopGateWatch(); review.value = null; }
-  return { journal, approvals, definitions, gate, target, review, reading, acknowledged, stale, notice, error, sourcePrecisionSafe, adoptEligible, canAdopt, select, closeReview, observe, observeHost, refreshJournals, readSaved, adopt, resolveOriginal, reviewUnknown, dispose };
+  return { journal, approvals, definitions, library, gate, target, review, reading, acknowledged, stale, notice, error, sourcePrecisionSafe, adoptEligible, canAdopt, select, closeReview, observe, observeHost, refreshJournals, readSaved, adopt, resolveOriginal, reviewUnknown, dispose };
 }
