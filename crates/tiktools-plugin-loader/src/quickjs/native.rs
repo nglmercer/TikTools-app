@@ -2,7 +2,9 @@
 
 #[cfg(node_api_host)]
 mod imp {
-    pub(crate) use super::super::napi::{has_pending_work, load_addon, pump, shutdown, wait_for_event, NativeSlot};
+    pub(crate) use super::super::napi::{
+        has_pending_work, load_addon, pump, shutdown, wait_for_event, NativeSlot,
+    };
 }
 
 #[cfg(not(node_api_host))]
@@ -22,7 +24,10 @@ mod imp {
     ) -> rquickjs::Result<Value<'js>> {
         Err(Exception::throw_message(
             ctx,
-            &format!("native addons are not supported by this build ({})", path.display()),
+            &format!(
+                "native addons are not supported by this build ({})",
+                path.display()
+            ),
         ))
     }
     pub(crate) fn pump(_: &HostShared) {}

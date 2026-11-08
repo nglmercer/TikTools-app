@@ -36,13 +36,15 @@ impl ScriptService {
         let tripped = Rc::new(Cell::new(false));
         install_budget(&runtime, Rc::clone(&tripped));
         let outcome = context.with(|ctx| {
-            ctx.eval::<JsValue, _>(function).map(|_| ()).map_err(|error| {
-                if tripped.get() {
-                    BUDGET_MESSAGE.to_owned()
-                } else {
-                    describe_error(&ctx, error)
-                }
-            })
+            ctx.eval::<JsValue, _>(function)
+                .map(|_| ())
+                .map_err(|error| {
+                    if tripped.get() {
+                        BUDGET_MESSAGE.to_owned()
+                    } else {
+                        describe_error(&ctx, error)
+                    }
+                })
         });
         drop(context);
         drop(runtime);
@@ -236,7 +238,14 @@ mod tests {
             .unwrap();
         assert_eq!(
             result,
-            json!(["undefined", "undefined", "undefined", "undefined", "undefined", "undefined"])
+            json!([
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined",
+                "undefined"
+            ])
         );
     }
 

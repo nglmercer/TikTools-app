@@ -8,9 +8,9 @@
 mod declarative;
 mod discovery;
 mod manager;
-mod quickjs;
 mod native;
 mod process;
+mod quickjs;
 #[cfg(test)]
 mod tests;
 mod types;
@@ -20,9 +20,11 @@ mod worker;
 pub use declarative::DeclarativePluginRuntime;
 pub use discovery::plugin_roots;
 pub use manager::{PluginManager, RuntimeRegistry};
-pub use quickjs::{native_addons_allowed, QuickJsPluginRuntime, QuickJsPluginRuntime as NapiVmPluginRuntime};
 pub use native::NativePluginRuntime;
 pub use process::ProcessPluginRuntime;
+pub use quickjs::{
+    native_addons_allowed, QuickJsPluginRuntime, QuickJsPluginRuntime as NapiVmPluginRuntime,
+};
 pub use types::{
     DiscoveredPlugin, EmittedEvent, ManagedWorker, PluginInstance, PluginLoaderError, PluginRoot,
     PluginRuntime, PluginSource, WorkerContext,

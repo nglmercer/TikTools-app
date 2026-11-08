@@ -43,7 +43,10 @@ pub(in super::super) unsafe extern "C" fn api_create_async_work(
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_delete_async_work(env: Environment, work: Opaque) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_delete_async_work(
+    env: Environment,
+    work: Opaque,
+) -> i32 {
     run(env, |_| {
         if work.is_null() {
             return Err(INVALID_ARG);
@@ -59,7 +62,10 @@ pub(in super::super) unsafe extern "C" fn api_delete_async_work(env: Environment
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_queue_async_work(env: Environment, work: Opaque) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_queue_async_work(
+    env: Environment,
+    work: Opaque,
+) -> i32 {
     run(env, |_| {
         if work.is_null() {
             return Err(INVALID_ARG);
@@ -71,7 +77,10 @@ pub(in super::super) unsafe extern "C" fn api_queue_async_work(env: Environment,
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_cancel_async_work(env: Environment, work: Opaque) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_cancel_async_work(
+    env: Environment,
+    work: Opaque,
+) -> i32 {
     run(env, |_| {
         if work.is_null() {
             return Err(INVALID_ARG);
@@ -137,7 +146,10 @@ pub(in super::super) unsafe extern "C" fn api_create_threadsafe_function(
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_threadsafe_function_context(tsfn: Opaque, result: *mut *mut c_void) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_threadsafe_function_context(
+    tsfn: Opaque,
+    result: *mut *mut c_void,
+) -> i32 {
     if tsfn.is_null() || result.is_null() {
         return INVALID_ARG;
     }
@@ -146,13 +158,20 @@ pub(in super::super) unsafe extern "C" fn api_get_threadsafe_function_context(ts
 }
 
 /// Callable from any thread.
-pub(in super::super) unsafe extern "C" fn api_call_threadsafe_function(tsfn: Opaque, data: *mut c_void, mode: i32) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_call_threadsafe_function(
+    tsfn: Opaque,
+    data: *mut c_void,
+    mode: i32,
+) -> i32 {
     if tsfn.is_null() {
         return INVALID_ARG;
     }
     let ptr = tsfn as *mut Tsfn;
     let t = unsafe { &*ptr };
-    let mut state = t.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut state = t
+        .state
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     loop {
         if state.closing {
             return CLOSING;
@@ -163,7 +182,9 @@ pub(in super::super) unsafe extern "C" fn api_call_threadsafe_function(tsfn: Opa
         if mode == 0 {
             return QUEUE_FULL;
         }
-        state = t.cv.wait(state).unwrap_or_else(std::sync::PoisonError::into_inner);
+        state =
+            t.cv.wait(state)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
     }
     state.queue.push_back(data as usize);
     let post = !state.scheduled;
@@ -180,7 +201,10 @@ pub(in super::super) unsafe extern "C" fn api_acquire_threadsafe_function(tsfn: 
         return INVALID_ARG;
     }
     let t = unsafe { &*(tsfn as *mut Tsfn) };
-    let mut state = t.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut state = t
+        .state
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if state.closing {
         return CLOSING;
     }
@@ -188,13 +212,19 @@ pub(in super::super) unsafe extern "C" fn api_acquire_threadsafe_function(tsfn: 
     OK
 }
 
-pub(in super::super) unsafe extern "C" fn api_release_threadsafe_function(tsfn: Opaque, mode: i32) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_release_threadsafe_function(
+    tsfn: Opaque,
+    mode: i32,
+) -> i32 {
     if tsfn.is_null() {
         return INVALID_ARG;
     }
     let ptr = tsfn as *mut Tsfn;
     let t = unsafe { &*ptr };
-    let mut state = t.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut state = t
+        .state
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if state.threads == 0 {
         return INVALID_ARG;
     }
@@ -210,9 +240,27 @@ pub(in super::super) unsafe extern "C" fn api_release_threadsafe_function(tsfn: 
     OK
 }
 
-pub(in super::super) unsafe extern "C" fn api_ref_threadsafe_function(env: Environment, tsfn: Opaque) -> i32 {
-    run(env, |_| if tsfn.is_null() { Err(INVALID_ARG) } else { Ok(()) })
+pub(in super::super) unsafe extern "C" fn api_ref_threadsafe_function(
+    env: Environment,
+    tsfn: Opaque,
+) -> i32 {
+    run(env, |_| {
+        if tsfn.is_null() {
+            Err(INVALID_ARG)
+        } else {
+            Ok(())
+        }
+    })
 }
-pub(in super::super) unsafe extern "C" fn api_unref_threadsafe_function(env: Environment, tsfn: Opaque) -> i32 {
-    run(env, |_| if tsfn.is_null() { Err(INVALID_ARG) } else { Ok(()) })
+pub(in super::super) unsafe extern "C" fn api_unref_threadsafe_function(
+    env: Environment,
+    tsfn: Opaque,
+) -> i32 {
+    run(env, |_| {
+        if tsfn.is_null() {
+            Err(INVALID_ARG)
+        } else {
+            Ok(())
+        }
+    })
 }

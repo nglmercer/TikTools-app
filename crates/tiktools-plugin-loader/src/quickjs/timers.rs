@@ -134,11 +134,7 @@ pub(super) fn install<'js>(ctx: &Ctx<'js>, timers: &SharedTimers) -> rquickjs::R
 /// Runs every timer that is due now, draining microtasks after each
 /// callback. Returns the next pending deadline. Callback failures are
 /// logged: one throwing timer must not kill the plugin.
-pub(super) fn run_due<'js>(
-    ctx: &Ctx<'js>,
-    timers: &SharedTimers,
-    plugin: &str,
-) -> Option<Instant> {
+pub(super) fn run_due<'js>(ctx: &Ctx<'js>, timers: &SharedTimers, plugin: &str) -> Option<Instant> {
     let now = Instant::now();
     let mut due: Vec<(Instant, u32)> = timers
         .borrow()

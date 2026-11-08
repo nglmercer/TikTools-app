@@ -74,7 +74,9 @@ impl NodeApiShim {
                 Ok(()) => break candidate,
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
                 Err(error) => {
-                    return Err(format!("cannot create private Node-API shim directory: {error}"))
+                    return Err(format!(
+                        "cannot create private Node-API shim directory: {error}"
+                    ))
                 }
             }
         };
@@ -85,7 +87,10 @@ impl NodeApiShim {
         #[cfg(target_os = "windows")]
         let path = root.join("node.exe");
         let written = (|| {
-            let mut file = OpenOptions::new().write(true).create_new(true).open(&path)?;
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)?;
             file.write_all(bytes)?;
             file.sync_all()?;
             #[cfg(unix)]
@@ -108,7 +113,9 @@ impl NodeApiShim {
             let dll = root.join("node.dll");
             if let Err(error) = fs::copy(&path, &dll) {
                 let _ = fs::remove_dir_all(&root);
-                return Err(format!("cannot materialize Node-API dynamic-lookup shim: {error}"));
+                return Err(format!(
+                    "cannot materialize Node-API dynamic-lookup shim: {error}"
+                ));
             }
             use std::os::windows::ffi::OsStrExt;
             let mut directory: Vec<u16> = root.as_os_str().encode_wide().collect();
@@ -116,7 +123,9 @@ impl NodeApiShim {
             if unsafe { AddDllDirectory(directory.as_ptr()) }.is_null() {
                 let error = std::io::Error::last_os_error();
                 let _ = fs::remove_dir_all(&root);
-                return Err(format!("cannot register private Node-API shim directory: {error}"));
+                return Err(format!(
+                    "cannot register private Node-API shim directory: {error}"
+                ));
             }
             dll
         };

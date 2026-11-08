@@ -16,7 +16,6 @@
 //! - Bearer credentials are used only on native API routes inside
 //!   `cloud-client`.
 
-
 mod origin;
 
 #[cfg(feature = "account")]

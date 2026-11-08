@@ -84,7 +84,10 @@ fn preflight(path: &Path) -> Result<(), String> {
     if ok {
         Ok(())
     } else {
-        Err(format!("{} is not a native addon for this platform", path.display()))
+        Err(format!(
+            "{} is not a native addon for this platform",
+            path.display()
+        ))
     }
 }
 
@@ -130,14 +133,21 @@ pub(crate) fn load_addon<'js>(
     let (shim, events, external_class) = {
         let guard = shared.native.borrow();
         let state = guard.as_ref().expect("native state was just created");
-        (Arc::clone(&state.shim), Arc::clone(&state.events), state.external_class)
+        (
+            Arc::clone(&state.shim),
+            Arc::clone(&state.events),
+            state.external_class,
+        )
     };
 
     REGISTRATIONS.with(|registrations| registrations.borrow_mut().clear());
     let library = shim.open_addon(path);
     let registered: Vec<usize> = REGISTRATIONS.with(|r| std::mem::take(&mut *r.borrow_mut()));
     let library = library.map_err(|error| {
-        fail(format!("cannot load native addon {}: {error}", path.display()))
+        fail(format!(
+            "cannot load native addon {}: {error}",
+            path.display()
+        ))
     })?;
 
     type Register = unsafe extern "C" fn(Environment, Handle) -> Handle;
@@ -155,7 +165,9 @@ pub(crate) fn load_addon<'js>(
     };
     let (version, init): (i32, Register) = if let Some(api_version) = api_version {
         let init = symbol_init.ok_or_else(|| {
-            fail("addon exports a Node-API version getter but no napi_register_module_v1".to_owned())
+            fail(
+                "addon exports a Node-API version getter but no napi_register_module_v1".to_owned(),
+            )
         })?;
         (unsafe { api_version() }, init)
     } else if registered.is_empty() && symbol_init.is_some() {
@@ -169,12 +181,7 @@ pub(crate) fn load_addon<'js>(
                     .ok_or_else(|| fail("registered module has no initializer".to_owned()))?;
                 (1, init)
             }
-            [] => {
-                return Err(fail(format!(
-                    "{} is not a Node-API addon",
-                    path.display()
-                )))
-            }
+            [] => return Err(fail(format!("{} is not a Node-API addon", path.display()))),
             _ => return Err(fail("addon registered several legacy modules".to_owned())),
         }
     };
@@ -233,7 +240,9 @@ pub(crate) fn pump(shared: &HostShared) {
     for event in batch {
         match event {
             HostEvent::Tsfn(ptr) => unsafe { functions::dispatch_tsfn(ptr.0) },
-            HostEvent::AsyncDone(ptr, status) => unsafe { functions::complete_async(ptr.0, status) },
+            HostEvent::AsyncDone(ptr, status) => unsafe {
+                functions::complete_async(ptr.0, status)
+            },
         }
     }
     for env in envs {
