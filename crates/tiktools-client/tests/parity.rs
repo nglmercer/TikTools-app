@@ -304,3 +304,118 @@ fn native_approval_chooses_ids_and_separates_activation_from_revocation_proofs()
     )
     .is_err());
 }
+
+#[test]
+fn native_definition_validation_accepts_each_zero_revision_union_without_caller_metadata() {
+    for method in ["automation.definition.get", "automation.definition.resolve"] {
+        assert!(tiktools_client::validate_params(method, &serde_json::json!({})).is_ok());
+        for extra in [
+            serde_json::json!({"commandId":"caller-chosen"}),
+            serde_json::json!({"expectedRevision":"0"}),
+            serde_json::json!({"hostInstanceId":"instance"}),
+        ] {
+            assert_eq!(
+                tiktools_client::validate_params(method, &extra)
+                    .unwrap_err()
+                    .code,
+                "invalid_params"
+            );
+        }
+    }
+    for kind in ["action", "event"] {
+        for operation in ["create", "update", "delete", "enable", "disable"] {
+            let mut input = serde_json::json!({
+                "operation":operation,"kind":kind,"expectedRevision":"0",
+                "hostId":"owner-host","hostInstanceId":"owner-instance"
+            });
+            if operation != "create" {
+                input["id"] = "definition".into();
+            }
+            if matches!(operation, "create" | "update") {
+                input["record"] = serde_json::json!({"id":"definition","name":"Definition"});
+            }
+            assert!(
+                tiktools_client::validate_params("automation.definition.submit", &input).is_ok(),
+                "{kind} {operation} accepts the canonical zero base, including missing delete/update"
+            );
+            for required in input.as_object().unwrap().keys() {
+                let mut missing = input.clone();
+                missing.as_object_mut().unwrap().remove(required);
+                assert_eq!(
+                    tiktools_client::validate_params("automation.definition.submit", &missing)
+                        .unwrap_err()
+                        .code,
+                    "invalid_params",
+                    "{operation}: missing {required}"
+                );
+            }
+            for field in [
+                "commandId",
+                "meta",
+                "proof",
+                "candidate",
+                "authority",
+                "provenance",
+                "principalId",
+                "permit",
+                "reviewedVersions",
+                "acknowledgeEffects",
+            ] {
+                let mut extra = input.clone();
+                extra[field] = serde_json::json!({});
+                assert_eq!(
+                    tiktools_client::validate_params("automation.definition.submit", &extra)
+                        .unwrap_err()
+                        .code,
+                    "invalid_params",
+                    "{operation}: caller cannot supply {field}"
+                );
+            }
+            let mut confused = input.clone();
+            if operation == "create" {
+                confused["id"] = "definition".into();
+            } else if matches!(operation, "delete" | "enable" | "disable") {
+                confused["record"] = serde_json::json!({"id":"definition"});
+            } else {
+                confused["deleted"] = true.into();
+            }
+            assert!(
+                tiktools_client::validate_params("automation.definition.submit", &confused)
+                    .is_err()
+            );
+            input["expectedRevision"] = 0.into();
+            assert_eq!(
+                tiktools_client::validate_params("automation.definition.submit", &input)
+                    .unwrap_err()
+                    .code,
+                "invalid_params",
+                "revisions are decimal strings"
+            );
+        }
+    }
+    let review = serde_json::json!({
+        "commandId":"owner-definition-00000000000000000000000000000001",
+        "acknowledgeUnknown":true
+    });
+    assert!(
+        tiktools_client::validate_params("automation.definition.review_unknown", &review).is_ok()
+    );
+    for required in ["commandId", "acknowledgeUnknown"] {
+        let mut missing = review.clone();
+        missing.as_object_mut().unwrap().remove(required);
+        assert_eq!(
+            tiktools_client::validate_params("automation.definition.review_unknown", &missing)
+                .unwrap_err()
+                .code,
+            "invalid_params"
+        );
+    }
+    let mut extra = review;
+    extra["record"] = serde_json::json!({"id":"definition"});
+    assert_eq!(
+        tiktools_client::validate_params("automation.definition.review_unknown", &extra)
+            .unwrap_err()
+            .code,
+        "invalid_params"
+    );
+}

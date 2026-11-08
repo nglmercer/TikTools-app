@@ -244,6 +244,42 @@ SDK `automation_execution_manifest_get` validates the complete closed envelope
 and family/version/dependency/subject relationships. See the
 [manifest contract](LIVE-COLLABORATION-AUTOMATION.md#execution-subject-resolution-and-manifest-preview).
 
+Owner-only native definition recovery uses the following strict methods:
+
+| Method | Parameters | Result |
+| --- | --- | --- |
+| `automation.definition.get` | `{}` | Native metadata state |
+| `automation.definition.submit` | Closed `operation:create|update|delete|enable|disable` union | `{state,acknowledgement}` |
+| `automation.definition.resolve` | `{}` | Original-ledger lookup and metadata state |
+| `automation.definition.review_unknown` | `{commandId,acknowledgeUnknown:true}` | Explicit uncertainty review and metadata state |
+
+Submit carries `kind`, canonical `expectedRevision`, reviewed `hostId` and
+`hostInstanceId`. Create carries an explicit-ID `record`; update adds matching
+`id`; other variants carry `id`. The host creates/persists the business command
+identity before dispatch. Caller command metadata is forbidden, and remote
+principals are denied at both ingress and egress even with every capability.
+Revisions are nonnegative decimal strings: absent delete at revision `0` may
+return `deleted:false`, while an absent update never becomes a create.
+
+State contains host identity, one optional pending intent and at most 16 recent
+metadata records. Intents expose opaque command/operation/target/base/host and
+optional source digest; receipts expose final revision/digest/enablement/delete
+and affected-resource count. Source, grants and credentials are absent. Only a
+fresh successful submit may include an acknowledgement with the original
+`{value,resourceVersions,command,hostInstanceId}`; recovery never returns source
+or writes state again. Missing/expired outcomes stay pending until explicit
+review; an existing known result wins over an unknown acknowledgement.
+The generic CLI requires `--confirm` for submit because its union includes
+deletion; ordinary in-app Save retains its existing explicit button action.
+
+The native journal shares pending admission with adoption and approval.
+Create/update source is bounded to 256 KiB/depth 64/65,536 nodes; toggle output
+and action-delete cascade versions are checked under the writer before effect
+to keep native recovery inside the finite Owner response budget. Action deletion
+may include all affected event versions, rather than one primary-only receipt.
+Typed SDK methods are `automation_definition_get`, `_submit`, `_resolve` and
+`_review_unknown`. See the [Owner editor and recovery contract](LIVE-COLLABORATION-AUTOMATION.md#native-owner-definition-intents).
+
 Owner-only `automation.effects.get {effectId}` and
 `automation.effects.history {before:null|effectId,limit:1..100}` inspect bounded
 metadata-only external-effect receipts. Results expose opaque identity, effect
@@ -435,6 +471,7 @@ Windows pipes with `TIKTOOLS_IPC_NAME`.
 `automation.list|get|create|update|adopt|delete|enable|disable|set_enablement|test|fire|context|runs|snapshot`,
 `automation.authority.get`,
 `automation.review`, `automation.manifest.get`, `automation.adoption.get|submit|resolve|review_unknown`,
+`automation.definition.get|submit|resolve|review_unknown`,
 `automation.nodes.list`, `automation.script.analyze`,
 `media.validate|play|pick`.
 

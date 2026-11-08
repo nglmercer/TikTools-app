@@ -82,14 +82,17 @@ Owner-only durable approval/activation/revocation and a first delegated policy
 for saved log/delay/points actions are now implemented and locally tested;
 see [the approval contract](LIVE-COLLABORATION-APPROVAL.md). The Owner approval
 UI and native recovery coordinator are now implemented, including a shared
-pending gate with adoption. Scoped HTTP/audio effects, exact-topic emits and
+pending gate with adoption and native single-record definition changes. Scoped HTTP/audio effects, exact-topic emits and
 bounded scripts now use current grant checks and durable non-replaying handoff
 records. Emitted child rules retain every incoming subject and saved-definition
 fence. Approved custom-topic rules accept only already-approved scoped input.
 See the approval contract for current restrictions. Delegated plugins, HTTP
 response emission and graph execution remain pending. The owner behavior
 editor now pins base versions, retains conflicting drafts and requires explicit
-comparison/rebase/recreation before a separate save. Complete the remaining
+comparison/rebase/recreation before a separate save. Owner create/update/delete
+and enable/disable now use host-generated native intents and original-result
+recovery; only the original fresh response can advance an editor from its saved
+body. Recovery preserves newer text and never resends a mutation. Complete the remaining
 execution gates before exposing broader remote activation or effects. Direct host
 collaboration still requires no RemakeBackend runtime/schema change; an Internet
 relay is a separate scope.

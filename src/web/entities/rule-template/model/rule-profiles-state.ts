@@ -474,9 +474,9 @@ export function useRuleProfiles(control: ControlClient) {
     }
   };
 
-  const adoptRule = async (kind: 'event' | 'action', id: string, profileId = activeId.value): Promise<void> => {
-    if (profileId === DEFAULT_PROFILE_ID || !packs.value.some((pack) => pack.id === profileId)) return;
-    if (packs.value.some((pack) => (kind === 'event' ? pack.eventIds : pack.actionIds).includes(id))) return;
+  const adoptRule = async (kind: 'event' | 'action', id: string, profileId = activeId.value): Promise<boolean> => {
+    if (profileId === DEFAULT_PROFILE_ID || !packs.value.some((pack) => pack.id === profileId)) return true;
+    if (packs.value.some((pack) => (kind === 'event' ? pack.eventIds : pack.actionIds).includes(id))) return true;
     const next = packs.value.map((pack) =>
       pack.id === profileId
         ? {
@@ -488,8 +488,10 @@ export function useRuleProfiles(control: ControlClient) {
     );
     try {
       await persist(next, activeId.value);
+      return true;
     } catch (failure) {
       error.value = errorMessage(failure);
+      return false;
     }
   };
 

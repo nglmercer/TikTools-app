@@ -1,12 +1,14 @@
 import collaboration from './collaboration.es.ts';
 import automationProposal from './automation-proposal.es.ts';
 import automationApproval from './automation-approval.es.ts';
+import definitionRecovery from './definition-recovery.es.ts';
 import type { MessageSchema } from '../i18n.ts';
 
 export default {
   collaboration,
   automationProposal,
   automationApproval,
+  definitionRecovery,
   common: {
     ok: 'Aceptar',
     cancel: 'Cancelar',

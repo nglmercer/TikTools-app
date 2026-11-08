@@ -522,21 +522,81 @@ projection, including to synchronous observers. A background refresh never
 overwrites the selected editor or advances its base, even before the first edit.
 Opening a different selection captures a fresh base.
 
-Single-record saves send that captured revision. New records use explicit
-`automation.create` with revision zero; existing records use `automation.update`.
-Missing updates never retry as creates. A missing/invalid revision on a persistent
-or unidentified host disables submission. Only a host explicitly reporting
+Single-record saves retain the opening host ID/instance and captured revision.
+The persistent Owner editor now uses `automation.definition.submit`; its closed
+operation selects create/update/delete/enable/disable for an action or event.
+New records keep their explicit generated target ID and use revision zero;
+reviewed recreation keeps the retained tombstone revision. Missing updates never
+retry as creates. Native revisions are canonical nonnegative decimal strings:
+zero describes absence, not permission to overwrite an existing record.
+A missing/invalid revision or reviewed host on a persistent or unidentified
+host disables submission. Source, revisions and host identity publish together;
+an instance replacement with coincidentally equal revisions cannot authorize an
+old editor's write. Only a host explicitly reporting
 `system.info.features.persistence:false` permits local in-memory editing without
 a revision, with a visible run-only notice. That exception is not remote mode
 or simulated durable metadata.
 
 Save/delete failures retain the candidate and dirty state. Unconfirmed outcomes
-block another submission until an explicit current read and review. The owner editor does not yet attach
-durable behavior command IDs: a matching later read establishes current
-state, not the original request's historical outcome. The UI does not replay it.
+block another submission until native original-outcome lookup and explicit
+current read/review. The host generates and durably records the behavior command
+ID before dispatch; browser code neither supplies nor persists it. A matching
+later definition read establishes current state, while native history proves
+the original request's outcome. Neither recovery nor history replays a write.
 Successful acknowledgements update only the matching selection's base; text
 edited during the request remains unsaved. Navigation, same-ID reopen and
 disposal fence late save/read/failure callbacks.
+
+### Native Owner definition intents
+
+The Owner-only methods are `automation.definition.get {}`, `.submit`, `.resolve
+{}` and `.review_unknown {commandId,acknowledgeUnknown}`. All remote principals
+are denied at ingress and egress, including all-capability sessions. Caller
+business command metadata is rejected. Submit variants carry the reviewed host
+ID/instance, `expectedRevision` and family; create carries `record`, update
+carries matching `id`/`record`, and delete/enable/disable carry `id`. Ordinary
+Save, deletion confirmation and toggle confirmation already establish intent;
+there is no additional execution-approval checkbox.
+
+`owner_automation_definitions` stores bounded metadata and source fingerprints,
+never definition source, credentials or grants. One shared native coordinator
+and reciprocal transactional pending checks cover definition, adoption and
+approval journals. The begin transaction commits before the existing durable
+business command runs under command-coordination then automation-writer gates.
+Ordinary definition writes preserve trusted provenance; they never adopt a
+delegated record or install a delegated execution approval.
+
+The original successful submit may return a verified acknowledgement containing
+the actual normalized saved result and complete resource versions. Its separate
+`state` contains host identity, one pending intent and at most 16 recent metadata
+receipts. Get/resolve/unknown review return only this state. Original-ledger
+verification binds principal/session, command/hash/method/host, target, revision
+arithmetic and actual source digest. Save/toggle advances the primary revision;
+a missing delete returns `deleted:false` without advancing its tombstone.
+Action deletion also verifies every sorted affected event version. There is no
+513-entry approval-closure limit on those cascades.
+
+Definition source is bounded to 256 KiB, depth 64 and 65,536 nodes. Dispatch
+preflight checks legacy toggle output and exact cascade-version bytes under the
+writer gate before mutation, reserving room inside the 8 MiB Owner response
+budget. The journal entry itself is at most 8 KiB. Expired/missing original
+outcomes retain pending state until explicit unknown review; known ledger
+success wins over an unknown acknowledgement. Malformed or oversized retained
+proofs fail closed. Recovery never substitutes the current definition for an
+unavailable historical result.
+
+**Definition changes** opens selection-independent native history/recovery,
+also reachable from the narrow editor sheet without discarding a draft. A
+recovered result invalidates the current editor's review/base consent and keeps
+newer text. All three Owner mutation flows share frontend in-flight admission
+and observe each other's pending/recovery state; native admission also covers
+independent windows. Source/command identities never enter WebStorage.
+Successful definition acknowledgement is kept distinct from subsequent profile
+assignment failure, so a profile error does not resend an already-saved record.
+
+Template imports, profile-wide operations and other multi-record transitions
+retain separate semantics; this coordinator covers the five single-record
+operations only. Physical two-PC/platform/load acceptance remains open.
 
 **Compare with host** reads the current body/revision or tombstone and shows the
 opening version, candidate and current host definition. The operator can edit
@@ -620,11 +680,12 @@ execution and full release acceptance remain unfinished.
 
 The following work remains part of the full plan:
 
-1. **Owner definition intent recovery.** The native summary-only board and its
-   event command journal are implemented. The owner editor still needs to adopt
-   the available durable API without replaying an uncertain save. Keep summary
-   bodies separate from owner/delegated definition drafts and preserve reviewed
-   revisions when completing that integration.
+1. **Owner definition intent recovery.** Native single-record create/update,
+   deletion and enable/disable now have original-ID recovery, complete Owner
+   editor integration, host/revision fences and a shared pending gate with
+   adoption/approval. Keep summary bodies separate from definition drafts.
+   Extend coherent native intent semantics to remaining multi-record/profile
+   and template operations, with their own complete acceptance coverage.
 2. **Complete approval bindings over trusted provenance.** The sidecar, one-time
    migration, retained tombstones, disabled authoring, explicit owner adoption
    and runtime quarantine are implemented. The core approval now binds every
@@ -704,7 +765,7 @@ The following work remains part of the full plan:
 6. **Remote controller/editor completion.** The distinct native JSON proposal
    surface now uses explicit private storage, inspected base selection and
    fixed durable create/update operations. Owner provenance/adoption review and
-   both native journals are implemented with original-ID outcome recovery.
+   all three native journals are implemented with original-ID outcome recovery.
    Complete the remaining domain editors, manifest approvals and host-output
    labels under their respective policies. Neither editor grants remote
    execution authority.

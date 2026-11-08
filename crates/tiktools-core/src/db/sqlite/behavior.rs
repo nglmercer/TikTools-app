@@ -1,7 +1,7 @@
 use crate::collaboration::{ResourceVersion, Versioned};
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
-mod approvals;
 mod approval_review;
+mod approvals;
 pub(crate) use approvals::{
     BehaviorApprovalActivation, BehaviorApprovalBinding, BehaviorApprovalEnableState,
     BehaviorApprovalSnapshot,
@@ -217,6 +217,104 @@ impl DatabaseManager {
     }
 }
 
+fn action_references(value: &Value, action_id: &str) -> bool {
+    value.as_str() == Some(action_id)
+}
+
+/// Bounded native acknowledgement planning; the caller retains the host writer
+/// gate between this coherent read and the actual business transaction.
+pub(super) fn owner_definition_dispatch_preflight(
+    connection: &Connection,
+    operation: &crate::control::AutomationMutation,
+    expected: &str,
+    versions_budget: usize,
+) -> Result<(), DatabaseError> {
+    use crate::control::{AutomationKind, AutomationMutation};
+    match operation {
+        AutomationMutation::SetEnabled { kind, id, enabled } => {
+            versions::check(connection, kind.table(), id, Some(expected))?;
+            let mut value =
+                versions::row(connection, kind.table(), id)?.ok_or(DatabaseError::NotFound)?;
+            value["enabled"] = (*enabled).into();
+            super::owner_definition::bounded_record(&value)
+                .map_err(|_| DatabaseError::SnapshotTooLarge)?;
+        }
+        AutomationMutation::Delete {
+            kind: AutomationKind::Action,
+            id,
+        } => {
+            let previous = versions::check(connection, "behavior_actions", id, Some(expected))?;
+            let exists: bool = connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM behavior_actions WHERE id=?1)",
+                [id],
+                |row| row.get(0),
+            )?;
+            let after = if exists {
+                previous
+                    .checked_add(1)
+                    .ok_or_else(|| DatabaseError::Invalid("automation revision exhausted".into()))?
+            } else {
+                previous
+            };
+            let primary = versions::version("behavior_actions", id, after)?;
+            // Array brackets plus exactly the serialized primary version.
+            let mut bytes = 2usize.saturating_add(serde_json::to_vec(&primary)?.len());
+            if bytes > versions_budget {
+                return Err(DatabaseError::SnapshotTooLarge);
+            }
+            if !exists {
+                return Ok(());
+            }
+            let mut statement = connection.prepare("SELECT id,payload_json FROM behavior_events WHERE payload_json IS NOT NULL ORDER BY id")?;
+            let mut rows = statement.query([])?;
+            while let Some(row) = rows.next()? {
+                let payload: String = row.get(1)?;
+                let value: Value = serde_json::from_str(&payload)?;
+                let object = value.as_object().ok_or_else(|| {
+                    DatabaseError::Invalid("behavior event is not an object".into())
+                })?;
+                if !object
+                    .get("actionIds")
+                    .and_then(Value::as_array)
+                    .is_some_and(|ids| ids.iter().any(|value| action_references(value, id)))
+                {
+                    continue;
+                }
+                match row.get_ref(0)? {
+                    rusqlite::types::ValueRef::Text(bytes) if bytes.len() <= 128 => {}
+                    _ => return Err(DatabaseError::SnapshotTooLarge),
+                }
+                let event_id: String = row.get(0)?;
+                // A committed native acknowledgement must also be addressable
+                // by the strict clients that consume its resource versions.
+                if event_id.is_empty()
+                    || event_id.len() > 128
+                    || event_id.trim() != event_id
+                    || event_id.contains('*')
+                    || event_id.chars().any(char::is_control)
+                {
+                    return Err(DatabaseError::SnapshotTooLarge);
+                }
+                let before = versions::check(connection, "behavior_events", &event_id, None)?;
+                let next = before.checked_add(1).ok_or_else(|| {
+                    DatabaseError::Invalid("automation revision exhausted".into())
+                })?;
+                let version = versions::version("behavior_events", &event_id, next)?;
+                // Every additional element contributes one comma and its exact
+                // JSON bytes. Never materialize the complete version vector.
+                bytes = bytes
+                    .saturating_add(1)
+                    .saturating_add(serde_json::to_vec(&version)?.len());
+                if bytes > versions_budget {
+                    return Err(DatabaseError::SnapshotTooLarge);
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 fn remove_action_references(
     connection: &Connection,
     action_id: &str,
@@ -244,7 +342,7 @@ fn remove_action_references(
             continue;
         };
         let original = action_ids.len();
-        action_ids.retain(|value| value.as_str() != Some(action_id));
+        action_ids.retain(|value| !action_references(value, action_id));
         if action_ids.len() != original {
             object.insert("id".into(), id.clone().into());
             object.insert("name".into(), name.into());
@@ -263,7 +361,7 @@ fn remove_action_references(
             .get("enabled")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        let previous = versions::current(connection, "behavior_events", &id)?;
+        let previous = versions::check(connection, "behavior_events", &id, None)?;
         connection.execute(
             "UPDATE behavior_events SET name = ?, enabled = ?, payload_json = ?, updated_at = ? WHERE id = ?",
             params![name, bool_int(enabled), serde_json::to_string(&value)?, now(), id],

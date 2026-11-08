@@ -89,6 +89,7 @@ impl ControlApi {
         modules::automation::register(router);
         modules::automation_adoption::register(router);
         modules::automation_approval::register(router);
+        modules::automation_definition::register(router);
         modules::automation_effects::register(router);
         modules::processors::register(router);
         modules::media::register(router);

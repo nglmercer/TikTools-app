@@ -1,3 +1,4 @@
+import type { DefinitionState } from '@/entities/automation/model/definition-contracts.ts';
 import type { ControlCallOptions, RpcParams, ResourceVersion } from '@/shared/api/control-client.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
@@ -33,8 +34,10 @@ export function proposalFixture() {
   let approvalState: ApprovalState = { hostId: 'host-a', hostInstanceId: 'instance-a', pending: null, recent: [] };
   const overrides = new Map<string, (params: RpcParams | undefined, options: ControlCallOptions | undefined) => unknown>();
   const requests: Array<{ method: string; params: RpcParams | undefined; options: ControlCallOptions | undefined }> = [];
+  let definitionState: DefinitionState | null = null;
   let serial = 0;
   function handle(method: string, params: RpcParams | undefined, options?: ControlCallOptions): unknown {
+    if (method === 'automation.definition.get') return copy(definitionState ?? { hostId: state.hostId, hostInstanceId: state.hostInstanceId, pending: null, recent: [] });
     if (method === 'automation.adoption.get' || method === 'automation.adoption.resolve') return copy(state);
     if (method === 'automation.approval.get') return copy(approvalState);
     if (method === 'automation.review') {
@@ -64,6 +67,7 @@ export function proposalFixture() {
   const fake = createFakeControlClient(handler);
   const projection = () => new Map(versions.filter((v) => v.revision !== '0').map((v) => [`${v.scope}:${v.id}`, v.revision]));
   return { ...fake, source, versions, requests, overrides, handle, handler, projection,
+    get definitionState() { return definitionState; }, set definitionState(value: DefinitionState | null) { definitionState = value; },
     get state() { return state; }, set state(value: AdoptionState) { state = value; },
     get approvalState() { return approvalState; }, set approvalState(value: ApprovalState) { approvalState = value; } };
 }

@@ -26,6 +26,13 @@ pub use owner_approval::{
     OwnerApprovalIntent, OwnerApprovalOperation, OwnerApprovalOutcome, OwnerApprovalReceipt,
     OwnerApprovalRecord, OwnerApprovalReviewUnknown, OwnerApprovalState, OwnerApprovalSubmit,
 };
+pub(crate) mod owner_definition;
+pub use owner_definition::{
+    OwnerDefinitionAcknowledgement, OwnerDefinitionIntent, OwnerDefinitionOperation,
+    OwnerDefinitionOutcome, OwnerDefinitionReceipt, OwnerDefinitionRecord,
+    OwnerDefinitionReviewUnknown, OwnerDefinitionState, OwnerDefinitionSubmission,
+    OwnerDefinitionSubmit,
+};
 #[cfg(feature = "cloud-auth")]
 mod cloud_account;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]

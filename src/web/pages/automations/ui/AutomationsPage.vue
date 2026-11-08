@@ -9,7 +9,9 @@ import AutomationEditorReview from '@/features/edit-automation-record/ui/Automat
 import AutomationEditNotice from '@/features/edit-automation-record/ui/AutomationEditNotice.vue';
 import AutomationProposalReview from '@/features/review-automation-proposal/ui/AutomationProposalReview.vue';
 import AutomationApprovalReview from '@/features/review-automation-approval/ui/AutomationApprovalReview.vue';
-import { recordKey, type AutomationKind, type AutomationRevision } from '@/entities/automation/model/record-versions.ts';
+import OwnerDefinitionRecovery from '@/features/recover-owner-definition/ui/OwnerDefinitionRecovery.vue';
+import type { DefinitionState } from '@/entities/automation/model/definition-contracts.ts';
+import { recordKey, type AutomationHost, type AutomationKind, type AutomationRevision } from '@/entities/automation/model/record-versions.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import {
   availableActionTypeIds,
@@ -56,6 +58,14 @@ const editor = useAutomationEditor({
     ? automation.saveEvent(record as LiveEvent, base) : automation.saveAction(record as LiveAction, base),
   remove: automation.deleteRecord,
 });
+const observedDefinitionState = shallowRef<DefinitionState | null>(null);
+watch([editor.state, automation.sourceHost, observedDefinitionState], ([edit, host, journal]) => {
+  if (!edit || edit.reviewRequired) return;
+  if (edit.host && [host, journal].some((current) => current &&
+    (current.hostId !== edit.host!.hostId || current.hostInstanceId !== edit.host!.hostInstanceId)) ||
+    typeof edit.revision === 'string' && journal?.recent.some((record) => record.intent.kind === edit.kind && record.intent.id === edit.candidate.id &&
+      record.receipt && BigInt(record.receipt.revision) > BigInt(edit.revision!))) editor.requireRecoveryReview();
+}, { flush: 'sync' });
 const { leaderboard } = storeToRefs(usePointsStore());
 const saved = loadViewState().behavior;
 
@@ -71,12 +81,13 @@ const proposalReviewOpen = ref(false);
 const proposalReviewPanel = ref<{ openReview: () => void } | null>(null);
 const approvalReviewOpen = ref(false);
 const approvalReviewPanel = ref<{ openReview: () => void } | null>(null);
+const definitionRecoveryPanel = ref<{ openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const toggleOpen = ref(false);
 const toggleBusy = ref(false);
 const toggleNeedsReview = ref(false);
 const toggleSatisfied = ref(false);
 const toggleError = ref('');
-const toggleTarget = shallowRef<{ kind: AutomationKind; id: string; name: string; enabled: boolean; revision: AutomationRevision } | null>(null);
+const toggleTarget = shallowRef<{ kind: AutomationKind; id: string; name: string; enabled: boolean; revision: AutomationRevision; host: AutomationHost | null } | null>(null);
 const pending = shallowRef<(() => void) | null>(null);
 const discardOpen = ref(false);
 const pickerOpen = ref(false);
@@ -210,7 +221,7 @@ function newEvent(trigger?: string): void {
     const record = createEvent(t('automations.editor.newEventName'));
     if (trigger) record.trigger = trigger;
     selected.value = record.id;
-    editor.open('event', record, automation.persistent.value === false ? null : '0', true);
+    editor.open('event', record, automation.persistent.value === false ? null : '0', true, automation.sourceHost.value);
   });
 }
 
@@ -230,7 +241,7 @@ function newAction(type: ActionTypeDefinition): void {
     tab.value = 'actions';
     const record = createActionFromType(type, localizedText);
     selected.value = record.id;
-    editor.open('action', record, automation.persistent.value === false ? null : '0', true);
+    editor.open('action', record, automation.persistent.value === false ? null : '0', true, automation.sourceHost.value);
   });
 }
 
@@ -258,7 +269,7 @@ function setEnabled(kind: LibraryTab, id: string, enabled: boolean): void {
   const revision = automation.revisionFor(family, id);
   toggleError.value = '';
   if (!record || revision === undefined) { toggleError.value = t('automations.conflict.missingRevision'); return; }
-  toggleTarget.value = { kind: family, id, name: record.name, enabled, revision };
+  toggleTarget.value = { kind: family, id, name: record.name, enabled, revision, host: automation.sourceHost.value };
   toggleNeedsReview.value = false; toggleSatisfied.value = false; toggleOpen.value = true;
 }
 
@@ -267,7 +278,7 @@ async function confirmToggle(): Promise<void> {
   if (!target || toggleBusy.value || toggleNeedsReview.value || toggleSatisfied.value) return;
   toggleBusy.value = true;
   try {
-    await automation.setRecordEnabled(target.kind, target.id, target.enabled, target.revision);
+    await automation.setRecordEnabled(target.kind, target.id, target.enabled, target.revision, target.host);
     toggleOpen.value = false;
   } catch (failure) {
     toggleError.value = errorMessage(failure);
@@ -282,7 +293,7 @@ async function reviewToggle(): Promise<void> {
   try {
     const current = await automation.readRecord(target.kind, target.id);
     if (!current.record) { toggleError.value = t('automations.conflict.deleted'); return; }
-    toggleTarget.value = { ...target, name: current.record.name, revision: current.revision };
+    toggleTarget.value = { ...target, name: current.record.name, revision: current.revision, host: current.host ?? null };
     toggleSatisfied.value = current.record.enabled === target.enabled;
     toggleNeedsReview.value = false;
     toggleError.value = toggleSatisfied.value ? t('automations.conflict.alreadyApplied') : '';
@@ -293,6 +304,13 @@ async function reviewToggle(): Promise<void> {
 function compare(): void {
   reviewOpen.value = true;
   void editor.readForReview();
+}
+function recoveredDefinition(): void {
+  editor.requireRecoveryReview();
+  if (toggleOpen.value && toggleTarget.value) {
+    toggleNeedsReview.value = true; toggleSatisfied.value = false;
+    toggleError.value = t('definitionRecovery.compare');
+  }
 }
 function useReviewedBase(): void {
   if (editor.adoptReview()) reviewOpen.value = false;
@@ -322,7 +340,7 @@ watch(
     if (editor.state.value || !selected.value) return;
     const kind = tab.value === 'events' ? 'event' : 'action';
     const record = (kind === 'event' ? snapshot.value.events : snapshot.value.actions).find((r) => r.id === selected.value);
-    if (record) editor.open(kind, record, automation.revisionFor(kind, record.id));
+    if (record) editor.open(kind, record, automation.revisionFor(kind, record.id), false, automation.sourceHost.value);
   },
   { immediate: true },
 );
@@ -379,6 +397,13 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
         v-model:open="proposalReviewOpen"
         :target="proposalTarget"
         :host-versions="proposalVersions"
+      />
+      <OwnerDefinitionRecovery
+        v-if="automation.persistent.value === true || automation.sourceHost.value !== null"
+        ref="definitionRecoveryPanel"
+        :selection-key="`${tab}:${selected ?? ''}:${editor.state.value?.candidate.id ?? ''}`"
+        @recovered="recoveredDefinition"
+        @observed="observedDefinitionState = $event"
       />
       <AutomationApprovalReview
         v-if="automation.persistent.value === true"
@@ -558,6 +583,15 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
           </BaseButton>
           <span class="automations-page__sheet-title">{{ editing.record.name }}</span>
           <BaseButton
+            v-if="automation.persistent.value === true || automation.sourceHost.value !== null"
+            size="sm"
+            :disabled="definitionRecoveryPanel?.busy"
+            data-test="definition-history"
+            @click="definitionRecoveryPanel?.openHistory()"
+          >
+            {{ t(definitionRecoveryPanel?.hasPending ? 'definitionRecovery.pendingButton' : 'definitionRecovery.history') }}
+          </BaseButton>
+          <BaseButton
             v-if="automation.persistent.value === true && proposalTarget"
             class="automations-page__proposal-button"
             size="sm"
@@ -714,9 +748,11 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
 
 .automations-page__toolbar {
   display: flex;
+  flex-wrap: wrap;
   flex: none;
   align-items: center;
   gap: var(--space-4);
+  row-gap: var(--space-2);
 }
 
 .automations-page__spacer {

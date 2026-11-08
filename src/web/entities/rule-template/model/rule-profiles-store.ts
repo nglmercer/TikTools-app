@@ -76,14 +76,20 @@ export const useRuleProfilesStore = defineStore('rule-profiles', () => {
   async function saveAction(action: LiveAction, base: AutomationWriteBase): Promise<AutomationRecordVersion> {
     const profile = profiles.activeId.value;
     const result = await automation.saveRecordAndRefresh('action', action, base);
-    await profiles.adoptRule('action', action.id, profile);
+    try {
+      if (!await profiles.adoptRule('action', action.id, profile)) profiles.setError(i18n.global.t('definitionRecovery.profileFailed', { reason: profiles.error.value ?? '' }));
+    }
+    catch (failure) { profiles.setError(i18n.global.t('definitionRecovery.profileFailed', { reason: errorMessage(failure) })); }
     return result;
   }
 
   async function saveEvent(event: LiveEvent, base: AutomationWriteBase): Promise<AutomationRecordVersion> {
     const profile = profiles.activeId.value;
     const result = await automation.saveRecordAndRefresh('event', event, base);
-    await profiles.adoptRule('event', event.id, profile);
+    try {
+      if (!await profiles.adoptRule('event', event.id, profile)) profiles.setError(i18n.global.t('definitionRecovery.profileFailed', { reason: profiles.error.value ?? '' }));
+    }
+    catch (failure) { profiles.setError(i18n.global.t('definitionRecovery.profileFailed', { reason: errorMessage(failure) })); }
     return result;
   }
 

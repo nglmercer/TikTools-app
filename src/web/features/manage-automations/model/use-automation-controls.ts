@@ -32,6 +32,7 @@ export function useAutomationControls() {
     testRuns: state.behaviorTestRuns as unknown as Readonly<Ref<readonly BehaviorRun[]>>,
     error: state.behaviorError,
     persistent: state.persistent,
+    sourceHost: state.sourceHost,
     revisionFor: automation.revisionFor,
     readRecord: automation.readRecord,
     deleteRecord: automation.deleteRecord,

@@ -1,10 +1,12 @@
 import collaboration from './collaboration.en.ts';
 import automationProposal from './automation-proposal.en.ts';
 import automationApproval from './automation-approval.en.ts';
+import definitionRecovery from './definition-recovery.en.ts';
 export default {
   collaboration,
   automationProposal,
   automationApproval,
+  definitionRecovery,
   common: {
     ok: 'OK',
     cancel: 'Cancel',

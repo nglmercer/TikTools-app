@@ -1,3 +1,4 @@
+import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
 import { enableAutoUnmount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
@@ -62,7 +63,7 @@ async function mountPage(intercept?: (method: string, params: RpcParams | undefi
   const snapshot: BehaviorSnapshot = { actions: [logAction], events: [giftEvent, chatEvent], plugins: [], actionTypes, translations: {} };
   const versions = new Map([['action:a1', '1'], ['event:e1', '1'], ['event:e2', '1']]);
   const requests: Array<{ method: string; meta?: RequestMetadata }> = [];
-  const { client, calls } = createFakeControlClient((method, params, options) => {
+  const { client, calls } = createFakeControlClient(nativeDefinitionHost((method, params, options) => {
     requests.push({ method, meta: options?.meta });
     const overridden = intercept?.(method, params, options);
     if (overridden !== undefined) return overridden;
@@ -102,7 +103,7 @@ async function mountPage(intercept?: (method: string, params: RpcParams | undefi
       options?.onMetadata?.(metadata()); return next;
     }
     return {};
-  });
+  }).handle);
   const stores = createStoreHarness(client);
   const automation = stores.use(() => useAutomationStore());
   await automation.refresh();
@@ -160,7 +161,7 @@ describe('AutomationsPage', () => {
     expect(document.body.textContent).toContain('e2 · version 1');
     documentButton('Confirm change').click();
     await flushPromises();
-    expect(calls.find((call) => call.method === 'automation.disable')?.params).toEqual({ id: 'e2', kind: 'event' });
+    expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'disable', id: 'e2', kind: 'event', expectedRevision: '1' });
     expect(requests.find((call) => call.method === 'automation.disable')?.meta).toEqual({ expectedRevision: '1' });
   });
 
@@ -170,7 +171,7 @@ describe('AutomationsPage', () => {
     await wrapper.get('.event-editor input[type="text"]').setValue('Followers');
     await buttonByText(wrapper, 'Save').trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'automation.create')?.params).toMatchObject({
+    expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'create',
       kind: 'event',
       record: { name: 'Followers', trigger: 'tiktok.gift' },
     });
@@ -186,7 +187,7 @@ describe('AutomationsPage', () => {
     expect(wrapper.find('.action-editor').exists()).toBe(true);
     await buttonByText(wrapper, 'Save').trigger('click');
     await flushPromises();
-    expect(calls.find((call) => call.method === 'automation.create')?.params).toMatchObject({
+    expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'create',
       kind: 'action',
       record: { typeId: 'core.log', name: 'Write to log' },
     });
@@ -210,7 +211,7 @@ describe('AutomationsPage', () => {
     await nextTick();
     documentButton('Delete').click();
     await flushPromises();
-    expect(calls.find((call) => call.method === 'automation.delete')?.params).toEqual({ id: 'e2', kind: 'event' });
+    expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'delete', id: 'e2', kind: 'event', expectedRevision: '1' });
   });
 
   it('applies a built-in rule template', async () => {
@@ -357,7 +358,7 @@ describe('AutomationsPage', () => {
     await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
     expect(wrapper.text()).toContain('outcome is unconfirmed');
     expect(wrapper.text()).toContain('Unsaved changes');
-    expect(calls.filter((r) => r.method === 'automation.update')).toHaveLength(1);
+    expect(calls.filter((r) => r.method === 'automation.definition.submit' && r.params?.operation === 'update')).toHaveLength(1);
     await selectRow(wrapper, 'Chat hello');
     expect(document.body.textContent).toContain('Discard changes?');
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Unconfirmed draft');
@@ -412,7 +413,7 @@ describe('AutomationsPage', () => {
     await buttonByText(wrapper, 'Delete…').trigger('click'); await nextTick(); documentButton('Delete').click(); await flushPromises();
     expect(wrapper.find('.event-editor').exists()).toBe(true);
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Keep after delete failed');
-    expect(wrapper.text()).toContain('Changed before delete');
+    expect(wrapper.text()).toContain('revision_conflict');
   });
 
   it('canceling enablement restores the committed checkbox without a write', async () => {
@@ -429,7 +430,7 @@ describe('AutomationsPage', () => {
     snapshot.events[1] = { ...chatEvent, name: 'New name before confirmation' }; versions.set('event:e2', '2');
     documentButton('Confirm change').click(); await flushPromises();
     expect(requests.find((r) => r.method === 'automation.disable')?.meta?.expectedRevision).toBe('1');
-    expect(document.body.textContent).toContain('Host changed');
+    expect(document.body.textContent).toContain('revision_conflict');
     documentButton('Read current host version').click(); await flushPromises();
     expect(document.body.textContent).toContain('New name before confirmation');
     expect(requests.filter((r) => r.method === 'automation.disable')).toHaveLength(1);

@@ -1,3 +1,4 @@
+import type { DefinitionState } from '@/entities/automation/model/definition-contracts.ts';
 import type { ControlCallOptions, RpcParams, ResourceVersion } from '@/shared/api/control-client.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
@@ -33,6 +34,7 @@ export function approvalFixture() {
   let manifestAvailable = true;
   let state: ApprovalState = { hostId: 'host-a', hostInstanceId: 'instance-a', pending: null, recent: [] };
   let adoptionState: AdoptionState = { hostId: 'host-a', hostInstanceId: 'instance-a', pending: null, recent: [] };
+  let definitionState: DefinitionState | null = null;
   let serial = 0;
   const overrides = new Map<string, (params: RpcParams | undefined, options: ControlCallOptions | undefined) => unknown>();
   const requests: Array<{ method: string; params: RpcParams | undefined; options?: ControlCallOptions }> = [];
@@ -53,6 +55,7 @@ export function approvalFixture() {
       manifest: manifest(), subjects: manifestAvailable ? subjects : [], eligibility, approval });
   }
   function handle(method: string, params: RpcParams | undefined, options?: ControlCallOptions): unknown {
+    if (method === 'automation.definition.get') return copy(definitionState ?? { hostId: state.hostId, hostInstanceId: state.hostInstanceId, pending: null, recent: [] });
     if (method === 'automation.approval.get' || method === 'automation.approval.resolve') return copy(state);
     if (method === 'automation.adoption.get') return copy(adoptionState);
     if (method === 'automation.approval.review') {
@@ -83,6 +86,7 @@ export function approvalFixture() {
   const fake = createFakeControlClient(handler);
   return { ...fake, source, versions, subjects, requests, overrides, handle, handler, review, manifest,
     projection: () => new Map(versions.filter((v) => v.revision !== '0').map((v) => [`${v.scope}:${v.id}`, v.revision])),
+    get definitionState() { return definitionState; }, set definitionState(value: DefinitionState | null) { definitionState = value; },
     get state() { return state; }, set state(value: ApprovalState) { state = value; },
     get adoptionState() { return adoptionState; }, set adoptionState(value: AdoptionState) { adoptionState = value; },
     get approval() { return approval; }, set approval(value: ApprovalSummary) { approval = value; },

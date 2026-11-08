@@ -210,7 +210,10 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         db.execute_batch("PRAGMA synchronous=FULL;")?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if pending(&tx, host)?.is_some() || super::owner_approval::has_pending(&tx, host)? {
+        if pending(&tx, host)?.is_some()
+            || super::owner_approval::has_pending(&tx, host)?
+            || super::owner_definition::has_pending(&tx, host)?
+        {
             return Err(DatabaseError::OwnerAdoptionPending);
         }
         let (kind, target) = operation.target();

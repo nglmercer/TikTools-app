@@ -140,8 +140,10 @@ credentials. Receipt verification checks exact method/hash/target/base/host and
 the complete final revision plan. History/result persistence failure preserves
 the pending identity; storage ambiguity is never classified as a safe retry.
 
-Activation and revocation share a pending gate with Owner adoption. Both UI
-flows observe that gate. Recovery or archiving uncertainty clears prior consent
+Activation and revocation share a pending gate with Owner adoption and native
+single-record definition changes. All three UI flows observe that gate and
+invalidate consent when another journal changes. Recovery or archiving
+uncertainty clears prior consent
 and requires a fresh explicit saved-source review before another transition.
 Reload restores the native journal and does not resend the operation. Browser
 storage contains neither source nor pending command identities.

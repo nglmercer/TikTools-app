@@ -242,12 +242,14 @@ const sort = computed({
           selectable
         >
           <template #cell-enabled="{ row }">
-            <BaseCheckbox
-              :key="checkboxKey('events', row.id)"
-              :model-value="row.enabled"
-              :aria-label="t('automations.library.enable', { name: row.name })"
-              @update:model-value="requestToggle('events', row.id, $event)"
-            />
+            <span @pointerdown.stop>
+              <BaseCheckbox
+                :key="checkboxKey('events', row.id)"
+                :model-value="row.enabled"
+                :aria-label="t('automations.library.enable', { name: row.name })"
+                @update:model-value="requestToggle('events', row.id, $event)"
+              />
+            </span>
           </template>
           <template #cell-name="{ row }">
             <span class="automation-library__name">{{ row.name }}</span>
@@ -282,12 +284,14 @@ const sort = computed({
           selectable
         >
           <template #cell-enabled="{ row }">
-            <BaseCheckbox
-              :key="checkboxKey('actions', row.id)"
-              :model-value="row.enabled"
-              :aria-label="t('automations.library.enable', { name: row.name })"
-              @update:model-value="requestToggle('actions', row.id, $event)"
-            />
+            <span @pointerdown.stop>
+              <BaseCheckbox
+                :key="checkboxKey('actions', row.id)"
+                :model-value="row.enabled"
+                :aria-label="t('automations.library.enable', { name: row.name })"
+                @update:model-value="requestToggle('actions', row.id, $event)"
+              />
+            </span>
           </template>
           <template #cell-name="{ row }">
             <span class="automation-library__name">{{ row.name }}</span>

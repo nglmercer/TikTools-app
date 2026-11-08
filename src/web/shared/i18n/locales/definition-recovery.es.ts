@@ -1,0 +1,15 @@
+export default {
+  history: 'Cambios de definiciones', pendingButton: 'Resolver cambio de definición', title: 'Cambios de definiciones del propietario',
+  lead: 'El host registra cada guardado, borrado y cambio de activación antes de enviarlo. La recuperación consulta el resultado original y nunca vuelve a enviar el cambio.',
+  host: 'Host {id} · instancia {instance}', pending: '{operation} sin confirmar · {kind} {id} · revisión base {revision}',
+  command: 'Operación original: {id}', resolve: 'Consultar resultado original', refresh: 'Actualizar historial',
+  base: 'Revisión base revisada: {revision}', originalInstance: 'Instancia original del host: {instance}',
+  unknown: 'Revisé la operación original y entiendo que su resultado sigue siendo desconocido.', archive: 'Archivar incertidumbre',
+  compare: 'El historial recuperado no reemplaza tu borrador. Compara la definición guardada actual antes de volver a escribir.',
+  noPending: 'No hay cambios de definición sin confirmar.', empty: 'No hay cambios de definición recientes.',
+  succeeded: 'Completado', rejected: 'Rechazado', 'reviewed-unknown': 'Desconocido revisado',
+  create: 'Crear', update: 'Guardar', delete: 'Borrar', enable: 'Activar', disable: 'Desactivar', action: 'acción', event: 'evento',
+  revision: 'Revisión {revision} · registros afectados: {count}', otherPending: 'Un cambio de definición necesita recuperación. Abre Cambios de definiciones antes de otra transición de autoridad.',
+  unavailable: 'El registro nativo de definiciones no está disponible. Los cambios persistentes siguen bloqueados.',
+  profileFailed: 'La definición se guardó. Falló su asignación al perfil: {reason}',
+};

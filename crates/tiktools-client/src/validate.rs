@@ -19,6 +19,9 @@ use tiktools_control_api::modules::automation_approval::{
     ApprovalActivateParams, ApprovalRevokeParams, OwnerApprovalEmpty, OwnerApprovalReviewParams,
     OwnerApprovalReviewUnknown, OwnerApprovalSubmit,
 };
+use tiktools_control_api::modules::automation_definition::{
+    OwnerDefinitionEmpty, OwnerDefinitionReviewUnknown, OwnerDefinitionSubmit,
+};
 use tiktools_control_api::modules::automation_effects::{EffectGetParams, EffectHistoryParams};
 use tiktools_control_api::modules::competitions::{
     CompetitionActionId, CompetitionId, CompetitionResultsRequest,
@@ -158,14 +161,21 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         }
         "automation.approval.submit" => validate::<OwnerApprovalSubmit>(params),
         "automation.approval.review_unknown" => validate::<OwnerApprovalReviewUnknown>(params),
+        "automation.definition.get" | "automation.definition.resolve" => {
+            validate::<OwnerDefinitionEmpty>(params)
+        }
+        "automation.definition.submit" => validate::<OwnerDefinitionSubmit>(params),
+        "automation.definition.review_unknown" => validate::<OwnerDefinitionReviewUnknown>(params),
         "automation.effects.get" => serde_json::from_value::<EffectGetParams>(params.clone())
             .map_err(invalid)?
             .validate()
             .map_err(|error| ClientError::new(error.code, error.message)),
-        "automation.effects.history" => serde_json::from_value::<EffectHistoryParams>(params.clone())
-            .map_err(invalid)?
-            .validate()
-            .map_err(|error| ClientError::new(error.code, error.message)),
+        "automation.effects.history" => {
+            serde_json::from_value::<EffectHistoryParams>(params.clone())
+                .map_err(invalid)?
+                .validate()
+                .map_err(|error| ClientError::new(error.code, error.message))
+        }
         "automation.authority.get" => AutomationGetParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),

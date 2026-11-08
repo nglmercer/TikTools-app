@@ -5,8 +5,9 @@ export type AutomationKind = 'event' | 'action';
 export type AutomationRecord = LiveAction | LiveEvent;
 // null is allowed only for an explicitly identified non-persistent owner host.
 export type AutomationRevision = string | null;
-export interface AutomationWriteBase { revision: AutomationRevision; create: boolean }
-export interface AutomationRecordVersion { record: AutomationRecord | null; revision: AutomationRevision }
+export interface AutomationHost { hostId: string; hostInstanceId: string }
+export interface AutomationWriteBase { revision: AutomationRevision; create: boolean; host?: AutomationHost | null }
+export interface AutomationRecordVersion { record: AutomationRecord | null; revision: AutomationRevision; host?: AutomationHost | null }
 
 export const recordKey = (kind: AutomationKind, id: string): string => `${kind}:${id}`;
 export const validRevision = (value: unknown): value is string =>

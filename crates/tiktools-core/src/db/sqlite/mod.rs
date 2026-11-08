@@ -26,6 +26,8 @@ mod meta;
 mod owner_adoption;
 mod owner_approval;
 pub(crate) use owner_approval::validate_owner_approval_input;
+mod owner_definition;
+pub(crate) use owner_definition::validate_owner_definition_input;
 mod points;
 mod schema;
 #[cfg(test)]

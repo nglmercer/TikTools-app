@@ -397,6 +397,16 @@ CREATE TABLE IF NOT EXISTS owner_automation_approvals (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_approval_pending
   ON owner_automation_approvals(pending) WHERE pending=1;
+-- Single-record Owner saves, deletes and toggles retain only native metadata.
+-- All three native journals check each other's pending state in one transaction.
+CREATE TABLE IF NOT EXISTS owner_automation_definitions (
+  command_id TEXT PRIMARY KEY,
+  pending INTEGER NOT NULL CHECK(pending IN (0,1)),
+  payload_json TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_owner_definition_pending
+  ON owner_automation_definitions(pending) WHERE pending=1;
 -- Approval identities survive definition deletion and command-result pruning.
 -- No legacy enabled record acquires an approval during migration.
 CREATE TABLE IF NOT EXISTS behavior_execution_approvals (

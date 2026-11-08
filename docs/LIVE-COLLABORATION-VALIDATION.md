@@ -24,6 +24,10 @@ durable API/SDK/CLI. Trusted host provenance keeps delegated definitions out of
 execution until explicit owner adoption or a valid closed delegated approval.
 Owner saved-source/dependency review and
 adoption recovery are now connected to the UI and a host-native journal.
+Single-record Owner definition create/update/delete/enable/disable now also use
+native intent persistence and original-outcome recovery, with reviewed host
+identity and revision fences in the editor and shared admission across all
+three Owner journals.
 Native remote JSON proposal editing now uses explicit private files and fixed
 create/update operations. Owner-only durable core approval is now implemented;
 scoped HTTP/audio execution and durable external-effect receipts are now available.
@@ -31,7 +35,68 @@ The v3 policy adds bounded scripts and exact-topic scoped emits with inherited
 authority through downstream rules. Broader remote activation, delegated plugin
 execution, HTTP response emission and full product acceptance remain pending.
 
-## Atomic approved-points execution identity — latest extension
+## Native Owner definition intents — latest extension
+
+The persistent Owner editor and library toggles use the closed
+`automation.definition.submit` contract. The native host records its own command
+ID before dispatch, then verifies the original business-ledger result before
+returning a fresh source-bearing acknowledgement. Get/resolve/unknown review
+expose bounded metadata only. Remote callers cannot access these routes, even
+with every remote capability. Missing deletes preserve revision zero or the
+retained tombstone; updates never fall back to creates.
+
+Definition, adoption and approval share native pending admission and frontend
+in-flight exclusion. The editor captures source, target, revision and host
+instance before asynchronous preflight. Lost replies retain newer local text
+and block another submission until explicit current-source review. Historical
+outcome lookup never replays a write or restores an old source body. Successful
+definition saves remain distinct from subsequent profile-assignment failures.
+
+Executed evidence:
+
+- Final full core suite: **720 passed, 12 ignored helper entry points**, with
+  persistence/native/HTTP/plugin/Cloud features and `--test-threads=4`.
+  Native parents exercise **70 real process terminations**: five operations,
+  two record families and seven intent/business/result boundaries, then reopen
+  the same database and recover the original result without replay.
+- Final API/SDK/authorization suites: **284 passed**: SDK **120 library + 10
+  integration**, collaboration **59**, and control API **36 library + 59
+  integration**. Seven opt-in SDK helpers remain ignored. Coverage includes
+  direct/IPC parity, exact large revisions, all five strict submit variants,
+  zero-revision semantics and denial of remote/caller-supplied command metadata.
+- Whole frontend: **793 tests across 133 files passed**. Final TypeScript,
+  full frontend ESLint with zero warnings and production Vite build passed.
+  Coverage binds fresh acknowledgement bodies and first-receipt identity,
+  preserves drafts during transport loss, fences host replacement and checks
+  shared pending/recovery state in English and Spanish.
+  Two additional regressions reproduce and fix checkbox pointerdown selecting
+  its row before the toggle confirmation, which previously opened the mobile
+  editor over the checkbox. Label/input hits now preserve row selection while
+  ordinary text-row selection still works.
+- The actual packaged browser → local adapter → IPC → Core fixture passed in
+  English desktop and Spanish at 390 pixels. It verifies **16 distinct native
+  successful receipts** across update, enable/disable, cascading deletion and
+  create. A real successful reply is discarded after commit while newer local
+  text is entered; reload/history retain the original identity without replay
+  or WebStorage source/command IDs. Both layouts were visually reviewed and
+  checked for horizontal overflow. The final parent run passed in 15.53 seconds.
+- Storage coverage includes a real **600-event action deletion cascade**,
+  bounded proof/source parsing, reciprocal pending transactions and dispatch
+  preflight before oversized effects. Missing resource-history sidecars now
+  reject the complete cascade atomically instead of creating Owner provenance.
+- Seven-package all-target Clippy (`--no-deps -- -D warnings`), featureless
+  core check and normal Desktop/CLI build passed. The featureless check retains
+  existing loader/empty native-pump warnings. The normal build uses CLI
+  `remote-control,local-web` with `TIKTOOLS_CLOUD_ORIGIN` explicitly unset.
+
+Logs use the `owner-definitions-`, `definition-frontend-` and
+`definition-checkbox-` prefixes in
+`/home/meme/.cache/tiktools-test-runs/`. This completes single-record Owner
+definition intent recovery; multi-record/profile/template transitions, remaining
+domain editors/effects, high-history/load, platform/real-keychain and physical
+two-PC LIVE acceptance remain open. No real LIVE/account/backend was used.
+
+## Atomic approved-points execution identity — previous extension
 
 Direct approved `core.points` and `core.points.subtract` now commit a private
 execution identity with their balance adjustment. The identity comes from the
@@ -109,8 +174,8 @@ Logs use the `approved-points-` prefix in
 committed by this writer; old versions did not record these identities, so
 preexisting historical adjustments cannot be reconstructed from a balance.
 Missing trusted upstream identity still starts fresh work. Upgrade/cutover and
-high-history/load acceptance remain open, as do Owner definition native intent
-recovery, remaining domains/effect policies, platform/real-keychain and physical
+high-history/load acceptance remain open, as do remaining multi-record Owner
+intent recovery, domains/effect policies, platform/real-keychain and physical
 two-PC LIVE acceptance. This supersedes the direct approved-points deduplication
 gap recorded in the preceding script stage below, without claiming automatic
 LIVE/legacy Owner adjustment deduplication. No real LIVE/account/backend was used.

@@ -1,0 +1,15 @@
+export default {
+  history: 'Definition changes', pendingButton: 'Resolve definition change', title: 'Owner definition changes',
+  lead: 'The host records each save, deletion and enable-state change before sending it. Recovery checks the original outcome and never sends the change again.',
+  host: 'Host {id} · instance {instance}', pending: 'Unconfirmed {operation} · {kind} {id} · base revision {revision}',
+  command: 'Original operation: {id}', resolve: 'Check original outcome', refresh: 'Refresh history',
+  base: 'Reviewed base revision: {revision}', originalInstance: 'Original host instance: {instance}',
+  unknown: 'I reviewed the original operation and understand that its outcome remains unknown.', archive: 'Archive uncertainty',
+  compare: 'Recovered history does not replace your draft. Compare the current saved source before another write.',
+  noPending: 'No unconfirmed definition change.', empty: 'No recent definition changes.',
+  succeeded: 'Succeeded', rejected: 'Rejected', 'reviewed-unknown': 'Reviewed unknown',
+  create: 'Create', update: 'Save', delete: 'Delete', enable: 'Enable', disable: 'Disable', action: 'action', event: 'event',
+  revision: 'Revision {revision} · affected records: {count}', otherPending: 'A definition change needs recovery. Open Definition changes before another authority transition.',
+  unavailable: 'The native definition journal is unavailable. Persistent changes remain blocked.',
+  profileFailed: 'The definition was saved. Its profile assignment failed: {reason}',
+};

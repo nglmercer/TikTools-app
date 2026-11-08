@@ -26,11 +26,11 @@ const date = (value: number): string => new Date(value).toLocaleString();
 const eligibilityKey = computed(() => ({ 'definition-missing': 'definitionMissing', 'no-delegated-subjects': 'noDelegatedSubjects',
   'subjects-unavailable': 'subjectsUnavailable', 'policy-unavailable': 'policyUnavailable' })[model.review.value?.eligibility.reasonCode ?? 'policy-unavailable']);
 const stateLabel = (state: boolean | null): string => t(`automationApproval.${state === null ? 'unknown' : state ? 'enabled' : 'disabled'}`);
-const busy = computed(() => journal.busy.value || model.adoption.busy.value || model.reading.value);
+const busy = computed(() => journal.busy.value || model.adoption.busy.value || model.definitions.busy.value || model.gate.busy.value || model.reading.value);
 
 watch(() => props.target, model.select, { immediate: true });
 watch(() => props.hostVersions, model.observe, { immediate: true });
-watch([journal.state, model.adoption.state], model.observeHost);
+watch([journal.state, model.adoption.state, model.definitions.state], model.observeHost);
 watch(() => `${journal.state.value?.hostId}:${journal.state.value?.hostInstanceId}:${journal.state.value?.pending?.commandId}`, () => { model.unknownAcknowledged.value = false; });
 watch(open, (value) => { if (!value) model.closeReview(); });
 onMounted(() => { void model.refreshJournals(); });
@@ -71,6 +71,12 @@ defineExpose({ openReview });
     :title="t('automationApproval.title')"
     :width="1000"
   >
+    <p
+      v-if="model.definitions.state.value?.pending"
+      role="alert"
+    >
+      {{ t('definitionRecovery.otherPending') }}
+    </p>
     <p>{{ t('automationApproval.lead') }}</p>
     <p
       v-if="model.target.value"

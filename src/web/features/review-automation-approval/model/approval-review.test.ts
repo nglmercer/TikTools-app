@@ -6,6 +6,7 @@ import { approvalFixture, copy, deferred, nativeId } from '../testing/fixture.ts
 import { useApprovalReview } from './approval-review.ts';
 import { parseApprovalReview } from './contracts.ts';
 import { parseApprovalState, type ApprovalState } from './native-contracts.ts';
+import { ownerMutationGate } from '@/shared/api/owner-mutation-gate.ts';
 
 async function reviewed() {
   const host = approvalFixture();
@@ -16,6 +17,23 @@ async function reviewed() {
   return { host, model };
 }
 describe('owner delegated approval review', () => {
+  it('invalidates cached consent when a definition change starts or its native pending state changes', async () => {
+    const { host, model } = await reviewed(); model.acknowledged.value = true;
+    expect(model.canActivate.value).toBe(true);
+    await ownerMutationGate(host.client).run('definition', async () => {
+      expect(model.canActivate.value).toBe(false); expect(model.acknowledged.value).toBe(false);
+    });
+    await model.readSaved(); model.acknowledged.value = true;
+    host.definitionState = { hostId: host.state.hostId, hostInstanceId: host.state.hostInstanceId, recent: [], pending: {
+      commandId: `owner-definition-${'a'.repeat(32)}`, operation: 'update', kind: 'action', id: 'same', expectedRevision: '2',
+      hostInstanceId: host.state.hostInstanceId, recordDigest: 'b'.repeat(64), createdAt: 1,
+    } };
+    await model.definitions.fetchState();
+    expect(model.stale.value).toBe(true); expect(model.acknowledged.value).toBe(false); expect(model.canActivate.value).toBe(false);
+    expect(await model.activate()).toBe(false);
+    expect(host.calls.filter((c) => c.method === 'automation.approval.submit')).toHaveLength(0);
+    model.dispose();
+  });
   it('accepts eligible exact HTTP, audio, emit and reviewed script policies while rejecting mismatched effects', () => {
     const cases = [
       { type: 'core.fetch', kind: 'http', caps: ['http.request'], config: { url: 'https://hooks.example/live', maxResponseBytes: 1024 } },

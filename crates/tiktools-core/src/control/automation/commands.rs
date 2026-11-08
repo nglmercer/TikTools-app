@@ -76,7 +76,7 @@ impl AutomationMutation {
         Ok(identity)
     }
     #[cfg(feature = "persistence")]
-    fn normalize(mut self) -> Result<Self, OperationError> {
+    pub(crate) fn normalize(mut self) -> Result<Self, OperationError> {
         match &mut self {
             Self::Create { kind, record } => {
                 let object = record.as_object_mut().ok_or_else(|| {
@@ -211,6 +211,25 @@ impl AppCore {
         request: CommandRequest,
         operation: AutomationMutation,
     ) -> Result<Versioned<Value>, OperationError> {
+        self.automation_command_with_budget(caller, request, operation, false)
+    }
+
+    #[cfg(feature = "persistence")]
+    pub(crate) fn automation_definition_command(
+        &self,
+        request: CommandRequest,
+        operation: AutomationMutation,
+    ) -> Result<Versioned<Value>, OperationError> {
+        self.automation_command_with_budget(CommandCaller::LocalOwner, request, operation, true)
+    }
+
+    fn automation_command_with_budget(
+        &self,
+        caller: CommandCaller,
+        request: CommandRequest,
+        operation: AutomationMutation,
+        native_definition: bool,
+    ) -> Result<Versioned<Value>, OperationError> {
         #[cfg(feature = "persistence")]
         {
             if matches!(&caller, CommandCaller::Remote(_))
@@ -268,6 +287,23 @@ impl AppCore {
                     command.max_ids_per_principal,
                 )
                 .map_err(|e| behavior_command_error(e, &command.request.command_id))?;
+            if native_definition {
+                // Bound the acknowledgement/recovery before changing source.
+                // Both command admission and the behavior writer remain held.
+                self.db
+                    .owner_definition_validate_dispatch(
+                        &operation,
+                        &command.request.expected_revision,
+                    )
+                    .map_err(|error| match error {
+                        crate::db::DatabaseError::SnapshotTooLarge => OperationError {
+                            code: "too_large",
+                            message: "definition result exceeds the native recovery budget".into(),
+                            data: None,
+                        },
+                        other => behavior_command_error(other, &command.request.command_id),
+                    })?;
+            }
             let (result, fresh) = self
                 .db
                 .execute_behavior_command(&operation, &command)
@@ -299,7 +335,7 @@ impl AppCore {
         }
         #[cfg(not(feature = "persistence"))]
         {
-            let _ = (caller, request, operation);
+            let _ = (caller, request, operation, native_definition);
             Err(OperationError::capability_unavailable(
                 "automation commands require persistence",
             ))
