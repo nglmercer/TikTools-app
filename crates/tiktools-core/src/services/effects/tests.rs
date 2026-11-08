@@ -62,6 +62,51 @@ fn key(execution: &EffectExecution) -> EffectKey {
         )
         .unwrap()
 }
+
+#[test]
+fn points_identity_is_stable_across_semantics_but_separates_operation_root_and_saved_slot() {
+    let execution = EffectExecution::fresh()
+        .unwrap()
+        .named_child("action", "points")
+        .unwrap();
+    let binding = hash_secret("saved definition");
+    let request = hash_secret("viewer and requested delta");
+    let original = execution
+        .points_key(ApprovedPointsOperation::Adjust, &binding, &request)
+        .unwrap();
+    for (binding, request) in [
+        (hash_secret("changed definition"), request.clone()),
+        (binding.clone(), hash_secret("changed rendered viewer")),
+    ] {
+        let changed = execution
+            .points_key(ApprovedPointsOperation::Adjust, &binding, &request)
+            .unwrap();
+        assert_eq!(original.id(), changed.id());
+        assert_ne!(original.fingerprint(), changed.fingerprint());
+    }
+    for (execution, operation) in [
+        (execution.clone(), ApprovedPointsOperation::Subtract),
+        (execution.child(1).unwrap(), ApprovedPointsOperation::Adjust),
+        (
+            EffectExecution::fresh().unwrap(),
+            ApprovedPointsOperation::Adjust,
+        ),
+    ] {
+        assert_ne!(
+            original.id(),
+            execution
+                .points_key(operation, &binding, &request)
+                .unwrap()
+                .id()
+        );
+    }
+    assert!(execution
+        .points_key(ApprovedPointsOperation::Adjust, "bad", &request)
+        .is_err());
+    assert!(execution
+        .points_key(ApprovedPointsOperation::Adjust, &binding, "bad")
+        .is_err());
+}
 fn ticket(journal: &EffectJournal, key: EffectKey) -> EffectTicket {
     match journal.reserve(key, accept).unwrap() {
         EffectAdmission::Fresh(ticket) => ticket,

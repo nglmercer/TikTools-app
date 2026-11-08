@@ -19,6 +19,11 @@ const ACCESS_TTL: i64 = 15 * MINUTE;
 const IDLE_TTL: i64 = 24 * 60 * MINUTE;
 const SESSION_TTL: i64 = 7 * IDLE_TTL;
 
+#[cfg(test)]
+std::thread_local! {
+    static TEST_NOW: std::cell::Cell<Option<i64>> = const { std::cell::Cell::new(None) };
+}
+
 /// Uses one private connection, serialized at transaction boundaries. Callers
 /// run these synchronous methods on a blocking pool, never the UI thread.
 pub struct CollaborationService {
@@ -45,6 +50,10 @@ fn secret() -> Result<String, Error> {
 }
 
 pub(crate) fn now() -> i64 {
+    #[cfg(test)]
+    if let Some(timestamp) = TEST_NOW.with(std::cell::Cell::get) {
+        return timestamp;
+    }
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()

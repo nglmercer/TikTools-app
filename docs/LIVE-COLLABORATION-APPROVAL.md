@@ -189,6 +189,35 @@ preserves existing automation adjustment semantics: an existing viewer is
 required and no subscriber award bonus is added. Dry runs also validate the
 rendered viewer and requested delta. Delay rechecks authority after waiting.
 
+Approved points adjustments also consume a private execution identity in this
+same points transaction. The trusted native creator/room/provider message,
+stable saved event/action slots and literal adjust/subtract operation determine
+identity; editable JSON IDs, author sessions and host restarts do not. Exact
+saved source and rendered viewer/requested delta are separate semantic
+fingerprints. Reusing an identity with changed semantics fails closed. A new
+trusted message or explicitly fresh manual execution remains new work.
+Missing provider message/creator/room identity starts fresh work; editable JSON
+never substitutes for missing trusted identity.
+
+The shared command-coordination gate precedes the automation writer gate and
+stays held through commit, so runtime and public commands cannot race the shared
+cross-database capacity check. The balance, viewer revision, command receipt
+and resource/command outboxes commit atomically through the existing
+command-ledger primitives. A retained
+invocation rechecks current approval, subjects, viewer scope and its original
+effective delta, then returns no historical award or cache state and emits no
+second points notification. Even a clamped-zero subtraction consumes identity
+before later funds arrive. Result expiry retains its tombstone and never makes
+an old message fresh again. The private namespace has a lifetime cap of 750,000
+identities and also honors the shared one-million-ID business-ledger cap;
+capacity rejects fresh work without evicting prior identities. This prevents
+restart/replay-window redelivery of direct approved points adjustments without
+a separate preclaim in the external-effects database. Owner legacy adjustments
+and ordinary automatic LIVE award semantics retain their existing paths.
+This guarantee starts with adjustments committed by the atomic writer. Earlier
+versions did not save these identities, so their historical adjustments cannot
+be reconstructed from a balance; upgrade/cutover acceptance remains separate.
+
 Scoped completion/points/history notifications reach presentation subscribers
 through private bus publication that never enters plugin observer queues.
 Separate bounded observer lanes also prevent a scoped burst from manufacturing

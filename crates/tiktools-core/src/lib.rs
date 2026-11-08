@@ -139,6 +139,8 @@ pub struct AppCore {
     automation_write_settled: tokio::sync::Notify,
     #[cfg(feature = "persistence")]
     coordination_gate: Mutex<()>,
+    #[cfg(all(test, feature = "persistence"))]
+    approved_points_coordination_wait: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     #[cfg(feature = "persistence")]
     owner_adoption_gate: Mutex<()>,
     #[cfg(feature = "persistence")]
@@ -440,6 +442,8 @@ impl AppCore {
             automation_write_settled: tokio::sync::Notify::new(),
             #[cfg(feature = "persistence")]
             coordination_gate: Mutex::new(()),
+            #[cfg(all(test, feature = "persistence"))]
+            approved_points_coordination_wait: Mutex::new(None),
             #[cfg(feature = "persistence")]
             owner_adoption_gate: Mutex::new(()),
             #[cfg(feature = "persistence")]

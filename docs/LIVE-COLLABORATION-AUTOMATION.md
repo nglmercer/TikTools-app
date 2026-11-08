@@ -690,17 +690,17 @@ The following work remains part of the full plan:
    invocation handoffs are implemented, with no retained-intent replay. Extend
    equivalent isolation and outcomes to plugin actions, TTS, native input and
    competition winner dispatch. Headless hosts reject unavailable output.
-   Direct approved `core.points`/subtract runtime adjustments still need an
-   atomic private execution identity in the points transaction. Their existing
-   scoped writer preserves limits and ordering but does not consume
-   `EffectExecution`; a supported native message redelivered after restart or
-   in-memory replay-window expiry can therefore apply a direct adjustment again.
-   Existing remote points commands already have durable deduplication, and the
-   Script/Emit journal protects their own emitted subtrees. Extend the approved
-   points transaction using the existing command-ledger primitives, preserving
-   existing-viewer/no-subscriber-bonus semantics, raw/effective delta checks,
-   current authorization on fresh and retained paths, tombstones and no
-   historical hot-cache overwrite or repeated notification.
+   Direct approved `core.points`/subtract adjustments now commit their private
+   `EffectExecution` identity in the same points transaction as the balance,
+   viewer revision and both outboxes. Restart or replay-window expiry cannot
+   repeat that adjustment. Existing-viewer/no-subscriber-bonus semantics,
+   raw/effective delta checks and current authorization on fresh and retained
+   paths are preserved; retained outcomes never overwrite the hot cache or
+   repeat notifications, and expiry retains the identity tombstone. The
+   private 750,000-ID cap and shared one-million-ID business-ledger cap reject
+   fresh work without evicting identities. Remote points commands keep their
+   own durable identities, while Script/Emit receipts protect their handoffs.
+   High-history admission latency and sustained-load acceptance remain open.
 6. **Remote controller/editor completion.** The distinct native JSON proposal
    surface now uses explicit private storage, inspected base selection and
    fixed durable create/update operations. Owner provenance/adoption review and

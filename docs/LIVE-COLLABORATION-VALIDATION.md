@@ -31,7 +31,91 @@ The v3 policy adds bounded scripts and exact-topic scoped emits with inherited
 authority through downstream rules. Broader remote activation, delegated plugin
 execution, HTTP response emission and full product acceptance remain pending.
 
-## Scoped scripts and emitted rules — latest extension
+## Atomic approved-points execution identity — latest extension
+
+Direct approved `core.points` and `core.points.subtract` now commit a private
+execution identity with their balance adjustment. The identity comes from the
+existing trusted native root, stable saved action slot and literal operation;
+exact source and rendered viewer/requested delta are separate fingerprints.
+Caller JSON IDs, connection generations and host restarts cannot renew a
+retained identity. Changed semantics conflict instead of moving the adjustment
+to another viewer. No separate external-effect database reservation precedes
+the points transaction.
+
+The existing command-ledger primitives atomically commit the balance, viewer
+revision, metadata receipt and both outboxes under current subject/definition
+admission. Retained success reauthorizes its original effective delta, returns
+no historical award/cache state and sends no second points notification. A
+clamped-zero subtraction consumes identity before later funds arrive. Expiry
+preserves the original tombstone. The private lifetime quota is 750,000 IDs,
+within the shared one-million-ID business-ledger limit; fresh work fails closed
+at capacity without deleting prior identities. The private result and metadata
+are bounded/validated before generic receipt parsing.
+
+Executed evidence:
+
+- Final full core suite with persistence/native/HTTP/plugin/Cloud features:
+  **699 passed, 11 ignored helper entry points**, using `--test-threads=4`.
+  New parents explicitly invoke the real before/after-commit crash helper.
+- Final API/SDK/authorization suites: **268 passed**: SDK **112 library + 8
+  integration**, collaboration **59**, and control API **34 library + 55
+  integration**. Seven opt-in SDK helpers remain ignored. This includes
+  original-outcome recovery, private stream authorization and real TLS/IPC
+  controller regressions against the changed core.
+- Six runtime regressions exercise saved approved rules, restart, changed
+  viewer conflicts, forged/reused JSON IDs, clamped-zero subtraction,
+  revocation and no historical cache overwrite/duplicate notification. One
+  uses the actual native chat normalizer and queue before/after restart,
+  including historical input and a distinct fresh provider message. Its
+  separate ordinary chat-award persistence effect is intentionally not applied,
+  so the asserted balance measures the approved saved action only.
+- The concurrency regression observes an actual blocked shared coordination
+  lock attempt for both fresh and retained adjustments. It proves the
+  automation writer is still free and balance/identities remain unchanged until
+  release, then verifies the correct single commit or retained result. Runtime
+  points now use the public command lock order through commit, so both business
+  databases share serialized command-capacity admission.
+- Real child-process termination before/after the FULL SQLite commit proves
+  balance, identity, viewer revision, command/resource outboxes and their link
+  remain atomic. A reopened expired tombstone cannot apply again. Storage
+  failures roll back all effects and cache state; omitted/swallowed commit
+  callbacks cannot report a fresh success. Existing-viewer/no-subscriber-bonus
+  and raw/effective delta limits are preserved. Bounded corrupt/oversized
+  metadata, results and malformed hashes fail closed without mutation.
+- Final seven-package all-target Clippy (`--no-deps -- -D warnings`), featureless
+  core check and normal Desktop/CLI build passed. The featureless check retains
+  the existing loader/empty native-pump warnings. The normal build used CLI
+  `remote-control,local-web` and explicitly unset `TIKTOOLS_CLOUD_ORIGIN`.
+
+The focused run initially caught an accidental recursive writer-gate
+acquisition in the new precheck. It was replaced with direct saved-subject
+admission under the already-held gate; the subsequent focused and final whole
+core runs pass. The production admission deadline remains unchanged.
+Final review also found that the initial runtime integration held only the
+automation writer while public commands used a separate coordination gate.
+Acquiring coordination first closes the cross-database capacity race; the
+deterministic regression checks the actual lock path rather than a timed
+absence of an effect.
+
+An existing authorization test could cross the wall-minute rate window between
+failed requests. It now uses a scoped thread-local test clock, restored on drop,
+and a new boundary regression proves the sixth request is denied before the
+boundary while advancing one millisecond admits the first request of the next
+window. Production clocks and rate limits are unchanged; the failed original
+run is retained in `approved-points-api-sdk-before-clock-fix.log`.
+
+Logs use the `approved-points-` prefix in
+`/home/meme/.cache/tiktools-test-runs/`. The guarantee begins with adjustments
+committed by this writer; old versions did not record these identities, so
+preexisting historical adjustments cannot be reconstructed from a balance.
+Missing trusted upstream identity still starts fresh work. Upgrade/cutover and
+high-history/load acceptance remain open, as do Owner definition native intent
+recovery, remaining domains/effect policies, platform/real-keychain and physical
+two-PC LIVE acceptance. This supersedes the direct approved-points deduplication
+gap recorded in the preceding script stage below, without claiming automatic
+LIVE/legacy Owner adjustment deduplication. No real LIVE/account/backend was used.
+
+## Scoped scripts and emitted rules — previous extension
 
 The closed delegated policy now accepts saved `core.code` and `core.emit`.
 Custom-topic approvals accept only already-approved scoped input. Every child

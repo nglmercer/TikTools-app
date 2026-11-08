@@ -1610,6 +1610,8 @@ mod tests {
     mod commands;
     #[cfg(feature = "persistence")]
     mod approved;
+    #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
+    mod approved_crash;
     #[cfg(feature = "persistence")]
     mod ordering;
 

@@ -168,6 +168,8 @@ impl Fixture {
     }
 }
 
+#[cfg(feature = "native-tiktok")]
+mod approved_points_replay;
 mod scoped_flow;
 impl Drop for Fixture {
     fn drop(&mut self) {

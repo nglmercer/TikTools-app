@@ -1,18 +1,20 @@
 use super::*;
 use crate::db::DatabaseError;
+use crate::services::effects::ApprovedPointsKey;
 
 impl PointsService {
     /// Drain earlier optimistic writes while holding the same mutation gate as
     /// LIVE awards/reset/commands, then commit under final trusted admission.
     pub(crate) fn adjust_approved(
         &self,
+        key: &ApprovedPointsKey,
         unique_id: &str,
         delta: f64,
         admit: impl FnOnce(
             f64,
             &mut dyn FnMut() -> Result<(), DatabaseError>,
         ) -> Result<(), DatabaseError>,
-    ) -> Result<PointAward, DatabaseError> {
+    ) -> Result<Option<PointAward>, DatabaseError> {
         if !valid_viewer_id(unique_id) || !delta.is_finite() || delta.abs() > 1_000_000_000.0 {
             return Err(DatabaseError::Invalid(
                 "invalid approved points adjustment".into(),
@@ -58,13 +60,23 @@ impl PointsService {
         if remaining.is_zero() {
             return Err(DatabaseError::PointsWriterUnavailable);
         }
-        let (award, viewer) =
-            database.adjust_approved_points(unique_id, delta, &self.config(), remaining, admit)?;
-        let resolved = self.resolved_seq();
-        let mut inner = recover_rwlock_write(&self.inner, "points viewers");
-        inner.pending.remove(unique_id);
-        inner.viewers.insert(unique_id.into(), viewer);
-        inner.evict_if_over(resolved);
+        let (award, viewer) = database.adjust_approved_points(
+            key,
+            unique_id,
+            delta,
+            &self.config(),
+            remaining,
+            admit,
+        )?;
+        // A retained identity describes an old commit. In particular, never
+        // overwrite a reset or a later LIVE award with its historical balance.
+        if let Some(viewer) = viewer {
+            let resolved = self.resolved_seq();
+            let mut inner = recover_rwlock_write(&self.inner, "points viewers");
+            inner.pending.remove(unique_id);
+            inner.viewers.insert(unique_id.into(), viewer);
+            inner.evict_if_over(resolved);
+        }
         Ok(award)
     }
 }

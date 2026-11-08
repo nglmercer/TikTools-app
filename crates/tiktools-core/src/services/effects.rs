@@ -19,6 +19,41 @@ pub(crate) struct EffectExecution {
     slots: Vec<u32>,
 }
 
+/// A literal runtime operation, never supplied by an event or RPC caller.
+#[derive(Clone, Copy)]
+pub(crate) enum ApprovedPointsOperation {
+    Adjust,
+    Subtract,
+}
+
+impl ApprovedPointsOperation {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Adjust => "core.points",
+            Self::Subtract => "core.points.subtract",
+        }
+    }
+}
+
+/// Balance and identity are committed together by the points writer. This is
+/// deliberately separate from the external-effect journal: a preclaimed
+/// receipt in another database could lose a balance update after a crash.
+#[derive(Clone)]
+pub(crate) struct ApprovedPointsKey {
+    id: String,
+    fingerprint: String,
+}
+
+impl ApprovedPointsKey {
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub(crate) fn fingerprint(&self) -> &str {
+        &self.fingerprint
+    }
+}
+
 fn random_identity() -> Result<String, DatabaseError> {
     let mut bytes = [0u8; 32];
     getrandom::fill(&mut bytes)
@@ -120,6 +155,30 @@ impl EffectExecution {
             kind,
             binding_digest: binding_digest.into(),
             request_digest: request_digest.into(),
+        })
+    }
+
+    pub(crate) fn points_key(
+        &self,
+        operation: ApprovedPointsOperation,
+        binding_digest: &str,
+        request_digest: &str,
+    ) -> Result<ApprovedPointsKey, DatabaseError> {
+        if !valid_digest(binding_digest) || !valid_digest(request_digest) {
+            return Err(DatabaseError::Invalid("invalid points fingerprint".into()));
+        }
+        Ok(ApprovedPointsKey {
+            id: hash_secret(&serde_json::to_string(&(
+                "tiktools-approved-points-execution-v1",
+                &self.root,
+                &self.slots,
+                operation.as_str(),
+            ))?),
+            fingerprint: hash_secret(&serde_json::to_string(&(
+                "tiktools-approved-points-semantics-v1",
+                binding_digest,
+                request_digest,
+            ))?),
         })
     }
 }

@@ -1,6 +1,32 @@
 use super::*;
 use std::sync::{Arc, Barrier};
 
+/// Synchronous store tests own their thread's clock. The marker prevents a
+/// guard from being moved to another thread and restoring the wrong clock.
+struct FrozenNow {
+    previous: Option<i64>,
+    _thread: std::marker::PhantomData<std::rc::Rc<()>>,
+}
+
+impl FrozenNow {
+    fn at(timestamp: i64) -> Self {
+        Self {
+            previous: TEST_NOW.with(|clock| clock.replace(Some(timestamp))),
+            _thread: std::marker::PhantomData,
+        }
+    }
+
+    fn set(&self, timestamp: i64) {
+        TEST_NOW.with(|clock| clock.set(Some(timestamp)));
+    }
+}
+
+impl Drop for FrozenNow {
+    fn drop(&mut self) {
+        TEST_NOW.with(|clock| clock.set(self.previous));
+    }
+}
+
 fn service() -> (tempfile::TempDir, CollaborationService) {
     let dir = tempfile::tempdir().unwrap();
     let service = CollaborationService::open(&dir.path().join("private")).unwrap();
@@ -592,6 +618,7 @@ fn restart_keeps_approved_sessions_but_invalidates_pending_exchanges() {
 
 #[test]
 fn failed_attempts_consume_rate_budget_and_disabled_feature_revokes_access() {
+    let _clock = FrozenNow::at(now());
     let (_dir, s) = service();
     let a = pair(&s, ClientKind::Desktop);
     for _ in 0..5 {
@@ -634,6 +661,50 @@ fn failed_attempts_consume_rate_budget_and_disabled_feature_revokes_access() {
     })
     .unwrap();
     assert!(s.authenticate(&a.access_token, false, false).is_err());
+}
+
+#[test]
+fn failed_pairing_rate_budget_resets_at_the_next_wall_minute() {
+    let minute = now() / MINUTE;
+    let last_millisecond = (minute + 1) * MINUTE - 1;
+    let clock = FrozenNow::at(last_millisecond);
+    let (_dir, s) = service();
+    let source = "minute-boundary-peer";
+    let attempt = || {
+        s.redeem(
+            Redeem {
+                invite_id: "unknown".into(),
+                secret: "a".repeat(64),
+                client_label: "Boundary fixture".into(),
+                client_kind: ClientKind::Desktop,
+                exchange_secret_hash: hash_secret("boundary exchange"),
+            },
+            source,
+        )
+    };
+    let persisted = || {
+        s.db()
+            .unwrap()
+            .query_row(
+                "SELECT window,count FROM rate_limits WHERE category='redeem-source' AND identity=?1",
+                [hash_secret(source)],
+                |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .unwrap()
+    };
+    for _ in 0..5 {
+        assert!(matches!(attempt(), Err(Error::PairingExpired)));
+    }
+    assert_eq!(persisted(), (minute, 5));
+    assert!(matches!(attempt(), Err(Error::RateLimited)));
+    assert_eq!(persisted(), (minute, 6));
+
+    // Advancing one millisecond crosses the real fixed-window boundary. The
+    // next failure is admitted and consumes the first budget slot, without a
+    // sleep, weakening the five-attempt limit or clearing the stored counter.
+    clock.set(last_millisecond + 1);
+    assert!(matches!(attempt(), Err(Error::PairingExpired)));
+    assert_eq!(persisted(), (minute + 1, 1));
 }
 
 #[test]

@@ -569,6 +569,32 @@ impl AppCore {
         Ok(())
     }
 
+    #[cfg(feature = "persistence")]
+    fn approved_points_coordination_gate(&self) -> Result<std::sync::MutexGuard<'_, ()>, String> {
+        match self.coordination_gate.try_lock() {
+            Ok(guard) => Ok(guard),
+            Err(std::sync::TryLockError::Poisoned(_)) => {
+                Err("command coordination is unavailable".into())
+            }
+            Err(std::sync::TryLockError::WouldBlock) => {
+                // Observe an actual blocked acquisition in concurrency tests;
+                // the production path uses this same try-lock/fallback order.
+                #[cfg(test)]
+                if let Some(waiting) = self
+                    .approved_points_coordination_wait
+                    .lock()
+                    .map_err(|_| "command coordination is unavailable".to_owned())?
+                    .take()
+                {
+                    let _ = waiting.send(());
+                }
+                self.coordination_gate
+                    .lock()
+                    .map_err(|_| "command coordination is unavailable".to_owned())
+            }
+        }
+    }
+
     async fn adjust_points_with_context(
         self: &Arc<Self>,
         action: &Value,
@@ -587,9 +613,41 @@ impl AppCore {
             let action = action.clone();
             let unique_id = unique_id.to_owned();
             let award = tokio::task::spawn_blocking(move || {
+                // Shared command capacity spans both business databases. Keep
+                // the same order as public commands through the points commit.
+                let _coordination = core.approved_points_coordination_gate()?;
                 let _writer = core.automation_gate().map_err(|error| error.to_string())?;
+                let operation = match action.get("typeId").and_then(Value::as_str) {
+                    Some("core.points") => {
+                        crate::services::effects::ApprovedPointsOperation::Adjust
+                    }
+                    Some("core.points.subtract") => {
+                        crate::services::effects::ApprovedPointsOperation::Subtract
+                    }
+                    _ => return Err("unsupported approved points operation".into()),
+                };
+                let key = context
+                    .execution()?
+                    .points_key(
+                        operation,
+                        &crate::collaboration::hash_secret(&action.to_string()),
+                        &crate::collaboration::hash_secret(
+                            &json!({"uniqueId":unique_id,"delta":delta}).to_string(),
+                        ),
+                    )
+                    .map_err(|error| error.to_string())?;
+                // Reauthorize even before looking up a retained identity. The
+                // callback below repeats this after actual SQLite admission.
+                // The writer gate is already held; do not reenter the helper
+                // that acquires it for ordinary action admission.
+                context.with_current_subjects(&action, &core.automation, |identities| {
+                    if core.is_shutdown() {
+                        return Err("host is shutting down".into());
+                    }
+                    Self::check_core_subjects(&action, identities)
+                })?;
                 core.points
-                    .adjust_approved(&unique_id, delta, |effective, commit| {
+                    .adjust_approved(&key, &unique_id, delta, |effective, commit| {
                         context
                             .with_current_subjects(&action, &core.automation, |identities| {
                                 if core.is_shutdown() {
@@ -623,6 +681,11 @@ impl AppCore {
             })
             .await
             .map_err(|_| "approved points worker failed".to_owned())??;
+            let Some(award) = award else {
+                return Ok(
+                    "approved points adjustment was already committed; it was not repeated".into(),
+                );
+            };
             self.events
                 .publish_presentation_domain(crate::events::DomainEvent::PointsChanged {
                     unique_id: award.unique_id.clone(),
