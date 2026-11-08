@@ -4,6 +4,7 @@ import {
   BUN_AREA_DIRS,
   FAST_BUN_ROOTS,
   buildTestCommands,
+  bunPathArg,
   bunTargetDir,
   parseCargoMetadata,
   parseFeatureList,
@@ -159,7 +160,7 @@ describe('workspace metadata and crate validation', () => {
       { area: 'plugin', plugin: 'sonicboom', watch: false, changed: false },
       { pluginRoots: ['plugins/sonicboom/shared'], pluginsRepository: '/work/plugins-example-tiktools' },
     )!;
-    expect(cmd?.slice(1)).toEqual(['--cwd', '/work/plugins-example-tiktools', 'test', 'plugins/sonicboom/shared']);
+    expect(cmd?.slice(1)).toEqual(['--cwd', '/work/plugins-example-tiktools', 'test', './plugins/sonicboom/shared']);
   });
 });
 
@@ -167,9 +168,20 @@ describe('command dispatch', () => {
   test('default builds the fast unit commands', () => {
     const cmds = buildTestCommands({ area: 'default', watch: false, changed: false }, {});
     expect(cmds).toHaveLength(2);
-    expect(cmds[0]?.slice(1, 3)).toEqual(['test', 'src/automation']);
-    expect(cmds[0]).toEqual(expect.arrayContaining(FAST_BUN_ROOTS));
+    expect(cmds[0]?.slice(1, 3)).toEqual(['test', './src/automation']);
+    expect(cmds[0]).toEqual(expect.arrayContaining(FAST_BUN_ROOTS.map(bunPathArg)));
     expect(cmds[1]?.slice(-2)).toEqual(['vitest', 'run']);
+  });
+
+  test('bun roots are explicit paths, never substring filters', () => {
+    expect(bunPathArg('packages')).toBe('./packages');
+    expect(bunPathArg('./packages')).toBe('./packages');
+    expect(bunPathArg('/abs/dir')).toBe('/abs/dir');
+  });
+
+  test('a bun area filter narrows by test name instead of adding a path', () => {
+    const [cmd] = buildTestCommands({ area: 'bun', target: 'automation', filter: 'batched', watch: false, changed: false }, {})!;
+    expect(cmd?.slice(1)).toEqual(['test', './src/automation', '--test-name-pattern', 'batched']);
   });
 
   test('rust builds a locked linker-wrapped cargo command', () => {

@@ -1,7 +1,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { assertWidgetBundle } from './lib/gateway-widgets.ts';
-import { runTargetedTests } from './lib/test-runner.ts';
+import { FAST_BUN_ROOTS, bunPathArg, runTargetedTests } from './lib/test-runner.ts';
 
 const root = join(import.meta.dir, '..');
 const bun = process.execPath;
@@ -107,7 +107,9 @@ async function rustLint(): Promise<void> {
 async function tests(): Promise<void> {
   // One invocation per area so an unmatched pattern fails loudly instead
   // of hiding behind a sibling area that still matches.
-  await run(bun, 'test', 'src/automation', 'src/plugin-ui', 'src/shared', 'src/widgets', 'scripts');
+  // `./` keeps Bun from treating each root as a path-substring filter that
+  // would also collect Vitest-only files elsewhere in the tree.
+  await run(bun, 'test', ...FAST_BUN_ROOTS.map(bunPathArg));
   // Plugin packages live in the external plugins-example-tiktools
   // repository and run their own suites there.
   // Browser specs (tests/e2e, widget/gateway .e2e.ts) need

@@ -13,6 +13,7 @@ import { resolvePluginsRepository } from './external-plugins.ts';
 export const TEST_USAGE =
   'Usage: bun run test [area] [target] [filter] [options]\n' +
   'Areas: rust <crate> [filter], web [filter], bun <area> [filter], plugin <name> [filter], e2e [filter].\n' +
+  'Bun/plugin filters match test names; web/e2e filters match files; rust filters match test paths.\n' +
   'Options: --features <list> (rust only), --watch (web only), --changed (default/web/bun/plugin).\n' +
   'Examples: bun run test | bun run test rust tiktools-core batched_likes | bun run test web live-batch | bun run test e2e.';
 
@@ -27,6 +28,21 @@ export const BUN_AREA_DIRS: Record<string, string> = {
   scripts: 'scripts',
   packages: 'packages',
 };
+
+/**
+ * `bun test` treats a bare positional as a path *substring* filter, so
+ * `packages` would also pick up `src/web/.../packages-store.test.ts` (a
+ * Vitest-only file). A `./` prefix makes Bun resolve it as a real path.
+ * Pure.
+ */
+export function bunPathArg(dir: string): string {
+  return dir.startsWith('./') || dir.startsWith('/') ? dir : `./${dir}`;
+}
+
+/** Bun ORs positional filters, so a narrowing filter must be a test-name pattern. */
+function bunNameFilter(filter: string | undefined): string[] {
+  return filter ? ['--test-name-pattern', filter] : [];
+}
 
 const SUPPORTED_AREAS = new Set(['rust', 'web', 'bun', 'plugin', 'e2e']);
 const SAFE_TOKEN = /^[A-Za-z0-9][A-Za-z0-9_./-]*$/;
@@ -248,7 +264,7 @@ export function buildTestCommands(
   switch (request.area) {
     case 'default':
       return [
-        [bun, 'test', ...changedFlag, ...FAST_BUN_ROOTS],
+        [bun, 'test', ...changedFlag, ...FAST_BUN_ROOTS.map(bunPathArg)],
         [bun, 'x', '--no-install', 'vitest', 'run', ...(request.changed ? ['--changed'] : [])],
       ];
     case 'rust': {
@@ -267,13 +283,13 @@ export function buildTestCommands(
     }
     case 'bun': {
       const dir = bunTargetDir(request.target);
-      return [[bun, 'test', ...changedFlag, dir, ...(request.filter ? [request.filter] : [])]];
+      return [[bun, 'test', ...changedFlag, bunPathArg(dir), ...bunNameFilter(request.filter)]];
     }
     case 'plugin': {
       const roots = ctx.pluginRoots ?? pluginTestRoots(request.plugin);
       if (!roots.length) fail(`plugin has no bun test roots: ${JSON.stringify(request.plugin)}`);
       const cwd = ctx.pluginsRepository ? ['--cwd', ctx.pluginsRepository] : [];
-      return [[bun, ...cwd, 'test', ...changedFlag, ...roots, ...(request.filter ? [request.filter] : [])]];
+      return [[bun, ...cwd, 'test', ...changedFlag, ...roots.map(bunPathArg), ...bunNameFilter(request.filter)]];
     }
     case 'e2e':
       return [
