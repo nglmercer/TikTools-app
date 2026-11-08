@@ -106,7 +106,6 @@ struct SyncConfig {
 }
 
 struct Runtime {
-    syncing: bool,
     last_error: Option<String>,
     last_synced_at: Option<u64>,
 }
@@ -144,7 +143,6 @@ impl SyncCoordinator {
             config_path: dir.join(CONFIG_FILE),
             state_path: dir.join(STATE_FILE),
             runtime: Arc::new(Mutex::new(Runtime {
-                syncing: false,
                 last_error: None,
                 last_synced_at: None,
             })),
@@ -204,16 +202,17 @@ impl SyncCoordinator {
                 keys
             })
             .unwrap_or_default();
-        // Blocking lock: status is called off hot paths only.
+        // Non-blocking reads: status is called off hot paths only, and the
+        // async [`Self::status`] refreshes these fields authoritatively.
         let runtime = self
             .runtime
             .try_lock()
-            .map(|r| (r.syncing, r.last_error.clone(), r.last_synced_at));
-        let (syncing, last_error, last_synced_at) = runtime.unwrap_or((false, None, None));
+            .map(|r| (r.last_error.clone(), r.last_synced_at));
+        let (last_error, last_synced_at) = runtime.unwrap_or((None, None));
         SyncStatus {
             enabled: self.is_enabled(),
-            signed_in: false,
-            syncing,
+            signed_in: self.auth.try_session().is_some(),
+            syncing: self.syncing.load(Ordering::SeqCst),
             pending,
             conflicts,
             last_error,

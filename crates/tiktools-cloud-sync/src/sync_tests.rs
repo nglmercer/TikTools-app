@@ -877,3 +877,17 @@ async fn cancelled_sync_releases_the_running_flag() {
     assert!(retry.is_err(), "retry did not reach the network: {retry:?}");
     stall.abort();
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn toggling_reports_the_live_session() {
+    let dir = TempDir::new("toggle-status");
+    let mock = MockSync::start("user-toggle").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    assert!(!sync.set_enabled(true).unwrap().signed_in);
+    login(&auth, "code-toggle").await;
+    let enabled = sync.set_enabled(true).unwrap();
+    assert!(enabled.enabled && enabled.signed_in && !enabled.syncing);
+    let disabled = sync.set_enabled(false).unwrap();
+    assert!(!disabled.enabled && disabled.signed_in);
+    mock.stop();
+}
