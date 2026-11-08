@@ -219,15 +219,15 @@ impl ControlClient {
         }
     }
 
-    /// Subscribes to the host's event broadcast. The reader task
-    /// forwards every `event` notification as [`ControlEvent::Domain`]
-    /// and every `event.gap` notification as [`ControlEvent::Gap`]; slow
-    /// receivers lag and skip, matching the host bus semantics.
     /// Whether the IPC reader has stopped (host disconnected or protocol failure).
     pub fn is_closed(&self) -> bool {
         self._reader.0.is_finished()
     }
 
+    /// Subscribes to the host's event broadcast. The reader task
+    /// forwards every `event` notification as [`ControlEvent::Domain`]
+    /// and every `event.gap` notification as [`ControlEvent::Gap`]; slow
+    /// receivers lag and skip, matching the host bus semantics.
     pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<ControlEvent> {
         self.events.subscribe()
     }
