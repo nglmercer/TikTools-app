@@ -420,6 +420,43 @@ fn rollback_restores_previous_version_and_pins_it() {
 }
 
 #[test]
+fn failed_rollback_activation_keeps_the_retained_version() {
+    let root = TempDir::new("rollback-failure");
+    let installer = installer(&root);
+    let hooks = RecordingHooks::default();
+    for version in ["1.0.0", "1.1.0"] {
+        let prepared = installer
+            .prepare(
+                &demo_package(&root, "demo", version, serde_json::json!({})),
+                PackageOrigin::File,
+                SignaturePolicy::AllowWithConsent,
+            )
+            .unwrap();
+        installer
+            .commit(&prepared, &implicit(true), &hooks, &NoopReporter)
+            .unwrap();
+    }
+    hooks.fail_activation.store(true, Ordering::Release);
+    let error = installer
+        .rollback("demo", Some("1.0.0"), &hooks, &NoopReporter)
+        .unwrap_err();
+    assert_eq!(error.code, InstallErrorCode::IoError);
+    assert!(fs::read_to_string(root.join("plugins/demo/plugin.json"))
+        .unwrap()
+        .contains("1.1.0"));
+    // The rejected target must survive for a later retry.
+    assert!(
+        fs::read_to_string(root.join("store/versions/demo/1.0.0/plugin.json"))
+            .unwrap()
+            .contains("1.0.0")
+    );
+    let outcome = installer
+        .rollback("demo", Some("1.0.0"), &hooks, &NoopReporter)
+        .unwrap();
+    assert_eq!(outcome.receipt.version, "1.0.0");
+}
+
+#[test]
 fn retention_prunes_the_oldest_versions() {
     let root = TempDir::new("retention");
     let installer = installer(&root);
