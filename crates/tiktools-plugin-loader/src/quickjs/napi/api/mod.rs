@@ -37,6 +37,9 @@ pub(super) fn new_string(env: &Env, text: &str) -> JSValue {
     unsafe { qjs::JS_NewStringLen(env.ctx, text.as_ptr().cast(), text.len() as u64) }
 }
 
+// The generated tag constant's integer type is target-dependent; keep the
+// cast so every platform's bindings compile.
+#[allow(clippy::unnecessary_cast)]
 pub(super) fn bool_value(value: bool) -> JSValue {
     qjs::JS_MKVAL(qjs::JS_TAG_BOOL as i32, i32::from(value))
 }

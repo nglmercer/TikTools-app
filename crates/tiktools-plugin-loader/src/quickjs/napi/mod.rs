@@ -125,9 +125,9 @@ pub(crate) fn load_addon<'js>(
 ) -> rquickjs::Result<Value<'js>> {
     let fail = |message: String| Exception::throw_message(ctx, &message);
     tracing::debug!(plugin = %shared.plugin, addon = %path.display(), "loading native addon");
-    preflight(path).map_err(&fail)?;
+    preflight(path).map_err(fail)?;
     if shared.native.borrow().is_none() {
-        let state = init_state(ctx, shared).map_err(&fail)?;
+        let state = init_state(ctx, shared).map_err(fail)?;
         *shared.native.borrow_mut() = Some(state);
     }
     let (shim, events, external_class) = {
@@ -170,8 +170,8 @@ pub(crate) fn load_addon<'js>(
             )
         })?;
         (unsafe { api_version() }, init)
-    } else if registered.is_empty() && symbol_init.is_some() {
-        (DEFAULT_MODULE_VERSION, symbol_init.expect("checked above"))
+    } else if let (true, Some(init)) = (registered.is_empty(), symbol_init) {
+        (DEFAULT_MODULE_VERSION, init)
     } else {
         match registered.as_slice() {
             [module] => {

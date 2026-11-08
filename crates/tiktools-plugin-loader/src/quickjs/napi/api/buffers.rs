@@ -325,7 +325,7 @@ pub(in super::super) unsafe extern "C" fn api_create_typedarray(
         if !unsafe { qjs::JS_IsArrayBuffer(buffer) } {
             return Err(INVALID_ARG);
         }
-        if size > 1 && offset % size != 0 {
+        if size > 1 && !offset.is_multiple_of(size) {
             return Err(throw_range(
                 env,
                 &format!("start offset of typed array should be a multiple of {size}"),
