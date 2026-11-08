@@ -108,12 +108,17 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
   const gaps = new Set<GapHandler>();
   let attachedReceive: ((raw: string) => void) | undefined;
 
-  const reportTransportError = (message: string): void => {
-    for (const handler of transportErrors) {
-      try {
-        handler(message);
-      } catch {}
+  /** Isolate subscriber failures from the transport loop, but never hide them. */
+  const notify = <T>(label: string, handler: (value: T) => void, value: T): void => {
+    try {
+      handler(value);
+    } catch (error) {
+      console.error(`control-client ${label} handler failed`, error);
     }
+  };
+
+  const reportTransportError = (message: string): void => {
+    for (const handler of transportErrors) notify('transport-error', handler, message);
   };
 
   const receive = (raw: string): void => {
@@ -150,11 +155,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
     if (value['method'] === 'event.gap' && isRecord(value['params'])) {
       const params = value['params'] as { lost?: unknown };
       const lost = typeof params.lost === 'number' ? params.lost : 0;
-      for (const handler of gaps) {
-        try {
-          handler(lost);
-        } catch {}
-      }
+      for (const handler of gaps) notify('event.gap', handler, lost);
       return;
     }
     if (value['method'] === 'event' && isRecord(value['params'])) {
@@ -165,11 +166,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
       const handlers = topics.get(params.topic);
       if (!handlers) { ignoredMessages += 1; return; }
       handledMessages += 1;
-      for (const handler of handlers) {
-        try {
-          handler(params.data);
-        } catch {}
-      }
+      for (const handler of handlers) notify(`topic ${params.topic}`, handler, params.data);
       return;
     }
     if (typeof value['type'] === 'string') {
@@ -177,11 +174,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
       if (!handlers) { ignoredMessages += 1; return; }
       handledMessages += 1;
       const message = value as unknown as HostMessage;
-      for (const handler of handlers) {
-        try {
-          handler(message);
-        } catch {}
-      }
+      for (const handler of handlers) notify(`push ${message.type}`, handler, message);
     }
   };
 
@@ -247,7 +240,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
           pending.clear();
           reportTransportError(reason);
         }, () => {
-          for (const handler of gaps) { try { handler(0); } catch {} }
+          for (const handler of gaps) notify('event.gap', handler, 0);
         });
         return;
       }
