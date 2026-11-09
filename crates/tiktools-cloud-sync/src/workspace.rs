@@ -859,7 +859,10 @@ impl WorkspaceCoordinator {
         target: &WorkspaceKey,
         eligibility: &WorkspaceEligibility,
     ) -> Result<WorkspaceReview, WorkspaceCoordError> {
-        if eligibility.publication.is_none() {
+        if eligibility.publication.is_none()
+            || eligibility.emission.is_none()
+            || eligibility.emission_current.is_none()
+        {
             return Err(WorkspaceCoordError::Ineligible);
         }
         let proof = self
@@ -903,8 +906,25 @@ impl WorkspaceCoordinator {
             if policy.epoch_required() != Some(true) {
                 return Err(WorkspaceCoordError::Ineligible);
             }
+            // Advancing the server epoch affects all devices on this account.
+            // Admit the captured session before sending the barrier, just as
+            // for a product write. A queued logout must win before admission
+            // or wait for the request future to finish or be cancelled.
+            let eligibility = eligibility.ok_or(WorkspaceCoordError::Ineligible)?;
+            let barrier_guard = eligibility
+                .emission
+                .as_ref()
+                .ok_or(WorkspaceCoordError::Ineligible)?()?;
+            if !eligibility
+                .emission_current
+                .as_ref()
+                .ok_or(WorkspaceCoordError::Ineligible)?()
+            {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
             let barrier = session.workspace_write_barrier().await?;
-            check_eligibility(eligibility, session)?;
+            drop(barrier_guard);
+            check_eligibility(Some(eligibility), session)?;
             if !barrier.is_after(&original_epoch)? {
                 return Err(WorkspaceCoordError::Ineligible);
             }

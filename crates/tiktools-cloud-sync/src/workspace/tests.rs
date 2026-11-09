@@ -882,6 +882,19 @@ async fn product_recovery_rebases_only_latest_staged_decision_without_replaying(
         .store
         .save(Some(legacy.generation), &saved.state)
         .unwrap();
+    // A transition that wins the last nonblocking session check must not
+    // advance the account-wide epoch or change the uncertain local state.
+    let denied = WorkspaceEligibility::new(session.clone(), || true)
+        .with_publication_guard(|publish| publish())
+        .with_emission_guard(|| Ok(Box::new(())), || false);
+    let before_denied = coordinator.snapshot().unwrap();
+    let barrier_before = server.remote.lock().unwrap().barrier_count;
+    assert!(coordinator
+        .review_product_guarded(&session, &target, &denied)
+        .await
+        .is_err());
+    assert_eq!(server.remote.lock().unwrap().barrier_count, barrier_before);
+    assert_eq!(coordinator.snapshot().unwrap().state, before_denied.state);
     server.remote.lock().unwrap().barrier_failure = true;
     let before_failed_barrier = coordinator.snapshot().unwrap();
     assert!(coordinator

@@ -105,6 +105,10 @@ requests without an epoch remain pending; no epoch is assigned retroactively.
 This relies on every backend instance enforcing the epoch policy and does not
 cover legacy or noncooperating servers. It does not yet enable product review,
 clear the local marker, or provide durable local application recovery.
+The account-wide barrier POST also holds an owned permit for the captured
+CloudAuth session through the HTTP future; a transition that wins the final
+session check prevents dispatch. Cancellation can still leave the server
+processing a barrier, so a later attempt must obtain a new successful response.
 An isolated coordinator HTTP test pauses a fenced request before the server
 processes it, cancels the client, stages a newer local decision, and performs
 the barrier-backed review. The simulated server rejects the delayed request
