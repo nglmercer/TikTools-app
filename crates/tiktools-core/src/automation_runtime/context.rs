@@ -332,6 +332,56 @@ impl ExecutionContext {
             )
             .map_err(|error| error.to_string())
     }
+    /// Only invoked by the effect journal while its SQLite writer is held.
+    #[cfg(feature = "persistence")]
+    pub(crate) fn with_competition_journal_admission<R>(
+        &self,
+        core: &AppCore,
+        action: &serde_json::Value,
+        apply: impl FnOnce(&[crate::collaboration::ExecutionIdentity]) -> Result<R, String>,
+    ) -> Result<R, String> {
+        let (
+            Some(fence),
+            Some(claim),
+            Authority::Approved {
+                subjects,
+                permits,
+                owner_rules,
+            },
+        ) = (&self.competition, &self.competition_winner, &self.authority)
+        else {
+            return Err("competition winner authority is unavailable".into());
+        };
+        let additional = subjects
+            .snapshot()
+            .map_err(|_| "saved execution subjects are unavailable")?
+            .iter()
+            .map(|id| (id.principal_id().to_owned(), id.session_id().to_owned()))
+            .collect::<Vec<_>>();
+        let service = core
+            .collaboration()
+            .map_err(|_| "collaboration is unavailable")?;
+        core.db
+            .with_competition_winner_journal_admission(
+                &service,
+                fence,
+                claim,
+                &additional,
+                |identities, admission| {
+                    core.automation
+                        .with_current_competition_approvals(
+                            admission,
+                            permits,
+                            owner_rules,
+                            action,
+                            || apply(identities),
+                        )
+                        .map_err(crate::db::DatabaseError::Invalid)
+                },
+            )
+            .map_err(|error| error.to_string())
+    }
+
     /// Caller holds the automation writer gate. Points transactions also hold
     /// their own writer; acquire the competition writer before grant locks.
     #[cfg(feature = "persistence")]

@@ -8,7 +8,7 @@ use tiktools_plugin_api::{
     AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
 };
 
-struct AudioHost(Arc<AtomicUsize>);
+pub(super) struct AudioHost(pub(super) Arc<AtomicUsize>);
 impl MediaHost for AudioHost {
     fn open_picker(&self, _: MediaPickerOptions) -> MediaHostFuture<Option<std::path::PathBuf>> {
         Box::pin(async { Ok(None) })

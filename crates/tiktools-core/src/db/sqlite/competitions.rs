@@ -56,7 +56,7 @@ impl CompetitionExecutionFence {
 /// Match the immutable outbox, selected winner and saved definition under the
 /// same business transaction used to admit a delegated winner action.
 pub(super) fn validate_competition_winner_claim(
-    tx: &rusqlite::Transaction<'_>,
+    tx: &rusqlite::Connection,
     claim: &ActionClaim,
 ) -> Result<(), DatabaseError> {
     let denied = || DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden);
@@ -110,7 +110,7 @@ pub(super) fn validate_competition_winner_claim(
 }
 
 fn competition_execution_fence(
-    tx: &rusqlite::Transaction<'_>,
+    tx: &rusqlite::Connection,
     id: &str,
     generation: u64,
     identities: &[crate::collaboration::ExecutionIdentity],
@@ -974,6 +974,111 @@ impl DatabaseManager {
                 apply(tx, identities, &winner_admission, &claim.action)
             },
         )
+    }
+    /// Only call from an external-effect journal admission callback, which
+    /// already owns the automation SQLite writer until its commit callback.
+    /// This reader must not start a transaction or retain a statement across
+    /// `apply`, because the journal must be able to commit its writer.
+    pub(crate) fn with_competition_winner_journal_admission<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        fence: &CompetitionExecutionFence,
+        claim: &ActionClaim,
+        additional: &[(String, String)],
+        apply: impl FnOnce(
+            &[crate::collaboration::ExecutionIdentity],
+            &CompetitionExecutionAdmission<'_>,
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
+        use crate::collaboration::{Capability, Error, ResourceKind};
+        let denied = || DatabaseError::CommandAuthorization(Error::Forbidden);
+        if claim.competition_id != fence.id || claim.generation != fence.generation {
+            return Err(denied());
+        }
+        let generation = i64::try_from(fence.generation)
+            .ok()
+            .filter(|n| *n > 0)
+            .ok_or_else(denied)?;
+        let db = self.open(&self.automation_path())?;
+        let origin: Option<String> = db.query_row("SELECT origin FROM competition_execution_generations WHERE competition_id=?1 AND generation=?2", params![fence.id,generation], |r| r.get(0)).optional()?;
+        if origin.as_deref() != Some("delegated") {
+            return Err(denied());
+        }
+        let mut statement = db.prepare("SELECT principal_id,session_id,grant_revision FROM competition_execution_subjects WHERE competition_id=?1 AND generation=?2 ORDER BY principal_id,session_id LIMIT 17")?;
+        let entries = statement
+            .query_map(params![fence.id, generation], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+        if entries.is_empty()
+            || entries.len() > 16
+            || entries.iter().any(|(_, _, r)| {
+                r.parse::<i64>()
+                    .ok()
+                    .is_none_or(|n| n <= 0 || n.to_string() != *r)
+            })
+        {
+            return Err(denied());
+        }
+        let mut subjects = entries
+            .iter()
+            .map(|(p, s, _)| (p.clone(), s.clone()))
+            .collect::<Vec<_>>();
+        for subject in additional {
+            if !subjects.contains(subject) {
+                subjects.push(subject.clone());
+            }
+        }
+        let authorization = service
+            .execution_authorizations(&subjects)
+            .map_err(DatabaseError::CommandAuthorization)?;
+        authorization
+            .with_current(|identities| {
+                if identities.len() != subjects.len()
+                    || identities.iter().zip(&entries).any(
+                        |(id, (principal, session, revision))| {
+                            id.principal_id() != principal
+                                || id.session_id() != session
+                                || id.grant_revision().parse::<i64>().ok()
+                                    < revision.parse::<i64>().ok()
+                                || !id
+                                    .grant()
+                                    .capabilities
+                                    .contains(&Capability::CompetitionsRead)
+                                || !id
+                                    .grant()
+                                    .capabilities
+                                    .contains(&Capability::CompetitionsManage)
+                                || id.grant().resources.contains_key(&ResourceKind::Live)
+                                || !id
+                                    .grant()
+                                    .allows_resource(ResourceKind::Competition, &fence.id)
+                                || id.check_deadline().is_err()
+                        },
+                    )
+                    || competition_execution_fence(
+                        &db,
+                        &fence.id,
+                        fence.generation,
+                        &identities[..entries.len()],
+                    )? != *fence
+                {
+                    return Err(denied());
+                }
+                validate_competition_winner_claim(&db, claim)?;
+                let admission = CompetitionExecutionAdmission {
+                    fence,
+                    identities,
+                    winner: Some(claim),
+                };
+                apply(identities, &admission)
+            })
+            .map_err(DatabaseError::CommandAuthorization)?
     }
     /// Atomically consume a clean shutdown checkpoint and mark this run open.
     /// Missing checkpoints (including older schemas) fail closed.

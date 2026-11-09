@@ -50,8 +50,8 @@ impl AppCore {
             .execution()?
             .key(kind, &binding, &request)
             .map_err(|error| error.to_string())?;
-        let admit = |commit: &mut dyn FnMut() -> Result<(), String>| {
-            context.with_current_subjects(action, &self.automation, |identities| {
+        let check_current =
+            |identities: &[ExecutionIdentity], commit: &mut dyn FnMut() -> Result<(), String>| {
                 if self.is_shutdown() {
                     return Err("host is shutting down".into());
                 }
@@ -63,11 +63,23 @@ impl AppCore {
                         .map_err(|_| "saved execution subject has expired".to_owned())?;
                 }
                 commit()
-            })
+            };
+        // Preflight retained receipts under the same live authority. The
+        // journal repeats this under its own writer before each commit.
+        context.with_action_admission(self, action, |identities| {
+            check_current(identities, &mut || Ok(()))
+        })?;
+        let admit = |commit: &mut dyn FnMut() -> Result<(), String>| {
+            if context.is_competition_winner() {
+                context.with_competition_journal_admission(self, action, |identities| {
+                    check_current(identities, commit)
+                })
+            } else {
+                context.with_current_subjects(action, &self.automation, |identities| {
+                    check_current(identities, commit)
+                })
+            }
         };
-        // Retained results are still behind live authorization. Looking one up
-        // cannot construct a new ticket, including Unknown/expired outcomes.
-        admit(&mut || Ok(()))?;
         match journal.reserve(key, admit)? {
             EffectAdmission::Retained(receipt) => Ok(ExternalStart::Retained(receipt)),
             EffectAdmission::Fresh(ticket) => ticket.dispatch(admit).map(ExternalStart::Dispatched),
