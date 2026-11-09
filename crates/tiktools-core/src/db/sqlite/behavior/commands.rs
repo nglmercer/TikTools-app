@@ -126,7 +126,11 @@ impl DatabaseManager {
                 AutomationMutation::SetEnabled { enabled, .. } => {
                     let result = set_enabled(tx, kind.table(), id, *enabled, expected)?;
                     if command.authorization.is_some() {
-                        result.map(|_| json!({"id":id,"enabled":enabled}))
+                        if kind == crate::control::AutomationKind::Action {
+                            result.map(|_| json!({"kind":kind,"id":id,"enabled":enabled}))
+                        } else {
+                            result.map(|_| json!({"id":id,"enabled":enabled}))
+                        }
                     } else {
                         result
                     }

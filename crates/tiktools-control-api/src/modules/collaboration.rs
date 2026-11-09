@@ -249,6 +249,10 @@ pub fn register(router: &mut ControlRouter) {
                         "automationEventDeactivate".into(),
                         cfg!(feature = "persistence"),
                     ),
+                    (
+                        "automationActionDeactivate".into(),
+                        cfg!(feature = "persistence"),
+                    ),
                     ("workflowSave".into(), false),
                     ("workflowEnable".into(), false),
                     ("browserApp".into(), false),

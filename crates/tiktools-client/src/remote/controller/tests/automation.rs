@@ -842,6 +842,35 @@ async fn reusable_grant_activates_authored_action_and_event_through_native_contr
             Outcome::Succeeded
         );
     }
+    let page = wait_rows(&controller, |rows| {
+        rows.iter()
+            .any(|r| r["summary"]["kind"] == "action" && r["summary"]["enabled"] == true)
+    })
+    .await;
+    let row = page["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["summary"]["kind"] == "action")
+        .unwrap();
+    let status = controller.status();
+    let hello = status.hello.as_ref().unwrap();
+    assert_eq!(
+        hello.features.get("automationActionDeactivate"),
+        Some(&true)
+    );
+    controller.manage("controller.automation.command", json!({"epoch":status.epoch,"automationRevision":status.automation_revision,"connectionId":hello.connection_id,
+        "hostInstanceId":hello.host_instance_id,"grantRevision":hello.grant_revision,"id":"same",
+        "expectedRevision":row["version"]["revision"],"operation":"disable-action"})).await.unwrap();
+    wait_rows(&controller, |rows| {
+        rows.iter()
+            .any(|r| r["summary"]["kind"] == "action" && r["summary"]["enabled"] == false)
+    })
+    .await;
+    assert_eq!(
+        controller.status().command_journal.as_ref().unwrap().recent[0].outcome,
+        Outcome::Succeeded
+    );
     controller.disconnect().await;
     f.finish().await;
 }

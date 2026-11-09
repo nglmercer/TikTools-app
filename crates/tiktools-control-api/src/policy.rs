@@ -178,11 +178,25 @@ pub(crate) fn automation_result_allowed(
                     })
         }
         "automation.disable" | "automation.delete" => {
-            result.as_object().is_some_and(|o| o.len() == 2)
-                && result
-                    .get("id")
-                    .and_then(serde_json::Value::as_str)
-                    .is_some_and(|id| grant.allows_automation(AutomationFamily::Event, id))
+            let family = if method == "automation.disable"
+                && result.get("kind").and_then(serde_json::Value::as_str) == Some("action")
+            {
+                AutomationFamily::Action
+            } else {
+                AutomationFamily::Event
+            };
+            result.as_object().is_some_and(|o| {
+                if family == AutomationFamily::Action {
+                    o.len() == 3
+                        && o.keys()
+                            .all(|k| matches!(k.as_str(), "kind" | "id" | "enabled"))
+                } else {
+                    o.len() == 2
+                }
+            }) && result
+                .get("id")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|id| grant.allows_automation(family, id))
                 && if method == "automation.disable" {
                     result.get("enabled") == Some(&serde_json::Value::Bool(false))
                 } else {

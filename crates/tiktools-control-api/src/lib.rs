@@ -633,8 +633,7 @@ impl ControlApi {
                             | "automation.create"
                             | "automation.update"
                             | "automation.enable"
-                    ) || (matches!(method, "automation.disable" | "automation.delete")
-                        && scope != "event")
+                    ) || (method == "automation.delete" && scope != "event")
                         || !result.get("result").is_some_and(|v| {
                             policy::automation_result_allowed(&grant, method, v)
                                 && v.get("id") == resource.get("id")
@@ -642,6 +641,12 @@ impl ControlApi {
                                     method,
                                     "automation.create" | "automation.update" | "automation.enable"
                                 ) || v.get("kind").and_then(Value::as_str) == Some(scope))
+                                && (method != "automation.disable"
+                                    || if scope == "action" {
+                                        v.get("kind").and_then(Value::as_str) == Some("action")
+                                    } else {
+                                        scope == "event" && v.get("kind").is_none()
+                                    })
                         })
                         || !result
                             .get("resourceVersions")
@@ -770,10 +775,7 @@ impl ControlApi {
                         || !v.get("id").and_then(Value::as_str).is_some_and(|id| {
                             v.get("scope").and_then(Value::as_str).is_some_and(|scope| {
                                 grant.allows_scoped_resource(kind, scope, id)
-                                    && (!matches!(
-                                        method,
-                                        "automation.disable" | "automation.delete"
-                                    ) || scope == "event")
+                                    && (method != "automation.delete" || scope == "event")
                             })
                         })
                 }) {

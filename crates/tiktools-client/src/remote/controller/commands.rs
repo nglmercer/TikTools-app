@@ -254,6 +254,15 @@ fn validate_success(
             }
             true
         }
+        Operation::DisableAction => {
+            if result.as_object().is_none_or(|o| o.len() != 3)
+                || result.get("kind").and_then(Value::as_str) != Some("action")
+                || result.get("enabled") != Some(&Value::Bool(false))
+            {
+                return Err(protocol());
+            }
+            true
+        }
         Operation::Disable | Operation::DisableEvent => {
             if result.get("enabled") != Some(&Value::Bool(false)) {
                 return Err(protocol());

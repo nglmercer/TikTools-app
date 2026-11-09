@@ -35,6 +35,17 @@ function fixture() {
   return { model, status, calls, setRows: (value: AutomationRow[]) => { rows = value; }, lose: () => { lost = true; } };
 }
 
+it('allows an authorized action to be disabled without asking the host again', async () => {
+  const f = fixture();
+  f.status.hello!.features['automationActionDeactivate'] = true;
+  await f.model.start();
+  const row = f.model.automation.rows.value.find((item) => item.summary.kind === 'action')!;
+  const target = f.model.automation.prepare(row, 'disable-action');
+  expect(target).not.toBeNull();
+  expect(await f.model.automation.change(target!)).toBe(true);
+  expect(f.calls.find((call) => call.method === 'controller.automation.command')?.params?.['operation']).toBe('disable-action');
+});
+
 it('keeps equal family IDs separate and confirms only an event with native-generated durable identity', async () => {
   const f = fixture(); await f.model.start();
   expect(f.model.automation.rows.value.map((r) => r.summary.kind)).toEqual(['event', 'action']);

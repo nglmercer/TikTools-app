@@ -37,11 +37,7 @@ impl AutomationMutation {
             Self::Delete {
                 kind: AutomationKind::Event,
                 ..
-            } | Self::SetEnabled {
-                kind: AutomationKind::Event,
-                enabled: false,
-                ..
-            }
+            } | Self::SetEnabled { enabled: false, .. }
         )
     }
     #[cfg(feature = "persistence")]

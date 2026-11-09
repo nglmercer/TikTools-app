@@ -59,8 +59,16 @@ users must review host state if local storage disappears.
 
 ## Automation events
 
+The board also permits an authorized controller to disable an action. This
+uses the existing `automation.toggle` and family-scoped read grant, a fixed
+`action` target and revision, and the same durable, non-replaying command
+journal and original-outcome recovery. The host advertises the separate
+`automationActionDeactivate` feature; older hosts do not offer the button.
+The client journal advances to version 9 and retains older pending records.
+Already-started effects may still finish.
+
 The **Host automations** board shows closed event/action summaries under the
-current read grant. Actions remain read-only. Choose **Disable event** or
+current read grant. Choose **Disable event** or
 **Delete event** on a complete event. The action is sent once under the already
 approved grant, with the selected host, event and exact base revision. Event,
 connection, identity or grant changes invalidate the target; loss of read access
@@ -77,7 +85,7 @@ without sending the mutation again, including after later owner changes or
 removal of write permission while read/outcome access remains.
 
 The board never creates local host databases, stores source/config or opens an
-owner definition. Its read-only action rows may share raw IDs with events while
+owner definition. Its action rows may share raw IDs with events while
 remaining separate resources. The separate **Automation proposals** editor below
 uses only explicitly retained author text. Owner adoption, activation and
 delegated execution remain outside the remote controller boundary.
