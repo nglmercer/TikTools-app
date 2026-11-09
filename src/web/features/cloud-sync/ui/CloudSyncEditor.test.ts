@@ -1,8 +1,9 @@
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import type { AccountStatus } from '@/entities/cloud-account/api/account-types.ts';
+import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import type { SyncStatus } from '@/entities/cloud-sync/api/sync-types.ts';
-import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
+import { createFakeControlClient, createStoreHarness, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudSyncEditor from './CloudSyncEditor.vue';
 
@@ -100,5 +101,32 @@ describe('CloudSyncEditor', () => {
     expect(wrapper.text()).toContain('The recovery response was invalid.');
     expect(wrapper.text()).not.toContain('Original base');
     expect(wrapper.text()).not.toContain('Use cloud');
+  });
+
+  it('discards a late recovery review when the same account signs in again', async () => {
+    let resolveReview!: (value: unknown) => void;
+    const pending = new Promise((resolve) => { resolveReview = resolve; });
+    const { client } = createFakeControlClient((method) => {
+      if (method === 'cloud.status') return account();
+      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.uncertain.list') return ['acme.plugin'];
+      if (method === 'sync.uncertain.review') return pending;
+      throw new Error(`unexpected ${method}`);
+    });
+    const stores = createStoreHarness(client);
+    const cloudAccount = stores.use(() => useAccountStore());
+    const wrapper = mountWithPlugins(CloudSyncEditor, { global: { plugins: stores.plugins } });
+    await flushPromises();
+    await wrapper.findAll('button').find((item) => item.text() === 'Review')!.trigger('click');
+    cloudAccount.working = true;
+    cloudAccount.status = account({ state: 'signed-out', accountId: null });
+    cloudAccount.status = account();
+    cloudAccount.working = false;
+    const selection = { state: 'selected', version: '1.0.0', enabled: true };
+    resolveReview({ handle: 'a'.repeat(64), key: 'acme.plugin', base: selection, original: selection, local: selection, cloud: selection });
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Original base');
+    expect(wrapper.text()).not.toContain('Use cloud');
+    wrapper.unmount();
   });
 });

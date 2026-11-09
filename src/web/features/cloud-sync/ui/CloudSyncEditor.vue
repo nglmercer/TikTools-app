@@ -94,7 +94,7 @@ async function resolveUncertain(choice: 'keepLocal' | 'takeCloud' | 'takeCloudIn
   } finally { if (generation === requestGeneration) recoveryBusy.value = false; }
 }
 
-const signedIn = computed(() => account.status?.state === 'signed-in');
+const signedIn = computed(() => account.status?.state === 'signed-in' && !account.working && !account.loading);
 const status = computed(() => sync.status);
 const conflicts = computed(() => sync.status?.conflicts ?? []);
 const enabled = computed({
@@ -109,10 +109,10 @@ const lastSynced = computed(() => {
   return new Date(at * 1000).toLocaleString();
 });
 
-watch(() => [account.status?.state, account.status?.accountId, account.status?.origin, enabled.value], () => {
+watch(() => [account.status, account.working, account.loading, enabled.value], () => {
   requestGeneration += 1; uncertain.value = []; review.value = null; recoveryError.value = ''; recoveryBusy.value = false; newerNeedsReview.value = false;
   void refreshUncertain();
-});
+}, { flush: 'sync' });
 watch(() => sync.working, (working, previous) => { if (previous && !working) void refreshUncertain(); });
 onUnmounted(() => { requestGeneration += 1; });
 
