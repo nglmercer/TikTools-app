@@ -187,6 +187,17 @@ and activates them, and the automation engine processes a synthetic chat
 event. Removing the moderator's LIVE-read grant prevents a further successful
 execution. This does not use a real TikTok event or two physical computers.
 
+An isolated stream-hub test now exercises two independent principals while one
+never acknowledges delivery. After its backlog exceeds the 4,096-event limit,
+only that stream requires a new snapshot: the other receives 4,098 ordered
+revisions, continues without reconnecting, and neither stream exceeds its
+bounded retention. A fresh snapshot permits the stalled principal to resume
+receiving changes without exposing another principal's command IDs. A separate
+loopback TLS test stops reading one client while the Owner commits 24 workflow
+changes; a second client receives all 24 revisions and remains able to read.
+The TLS test does not fill the OS socket buffer and neither test measures LIVE
+latency or establishes the complete COL-18 load or physical two-PC acceptance.
+
 ## Atomic Owner library transitions — latest extension
 
 The eight closed `automation.library.submit` operations cover profile creation,

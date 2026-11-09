@@ -322,6 +322,79 @@ async fn independent_controllers_receive_scoped_changes_and_revocation_over_tls(
 }
 
 #[tokio::test]
+async fn unread_controller_does_not_stop_owner_mutations_or_active_tls_controller() {
+    use tiktools_collaboration::{Capability, ResourceKind};
+    let _env = ENV.lock().await;
+    let fixture = Fixture::new(true).await;
+    fixture
+        .core
+        .workflow_save(json!({"id":"shared","name":"Shared","enabled":true}))
+        .unwrap();
+    audit_revision(&fixture, "shared", "1").await;
+    let grant = Grant {
+        capabilities: [Capability::WorkflowsRead].into(),
+        resources: [(ResourceKind::Workflow, ["shared".into()].into())].into(),
+        ..Grant::default()
+    };
+    let paused = fixture.native(grant.clone()).await;
+    let active = fixture.native(grant).await;
+    assert_ne!(paused.principal_id, active.principal_id);
+    let mut stalled_socket = fixture.socket(&paused.access_token).await;
+    let mut active_socket = fixture.socket(&active.access_token).await;
+    fixture.hello(&mut stalled_socket).await;
+    fixture.hello(&mut active_socket).await;
+    for socket in [&mut stalled_socket, &mut active_socket] {
+        let subscription = rpc(
+            socket,
+            2,
+            "collaboration.subscribe",
+            json!({"domains":["workflows"]}),
+        )
+        .await;
+        let id = subscription["result"]["subscriptionId"].clone();
+        assert!(id.is_string(), "{subscription}");
+        let snapshot = rpc(
+            socket,
+            3,
+            "collaboration.snapshot",
+            json!({"subscriptionId":id}),
+        )
+        .await;
+        assert_eq!(snapshot["result"]["workflows"][0]["id"], "shared");
+        assert_eq!(snapshot["result"]["throughSequence"], "0");
+    }
+
+    // Deliberately stop reading the first TLS socket. The owner continues
+    // committing changes while the other principal consumes every event.
+    for n in 1..=24_u64 {
+        fixture
+            .core
+            .workflow_set_enabled("shared", n % 2 == 0)
+            .unwrap();
+        let event = stream_event(&mut active_socket).await;
+        assert_eq!(event["resource"]["id"], "shared");
+        assert_eq!(event["resource"]["revision"], (n + 1).to_string());
+        assert_eq!(event["sequence"], n.to_string());
+        assert!(event.get("commandId").is_none());
+    }
+    assert_eq!(
+        fixture.core.workflow_get("shared").unwrap()["enabled"],
+        true
+    );
+    let read = rpc(
+        &mut active_socket,
+        4,
+        "workflows.get",
+        json!({"id":"shared"}),
+    )
+    .await;
+    assert_eq!(read["result"]["id"], "shared", "{read}");
+    drop(stalled_socket);
+    active_socket.close(None).await.unwrap();
+    fixture.finish().await;
+}
+
+#[tokio::test]
 async fn small_frame_snapshot_pages_remain_immutable_and_incomplete_disconnect_requires_resync() {
     let _env = ENV.lock().await;
     let fixture = Fixture::configured(true, |c| {

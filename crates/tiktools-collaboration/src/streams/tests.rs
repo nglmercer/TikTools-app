@@ -568,6 +568,58 @@ fn unsent_count_and_byte_overflow_break_the_stream_without_blocking_publication(
         assert!(stream.events.is_empty());
     }
 }
+
+#[test]
+fn stalled_stream_overflow_does_not_block_another_principal_or_its_recovery() {
+    let hub = StreamHub::default();
+    let stalled = identity();
+    let mut active = identity();
+    active.principal_id = "active-moderator".into();
+    active.session_id = "device-b".into();
+    let stalled_sub = ready(&hub, &stalled, "stalled");
+    let active_sub = ready(&hub, &active, "active");
+
+    // The stalled client never acknowledges a send. The active client
+    // consumes the same committed invalidations without gaps or leaked IDs.
+    for n in 1..=STREAM_EVENTS as u64 + 2 {
+        hub.publish(&changed("welcome", n)).unwrap();
+        let event = hub.next(&active, "active").unwrap().unwrap();
+        assert_eq!(event.sequence, n.to_string());
+        assert_eq!(event.resource.revision, n.to_string());
+        assert!(event.command_id.is_none());
+        hub.sent(&active, "active", &event).unwrap();
+    }
+    assert!(matches!(
+        hub.next(&stalled, "stalled"),
+        Err(Error::ResyncRequired)
+    ));
+    {
+        let state = hub.state.lock().unwrap();
+        let slow = &state.streams[&stalled_sub.subscription_id];
+        let fast = &state.streams[&active_sub.subscription_id];
+        assert!(slow.broken);
+        assert_eq!(slow.bytes, 0);
+        assert!(slow.events.is_empty());
+        assert!(!fast.broken);
+        assert!(fast.bytes <= STREAM_BYTES);
+        assert!(fast.events.len() <= STREAM_EVENTS);
+    }
+
+    // A fresh snapshot restores only the stalled client; the active stream
+    // keeps its sequence and does not need to reconnect.
+    let replacement = ready(&hub, &stalled, "stalled");
+    assert_ne!(replacement.subscription_id, stalled_sub.subscription_id);
+    let next_revision = STREAM_EVENTS as u64 + 3;
+    hub.publish(&changed("welcome", next_revision)).unwrap();
+    let fast = hub.next(&active, "active").unwrap().unwrap();
+    assert_eq!(fast.sequence, next_revision.to_string());
+    assert_eq!(fast.subscription_id, active_sub.subscription_id);
+    hub.sent(&active, "active", &fast).unwrap();
+    let recovered = hub.next(&stalled, "stalled").unwrap().unwrap();
+    assert_eq!(recovered.sequence, "1");
+    assert_eq!(recovered.resource.revision, next_revision.to_string());
+    assert!(recovered.command_id.is_none());
+}
 #[test]
 fn delivered_history_rolls_forward_but_old_reconnect_cursors_require_a_snapshot() {
     let hub = StreamHub::default();
