@@ -1,3 +1,5 @@
+> Historical gallery. The latest settings and OBS-like connections screenshots are in [settings-obs](../settings-obs/README.md).
+
 # Capturas actuales de configuración — PR #62
 
 Capturadas el 2026-11-09 desde el código **162fd6533f0d76a50c75e7a3a7ff5129134f8f37**, con frontend de producción y host nativo recompilados desde ese mismo commit. El commit que añade esta galería solo cambia documentación e imágenes.
