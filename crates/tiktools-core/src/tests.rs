@@ -1346,6 +1346,8 @@ struct FakePluginState {
     event_calls: Mutex<Vec<Value>>,
     event_delay_ms: AtomicU64,
     fail_next_event: AtomicBool,
+    fail_next_load: AtomicBool,
+    on_load: Mutex<Option<Box<dyn FnOnce() + Send>>>,
     loads: AtomicU64,
 }
 
@@ -1364,6 +1366,22 @@ impl PluginRuntime for FakeRuntime {
         _directory: &std::path::Path,
     ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
         self.state.loads.fetch_add(1, AtomicOrdering::SeqCst);
+        if self
+            .state
+            .fail_next_load
+            .swap(false, AtomicOrdering::SeqCst)
+        {
+            return Err(PluginLoaderError::Runtime("fake load failure".to_owned()));
+        }
+        let hook = self
+            .state
+            .on_load
+            .lock()
+            .expect("fake load hook poisoned")
+            .take();
+        if let Some(hook) = hook {
+            hook();
+        }
         Ok(Box::new(FakeInstance {
             id: manifest.id.clone(),
             state: Arc::clone(&self.state),
@@ -2854,6 +2872,171 @@ async fn cloud_sync_uncertain_resolution_is_unavailable_without_durable_source_f
         assert_eq!(error.code, "unavailable");
     }
     core.shutdown().await;
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[tokio::test]
+async fn durable_local_enable_requires_runtime_success_before_outbox_confirmation() {
+    use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
+
+    let runtime = Arc::new(FakePluginState::default());
+    let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
+    let paths = core.db.paths().clone();
+    let sidecar = paths.data.join("durable-account.json");
+    std::fs::write(
+        &sidecar,
+        br#"{"origin":"https://cloud.example","account_id":"alice"}"#,
+    )
+    .unwrap();
+    let auth = CloudAuth::new(
+        Some("https://cloud.example".into()),
+        sidecar,
+        Arc::new(MemoryTokenStore::new()),
+    );
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    core.sync_set_enabled(true).unwrap();
+
+    core.plugin_set_enabled_with_durable_intent("acme.hotkeys", false)
+        .unwrap();
+    let disabled = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert_eq!(disabled.enabled, Some(false));
+    assert_eq!(disabled.generation, disabled.source_generation);
+    assert_eq!(
+        disabled.runtime_epoch.as_deref(),
+        Some(core.sync.runtime_epoch().unwrap())
+    );
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+
+    // The source and new intent are durable even if runtime startup fails;
+    // neither the old confirmation nor the failed attempt may authorize upload.
+    runtime.fail_next_load.store(true, AtomicOrdering::SeqCst);
+    assert!(core
+        .plugin_set_enabled_with_durable_intent("acme.hotkeys", true)
+        .is_err());
+    let failed = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert!(failed.generation > disabled.generation);
+    assert_eq!(failed.enabled, Some(true));
+    assert!(failed.runtime_epoch.is_none());
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    assert!(!core
+        .db
+        .acknowledge_plugin_sync_intent(&failed, core.sync.runtime_epoch().unwrap())
+        .unwrap());
+
+    // Explicitly retrying the local action records a new source generation;
+    // only the successful runtime observation can confirm that candidate.
+    core.plugin_set_enabled_with_durable_intent("acme.hotkeys", true)
+        .unwrap();
+    let retried = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert!(retried.generation > failed.generation);
+    assert_eq!(
+        retried.runtime_epoch.as_deref(),
+        Some(core.sync.runtime_epoch().unwrap())
+    );
+    assert!(core.plugins.get("acme.hotkeys").unwrap().running);
+
+    // Opt-out preserves the old account's pending record but a later
+    // local-only action advances the source, making that record stale.
+    core.sync_set_enabled(false).unwrap();
+    core.plugin_set_enabled_with_durable_intent("acme.hotkeys", false)
+        .unwrap();
+    let retained = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert_eq!(retained.generation, retried.generation);
+    assert_ne!(retained.generation, retained.source_generation);
+    assert_eq!(retained.enabled, Some(true));
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[tokio::test]
+async fn durable_local_enable_does_not_confirm_a_newer_concurrent_source() {
+    use crate::cloud_sync::product_outbox::SqliteProductOutbox;
+    use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
+    use tiktools_cloud_sync::{V1LocalEditContext, V1ProductOutbox};
+
+    let runtime = Arc::new(FakePluginState::default());
+    let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
+    let paths = core.db.paths().clone();
+    let sidecar = paths.data.join("durable-account.json");
+    std::fs::write(
+        &sidecar,
+        br#"{"origin":"https://cloud.example","account_id":"alice"}"#,
+    )
+    .unwrap();
+    let auth = CloudAuth::new(
+        Some("https://cloud.example".into()),
+        sidecar,
+        Arc::new(MemoryTokenStore::new()),
+    );
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    core.sync_set_enabled(true).unwrap();
+    core.plugin_set_enabled_with_durable_intent("acme.hotkeys", false)
+        .unwrap();
+
+    // Model a separate writer updating persisted source after the durable
+    // reservation, just as the plugin's runtime is being started.
+    let db = Arc::clone(&core.db);
+    *runtime.on_load.lock().unwrap() = Some(Box::new(move || {
+        db.set_plugin_state("acme.hotkeys", true, false).unwrap();
+    }));
+    let mut events = core.events.subscribe_domain();
+    let error = core
+        .plugin_set_enabled_with_durable_intent("acme.hotkeys", true)
+        .unwrap_err();
+    assert_eq!(error.code, "conflict");
+
+    let retained = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert_eq!(retained.enabled, Some(true));
+    assert_ne!(retained.generation, retained.source_generation);
+    assert!(retained.runtime_epoch.is_none());
+    assert!(!core
+        .db
+        .acknowledge_plugin_sync_intent(&retained, core.sync.runtime_epoch().unwrap())
+        .unwrap());
+    let context = V1LocalEditContext {
+        origin: retained.origin.clone(),
+        account_id: retained.account_id.clone(),
+        config_generation: retained.config_generation,
+    };
+    let mut outbox = SqliteProductOutbox::new(&core.db, core.sync.runtime_epoch().unwrap());
+    assert!(outbox.next(&context).is_err());
+
+    // A completed runtime effect is observable even though a different
+    // writer has already recorded a newer desired state. This discrepancy
+    // requires reconciliation before the path can be enabled in product.
+    let shown = core.plugin_get("acme.hotkeys").unwrap();
+    assert_eq!(shown["running"], true);
+    assert_eq!(shown["enabled"], false);
+    assert!(matches!(
+        events.try_recv().unwrap(),
+        crate::events::DomainEvent::PluginStarted { plugin_id } if plugin_id == "acme.hotkeys"
+    ));
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
 }
 
 #[cfg(all(feature = "cloud-auth", feature = "persistence"))]

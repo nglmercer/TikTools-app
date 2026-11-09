@@ -10,6 +10,7 @@ use serde::Serialize;
 /// the product lifecycle: a v1 network drain must share its admission lease
 /// and check the outbox before legacy staging can safely be removed.
 #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[derive(Debug)]
 struct ReservedLocalPluginMutation {
     candidate: Option<crate::db::PluginSyncOutboxEntry>,
 }
@@ -28,7 +29,25 @@ fn reserve_local_plugin_mutation(
     installed: bool,
     enabled: bool,
 ) -> Result<ReservedLocalPluginMutation, OperationError> {
+    reserve_local_plugin_mutation_prepared(sync, db, id, version, installed, enabled, |_| Ok(()))
+        .map(|(reservation, ())| reservation)
+}
+
+/// Prepare runtime confirmation while the exact opt-in/identity context is
+/// held, before the SQLite source transaction. Local-only edits need no
+/// runtime sync identity or entropy.
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+fn reserve_local_plugin_mutation_prepared<T>(
+    sync: &tiktools_cloud_sync::SyncCoordinator,
+    db: &crate::db::DatabaseManager,
+    id: &str,
+    version: &str,
+    installed: bool,
+    enabled: bool,
+    prepare: impl FnOnce(bool) -> Result<T, OperationError>,
+) -> Result<(ReservedLocalPluginMutation, T), OperationError> {
     sync.with_v1_local_edit(|context| {
+        let prepared = prepare(context.is_some())?;
         let intent = context
             .as_ref()
             .map(|context| crate::db::LocalPluginSyncIntent {
@@ -51,7 +70,7 @@ fn reserve_local_plugin_mutation(
             version: installed.then(|| version.to_owned()),
             enabled: installed.then_some(enabled),
         });
-        Ok(ReservedLocalPluginMutation { candidate })
+        Ok((ReservedLocalPluginMutation { candidate }, prepared))
     })
     .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))?
 }
@@ -181,6 +200,53 @@ mod durable_local_mutation_tests {
                 .unwrap()
                 .unwrap();
         assert_ne!(old.generation, old.source_generation);
+    }
+
+    #[test]
+    fn runtime_identity_is_needed_only_for_an_opted_in_candidate() {
+        let f = Fixture::new();
+        let (local, value) = reserve_local_plugin_mutation_prepared(
+            &f.sync,
+            &f.db,
+            "acme.local",
+            "1.0.0",
+            true,
+            false,
+            |has_candidate| {
+                assert!(!has_candidate);
+                Ok("local-only")
+            },
+        )
+        .unwrap();
+        assert!(local.candidate.is_none());
+        assert_eq!(value, "local-only");
+
+        f.sync.set_enabled(true).unwrap();
+        let error = reserve_local_plugin_mutation_prepared(
+            &f.sync,
+            &f.db,
+            "acme.blocked",
+            "1.0.0",
+            true,
+            true,
+            |has_candidate| {
+                assert!(has_candidate);
+                Err::<(), _>(OperationError::unavailable("no runtime identity"))
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "unavailable");
+        assert!(f
+            .db
+            .next_plugin_sync_intent("https://cloud.example", "alice")
+            .unwrap()
+            .is_none());
+        let snapshot = f.db.load_behavior_snapshot().unwrap();
+        assert!(!snapshot["plugins"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|plugin| plugin["id"] == "acme.blocked"));
     }
 
     #[test]
@@ -338,6 +404,80 @@ fn is_confined_ui_entry(entry: &str) -> bool {
 }
 
 impl AppCore {
+    /// Candidate product path for a local enable/disable. It is intentionally
+    /// not selected by `plugin_set_enabled` yet: package mutations, restart
+    /// reconciliation, outbox draining and the legacy-writer fence must be
+    /// switched together. The invocation gate spans the source transaction,
+    /// runtime effect and confirmation, while the coordinator holds its
+    /// shorter admission/identity lease only for the SQLite transaction.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn plugin_set_enabled_with_durable_intent(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<(), OperationError> {
+        let invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
+        let plugin = self.require_discovered(id)?;
+        let id = plugin.manifest.id.clone();
+        if self.plugin_apply_quarantined(&id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
+        let sync = self
+            .sync
+            .coordinator()
+            .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))?;
+        // Only an opted-in identity needs entropy, acquired before any source
+        // write; local-only editing must not depend on a Cloud runtime epoch.
+        let (reservation, runtime_epoch) = reserve_local_plugin_mutation_prepared(
+            sync,
+            &self.db,
+            &id,
+            &plugin.manifest.version,
+            true,
+            enabled,
+            |has_candidate| {
+                if has_candidate {
+                    self.sync.runtime_epoch().map(Some).map_err(|_| {
+                        OperationError::unavailable("plugin runtime identity is unavailable")
+                    })
+                } else {
+                    Ok(None)
+                }
+            },
+        )?;
+
+        // A failed or interrupted start/stop keeps the committed candidate
+        // unconfirmed; it must be reconciled rather than uploaded or replayed.
+        if enabled {
+            self.plugins.start(&id)?;
+        } else {
+            self.plugins.stop(&id)?;
+        }
+        self.set_plugin_activation(&id, true, enabled);
+        let confirmation = match runtime_epoch {
+            Some(epoch) => confirm_local_plugin_mutation(&self.db, &reservation, epoch),
+            None => Ok(()),
+        };
+        drop(invocation);
+
+        // Even when confirmation fails, the local effect already happened.
+        // Refresh local projections before returning that failure to callers.
+        self.rebuild_processor_index();
+        self.refresh_automation_snapshot();
+        self.events.publish_domain(if enabled {
+            DomainEvent::PluginStarted { plugin_id: id }
+        } else {
+            DomainEvent::PluginStopped { plugin_id: id }
+        });
+        confirmation
+    }
+
     // ------------------------------------------------------------------
     // Plugins.
     // ------------------------------------------------------------------
