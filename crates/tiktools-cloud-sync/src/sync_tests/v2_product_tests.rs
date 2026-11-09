@@ -1,6 +1,53 @@
 use super::*;
 
 #[tokio::test]
+async fn interrupted_completed_cutover_scopes_consent_without_reenabling_opt_out() {
+    struct EmptySource;
+    impl crate::CutoverSource for EmptySource {
+        fn with_guarded_source<T>(
+            &self,
+            operation: impl FnOnce(
+                &[PluginSelection],
+                &[crate::V1CutoverReceipt],
+            ) -> Result<T, SyncCoordError>,
+        ) -> Result<T, SyncCoordError> {
+            operation(&[], &[])
+        }
+    }
+    for disabled in [false, true] {
+        let dir = TempDir::new("v2-finish-scope-recovery");
+        let mock = MockSync::start("scope-user").await;
+        let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+        login(&auth, "scope-login").await;
+        let session = auth.session().await.unwrap();
+        let lease = sync.protocol.try_cutover().unwrap();
+        lease
+            .require_product_outbox(&mock.origin, "scope-user")
+            .unwrap();
+        drop(lease);
+        let review = sync
+            .guarded_marked_cutover_review(&session, &[], &[])
+            .unwrap();
+        sync.execute_cutover_with_source(&review, &EmptySource)
+            .unwrap();
+        assert!(sync.capture_v2_config_epoch(&session).is_none());
+        if disabled {
+            sync.set_enabled(false).unwrap();
+        }
+        let result = sync.complete_interrupted_v2_scope(&session);
+        if disabled {
+            assert!(result.is_err());
+            assert!(!sync.is_enabled());
+        } else {
+            result.unwrap();
+            assert!(sync.capture_v2_config_epoch(&session).is_some());
+            assert!(sync.complete_interrupted_v2_scope(&session).is_err());
+        }
+        mock.stop();
+    }
+}
+
+#[tokio::test]
 async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and_session() {
     let dir = TempDir::new("v2-reconcile-barrier");
     let mock = MockSync::start("reconcile-user").await;

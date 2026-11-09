@@ -2645,10 +2645,25 @@ async fn marked_cutover_binds_receipts_and_resumes_as_conflicts_after_restart() 
     };
     assert_eq!(
         restarted
-            .execute_cutover_with_source(&review, &checked)
+            .execute_cutover_and_scope_consent_with_source(&review, &checked)
             .unwrap(),
         CutoverExecution::Completed
     );
+    assert!(restarted.capture_v2_config_epoch(&session).is_some());
+    let scoped_generation = restarted.read_config().generation;
+    assert_eq!(
+        restarted
+            .execute_cutover_and_scope_consent_with_source(&review, &checked)
+            .unwrap(),
+        CutoverExecution::AlreadyCompleted
+    );
+    assert_eq!(restarted.read_config().generation, scoped_generation);
+    assert!(matches!(
+        restarted
+            .with_product_local_edit(|context| context)
+            .unwrap(),
+        crate::ProductLocalEditContext::V2(Some(_))
+    ));
     let workspace = crate::WorkspaceCoordinator::open(
         dir.join("a-sync"),
         mock.origin.clone(),

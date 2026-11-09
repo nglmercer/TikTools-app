@@ -208,6 +208,10 @@ impl ResumeProtocolRecord {
     pub(crate) fn is_preparing(&self) -> bool {
         self.0.mode == ProtocolMode::Preparing
     }
+
+    pub(crate) fn is_marked(&self) -> bool {
+        self.0.format_version == 3
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]

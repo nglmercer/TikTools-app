@@ -34,6 +34,60 @@ fn same_workspace(a: &Option<WorkspaceStateSnapshot>, b: &Option<WorkspaceStateS
 }
 
 impl SyncCoordinator {
+    /// Recover the narrow crash window after a marked cutover was committed
+    /// but its original enabled v1 preference was not yet scoped to v2.
+    /// The caller must have the user's one-time migration consent; this never
+    /// re-enables a disabled preference or alters pending workspace records.
+    #[doc(hidden)]
+    pub fn complete_interrupted_v2_scope(
+        &self,
+        session: &Arc<Session>,
+    ) -> Result<(), SyncCoordError> {
+        let lease = self.protocol.try_cutover()?;
+        self.auth
+            .with_current_session_permit(session, || {
+                let config = self.read_staging_config()?;
+                if !config.enabled
+                    || config.version != 1
+                    || config.scope.is_some()
+                    || !config.allows_session(session)
+                {
+                    return Err(SyncCoordError::StaleReview);
+                }
+                let origin = session.instance_origin();
+                let account = session.account_id();
+                let record = lease.resume_record(&origin, account)?;
+                if record.is_preparing() || !record.is_marked() {
+                    return Err(SyncCoordError::StaleReview);
+                }
+                let root = self
+                    .config_path
+                    .parent()
+                    .ok_or_else(|| SyncCoordError::Io("invalid config directory".into()))?;
+                let store = WorkspaceStore::open(root, &origin, account)?;
+                let _operation = store
+                    .try_operation_lock()?
+                    .ok_or(crate::ProtocolFenceError::Busy)?;
+                store
+                    .try_with_locked_snapshot(|snapshot| {
+                        if snapshot.as_ref().is_none_or(|snapshot| {
+                            !snapshot.state.bootstrap_complete
+                                || !snapshot.state.is_product_guarded()
+                        }) {
+                            return Err(SyncCoordError::StaleReview);
+                        }
+                        self.write_new_consent(
+                            true,
+                            config.generation,
+                            Some(crate::consent_scope(&origin, account)),
+                        )
+                    })?
+                    .ok_or(crate::ProtocolFenceError::Busy)?;
+                Ok(())
+            })
+            .map_err(|_| SyncCoordError::StaleReview)?
+    }
+
     fn read_disabled_consent_for_review(&self) -> Result<SyncConfig, SyncCoordError> {
         if !self.consent_marker_present()? {
             return Err(SyncCoordError::StaleReview);

@@ -169,6 +169,26 @@ impl SyncCoordinator {
         })
     }
 
+    /// Complete a marked cutover and scope the existing opt-in to its exact
+    /// account while the same source, protocol and session fences still hold.
+    /// The caller must have obtained the user's one-time migration consent.
+    #[doc(hidden)]
+    pub fn execute_cutover_and_scope_consent_with_source<S: CutoverSource>(
+        &self,
+        review: &GuardedCutoverReview,
+        source: &S,
+    ) -> Result<CutoverExecution, SyncCoordError> {
+        if !review.preview.is_marked() {
+            return Err(SyncCoordError::StaleReview);
+        }
+        source.with_guarded_source(|selections, receipts| {
+            if review.preview.receipts().unwrap_or_default() != receipts {
+                return Err(SyncCoordError::StaleReview);
+            }
+            self.execute_guarded_cutover_inner(review, selections, || Ok(()), || Ok(()), true)
+        })
+    }
+
     /// Commit reviewed migration under an exclusive cross-process protocol
     /// lease and this manager's session gate. `selections` must have been
     /// freshly captured and remain fenced by the caller throughout this call;
@@ -190,15 +210,55 @@ impl SyncCoordinator {
         after_prepare: impl FnOnce() -> Result<(), SyncCoordError>,
         after_bootstrap: impl FnOnce() -> Result<(), SyncCoordError>,
     ) -> Result<CutoverExecution, SyncCoordError> {
+        self.execute_guarded_cutover_inner(
+            review,
+            selections,
+            after_prepare,
+            after_bootstrap,
+            false,
+        )
+    }
+
+    fn execute_guarded_cutover_inner(
+        &self,
+        review: &GuardedCutoverReview,
+        selections: &[PluginSelection],
+        after_prepare: impl FnOnce() -> Result<(), SyncCoordError>,
+        after_bootstrap: impl FnOnce() -> Result<(), SyncCoordError>,
+        scope_consent: bool,
+    ) -> Result<CutoverExecution, SyncCoordError> {
+        if !Arc::ptr_eq(&review.consent.binding, &self.recovery_binding) {
+            return Err(SyncCoordError::StaleReview);
+        }
         let lease = self.protocol.try_cutover()?;
         self.auth
             .with_current_session_permit(&review.session, || {
                 if !self.is_config_epoch_current(&review.consent, &review.session) {
+                    let config = self.read_staging_config()?;
+                    if scope_consent
+                        && config.version == 2
+                        && config.enabled
+                        && config.allows_session(&review.session)
+                        && lease.completed_matching(
+                            &review.preview,
+                            &review.session.instance_origin(),
+                            review.session.account_id(),
+                        )?
+                    {
+                        return Ok(CutoverExecution::AlreadyCompleted);
+                    }
                     return Err(SyncCoordError::StaleReview);
                 }
                 let origin = review.session.instance_origin();
                 let account = review.session.account_id();
                 if lease.completed_matching(&review.preview, &origin, account)? {
+                    if scope_consent {
+                        self.write_new_consent(
+                            true,
+                            review.consent.config.generation,
+                            Some(crate::consent_scope(&origin, account)),
+                        )?;
+                    }
                     return Ok(CutoverExecution::AlreadyCompleted);
                 }
                 let root = self
@@ -235,6 +295,13 @@ impl SyncCoordinator {
                 }
                 after_bootstrap()?;
                 lease.finish(&review.preview, &origin, account)?;
+                if scope_consent {
+                    self.write_new_consent(
+                        true,
+                        review.consent.config.generation,
+                        Some(crate::consent_scope(&origin, account)),
+                    )?;
+                }
                 Ok(CutoverExecution::Completed)
             })
             .map_err(|_| SyncCoordError::StaleReview)?

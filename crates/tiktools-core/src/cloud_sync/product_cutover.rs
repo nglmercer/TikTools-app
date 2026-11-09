@@ -346,7 +346,7 @@ impl AppCore {
             account: review.session.account_id(),
         };
         coordinator
-            .execute_cutover_with_source(&review.review, &source)
+            .execute_cutover_and_scope_consent_with_source(&review.review, &source)
             .map_err(|_| unavailable())
     }
 }

@@ -18,6 +18,12 @@ start or stop. After a v2 network pass, the product now schedules bounded
 application and recovery attempts for eligible installed plugin selections;
 unresolved runtime mismatches and bounded history compaction remain pending.
 
+The marked native cutover can select v2 and scope the existing opt-in to the
+same account under one source, session and protocol boundary. If persistence
+is interrupted between those steps, a native completion checks the durable
+workspace and never re-enables an opted-out setting. This is not yet connected
+to the migration controls.
+
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
 library delivery e6728c9. The reviewed backend commit is RemakeBackend 952e512,
 including stored-record validation, retained-feed gap detection, byte-ordered v1 snapshot pagination, SDK pull counts, canonical shards
