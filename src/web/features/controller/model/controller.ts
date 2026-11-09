@@ -267,17 +267,20 @@ export function createControllerModel(control: ControlClient) {
     const journal = status.value.commandJournal;
     return canReview.value && target.epoch === status.value.epoch && target.commandId === journal?.pending?.commandId && target.binding === JSON.stringify(journal?.binding);
   }
-  async function commandCall(method: string, params: Record<string, unknown>): Promise<boolean> {
-    if (commandSending.value || stopped) return false;
+  async function commandCallResult(method: string, params: Record<string, unknown>): Promise<{ accepted: boolean; value?: unknown }> {
+    if (commandSending.value || stopped) return { accepted: false };
     const generation = selection;
     commandSending.value = true; error.value = '';
     let failureMessage = '';
-    try { await control.call(method, params); return true; }
-    catch (failure) { failureMessage = failure instanceof Error ? failure.message : 'Command outcome not confirmed'; return false; }
+    try { const value = await control.call(method, params); return { accepted: true, value }; }
+    catch (failure) { failureMessage = failure instanceof Error ? failure.message : 'Command outcome not confirmed'; return { accepted: false }; }
     finally {
       if (!stopped && generation === selection) { await refresh(); if (failureMessage && generation === selection) error.value = failureMessage; }
       commandSending.value = false;
     }
+  }
+  async function commandCall(method: string, params: Record<string, unknown>): Promise<boolean> {
+    return (await commandCallResult(method, params)).accepted;
   }
   async function changeWorkflow(target: CommandTarget): Promise<boolean> {
     if (!commandIsCurrent(target)) return false;
@@ -329,7 +332,10 @@ export function createControllerModel(control: ControlClient) {
   }
   const draftStorage = createDraftPersistence(control, { status, ready, scope, generation: () => selection, stopped: () => stopped, read: draft, put: putDraft, drop: dropDraft });
   const automation = createAutomationModel(control, { status, generation: () => selection, stopped: () => stopped, retry: () => { dirty = true; }, blocked: () => commandBlocked.value, journalMatches, send: commandCall });
-  const proposals = createProposalModel(control, { status, blocked: () => commandBlocked.value, journalMatches, send: commandCall });
+  const proposals = createProposalModel(control, { status, blocked: () => commandBlocked.value, journalMatches, send: async (method, params) => {
+    const result = await commandCallResult(method, params);
+    return result.accepted ? { journal: result.value } : false;
+  } });
   const live = createLiveStatusModel(control, { status, generation: () => selection, stopped: () => stopped });
   const liveFeed = createLiveFeedModel(control, { status, generation: () => selection, stopped: () => stopped });
   const competitions = createCompetitionModel(control, { status, generation: () => selection, stopped: () => stopped, blocked: () => commandBlocked.value, journalMatches, send: commandCall });

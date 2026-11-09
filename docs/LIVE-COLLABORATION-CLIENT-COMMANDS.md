@@ -133,7 +133,11 @@ revision is shown for an explicit base choice, never silently overwritten.
 Before dispatch it rechecks the saved text,
 inspection, connection and permissions. A changed context or failed save stops
 the send. A successful submission requires a fresh inspection before another
-send. Existing Owner/foreign records remain protected by host policy.
+send. After a directly confirmed submission, the editor advances the base for
+the next edit only when the returned native journal binds the exact proposal,
+account, host and previous revision. A later recovered or unrelated outcome
+does not advance the editor. Existing Owner/foreign records remain protected by
+host policy.
 
 Private `<profile UUID>.proposals` storage is independent of workflow drafts.
 It binds profile, HTTPS origin, host, principal and session; family-qualified

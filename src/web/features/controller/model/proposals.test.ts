@@ -20,7 +20,7 @@ function fixture() {
     throw new Error(method);
   });
   let blocked = false;
-  const send = vi.fn(async () => true);
+  const send = vi.fn(async (): Promise<boolean | { journal: unknown }> => true);
   const model = createProposalModel(client, { status, blocked: () => blocked, journalMatches: () => true, send }); models.push(model);
   return { model, status, calls, send, identity, block: () => { blocked = true; }, host: (revision: string) => { hostRevision = revision; }, changeCopy: (draft: ProposalDraft) => { copy = draft; storeRevision += 1; }, delay: (p: Promise<unknown>) => { delayed = p; }, delaySave: (p: Promise<unknown>) => { delayedSave = p; } };
 }
@@ -36,6 +36,30 @@ it('does not send after the grant changes while saving', async () => {
   expect(f.send).not.toHaveBeenCalled();
 });
 
+it('advances the next edit only from the exact confirmed proposal receipt', async () => {
+  const f = fixture(); await ready(f);
+  const binding = { profileId: 'profile-id', origin: 'https://host.example', hostId: 'host', principalId: 'author', sessionId: 'device' };
+  f.status.value.commandJournal = { binding, pending: null, unavailable: false, recent: [] };
+  f.send.mockResolvedValueOnce({ journal: { binding, pending: null, unavailable: false, recent: [{ outcome: 'succeeded', revision: '1', intent: { operation: 'create-action-draft', resourceId: 'same', hostInstanceId: 'instance', expectedRevision: '0', proposalRevision: '1' } }] } });
+  await f.model.submit(false);
+  expect(f.model.mode.value).toBe('update');
+  expect(f.model.baseRevision.value).toBe('1');
+  expect(f.model.matches.value).toBe(false);
+  f.host('1'); f.model.edit(`${f.model.text.value}\n`);
+  await f.model.submit(false);
+  expect(f.send).toHaveBeenCalledTimes(2);
+});
+
+it('does not advance the base from another proposal receipt', async () => {
+  const f = fixture(); await ready(f);
+  const binding = { profileId: 'profile-id', origin: 'https://host.example', hostId: 'host', principalId: 'author', sessionId: 'device' };
+  f.status.value.commandJournal = { binding, pending: null, unavailable: false, recent: [] };
+  f.send.mockResolvedValueOnce({ journal: { binding, pending: null, unavailable: false, recent: [{ outcome: 'succeeded', revision: '1', intent: { operation: 'create-action-draft', resourceId: 'different', hostInstanceId: 'instance', expectedRevision: '0', proposalRevision: '1' } }] } });
+  await f.model.submit(false);
+  expect(f.model.mode.value).toBe('create');
+  expect(f.model.baseRevision.value).toBe('0');
+});
+
 it('inspects, saves and submits in one action without silently replacing a newer host revision', async () => {
   const f = fixture(); await f.model.refresh(); f.model.select('action', 'same');
   await f.model.submit(false);
@@ -46,6 +70,10 @@ it('inspects, saves and submits in one action without silently replacing a newer
   await f.model.submit(false);
   expect(f.model.error.value).toBe('proposal_base_changed');
   expect(f.send).toHaveBeenCalledTimes(1);
+  await f.model.confirm(f.model.prepare('base')!);
+  expect(f.model.error.value).toBe('');
+  await f.model.submit(false);
+  expect(f.send).toHaveBeenCalledTimes(2);
 });
 async function ready(f: ReturnType<typeof fixture>) {
   await f.model.refresh(); f.model.select('action', 'same'); await f.model.inspect();

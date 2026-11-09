@@ -13,7 +13,7 @@ export interface ProposalConfirmation extends Identity {
   operation: 'save' | 'send' | 'send-active' | 'remove' | 'base'; binding: string; origin: string; hostId: string;
   kind: Family; id: string; mode: Mode; baseRevision: string; text: string; storeRevision: string; inspectionId: string | null;
 }
-interface Dependencies { status: Ref<ControllerStatus>; blocked: () => boolean; journalMatches: () => boolean; send: (method: string, params: Record<string, unknown>) => Promise<boolean> }
+interface Dependencies { status: Ref<ControllerStatus>; blocked: () => boolean; journalMatches: () => boolean; send: (method: string, params: Record<string, unknown>) => Promise<boolean | { journal: unknown }> }
 const encoder = new TextEncoder();
 const revision = (v: unknown): v is string => typeof v === 'string' && /^(0|[1-9]\d{0,18})$/.test(v) && BigInt(v) <= 9223372036854775807n;
 const canonical = (id: string) => !!id && id.trim() === id && encoder.encode(id).length <= 128 && !/[\p{Cc}*]/u.test(id);
@@ -141,10 +141,33 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
   }
   async function confirm(t: ProposalConfirmation): Promise<void> {
     if (!current(t)) return;
-    if (t.operation === 'base') { const i = inspection.value!; baseRevision.value = i.revision; mode.value = i.summary === null ? 'create' : 'update'; return; }
+    if (t.operation === 'base') { const i = inspection.value!; baseRevision.value = i.revision; mode.value = i.summary === null ? 'create' : 'update'; error.value = ''; return; }
     if (t.operation === 'send' || t.operation === 'send-active') {
+      const sentGeneration = generation;
       const accepted = await deps.send('controller.proposals.submit', { epoch: t.epoch, connectionId: t.connectionId, hostInstanceId: t.hostInstanceId, grantRevision: t.grantRevision, kind: t.kind, id: t.id, inspectionId: t.inspectionId, expectedStoreRevision: t.storeRevision, acknowledgeProposal: true, ...(t.operation === 'send-active' ? { active: true } : {}) });
-      if (accepted && identityKey.value === t.binding) inspection.value = null;
+      if (accepted && identityKey.value === t.binding && generation === sentGeneration) {
+        // Only the exact native response for this submission can advance the
+        // open base. A later recovered receipt or unrelated command is not
+        // proof that the current editor still represents its submitted body.
+        const journal = typeof accepted === 'object' ? accepted.journal : null;
+        const value = journal && typeof journal === 'object' && !Array.isArray(journal) ? journal as Record<string, unknown> : null;
+        const bound = value?.['binding'] as Record<string, unknown> | undefined;
+        const recent = Array.isArray(value?.['recent']) ? value['recent'][0] as Record<string, unknown> | undefined : undefined;
+        const intent = recent?.['intent'] as Record<string, unknown> | undefined;
+        const host = deps.status.value.hello;
+        const expectedOperation = `${t.mode}-${t.kind}-${t.operation === 'send-active' ? 'active' : 'draft'}`;
+        const resultRevision = recent?.['revision'];
+        if (deps.journalMatches() && value?.['pending'] === null && value?.['unavailable'] === false &&
+          bound?.['origin'] === t.origin && bound?.['hostId'] === t.hostId && bound?.['principalId'] === host?.principalId && bound?.['sessionId'] === host?.sessionId &&
+          bound?.['profileId'] === deps.status.value.commandJournal?.binding.profileId &&
+          recent?.['outcome'] === 'succeeded' && intent?.['operation'] === expectedOperation && intent['resourceId'] === t.id && intent['hostInstanceId'] === t.hostInstanceId &&
+          intent['expectedRevision'] === t.baseRevision && intent['proposalRevision'] === t.storeRevision && revision(resultRevision) && BigInt(resultRevision) === BigInt(t.baseRevision) + 1n &&
+          kind.value === t.kind && id.value === t.id && mode.value === t.mode && baseRevision.value === t.baseRevision && storeRevision.value === t.storeRevision &&
+          saved.value?.text === t.text && saved.value.kind === t.kind && saved.value.id === t.id && saved.value.mode === t.mode && saved.value.baseRevision === t.baseRevision) {
+          mode.value = 'update'; baseRevision.value = resultRevision;
+        }
+        inspection.value = null;
+      }
       return;
     }
     const params = { kind: t.kind, id: t.id, expectedStoreRevision: t.storeRevision, ...(t.operation === 'save' ? { mode: t.mode, baseRevision: t.baseRevision, text: t.text, acknowledgeStorage: true } : {}) };
