@@ -84,6 +84,90 @@ async fn legacy_remote_selection_does_not_create_local_reconciliation_marker() {
 }
 
 #[tokio::test]
+async fn untracked_local_review_revalidates_runtime_and_source_before_callback() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(runtime, &["acme.hotkeys"]);
+    let source = crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(
+        &core,
+        "https://cloud.example",
+        "alice",
+    );
+    assert!(source
+        .review_untracked_selection("acme.hotkeys")
+        .unwrap()
+        .is_none());
+    core.plugin_set_enabled("acme.hotkeys", false).unwrap();
+    let review = source
+        .review_untracked_selection("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    let version = source
+        .with_current_untracked_selection(&review, |entry, version| {
+            assert!(!entry.enabled);
+            assert!(entry.installed);
+            Ok(version.to_owned())
+        })
+        .unwrap();
+    assert_eq!(version, "1.0.0");
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+        core.db.paths().data.join("plugin-sync-emission"),
+    )
+    .unwrap();
+    let emission = fence.try_emission().unwrap();
+    assert!(source
+        .with_current_untracked_selection::<()>(&review, |_, _| panic!("busy source admitted"))
+        .is_err());
+    drop(emission);
+    core.plugin_set_enabled("acme.hotkeys", true).unwrap();
+    assert!(source
+        .with_current_untracked_selection::<()>(&review, |_, _| panic!("stale source admitted"))
+        .is_err());
+    let review = source
+        .review_untracked_selection("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    core.plugins.stop("acme.hotkeys").unwrap();
+    assert!(source
+        .with_current_untracked_selection::<()>(&review, |_, _| panic!("stale runtime admitted"))
+        .is_err());
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    // Exercise the storage handoff under the actual local source fence.
+    // This synthetic fixture does not provide Cloud consent or a barrier.
+    core.plugins.start("acme.hotkeys").unwrap();
+    let review = source
+        .review_untracked_selection("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    source
+        .with_current_untracked_selection(&review, |entry, version| {
+            core.db
+                .reconcile_untracked_plugin(
+                    entry,
+                    &crate::db::LocalPluginSyncIntent {
+                        origin: "https://cloud.example",
+                        account_id: "alice",
+                        config_generation: 7,
+                        version: Some(version),
+                    },
+                )
+                .map_err(|error| tiktools_cloud_sync::SyncCoordError::Local(error.to_string()))
+        })
+        .unwrap();
+    assert!(!core.db.has_untracked_plugin_sync().unwrap());
+    let pending = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert_eq!(pending.version.as_deref(), Some("1.0.0"));
+    assert_eq!(pending.runtime_epoch, None);
+    core.shutdown().await;
+    drop(source);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn public_plugin_state_changes_exclude_inflight_product_emission() {
     let runtime = Arc::new(FakePluginState::default());
     let (core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);

@@ -33,7 +33,7 @@ pub(crate) use sqlite::{CommandDatabase, CommandTransaction};
 #[cfg(feature = "persistence")]
 pub(crate) use sqlite::{DeliveryToken, PendingDelivery};
 #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
-pub(crate) use sqlite::{LocalPluginSyncIntent, PluginSyncOutboxEntry};
+pub(crate) use sqlite::{LocalPluginSyncIntent, PluginSyncOutboxEntry, UntrackedPluginReview};
 #[cfg(all(
     feature = "persistence",
     feature = "plugin-install",

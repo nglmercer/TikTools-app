@@ -58,7 +58,7 @@ pub(crate) use plugin_sync_apply::{PluginApplyIntent, PluginApplyPhase, PluginAp
 #[allow(dead_code)]
 mod plugin_sync_rebase;
 #[cfg(feature = "cloud-auth")]
-pub(crate) use plugin_sync::{LocalPluginSyncIntent, PluginSyncOutboxEntry};
+pub(crate) use plugin_sync::{LocalPluginSyncIntent, PluginSyncOutboxEntry, UntrackedPluginReview};
 mod schema;
 #[cfg(test)]
 mod tests;

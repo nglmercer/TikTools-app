@@ -136,6 +136,11 @@ the future caller must hold the emission, exact identity/consent and runtime
 fences, verify the installed artifact and version, and establish a server
 barrier for older in-flight writes before transferring any marker. There is no
 product or UI call to this primitive, and no automatic reconciliation.
+The native adapter can now capture an opaque local selection review and
+recheck the same source revision, installed version, runtime observation and
+host lifetime under the invocation and exclusive emission fences. It does not
+remove the marker or authorize a Cloud account; any later transfer still needs
+the independent session, consent and server-barrier checks described above.
 
 Dropping a local HTTP future does not cancel work already received by the
 server: the server can commit that request after the lease is released, after

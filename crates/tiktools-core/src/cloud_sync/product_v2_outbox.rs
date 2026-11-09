@@ -16,6 +16,15 @@ pub(crate) struct SqliteV2ProductSource<'a> {
     origin: &'a str,
     account: &'a str,
 }
+
+/// A local-only observation, bound to a source revision and host lifetime.
+/// It does not prove Cloud identity, consent or server-side quiescence.
+pub(crate) struct LocalUntrackedSelectionReview {
+    source: crate::db::UntrackedPluginReview,
+    version: String,
+    runtime_epoch: String,
+}
+
 impl<'a> SqliteV2ProductSource<'a> {
     pub(crate) fn new(core: &'a AppCore, origin: &'a str, account: &'a str) -> Self {
         Self {
@@ -23,6 +32,94 @@ impl<'a> SqliteV2ProductSource<'a> {
             origin,
             account,
         }
+    }
+
+    /// Observe an installed local selection without clearing its marker.
+    /// Tombstones and mismatched runtime state remain blocked for review.
+    #[allow(dead_code)]
+    pub(crate) fn review_untracked_selection(
+        &self,
+        id: &str,
+    ) -> Result<Option<LocalUntrackedSelectionReview>, SyncCoordError> {
+        self.with_untracked_source(id, |source, version, epoch| {
+            Ok(LocalUntrackedSelectionReview {
+                source: source.clone(),
+                version: version.to_owned(),
+                runtime_epoch: epoch.to_owned(),
+            })
+        })
+    }
+
+    /// Revalidate the same local observation through a short, non-async
+    /// callback. The callback must not perform network I/O, reenter plugin
+    /// lifecycle, or treat this local fence as Cloud consent or a barrier.
+    #[allow(dead_code)]
+    pub(crate) fn with_current_untracked_selection<T>(
+        &self,
+        review: &LocalUntrackedSelectionReview,
+        operation: impl FnOnce(&crate::db::UntrackedPluginReview, &str) -> Result<T, SyncCoordError>,
+    ) -> Result<T, SyncCoordError> {
+        self.with_untracked_source(&review.source.plugin_id, |source, version, epoch| {
+            if source != &review.source
+                || version != review.version
+                || epoch != review.runtime_epoch
+            {
+                return Err(unavailable());
+            }
+            operation(source, version)
+        })?
+        .ok_or_else(unavailable)
+    }
+
+    fn with_untracked_source<T>(
+        &self,
+        id: &str,
+        operation: impl FnOnce(
+            &crate::db::UntrackedPluginReview,
+            &str,
+            &str,
+        ) -> Result<T, SyncCoordError>,
+    ) -> Result<Option<T>, SyncCoordError> {
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(unavailable());
+        }
+        let runtime = self
+            .core
+            .try_plugin_sync_runtime_guard()
+            .map_err(|_| unavailable())?;
+        let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+            self.core.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| unavailable())?;
+        let _lease = fence.try_untracked_edit().map_err(|_| unavailable())?;
+        let Some(source) = self
+            .core
+            .db
+            .review_untracked_plugin(id)
+            .map_err(|_| unavailable())?
+        else {
+            return Ok(None);
+        };
+        if !source.installed {
+            return Err(unavailable());
+        }
+        let plugin = self.core.plugins.get(id).ok_or_else(unavailable)?;
+        if !runtime.matches_selection(id, &plugin.manifest.version, source.enabled) {
+            return Err(unavailable());
+        }
+        let epoch = self.core.sync.runtime_epoch().map_err(|_| unavailable())?;
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(unavailable());
+        }
+        operation(&source, &plugin.manifest.version, epoch).map(Some)
     }
 }
 impl V2ProductSource for SqliteV2ProductSource<'_> {
