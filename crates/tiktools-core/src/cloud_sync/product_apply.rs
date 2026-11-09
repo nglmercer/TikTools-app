@@ -14,6 +14,13 @@ fn local_error() -> SyncCoordError {
     SyncCoordError::Local("plugin application requires a fresh local review".into())
 }
 
+#[cfg(feature = "plugin-install")]
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum V2PulledApplyRecovery {
+    Ready(PluginApplyIntent),
+    Finalized,
+}
+
 /// The caller holds the real plugin invocation gate throughout this call.
 /// The coordinator then acquires protocol admission and the exact live
 /// session before the SQLite source and intent transaction is attempted.
@@ -139,6 +146,169 @@ pub(super) fn resume_pulled(
 }
 
 impl AppCore {
+    /// Reconcile a retained v2 journal with a new server barrier. An uncertain
+    /// runtime effect is never repeated: only a matching observed worker can
+    /// finalize a runtime-pending or applied entry.
+    #[cfg(feature = "plugin-install")]
+    #[allow(dead_code)] // Product scheduling is wired after recovery discovery.
+    pub(crate) async fn recover_v2_pulled_plugin_apply(
+        &self,
+        barrier: &tiktools_cloud_sync::V2ReconciliationBarrier,
+        intent_id: &str,
+    ) -> Result<V2PulledApplyRecovery, tiktools_cloud_sync::WorkspaceCoordError> {
+        use tiktools_cloud_sync::WorkspaceCoordError;
+        use tiktools_plugin_loader::PluginWorkerObservation;
+        let unavailable = || WorkspaceCoordError::Ineligible;
+        if self.is_shutdown() {
+            return Err(unavailable());
+        }
+        let sync = self.sync.coordinator().map_err(|_| unavailable())?;
+        let outcome = sync
+            .with_cached_v2_reconciliation_barrier(barrier, |admission| {
+                if self.is_shutdown()
+                    || !admission
+                        .matches_source_dir(&self.db.paths().data.join("plugin-sync-emission"))
+                {
+                    return Err(unavailable());
+                }
+                let remote = admission.remote().ok_or_else(unavailable)?;
+                let saved = self
+                    .db
+                    .plugin_apply_intent(intent_id)
+                    .map_err(|_| unavailable())?
+                    .ok_or_else(unavailable)?;
+                let intent = saved.intent;
+                if intent.reason != PluginApplyReason::Pulled
+                    || intent.origin != admission.context().origin
+                    || intent.account_id != admission.context().account_id
+                    || intent.config_generation != admission.context().config_generation
+                    || intent.plugin_id != remote.key
+                    || serde_json::to_value(intent.remote.as_ref().ok_or_else(unavailable)?)
+                        .map_err(|_| unavailable())?
+                        != serde_json::to_value(remote).map_err(|_| unavailable())?
+                {
+                    return Err(unavailable());
+                }
+                let runtime = self
+                    .try_plugin_sync_runtime_guard()
+                    .map_err(|_| unavailable())?;
+                if self.is_shutdown() {
+                    return Err(unavailable());
+                }
+                let packages = self.plugin_packages().map_err(|_| unavailable())?;
+                let store = packages
+                    .installer
+                    .try_lock_store()
+                    .map_err(|_| unavailable())?;
+                if !store
+                    .matches_roots(&self.db.paths().plugins, &self.db.paths().plugin_store())
+                    .map_err(|_| unavailable())?
+                {
+                    return Err(unavailable());
+                }
+                let Some(plugin) = self
+                    .plugins
+                    .get_for_admission(&intent.plugin_id)
+                    .map_err(|_| unavailable())?
+                else {
+                    return Err(unavailable());
+                };
+                if plugin.manifest.version != intent.installed_version {
+                    return Err(unavailable());
+                }
+                match saved.phase {
+                    PluginApplyPhase::Prepared | PluginApplyPhase::Ready => {
+                        if !runtime.matches_selection(
+                            &intent.plugin_id,
+                            &intent.installed_version,
+                            intent.expected_enabled,
+                        ) {
+                            return Err(unavailable());
+                        }
+                        let valid = if saved.phase == PluginApplyPhase::Prepared {
+                            self.db.mark_plugin_apply_ready_after_native_reconciliation(
+                                admission.context(),
+                                &intent,
+                            )
+                        } else {
+                            self.db
+                                .revalidate_ready_plugin_apply(admission.context(), &intent)
+                        }
+                        .map_err(|_| unavailable())?;
+                        if !valid {
+                            return Err(unavailable());
+                        }
+                        Ok(V2PulledApplyRecovery::Ready(intent))
+                    }
+                    PluginApplyPhase::RuntimePending | PluginApplyPhase::Applied => {
+                        let enabled = intent
+                            .remote
+                            .as_ref()
+                            .and_then(|record| record.value.as_ref())
+                            .map(|selection| selection.enabled)
+                            .unwrap_or(false);
+                        let activation = self
+                            .plugin_state
+                            .activation
+                            .read()
+                            .map_err(|_| unavailable())?;
+                        if !activation
+                            .get(&intent.plugin_id)
+                            .is_some_and(|state| state.installed && state.enabled == enabled)
+                        {
+                            return Err(unavailable());
+                        }
+                        drop(activation);
+                        let expected = if enabled {
+                            PluginWorkerObservation::WorkerPresent
+                        } else {
+                            PluginWorkerObservation::Stopped
+                        };
+                        if self
+                            .plugins
+                            .observe_worker(&intent.plugin_id)
+                            .map_err(|_| unavailable())?
+                            != expected
+                        {
+                            return Err(unavailable());
+                        }
+                        let generation = saved.committed_generation.ok_or_else(unavailable)?;
+                        let epoch = self.sync.runtime_epoch().map_err(|_| unavailable())?;
+                        if !self
+                            .db
+                            .confirm_plugin_apply_runtime(
+                                admission.context(),
+                                &intent,
+                                generation,
+                                epoch,
+                                &intent.installed_version,
+                                enabled,
+                            )
+                            .map_err(|_| unavailable())?
+                            || !self
+                                .db
+                                .finalize_plugin_apply_after_native_ack(
+                                    admission.context(),
+                                    &intent,
+                                    generation,
+                                    epoch,
+                                )
+                                .map_err(|_| unavailable())?
+                        {
+                            return Err(unavailable());
+                        }
+                        self.refresh_plugin_apply_quarantine_locked()
+                            .map_err(|_| unavailable())?;
+                        Ok(V2PulledApplyRecovery::Finalized)
+                    }
+                    PluginApplyPhase::Finalized => Err(unavailable()),
+                }
+            })
+            .await;
+        self.refresh_automation_snapshot();
+        outcome
+    }
+
     /// Complete one prepared v2 application under a fresh post-barrier
     /// observation. Run on a bounded blocking worker: plugin lifecycle calls
     /// and durable storage can block. Failure after commit leaves quarantine

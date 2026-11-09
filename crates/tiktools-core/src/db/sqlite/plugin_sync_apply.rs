@@ -373,6 +373,8 @@ impl DatabaseManager {
                 SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
                 WHERE s.plugin_id=?2 AND s.generation=?4 AND b.installed=1 AND b.enabled=?5
                 AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+                AND NOT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u WHERE u.plugin_id=s.plugin_id)
+                AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=s.plugin_id)
                 AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
             params![intent.intent_id, intent.plugin_id, encoded, intent.source_generation, bool_int(intent.expected_enabled)],
         )?;
@@ -399,6 +401,8 @@ impl DatabaseManager {
              WHERE i.intent_id=?1 AND i.plugin_id=?2 AND i.payload_json=?3
              AND i.phase='ready' AND s.generation=?4 AND b.installed=1 AND b.enabled=?5
              AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u WHERE u.plugin_id=s.plugin_id)
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=s.plugin_id)
              AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
             params![
                 intent.intent_id,
@@ -505,6 +509,8 @@ impl DatabaseManager {
              AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
                 WHERE s.plugin_id=?3 AND s.generation=?5 AND b.installed=1 AND b.enabled=?6
                 AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+                AND NOT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u WHERE u.plugin_id=s.plugin_id)
+                AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=s.plugin_id)
                 AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
             params![runtime_epoch,intent.intent_id,intent.plugin_id,encoded,generation,bool_int(enabled)],
         )?;
@@ -544,6 +550,8 @@ impl DatabaseManager {
              AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
                 WHERE s.plugin_id=?2 AND s.generation=?4 AND b.installed=1 AND b.enabled=?6
                 AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+                AND NOT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u WHERE u.plugin_id=s.plugin_id)
+                AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=s.plugin_id)
                 AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
             params![intent.intent_id,intent.plugin_id,encoded,generation,runtime_epoch,bool_int(enabled)],
         )?;

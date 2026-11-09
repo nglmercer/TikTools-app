@@ -527,6 +527,29 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         .unwrap()
         .unwrap();
     assert_eq!(stored.phase, crate::db::PluginApplyPhase::Ready);
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection
+        .execute(
+            "UPDATE plugin_sync_apply_intents SET phase='prepared' WHERE intent_id=?1",
+            [&intent.intent_id],
+        )
+        .unwrap();
+    drop(connection);
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
+        .await
+        .unwrap();
+    core.recover_v2_pulled_plugin_apply(&proof, &intent.intent_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        core.db
+            .plugin_apply_intent(&intent.intent_id)
+            .unwrap()
+            .unwrap()
+            .phase,
+        crate::db::PluginApplyPhase::Ready
+    );
     assert!(
         core.plugins.observe_worker("acme.hotkeys").is_ok_and(
             |state| state == tiktools_plugin_loader::PluginWorkerObservation::WorkerPresent
@@ -556,12 +579,50 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     connection
         .execute_batch("DROP TRIGGER fail_v2_apply;")
         .unwrap();
+    connection.execute_batch("CREATE TRIGGER fail_v2_confirm BEFORE UPDATE OF phase ON plugin_sync_apply_intents WHEN NEW.phase='applied' BEGIN SELECT RAISE(ABORT, 'injected failure'); END;").unwrap();
     drop(connection);
     let proof = sync
         .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
         .await
         .unwrap();
-    core.execute_v2_pulled_plugin_apply(&proof, &intent)
+    assert!(core
+        .execute_v2_pulled_plugin_apply(&proof, &intent)
+        .await
+        .is_err());
+    assert!(core.plugin_apply_quarantined("acme.hotkeys"));
+    assert_eq!(
+        core.db
+            .plugin_apply_intent(&intent.intent_id)
+            .unwrap()
+            .unwrap()
+            .phase,
+        crate::db::PluginApplyPhase::RuntimePending
+    );
+    assert_eq!(
+        core.plugins.observe_worker("acme.hotkeys").unwrap(),
+        tiktools_plugin_loader::PluginWorkerObservation::Stopped
+    );
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection
+        .execute_batch("DROP TRIGGER fail_v2_confirm;")
+        .unwrap();
+    drop(connection);
+    remote_record.lock().unwrap().as_mut().unwrap()["revision"] = 3.into();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
+        .await
+        .unwrap();
+    assert!(core
+        .recover_v2_pulled_plugin_apply(&proof, &intent.intent_id)
+        .await
+        .is_err());
+    assert!(core.plugin_apply_quarantined("acme.hotkeys"));
+    remote_record.lock().unwrap().as_mut().unwrap()["revision"] = 2.into();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
+        .await
+        .unwrap();
+    core.recover_v2_pulled_plugin_apply(&proof, &intent.intent_id)
         .await
         .unwrap();
     let stored = core

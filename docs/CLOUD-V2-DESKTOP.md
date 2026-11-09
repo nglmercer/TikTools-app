@@ -11,8 +11,11 @@ can recheck that intent, persist the desired state, run the local plugin
 transition and record its observed outcome. If a post-commit step fails, the
 plugin remains quarantined with its journal. Later plugin uploads and confirmation
 of package changes accept retained finalized history only after validating its matching
-witness and source generation. Product scheduling, recovery of interrupted
-outcomes and bounded history compaction remain pending.
+witness and source generation. A private recovery path can revalidate prepared
+intents and finalize an interrupted runtime change only when a fresh server
+barrier and the observed plugin state agree; it never repeats an uncertain
+start or stop. Product scheduling, unresolved runtime mismatches and bounded
+history compaction remain pending.
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
 library delivery e6728c9. The reviewed backend commit is RemakeBackend 952e512,
