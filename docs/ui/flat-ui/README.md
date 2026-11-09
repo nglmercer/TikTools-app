@@ -1,3 +1,5 @@
+> Historical captures from the initial component redesign. For the current PR settings screenshots, see [the updated gallery](../settings-current/README.md). Automation captures below predate the layout restoration and are not current evidence.
+
 # Flat UI and shared component review
 
 These screenshots accompany the `feat/flat-ui-components` draft. The application
