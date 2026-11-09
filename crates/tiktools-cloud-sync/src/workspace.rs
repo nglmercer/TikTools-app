@@ -5,14 +5,19 @@ use std::{path::Path, sync::Arc};
 
 use cloud_client::{
     PluginSelection, Session, StoreError, SyncError, SyncState, WorkspaceEdit, WorkspaceEntry,
-    WorkspaceKey, WorkspacePendingStatus, WorkspaceRead, WorkspaceRecord, WorkspaceState,
-    WorkspaceStateError, WorkspaceStateSnapshot, WorkspaceStore,
+    WorkspaceKey, WorkspacePendingStatus, WorkspaceProductProof, WorkspaceRead, WorkspaceRecord,
+    WorkspaceState, WorkspaceStateError, WorkspaceStateSnapshot, WorkspaceStore,
 };
 use thiserror::Error;
 
 const MAX_PULL_PAGES: usize = 200;
 const MAX_WRITES: usize = 50;
 const MAX_LOCAL_RETRIES: usize = 8;
+
+pub(crate) struct ProductUploadAdmission<'a> {
+    pub source: &'a dyn crate::V2ProductUploadSource,
+    pub config_generation: u128,
+}
 
 #[derive(Debug, Error)]
 pub enum WorkspaceCoordError {
@@ -26,6 +31,10 @@ pub enum WorkspaceCoordError {
     Busy,
     #[error("workspace session or opt-in changed during the operation")]
     Ineligible,
+    #[error("workspace operation exceeded its time limit")]
+    TimedOut,
+    #[error("workspace background worker failed")]
+    WorkerFailed,
     #[error(transparent)]
     Store(#[from] StoreError),
     #[error(transparent)]
@@ -42,14 +51,34 @@ pub struct WorkspaceEligibility {
     binding: Arc<()>,
     session: Arc<Session>,
     current: Arc<dyn Fn() -> bool + Send + Sync>,
+    publication: Option<Arc<PublicationGuard>>,
 }
+type PublicationGuard = dyn Fn(&mut dyn FnMut() -> Result<(), WorkspaceCoordError>) -> Result<(), WorkspaceCoordError>
+    + Send
+    + Sync;
 impl WorkspaceEligibility {
     pub fn new(session: Arc<Session>, current: impl Fn() -> bool + Send + Sync + 'static) -> Self {
         Self {
             binding: Arc::new(()),
             session,
             current: Arc::new(current),
+            publication: None,
         }
+    }
+
+    /// Product dispatcher only: revalidate and hold its session/consent
+    /// boundary until the workspace's prepared state is atomically renamed.
+    pub(crate) fn with_publication_guard(
+        mut self,
+        guard: impl Fn(
+                &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+            ) -> Result<(), WorkspaceCoordError>
+            + Send
+            + Sync
+            + 'static,
+    ) -> Self {
+        self.publication = Some(Arc::new(guard));
+        self
     }
     pub fn check(&self) -> Result<(), WorkspaceCoordError> {
         if (self.current)() {
@@ -57,6 +86,25 @@ impl WorkspaceEligibility {
         } else {
             Err(WorkspaceCoordError::Ineligible)
         }
+    }
+
+    pub(crate) fn publish(
+        &self,
+        publish: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+    ) -> Result<(), WorkspaceCoordError> {
+        if let Some(guard) = &self.publication {
+            guard(publish)
+        } else {
+            // Generic workspace users supply only an eligibility predicate.
+            // Product wiring installs the stronger publication guard above.
+            self.check()?;
+            publish()
+        }
+    }
+
+    #[cfg(test)]
+    fn with_test_publication_guard(self) -> Self {
+        self.with_publication_guard(|publish| publish())
     }
 }
 fn check_eligibility(
@@ -156,6 +204,30 @@ impl WorkspaceCoordinator {
                 Ok(_) => return Ok(result),
                 Err(StoreError::ConcurrentChange) => continue,
                 Err(error) => return Err(error.into()),
+            }
+        }
+        Err(StoreError::ConcurrentChange.into())
+    }
+
+    fn update_product<T>(
+        &self,
+        eligibility: &WorkspaceEligibility,
+        mut change: impl FnMut(&mut WorkspaceState) -> Result<T, WorkspaceCoordError>,
+    ) -> Result<T, WorkspaceCoordError> {
+        for _ in 0..MAX_LOCAL_RETRIES {
+            let mut snapshot = self.snapshot()?;
+            let result = change(&mut snapshot.state)?;
+            let expected = (snapshot.generation != 0).then_some(snapshot.generation);
+            match self
+                .store
+                .save_with_publication_guard::<WorkspaceCoordError>(
+                    expected,
+                    &snapshot.state,
+                    |publish| eligibility.publish(publish),
+                ) {
+                Ok(_) => return Ok(result),
+                Err(WorkspaceCoordError::Store(StoreError::ConcurrentChange)) => continue,
+                Err(error) => return Err(error),
             }
         }
         Err(StoreError::ConcurrentChange.into())
@@ -276,7 +348,7 @@ impl WorkspaceCoordinator {
     /// The product must check that the captured session is still current
     /// before returning private rows to a UI or offering local application.
     pub async fn sync(&self, session: &Session) -> Result<WorkspaceOutcome, WorkspaceCoordError> {
-        self.sync_inner(session, None).await
+        self.sync_inner(session, None, None).await
     }
     /// Product callers must use a generation-bound eligibility and recheck it
     /// when exposing or applying the returned data.
@@ -285,12 +357,59 @@ impl WorkspaceCoordinator {
         session: &Session,
         eligibility: &WorkspaceEligibility,
     ) -> Result<WorkspaceOutcome, WorkspaceCoordError> {
-        self.sync_inner(session, Some(eligibility)).await
+        self.sync_inner(session, Some(eligibility), None).await
     }
+    pub(crate) async fn sync_product_guarded(
+        &self,
+        session: &Session,
+        eligibility: &WorkspaceEligibility,
+        admission: &ProductUploadAdmission<'_>,
+    ) -> Result<WorkspaceOutcome, WorkspaceCoordError> {
+        if eligibility.publication.is_none() {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        self.sync_inner(session, Some(eligibility), Some(admission))
+            .await
+    }
+
+    /// The short source fence encloses only the local decision and durable
+    /// preparation, never the HTTP request. A later source mutation can be
+    /// staged separately while the original request is in flight.
+    fn admit_product<T>(
+        &self,
+        target: &WorkspaceKey,
+        eligibility: &WorkspaceEligibility,
+        admission: &ProductUploadAdmission<'_>,
+        operation: impl FnOnce(&WorkspaceProductProof) -> Result<T, WorkspaceCoordError>,
+    ) -> Result<T, WorkspaceCoordError> {
+        let proof = self
+            .snapshot()?
+            .state
+            .product_queued_proof(target)
+            .ok_or(WorkspaceStateError::StaleReview)?;
+        let decision = crate::V2ProductDecision::from_proof(
+            &self.origin,
+            &self.account_id,
+            admission.config_generation,
+            &proof,
+        )?;
+        let mut operation = Some(operation);
+        let mut result = None;
+        let mut admit = || {
+            let operation = operation.take().ok_or(WorkspaceStateError::StaleReview)?;
+            eligibility.check()?;
+            result = Some(operation(&proof)?);
+            Ok(())
+        };
+        admission.source.with_fenced_upload(&decision, &mut admit)?;
+        result.ok_or_else(|| WorkspaceStateError::StaleReview.into())
+    }
+
     async fn sync_inner(
         &self,
         session: &Session,
         eligibility: Option<&WorkspaceEligibility>,
+        product: Option<&ProductUploadAdmission<'_>>,
     ) -> Result<WorkspaceOutcome, WorkspaceCoordError> {
         self.identity(session)?;
         check_eligibility(eligibility, session)?;
@@ -316,22 +435,35 @@ impl WorkspaceCoordinator {
             let page = match response {
                 Ok(page) => page,
                 Err(SyncError::CursorExpired) => {
-                    self.update(|state| {
+                    let mark = |state: &mut WorkspaceState| {
                         state.require_rebuild();
                         Ok(())
-                    })?;
+                    };
+                    if product.is_some() {
+                        self.update_product(
+                            eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
+                            mark,
+                        )?;
+                    } else {
+                        self.update(mark)?;
+                    }
                     return Err(WorkspaceStateError::NeedsRebuild.into());
                 }
                 Err(error) => return Err(error.into()),
             };
             check_eligibility(eligibility, session)?;
             pulled += page.changes.len();
-            let more = self.update(|state| {
+            let apply = |state: &mut WorkspaceState| {
                 if state.cursor != cursor {
                     return Err(WorkspaceStateError::StaleReview.into());
                 }
                 Ok(state.apply_changes(page.clone())?)
-            })?;
+            };
+            let more = if product.is_some() {
+                self.update_product(eligibility.ok_or(WorkspaceCoordError::Ineligible)?, apply)?
+            } else {
+                self.update(apply)?
+            };
             if !more {
                 complete = true;
                 break;
@@ -362,14 +494,37 @@ impl WorkspaceCoordinator {
                 check_eligibility(eligibility, session)?;
                 let read = session.workspace_read_for_resolution(&key).await?;
                 check_eligibility(eligibility, session)?;
-                self.update(|state| {
-                    if read.record().is_none() {
-                        state.complete_absent_delete(&read, generation)?;
+                let complete = |proof: Option<&WorkspaceProductProof>| {
+                    let change = |state: &mut WorkspaceState| {
+                        if let Some(proof) = proof {
+                            state.verify_product_queued(proof)?;
+                        }
+                        if read.record().is_none() {
+                            state.complete_absent_delete(&read, generation)?;
+                        } else {
+                            state.observe_read(&read)?;
+                        }
+                        Ok(())
+                    };
+                    if product.is_some() {
+                        self.update_product(
+                            eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
+                            change,
+                        )
                     } else {
-                        state.observe_read(&read)?;
+                        self.update(change)
                     }
-                    Ok(())
-                })?;
+                };
+                if let Some(product) = product {
+                    self.admit_product(
+                        &key,
+                        eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
+                        product,
+                        |proof| complete(Some(proof)),
+                    )?;
+                } else {
+                    complete(None)?;
+                }
                 if self
                     .snapshot()?
                     .state
@@ -381,7 +536,21 @@ impl WorkspaceCoordinator {
                 }
                 continue;
             }
-            let ticket = self.update(|state| Ok(state.prepare_push(&key)?))?;
+            let ticket = if let Some(product) = product {
+                self.admit_product(
+                    &key,
+                    eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
+                    product,
+                    |proof| {
+                        self.update_product(
+                            eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
+                            |state| Ok(state.prepare_product_push(proof)?),
+                        )
+                    },
+                )?
+            } else {
+                self.update(|state| Ok(state.prepare_push(&key)?))?
+            };
             attempts += 1;
             // If eligibility changed after prepare, keep the durable ticket
             // unconfirmed; never dispatch or infer an outcome.
@@ -409,19 +578,41 @@ impl WorkspaceCoordinator {
                         .await
                 }
             };
+            // The response belongs to the captured product session and
+            // consent. If either changed while it was in flight, keep the
+            // durable ticket unconfirmed for an explicit later review.
+            if product.is_some() {
+                check_eligibility(eligibility, session)?;
+            }
             match response {
                 Ok(record) => {
-                    self.update(|state| {
+                    let acknowledge = |state: &mut WorkspaceState| {
                         state.acknowledge(&ticket, record.clone())?;
                         Ok(())
-                    })?;
+                    };
+                    if product.is_some() {
+                        self.update_product(
+                            eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
+                            acknowledge,
+                        )?;
+                    } else {
+                        self.update(acknowledge)?;
+                    }
                     pushed += 1;
                 }
                 Err(SyncError::Conflict) => {
-                    self.update(|state| {
+                    let conflict = |state: &mut WorkspaceState| {
                         state.mark_conflict(&ticket)?;
                         Ok(())
-                    })?;
+                    };
+                    if product.is_some() {
+                        self.update_product(
+                            eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
+                            conflict,
+                        )?;
+                    } else {
+                        self.update(conflict)?;
+                    }
                 }
                 // A failed/ambiguous response leaves the durable original
                 // Unconfirmed. A later explicit review performs a fresh GET.

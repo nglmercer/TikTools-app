@@ -146,6 +146,29 @@ struct WorkspaceProductReceipt {
     workspace_generation: u64,
 }
 
+/// Non-deserializable snapshot of the source receipt for one queued edit.
+/// This is evidence to compare under the product source fence, not authority
+/// to send or apply anything by itself.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkspaceProductProof(WorkspaceProductReceipt);
+impl WorkspaceProductProof {
+    pub fn target(&self) -> &WorkspaceKey {
+        &self.0.target
+    }
+    pub fn source_generation(&self) -> u64 {
+        self.0.source_generation
+    }
+    pub fn decision_digest(&self) -> &str {
+        &self.0.decision_digest
+    }
+    pub fn edit(&self) -> &WorkspaceEdit {
+        &self.0.edit
+    }
+    pub fn local_generation(&self) -> u64 {
+        self.0.workspace_generation
+    }
+}
+
 /// Non-deserializable proof of exactly the request durably prepared for HTTP.
 #[derive(Clone)]
 pub struct WorkspacePush {
@@ -209,6 +232,34 @@ fn remote_revision(entry: &WorkspaceEntry) -> Option<i64> {
     entry.remote.as_ref().map(|r| r.revision)
 }
 impl WorkspaceState {
+    /// Capture a receipt only when it identifies the currently queued edit.
+    /// Unconfirmed writes and newer edits never inherit an older receipt.
+    pub fn product_queued_proof(&self, target: &WorkspaceKey) -> Option<WorkspaceProductProof> {
+        let receipt = self
+            .product_receipts
+            .binary_search_by(|r| r.target.cmp(target))
+            .ok()
+            .and_then(|index| self.product_receipts.get(index))?;
+        let pending = self.entry(target)?.pending.as_ref()?;
+        (pending.status == WorkspacePendingStatus::Queued
+            && pending.local_generation == receipt.workspace_generation
+            && pending.edit == receipt.edit)
+            .then(|| WorkspaceProductProof(receipt.clone()))
+    }
+
+    /// Recheck an opaque proof against the current state while source is fenced.
+    pub fn verify_product_queued(&self, proof: &WorkspaceProductProof) -> Result<()> {
+        if self.product_queued_proof(proof.target()).as_ref() != Some(proof) {
+            return Err(WorkspaceStateError::StaleReview);
+        }
+        Ok(())
+    }
+
+    /// Persist this transition before the caller sends the approved request.
+    pub fn prepare_product_push(&mut self, proof: &WorkspaceProductProof) -> Result<WorkspacePush> {
+        self.verify_product_queued(proof)?;
+        self.prepare_push(proof.target())
+    }
     pub fn new(origin: String, account_id: String) -> Result<Self> {
         if !identity_valid(&origin, &account_id) {
             return Err(WorkspaceStateError::Invalid);

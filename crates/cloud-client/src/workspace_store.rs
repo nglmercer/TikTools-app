@@ -204,11 +204,75 @@ impl WorkspaceStore {
         expected_generation: Option<u64>,
         state: &WorkspaceState,
     ) -> Result<WorkspaceStateSnapshot, StoreError> {
+        self.save_with_publication_guard(expected_generation, state, |publish| publish())
+    }
+
+    /// Prepare and fsync the complete candidate under the state CAS lock,
+    /// then invoke `guard` immediately before its atomic publication. The
+    /// guard must invoke `publish` exactly once on success. This permits a
+    /// caller to fence a short rename against a session transition without
+    /// holding that session fence while serializing or fsyncing the file.
+    /// A blocked native rename may still delay the holder of that fence.
+    /// The parent directory sync occurs after the callback and can report an
+    /// error after the rename has already committed.
+    pub fn save_with_publication_guard<E: From<StoreError>>(
+        &self,
+        expected_generation: Option<u64>,
+        state: &WorkspaceState,
+        guard: impl FnOnce(&mut dyn FnMut() -> Result<(), E>) -> Result<(), E>,
+    ) -> Result<WorkspaceStateSnapshot, E> {
+        let (_state_lock, generation, temp) = self
+            .prepare_save(expected_generation, state)
+            .map_err(E::from)?;
+        let mut temp = Some(temp);
+        let mut published = false;
+        let mut publish_failed = false;
+        {
+            let mut publish = || {
+                let result = match temp.take() {
+                    Some(file) => file
+                        .persist(self.directory.join("workspace-state.json"))
+                        .map(|_| ())
+                        .map_err(|error| E::from(StoreError::Io(error.error))),
+                    None => Err(E::from(StoreError::InvalidState)),
+                };
+                match result {
+                    Ok(()) => {
+                        published = true;
+                        Ok(())
+                    }
+                    Err(error) => {
+                        publish_failed = true;
+                        Err(error)
+                    }
+                }
+            };
+            guard(&mut publish)?;
+        }
+        if !published || publish_failed {
+            return Err(E::from(StoreError::InvalidState));
+        }
+        #[cfg(unix)]
+        File::open(&self.directory)
+            .and_then(|directory| directory.sync_all())
+            .map_err(StoreError::Io)
+            .map_err(E::from)?;
+        Ok(WorkspaceStateSnapshot {
+            generation,
+            state: state.clone(),
+        })
+    }
+
+    fn prepare_save(
+        &self,
+        expected_generation: Option<u64>,
+        state: &WorkspaceState,
+    ) -> Result<(File, u64, tempfile::NamedTempFile), StoreError> {
         state.validate().map_err(|_| StoreError::InvalidState)?;
         if state.origin != self.origin || state.account_id != self.account_id {
             return Err(StoreError::WrongIdentity);
         }
-        let _guard = self.lock()?;
+        let state_lock = self.lock()?;
         let current = self.read_locked()?;
         if current.as_ref().map(|snapshot| snapshot.generation) != expected_generation {
             return Err(StoreError::ConcurrentChange);
@@ -238,14 +302,7 @@ impl WorkspaceStore {
             }
         })?;
         temp.as_file().sync_all()?;
-        temp.persist(self.directory.join("workspace-state.json"))
-            .map_err(|error| StoreError::Io(error.error))?;
-        #[cfg(unix)]
-        File::open(&self.directory)?.sync_all()?;
-        Ok(WorkspaceStateSnapshot {
-            generation,
-            state: state.clone(),
-        })
+        Ok((state_lock, generation, temp))
     }
 }
 struct CappedWriter<'a> {

@@ -33,7 +33,7 @@ pub use v1_recovery::{V1RecoveryChoice, V1RecoveryOutcome, V1UncertainReview};
 mod local_edit;
 pub use local_edit::V1LocalEditContext;
 mod v2_product_outbox;
-pub use v2_product_outbox::{V2ProductDecision, V2ProductSource};
+pub use v2_product_outbox::{V2ProductDecision, V2ProductSource, V2ProductUploadSource};
 mod product_outbox;
 pub use product_outbox::{V1ConflictSourceProof, V1OutboxCandidate, V1ProductOutbox};
 mod product_remote_apply;

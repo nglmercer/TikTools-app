@@ -2,7 +2,10 @@
 //! Product activation requires complete mutation admission, package removal
 //! reconciliation, and source-proof validation immediately before dispatch.
 use crate::AppCore;
-use tiktools_cloud_sync::{PluginSelection, SyncCoordError, V2ProductDecision, V2ProductSource};
+use tiktools_cloud_sync::{
+    PluginSelection, SyncCoordError, V2ProductDecision, V2ProductSource, V2ProductUploadSource,
+    WorkspaceCoordError,
+};
 
 fn unavailable() -> SyncCoordError {
     SyncCoordError::Local("local sync source needs review".into())
@@ -78,5 +81,68 @@ impl V2ProductSource for SqliteV2ProductSource<'_> {
             return Err(unavailable());
         }
         Ok(result)
+    }
+}
+
+impl V2ProductUploadSource for SqliteV2ProductSource<'_> {
+    fn with_fenced_upload(
+        &self,
+        decision: &V2ProductDecision,
+        admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+    ) -> Result<(), WorkspaceCoordError> {
+        let stale = || WorkspaceCoordError::State(cloud_client::WorkspaceStateError::StaleReview);
+        if decision.origin != self.origin || decision.account_id != self.account {
+            return Err(stale());
+        }
+        let selection = decision.selection.as_ref().ok_or_else(stale)?;
+        if selection.plugin_id != decision.plugin_id {
+            return Err(stale());
+        }
+        let runtime = self
+            .core
+            .try_plugin_sync_runtime_guard()
+            .map_err(|_| stale())?;
+        if !runtime.matches_selection(&decision.plugin_id, &selection.version, selection.enabled) {
+            return Err(stale());
+        }
+        self.core
+            .db
+            .with_current_v2_upload_source::<_, crate::db::DatabaseError>(
+                &decision.plugin_id,
+                decision.source_generation,
+                selection.enabled,
+                || Ok(admit()),
+            )
+            .map_err(|_| stale())?
+    }
+}
+
+/// Owned native source for the background dispatcher. The synchronous source
+/// guard is still scoped to one admission; no SQLite or runtime guard escapes
+/// into the HTTP await.
+pub(crate) struct OwnedSqliteV2UploadSource {
+    core: std::sync::Arc<AppCore>,
+    origin: String,
+    account: String,
+}
+
+impl OwnedSqliteV2UploadSource {
+    pub(crate) fn new(core: std::sync::Arc<AppCore>, origin: String, account: String) -> Self {
+        Self {
+            core,
+            origin,
+            account,
+        }
+    }
+}
+
+impl V2ProductUploadSource for OwnedSqliteV2UploadSource {
+    fn with_fenced_upload(
+        &self,
+        decision: &V2ProductDecision,
+        admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+    ) -> Result<(), WorkspaceCoordError> {
+        SqliteV2ProductSource::new(&self.core, &self.origin, &self.account)
+            .with_fenced_upload(decision, admit)
     }
 }

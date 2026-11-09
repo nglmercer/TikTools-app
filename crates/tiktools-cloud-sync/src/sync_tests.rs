@@ -2921,6 +2921,7 @@ struct MockInner {
     pull_requests: usize,
     rebuild_requests: usize,
     page_size: Option<usize>,
+    v2_put_requests: usize,
 }
 
 struct MockSync {
@@ -2972,6 +2973,7 @@ impl MockSync {
             pull_requests: 0,
             rebuild_requests: 0,
             page_size: None,
+            v2_put_requests: 0,
         }));
         let held_write = Arc::new(HeldWrite::default());
         let held_export = Arc::new(HeldExport::default());
@@ -3164,6 +3166,24 @@ fn route(
             200,
             serde_json::json!({"id": state.account_id, "email": "user@example.com"}),
         ),
+        ("GET", "/api/v2/sync/changes") => {
+            let cursor = query
+                .split('&')
+                .find_map(|p| p.strip_prefix("cursor="))
+                .and_then(|n| n.parse::<i64>().ok())
+                .unwrap_or(-1);
+            if cursor < 0 {
+                return json(400, serde_json::json!({}));
+            }
+            json(
+                200,
+                serde_json::json!({"changes": [], "cursor": cursor, "has_more": false}),
+            )
+        }
+        ("PUT", path) if path.starts_with("/api/v2/sync/collections/") => {
+            state.v2_put_requests += 1;
+            json(500, serde_json::json!({}))
+        }
         ("GET", "/api/v1/native/sync/changes") => {
             state.pull_requests += 1;
             let cursor: i64 = query

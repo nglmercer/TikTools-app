@@ -37,7 +37,8 @@ pub use workspace::{
 };
 pub use workspace_state::{
     WorkspaceEdit, WorkspaceEntry, WorkspaceKey, WorkspaceLocalEdit, WorkspacePending,
-    WorkspacePendingStatus, WorkspacePush, WorkspaceRead, WorkspaceState, WorkspaceStateError,
+    WorkspacePendingStatus, WorkspaceProductProof, WorkspacePush, WorkspaceRead, WorkspaceState,
+    WorkspaceStateError,
 };
 pub use workspace_store::{WorkspaceOperationGuard, WorkspaceStateSnapshot, WorkspaceStore};
 

@@ -302,3 +302,74 @@ async fn held_real_absence_response_cannot_clear_a_newer_durable_delete_after_re
     assert_eq!(store.load().unwrap().unwrap().state, latest.state);
     server.await.unwrap();
 }
+
+#[test]
+fn guarded_publication_rejection_preserves_previous_generation() {
+    let root = tempfile::tempdir().unwrap();
+    let store_root = private_test_path(root.path());
+    let store = WorkspaceStore::open(&store_root, "https://cloud.example", "account").unwrap();
+    let original = state("account");
+    store.save(None, &original).unwrap();
+    let mut next = original.clone();
+    next.stage(key(), WorkspaceEdit::Put(value(true))).unwrap();
+    assert!(matches!(
+        store.save_with_publication_guard::<StoreError>(Some(1), &next, |_publish| {
+            Err(StoreError::InvalidState)
+        }),
+        Err(StoreError::InvalidState)
+    ));
+    let loaded = store.load().unwrap().unwrap();
+    assert_eq!(loaded.generation, 1);
+    assert_eq!(loaded.state, original);
+    assert!(matches!(
+        store.save_with_publication_guard::<StoreError>(Some(1), &next, |_publish| Ok(())),
+        Err(StoreError::InvalidState)
+    ));
+    assert_eq!(store.load().unwrap().unwrap().state, original);
+    let advanced = store
+        .save_with_publication_guard::<StoreError>(Some(1), &next, |publish| publish())
+        .unwrap();
+    assert_eq!(advanced.generation, 2);
+    let invoked = std::sync::atomic::AtomicBool::new(false);
+    assert!(matches!(
+        store.save_with_publication_guard::<StoreError>(Some(1), &original, |_publish| {
+            invoked.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        }),
+        Err(StoreError::ConcurrentChange)
+    ));
+    assert!(!invoked.load(std::sync::atomic::Ordering::SeqCst));
+    assert_eq!(store.load().unwrap().unwrap().state, next);
+}
+
+#[test]
+fn guard_cannot_hide_failed_or_repeated_publication() {
+    let root = tempfile::tempdir().unwrap();
+    let store_root = private_test_path(root.path());
+    let store = WorkspaceStore::open(&store_root, "https://cloud.example", "account").unwrap();
+    let original = state("account");
+    // The callback is intentionally faulty: after creating a directory at the
+    // destination it ignores the failed atomic rename and reports success.
+    assert!(matches!(
+        store.save_with_publication_guard::<StoreError>(None, &original, |publish| {
+            fs::create_dir(store.directory.join("workspace-state.json")).unwrap();
+            assert!(publish().is_err());
+            Ok(())
+        }),
+        Err(StoreError::InvalidState)
+    ));
+    fs::remove_dir(store.directory.join("workspace-state.json")).unwrap();
+    assert!(store.load().unwrap().is_none());
+
+    // If a broken guard publishes twice, it must not turn the second failure
+    // into a success. The first rename may already have committed.
+    assert!(matches!(
+        store.save_with_publication_guard::<StoreError>(None, &original, |publish| {
+            publish()?;
+            assert!(publish().is_err());
+            Ok(())
+        }),
+        Err(StoreError::InvalidState)
+    ));
+    assert_eq!(store.load().unwrap().unwrap().state, original);
+}

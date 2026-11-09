@@ -56,6 +56,49 @@ fn package_source_available(db: &rusqlite::Connection, id: &str) -> Result<bool,
 }
 
 impl DatabaseManager {
+    /// Hold a nonblocking SQLite write reservation while a v2 upload is
+    /// admitted. All source mutations must participate in the source journal;
+    /// this does not fence package files or older/noncooperating processes.
+    pub(crate) fn with_current_v2_upload_source<R, E: From<DatabaseError>>(
+        &self,
+        plugin_id: &str,
+        generation: u64,
+        enabled: bool,
+        operation: impl FnOnce() -> Result<R, E>,
+    ) -> Result<R, E> {
+        let generation = i64::try_from(generation)
+            .ok()
+            .filter(|v| *v > 0)
+            .ok_or_else(|| E::from(DatabaseError::Invalid("invalid v2 upload source".into())))?;
+        let mut db = self.open(&self.automation_path()).map_err(E::from)?;
+        db.busy_timeout(std::time::Duration::ZERO)
+            .map_err(DatabaseError::from)
+            .map_err(E::from)?;
+        let tx = db
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(DatabaseError::from)
+            .map_err(E::from)?;
+        let valid: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
+             WHERE s.plugin_id=?1 AND s.generation=?2 AND b.installed=1 AND b.enabled=?3
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL)
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_intents a WHERE a.plugin_id=s.plugin_id)
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations f WHERE f.plugin_id=s.plugin_id)
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=s.plugin_id))",
+            params![plugin_id, generation, bool_int(enabled)], |row| row.get(0),
+        ).map_err(DatabaseError::from).map_err(E::from)?;
+        if !valid {
+            return Err(E::from(DatabaseError::Invalid(
+                "v2 upload source needs review".into(),
+            )));
+        }
+        let result = operation();
+        tx.rollback()
+            .map_err(DatabaseError::from)
+            .map_err(E::from)?;
+        result
+    }
     /// Record the source state and its local Cloud candidate atomically.
     /// Passing no intent records a local-only edit while still advancing the
     /// source generation; this deliberately leaves older intents stale.
@@ -484,6 +527,50 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.root);
         }
+    }
+
+    #[test]
+    fn v2_upload_source_reserves_database_and_rejects_stale_or_undrained_edits() {
+        let f = Fixture::new();
+        let generation =
+            f.db.set_plugin_state_with_sync_intent("hotkeys", true, false, None)
+                .unwrap() as u64;
+        let mut competing = f.db.open(&f.db.automation_path()).unwrap();
+        competing.busy_timeout(std::time::Duration::ZERO).unwrap();
+        let admitted = f
+            .db
+            .with_current_v2_upload_source::<_, DatabaseError>("hotkeys", generation, false, || {
+                assert!(competing
+                    .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                    .is_err());
+                Ok(7)
+            })
+            .unwrap();
+        assert_eq!(admitted, 7);
+        assert!(f
+            .db
+            .with_current_v2_upload_source::<_, DatabaseError>("hotkeys", generation, true, || Ok(
+                ()
+            ))
+            .is_err());
+        f.db.set_plugin_state_with_sync_intent("hotkeys", true, false, Some(f.intent("alice")))
+            .unwrap();
+        assert!(f
+            .db
+            .with_current_v2_upload_source::<_, DatabaseError>("hotkeys", generation, false, || Ok(
+                ()
+            ))
+            .is_err());
+        assert!(
+            f.db.with_current_v2_upload_source::<_, DatabaseError>(
+                "hotkeys",
+                generation + 1,
+                false,
+                || Ok(())
+            )
+            .is_err(),
+            "undrained decision must not authorize upload"
+        );
     }
 
     #[test]

@@ -238,3 +238,298 @@ async fn marked_v2_resume_requires_exact_native_receipts_and_fresh_consent() {
         mock.stop();
     }
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn product_worker_deadline_releases_v2_protocol_lease() {
+    let dir = TempDir::new("v2-product-deadline");
+    let mock = MockSync::start("deadline-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "deadline-login").await;
+    let session = auth.session().await.unwrap();
+    let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .prepare(&preview, &mock.origin, "deadline-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "deadline-user".into(),
+    )
+    .unwrap();
+    workspace
+        .bootstrap(&preview.selections(), preview.legacy())
+        .unwrap();
+    lease
+        .finish(&preview, &mock.origin, "deadline-user")
+        .unwrap();
+    drop(lease);
+    let protocol = sync.protocol.clone();
+    let origin = mock.origin.clone();
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let task = tokio::spawn(async move {
+        crate::v2_product_outbox::run_product_worker_for(
+            std::time::Duration::from_millis(250),
+            move |_, _| async move {
+                let _lease = protocol.try_v2(&origin, "deadline-user").unwrap();
+                let _ = entered_tx.send(());
+                std::future::pending::<Result<(), crate::WorkspaceCoordError>>().await
+            },
+        )
+        .await
+    });
+    entered_rx.await.unwrap();
+    assert!(matches!(
+        sync.protocol.try_cutover(),
+        Err(crate::ProtocolFenceError::Busy)
+    ));
+    assert!(matches!(
+        task.await.unwrap(),
+        Err(crate::WorkspaceCoordError::TimedOut)
+    ));
+    assert!(
+        sync.protocol.try_cutover().is_ok(),
+        "deadline must release the protocol lease once no native operation is blocked"
+    );
+    mock.stop();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn cancelled_native_worker_keeps_bounded_slot_until_it_exits() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let slots = Arc::new(tokio::sync::Semaphore::new(1));
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let occupied = slots.clone();
+    let first = tokio::spawn(async move {
+        crate::v2_product_outbox::run_product_worker_with_slots(
+            Duration::from_secs(10),
+            occupied,
+            move |_, _| async move {
+                let _ = entered_tx.send(());
+                release_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+                Ok::<_, crate::WorkspaceCoordError>(())
+            },
+        )
+        .await
+    });
+    tokio::time::timeout(Duration::from_secs(2), entered_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    first.abort();
+    let _ = first.await;
+    assert_eq!(slots.available_permits(), 0);
+    let invoked = Arc::new(AtomicBool::new(false));
+    let marker = invoked.clone();
+    let second = crate::v2_product_outbox::run_product_worker_with_slots(
+        Duration::from_millis(75),
+        slots.clone(),
+        move |_, _| async move {
+            marker.store(true, Ordering::Release);
+            Ok::<_, crate::WorkspaceCoordError>(())
+        },
+    )
+    .await;
+    assert!(matches!(second, Err(crate::WorkspaceCoordError::TimedOut)));
+    assert!(
+        !invoked.load(Ordering::Acquire),
+        "saturation must not start another worker"
+    );
+    release_tx.send(()).unwrap();
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while slots.available_permits() == 0 {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("capacity must return when the blocking worker exits");
+    crate::v2_product_outbox::run_product_worker_with_slots(
+        Duration::from_secs(1),
+        slots,
+        |_, _| async { Ok::<_, crate::WorkspaceCoordError>(()) },
+    )
+    .await
+    .unwrap();
+}
+
+struct BlockingUpload {
+    entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+}
+impl crate::V2ProductUploadSource for BlockingUpload {
+    fn with_fenced_upload(
+        &self,
+        _decision: &crate::V2ProductDecision,
+        admit: &mut dyn FnMut() -> Result<(), crate::WorkspaceCoordError>,
+    ) -> Result<(), crate::WorkspaceCoordError> {
+        if let Some(entered) = self.entered.lock().unwrap().take() {
+            let _ = entered.send(());
+        }
+        self.release
+            .lock()
+            .unwrap()
+            .recv_timeout(Duration::from_secs(4))
+            .unwrap();
+        admit()
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn product_dispatch_does_not_block_logout_or_send_after_logout() {
+    let dir = TempDir::new("v2-product-logout");
+    let mock = MockSync::start("logout-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "logout-login").await;
+    let session = auth.session().await.unwrap();
+    let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .prepare(&preview, &mock.origin, "logout-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "logout-user".into(),
+    )
+    .unwrap();
+    workspace
+        .bootstrap(&preview.selections(), preview.legacy())
+        .unwrap();
+    lease.finish(&preview, &mock.origin, "logout-user").unwrap();
+    drop(lease);
+    sync.set_enabled(false).unwrap();
+    let consent = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&consent).unwrap();
+    let selection = PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.0.0".into(),
+        enabled: true,
+    };
+    let source = Source {
+        decision: crate::V2ProductDecision {
+            origin: mock.origin.clone(),
+            account_id: "logout-user".into(),
+            config_generation: sync.read_config().generation,
+            source_generation: 7,
+            plugin_id: "acme.plugin".into(),
+            selection: Some(selection),
+        },
+        fail_ack: Cell::new(false),
+        ack_attempts: Cell::new(0),
+    };
+    sync.stage_v2_product_decision(&source).unwrap();
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let source = Arc::new(BlockingUpload {
+        entered: Mutex::new(Some(entered_tx)),
+        release: Mutex::new(release_rx),
+    });
+    let worker = sync.clone();
+    let task = tokio::spawn(async move { worker.sync_v2_product(session, source).await });
+    tokio::time::timeout(Duration::from_secs(2), entered_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(2), auth.logout())
+        .await
+        .expect("source I/O must not block logout")
+        .unwrap();
+    release_tx.send(()).unwrap();
+    assert!(matches!(
+        task.await.unwrap(),
+        Err(crate::WorkspaceCoordError::Ineligible)
+    ));
+    assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 0);
+    assert!(
+        sync.protocol.try_cutover().is_ok(),
+        "completed worker must release protocol lease"
+    );
+    mock.stop();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn logout_during_prepared_workspace_write_prevents_publication() {
+    let dir = TempDir::new("v2-product-pull-logout");
+    let mock = MockSync::start("pull-logout-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "pull-logout-login").await;
+    let session = auth.session().await.unwrap();
+    let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+    let cutover = sync.protocol.try_cutover().unwrap();
+    cutover
+        .prepare(&preview, &mock.origin, "pull-logout-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "pull-logout-user".into(),
+    )
+    .unwrap();
+    workspace
+        .bootstrap(&preview.selections(), preview.legacy())
+        .unwrap();
+    cutover
+        .finish(&preview, &mock.origin, "pull-logout-user")
+        .unwrap();
+    drop(cutover);
+    sync.set_enabled(false).unwrap();
+    let consent = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&consent).unwrap();
+    let epoch = sync.capture_v2_config_epoch(&session).unwrap();
+    let _lease = sync
+        .protocol
+        .try_v2(&mock.origin, "pull-logout-user")
+        .unwrap();
+    let eligibility = sync.v2_product_eligibility(
+        session,
+        epoch,
+        Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        std::time::Instant::now() + Duration::from_secs(10),
+    );
+    let store = cloud_client::WorkspaceStore::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "pull-logout-user",
+    )
+    .unwrap();
+    let before = store.load().unwrap().unwrap();
+    let mut candidate = before.state.clone();
+    candidate.stage(cloud_client::WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap(), cloud_client::WorkspaceEdit::Put(serde_json::json!({"schemaVersion":1,"pluginId":"acme.plugin","version":"1.0.0","enabled":true}))).unwrap();
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        store
+            .save_with_publication_guard::<crate::WorkspaceCoordError>(
+                Some(before.generation),
+                &candidate,
+                |publish| {
+                    entered_tx.send(()).unwrap();
+                    release_rx.recv_timeout(Duration::from_secs(4)).unwrap();
+                    eligibility.publish(publish)
+                },
+            )
+            .map(|_| ())
+    });
+    tokio::time::timeout(Duration::from_secs(2), entered_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(2), auth.logout())
+        .await
+        .expect("staging I/O must not block logout")
+        .unwrap();
+    release_tx.send(()).unwrap();
+    assert!(matches!(
+        worker.join().unwrap(),
+        Err(crate::WorkspaceCoordError::Ineligible)
+    ));
+    let after = workspace.snapshot().unwrap();
+    assert_eq!(after.generation, 1);
+    assert!(after
+        .state
+        .entry(&cloud_client::WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap())
+        .is_none());
+    mock.stop();
+}
