@@ -64,6 +64,68 @@ it('generates a disabled chat event with a bounded filter and one selected actio
   } finally { f.wrapper.unmount(); f.model.stop(); }
 });
 
+it('prepares a literal-viewer points proposal only after explicit preview', async () => {
+  const f = await setup('action');
+  try {
+    f.model.edit('existing private draft');
+    await f.wrapper.get('select').setValue('core.points');
+    const inputs = f.wrapper.findAll('input');
+    await inputs[0]!.setValue('Adjust points');
+    await inputs[1]!.setValue('alice');
+    await inputs[2]!.setValue('-12.5');
+    expect(f.wrapper.text()).toContain('this draft does not adjust points');
+    await f.button('Prepare draft').trigger('click');
+    expect(f.wrapper.get('dialog[open]').text()).toContain('"uniqueId": "alice"');
+    expect(f.model.text.value).toBe('existing private draft');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toEqual({ id: 'author.example', name: 'Adjust points', enabled: false,
+      typeId: 'core.points', config: { uniqueId: 'alice', delta: -12.5 }, schemaVersion: 2 });
+    expect(f.model.saved.value).toBeNull();
+    expect(f.calls.map((call) => call.method)).toEqual(['controller.proposals.list']);
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('rejects dynamic, invalid, and excessive points targets without changing the draft', async () => {
+  const f = await setup('action');
+  try {
+    const original = f.model.text.value;
+    await f.wrapper.get('select').setValue('core.points');
+    const inputs = f.wrapper.findAll('input');
+    await inputs[0]!.setValue('Points');
+    await inputs[2]!.setValue('1');
+    for (const id of ['@alice', '{{ event.user.uniqueId }}', 'bad*id', ' alice']) {
+      await inputs[1]!.setValue(id);
+      expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    }
+    await inputs[1]!.setValue('alice');
+    for (const value of ['0', '1000000001', '-1000000001']) {
+      await inputs[2]!.setValue(value);
+      expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    }
+    expect(f.model.text.value).toBe(original);
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('invalidates a points preview if the target or amount changes', async () => {
+  const f = await setup('action');
+  try {
+    const original = f.model.text.value;
+    await f.wrapper.get('select').setValue('core.points');
+    const inputs = f.wrapper.findAll('input');
+    await inputs[0]!.setValue('Points');
+    await inputs[1]!.setValue('alice');
+    await inputs[2]!.setValue('5');
+    await f.button('Prepare draft').trigger('click');
+    await inputs[1]!.setValue('bob');
+    expect(f.dialogButton('Use this draft').attributes('disabled')).toBeDefined();
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(f.model.text.value).toBe(original);
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
 it('invalidates an open confirmation when the text or authority changes', async () => {
   const f = await setup('action');
   try {

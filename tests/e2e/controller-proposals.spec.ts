@@ -28,8 +28,8 @@ for (const locale of ['en', 'es'] as const) {
       } };
     }, { status, locale });
     await page.goto('/');
-    const labels = locale === 'es' ? { title: 'Propuestas de automatización', id: 'ID de la propuesta', start: 'Preparar propuesta nueva', save: 'Guardar propuesta en esta PC', consent: 'valores sensibles', builder: 'Crear una propuesta con campos', name: 'Nombre', message: 'Mensaje', prepare: 'Preparar borrador', use: 'Usar este borrador', warning: 'No se guardará ni enviará todavía' } :
-      { title: 'Automation proposals', id: 'Proposal ID', start: 'Prepare new proposal', save: 'Save proposal on this PC', consent: 'sensitive values', builder: 'Create a proposal with fields', name: 'Name', message: 'Message', prepare: 'Prepare draft', use: 'Use this draft', warning: 'It will not be saved or sent yet' };
+    const labels = locale === 'es' ? { title: 'Propuestas de automatización', id: 'ID de la propuesta', start: 'Preparar propuesta nueva', save: 'Guardar propuesta en esta PC', consent: 'valores sensibles', builder: 'Crear una propuesta con campos', name: 'Nombre', message: 'Mensaje', actionType: 'Tipo de acción', viewer: 'ID exacto del espectador', delta: 'Cambio de puntos', prepare: 'Preparar borrador', use: 'Usar este borrador', warning: 'No se guardará ni enviará todavía' } :
+      { title: 'Automation proposals', id: 'Proposal ID', start: 'Prepare new proposal', save: 'Save proposal on this PC', consent: 'sensitive values', builder: 'Create a proposal with fields', name: 'Name', message: 'Message', actionType: 'Action type', viewer: 'Exact viewer ID', delta: 'Points change', prepare: 'Prepare draft', use: 'Use this draft', warning: 'It will not be saved or sent yet' };
     const region = page.getByRole('region', { name: labels.title, exact: true });
     await region.getByLabel(labels.id, { exact: true }).fill('same'); await region.getByRole('button', { name: labels.start, exact: true }).click();
     await region.getByText(labels.builder, { exact: true }).click();
@@ -42,6 +42,16 @@ for (const locale of ['en', 'es'] as const) {
     expect(await page.evaluate(() => (window as unknown as { __PROPOSAL_FIXTURE__: { calls: string[] } }).__PROPOSAL_FIXTURE__.calls.some((method) => method === 'controller.proposals.save' || method === 'controller.proposals.submit'))).toBe(false);
     await preview.getByRole('button', { name: labels.use, exact: true }).click();
     await expect(region.locator('textarea')).toHaveValue(/Hello from the moderator/);
+    await region.getByRole('combobox', { name: labels.actionType, exact: true }).selectOption('core.points');
+    await region.getByLabel(labels.viewer, { exact: true }).fill('alice');
+    await region.getByLabel(labels.delta, { exact: true }).fill('-3');
+    await region.getByRole('button', { name: labels.prepare, exact: true }).click();
+    await expect(preview.locator('pre')).toContainText('"uniqueId": "alice"');
+    await expect(preview.locator('pre')).toContainText('"delta": -3');
+    await expect(preview.locator('pre')).toContainText('"enabled": false');
+    await preview.getByRole('button', { name: labels.use, exact: true }).click();
+    await expect(region.locator('textarea')).toHaveValue(/"typeId": "core\.points"/);
+    expect(await page.evaluate(() => (window as unknown as { __PROPOSAL_FIXTURE__: { calls: string[] } }).__PROPOSAL_FIXTURE__.calls.some((method) => method === 'controller.proposals.save' || method === 'controller.proposals.submit'))).toBe(false);
     const text = JSON.stringify({ id: 'same', enabled: false, typeId: 'core.log', config: { message: 'private proposal fixture 🧡' } }, null, 2);
     await region.locator('textarea').fill(text); await region.getByRole('button', { name: labels.save, exact: true }).click();
     const dialog = page.getByRole('dialog'); await expect(dialog).toContainText(status.origin!); await expect(dialog).toContainText('host-A'); await expect(dialog).toContainText(labels.consent); await expect(dialog.locator('pre')).toHaveText(text);

@@ -131,7 +131,14 @@ indicator, effective capabilities, permitted workflow view, points board and
 closed automation status with confirmed whole-event stop/delete. Tokens and
 the pairing exchange secret remain in Rust/OS storage. The invitation input
 is cleared on submission; pending approval survives page reload in the native
-engine. The LIVE activity panel can filter its bounded, locally displayed
+engine. The visual proposal builder can prepare a disabled points action for
+an exact literal viewer ID and a bounded nonzero adjustment. Preparing it only
+replaces the open local draft after preview; it neither saves, submits nor
+adjusts points. Submission and owner approval remain separate, and current
+host permissions and effect limits still govern execution. Dynamic viewer
+targets are not offered by this builder.
+
+The LIVE activity panel can filter its bounded, locally displayed
 entries by kind and search author, nickname or text. Filters do not query the
 host or extend its retained history, and are cleared when the connection or
 grant changes or LIVE access is lost. With points access, the moderator may

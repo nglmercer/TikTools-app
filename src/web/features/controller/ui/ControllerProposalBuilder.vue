@@ -8,7 +8,8 @@ const props = defineProps<{ model: ProposalModel }>();
 const { locale } = useI18n();
 const labels = computed(() => locale.value === 'es' ? {
   title: 'Crear una propuesta con campos', note: 'Genera un borrador inactivo. Antes de enviarlo tendrás que guardarlo y revisar el estado del anfitrión.',
-  name: 'Nombre', actionType: 'Tipo de acción', log: 'Registrar un mensaje', delay: 'Esperar', message: 'Mensaje', milliseconds: 'Milisegundos',
+  name: 'Nombre', actionType: 'Tipo de acción', log: 'Registrar un mensaje', delay: 'Esperar', points: 'Ajustar puntos de un espectador', message: 'Mensaje', milliseconds: 'Milisegundos',
+  viewer: 'ID exacto del espectador', delta: 'Cambio de puntos', pointsNote: 'Usa un ID literal, sin @ ni variables. El propietario y el anfitrión deben aprobar el efecto y los permisos para ese espectador; este borrador no ajusta puntos.',
   trigger: 'Cuándo ocurre', chat: 'Mensaje en el chat', gift: 'Regalo', like: 'Me gusta', follow: 'Seguir', share: 'Compartir', join: 'Ingreso',
   contains: 'El mensaje contiene (opcional)', actionId: 'ID de acción (opcional)', cooldown: 'Espera entre ejecuciones (ms)',
   actionNote: 'El anfitrión verificará el acceso a la acción. Sin una acción vinculada, el evento no hará nada.',
@@ -17,7 +18,8 @@ const labels = computed(() => locale.value === 'es' ? {
   apply: 'Usar este borrador', changed: 'La propuesta, los campos o el acceso cambiaron. Vuelve a revisar el borrador.', preview: 'Borrador nuevo',
 } : {
   title: 'Create a proposal with fields', note: 'Generate a disabled draft. Before sending, save it and inspect the host status.',
-  name: 'Name', actionType: 'Action type', log: 'Log a message', delay: 'Wait', message: 'Message', milliseconds: 'Milliseconds',
+  name: 'Name', actionType: 'Action type', log: 'Log a message', delay: 'Wait', points: 'Adjust a viewer’s points', message: 'Message', milliseconds: 'Milliseconds',
+  viewer: 'Exact viewer ID', delta: 'Points change', pointsNote: 'Use a literal ID without @ or variables. The owner and host must approve the effect and permissions for that viewer; this draft does not adjust points.',
   trigger: 'When it happens', chat: 'Chat message', gift: 'Gift', like: 'Like', follow: 'Follow', share: 'Share', join: 'Join',
   contains: 'Message contains (optional)', actionId: 'Action ID (optional)', cooldown: 'Delay between runs (ms)',
   actionNote: 'The host checks access to the action. Without a linked action, the event will do nothing.',
@@ -27,9 +29,11 @@ const labels = computed(() => locale.value === 'es' ? {
 });
 
 const name = ref('');
-const actionType = ref<'core.log' | 'core.delay'>('core.log');
+const actionType = ref<'core.log' | 'core.delay' | 'core.points'>('core.log');
 const message = ref('');
 const milliseconds = ref('1000');
+const viewer = ref('');
+const delta = ref('');
 const trigger = ref<'tiktok.chat' | 'tiktok.gift' | 'tiktok.like' | 'tiktok.follow' | 'tiktok.share' | 'tiktok.join'>('tiktok.chat');
 const contains = ref('');
 const actionId = ref('');
@@ -43,6 +47,12 @@ const integer = (value: string, max: number): number | null => {
 };
 const canonicalId = (value: string) => value.length > 0 && value.trim() === value
   && encoder.encode(value).length <= 128 && !/[\p{Cc}*]/u.test(value);
+const literalViewer = (value: string) => canonicalId(value) && !value.startsWith('@') && !value.includes('{{') && !value.includes('}}');
+const pointsChange = (value: string): number | null => {
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed !== 0 && Math.abs(parsed) <= 1_000_000_000 ? parsed : null;
+};
 const draft = computed<string | null>(() => {
   const id = props.model.id.value;
   if (!props.model.editable.value || !canonicalId(id) || !name.value.trim() || encoder.encode(name.value).length > 256) return null;
@@ -51,9 +61,17 @@ const draft = computed<string | null>(() => {
       if (!message.value.trim() || encoder.encode(message.value).length > 8192) return null;
       return JSON.stringify({ id, name: name.value, enabled: false, typeId: 'core.log', config: { message: message.value }, schemaVersion: 2 }, null, 2);
     }
-    const ms = integer(milliseconds.value, 60_000);
-    if (actionType.value !== 'core.delay' || ms === null) return null;
-    return JSON.stringify({ id, name: name.value, enabled: false, typeId: 'core.delay', config: { ms }, schemaVersion: 2 }, null, 2);
+    if (actionType.value === 'core.delay') {
+      const ms = integer(milliseconds.value, 60_000);
+      if (ms === null) return null;
+      return JSON.stringify({ id, name: name.value, enabled: false, typeId: 'core.delay', config: { ms }, schemaVersion: 2 }, null, 2);
+    }
+    if (actionType.value === 'core.points') {
+      const amount = pointsChange(delta.value);
+      if (!literalViewer(viewer.value) || amount === null) return null;
+      return JSON.stringify({ id, name: name.value, enabled: false, typeId: 'core.points', config: { uniqueId: viewer.value, delta: amount }, schemaVersion: 2 }, null, 2);
+    }
+    return null;
   }
   const wait = integer(cooldown.value, 86_400_000);
   if (wait === null || !triggers.has(trigger.value) || (actionId.value && !canonicalId(actionId.value)) || encoder.encode(contains.value).length > 500) return null;
@@ -80,7 +98,7 @@ function apply(): void {
 }
 // Source and form state are both private to the current connection/selection.
 watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.id.value], () => {
-  capture.value = null; name.value = ''; message.value = ''; actionId.value = ''; contains.value = '';
+  capture.value = null; name.value = ''; message.value = ''; actionId.value = ''; contains.value = ''; viewer.value = ''; delta.value = '';
   actionType.value = 'core.log'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0';
 }, { flush: 'sync' });
 </script>
@@ -92,9 +110,13 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
     <div class="fields">
       <label>{{ labels.name }}<input v-model="name" maxlength="256" :disabled="model.busy.value"></label>
       <template v-if="model.kind.value === 'action'">
-        <label>{{ labels.actionType }}<select v-model="actionType" :disabled="model.busy.value"><option value="core.log">{{ labels.log }}</option><option value="core.delay">{{ labels.delay }}</option></select></label>
+        <label>{{ labels.actionType }}<select v-model="actionType" :disabled="model.busy.value"><option value="core.log">{{ labels.log }}</option><option value="core.delay">{{ labels.delay }}</option><option value="core.points">{{ labels.points }}</option></select></label>
         <label v-if="actionType === 'core.log'">{{ labels.message }}<input v-model="message" maxlength="8192" :disabled="model.busy.value"></label>
-        <label v-else>{{ labels.milliseconds }}<input v-model="milliseconds" type="number" min="0" max="60000" step="1" :disabled="model.busy.value"></label>
+        <label v-else-if="actionType === 'core.delay'">{{ labels.milliseconds }}<input v-model="milliseconds" type="number" min="0" max="60000" step="1" :disabled="model.busy.value"></label>
+        <template v-else>
+          <label>{{ labels.viewer }}<input v-model="viewer" maxlength="128" spellcheck="false" autocomplete="off" :disabled="model.busy.value"></label>
+          <label>{{ labels.delta }}<input v-model="delta" type="number" min="-1000000000" max="1000000000" step="any" :disabled="model.busy.value"></label>
+        </template>
       </template>
       <template v-else>
         <label>{{ labels.trigger }}<select v-model="trigger" :disabled="model.busy.value"><option value="tiktok.chat">{{ labels.chat }}</option><option value="tiktok.gift">{{ labels.gift }}</option><option value="tiktok.like">{{ labels.like }}</option><option value="tiktok.follow">{{ labels.follow }}</option><option value="tiktok.share">{{ labels.share }}</option><option value="tiktok.join">{{ labels.join }}</option></select></label>
@@ -104,6 +126,7 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
       </template>
     </div>
     <p v-if="model.kind.value === 'event'">{{ labels.actionNote }}</p>
+    <p v-if="model.kind.value === 'action' && actionType === 'core.points'">{{ labels.pointsNote }}</p>
     <p v-if="draft === null" role="status">{{ labels.invalid }}</p>
     <button type="button" :disabled="draft === null || !model.prepare('save')" @click="prepare">{{ labels.generate }}</button>
   </details>
