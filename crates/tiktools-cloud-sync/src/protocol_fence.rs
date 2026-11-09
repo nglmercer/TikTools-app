@@ -30,6 +30,8 @@ pub enum ProtocolFenceError {
     UncertainV1,
     #[error("this account requires the product outbox; legacy operations are unavailable")]
     ProductOutboxRequired,
+    #[error("product sync is unavailable until the account has a reviewed outbox migration")]
+    ProductOutboxNotEnabled,
     #[error("cutover needs the same reviewed inputs and a complete v2 bootstrap")]
     StaleCutover,
     #[error(transparent)]
@@ -519,12 +521,38 @@ impl ProtocolFence {
 }
 
 impl V1Lease {
+    /// A product drain may run only after explicit migration installed the
+    /// per-account marker that fences cooperating legacy writers. Call this
+    /// while holding the shared admission lease, not as a preflight alone.
+    pub(crate) fn ensure_product_outbox(
+        &self,
+        origin: &str,
+        account: &str,
+    ) -> Result<(), ProtocolFenceError> {
+        if self.fence.product_outbox_required(origin, account)? {
+            Ok(())
+        } else {
+            Err(ProtocolFenceError::ProductOutboxNotEnabled)
+        }
+    }
     pub(crate) fn ensure_legacy_allowed(
         &self,
         origin: &str,
         account: &str,
     ) -> Result<(), ProtocolFenceError> {
         self.fence.ensure_legacy_allowed(origin, account)
+    }
+    pub(crate) fn ensure_outbox_mode(
+        &self,
+        origin: &str,
+        account: &str,
+        marked: bool,
+    ) -> Result<(), ProtocolFenceError> {
+        if marked {
+            self.ensure_product_outbox(origin, account)
+        } else {
+            self.ensure_legacy_allowed(origin, account)
+        }
     }
     /// Reserve a local mutation or admission of an upload. Callers must take
     /// the protocol lease first and keep it while this lease is live.

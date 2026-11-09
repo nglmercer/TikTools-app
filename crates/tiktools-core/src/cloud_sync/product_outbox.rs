@@ -8,6 +8,8 @@ use tiktools_cloud_sync::{
     V1LocalEditContext, V1OutboxCandidate, V1Pending, V1ProductOutbox,
 };
 
+use crate::{control::PluginSyncRuntimeGuard, AppCore};
+
 #[cfg(test)]
 mod abandon_tests;
 
@@ -227,6 +229,147 @@ impl V1ProductOutbox for SqliteProductOutbox<'_> {
         self.db
             .abandon_superseded_plugin_sync_rebase(context, intent, generation)
             .map_err(|_| unavailable())
+    }
+}
+
+/// Product-only adapter: the coordinator must acquire the runtime gate
+/// before protocol admission and release it before network I/O. A matching
+/// live worker is a momentary observation, not a restart or crash outcome.
+/// It does not admit deletions or missing packages. This remains unwired
+/// until reviewed migration and all local mutation paths share the boundary.
+#[allow(dead_code)]
+pub(crate) struct RuntimeProductOutbox<'a> {
+    core: &'a AppCore,
+    inner: SqliteProductOutbox<'a>,
+}
+
+impl<'a> RuntimeProductOutbox<'a> {
+    pub(crate) fn new(core: &'a AppCore) -> Result<Self, SyncCoordError> {
+        let epoch = core.sync.runtime_epoch().map_err(|_| unavailable())?;
+        Ok(Self {
+            core,
+            inner: SqliteProductOutbox::new(&core.db, epoch),
+        })
+    }
+}
+
+struct UnderRuntimeGuard<'a, 'g> {
+    inner: &'a mut SqliteProductOutbox<'g>,
+    runtime: &'a PluginSyncRuntimeGuard<'g>,
+}
+
+fn runtime_agrees(runtime: &PluginSyncRuntimeGuard<'_>, key: &str, edit: &V1Edit) -> bool {
+    match edit {
+        V1Edit::Put(selection) if selection.plugin_id == key => {
+            runtime.matches_selection(key, &selection.version, selection.enabled)
+        }
+        // A package tombstone requires filesystem/receipt reconciliation,
+        // not merely absence of a running process.
+        _ => false,
+    }
+}
+
+impl V1ProductOutbox for RuntimeProductOutbox<'_> {
+    fn with_runtime_guard(
+        &mut self,
+        operation: &mut dyn FnMut(&mut dyn V1ProductOutbox) -> Result<(), SyncCoordError>,
+    ) -> Result<(), SyncCoordError> {
+        let runtime = self
+            .core
+            .try_plugin_sync_runtime_guard()
+            .map_err(|_| unavailable())?;
+        let mut guarded = UnderRuntimeGuard {
+            inner: &mut self.inner,
+            runtime: &runtime,
+        };
+        operation(&mut guarded)
+    }
+
+    fn next(
+        &mut self,
+        _: &V1LocalEditContext,
+    ) -> Result<Option<V1OutboxCandidate>, SyncCoordError> {
+        Err(unavailable())
+    }
+
+    fn acknowledge(
+        &mut self,
+        _: &V1LocalEditContext,
+        _: &V1OutboxCandidate,
+        _: &V1Pending,
+    ) -> Result<bool, SyncCoordError> {
+        Err(unavailable())
+    }
+
+    fn validate_pending(
+        &mut self,
+        _: &V1LocalEditContext,
+        _: &str,
+        _: &V1Pending,
+    ) -> Result<bool, SyncCoordError> {
+        Err(unavailable())
+    }
+
+    fn has_pending_rebase(&mut self, context: &V1LocalEditContext) -> Result<bool, SyncCoordError> {
+        self.inner.has_pending_rebase(context)
+    }
+}
+
+impl V1ProductOutbox for UnderRuntimeGuard<'_, '_> {
+    fn next(
+        &mut self,
+        context: &V1LocalEditContext,
+    ) -> Result<Option<V1OutboxCandidate>, SyncCoordError> {
+        let entry = self.inner.next(context)?;
+        if entry
+            .as_ref()
+            .is_some_and(|entry| !runtime_agrees(self.runtime, &entry.key, &entry.edit))
+        {
+            return Err(unavailable());
+        }
+        Ok(entry)
+    }
+
+    fn acknowledge(
+        &mut self,
+        context: &V1LocalEditContext,
+        candidate: &V1OutboxCandidate,
+        pending: &V1Pending,
+    ) -> Result<bool, SyncCoordError> {
+        if !runtime_agrees(self.runtime, &candidate.key, &candidate.edit) {
+            return Ok(false);
+        }
+        self.inner.acknowledge(context, candidate, pending)
+    }
+
+    fn validate_pending(
+        &mut self,
+        context: &V1LocalEditContext,
+        key: &str,
+        pending: &V1Pending,
+    ) -> Result<bool, SyncCoordError> {
+        if !runtime_agrees(self.runtime, key, &pending.edit) {
+            return Ok(false);
+        }
+        self.inner.validate_pending(context, key, pending)
+    }
+
+    fn has_pending_rebase(&mut self, context: &V1LocalEditContext) -> Result<bool, SyncCoordError> {
+        self.inner.has_pending_rebase(context)
+    }
+}
+
+impl AppCore {
+    /// Private product-drain entry point. An explicit migration must first
+    /// install the account marker and integrate all local mutation paths;
+    /// until then no user-facing RPC should invoke this method.
+    #[allow(dead_code)]
+    pub(crate) async fn sync_plugins_with_marked_outbox(
+        &self,
+    ) -> Result<tiktools_cloud_sync::SyncOutcome, SyncCoordError> {
+        let coordinator = self.sync.coordinator().map_err(|_| unavailable())?;
+        let mut outbox = RuntimeProductOutbox::new(self)?;
+        coordinator.sync_now_with_marked_outbox(&mut outbox).await
     }
 }
 

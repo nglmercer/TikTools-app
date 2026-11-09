@@ -81,6 +81,32 @@ struct RetiredWorker {
     worker: Option<thread::JoinHandle<Result<(), PluginLoaderError>>>,
 }
 
+/// Snapshot of the host-owned worker; not a guarantee of plugin health or of
+/// any process not owned by this manager.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginWorkerObservation {
+    WorkerPresent,
+    Stopped,
+    Uncertain,
+}
+
+struct StoppingGuard<'a> {
+    manager: &'a PluginManager,
+    id: String,
+}
+
+impl Drop for StoppingGuard<'_> {
+    fn drop(&mut self) {
+        let mut stopping = recover_mutex(&self.manager.stopping, "plugin stopping");
+        if let Some(count) = stopping.get_mut(&self.id) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                stopping.remove(&self.id);
+            }
+        }
+    }
+}
+
 /// Maps a poisoned lock to a typed loader error. The poisoning is logged
 /// with the shared lock-recovery target so poisoned failures stay visible
 /// in telemetry instead of crashing the host.
@@ -168,6 +194,9 @@ pub struct PluginManager {
     /// never dropped without its outcome being joined or explicitly
     /// abandoned.
     retired: Mutex<Vec<RetiredWorker>>,
+    /// Stop/retirement may continue after its instance leaves the map. Keep
+    /// that interval observable rather than claiming the worker has stopped.
+    stopping: Mutex<BTreeMap<String, usize>>,
     /// Workers explicitly abandoned past a deadline (outcome unknown).
     abandoned_workers: AtomicU64,
     isolated_admission: Arc<tokio::sync::Semaphore>,
@@ -195,6 +224,7 @@ impl PluginManager {
             registry_revision: AtomicU64::new(1),
             deadlines: Mutex::new(PluginDeadlines::default()),
             retired: Mutex::new(Vec::new()),
+            stopping: Mutex::new(BTreeMap::new()),
             abandoned_workers: AtomicU64::new(0),
             isolated_admission: Arc::new(tokio::sync::Semaphore::new(16)),
         }
@@ -322,8 +352,86 @@ impl PluginManager {
             .cloned()
     }
 
+    /// Reads catalog metadata without recovering a poisoned registry. Use
+    /// this when the result authorizes a new runtime or sync operation.
+    pub fn get_for_admission(
+        &self,
+        id: &str,
+    ) -> Result<Option<DiscoveredPlugin>, PluginLoaderError> {
+        let registry = self
+            .registry
+            .read()
+            .map_err(|_| lock_poisoned("plugin registry"))?;
+        Ok(registry.entries.get(id).cloned())
+    }
+
     pub fn is_running(&self, id: &str) -> bool {
         recover_rwlock_read(&self.instances, "plugin instances").contains_key(id)
+    }
+
+    /// A conservative instantaneous observation of host-owned workers.
+    /// It does not prove the health of a child process, fence other hosts,
+    /// or prevent a worker from exiting after the observation.
+    pub fn observe_worker(&self, id: &str) -> Result<PluginWorkerObservation, PluginLoaderError> {
+        let _lifecycle = match self.lifecycle.try_lock() {
+            Ok(guard) => guard,
+            Err(std::sync::TryLockError::WouldBlock) => {
+                return Ok(PluginWorkerObservation::Uncertain)
+            }
+            Err(std::sync::TryLockError::Poisoned(_)) => {
+                return Err(lock_poisoned("plugin lifecycle"))
+            }
+        };
+        let stopping = self
+            .stopping
+            .lock()
+            .map_err(|_| lock_poisoned("plugin stopping"))?;
+        if stopping.contains_key(id) {
+            return Ok(PluginWorkerObservation::Uncertain);
+        }
+        let retired = self
+            .retired
+            .lock()
+            .map_err(|_| lock_poisoned("plugin retired workers"))?;
+        // Overflow retirement increments the abandoned count while holding
+        // this mutex. Check after taking it so a removed handle cannot become
+        // invisible between our count check and the retired-list observation.
+        if self.abandoned_workers.load(Ordering::Acquire) != 0 {
+            return Ok(PluginWorkerObservation::Uncertain);
+        }
+        if retired.iter().any(|worker| worker.id == id) {
+            return Ok(PluginWorkerObservation::Uncertain);
+        }
+        let instances = self
+            .instances
+            .read()
+            .map_err(|_| lock_poisoned("plugin instances"))?;
+        let Some(instance) = instances.get(id) else {
+            return Ok(PluginWorkerObservation::Stopped);
+        };
+        let worker = instance
+            .worker
+            .lock()
+            .map_err(|_| lock_poisoned("plugin worker"))?;
+        Ok(
+            if worker.as_ref().is_some_and(|handle| !handle.is_finished()) {
+                PluginWorkerObservation::WorkerPresent
+            } else {
+                PluginWorkerObservation::Uncertain
+            },
+        )
+    }
+
+    /// Caller holds lifecycle. Recovery below is fail-closed if this mutex is
+    /// poisoned, but normal stop must still make a best effort to finish.
+    fn note_stopping(&self, id: &str) -> StoppingGuard<'_> {
+        let mut stopping = recover_mutex(&self.stopping, "plugin stopping");
+        let count = stopping.entry(id.to_owned()).or_default();
+        *count = count.saturating_add(1);
+        StoppingGuard {
+            manager: self,
+            id: id.to_owned(),
+        }
     }
 
     pub fn start(&self, id: &str) -> Result<(), PluginLoaderError> {
@@ -457,11 +565,12 @@ impl PluginManager {
     }
 
     pub fn stop(&self, id: &str) -> Result<(), PluginLoaderError> {
-        let instance = {
+        let (instance, stopping) = {
             let _lifecycle = self
                 .lifecycle
                 .lock()
                 .map_err(|_| lock_poisoned("plugin lifecycle"))?;
+            let stopping = self.note_stopping(id);
             let removed = self.remove_instance(id);
             if let Some(instance) = removed.as_ref() {
                 // Close admission and ask the worker to stop while the
@@ -475,9 +584,11 @@ impl PluginManager {
             // instance, so an old stop can never clear a newer start's
             // running state.
             self.set_running(id, false);
-            removed
+            (removed, stopping)
         };
-        self.finish_stop(id, instance)
+        let result = self.finish_stop(id, instance);
+        drop(stopping);
+        result
     }
 
     /// Best-effort stop used only by shutdown paths. Unlike [`Self::stop`],
@@ -486,23 +597,26 @@ impl PluginManager {
     /// forever. Worker failures are logged and the instance is always
     /// removed with its running state cleared.
     fn stop_for_shutdown(&self, id: &str) -> bool {
-        let instance = {
+        let (instance, stopping) = {
             let _lifecycle = recover_mutex(&self.lifecycle, "plugin lifecycle");
+            let stopping = self.note_stopping(id);
             let removed = self.remove_instance(id);
             if let Some(instance) = removed.as_ref() {
                 instance.admission.close();
                 let _ = instance.tx.send(WorkerMsg::Shutdown);
             }
             self.set_running(id, false);
-            removed
+            (removed, stopping)
         };
-        match self.finish_stop(id, instance) {
+        let result = match self.finish_stop(id, instance) {
             Ok(()) => true,
             Err(error) => {
                 tracing::warn!(id = %id, %error, "plugin shutdown failed");
                 false
             }
-        }
+        };
+        drop(stopping);
+        result
     }
 
     /// Joins an already-stopped instance within the stop deadline. The
@@ -903,13 +1017,15 @@ impl PluginManager {
     /// block on a join, so the worker's handle keeps its owner here and is
     /// reaped (bounded) later instead of being dropped unobserved.
     fn remove_failed_worker(&self, id: &str, token: u64) {
-        let removed = {
+        let (removed, stopping) = {
             let _lifecycle = recover_mutex(&self.lifecycle, "plugin lifecycle");
-            self.retire_generation_locked(id, token)
+            let stopping = self.note_stopping(id);
+            (self.retire_generation_locked(id, token), stopping)
         };
         if let Some(instance) = removed {
             self.retire_instance(id, token, instance);
         }
+        drop(stopping);
     }
 
     /// Hands a retired worker's join handle to the manager for bounded

@@ -981,6 +981,52 @@ impl PluginInstance for WedgedShutdownInstance {
     }
 }
 
+#[test]
+fn worker_observation_does_not_treat_an_inflight_stop_as_stopped() {
+    let gate = ShutdownGate::new();
+    let root = temp_root();
+    write_plugin_with_runtime(&root, "wedged", &in_process_test_kind().to_string());
+    let mut runtimes = RuntimeRegistry::default();
+    runtimes.register(Arc::new(WedgedShutdownRuntime {
+        gate: ShutdownGate(std::sync::Arc::clone(&gate.0)),
+    }));
+    let manager = Arc::new(PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    ));
+    manager.scan().unwrap();
+    assert_eq!(
+        manager.observe_worker("wedged").unwrap(),
+        PluginWorkerObservation::Stopped
+    );
+    manager.start("wedged").unwrap();
+    assert_eq!(
+        manager.observe_worker("wedged").unwrap(),
+        PluginWorkerObservation::WorkerPresent
+    );
+    let worker = Arc::clone(&manager);
+    let stopped = std::thread::spawn(move || worker.stop("wedged"));
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while manager.is_running("wedged") && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let removed = !manager.is_running("wedged");
+    let observation = manager.observe_worker("wedged");
+    gate.release();
+    let result = stopped.join().unwrap();
+    assert!(removed);
+    assert_eq!(observation.unwrap(), PluginWorkerObservation::Uncertain);
+    result.unwrap();
+    assert_eq!(
+        manager.observe_worker("wedged").unwrap(),
+        PluginWorkerObservation::Stopped
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
 #[tokio::test]
 async fn stop_abandons_a_wedged_worker_after_the_deadline_instead_of_hanging() {
     let gate = ShutdownGate::new();
@@ -1016,6 +1062,10 @@ async fn stop_abandons_a_wedged_worker_after_the_deadline_instead_of_hanging() {
         manager.abandoned_worker_count(),
         1,
         "the abandoned thread must be counted, not silently detached"
+    );
+    assert_eq!(
+        manager.observe_worker("wedged").unwrap(),
+        PluginWorkerObservation::Uncertain
     );
     assert!(
         !manager.is_running("wedged"),
@@ -1100,6 +1150,10 @@ async fn start_retires_a_dead_but_mapped_worker_and_spawns_a_fresh_generation() 
     assert!(
         manager.worker_finished_for_test("demo"),
         "the first generation's worker must have exited by now"
+    );
+    assert_eq!(
+        manager.observe_worker("demo").unwrap(),
+        PluginWorkerObservation::Uncertain
     );
 
     // Without the dead-generation check this returned Ok and left the map

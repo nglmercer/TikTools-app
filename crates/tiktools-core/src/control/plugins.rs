@@ -15,6 +15,59 @@ struct ReservedLocalPluginMutation {
     candidate: Option<crate::db::PluginSyncOutboxEntry>,
 }
 
+/// Holds the invocation boundary before the coordinator's short admission
+/// lease. This is a momentary host-worker observation, not a promise that a
+/// child process is healthy or that the observation survives this guard.
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+pub(crate) struct PluginSyncRuntimeGuard<'a> {
+    core: &'a AppCore,
+    _invocation: std::sync::MutexGuard<'a, ()>,
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+impl PluginSyncRuntimeGuard<'_> {
+    pub(crate) fn matches_selection(&self, id: &str, version: &str, enabled: bool) -> bool {
+        let Ok(quarantine) = self.core.plugin_state.apply_quarantine.read() else {
+            return false;
+        };
+        if quarantine
+            .as_ref()
+            .is_none_or(|blocked| blocked.contains(id))
+        {
+            return false;
+        }
+        drop(quarantine);
+        let Ok(Some(plugin)) = self.core.plugins.get_for_admission(id) else {
+            return false;
+        };
+        if plugin.manifest.id != id
+            || plugin.manifest.version != version
+            || (enabled && !plugin.available)
+        {
+            return false;
+        }
+        let Ok(activation) = self.core.plugin_state.activation.read() else {
+            return false;
+        };
+        if !activation
+            .get(id)
+            .is_some_and(|value| value.installed && value.enabled == enabled)
+        {
+            return false;
+        }
+        drop(activation);
+        let expected = if enabled {
+            tiktools_plugin_loader::PluginWorkerObservation::WorkerPresent
+        } else {
+            tiktools_plugin_loader::PluginWorkerObservation::Stopped
+        };
+        self.core
+            .plugins
+            .observe_worker(id)
+            .is_ok_and(|actual| actual == expected)
+    }
+}
+
 /// Atomically records the desired local state and, when opted in, an
 /// identity-bound candidate. The coordinator keeps protocol admission and
 /// identity stable for the entire SQLite transaction. This helper performs
@@ -404,6 +457,24 @@ fn is_confined_ui_entry(entry: &str) -> bool {
 }
 
 impl AppCore {
+    /// Obtain before protocol admission. The returned guard must be released
+    /// before any network request. Only cooperative callers sharing this core
+    /// are fenced; filesystem writers and other processes remain separate.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn try_plugin_sync_runtime_guard(
+        &self,
+    ) -> Result<PluginSyncRuntimeGuard<'_>, OperationError> {
+        let invocation =
+            self.plugin_state.invocation_gate.try_lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
+        Ok(PluginSyncRuntimeGuard {
+            core: self,
+            _invocation: invocation,
+        })
+    }
+
     /// Candidate product path for a local enable/disable. It is intentionally
     /// not selected by `plugin_set_enabled` yet: package mutations, restart
     /// reconciliation, outbox draining and the legacy-writer fence must be

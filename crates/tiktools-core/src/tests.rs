@@ -2876,6 +2876,29 @@ async fn cloud_sync_uncertain_resolution_is_unavailable_without_durable_source_f
 
 #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
 #[tokio::test]
+async fn plugin_sync_worker_guard_requires_matching_live_selection() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(runtime, &["acme.hotkeys"]);
+    core.plugin_set_enabled("acme.hotkeys", true).unwrap();
+    {
+        let guard = core.try_plugin_sync_runtime_guard().unwrap();
+        assert!(guard.matches_selection("acme.hotkeys", "1.0.0", true));
+        assert!(!guard.matches_selection("acme.hotkeys", "2.0.0", true));
+        assert!(!guard.matches_selection("acme.hotkeys", "1.0.0", false));
+        assert!(!guard.matches_selection("missing.plugin", "1.0.0", true));
+        assert!(core.try_plugin_sync_runtime_guard().is_err());
+    }
+    core.plugin_set_enabled("acme.hotkeys", false).unwrap();
+    let guard = core.try_plugin_sync_runtime_guard().unwrap();
+    assert!(guard.matches_selection("acme.hotkeys", "1.0.0", false));
+    assert!(!guard.matches_selection("acme.hotkeys", "1.0.0", true));
+    drop(guard);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[tokio::test]
 async fn durable_local_enable_requires_runtime_success_before_outbox_confirmation() {
     use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
 
@@ -2962,6 +2985,66 @@ async fn durable_local_enable_requires_runtime_success_before_outbox_confirmatio
     assert_ne!(retained.generation, retained.source_generation);
     assert_eq!(retained.enabled, Some(true));
     assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[tokio::test]
+async fn runtime_outbox_requires_matching_live_selection() {
+    use crate::cloud_sync::product_outbox::RuntimeProductOutbox;
+    use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
+    use tiktools_cloud_sync::{V1LocalEditContext, V1ProductOutbox};
+
+    let (mut core, _, root) =
+        core_with_fake_plugins(Arc::new(FakePluginState::default()), &["acme.hotkeys"]);
+    let paths = core.db.paths().clone();
+    let sidecar = paths.data.join("runtime-outbox-account.json");
+    std::fs::write(
+        &sidecar,
+        br#"{"origin":"https://cloud.example","account_id":"alice"}"#,
+    )
+    .unwrap();
+    let auth = CloudAuth::new(
+        Some("https://cloud.example".into()),
+        sidecar,
+        Arc::new(MemoryTokenStore::new()),
+    );
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    core.sync_set_enabled(true).unwrap();
+    core.plugin_set_enabled_with_durable_intent("acme.hotkeys", true)
+        .unwrap();
+    let entry = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    let context = V1LocalEditContext {
+        origin: entry.origin,
+        account_id: entry.account_id,
+        config_generation: entry.config_generation,
+    };
+    let mut outbox = RuntimeProductOutbox::new(&core).unwrap();
+    let mut observed = false;
+    outbox
+        .with_runtime_guard(&mut |guarded| {
+            observed = guarded.next(&context)?.is_some();
+            Ok(())
+        })
+        .unwrap();
+    assert!(observed);
+    let guard = core.try_plugin_sync_runtime_guard().unwrap();
+    assert!(!guard.matches_selection("acme.hotkeys", "wrong-version", true));
+    drop(guard);
+    core.plugins.stop("acme.hotkeys").unwrap();
+    let mut outbox = RuntimeProductOutbox::new(&core).unwrap();
+    assert!(outbox
+        .with_runtime_guard(&mut |guarded| {
+            guarded.next(&context)?;
+            Ok(())
+        })
+        .is_err());
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
 }

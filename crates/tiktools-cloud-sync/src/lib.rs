@@ -667,7 +667,22 @@ impl SyncCoordinator {
     /// Sync with a product-owned durable outbox. Every cooperating local
     /// mutation must use `with_v1_local_edit`; direct callers of `sync_now`
     /// cannot provide the product outbox's cross-store safety guarantee.
+    /// This low-level compatibility entry point does not require a migration
+    /// marker or a runtime guard and rejects migrated accounts; product integrations must use
+    /// `sync_now_with_marked_outbox` after explicit source migration instead.
     pub async fn sync_now_with_outbox(
+        &self,
+        outbox: &mut dyn V1ProductOutbox,
+    ) -> Result<SyncOutcome, SyncCoordError> {
+        self.sync_now_inner(outbox, false).await
+    }
+
+    /// Product drain for a previously reviewed v1 migration. The durable
+    /// per-account marker must already fence cooperating legacy writers, and
+    /// the native outbox must supply a runtime gate. This method never creates
+    /// the marker or authorizes migration on its own. Older binaries and
+    /// direct filesystem writers remain outside the cooperative protocol.
+    pub async fn sync_now_with_marked_outbox(
         &self,
         outbox: &mut dyn V1ProductOutbox,
     ) -> Result<SyncOutcome, SyncCoordError> {
@@ -677,7 +692,7 @@ impl SyncCoordinator {
     async fn sync_now_inner(
         &self,
         outbox: &mut dyn V1ProductOutbox,
-        product_outbox: bool,
+        require_product_marker: bool,
     ) -> Result<SyncOutcome, SyncCoordError> {
         let lease = self.protocol.try_v1()?;
         let config = self.read_config();
@@ -700,7 +715,7 @@ impl SyncCoordinator {
             return Err(SyncCoordError::Disabled);
         }
         let outcome = self
-            .sync_inner(&lease, config, outbox, product_outbox)
+            .sync_inner(&lease, config, outbox, require_product_marker)
             .await;
         drop(running);
         {
@@ -723,7 +738,7 @@ impl SyncCoordinator {
         lease: &protocol_fence::V1Lease,
         config: SyncConfig,
         outbox: &mut dyn V1ProductOutbox,
-        product_outbox: bool,
+        require_product_marker: bool,
     ) -> Result<SyncOutcome, SyncCoordError> {
         // A fresh process holds no in-memory session; reconnect from the
         // store first so one-shot callers (CLI, startup) sync without a
@@ -736,14 +751,18 @@ impl SyncCoordinator {
             .session()
             .await
             .ok_or(SyncCoordError::NotSignedIn)?;
+        let _marker_admission = lease.try_admission()?;
         self.with_live_session(&session, config, || {
             lease.ensure_v1(&session.instance_origin(), session.account_id())?;
-            if !product_outbox {
-                lease.ensure_legacy_allowed(&session.instance_origin(), session.account_id())?;
-            }
+            lease.ensure_outbox_mode(
+                &session.instance_origin(),
+                session.account_id(),
+                require_product_marker,
+            )?;
             lease.ensure_no_uncertain(&session.instance_origin(), session.account_id())?;
             Ok(())
         })?;
+        drop(_marker_admission);
         let mut snapshot = self.load_or_reset(&session, lease)?;
         let mut pulled = 0usize;
         // Pull until the server reports no more changes, rebuilding from a
@@ -787,7 +806,15 @@ impl SyncCoordinator {
                     if matches!(error, SyncCoordError::StaleReview) {
                         return Err(error);
                     }
-                    self.save_product_checkpoint(lease, &session, config, snapshot, outbox, None)?;
+                    self.save_product_checkpoint(
+                        lease,
+                        &session,
+                        config,
+                        snapshot,
+                        outbox,
+                        None,
+                        require_product_marker,
+                    )?;
                     return Err(error);
                 }
             }
@@ -795,7 +822,15 @@ impl SyncCoordinator {
         if !complete {
             // Preserve safely validated pages so a backlog larger than the
             // per-run bound can make progress without admitting any upload.
-            self.save_product_checkpoint(lease, &session, config, snapshot, outbox, None)?;
+            self.save_product_checkpoint(
+                lease,
+                &session,
+                config,
+                snapshot,
+                outbox,
+                None,
+                require_product_marker,
+            )?;
             return Err(SyncError::TooManyPages.into());
         }
         // Push staged edits in key order for deterministic behavior.
@@ -804,8 +839,28 @@ impl SyncCoordinator {
         let mut pushed = 0usize;
         let mut attempted = BTreeSet::new();
         loop {
-            let (updated, admitted) =
-                self.admit_product_upload(lease, &session, config, snapshot, outbox, &attempted)?;
+            let (updated, admitted) = if require_product_marker {
+                let mut input = Some(snapshot);
+                let mut output = None;
+                let mut operation = |guarded: &mut dyn V1ProductOutbox| {
+                    let snapshot = input.take().ok_or_else(|| {
+                        SyncCoordError::Local("runtime admission was repeated".into())
+                    })?;
+                    output = Some(self.admit_product_upload(
+                        lease, &session, config, snapshot, guarded, &attempted, true,
+                    )?);
+                    Ok(())
+                };
+                outbox.with_runtime_guard(&mut operation)?;
+                drop(operation);
+                output.ok_or_else(|| {
+                    SyncCoordError::Local("runtime admission was not performed".into())
+                })?
+            } else {
+                self.admit_product_upload(
+                    lease, &session, config, snapshot, outbox, &attempted, false,
+                )?
+            };
             snapshot = updated;
             let Some((key, marker)) = admitted else { break };
             attempted.insert(key.clone());
@@ -835,6 +890,7 @@ impl SyncCoordinator {
                 snapshot,
                 outbox,
                 Some(marker),
+                require_product_marker,
             )?;
         }
         let outcome = SyncOutcome {
@@ -863,7 +919,15 @@ impl SyncCoordinator {
                 })
                 .collect(),
         };
-        self.save_product_checkpoint(lease, &session, config, snapshot, outbox, None)?;
+        self.save_product_checkpoint(
+            lease,
+            &session,
+            config,
+            snapshot,
+            outbox,
+            None,
+            require_product_marker,
+        )?;
         Ok(outcome)
     }
 

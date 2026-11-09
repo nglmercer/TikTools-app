@@ -75,6 +75,8 @@ mod media;
 mod plugin_packages;
 mod plugin_settings;
 mod plugins;
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+pub(crate) use plugins::PluginSyncRuntimeGuard;
 mod points;
 pub use points::{valid_currency, PointsAdjustment};
 mod processors;

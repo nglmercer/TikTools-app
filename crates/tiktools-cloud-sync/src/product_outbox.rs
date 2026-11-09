@@ -56,8 +56,25 @@ impl V1ConflictSourceProof {
 /// Native-only bridge to a product's transactional outbox. Implementations
 /// must perform only short synchronous local I/O and must not re-enter the
 /// coordinator or authentication manager. Unconfirmed/stale entries must
-/// return an error rather than being skipped.
+/// return an error rather than being skipped. A failed drain may leave an
+/// adapter's in-memory observation unresolved; callers must discard that
+/// adapter and construct a fresh one before retrying.
 pub trait V1ProductOutbox: Send {
+    /// Enter the native runtime/invocation gate before the coordinator takes
+    /// its cross-process admission lease, and invoke `operation` synchronously
+    /// exactly once while that gate is held. The guarded adapter must reject
+    /// candidates whose observed runtime and exact source no longer agree.
+    /// The coordinator releases the gate before any network await. Legacy
+    /// test adapters have no such proof and fail closed by default.
+    fn with_runtime_guard(
+        &mut self,
+        _operation: &mut dyn FnMut(&mut dyn V1ProductOutbox) -> Result<(), SyncCoordError>,
+    ) -> Result<(), SyncCoordError> {
+        Err(SyncCoordError::Local(
+            "guarded plugin runtime observation is unavailable".into(),
+        ))
+    }
+
     fn next(
         &mut self,
         context: &V1LocalEditContext,
@@ -271,6 +288,7 @@ impl SyncCoordinator {
         snapshot: StateSnapshot,
         outbox: &mut dyn V1ProductOutbox,
         marker: Option<UncertainUpload>,
+        require_product_marker: bool,
     ) -> Result<StateSnapshot, SyncCoordError> {
         let _admission = lease.try_admission()?;
         self.with_live_session(session, config, || {
@@ -279,6 +297,11 @@ impl SyncCoordinator {
                 account_id: session.account_id().to_owned(),
                 config_generation: config.generation,
             };
+            lease.ensure_outbox_mode(
+                &context.origin,
+                &context.account_id,
+                require_product_marker,
+            )?;
             if outbox.has_pending_rebase(&context)? {
                 return Err(SyncCoordError::Local(
                     "review the unfinished conflict decision".into(),
@@ -305,6 +328,7 @@ impl SyncCoordinator {
         mut snapshot: StateSnapshot,
         outbox: &mut dyn V1ProductOutbox,
         attempted: &BTreeSet<String>,
+        require_product_marker: bool,
     ) -> Result<(StateSnapshot, Option<(String, UncertainUpload)>), SyncCoordError> {
         let _admission = lease.try_admission()?;
         let context = V1LocalEditContext {
@@ -312,6 +336,13 @@ impl SyncCoordinator {
             account_id: session.account_id().to_owned(),
             config_generation: config.generation,
         };
+        self.with_live_session(session, config, || {
+            Ok(lease.ensure_outbox_mode(
+                &context.origin,
+                &context.account_id,
+                require_product_marker,
+            )?)
+        })?;
         if self.with_live_session(session, config, || outbox.has_pending_rebase(&context))? {
             return Err(SyncCoordError::Local(
                 "review the unfinished conflict decision".into(),
@@ -320,9 +351,23 @@ impl SyncCoordinator {
         // Reject an older in-memory pull if a direct v1 staging writer won
         // the race before admission. The generation CAS must happen under
         // the same lease as local staging and marker publication.
-        snapshot = self.with_live_session(session, config, || self.save_state(snapshot, lease))?;
+        snapshot = self.with_live_session(session, config, || {
+            lease.ensure_outbox_mode(
+                &context.origin,
+                &context.account_id,
+                require_product_marker,
+            )?;
+            self.save_state(snapshot, lease)
+        })?;
         for count in 0..=MAX_DRAIN {
-            let candidate = self.with_live_session(session, config, || outbox.next(&context))?;
+            let candidate = self.with_live_session(session, config, || {
+                lease.ensure_outbox_mode(
+                    &context.origin,
+                    &context.account_id,
+                    require_product_marker,
+                )?;
+                outbox.next(&context)
+            })?;
             let Some(candidate) = candidate else { break };
             if count == MAX_DRAIN {
                 return Err(SyncCoordError::Local(
@@ -339,8 +384,14 @@ impl SyncCoordinator {
                 .stage(candidate.key.clone(), candidate.edit.clone())?;
             // A crash between the two stores leaves the outbox entry intact;
             // staging the same edit again retains the original base revision.
-            snapshot =
-                self.with_live_session(session, config, || self.save_state(snapshot, lease))?;
+            snapshot = self.with_live_session(session, config, || {
+                lease.ensure_outbox_mode(
+                    &context.origin,
+                    &context.account_id,
+                    require_product_marker,
+                )?;
+                self.save_state(snapshot, lease)
+            })?;
             let staged = snapshot
                 .state
                 .entries
@@ -348,6 +399,11 @@ impl SyncCoordinator {
                 .and_then(|entry| entry.pending.as_ref())
                 .ok_or_else(|| SyncCoordError::Local("local sync candidate disappeared".into()))?;
             if !self.with_live_session(session, config, || {
+                lease.ensure_outbox_mode(
+                    &context.origin,
+                    &context.account_id,
+                    require_product_marker,
+                )?;
                 outbox.acknowledge(&context, &candidate, staged)
             })? {
                 return Err(SyncCoordError::Local(
@@ -377,6 +433,11 @@ impl SyncCoordinator {
             .and_then(|entry| entry.pending.as_ref())
             .ok_or_else(|| SyncCoordError::Local("local sync candidate disappeared".into()))?;
         if !self.with_live_session(session, config, || {
+            lease.ensure_outbox_mode(
+                &context.origin,
+                &context.account_id,
+                require_product_marker,
+            )?;
             outbox.validate_pending(&context, &key, pending)
         })? {
             return Err(SyncCoordError::Local(
@@ -384,6 +445,11 @@ impl SyncCoordinator {
             ));
         }
         let marker = self.with_live_session(session, config, || {
+            lease.ensure_outbox_mode(
+                &context.origin,
+                &context.account_id,
+                require_product_marker,
+            )?;
             Ok(lease.prepare_upload(&snapshot, &key)?)
         })?;
         Ok((snapshot, Some((key, marker))))

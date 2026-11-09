@@ -3,8 +3,8 @@
 Status: **the native v2 foundation and read-only Cloud catalog and library UI are implemented. Product sync cutover, local application and full Desktop v2 acceptance are pending.**
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
-library delivery e6728c9. The reviewed backend commit is RemakeBackend 2955f00,
-including retained-feed gap detection, byte-ordered v1 snapshot pagination, SDK pull counts, canonical shards
+library delivery e6728c9. The reviewed backend commit is RemakeBackend 952e512,
+including stored-record validation, retained-feed gap detection, byte-ordered v1 snapshot pagination, SDK pull counts, canonical shards
 and SDK capability discovery, following bounded pagination 9f7e642,
 catalog compatibility 995d496, integrity changes c0fb951 and v2 foundation
 0c552b3, and its
@@ -112,10 +112,18 @@ coordinator in this experimental adapter; the final product path must retain
 independent local operation.
 The in-progress coordinator bridge moves staged candidates to durable receipts
 and rechecks the exact pending edit, source generation, consent and runtime
-epoch before upload. A durable per-account marker can make cooperating legacy
-entry points fail closed, but product activation and compatibility with older
-binaries remain unfinished. Package mutation coverage and conflict resolution
-still need the same boundary before product activation.
+epoch before upload. Its private native wrapper requires a previously created
+per-account product marker, checks that marker under admission at each relevant
+checkpoint, and takes a short runtime guard before protocol admission. Neither
+guard is held across HTTP; a marker or session change after dispatch leaves the
+outcome uncertain instead of acknowledging it. The compatibility outbox path
+rejects marked accounts. No path creates the marker or performs migration as
+part of this bridge, and older binaries remain outside the cooperative fence.
+The worker observation only describes host-owned workers at that instant; it
+does not prove process health, worker-generation continuity, or fence implicit
+starts and late plugin results. The bridge is not used by product operations;
+package mutations, tombstones, conflict resolution, runtime reconciliation and
+explicit migration still need their full boundaries before activation.
 The product v1 path now retains downloaded selections in the account snapshot
 without applying them to local plugins. `sync.now` reports deferred records,
 and both conflict choices fail without changing the retained conflict; Settings

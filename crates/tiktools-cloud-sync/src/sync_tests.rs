@@ -40,6 +40,69 @@ struct ProductOutboxState {
 #[derive(Clone, Default)]
 struct ProductOutbox(Arc<Mutex<ProductOutboxState>>);
 
+/// Simulates the product's synchronous runtime gate; the assertions in
+/// `next` and `validate_pending` verify the gate remains held through upload
+/// admission but is not retained for the network request.
+struct GuardedOutbox {
+    inner: ProductOutbox,
+    held: Arc<std::sync::atomic::AtomicBool>,
+    after_next: Option<Box<dyn FnOnce() + Send>>,
+}
+impl crate::V1ProductOutbox for GuardedOutbox {
+    fn with_runtime_guard(
+        &mut self,
+        operation: &mut dyn FnMut(&mut dyn crate::V1ProductOutbox) -> Result<(), SyncCoordError>,
+    ) -> Result<(), SyncCoordError> {
+        use std::sync::atomic::Ordering;
+        assert!(!self.held.swap(true, Ordering::SeqCst));
+        struct Release(Arc<std::sync::atomic::AtomicBool>);
+        impl Drop for Release {
+            fn drop(&mut self) {
+                self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        let _held = Release(self.held.clone());
+        operation(self)
+    }
+    fn next(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+    ) -> Result<Option<crate::V1OutboxCandidate>, SyncCoordError> {
+        assert!(self.held.load(std::sync::atomic::Ordering::SeqCst));
+        let candidate = self.inner.next(context)?;
+        if candidate.is_some() {
+            if let Some(after_next) = self.after_next.take() {
+                after_next();
+            }
+        }
+        Ok(candidate)
+    }
+    fn acknowledge(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        candidate: &crate::V1OutboxCandidate,
+        staged: &crate::V1Pending,
+    ) -> Result<bool, SyncCoordError> {
+        assert!(self.held.load(std::sync::atomic::Ordering::SeqCst));
+        self.inner.acknowledge(context, candidate, staged)
+    }
+    fn validate_pending(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        key: &str,
+        pending: &crate::V1Pending,
+    ) -> Result<bool, SyncCoordError> {
+        assert!(self.held.load(std::sync::atomic::Ordering::SeqCst));
+        self.inner.validate_pending(context, key, pending)
+    }
+    fn has_pending_rebase(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+    ) -> Result<bool, SyncCoordError> {
+        self.inner.has_pending_rebase(context)
+    }
+}
+
 impl ProductOutbox {
     fn stage(&self, key: &str, generation: i64, enabled: bool) {
         let candidate = crate::V1OutboxCandidate {
@@ -1321,14 +1384,161 @@ async fn product_outbox_mode_blocks_legacy_bypasses_across_restart() {
     restarted
         .with_v1_local_edit(|_| outbox.stage("acme.one", 1, true))
         .unwrap();
+    assert!(matches!(
+        restarted.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    let mut guarded = GuardedOutbox {
+        inner: outbox,
+        held: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        after_next: None,
+    };
     assert_eq!(
         restarted
-            .sync_now_with_outbox(&mut outbox)
+            .sync_now_with_marked_outbox(&mut guarded)
             .await
             .unwrap()
             .pushed,
         1
     );
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn marked_product_drain_requires_marker_and_rechecks_it_after_network() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let dir = TempDir::new("marked-product-drain");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "marked-product-drain").await;
+    let inner = ProductOutbox::default();
+    sync.with_v1_local_edit(|_| inner.stage("acme.one", 1, true))
+        .unwrap();
+    let held = Arc::new(AtomicBool::new(false));
+    let mut outbox = GuardedOutbox {
+        inner: inner.clone(),
+        held: held.clone(),
+        after_next: None,
+    };
+    let before = mock.inner.lock().unwrap().pull_requests;
+    assert!(matches!(
+        sync.sync_now_with_marked_outbox(&mut outbox).await,
+        Err(SyncCoordError::Protocol(
+            ProtocolFenceError::ProductOutboxNotEnabled
+        ))
+    ));
+    assert_eq!(mock.inner.lock().unwrap().pull_requests, before);
+    assert!(!held.load(Ordering::SeqCst));
+    assert_eq!(inner.0.lock().unwrap().entries.len(), 1);
+
+    let migration = sync.protocol.try_cutover().unwrap();
+    migration
+        .require_product_outbox(&mock.origin, "user-a")
+        .unwrap();
+    drop(migration);
+    // A plain adapter without a native guard cannot authorize the product path.
+    let mut unguarded = inner.clone();
+    assert!(matches!(
+        sync.sync_now_with_marked_outbox(&mut unguarded).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    assert!(mock.inner.lock().unwrap().records.is_empty());
+
+    // Losing the marker while a candidate is inspected must prevent both
+    // the staging checkpoint and the durable outbox acknowledgement.
+    let marker = fs::read_dir(sync.config_path.parent().unwrap())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("v1-product-outbox-")
+        })
+        .unwrap();
+    let mut interrupted = GuardedOutbox {
+        inner: inner.clone(),
+        held: held.clone(),
+        after_next: Some(Box::new(move || {
+            fs::remove_file(marker).unwrap();
+        })),
+    };
+    assert!(matches!(
+        sync.sync_now_with_marked_outbox(&mut interrupted).await,
+        Err(SyncCoordError::Protocol(
+            ProtocolFenceError::ProductOutboxNotEnabled
+        ))
+    ));
+    assert_eq!(inner.0.lock().unwrap().entries.len(), 1);
+    assert!(inner.0.lock().unwrap().receipts.is_empty());
+    assert!(mock.inner.lock().unwrap().records.is_empty());
+    let snapshot = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert!(!snapshot.state.entries.contains_key("acme.one"));
+    let migration = sync.protocol.try_cutover().unwrap();
+    migration
+        .require_product_outbox(&mock.origin, "user-a")
+        .unwrap();
+    drop(migration);
+
+    mock.held_write.armed.store(true, Ordering::SeqCst);
+    let runner = {
+        let sync = sync.clone();
+        let held = held.clone();
+        let inner = inner.clone();
+        tokio::spawn(async move {
+            let mut outbox = GuardedOutbox {
+                inner,
+                held,
+                after_next: None,
+            };
+            sync.sync_now_with_marked_outbox(&mut outbox).await
+        })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    // The invocation guard is not held during the HTTP wait.
+    assert!(!held.load(Ordering::SeqCst));
+    // Simulate loss of the migration marker after the server has committed.
+    // The uncertain original must survive and the JSON state must not be
+    // acknowledged when the response arrives.
+    let marker = fs::read_dir(sync.config_path.parent().unwrap())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("v1-product-outbox-")
+        })
+        .unwrap();
+    fs::remove_file(marker).unwrap();
+    mock.held_write.release.notify_one();
+    assert!(matches!(
+        runner.await.unwrap(),
+        Err(SyncCoordError::Protocol(
+            ProtocolFenceError::ProductOutboxNotEnabled
+        ))
+    ));
+    let gate = sync.protocol.try_cutover().unwrap();
+    assert_eq!(gate.uncertain_uploads(&mock.origin, "user-a").unwrap(), 1);
+    drop(gate);
+    let snapshot = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert!(snapshot.state.entries["acme.one"].pending.is_some());
     mock.stop();
 }
 
