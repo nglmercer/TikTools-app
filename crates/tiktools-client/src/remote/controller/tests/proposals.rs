@@ -636,6 +636,24 @@ async fn native_proposals_create_and_edit_active_definitions_with_reusable_grant
         .unwrap();
     let c = Controller::new(manager);
     c.connect("desk").await.unwrap();
+    let observer_manager = ProfileManager::new(
+        home.path().join("observer-profiles"),
+        Arc::new(Store::default()),
+    )
+    .unwrap();
+    let mut observer_grant = grant();
+    observer_grant.capabilities = [Capability::AutomationRead, Capability::CommandsRead].into();
+    observer_manager
+        .install(
+            "observer",
+            &f.endpoint,
+            f.pair(observer_grant).await,
+            ClientKind::Desktop,
+        )
+        .await
+        .unwrap();
+    let observer = Controller::new(observer_manager);
+    observer.connect("observer").await.unwrap();
     let mut store_revision = "0".to_string();
     for (kind, mode, base, name) in [
         ("action", "create", "0", "first"),
@@ -668,7 +686,30 @@ async fn native_proposals_create_and_edit_active_definitions_with_reusable_grant
         let host = f.core.automation_get(family, "same").unwrap();
         assert_eq!(host["enabled"], true);
         assert_eq!(host["name"], name);
+        tokio::time::timeout(Duration::from_secs(6), async {
+            loop {
+                let status = observer.status();
+                if let Ok(page) =
+                    observer.automations(&status.epoch, &status.automation_revision, 0)
+                {
+                    if page["rows"].as_array().is_some_and(|rows| {
+                        rows.iter().any(|row| {
+                            row["summary"]["kind"] == kind
+                                && row["summary"]["name"] == name
+                                && row["summary"]["enabled"] == true
+                        })
+                    }) {
+                        assert!(!page.to_string().contains("hello"));
+                        break;
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("second controller did not receive the active change");
     }
+    observer.disconnect().await;
     c.disconnect().await;
     f.finish().await;
 }

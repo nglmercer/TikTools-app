@@ -1157,3 +1157,189 @@ async fn reusable_grant_creates_and_edits_active_automation_atomically() {
         .await;
     assert_eq!(f.points("alice"), 5.0);
 }
+
+#[cfg(feature = "native-tiktok")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_live_ingress_applies_reusable_grants_only_for_verified_generation() {
+    use std::sync::atomic::Ordering;
+    use tiktools_tiktok::events::{CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser};
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.max_points_delta = Some(5.0);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+    });
+    let auth = f.pair(permitted.clone());
+    let identity = auth.snapshot().unwrap();
+    let mut action = points("native-points", "alice", 2.0);
+    action["enabled"] = true.into();
+    let mut rule = event("native-event", &["native-points"]);
+    rule["enabled"] = true.into();
+    for (kind, record) in [
+        (AutomationKind::Action, action),
+        (AutomationKind::Event, rule),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    let native = |id| crate::NativeLiveEvent {
+        base: CanonicalLiveEvent::Chat(ChatEvent {
+            user: EventUser {
+                unique_id: "alice".into(),
+                nickname: "Alice".into(),
+                ..Default::default()
+            },
+            comment: "hello".into(),
+            ..Default::default()
+        }),
+        metadata: EventMetadata {
+            method: "WebcastChatMessage".into(),
+            msg_id: id,
+            is_history: false,
+        },
+        gift: None,
+    };
+    let core = f.core().clone();
+    let dispatch = |id, generation| {
+        let before = core
+            .automation_state
+            .events_completed
+            .load(Ordering::Relaxed);
+        assert!(core
+            .prepare_live_event_with_generation(native(id), Some(generation))
+            .is_some());
+        before
+    };
+    async fn wait_done(core: &Arc<AppCore>, before: u64) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while core
+                .automation_state
+                .events_completed
+                .load(Ordering::Relaxed)
+                <= before
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("native event dispatch did not finish");
+    }
+    *crate::recover_rwlock_write(&core.connection_context, "test connection") =
+        Some(crate::LiveContext {
+            unique_id: "creator".into(),
+            room_id: "room".into(),
+            connection_id: "connection-17".into(),
+            creator_verified: true,
+        });
+    let before = dispatch(1, 17);
+    wait_done(&core, before).await;
+    assert_eq!(
+        f.points("alice"),
+        0.0,
+        "an unverified generation must not transfer delegation"
+    );
+    core.events.bind_live_generation(17, "creator");
+    let before = dispatch(2, 17);
+    wait_done(&core, before).await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "verified native ingress should run the delegated event"
+    );
+    permitted.automation_delegation = None;
+    core.collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: permitted,
+        })
+        .unwrap();
+    let before = dispatch(3, 17);
+    wait_done(&core, before).await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "grant removal must stop subsequent native events"
+    );
+    core.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_grant_revocation_during_delay_stops_later_effects() {
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.max_points_delta = Some(5.0);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [
+            DelegatedAutomationEffect::Log,
+            DelegatedAutomationEffect::Delay,
+            DelegatedAutomationEffect::Points,
+        ]
+        .into(),
+        allow_dynamic_targets: false,
+    });
+    let auth = f.pair(permitted);
+    let identity = auth.snapshot().unwrap();
+    let mut begin = log("reusable-begin", "started");
+    begin["enabled"] = true.into();
+    let delay = json!({"id":"reusable-delay","name":"Delay","enabled":true,"typeId":"core.delay","config":{"ms":500}});
+    let mut award = points("reusable-award", "alice", 2.0);
+    award["enabled"] = true.into();
+    let mut rule = event(
+        "reusable-delayed-event",
+        &["reusable-begin", "reusable-delay", "reusable-award"],
+    );
+    rule["enabled"] = true.into();
+    for (kind, record) in [
+        (AutomationKind::Action, begin),
+        (AutomationKind::Action, delay),
+        (AutomationKind::Action, award),
+        (AutomationKind::Event, rule),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    let core = f.core().clone();
+    let worker = tokio::spawn(async move {
+        core.run_automation_event(AutomationEvent::owner(input("alice")))
+            .await;
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while !f
+            .core()
+            .automation_runs()
+            .iter()
+            .any(|run| run["actionId"] == "reusable-begin" && run["status"] == "ok")
+        {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("reusable event did not start");
+    f.core()
+        .collaboration()
+        .unwrap()
+        .revoke_session(&identity.session_id, "local-owner")
+        .unwrap();
+    worker.await.unwrap();
+    assert_eq!(f.points("alice"), 0.0);
+    assert!(!f
+        .core()
+        .automation_runs()
+        .iter()
+        .any(|run| run["actionId"] == "reusable-award" && run["status"] == "ok"));
+}

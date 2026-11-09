@@ -1,5 +1,27 @@
 # LIVE collaboration implementation evidence
 
+## Reusable grant: native ingress and two controllers
+
+A native TikTok chat fixture now traverses `prepare_live_event_with_generation`
+and the queued runtime. With a reusable points grant, an unverified generation
+cannot invoke delegated automation, a verified generation invokes it, and grant
+removal stops the next event. A separate reusable-grant test revokes a session
+during a delayed action and confirms that the following points effect does not
+run. The native test uses a constructed event and a host-injected verified
+generation; it is not a connection to TikTok.
+
+A local TLS test uses two independently paired native controller profiles. One
+creates and edits active delegated definitions; the second receives each
+updated summary, without receiving source text. This uses separate controller
+profiles on one machine and does not establish cross-machine networking or
+physical two-PC/LIVE acceptance.
+
+```bash
+cargo test --locked --offline -p tiktools-core --features persistence,native-tiktok --lib native_live_ingress_applies_reusable_grants_only_for_verified_generation
+cargo test --locked --offline -p tiktools-core --features persistence --lib reusable_grant_revocation_during_delay_stops_later_effects
+TIKTOOLS_CLOUD_ORIGIN= cargo test --locked --offline -p tiktools-client --features remote-profiles --lib native_proposals_create_and_edit_active_definitions_with_reusable_grant
+```
+
 ## Embedded browser workflow controller
 
 With `dist/web` built and the opt-in `browser-app` feature enabled, the ignored
