@@ -10,10 +10,22 @@ use serde::Serialize;
 /// the product lifecycle: a v1 network drain must share its admission lease
 /// and check the outbox before legacy staging can safely be removed.
 #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
-#[derive(Debug)]
 struct ReservedLocalPluginMutation {
     candidate: Option<crate::db::PluginSyncOutboxEntry>,
     legacy_staging: bool,
+    source_lease: Option<tiktools_cloud_sync::ProductEmissionLease>,
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+impl std::fmt::Debug for ReservedLocalPluginMutation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ReservedLocalPluginMutation")
+            .field("candidate", &self.candidate)
+            .field("legacy_staging", &self.legacy_staging)
+            .field("source_lease", &self.source_lease.is_some())
+            .finish()
+    }
 }
 
 #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
@@ -131,50 +143,64 @@ fn reserve_local_plugin_mutation_prepared_for<T>(
     protocol: LocalMutationProtocol,
     prepare: impl FnOnce(bool) -> Result<T, OperationError>,
 ) -> Result<(ReservedLocalPluginMutation, T), OperationError> {
-    let operation =
-        |context: Option<tiktools_cloud_sync::V1LocalEditContext>, legacy_staging, untracked| {
-            let prepared = prepare(context.is_some())?;
-            let intent = context
-                .as_ref()
-                .map(|context| crate::db::LocalPluginSyncIntent {
-                    origin: &context.origin,
-                    account_id: &context.account_id,
-                    config_generation: context.config_generation,
-                    version: installed.then_some(version),
-                });
-            let generation = if untracked {
-                let fence = tiktools_cloud_sync::ProductEmissionFence::open(
-                    db.paths().data.join("plugin-sync-emission"),
-                )
-                .map_err(|_| OperationError::unavailable("sync emission fence unavailable"))?;
-                let _lease = fence
-                    .try_untracked_edit()
-                    .map_err(|_| OperationError::unavailable("sync emission is in progress"))?;
-                db.set_plugin_state_with_untracked_sync(id, installed, enabled)
-            } else {
-                db.set_plugin_state_with_sync_intent(id, installed, enabled, intent)
-            }
-            .map_err(|error| OperationError::internal(error.to_string()))?;
-            let candidate = context.map(|context| crate::db::PluginSyncOutboxEntry {
-                origin: context.origin,
-                account_id: context.account_id,
-                plugin_id: id.to_owned(),
-                generation,
-                source_generation: generation,
+    // Keep the cross-process gate through runtime confirmation, not merely
+    // through the SQLite source transaction.
+    let source_lease = if matches!(
+        protocol,
+        LocalMutationProtocol::V2 | LocalMutationProtocol::Selected
+    ) {
+        let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+            db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| OperationError::unavailable("sync emission fence unavailable"))?;
+        Some(
+            fence
+                .try_untracked_edit()
+                .map_err(|_| OperationError::unavailable("sync emission is in progress"))?,
+        )
+    } else {
+        None
+    };
+    let operation = |context: Option<tiktools_cloud_sync::V1LocalEditContext>,
+                     legacy_staging,
+                     untracked|
+     -> Result<(ReservedLocalPluginMutation, T), OperationError> {
+        let prepared = prepare(context.is_some())?;
+        let intent = context
+            .as_ref()
+            .map(|context| crate::db::LocalPluginSyncIntent {
+                origin: &context.origin,
+                account_id: &context.account_id,
                 config_generation: context.config_generation,
-                runtime_epoch: None,
-                version: installed.then(|| version.to_owned()),
-                enabled: installed.then_some(enabled),
+                version: installed.then_some(version),
             });
-            Ok((
-                ReservedLocalPluginMutation {
-                    candidate,
-                    legacy_staging,
-                },
-                prepared,
-            ))
-        };
-    match protocol {
+        let generation = if untracked {
+            db.set_plugin_state_with_untracked_sync(id, installed, enabled)
+        } else {
+            db.set_plugin_state_with_sync_intent(id, installed, enabled, intent)
+        }
+        .map_err(|error| OperationError::internal(error.to_string()))?;
+        let candidate = context.map(|context| crate::db::PluginSyncOutboxEntry {
+            origin: context.origin,
+            account_id: context.account_id,
+            plugin_id: id.to_owned(),
+            generation,
+            source_generation: generation,
+            config_generation: context.config_generation,
+            runtime_epoch: None,
+            version: installed.then(|| version.to_owned()),
+            enabled: installed.then_some(enabled),
+        });
+        Ok((
+            ReservedLocalPluginMutation {
+                candidate,
+                legacy_staging,
+                source_lease: None,
+            },
+            prepared,
+        ))
+    };
+    let (mut reservation, prepared) = match protocol {
         LocalMutationProtocol::V1 => {
             sync.with_v1_local_edit(|context| operation(context, false, false))
         }
@@ -194,7 +220,9 @@ fn reserve_local_plugin_mutation_prepared_for<T>(
             }
         }),
     }
-    .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))?
+    .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))??;
+    reservation.source_lease = source_lease;
+    Ok((reservation, prepared))
 }
 
 /// Confirm only after the caller, under its plugin mutation gate, has
@@ -1015,7 +1043,6 @@ impl AppCore {
         self.db
             .set_plugin_state_with_untracked_sync(&id, true, enabled)
             .map_err(|error| OperationError::internal(error.to_string()))?;
-        drop(lease);
         if enabled {
             self.plugins.start_generation_before_events(&id, || {
                 self.set_plugin_activation(&id, true, true);
@@ -1024,6 +1051,7 @@ impl AppCore {
             self.plugins.stop(&id)?;
             self.set_plugin_activation(&id, true, false);
         }
+        drop(lease);
         drop(invocation);
         self.rebuild_processor_index();
         self.refresh_automation_snapshot();

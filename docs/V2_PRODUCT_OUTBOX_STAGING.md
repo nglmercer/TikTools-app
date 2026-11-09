@@ -100,6 +100,13 @@ out or without a matching v2 identity, using the exclusive lease across the
 SQLite transaction. Its legacy v1 branch still relies on v1 staging and must
 be reconciled before v2 cutover. Neither selector nor fallback is enabled in
 the product, and other existing writers do not yet record the marker.
+The experimental selected and explicit-v2 mutation paths now retain their
+exclusive product emission lease through runtime confirmation, and the offline
+fallback retains it through the runtime effect. A cooperating in-flight v2
+emission makes these mutations fail busy before changing SQLite or the runtime.
+This does not fence the public lifecycle, package writers, autonomous worker
+changes, legacy v1 emitters, or noncooperating processes; product activation
+still requires those paths to participate and be verified together.
 
 Dropping a local HTTP future does not cancel work already received by the
 server: the server can commit that request after the lease is released, after

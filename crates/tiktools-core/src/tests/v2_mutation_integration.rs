@@ -36,7 +36,7 @@ fn assert_staged_decision(workspace: &WorkspaceCoordinator, decision: &V2Product
 #[tokio::test]
 async fn v2_without_identity_records_untracked_change_under_emission_fence() {
     let runtime = Arc::new(FakePluginState::default());
-    let (mut core, _, root) = core_with_fake_plugins(runtime, &["acme.hotkeys"]);
+    let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
     let paths = core.db.paths().clone();
     let origin = "https://cloud.example";
     let auth = CloudAuth::new(
@@ -75,11 +75,36 @@ async fn v2_without_identity_records_untracked_change_under_emission_fence() {
     assert!(!core.db.has_untracked_plugin_sync().unwrap());
     assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
     drop(in_flight);
-
+    let observed = Arc::new(AtomicBool::new(false));
+    let observed_at_load = observed.clone();
+    let fence_at_load = fence.clone();
+    *runtime.on_load.lock().unwrap() = Some(Box::new(move || {
+        observed_at_load.store(
+            fence_at_load.try_emission().is_err(),
+            AtomicOrdering::SeqCst,
+        );
+    }));
     core.plugin_set_enabled_with_product_intent("acme.hotkeys", true)
         .unwrap();
+    assert!(observed.load(AtomicOrdering::SeqCst));
+    assert!(fence.try_emission().is_ok());
     assert!(core.plugins.get("acme.hotkeys").unwrap().running);
     assert!(core.db.has_untracked_plugin_sync().unwrap());
+    core.plugin_set_enabled_with_product_intent("acme.hotkeys", false)
+        .unwrap();
+    observed.store(false, AtomicOrdering::SeqCst);
+    let observed_at_load = observed.clone();
+    let fence_at_load = fence.clone();
+    *runtime.on_load.lock().unwrap() = Some(Box::new(move || {
+        observed_at_load.store(
+            fence_at_load.try_emission().is_err(),
+            AtomicOrdering::SeqCst,
+        );
+    }));
+    core.plugin_set_enabled_with_untracked_intent("acme.hotkeys", true)
+        .unwrap();
+    assert!(observed.load(AtomicOrdering::SeqCst));
+    assert!(fence.try_emission().is_ok());
     assert!(crate::db::DatabaseManager::new(paths)
         .has_untracked_plugin_sync()
         .unwrap());
@@ -167,6 +192,22 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
     );
     let source =
         crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&core, origin, account);
+
+    // A cooperating HTTP emission excludes even an account-bound tracked
+    // edit; Busy must leave both source and runtime unchanged.
+    let emission_fence =
+        tiktools_cloud_sync::ProductEmissionFence::open(paths.data.join("plugin-sync-emission"))
+            .unwrap();
+    let in_flight = emission_fence.try_emission().unwrap();
+    assert!(core
+        .plugin_set_enabled_with_product_intent("acme.hotkeys", false)
+        .is_err());
+    assert!(core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .is_none());
+    drop(in_flight);
 
     core.plugin_set_enabled_with_product_intent("acme.hotkeys", false)
         .unwrap();
