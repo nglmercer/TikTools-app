@@ -47,6 +47,12 @@ the second retains its own access and cannot read the private workflow. This
 validates the gateway and host on one machine; physical two-PC, real TikTok
 LIVE and Desktop controller acceptance remain pending.
 
+A second loopback TLS integration exercises the native controller and host
+together: a moderator proposes a disabled action and event, the Owner reviews
+and activates them, and the automation engine processes a synthetic chat
+event. Removing the moderator's LIVE-read grant prevents a further successful
+execution. This does not use a real TikTok event or two physical computers.
+
 ## Atomic Owner library transitions — latest extension
 
 The eight closed `automation.library.submit` operations cover profile creation,

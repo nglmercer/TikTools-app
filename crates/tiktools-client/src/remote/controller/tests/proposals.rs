@@ -472,3 +472,140 @@ async fn proposal_recovery_checks_original_outcome_after_owner_changes_without_r
     c.disconnect().await;
     f.finish().await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn tls_moderator_proposal_requires_owner_approval_and_stops_after_grant_change() {
+    use tiktools_collaboration::CommandRequest;
+    use tiktools_core::control::{ApprovalActivateParams, ApprovalEnablement};
+
+    let f = Fixture::new().await;
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let mut moderator_grant = grant();
+    moderator_grant.capabilities.insert(Capability::LiveRead);
+    manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(moderator_grant.clone()).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let c = Controller::new(manager);
+    c.connect("desk").await.unwrap();
+    let principal = c.status().hello.unwrap().principal_id;
+    let mut revision = "0".to_string();
+    for (kind, body) in [
+        (
+            "action",
+            json!({"id":"same","name":"Viewer log","enabled":false,"typeId":"core.log","config":{"message":"hello {{event.user.uniqueId}}"}}),
+        ),
+        (
+            "event",
+            json!({"id":"same","name":"Chat log","enabled":false,"trigger":"tiktok.chat","actionIds":["same"]}),
+        ),
+    ] {
+        let inspected = inspect(&c, kind).await;
+        let saved = save(&c, kind, "create", "0", &revision, &body.to_string()).await;
+        revision = saved["storeRevision"].as_str().unwrap().into();
+        c.manage(
+            "controller.proposals.submit",
+            submit(&c, kind, &inspected, &revision),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            f.core
+                .automation_get(
+                    if kind == "action" {
+                        AutomationKind::Action
+                    } else {
+                        AutomationKind::Event
+                    },
+                    "same"
+                )
+                .unwrap()["enabled"],
+            false
+        );
+    }
+    let input = json!({"type":"tiktok.chat","user":{"uniqueId":"alice","nickname":"Alice"},"data":{"comment":"hi"}});
+    assert_eq!(
+        f.core
+            .fire_automation_event("tiktok.chat", Some(&input), None)
+            .await["matched"],
+        0
+    );
+    assert!(f.core.automation_runs().is_empty());
+    let review = f
+        .core
+        .automation_execution_manifest(AutomationKind::Event, "same")
+        .unwrap();
+    let request = CommandRequest {
+        command_id: "owner-approve-loopback".into(),
+        host_instance_id: f.service.instance_id().into(),
+        expected_revision: review.resource_versions[0].revision.clone(),
+    };
+    f.core
+        .automation_approval_activate(
+            request,
+            ApprovalActivateParams {
+                kind: AutomationKind::Event,
+                id: "same".into(),
+                reviewed_versions: review.resource_versions,
+                manifest_digest: review.value["manifestDigest"].as_str().unwrap().into(),
+                enable_plan: vec![
+                    ApprovalEnablement {
+                        kind: AutomationKind::Event,
+                        id: "same".into(),
+                        enabled: true,
+                    },
+                    ApprovalEnablement {
+                        kind: AutomationKind::Action,
+                        id: "same".into(),
+                        enabled: true,
+                    },
+                ],
+                acknowledge_effects: true,
+            },
+        )
+        .unwrap();
+    assert_eq!(inspect(&c, "event").await["summary"]["enabled"], true);
+    assert_eq!(inspect(&c, "action").await["summary"]["enabled"], true);
+    assert_eq!(
+        f.core
+            .fire_automation_event("tiktok.chat", Some(&input), None)
+            .await["matched"],
+        1
+    );
+    let runs = f.core.automation_runs();
+    assert!(
+        runs.iter().any(|r| r["actionId"] == "same"
+            && r["status"] == "ok"
+            && r["summary"] == "hello alice"),
+        "{runs:?}"
+    );
+    let successful_runs = runs.iter().filter(|r| r["status"] == "ok").count();
+    moderator_grant.capabilities.remove(&Capability::LiveRead);
+    f.service
+        .set_grant(GrantSet {
+            principal_id: principal,
+            expected_revision: "1".into(),
+            grant: moderator_grant,
+        })
+        .unwrap();
+    f.core
+        .fire_automation_event("tiktok.chat", Some(&input), None)
+        .await;
+    assert_eq!(
+        f.core
+            .automation_runs()
+            .iter()
+            .filter(|r| r["status"] == "ok")
+            .count(),
+        successful_runs
+    );
+    c.disconnect().await;
+    f.finish().await;
+}
