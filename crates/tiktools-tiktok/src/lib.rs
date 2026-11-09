@@ -968,12 +968,15 @@ async fn load_signing_bundle(config: &NativeTikTokConfig) -> Result<String, TikT
                 .map_err(|error| TikTokError::Bundle(error.to_string()))?;
         }
         let temporary = path.with_extension("download");
-        tokio::fs::write(&temporary, source.as_bytes())
-            .await
-            .map_err(|error| TikTokError::Bundle(error.to_string()))?;
-        tokio::fs::rename(&temporary, path)
-            .await
-            .map_err(|error| TikTokError::Bundle(error.to_string()))?;
+        let written = match tokio::fs::write(&temporary, source.as_bytes()).await {
+            Ok(()) => tokio::fs::rename(&temporary, path).await,
+            Err(error) => Err(error),
+        };
+        if let Err(error) = written {
+            // Never leave a partial `*.download` file behind the cache.
+            let _ = tokio::fs::remove_file(&temporary).await;
+            return Err(TikTokError::Bundle(error.to_string()));
+        }
     }
     Ok(source)
 }

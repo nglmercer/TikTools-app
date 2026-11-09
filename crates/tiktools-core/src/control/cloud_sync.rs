@@ -39,16 +39,21 @@ fn sync_error(error: SyncCoordError) -> OperationError {
 }
 
 impl AppCore {
-    fn sync_coordinator(&self) -> &tiktools_cloud_sync::SyncCoordinator {
-        self.sync.coordinator()
+    fn sync_coordinator(&self) -> Result<&tiktools_cloud_sync::SyncCoordinator, OperationError> {
+        self.sync.coordinator().map_err(|reason| {
+            let mut operation =
+                OperationError::unavailable(format!("cloud sync is unavailable: {reason}"));
+            operation.data = Some(serde_json::json!({ "reason": "storage" }));
+            operation
+        })
     }
 
     pub async fn sync_status(&self) -> Result<SyncStatus, OperationError> {
-        Ok(self.sync_coordinator().status().await)
+        Ok(self.sync_coordinator()?.status().await)
     }
 
     pub fn sync_set_enabled(&self, enabled: bool) -> Result<SyncStatus, OperationError> {
-        self.sync_coordinator()
+        self.sync_coordinator()?
             .set_enabled(enabled)
             .map_err(sync_error)
     }
@@ -57,7 +62,7 @@ impl AppCore {
     /// plugins. Applying never stages, so remote changes cannot loop back.
     pub async fn sync_now(&self) -> Result<SyncNowResult, OperationError> {
         let outcome = self
-            .sync_coordinator()
+            .sync_coordinator()?
             .sync_now()
             .await
             .map_err(sync_error)?;
@@ -93,12 +98,12 @@ impl AppCore {
         keep_local: bool,
     ) -> Result<SyncStatus, OperationError> {
         if keep_local {
-            self.sync_coordinator()
+            self.sync_coordinator()?
                 .keep_local(key)
                 .map_err(sync_error)?;
         } else {
             let remote = self
-                .sync_coordinator()
+                .sync_coordinator()?
                 .take_remote(key)
                 .map_err(sync_error)?;
             let enabled = remote
@@ -107,6 +112,6 @@ impl AppCore {
                 .unwrap_or(false);
             let _ = self.plugin_apply_remote_selection(key, enabled);
         }
-        Ok(self.sync_coordinator().status().await)
+        Ok(self.sync_coordinator()?.status().await)
     }
 }

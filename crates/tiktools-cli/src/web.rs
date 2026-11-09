@@ -383,16 +383,16 @@ async fn start(assets: PathBuf, port: u16, join_origin: Option<String>) -> Resul
     let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
         .await
         .map_err(|error| error.to_string())?;
-    let authority = format!(
-        "127.0.0.1:{}",
-        listener
-            .local_addr()
-            .map_err(|error| error.to_string())?
-            .port()
-    );
+    let bound_port = listener
+        .local_addr()
+        .map_err(|error| error.to_string())?
+        .port();
+    let authority = format!("127.0.0.1:{bound_port}");
     let origin = format!("http://{authority}");
     let pairing = mint_pairing()?;
-    let pairing_path = pairing_file(port);
+    // Key the readout by the bound port: with `--port 0` the requested
+    // port is not where `web --print-code --port N` will look.
+    let pairing_path = pairing_file(bound_port);
     publish_pairing_code(&pairing_path, &pairing);
     let join_base = join_origin.unwrap_or_else(|| origin.clone());
     eprintln!(
@@ -798,6 +798,17 @@ async fn asset(State(app): State<Arc<App>>, headers: HeaderMap, request: Request
 // The opaque iframe receives an asset-only random prefix, never the HTTP session
 // cookie. This lets module requests omit credentials while the broker remains
 // its only way to request control operations. Tokens expire with the session.
+/// Resolves `file` inside a plugin's asset root, or `None` when it is
+/// missing, not a regular file, or escapes the root (including through
+/// symlinks). Both sides are canonicalized: comparing a canonical file
+/// against a raw root fails for Windows `\\?\` paths and for data
+/// directories reached through a symlink.
+async fn resolve_plugin_asset(root: &Path, file: &str) -> Option<PathBuf> {
+    let root = tokio::fs::canonicalize(root).await.ok()?;
+    let path = tokio::fs::canonicalize(root.join(file)).await.ok()?;
+    (path.starts_with(&root) && path.is_file()).then_some(path)
+}
+
 async fn plugin_asset(app: Arc<App>, headers: HeaderMap, request: Request) -> Response {
     let valid_session = app
         .auth
@@ -848,10 +859,8 @@ async fn plugin_asset(app: Arc<App>, headers: HeaderMap, request: Request) -> Re
         Ok(assets) => assets,
         Err(_) => return StatusCode::NOT_FOUND.into_response(),
     };
-    let root = PathBuf::from(assets.asset_root);
-    let canonical = match tokio::fs::canonicalize(root.join(file)).await {
-        Ok(path) if path.starts_with(&root) && path.is_file() => path,
-        _ => return StatusCode::NOT_FOUND.into_response(),
+    let Some(canonical) = resolve_plugin_asset(Path::new(&assets.asset_root), file).await else {
+        return StatusCode::NOT_FOUND.into_response();
     };
     if !matches!(tokio::fs::metadata(&canonical).await, Ok(meta) if meta.len() <= 8 * 1024 * 1024) {
         return StatusCode::NOT_FOUND.into_response();
@@ -996,6 +1005,38 @@ mod tests {
         assert_eq!(decoded["params"]["lost"], 1);
     }
     use super::*;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn plugin_assets_resolve_through_a_symlinked_root_and_stay_confined() {
+        let base = std::env::temp_dir().join(format!(
+            "tiktools-web-assets-{}-{}",
+            std::process::id(),
+            now_unix()
+        ));
+        let real = base.join("real");
+        std::fs::create_dir_all(real.join("assets")).unwrap();
+        std::fs::write(real.join("index.html"), "<html></html>").unwrap();
+        std::fs::write(real.join("assets/app.js"), "").unwrap();
+        std::fs::write(base.join("secret.txt"), "nope").unwrap();
+        std::os::unix::fs::symlink(base.join("secret.txt"), real.join("leak.txt")).unwrap();
+        let linked = base.join("linked");
+        std::os::unix::fs::symlink(&real, &linked).unwrap();
+
+        // The host reports the root as configured, here through a symlink.
+        let resolved = resolve_plugin_asset(&linked, "index.html").await.unwrap();
+        assert_eq!(resolved, real.canonicalize().unwrap().join("index.html"));
+        assert!(resolve_plugin_asset(&linked, "assets/app.js")
+            .await
+            .is_some());
+        assert!(resolve_plugin_asset(&linked, "assets").await.is_none());
+        assert!(resolve_plugin_asset(&linked, "missing.js").await.is_none());
+        assert!(resolve_plugin_asset(&linked, "leak.txt").await.is_none());
+        assert!(resolve_plugin_asset(&base.join("absent"), "index.html")
+            .await
+            .is_none());
+        let _ = std::fs::remove_dir_all(base);
+    }
 
     #[test]
     fn usage_rejects_public_binding_and_standalone_before_connecting() {
