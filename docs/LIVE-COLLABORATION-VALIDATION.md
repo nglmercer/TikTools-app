@@ -2,6 +2,14 @@
 
 ## Competition updates and winner actions
 
+Competition generations now retain a private execution origin. Existing local
+generations are seeded once as Owner; missing or inconsistent metadata after
+migration is not repaired by inferring Owner. Local starts record their origin
+in the lifecycle transaction, and winner dispatch refuses delegated or missing
+origins until scoped delegated execution is available. This is a prerequisite,
+not remote start/resume: subject admission, propagation through competition
+events and delayed effects, and recovery are still required.
+
 The host now reserves competition creation, definition and lifecycle changes in
 the coordination outbox. The competition stream supplies scoped summary
 snapshots and replayable invalidations. The native controller invalidates its

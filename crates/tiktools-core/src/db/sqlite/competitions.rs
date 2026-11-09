@@ -275,6 +275,8 @@ impl DatabaseManager {
                 "competition_participation_counts",
                 "competition_integrity_checkpoints",
                 "competition_integrity_owners",
+                "competition_execution_subjects",
+                "competition_execution_generations",
                 "competition_state",
             ] {
                 tx.execute(
@@ -346,6 +348,7 @@ impl DatabaseManager {
         if matches!(transition, Transition::Start) {
             let generation = i64::try_from(state.generation)
                 .map_err(|_| DatabaseError::Invalid("invalid generation".into()))?;
+            tx.execute("INSERT INTO competition_execution_generations(competition_id,generation,origin) VALUES (?1,?2,'owner')", params![id,generation])?;
             tx.execute("INSERT INTO competition_integrity_checkpoints(competition_id,generation,status) VALUES (?1,?2,'open')", params![id, generation])?;
             if let Some(owner) = owner {
                 tx.execute("INSERT INTO competition_integrity_owners(competition_id,generation,owner) VALUES (?1,?2,?3)", params![id,generation,owner])?;
@@ -353,6 +356,33 @@ impl DatabaseManager {
         }
         tx.commit()?;
         Ok(Some(state))
+    }
+
+    /// Missing or malformed provenance is never treated as local authority.
+    pub(crate) fn competition_execution_is_owner(
+        &self,
+        id: &str,
+        generation: u64,
+    ) -> Result<bool, DatabaseError> {
+        let generation = i64::try_from(generation)
+            .map_err(|_| DatabaseError::Invalid("invalid competition generation".into()))?;
+        if generation <= 0 {
+            return Err(DatabaseError::Invalid(
+                "invalid competition generation".into(),
+            ));
+        }
+        let connection = self.open(&self.automation_path())?;
+        let origin: Option<(String, bool)> = connection.query_row(
+            "SELECT origin,EXISTS(SELECT 1 FROM competition_execution_subjects s WHERE s.competition_id=g.competition_id AND s.generation=g.generation) FROM competition_execution_generations g WHERE competition_id=?1 AND generation=?2",
+            params![id,generation], |row| Ok((row.get(0)?,row.get(1)?)),
+        ).optional()?;
+        match origin {
+            Some((ref kind, false)) if kind == "owner" => Ok(true),
+            Some((ref kind, true)) if kind == "delegated" => Ok(false),
+            _ => Err(DatabaseError::Invalid(
+                "competition execution authority missing".into(),
+            )),
+        }
     }
     /// Atomically consume a clean shutdown checkpoint and mark this run open.
     /// Missing checkpoints (including older schemas) fail closed.
@@ -1355,6 +1385,7 @@ impl DatabaseManager {
                     | "execution_interrupted"
                     | "operator_marked_uncertain"
                     | "invalid_outbox_record"
+                    | "authority_unavailable"
                     | "action_reference_mismatch"
             )
         }) {

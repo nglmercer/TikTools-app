@@ -3142,6 +3142,10 @@ async fn user_winner_action_is_queued_once_for_a_challenge() {
         .unwrap();
     let result = core.competition_finish("challenge").unwrap();
     assert_eq!(result.selection.winner.as_deref(), Some("bob"));
+    assert!(core
+        .db
+        .competition_execution_is_owner("challenge", result.generation)
+        .unwrap());
     let action = core
         .competition_action("challenge", result.generation)
         .unwrap()
@@ -3180,6 +3184,22 @@ async fn user_winner_action_is_queued_once_for_a_challenge() {
     })
     .await
     .unwrap();
+    let db = rusqlite::Connection::open(root.join("data/tiktok-automation.db")).unwrap();
+    db.execute("UPDATE competition_execution_generations SET origin='delegated' WHERE competition_id='challenge' AND generation=1", []).unwrap();
+    db.execute("INSERT INTO competition_execution_subjects VALUES('challenge',1,'moderator','session','1')", []).unwrap();
+    assert!(!core
+        .db
+        .competition_execution_is_owner("challenge", 1)
+        .unwrap());
+    db.execute(
+        "DELETE FROM competition_execution_subjects WHERE competition_id='challenge'",
+        [],
+    )
+    .unwrap();
+    assert!(core
+        .db
+        .competition_execution_is_owner("challenge", 1)
+        .is_err());
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
 }

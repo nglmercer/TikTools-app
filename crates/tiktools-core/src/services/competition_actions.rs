@@ -111,6 +111,34 @@ impl AppCore {
     }
 
     async fn execute_competition_action(self: &Arc<Self>, claim: ActionClaim) {
+        // A remote generation must never fall through to Owner execution. Its
+        // saved subjects require a separately approved delegated dispatcher.
+        let db = self.db.clone();
+        let origin_id = claim.competition_id.clone();
+        let origin_generation = claim.generation;
+        let owner = tokio::task::spawn_blocking(move || {
+            db.competition_execution_is_owner(&origin_id, origin_generation)
+        })
+        .await;
+        if !matches!(owner, Ok(Ok(true))) {
+            let db = self.db.clone();
+            let id = claim.competition_id;
+            let generation = claim.generation;
+            let result = tokio::task::spawn_blocking(move || {
+                db.record_competition_action_outcome(
+                    &id,
+                    generation,
+                    tiktools_competitions::ActionStatus::Failed,
+                    Some("authority_unavailable"),
+                    crate::now_millis().min(i64::MAX as u64) as i64,
+                )
+            })
+            .await;
+            if !matches!(result, Ok(Ok(true))) {
+                tracing::error!("competition authority failure could not be persisted");
+            }
+            return;
+        }
         let core = Arc::clone(self);
         let lookup = claim.clone();
         let prepared = tokio::task::spawn_blocking(move || -> Result<_, &'static str> {

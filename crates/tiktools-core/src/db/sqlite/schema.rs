@@ -607,6 +607,7 @@ impl DatabaseManager {
         automation.execute_batch(COORDINATION_SCHEMA)?;
         automation.execute_batch(AUTOMATION_SCHEMA)?;
         migrate_competition_revisions(&mut automation)?;
+        migrate_competition_execution_origins(&mut automation)?;
         migrate_plugin_sync_outbox(&mut automation)?;
         migrate_package_journal(&mut automation)?;
         migrate_effect_kinds(&mut automation)?;
@@ -617,6 +618,41 @@ impl DatabaseManager {
     pub(in crate::db) fn open(&self, path: &std::path::Path) -> Result<Connection, DatabaseError> {
         Ok(Connection::open(path)?)
     }
+}
+
+/// Retain the authority that started each generation. Older generations were
+/// created locally; seed them once, never infer Owner again after migration.
+fn migrate_competition_execution_origins(db: &mut Connection) -> Result<(), DatabaseError> {
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    tx.execute_batch(r#"
+CREATE TABLE IF NOT EXISTS competition_execution_generations (
+  competition_id TEXT NOT NULL,
+  generation INTEGER NOT NULL CHECK(typeof(generation)='integer' AND generation>0),
+  origin TEXT NOT NULL CHECK(origin IN ('owner','delegated')),
+  PRIMARY KEY(competition_id,generation)
+);
+CREATE TABLE IF NOT EXISTS competition_execution_subjects (
+  competition_id TEXT NOT NULL,
+  generation INTEGER NOT NULL,
+  principal_id TEXT NOT NULL CHECK(length(principal_id) BETWEEN 1 AND 256),
+  session_id TEXT NOT NULL CHECK(length(session_id) BETWEEN 1 AND 256),
+  grant_revision TEXT NOT NULL CHECK(length(grant_revision) BETWEEN 1 AND 32),
+  PRIMARY KEY(competition_id,generation,principal_id,session_id),
+  FOREIGN KEY(competition_id,generation) REFERENCES competition_execution_generations(competition_id,generation)
+);
+CREATE TABLE IF NOT EXISTS competition_execution_migration (singleton INTEGER PRIMARY KEY CHECK(singleton=1));
+INSERT OR IGNORE INTO competition_execution_generations(competition_id,generation,origin)
+  SELECT competition_id,generation,'owner' FROM competition_results
+  WHERE generation>0 AND NOT EXISTS(SELECT 1 FROM competition_execution_migration WHERE singleton=1);
+INSERT OR IGNORE INTO competition_execution_generations(competition_id,generation,origin)
+  SELECT competition_id,CASE WHEN json_valid(state_json) THEN json_extract(state_json,'$.generation') END,'owner' FROM competition_state
+  WHERE CASE WHEN json_valid(state_json) THEN json_type(state_json,'$.generation')='integer'
+    AND json_extract(state_json,'$.generation')>0 ELSE 0 END
+    AND NOT EXISTS(SELECT 1 FROM competition_execution_migration WHERE singleton=1);
+INSERT OR IGNORE INTO competition_execution_migration(singleton) VALUES(1);
+"#)?;
+    tx.commit()?;
+    Ok(())
 }
 
 /// Competition definitions and lifecycle state share one generation-independent
@@ -683,6 +719,29 @@ END;
 #[cfg(test)]
 mod competition_revision_tests {
     use super::*;
+
+    #[test]
+    fn execution_origins_seed_legacy_once_without_restoring_missing_authority() {
+        let mut db = Connection::open_in_memory().unwrap();
+        db.execute_batch("CREATE TABLE competition_results(competition_id TEXT,generation INTEGER); CREATE TABLE competition_state(competition_id TEXT,state_json TEXT); INSERT INTO competition_results VALUES('old',1); INSERT INTO competition_state VALUES('active','{\"generation\":2}');").unwrap();
+        migrate_competition_execution_origins(&mut db).unwrap();
+        let rows: i64 = db
+            .query_row(
+                "SELECT count(*) FROM competition_execution_generations WHERE origin='owner'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(rows, 2);
+        db.execute(
+            "DELETE FROM competition_execution_generations WHERE competition_id='active'",
+            [],
+        )
+        .unwrap();
+        migrate_competition_execution_origins(&mut db).unwrap();
+        let rows: i64 = db.query_row("SELECT count(*) FROM competition_execution_generations WHERE competition_id='active'", [], |r| r.get(0)).unwrap();
+        assert_eq!(rows, 0);
+    }
 
     #[test]
     fn migration_and_writers_preserve_revisions_across_delete_and_recreate() {
