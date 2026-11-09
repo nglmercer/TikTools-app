@@ -9,6 +9,11 @@ pub struct WorkspaceSyncCapabilities {
     pub max_records: u32,
     pub max_bytes: u32,
     pub max_document_bytes: u32,
+    /// True only when the configured instance advertises the exact fixed
+    /// write-barrier contract understood by this SDK.
+    pub write_epoch_barrier: bool,
+    /// True only if the irreversible account-wide enforcement endpoint is advertised.
+    pub write_epoch_enforcement: bool,
 }
 
 #[derive(Deserialize)]
@@ -32,6 +37,21 @@ struct SyncDocument {
     conflict_status: u16,
     expired_cursor_status: u16,
     preconditions_required: bool,
+    #[serde(default)]
+    write_epoch_barrier: Option<WriteEpochBarrierDocument>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WriteEpochBarrierDocument {
+    epoch_path: String,
+    barrier_path: String,
+    header: String,
+    stale_status: u16,
+    #[serde(default)]
+    require_epoch_path: Option<String>,
+    #[serde(default)]
+    missing_epoch_status: Option<u16>,
 }
 
 impl CloudCatalog {
@@ -70,6 +90,20 @@ impl CloudCatalog {
             || sync.conflict_status != 409
             || sync.expired_cursor_status != 410
             || !sync.preconditions_required
+            || sync.write_epoch_barrier.as_ref().is_some_and(|barrier| {
+                barrier.epoch_path != "/api/v2/sync/write-epoch"
+                    || barrier.barrier_path != "/api/v2/sync/write-barrier"
+                    || barrier.header != "X-Workspace-Write-Epoch"
+                    || barrier.stale_status != 412
+                    || !matches!(
+                        (&barrier.require_epoch_path, barrier.missing_epoch_status),
+                        (None, None) | (Some(_), Some(428))
+                    )
+                    || barrier
+                        .require_epoch_path
+                        .as_deref()
+                        .is_some_and(|path| path != "/api/v2/sync/require-write-epoch")
+            })
         {
             return Err(SyncError::Protocol);
         }
@@ -77,6 +111,11 @@ impl CloudCatalog {
             max_records: sync.max_records,
             max_bytes: sync.max_bytes,
             max_document_bytes: sync.max_document_bytes,
+            write_epoch_barrier: sync.write_epoch_barrier.is_some(),
+            write_epoch_enforcement: sync
+                .write_epoch_barrier
+                .as_ref()
+                .is_some_and(|barrier| barrier.require_epoch_path.is_some()),
         })
     }
 }

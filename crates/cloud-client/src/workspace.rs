@@ -14,11 +14,13 @@ use uuid::Uuid;
 mod bounded_catalog;
 mod capabilities;
 mod validation;
+mod write_epoch;
 pub use bounded_catalog::{
     CatalogAdvisory, CatalogPageCapabilities, CatalogSummary, CatalogSummaryPage, CatalogVersion,
     CatalogVersionPage,
 };
 pub use capabilities::WorkspaceSyncCapabilities;
+pub use write_epoch::WorkspaceWriteEpoch;
 use validation::*;
 
 const MAX_V2_RESPONSE: usize = 32 * 1024 * 1024;

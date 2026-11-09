@@ -1,5 +1,6 @@
 //! Exercise v2 through real HTTP sockets, including native authentication and
 //! conditional writes. The fixture never opens an application or sync store.
+mod write_epoch;
 use super::*;
 use std::collections::BTreeMap;
 use tokio::{
