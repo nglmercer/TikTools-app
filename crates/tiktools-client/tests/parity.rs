@@ -507,3 +507,26 @@ fn library_validation_covers_closed_nested_operations_and_source_free_recovery()
     extra["mutation"] = serde_json::json!({});
     assert!(tiktools_client::validate_params("automation.library.review_unknown", &extra).is_err());
 }
+
+#[test]
+fn catalog_query_validation_preserves_exact_generation_and_rejects_origin_override() {
+    let method = "registry.cloudCatalog";
+    assert!(tiktools_client::validate_params(
+        method,
+        &serde_json::json!({
+            "query":"a", "after":"acme.plugin", "generation":"9007199254740993", "target":"linux"
+        })
+    )
+    .is_ok());
+    for params in [
+        serde_json::json!({"generation":9007199254740993_i64}),
+        serde_json::json!({"origin":"https://untrusted.example"}),
+    ] {
+        assert_eq!(
+            tiktools_client::validate_params(method, &params)
+                .unwrap_err()
+                .code,
+            "invalid_params"
+        );
+    }
+}

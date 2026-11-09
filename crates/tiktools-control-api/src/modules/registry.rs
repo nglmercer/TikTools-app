@@ -4,7 +4,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tiktools_core::AppCore;
 pub use tiktools_core::{
-    control::{RegistryAddInput, RegistryPackageView, RegistryRootPreview},
+    control::{
+        CloudCatalogPage, CloudCatalogQuery, RegistryAddInput, RegistryPackageView,
+        RegistryRootPreview,
+    },
     plugin_registry::{RegistryDefaults, RegistryStatus, SearchQuery, SearchResults},
 };
 
@@ -61,6 +64,14 @@ pub struct RegistryPackageParams {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<CloudCatalogQuery, CloudCatalogPage, _, _>(
+        "registry.cloudCatalog",
+        "Discovers plugin metadata from the configured Cloud instance; installation requires separate signature verification",
+        false,
+        |core: Arc<AppCore>, params: CloudCatalogQuery| async move {
+            core.cloud_catalog_plugins(params).await.map_err(ApiError::from)
+        },
+    );
     router.register_typed::<Empty, RegistryListResult, _, _>(
         "registry.list",
         "Configured plugin registries with verification and refresh state",

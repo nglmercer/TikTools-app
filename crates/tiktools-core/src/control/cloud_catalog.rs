@@ -1,0 +1,238 @@
+//! Anonymous v2 discovery from the operator instance. Catalog metadata is not
+//! an installation authorization or a source of registry trust.
+use super::OperationError;
+use crate::AppCore;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+// Leave ample room for RPC envelopes under the 1 MiB remote frame limit.
+const MAX_CATALOG_RESULT_BYTES: usize = 768 * 1024;
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogQuery {
+    #[serde(default)]
+    pub query: String,
+    pub after: Option<String>,
+    /// Exact decimal generation; JavaScript numbers cannot represent all i64s.
+    pub generation: Option<String>,
+    pub target: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudCatalogPage {
+    pub generation: Option<String>,
+    pub items: Vec<Value>,
+    pub next_cursor: Option<String>,
+}
+
+fn parse_generation(value: Option<&str>) -> Result<Option<i64>, OperationError> {
+    value
+        .map(|v| {
+            if v.is_empty() || v.starts_with('0') || !v.bytes().all(|c| c.is_ascii_digit()) {
+                return Err(OperationError::invalid(
+                    "generation must be a positive decimal string",
+                ));
+            }
+            v.parse::<i64>().ok().filter(|n| *n > 0).ok_or_else(|| {
+                OperationError::invalid("generation must be a positive decimal string")
+            })
+        })
+        .transpose()
+}
+
+// The transport has already validated the complete response before this
+// projection. Convert every i64 exposed to JavaScript into an exact string.
+fn project(mut value: Value) -> Result<CloudCatalogPage, OperationError> {
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| OperationError::internal("invalid catalog response"))?;
+    let generation = match object.remove("generation") {
+        Some(Value::Null) => None,
+        Some(Value::Number(n)) => Some(
+            n.as_i64()
+                .ok_or_else(|| OperationError::internal("invalid catalog generation"))?
+                .to_string(),
+        ),
+        _ => return Err(OperationError::internal("invalid catalog generation")),
+    };
+    let mut items = object
+        .remove("items")
+        .and_then(|v| v.as_array().cloned())
+        .ok_or_else(|| OperationError::internal("invalid catalog items"))?;
+    for item in &mut items {
+        let versions = item
+            .get_mut("versions")
+            .and_then(Value::as_array_mut)
+            .ok_or_else(|| OperationError::internal("invalid catalog versions"))?;
+        for version in versions {
+            let size = version
+                .get("size")
+                .and_then(Value::as_i64)
+                .ok_or_else(|| OperationError::internal("invalid catalog size"))?;
+            version["size"] = Value::String(size.to_string());
+        }
+    }
+    let next_cursor = match object.remove("nextCursor") {
+        Some(Value::Null) => None,
+        Some(Value::String(v)) => Some(v),
+        _ => return Err(OperationError::internal("invalid catalog cursor")),
+    };
+    let result = CloudCatalogPage {
+        generation,
+        items,
+        next_cursor,
+    };
+    let bytes = serde_json::to_vec(&result)
+        .map_err(|_| OperationError::internal("invalid catalog response"))?;
+    if bytes.len() > MAX_CATALOG_RESULT_BYTES {
+        return Err(OperationError::unavailable(
+            "catalog page exceeds the transport limit; narrow the search or target filter",
+        ));
+    }
+    Ok(result)
+}
+
+async fn fetch_catalog(
+    origin: &str,
+    query: CloudCatalogQuery,
+) -> Result<CloudCatalogPage, OperationError> {
+    let generation = parse_generation(query.generation.as_deref())?;
+    if query.after.is_some() && generation.is_none() {
+        return Err(OperationError::invalid(
+            "catalog pagination requires the original generation",
+        ));
+    }
+    let catalog = cloud_client::CloudCatalog::new(origin)
+        .map_err(|_| OperationError::unavailable("cloud catalog is not configured"))?;
+    let page = catalog
+        .plugins_filtered(
+            &query.query,
+            query.after.as_deref(),
+            generation,
+            query.target.as_deref(),
+        )
+        .await
+        .map_err(|error| match error {
+            cloud_client::SyncError::Configuration => {
+                OperationError::invalid("invalid cloud catalog query")
+            }
+            _ => OperationError::unavailable("cloud catalog is unavailable"),
+        })?;
+    project(page)
+}
+
+impl AppCore {
+    /// Read-only discovery, not proof that a package can be installed.
+    pub async fn cloud_catalog_plugins(
+        &self,
+        query: CloudCatalogQuery,
+    ) -> Result<CloudCatalogPage, OperationError> {
+        let origin = tiktools_cloud_auth::resolve_cloud_origin()
+            .ok_or_else(|| OperationError::unavailable("cloud is not configured"))?;
+        fetch_catalog(&origin, query).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    #[test]
+    fn catalog_projection_keeps_large_integers_exact() {
+        let page = project(json!({"generation":9007199254740993_i64,"nextCursor":null,"items":[{"id":"a","versions":[{"size":9007199254740995_i64}]}]})).unwrap();
+        assert_eq!(page.generation.as_deref(), Some("9007199254740993"));
+        assert_eq!(page.items[0]["versions"][0]["size"], "9007199254740995");
+        assert_eq!(
+            parse_generation(page.generation.as_deref()).unwrap(),
+            Some(9007199254740993)
+        );
+        for invalid in ["", "0", "01", "-1", "1.0", "9223372036854775808"] {
+            assert!(parse_generation(Some(invalid)).is_err());
+        }
+    }
+
+    #[test]
+    fn oversized_catalog_page_fails_without_truncating() {
+        let error = project(json!({"generation":1,"nextCursor":null,"items":[{"id":"a","versions":[{"size":1}],"padding":"x".repeat(MAX_CATALOG_RESULT_BYTES)}]})).unwrap_err();
+        assert_eq!(error.code, "unavailable");
+        assert!(error.message.contains("narrow the search"));
+    }
+
+    #[tokio::test]
+    async fn catalog_http_uses_configured_origin_and_pinned_cursor() {
+        const GENERATION: i64 = 9007199254740993;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            let mut requests = Vec::new();
+            for page in 0..2 {
+                let (mut socket, _) =
+                    tokio::time::timeout(std::time::Duration::from_secs(5), listener.accept())
+                        .await
+                        .unwrap()
+                        .unwrap();
+                let mut request = Vec::new();
+                loop {
+                    let mut bytes = [0u8; 2048];
+                    let n = socket.read(&mut bytes).await.unwrap();
+                    assert!(n > 0);
+                    request.extend_from_slice(&bytes[..n]);
+                    if request.windows(4).any(|w| w == b"\r\n\r\n") {
+                        break;
+                    }
+                    assert!(request.len() < 16384);
+                }
+                requests.push(String::from_utf8(request).unwrap());
+                let items: Vec<Value> = if page == 0 {
+                    (0..50).map(|i| {
+                    let id = format!("acme.p{i:02}");
+                    json!({"id": id, "latestStableVersion":"1.0.0", "metadataPath":format!("/api/v1/registry/generations/{GENERATION}/files/index/ac/me/acme.p{i:02}.json"),
+                      "versions":[{"version":"1.0.0","target":"any","sha256":"a".repeat(64),"size":9007199254740995_i64,"yanked":false,"keyRevoked":false,"publisherApproved":true,"advisory":null}]})
+                }).collect()
+                } else {
+                    vec![]
+                };
+                let body = serde_json::to_vec(&json!({"generation":GENERATION,"items":items,"nextCursor":if page == 0 { Some("acme.p49") } else { None }})).unwrap();
+                let headers = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                socket.write_all(headers.as_bytes()).await.unwrap();
+                socket.write_all(&body).await.unwrap();
+            }
+            requests
+        });
+        let first = fetch_catalog(&origin, CloudCatalogQuery::default())
+            .await
+            .unwrap();
+        assert_eq!(first.generation.as_deref(), Some("9007199254740993"));
+        assert_eq!(first.items[0]["versions"][0]["size"], "9007199254740995");
+        let invalid = CloudCatalogQuery {
+            after: first.next_cursor.clone(),
+            ..Default::default()
+        };
+        assert_eq!(
+            fetch_catalog(&origin, invalid).await.unwrap_err().code,
+            "invalid_params"
+        );
+        let second = fetch_catalog(
+            &origin,
+            CloudCatalogQuery {
+                after: first.next_cursor,
+                generation: first.generation,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert!(second.items.is_empty());
+        let requests = task.await.unwrap();
+        assert!(requests[0].starts_with("GET /api/v2/catalog/plugins?q="));
+        assert!(requests[1].contains("after=acme.p49"));
+        assert!(requests[1].contains("generation=9007199254740993"));
+        assert!(!requests
+            .iter()
+            .any(|request| request.to_ascii_lowercase().contains("authorization:")));
+    }
+}

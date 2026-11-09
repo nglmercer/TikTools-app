@@ -314,6 +314,36 @@ async fn login_logout_round_trip() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn captured_session_is_invalid_after_logout_and_same_account_login() {
+    let dir = TempDir::new("session-identity");
+    let mock = MockCloud::start("same-account").await;
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let begun = auth.begin_login().await.unwrap();
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "first-session").await;
+    waiter.await.unwrap().unwrap();
+    let first = auth.session().await.unwrap();
+    assert!(auth.is_current_session(&first));
+    assert!(auth.clone().is_current_session(&first));
+    auth.logout().await.unwrap();
+    assert!(!auth.is_current_session(&first));
+    let begun = auth.begin_login().await.unwrap();
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "second-session").await;
+    waiter.await.unwrap().unwrap();
+    let second = auth.session().await.unwrap();
+    assert_eq!(first.account_id(), second.account_id());
+    assert!(!auth.is_current_session(&first));
+    assert!(auth.is_current_session(&second));
+    auth.logout().await.unwrap();
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn logout_from_fresh_process_revokes_and_cleans_up() {
     let dir = TempDir::new("fresh-logout");
     let mock = MockCloud::start("user-11").await;

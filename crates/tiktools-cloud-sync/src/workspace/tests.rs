@@ -796,3 +796,91 @@ async fn deleting_an_unbased_absent_record_requires_a_live_get_but_no_write() {
         1
     );
 }
+
+#[tokio::test]
+async fn guarded_sync_stops_after_session_change_and_keeps_known_write_outcome() {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    let server = start_server().await;
+    let session = Arc::new(connect(&server, "device-a").await);
+    let epoch = Arc::new(AtomicU64::new(1));
+    let current = epoch.clone();
+    let eligibility =
+        WorkspaceEligibility::new(session.clone(), move || current.load(Ordering::SeqCst) == 1);
+    let temp = tempfile::tempdir().unwrap();
+    let c = coordinator(&temp.path().join("private"), &server, "account-a");
+    c.bootstrap(&[], None).unwrap();
+    let first = key("preferences", "desktop");
+    let second = key("plugin-selections", "acme.plugin");
+    // Sorted keys put plugin-selections before preferences.
+    c.stage(first.clone(), WorkspaceEdit::Put(preference("dark")))
+        .unwrap();
+    c.stage(
+        second.clone(),
+        WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
+    )
+    .unwrap();
+    let (entered_tx, entered_rx) = oneshot::channel();
+    let (release_tx, release_rx) = oneshot::channel();
+    server.remote.lock().unwrap().pause_next_write = Some(Pause {
+        entered: entered_tx,
+        release: release_rx,
+    });
+    let control = async {
+        entered_rx.await.unwrap();
+        epoch.store(2, Ordering::SeqCst);
+        release_tx.send(()).unwrap();
+    };
+    let (result, ()) = tokio::join!(c.sync_guarded(&session, &eligibility), control);
+    assert!(matches!(result, Err(WorkspaceCoordError::Ineligible)));
+    assert_eq!(server.remote.lock().unwrap().writes(), 1);
+    assert!(pending(&c, &second).pending.is_none());
+    assert_eq!(
+        pending(&c, &first).pending.unwrap().status,
+        WorkspacePendingStatus::Queued
+    );
+    // Re-enabling under a fresh generation must not resurrect the old permit.
+    let newer = epoch.clone();
+    let fresh =
+        WorkspaceEligibility::new(session.clone(), move || newer.load(Ordering::SeqCst) == 2);
+    assert!(matches!(
+        c.sync_guarded(&session, &eligibility).await,
+        Err(WorkspaceCoordError::Ineligible)
+    ));
+    assert_eq!(c.sync_guarded(&session, &fresh).await.unwrap().pushed, 1);
+    assert_eq!(server.remote.lock().unwrap().writes(), 2);
+}
+
+#[tokio::test]
+async fn guarded_review_requires_original_permit_and_exact_session() {
+    let server = start_server().await;
+    let session = Arc::new(connect(&server, "device-a").await);
+    let other_session = Arc::new(connect(&server, "device-b").await);
+    let permit = WorkspaceEligibility::new(session.clone(), || true);
+    let other_permit = WorkspaceEligibility::new(session.clone(), || true);
+    let temp = tempfile::tempdir().unwrap();
+    let c = coordinator(&temp.path().join("private"), &server, "account-a");
+    c.bootstrap(&[], None).unwrap();
+    let target = key("preferences", "desktop");
+    c.stage(target.clone(), WorkspaceEdit::Put(preference("dark")))
+        .unwrap();
+    let review = c.review_guarded(&session, &target, &permit).await.unwrap();
+    let before = server.remote.lock().unwrap().requests.len();
+    assert!(matches!(
+        c.resolve_guarded(&session, &review, false, &other_permit)
+            .await,
+        Err(WorkspaceCoordError::State(WorkspaceStateError::StaleReview))
+    ));
+    assert!(matches!(
+        c.resolve_guarded(&other_session, &review, false, &permit)
+            .await,
+        Err(WorkspaceCoordError::Ineligible)
+    ));
+    assert!(matches!(
+        c.resolve(&session, &review, false).await,
+        Err(WorkspaceCoordError::State(WorkspaceStateError::StaleReview))
+    ));
+    assert_eq!(server.remote.lock().unwrap().requests.len(), before);
+    c.resolve_guarded(&session, &review, false, &permit)
+        .await
+        .unwrap();
+}

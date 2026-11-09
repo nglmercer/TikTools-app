@@ -874,6 +874,121 @@ async fn document_pages_and_reads_reject_malformed_metadata_identity_and_source(
 }
 
 #[tokio::test]
+async fn catalog_uses_manifest_ids_without_changing_sync_key_rules() {
+    for id in [
+        "foo".to_owned(),
+        "hotkeys".to_owned(),
+        "textintel".to_owned(),
+        "a..b".to_owned(),
+        format!("a{}", "b".repeat(127)),
+    ] {
+        let chars: Vec<_> = id.chars().collect();
+        let shard = |start| {
+            (start..start + 2)
+                .map(|index| chars.get(index).copied().unwrap_or('_'))
+                .collect::<String>()
+        };
+        let mut entry = plugin();
+        entry["id"] = json!(id);
+        entry["metadataPath"] = json!(format!(
+            "/api/v1/registry/generations/17/files/index/{}/{}/{}.json",
+            shard(0),
+            shard(2),
+            id
+        ));
+        let (origin, task) = mock(vec![
+            Reply::json(json!({"generation":17,"items":[entry.clone()],"nextCursor":null})),
+            Reply::json(json!({"generation":17,"plugin":entry})),
+            Reply::json(json!({"generation":17,"items":[],"nextCursor":null})),
+        ])
+        .await;
+        let catalog = CloudCatalog::new(&origin).unwrap();
+        assert!(catalog.plugins("", None, Some(17)).await.is_ok());
+        assert!(catalog.plugin(&id, Some(17)).await.is_ok());
+        assert!(catalog.plugins("", Some(&id), Some(17)).await.is_ok());
+        assert_eq!(task.await.unwrap().len(), 3);
+    }
+    assert!(!portable::valid_key("plugin-selections", "foo"));
+    assert!(!portable::valid_key("plugin-selections", "a..b"));
+    let mut unsafe_shard = plugin();
+    unsafe_shard["id"] = json!("ab..c");
+    unsafe_shard["metadataPath"] =
+        json!("/api/v1/registry/generations/17/files/index/ab/../ab..c.json");
+    let (origin, task) = mock(vec![Reply::json(
+        json!({"generation":17,"items":[unsafe_shard],"nextCursor":null}),
+    )])
+    .await;
+    assert!(matches!(
+        CloudCatalog::new(&origin)
+            .unwrap()
+            .plugins("", None, Some(17))
+            .await,
+        Err(SyncError::Protocol)
+    ));
+    task.await.unwrap();
+    for id in [
+        "1foo".to_owned(),
+        "A.foo".to_owned(),
+        "a".to_owned(),
+        format!("a{}", "b".repeat(128)),
+    ] {
+        let (origin, task) = mock(vec![]).await;
+        let catalog = CloudCatalog::new(&origin).unwrap();
+        assert!(matches!(
+            catalog.plugin(&id, Some(17)).await,
+            Err(SyncError::Configuration)
+        ));
+        assert!(matches!(
+            catalog.plugins("", Some(&id), Some(17)).await,
+            Err(SyncError::Configuration)
+        ));
+        assert!(task.await.unwrap().is_empty());
+        let mut entry = plugin();
+        entry["id"] = json!(id);
+        let (origin, task) = mock(vec![Reply::json(
+            json!({"generation":17,"items":[entry],"nextCursor":null}),
+        )])
+        .await;
+        assert!(matches!(
+            CloudCatalog::new(&origin)
+                .unwrap()
+                .plugins("", None, Some(17))
+                .await,
+            Err(SyncError::Protocol)
+        ));
+        task.await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn catalog_accepts_release_semver_up_to_backend_128_byte_limit() {
+    for length in [64, 128, 129] {
+        let version = format!("1.0.0+{}", "a".repeat(length - 6));
+        assert_eq!(version.len(), length);
+        assert!(semver::Version::parse(&version).is_ok());
+        let mut entry = plugin();
+        entry["latestStableVersion"] = json!(version);
+        entry["versions"][0]["version"] = json!(version);
+        let (origin, task) = mock(vec![
+            Reply::json(json!({"generation":17,"items":[entry.clone()],"nextCursor":null})),
+            Reply::json(json!({"generation":17,"plugin":entry})),
+        ])
+        .await;
+        let catalog = CloudCatalog::new(&origin).unwrap();
+        let page = catalog.plugins("", None, Some(17)).await;
+        let detail = catalog.plugin("acme.plugin", Some(17)).await;
+        if length <= 128 {
+            assert!(page.is_ok(), "page should accept {length}-byte version");
+            assert!(detail.is_ok(), "detail should accept {length}-byte version");
+        } else {
+            assert!(matches!(page, Err(SyncError::Protocol)));
+            assert!(matches!(detail, Err(SyncError::Protocol)));
+        }
+        assert_eq!(task.await.unwrap().len(), 2);
+    }
+}
+
+#[tokio::test]
 async fn filtered_catalog_rejects_generation_cursor_target_and_trust_path_drift() {
     let mut bad_path = plugin();
     bad_path["metadataPath"] = json!("https://other.example/root.json");

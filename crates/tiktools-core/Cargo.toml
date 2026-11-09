@@ -23,11 +23,12 @@ plugin-install = [
     "dep:semver",
     # Origin resolution only; login and keychain stay behind `cloud-auth`.
     "dep:tiktools-cloud-auth",
+    "dep:cloud-client",
 ]
 # Optional Cloud account (system-browser login, OS keychain tokens).
-# Signing in is opt-in: the origin defaults to the official Cloud (override
-# or disable with TIKTOOLS_CLOUD_ORIGIN) and every local feature keeps
-# working offline without an account.
+# Signing in is opt-in. The origin defaults to the official Cloud and may be
+# configured at build time; debug builds also permit a runtime override. Local
+# features keep working offline without an account.
 cloud-auth = [
     "dep:tiktools-cloud-auth",
     "tiktools-cloud-auth/account",
@@ -57,6 +58,7 @@ tiktools-plugin-package = { path = "../tiktools-plugin-package", optional = true
 tiktools-plugin-registry = { path = "../tiktools-plugin-registry", optional = true }
 tiktools-cloud-auth = { path = "../tiktools-cloud-auth", version = "4.0.2", optional = true }
 tiktools-cloud-sync = { path = "../tiktools-cloud-sync", version = "4.0.2", optional = true }
+cloud-client = { path = "../cloud-client", version = "0.1.0", optional = true }
 semver = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true

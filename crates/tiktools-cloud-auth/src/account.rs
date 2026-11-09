@@ -207,6 +207,23 @@ impl CloudAuth {
         self.inner.try_lock().ok()?.session.clone()
     }
 
+    /// Whether this exact captured session is still installed. Account IDs
+    /// alone cannot distinguish logout followed by login to the same account.
+    /// A contended lock fails closed; callers must also fence their opt-in
+    /// generation and recheck after asynchronous work.
+    pub fn is_current_session(&self, captured: &Arc<Session>) -> bool {
+        self.inner
+            .try_lock()
+            .ok()
+            .and_then(|inner| {
+                inner
+                    .session
+                    .as_ref()
+                    .map(|live| Arc::ptr_eq(live, captured))
+            })
+            .unwrap_or(false)
+    }
+
     /// Last signed-in `(origin, account_id)` from the nonsecret sidecar, if
     /// any. Needs no live session, so offline staging can target the right
     /// identity; the sync engine still re-validates on use.

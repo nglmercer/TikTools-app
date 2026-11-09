@@ -2,9 +2,9 @@
 
 Status: **the native v2 contract, durable state/store and coordinator foundation is implemented and locally tested. Product cutover, UI/local application and full Desktop v2 acceptance are pending.**
 
-The final inspected Desktop baseline is 7864562, including the atomic Owner
-library delivery e6728c9. The reviewed backend commit is RemakeBackend c0fb951,
-following the v2 foundation 0c552b3, and its
+The earlier inspected Desktop baseline was 7864562, including the atomic Owner
+library delivery e6728c9. The reviewed backend commit is RemakeBackend 995d496,
+following the integrity and recovery changes c0fb951 and v2 foundation 0c552b3, and its
 docs/CLOUD-REDESIGN.md, docs/CLOUD-API-V2.md and latest
 docs/IMPLEMENTATION-STATUS.md. The backend owns portable cloud contracts.
 Import its reviewed contract/client changes without replacing Desktop-specific
@@ -63,7 +63,25 @@ work. An older snapshot cannot rewind point reads or feed state. A delayed
 absence read can complete only its own unchanged initial delete generation.
 
 These APIs are exported, but the application still calls the v1 coordinator.
-No v2 product RPC/UI, account eligibility fence, single-engine cutover,
+The coordinator now offers guarded sync, review, resolution and rebuild calls
+bound to one session and eligibility permit. The authentication manager can
+recognize that exact session after logout and same-account sign-in. A native
+cutover preview captures and rechecks the legacy snapshot and selected inputs;
+it does not stop a v1 writer or activate v2. Product wiring still needs a
+shared cross-process protocol fence and session/opt-in invalidation. Guard
+checks cannot recall an HTTP request already dispatched, or replace an atomic
+local-application consent fence.
+
+The read-only `registry.cloudCatalog` RPC queries the configured Cloud origin;
+generation and package sizes are decimal strings and catalog metadata does not
+authorize installation. Results above 768 KiB fail explicitly without truncation
+to fit existing transport limits. The backend must support bounded version
+pagination for a single plugin whose versions cannot fit in one page. The
+transport validates item content, but the RPC item schema is still generic;
+typed item schemas remain to be added. The existing product UI and source
+controls are not yet switched to this RPC.
+
+No v2 product sync RPC/UI, account eligibility integration, single-engine cutover,
 collection-specific local application or durable local-application outcome
 adapter is wired yet. The foundation never applies downloaded source itself.
 Its bootstrap helper preserves the v1 file and imports no v1 cursor or revision;
@@ -82,8 +100,11 @@ it does not constitute product migration consent or a completed cutover.
 | Packaged Owner library browser regression | Passed against rebuilt current assets in 95.87 s; eight operations in EN/ES, sixteen native receipts and lost-reply recovery; this is local Owner behavior |
 | Normal Desktop/CLI build | Passed with the origin override unset and CLI remote-control/local-web features enabled |
 | Release-origin policy unit cases | 4 passed, included in the authentication suite above |
+| Session fencing and cutover preview | 15 authentication and 26 sync/coordinator tests passed locally, including same-account re-login, in-flight acknowledgement and preview/bootstrap ordering; product wiring remains pending |
+| Cloud catalog adapter | Loopback HTTP pagination, exact 64-bit values and oversized-response rejection passed locally; installation and actual Desktop browsing are separate |
+| Catalog compatibility and client surface | Five SDK catalog tests passed in each repository; a PostgreSQL pagination test checked legacy-ID routing; client parity (10 tests) and the CLI catalog parser passed |
 | Backend populated pre-v2 upgrade, explicit digest repair and actual SQL archive restore | Passed on native PostgreSQL (17.31 s) and pgrust (18.61 s), plus 2 pure URL-guard tests; database-only scope |
-| Backend v2 PostgreSQL cases | 6 passed on each SQL runtime, including byte-ordered punctuation pagination; the earlier 67-case PostgreSQL suite also passed on native PostgreSQL |
+| Earlier backend v2 PostgreSQL cases | At the preceding checkpoint, 6 passed on each SQL runtime, including byte-ordered punctuation pagination; the earlier 67-case suite also passed on native PostgreSQL |
 | Backend declared minimum compiler checks | Rust 1.95 workspace and Rust 1.89 SDK checks passed |
 | Backend authenticated rejected-Origin browser checks and CI coverage | Local browser checks passed with native PostgreSQL and pgrust; admin build/Playwright workflow coverage was added, but GitHub Actions itself was not run |
 

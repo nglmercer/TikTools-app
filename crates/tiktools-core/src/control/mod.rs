@@ -61,6 +61,8 @@ pub(crate) use commands::CoordinationWorker;
 pub use commands::{CommandCaller, WorkflowMutation};
 #[cfg(test)]
 pub(crate) use competitions::bound_ranking_presentation;
+#[cfg(feature = "plugin-install")]
+mod cloud_catalog;
 mod globals;
 mod helpers;
 mod live;
@@ -85,6 +87,8 @@ pub use automation::{
 };
 #[cfg(feature = "cloud-auth")]
 pub use cloud_account::CloudLoginUrl;
+#[cfg(feature = "plugin-install")]
+pub use cloud_catalog::{CloudCatalogPage, CloudCatalogQuery};
 #[cfg(feature = "cloud-auth")]
 pub use cloud_sync::SyncNowResult;
 #[cfg(any(test, feature = "native-tiktok"))]

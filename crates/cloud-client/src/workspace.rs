@@ -70,7 +70,7 @@ impl CloudCatalog {
     ) -> Result<Value, SyncError> {
         if query.len() > 100
             || generation.is_some_and(|n| n < 1)
-            || after.is_some_and(|id| !portable::valid_key("plugin-selections", id))
+            || after.is_some_and(|id| !valid_catalog_id(id))
             || target.is_some_and(|target| !valid_target(target))
         {
             return Err(SyncError::Configuration);
@@ -98,7 +98,7 @@ impl CloudCatalog {
         generation: Option<i64>,
         target: Option<&str>,
     ) -> Result<Value, SyncError> {
-        if !portable::valid_key("plugin-selections", id)
+        if !valid_catalog_id(id)
             || generation.is_some_and(|n| n < 1)
             || target.is_some_and(|target| !valid_target(target))
         {

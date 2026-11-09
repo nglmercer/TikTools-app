@@ -19,9 +19,10 @@ uses v1. Explicit cutover, product RPC/UI, reviewed local application and actual
 two-Desktop v2 acceptance are pending. The components, flow and historical
 validation sections below describe v1.
 
-The reviewed sibling RemakeBackend commit is `c0fb951`
-(`fix(cloud): preserve v2 JSONB identities and verify recovery`), built on the
-v2 catalog, library and workspace implementation in `0c552b3`.
+The reviewed sibling RemakeBackend commit is `995d496`
+(`fix(catalog): align release identities with published contracts`), built on
+the integrity and recovery changes in `c0fb951` and the v2 implementation in
+`0c552b3`.
 Its current contract is `docs/CLOUD-API-V2.md`; `docs/CLOUD-REDESIGN.md` and the
 latest section of `docs/IMPLEMENTATION-STATUS.md` supersede older roadmap gaps.
 That commit includes the digest-repair, recovery, byte-ordered pagination and

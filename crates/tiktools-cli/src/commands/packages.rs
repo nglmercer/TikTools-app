@@ -7,8 +7,8 @@ use tiktools_control_api::modules::packages::{
     PackagePolicyParams, PackageRollbackParams, PackageSpecInput, PackageUpdateParams, PolicyPatch,
 };
 use tiktools_control_api::modules::registry::{
-    RegistryAddInput, RegistryEnableParams, RegistryNameParams, RegistryPackageParams,
-    RegistryRefreshParams, RegistryUrlParams, SearchQuery,
+    CloudCatalogQuery, RegistryAddInput, RegistryEnableParams, RegistryNameParams,
+    RegistryPackageParams, RegistryRefreshParams, RegistryUrlParams, SearchQuery,
 };
 
 use super::args::{flag_value, flag_values, one_arg, positional, split_first};
@@ -83,6 +83,12 @@ pub enum Command {
     RegistryPackage {
         id: String,
         registry: Option<String>,
+    },
+    RegistryCloudCatalog {
+        query: String,
+        after: Option<String>,
+        generation: Option<String>,
+        target: Option<String>,
     },
     RegistryDefaults,
 }
@@ -201,7 +207,8 @@ fn policy(rest: &[String]) -> Result<Command, CommandError> {
 }
 
 pub fn parse_registry(args: &[String]) -> Result<Command, CommandError> {
-    let usage = "registry <list|root|add|remove|enable|disable|refresh|package|defaults> ...";
+    let usage =
+        "registry <list|root|add|remove|enable|disable|refresh|package|cloud-catalog|defaults> ...";
     let (verb, rest) = split_first(args, usage)?;
     match verb {
         "list" => Ok(Command::RegistryList),
@@ -235,6 +242,12 @@ pub fn parse_registry(args: &[String]) -> Result<Command, CommandError> {
         "package" => Ok(Command::RegistryPackage {
             id: positional(rest, 0, "registry package <id> [--registry name]")?,
             registry: flag_value(rest, "--registry"),
+        }),
+        "cloud-catalog" => Ok(Command::RegistryCloudCatalog {
+            query: flag_value(rest, "--query").unwrap_or_default(),
+            after: flag_value(rest, "--after"),
+            generation: flag_value(rest, "--generation"),
+            target: flag_value(rest, "--target"),
         }),
         "defaults" => Ok(Command::RegistryDefaults),
         other => Err(format!("unknown registry verb `{other}`\n{usage}").into()),
@@ -382,6 +395,21 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                 .registry_package(RegistryPackageParams { id, registry })
                 .await?,
         ),
+        Command::RegistryCloudCatalog {
+            query,
+            after,
+            generation,
+            target,
+        } => result_value(
+            client
+                .registry_cloud_catalog(CloudCatalogQuery {
+                    query,
+                    after,
+                    generation,
+                    target,
+                })
+                .await?,
+        ),
         Command::RegistryDefaults => result_value(client.registry_defaults_get().await?),
     }
 }
@@ -515,4 +543,41 @@ async fn wait_for(
             .job;
     }
     Ok(job)
+}
+
+#[cfg(test)]
+mod cloud_catalog_tests {
+    use super::*;
+
+    #[test]
+    fn parses_catalog_cursor_without_losing_generation_precision() {
+        let args = [
+            "cloud-catalog",
+            "--query",
+            "acme",
+            "--after",
+            "acme.p49",
+            "--generation",
+            "9007199254740993",
+            "--target",
+            "linux",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+        match parse_registry(&args).unwrap_or_else(|_| panic!("catalog command should parse")) {
+            Command::RegistryCloudCatalog {
+                query,
+                after,
+                generation,
+                target,
+            } => {
+                assert_eq!(query, "acme");
+                assert_eq!(after.as_deref(), Some("acme.p49"));
+                assert_eq!(generation.as_deref(), Some("9007199254740993"));
+                assert_eq!(target.as_deref(), Some("linux"));
+            }
+            _ => panic!("expected cloud catalog command"),
+        }
+    }
 }

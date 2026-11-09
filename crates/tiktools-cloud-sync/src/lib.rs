@@ -11,7 +11,12 @@
 
 pub use cloud_client::{PluginSelection, SyncError, SyncState};
 mod workspace;
-pub use workspace::{WorkspaceCoordError, WorkspaceCoordinator, WorkspaceOutcome, WorkspaceReview};
+pub use workspace::{
+    WorkspaceCoordError, WorkspaceCoordinator, WorkspaceEligibility, WorkspaceOutcome,
+    WorkspaceReview,
+};
+mod cutover_preview;
+pub use cutover_preview::CutoverPreview;
 
 use std::{
     path::{Path, PathBuf},

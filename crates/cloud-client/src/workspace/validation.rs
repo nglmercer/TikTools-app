@@ -26,6 +26,16 @@ fn document_digest(value: &Value) -> Result<String, SyncError> {
         .map(|byte| format!("{byte:02x}"))
         .collect())
 }
+// Catalog releases use the plugin manifest ID grammar, independently of the
+// stricter plugin-selection sync key grammar.
+pub(super) fn valid_catalog_id(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    (2..=128).contains(&bytes.len())
+        && bytes[0].is_ascii_lowercase()
+        && bytes[1..].iter().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'_' | b'-')
+        })
+}
 pub(super) fn valid_target(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 128
@@ -288,7 +298,7 @@ struct Plugin {
 }
 impl Plugin {
     fn valid(&self, generation: i64, target: Option<&str>) -> bool {
-        if !portable::valid_key("plugin-selections", &self.id) || self.versions.is_empty() {
+        if !valid_catalog_id(&self.id) || self.versions.is_empty() {
             return false;
         }
         let prefix = format!("/api/v1/registry/generations/{generation}/files/");
@@ -301,6 +311,11 @@ impl Plugin {
                 .map(|index| chars.get(index).copied().unwrap_or('_'))
                 .collect::<String>()
         };
+        // URL parsers normalize a literal parent segment before requesting
+        // it. Do not accept metadata that could resolve outside index/.
+        if shard(2) == ".." {
+            return false;
+        }
         if path != format!("index/{}/{}/{}.json", shard(0), shard(2), self.id) {
             return false;
         }
@@ -311,7 +326,7 @@ impl Plugin {
             let Ok(version) = semver::Version::parse(&row.version) else {
                 return false;
             };
-            if row.version.len() > 64
+            if row.version.len() > 128
                 || !valid_target(&row.target)
                 || !hash(&row.sha256)
                 || row.size < 1

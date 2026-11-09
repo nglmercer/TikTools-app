@@ -22,12 +22,52 @@ pub enum WorkspaceCoordError {
     AlreadyBootstrapped,
     #[error("another workspace network or review operation is in progress")]
     Busy,
+    #[error("workspace session or opt-in changed during the operation")]
+    Ineligible,
     #[error(transparent)]
     Store(#[from] StoreError),
     #[error(transparent)]
     State(#[from] WorkspaceStateError),
     #[error(transparent)]
     Transport(#[from] SyncError),
+}
+
+/// Captures one product session and opt-in generation. The callback must remain
+/// false after either changes, even if the same account signs in or opts in
+/// again. It must be non-blocking and must not expose credentials.
+#[derive(Clone)]
+pub struct WorkspaceEligibility {
+    binding: Arc<()>,
+    session: Arc<Session>,
+    current: Arc<dyn Fn() -> bool + Send + Sync>,
+}
+impl WorkspaceEligibility {
+    pub fn new(session: Arc<Session>, current: impl Fn() -> bool + Send + Sync + 'static) -> Self {
+        Self {
+            binding: Arc::new(()),
+            session,
+            current: Arc::new(current),
+        }
+    }
+    pub fn check(&self) -> Result<(), WorkspaceCoordError> {
+        if (self.current)() {
+            Ok(())
+        } else {
+            Err(WorkspaceCoordError::Ineligible)
+        }
+    }
+}
+fn check_eligibility(
+    eligibility: Option<&WorkspaceEligibility>,
+    session: &Session,
+) -> Result<(), WorkspaceCoordError> {
+    if let Some(eligibility) = eligibility {
+        if !std::ptr::eq(eligibility.session.as_ref(), session) {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        eligibility.check()?;
+    }
+    Ok(())
 }
 
 /// Fetched data is not evidence of local application or execution approval.
@@ -46,6 +86,7 @@ pub struct WorkspaceOutcome {
 /// than reconstructing consent from a key and a bare boolean.
 pub struct WorkspaceReview {
     binding: Arc<()>,
+    eligibility: Option<Arc<()>>,
     origin: String,
     account_id: String,
     read: WorkspaceRead,
@@ -170,7 +211,24 @@ impl WorkspaceCoordinator {
     /// The product must check that the captured session is still current
     /// before returning private rows to a UI or offering local application.
     pub async fn sync(&self, session: &Session) -> Result<WorkspaceOutcome, WorkspaceCoordError> {
+        self.sync_inner(session, None).await
+    }
+    /// Product callers must use a generation-bound eligibility and recheck it
+    /// when exposing or applying the returned data.
+    pub async fn sync_guarded(
+        &self,
+        session: &Session,
+        eligibility: &WorkspaceEligibility,
+    ) -> Result<WorkspaceOutcome, WorkspaceCoordError> {
+        self.sync_inner(session, Some(eligibility)).await
+    }
+    async fn sync_inner(
+        &self,
+        session: &Session,
+        eligibility: Option<&WorkspaceEligibility>,
+    ) -> Result<WorkspaceOutcome, WorkspaceCoordError> {
         self.identity(session)?;
+        check_eligibility(eligibility, session)?;
         let _operation = self
             .store
             .try_operation_lock()?
@@ -185,8 +243,12 @@ impl WorkspaceCoordinator {
         let mut pulled = 0;
         let mut complete = false;
         for _ in 0..MAX_PULL_PAGES {
+            check_eligibility(eligibility, session)?;
             let cursor = self.snapshot()?.state.cursor;
-            let page = match session.workspace_changes(cursor).await {
+            check_eligibility(eligibility, session)?;
+            let response = session.workspace_changes(cursor).await;
+            check_eligibility(eligibility, session)?;
+            let page = match response {
                 Ok(page) => page,
                 Err(SyncError::CursorExpired) => {
                     self.update(|state| {
@@ -197,6 +259,7 @@ impl WorkspaceCoordinator {
                 }
                 Err(error) => return Err(error.into()),
             };
+            check_eligibility(eligibility, session)?;
             pulled += page.changes.len();
             let more = self.update(|state| {
                 if state.cursor != cursor {
@@ -217,6 +280,7 @@ impl WorkspaceCoordinator {
         let mut absent_deletes = 0;
         let mut attempts = 0;
         for key in keys {
+            check_eligibility(eligibility, session)?;
             if attempts >= MAX_WRITES {
                 break;
             }
@@ -230,7 +294,9 @@ impl WorkspaceCoordinator {
             if pending.base_revision.is_none() && matches!(pending.edit, WorkspaceEdit::Delete) {
                 let generation = pending.local_generation;
                 attempts += 1;
+                check_eligibility(eligibility, session)?;
                 let read = session.workspace_read_for_resolution(&key).await?;
+                check_eligibility(eligibility, session)?;
                 self.update(|state| {
                     if read.record().is_none() {
                         state.complete_absent_delete(&read, generation)?;
@@ -252,6 +318,9 @@ impl WorkspaceCoordinator {
             }
             let ticket = self.update(|state| Ok(state.prepare_push(&key)?))?;
             attempts += 1;
+            // If eligibility changed after prepare, keep the durable ticket
+            // unconfirmed; never dispatch or infer an outcome.
+            check_eligibility(eligibility, session)?;
             let response = match ticket.edit() {
                 WorkspaceEdit::Put(value) => {
                     session
@@ -294,7 +363,9 @@ impl WorkspaceCoordinator {
                 Err(error) => return Err(error.into()),
             }
         }
+        check_eligibility(eligibility, session)?;
         let state = self.snapshot()?.state;
+        check_eligibility(eligibility, session)?;
         Ok(WorkspaceOutcome {
             pulled,
             pushed,
@@ -316,12 +387,31 @@ impl WorkspaceCoordinator {
         session: &Session,
         target: &WorkspaceKey,
     ) -> Result<WorkspaceReview, WorkspaceCoordError> {
+        self.review_inner(session, target, None).await
+    }
+    pub async fn review_guarded(
+        &self,
+        session: &Session,
+        target: &WorkspaceKey,
+        eligibility: &WorkspaceEligibility,
+    ) -> Result<WorkspaceReview, WorkspaceCoordError> {
+        self.review_inner(session, target, Some(eligibility)).await
+    }
+    async fn review_inner(
+        &self,
+        session: &Session,
+        target: &WorkspaceKey,
+        eligibility: Option<&WorkspaceEligibility>,
+    ) -> Result<WorkspaceReview, WorkspaceCoordError> {
         self.identity(session)?;
+        check_eligibility(eligibility, session)?;
         let _operation = self
             .store
             .try_operation_lock()?
             .ok_or(WorkspaceCoordError::Busy)?;
+        check_eligibility(eligibility, session)?;
         let read = session.workspace_read_for_resolution(target).await?;
+        check_eligibility(eligibility, session)?;
         self.update(|state| {
             state.observe_read(&read)?;
             Ok(())
@@ -334,8 +424,10 @@ impl WorkspaceCoordinator {
             .entry(target)
             .cloned()
             .ok_or(WorkspaceStateError::NoPendingEdit)?;
+        check_eligibility(eligibility, session)?;
         Ok(WorkspaceReview {
             binding: self.binding.clone(),
+            eligibility: eligibility.map(|v| v.binding.clone()),
             origin: self.origin.clone(),
             account_id: self.account_id.clone(),
             read,
@@ -351,7 +443,35 @@ impl WorkspaceCoordinator {
         review: &WorkspaceReview,
         keep_local: bool,
     ) -> Result<(), WorkspaceCoordError> {
+        self.resolve_inner(session, review, keep_local, None).await
+    }
+    pub async fn resolve_guarded(
+        &self,
+        session: &Session,
+        review: &WorkspaceReview,
+        keep_local: bool,
+        eligibility: &WorkspaceEligibility,
+    ) -> Result<(), WorkspaceCoordError> {
+        self.resolve_inner(session, review, keep_local, Some(eligibility))
+            .await
+    }
+    async fn resolve_inner(
+        &self,
+        session: &Session,
+        review: &WorkspaceReview,
+        keep_local: bool,
+        eligibility: Option<&WorkspaceEligibility>,
+    ) -> Result<(), WorkspaceCoordError> {
         self.identity(session)?;
+        check_eligibility(eligibility, session)?;
+        let same_eligibility = match (&review.eligibility, eligibility) {
+            (None, None) => true,
+            (Some(reviewed), Some(current)) => Arc::ptr_eq(reviewed, &current.binding),
+            _ => false,
+        };
+        if !same_eligibility {
+            return Err(WorkspaceStateError::StaleReview.into());
+        }
         if review.origin != self.origin || review.account_id != self.account_id {
             return Err(WorkspaceStateError::WrongIdentity.into());
         }
@@ -362,13 +482,16 @@ impl WorkspaceCoordinator {
             .store
             .try_operation_lock()?
             .ok_or(WorkspaceCoordError::Busy)?;
+        check_eligibility(eligibility, session)?;
         let fresh = session
             .workspace_read_for_resolution(review.target())
             .await?;
+        check_eligibility(eligibility, session)?;
         if fresh.record() != review.read.record() {
             return Err(WorkspaceStateError::StaleReview.into());
         }
         self.update(|state| {
+            check_eligibility(eligibility, session)?;
             let current = state
                 .entry(review.target())
                 .ok_or(WorkspaceStateError::NoPendingEdit)?;
@@ -387,7 +510,22 @@ impl WorkspaceCoordinator {
     /// Explicit 410 recovery reads a consistent snapshot and atomically
     /// replaces only the fetched cloud baseline. No application source changes.
     pub async fn rebuild_remote_cache(&self, session: &Session) -> Result<(), WorkspaceCoordError> {
+        self.rebuild_inner(session, None).await
+    }
+    pub async fn rebuild_remote_cache_guarded(
+        &self,
+        session: &Session,
+        eligibility: &WorkspaceEligibility,
+    ) -> Result<(), WorkspaceCoordError> {
+        self.rebuild_inner(session, Some(eligibility)).await
+    }
+    async fn rebuild_inner(
+        &self,
+        session: &Session,
+        eligibility: Option<&WorkspaceEligibility>,
+    ) -> Result<(), WorkspaceCoordError> {
         self.identity(session)?;
+        check_eligibility(eligibility, session)?;
         let _operation = self
             .store
             .try_operation_lock()?
@@ -395,7 +533,9 @@ impl WorkspaceCoordinator {
         if !self.snapshot()?.state.bootstrap_complete {
             return Err(WorkspaceCoordError::BootstrapRequired);
         }
+        check_eligibility(eligibility, session)?;
         let snapshot = session.workspace_snapshot().await?;
+        check_eligibility(eligibility, session)?;
         self.update(|state| {
             state.install_rebuild(snapshot.clone())?;
             Ok(())
