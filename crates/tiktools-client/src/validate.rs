@@ -68,7 +68,10 @@ use tiktools_control_api::modules::registry::{
 use tiktools_control_api::modules::rpc::SchemaParams;
 use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsSet};
 #[cfg(feature = "cloud-auth")]
-use tiktools_control_api::modules::sync::SyncResolveParams;
+use tiktools_control_api::modules::sync::{
+    CloudLibraryQuery, CloudLibraryRead, SyncResolveParams, SyncUncertainResolveParams,
+    SyncUncertainReviewParams,
+};
 use tiktools_control_api::modules::system::SaveFileParams;
 use tiktools_control_api::modules::updates::{CheckParams as UpdateCheckParams, NoUpdateParams};
 use tiktools_control_api::modules::widgets::WidgetsCopyParams;
@@ -466,9 +469,22 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         | "cloud.restore"
         | "cloud.logout" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
-        "sync.status" | "sync.enable" | "sync.disable" | "sync.now" => validate::<Empty>(params),
+        "sync.status"
+        | "sync.enable"
+        | "sync.disable"
+        | "sync.now"
+        | "sync.uncertain.list"
+        | "sync.v2.discover" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.resolve" => validate::<SyncResolveParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "sync.uncertain.review" => validate::<SyncUncertainReviewParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "cloudLibrary.list" => validate::<CloudLibraryQuery>(params),
+        #[cfg(feature = "cloud-auth")]
+        "cloudLibrary.read" => validate::<CloudLibraryRead>(params),
+        #[cfg(feature = "cloud-auth")]
+        "sync.uncertain.resolve" => validate::<SyncUncertainResolveParams>(params),
         #[cfg(feature = "cloud-auth")]
         "publisher.list" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]

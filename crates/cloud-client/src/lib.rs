@@ -33,7 +33,7 @@ use url::Url;
 use uuid::Uuid;
 pub use workspace::{
     CatalogAdvisory, CatalogPageCapabilities, CatalogSummary, CatalogSummaryPage, CatalogVersion,
-    CatalogVersionPage, CloudCatalog,
+    CatalogVersionPage, CloudCatalog, WorkspaceSyncCapabilities,
 };
 pub use workspace_state::{
     WorkspaceEdit, WorkspaceEntry, WorkspaceKey, WorkspaceLocalEdit, WorkspacePending,

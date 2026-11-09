@@ -19,10 +19,10 @@ uses v1. Explicit cutover, product RPC/UI, reviewed local application and actual
 two-Desktop v2 acceptance are pending. The components, flow and historical
 validation sections below describe v1.
 
-The reviewed sibling RemakeBackend commit is `995d496`
-(`fix(catalog): align release identities with published contracts`), built on
-the integrity and recovery changes in `c0fb951` and the v2 implementation in
-`0c552b3`.
+The reviewed sibling RemakeBackend commit is `cb37900`, including canonical
+registry shards and bounded v2 capability discovery in the SDK, following bounded
+catalog pagination in `9f7e642`, catalog compatibility in `995d496`, integrity
+and recovery changes in `c0fb951`, and the v2 implementation in `0c552b3`.
 Its current contract is `docs/CLOUD-API-V2.md`; `docs/CLOUD-REDESIGN.md` and the
 latest section of `docs/IMPLEMENTATION-STATUS.md` supersede older roadmap gaps.
 That commit includes the digest-repair, recovery, byte-ordered pagination and
@@ -138,9 +138,11 @@ or completed two-Desktop v2 product workflow is claimed.
 ## Existing v1 state isolation
 
 - `StateStore` files live per device under `<data>/cloud-sync/` and are
-  bound to `(origin, account_id)`; a mismatch is replaced, never merged.
-- Logout keeps the file (same-account re-login resumes); switching accounts
-  resets to a fresh state without touching the old account's server records.
+  bound to `(origin, account_id)`. The in-progress fence preserves separate
+  partitions instead of replacing one account's state when another signs in.
+- Logout keeps the same account's local state. Switching accounts never merges
+  their pending work; the product integration and cross-process guarantees of
+  the new partitioning still require validation before release.
 
 ## Historical v1 validation (2026-11-04, local)
 

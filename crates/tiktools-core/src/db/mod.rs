@@ -6,7 +6,6 @@
 
 #[cfg(feature = "persistence")]
 mod sqlite;
-
 #[cfg(feature = "persistence")]
 mod analytics;
 #[cfg(feature = "persistence")]
@@ -18,6 +17,8 @@ pub(crate) use sqlite::validate_owner_approval_input;
 pub(crate) use sqlite::validate_owner_definition_input;
 #[cfg(feature = "persistence")]
 pub use sqlite::DatabaseError;
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+pub(crate) use sqlite::{LocalPluginSyncIntent, PluginSyncOutboxEntry};
 #[cfg(feature = "persistence")]
 pub(crate) use sqlite::{ActionClaimOutcome, GiftInput, GiftOutcome, ScoredInput, ScoredOutcome};
 #[cfg(feature = "persistence")]

@@ -46,10 +46,14 @@ pub use owner_library::{
 };
 #[cfg(feature = "cloud-auth")]
 mod cloud_account;
+#[cfg(feature = "cloud-auth")]
+mod cloud_library;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 mod cloud_publisher;
 #[cfg(feature = "cloud-auth")]
-mod cloud_sync;
+pub(crate) mod cloud_sync;
+#[cfg(feature = "cloud-auth")]
+mod cloud_workspace;
 mod commands;
 mod competitions;
 mod delivery;
@@ -94,7 +98,16 @@ pub use cloud_catalog::{
     CloudCatalogVersion, CloudCatalogVersionsPage, CloudCatalogVersionsQuery,
 };
 #[cfg(feature = "cloud-auth")]
-pub use cloud_sync::SyncNowResult;
+pub use cloud_library::{
+    CloudLibraryDocument, CloudLibraryDocumentMeta, CloudLibraryKind, CloudLibraryPage,
+    CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus,
+};
+#[cfg(feature = "cloud-auth")]
+pub use cloud_sync::{
+    SyncNowResult, SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncRecoveryValue,
+};
+#[cfg(feature = "cloud-auth")]
+pub use cloud_workspace::{WorkspaceV2Discovery, WorkspaceV2DiscoveryState};
 #[cfg(any(test, feature = "native-tiktok"))]
 pub(crate) use helpers::check_session_cookie_len;
 pub(crate) use helpers::{clean_plugin_id, clean_record_id, fresh_record_id};

@@ -12,11 +12,13 @@ use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use uuid::Uuid;
 mod bounded_catalog;
+mod capabilities;
 mod validation;
 pub use bounded_catalog::{
     CatalogAdvisory, CatalogPageCapabilities, CatalogSummary, CatalogSummaryPage, CatalogVersion,
     CatalogVersionPage,
 };
+pub use capabilities::WorkspaceSyncCapabilities;
 use validation::*;
 
 const MAX_V2_RESPONSE: usize = 32 * 1024 * 1024;

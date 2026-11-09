@@ -3,9 +3,10 @@
 Status: **the native v2 foundation and read-only Cloud catalog UI are implemented. Product sync cutover, local application and full Desktop v2 acceptance are pending.**
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
-library delivery e6728c9. The reviewed backend commit is RemakeBackend e6c6601,
-following bounded pagination 9f7e642, catalog compatibility 995d496, integrity
-changes c0fb951 and v2 foundation 0c552b3, and its
+library delivery e6728c9. The reviewed backend commit is RemakeBackend cb37900,
+including canonical shards and SDK capability discovery, following bounded pagination 9f7e642,
+catalog compatibility 995d496, integrity changes c0fb951 and v2 foundation
+0c552b3, and its
 docs/CLOUD-REDESIGN.md, docs/CLOUD-API-V2.md and latest
 docs/IMPLEMENTATION-STATUS.md. The backend owns portable cloud contracts.
 Import its reviewed contract/client changes without replacing Desktop-specific
@@ -68,21 +69,81 @@ The coordinator now offers guarded sync, review, resolution and rebuild calls
 bound to one session and eligibility permit. The authentication manager can
 recognize that exact session after logout and same-account sign-in. A native
 cutover preview captures and rechecks the legacy snapshot and selected inputs;
-it does not stop a v1 writer or activate v2. Product wiring still needs a
-shared cross-process protocol fence and session/opt-in invalidation. Guard
+it does not itself activate v2. A cooperative cross-process protocol fence
+and per-identity v1 partitions are being validated; product wiring still needs
+session/opt-in invalidation and a local-source fence. Guard
 checks cannot recall an HTTP request already dispatched, or replace an atomic
 local-application consent fence.
+
+The in-progress v1 uncertain-upload recovery must not be treated as a finished
+product flow. A plugin change can currently be applied locally before its
+sync staging succeeds, including while an exclusive recovery lease is held.
+Recovery also needs a durable, identity-bound application intent: accepting a
+Cloud value must survive a crash and handle an absent Cloud record as disabled,
+without overwriting a newer local change. A shared mutation boundary, durable
+staging and session/opt-in/source revalidation are required before exposing
+that choice as complete. Cooperative locks do not fence older binaries.
+The product currently permits read-only review but rejects every uncertain
+upload resolution, including keep-local, until those protections are wired.
+An internal SQLite transaction can now persist a plugin state, source
+generation and identity/consent-bound outbox candidate together; this storage
+primitive is not yet connected to product mutations or coordinator delivery.
+The in-progress coordinator bridge moves staged candidates to durable receipts
+and rechecks the exact pending edit, source generation, consent and runtime
+epoch before upload. A durable per-account marker can make cooperating legacy
+entry points fail closed, but product activation and compatibility with older
+binaries remain unfinished. Package mutation coverage and conflict resolution
+still need the same boundary before product activation.
+The existing product v1 application path also needs a session, consent and
+local-source fence around applying downloaded selections. A network result
+alone is not permission to alter a plugin after an account switch, opt-out,
+or a newer local edit.
+Legacy conflict resolution must also share the outbox admission boundary: a
+conflict based on an older staged value cannot be rebased or discarded while
+a newer local candidate awaits confirmation or delivery. A keep-local decision
+also needs a durable journal joining the reviewed Cloud record, old and new
+pending values, source generation and consent before changing either the JSON
+state or the SQLite receipt. A later decision must re-read Cloud; the review
+alone does not authorize a rebase.
+An in-progress native keep-local journal now freezes that decision across
+both stores. If a later local edit invalidates the frozen source, recovery
+retains the journal and blocks uploads. A separately reviewed native
+abandonment can restore the original conflict and retain a newer candidate
+when that candidate belongs to the same account and has current source and
+runtime confirmation. A separate reviewed abandonment accepts only evidence
+of a newer source generation, restoring the conflict without revealing or
+copying another account's value; it does not authorize any upload.
+Reauthorizing a journal from a previous consent identity remains unimplemented.
+These paths remain unavailable in product.
+The in-progress consent epoch migration preserves legacy numeric identities
+and assigns newly confirmed consent a 127-bit random identity, serialized as
+decimal text. Legacy enabled settings without a usable identity require a
+fresh opt-in; existing records are retained. The negligible collision risk
+does not protect against restoring an old copy of all local state. A durable
+initialization marker prevents an individually missing preference file from
+silently turning edits admitted through the in-progress product boundary into
+local-only edits. The existing v1 product path does not use that boundary yet.
+Loss of both files together cannot be distinguished from a new installation. Older
+binaries do not understand the new identity and may rewrite the setting using
+their old scheme, so deployment must prevent concurrent use or downgrade to
+those binaries before the new product path can be activated.
 
 The read-only Cloud catalog uses typed summary and version-page RPCs against
 the configured origin, with generation and sizes as decimal strings. Bounded
 pages retain filter and generation identity; catalog data never authorizes
 installation. The UI offers a user-selected legacy fallback only when the
 backend explicitly reports the new capability absent. Existing custom source
-controls and verified installation remain separate work. The local signed
-registry canonicalizes the legacy `..` shard; the Cloud backend still rejects
-that shard pending a separately verified compatibility rollout.
+controls and verified installation remain separate work. The signed registry
+and Cloud backend now use a canonical path for the legacy `..` shard in new
+generations. Existing immutable generations and older clients require a
+separate compatibility audit and, if affected, a newly signed promotion.
 
-No v2 product sync RPC/UI, account eligibility integration, single-engine cutover,
+An explicit, read-only `sync.v2.discover` check validates the configured
+backend's advertised workspace contract without sending credentials. It is
+informational and always reports Desktop v2 synchronization as unavailable;
+it does not migrate, sync, or apply account data.
+
+No v2 product synchronization RPC/UI, account eligibility integration, single-engine cutover,
 collection-specific local application or durable local-application outcome
 adapter is wired yet. The foundation never applies downloaded source itself.
 Its bootstrap helper preserves the v1 file and imports no v1 cursor or revision;
@@ -105,6 +166,8 @@ it does not constitute product migration consent or a completed cutover.
 | Cloud catalog adapter | Loopback HTTP pagination, exact 64-bit values and oversized-response rejection passed locally; installation and actual Desktop browsing are separate |
 | Catalog compatibility and client surface | Five SDK catalog tests passed in each repository; a PostgreSQL pagination test checked legacy-ID routing; client parity (10 tests) and the CLI catalog parser passed |
 | Bounded catalog, local registry and UI | PostgreSQL exercised byte-bound pagination and legacy workspace IDs; bounded SDK tests passed in both repositories; a signed local registry round-trip and 31 web tests passed. The packaged Chromium fixture passed against native IPC and loopback Cloud HTTP in English, Spanish and mobile layouts, including 50+1 pages and an exact generation above 2^53; this is not a two-PC acceptance test |
+| In-progress v1 outbox admission | 61 coordinator tests passed, including marker, account and restart fences. SQLite receipt and adapter tests passed, as did a loopback HTTP case with a newer edit during an admitted write. The product does not yet use this path; package mutations, conflict resolution and local application still need fencing |
+| In-progress conflict recovery | The 91-test coordinator suite passed; SQLite journal tests and loopback HTTP integration covered failed cross-store commits, restart, source reconfirmation and preserving newer edits, including a second account's private candidate. These private paths are not product activation or two-Desktop acceptance |
 | Backend populated pre-v2 upgrade, explicit digest repair and actual SQL archive restore | Passed on native PostgreSQL (17.31 s) and pgrust (18.61 s), plus 2 pure URL-guard tests; database-only scope |
 | Earlier backend v2 PostgreSQL cases | At the preceding checkpoint, 6 passed on each SQL runtime, including byte-ordered punctuation pagination; the earlier 67-case suite also passed on native PostgreSQL |
 | Backend declared minimum compiler checks | Rust 1.95 workspace and Rust 1.89 SDK checks passed |
@@ -352,6 +415,10 @@ distinct UI states: public discovery alone cannot make unpinned packages
 installable.
 
 The cloud library needs separate Public, My documents and local/imported views.
+The in-progress native `cloudLibrary.list` and `cloudLibrary.read` adapters
+provide typed, read-only public or signed-in private access; they do not import
+or activate documents. Private replies are discarded if the initiating session
+changes. Product views and the reviewed import flow remain to be wired.
 Keep backend document UUID/revision/status separate from portable document IDs,
 local gallery IDs, local profile IDs and graph IDs. Public reads only expose
 published revisions; drafts/pending/rejected/withdrawn content is private.

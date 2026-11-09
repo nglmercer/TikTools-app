@@ -35,6 +35,8 @@ cloud-auth = [
     "tiktools-cloud-auth/system-browser",
     "tiktools-cloud-auth/os-keychain",
     "dep:tiktools-cloud-sync",
+    "dep:cloud-client",
+    "dep:uuid",
 ]
 persistence = ["dep:rusqlite"]
 http = ["dep:reqwest", "tiktools-plugin-sdk/http-client"]
@@ -59,6 +61,7 @@ tiktools-plugin-registry = { path = "../tiktools-plugin-registry", optional = tr
 tiktools-cloud-auth = { path = "../tiktools-cloud-auth", version = "4.0.2", optional = true }
 tiktools-cloud-sync = { path = "../tiktools-cloud-sync", version = "4.0.2", optional = true }
 cloud-client = { path = "../cloud-client", version = "0.1.0", optional = true }
+uuid = { version = "1", optional = true }
 semver = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true

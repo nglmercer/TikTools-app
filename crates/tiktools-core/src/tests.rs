@@ -2781,6 +2781,28 @@ async fn cloud_sync_without_sign_in_fails_closed() {
 
 #[cfg(feature = "cloud-auth")]
 #[tokio::test]
+async fn cloud_sync_uncertain_resolution_is_unavailable_without_durable_source_fence() {
+    use crate::control::cloud_sync::SyncRecoveryChoice;
+
+    let _sync_guard = SYNC_TEST_LOCK.lock().await;
+    let _home = isolated_test_home();
+    let core = Arc::new(AppCore::new(Arc::new(RecordingEmitter::default())));
+    for choice in [
+        SyncRecoveryChoice::KeepLocal,
+        SyncRecoveryChoice::TakeCloud,
+        SyncRecoveryChoice::TakeCloudIncludingNewer,
+    ] {
+        let error = core
+            .sync_resolve_uncertain("any-handle", choice)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "unavailable");
+    }
+    core.shutdown().await;
+}
+
+#[cfg(feature = "cloud-auth")]
+#[tokio::test]
 async fn cloud_sync_remote_never_installs_or_stages() {
     let _sync_guard = SYNC_TEST_LOCK.lock().await;
     let _home = isolated_test_home();
@@ -2797,6 +2819,48 @@ async fn cloud_sync_remote_never_installs_or_stages() {
     assert_eq!(status.pending, 0);
     assert!(status.conflicts.is_empty());
     core.shutdown().await;
+}
+
+#[cfg(feature = "cloud-auth")]
+#[tokio::test]
+async fn cloud_sync_skips_discovered_but_uninstalled_plugin() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&runtime));
+    core.plugin_set_installed("hotkeys", false).unwrap();
+    for enabled in [true, false] {
+        assert!(!core
+            .plugin_apply_remote_selection("hotkeys", enabled)
+            .unwrap());
+        let state = recover_rwlock_read(&core.plugin_state.activation, "plugin activation");
+        assert!(!state.get("hotkeys").unwrap().installed);
+    }
+    assert_eq!(runtime.loads.load(AtomicOrdering::SeqCst), 0);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(feature = "cloud-auth")]
+#[tokio::test]
+async fn cloud_sync_checks_installed_state_inside_invocation_gate() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&runtime));
+    let gate = core.plugin_state.invocation_gate.lock().unwrap();
+    let remote_core = Arc::clone(&core);
+    let pending =
+        std::thread::spawn(move || remote_core.plugin_apply_remote_selection("hotkeys", false));
+    // This change takes place while the remote operation waits on the gate.
+    core.set_plugin_activation("hotkeys", false, true);
+    drop(gate);
+    assert!(!pending.join().unwrap().unwrap());
+    assert!(
+        !recover_rwlock_read(&core.plugin_state.activation, "plugin activation")
+            .get("hotkeys")
+            .unwrap()
+            .installed
+    );
+    assert_eq!(runtime.loads.load(AtomicOrdering::SeqCst), 0);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
 }
 
 #[cfg(all(feature = "cloud-auth", unix))]

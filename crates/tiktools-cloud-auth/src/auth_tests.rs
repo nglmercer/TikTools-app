@@ -56,6 +56,14 @@ struct MockState {
 struct MockCloud {
     origin: String,
     task: tokio::task::JoinHandle<()>,
+    hold: Arc<HeldRequest>,
+}
+
+#[derive(Default)]
+struct HeldRequest {
+    path: Mutex<Option<String>>,
+    observed: tokio::sync::Notify,
+    release: tokio::sync::Notify,
 }
 
 impl MockCloud {
@@ -73,46 +81,66 @@ impl MockCloud {
             logouts: 0,
             expire_tokens,
         }));
-        let task = tokio::spawn(async move {
-            loop {
-                let Ok((mut socket, _)) = listener.accept().await else {
-                    break;
-                };
-                let state = state.clone();
-                tokio::spawn(async move {
-                    let mut buffer = vec![0_u8; 16 * 1024];
-                    let Ok(read) = socket.read(&mut buffer).await else {
-                        return;
+        let hold = Arc::new(HeldRequest::default());
+        let task = tokio::spawn({
+            let hold = hold.clone();
+            async move {
+                loop {
+                    let Ok((mut socket, _)) = listener.accept().await else {
+                        break;
                     };
-                    let request = String::from_utf8_lossy(&buffer[..read]).to_string();
-                    let mut lines = request.lines();
-                    let head = lines.next().unwrap_or_default().to_owned();
-                    let mut parts = head.split_whitespace();
-                    let method = parts.next().unwrap_or_default().to_owned();
-                    let target = parts.next().unwrap_or("/").to_owned();
-                    let (path, query) = target
-                        .split_once('?')
-                        .map_or_else(|| (target.as_str(), ""), |(path, query)| (path, query));
-                    let headers: HashMap<String, String> = lines
-                        .take_while(|line| !line.is_empty())
-                        .filter_map(|line| line.split_once(':'))
-                        .map(|(key, value)| {
-                            (key.trim().to_ascii_lowercase(), value.trim().to_owned())
-                        })
-                        .collect();
-                    let body_start = request.find("\r\n\r\n").map(|index| index + 4).unwrap_or(0);
-                    let body = request[body_start.min(request.len())..].to_owned();
-                    let (status, payload) = route(&method, path, query, &headers, &body, &state);
-                    let head = format!(
+                    let state = state.clone();
+                    let hold = hold.clone();
+                    tokio::spawn(async move {
+                        let mut buffer = vec![0_u8; 16 * 1024];
+                        let Ok(read) = socket.read(&mut buffer).await else {
+                            return;
+                        };
+                        let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+                        let mut lines = request.lines();
+                        let head = lines.next().unwrap_or_default().to_owned();
+                        let mut parts = head.split_whitespace();
+                        let method = parts.next().unwrap_or_default().to_owned();
+                        let target = parts.next().unwrap_or("/").to_owned();
+                        let (path, query) = target
+                            .split_once('?')
+                            .map_or_else(|| (target.as_str(), ""), |(path, query)| (path, query));
+                        let headers: HashMap<String, String> = lines
+                            .take_while(|line| !line.is_empty())
+                            .filter_map(|line| line.split_once(':'))
+                            .map(|(key, value)| {
+                                (key.trim().to_ascii_lowercase(), value.trim().to_owned())
+                            })
+                            .collect();
+                        let body_start =
+                            request.find("\r\n\r\n").map(|index| index + 4).unwrap_or(0);
+                        let body = request[body_start.min(request.len())..].to_owned();
+                        let (status, payload) =
+                            route(&method, path, query, &headers, &body, &state);
+                        let should_hold = {
+                            let mut wanted = hold.path.lock().unwrap();
+                            if wanted.as_deref() == Some(path) {
+                                *wanted = None;
+                                true
+                            } else {
+                                false
+                            }
+                        };
+                        if should_hold {
+                            hold.observed.notify_one();
+                            hold.release.notified().await;
+                        }
+                        let head = format!(
                         "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
                         payload.len()
                     );
-                    let _ = socket.write_all(head.as_bytes()).await;
-                    let _ = socket.write_all(payload.as_bytes()).await;
-                });
+                        let _ = socket.write_all(head.as_bytes()).await;
+                        let _ = socket.write_all(payload.as_bytes()).await;
+                    });
+                }
             }
         });
-        Self { origin, task }
+        Self { origin, task, hold }
     }
 
     fn stop(self) {
@@ -340,6 +368,154 @@ async fn captured_session_is_invalid_after_logout_and_same_account_login() {
     assert!(!auth.is_current_session(&first));
     assert!(auth.is_current_session(&second));
     auth.logout().await.unwrap();
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn identity_is_unavailable_during_pending_and_completing_login() {
+    let dir = TempDir::new("identity-login-transition");
+    let mock = MockCloud::start("user-transition").await;
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let _begun = auth.begin_login().await.unwrap();
+    assert!(auth.try_sync_identity().is_err());
+    let waiter = spawn_complete(&auth);
+    tokio::task::yield_now().await;
+    assert!(auth.try_sync_identity().is_err());
+    auth.cancel_login().await.unwrap();
+    assert!(waiter.await.unwrap().is_err());
+    assert!(matches!(auth.try_sync_identity(), Ok(None)));
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancel_and_logout_during_redeem_do_not_resurrect_session() {
+    for cancel in [true, false] {
+        let dir = TempDir::new("held-redeem");
+        let mock = MockCloud::start("user-held").await;
+        let store: Arc<dyn TokenStore> = Arc::new(MemoryTokenStore::new());
+        let auth = manager(&dir, Some(mock.origin.clone()), store.clone());
+        let begun = auth.begin_login().await.unwrap();
+        *mock.hold.path.lock().unwrap() = Some("/api/v1/native/handoff/redeem".into());
+        let waiter = spawn_complete(&auth);
+        deliver_callback(
+            &begun.browser_url,
+            if cancel { "held-cancel" } else { "held-logout" },
+        )
+        .await;
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            mock.hold.observed.notified(),
+        )
+        .await
+        .unwrap();
+        if cancel {
+            auth.cancel_login().await.unwrap();
+        } else {
+            auth.logout().await.unwrap();
+        }
+        mock.hold.release.notify_one();
+        assert!(waiter.await.unwrap().is_err());
+        assert!(auth.session().await.is_none());
+        assert!(auth.try_sync_identity().unwrap().is_none());
+        assert!(store.load(&mock.origin, "user-held").unwrap().is_none());
+        assert!(!dir.join("cloud-account.json").exists());
+        mock.stop();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn restore_finishing_after_logout_cannot_install_session() {
+    let dir = TempDir::new("held-restore");
+    let mock = MockCloud::start("user-restored").await;
+    let store: Arc<dyn TokenStore> = Arc::new(MemoryTokenStore::new());
+    let original = manager(&dir, Some(mock.origin.clone()), store.clone());
+    let begun = original.begin_login().await.unwrap();
+    let waiter = spawn_complete(&original);
+    deliver_callback(&begun.browser_url, "restore-race").await;
+    waiter.await.unwrap().unwrap();
+    let fresh = manager(&dir, Some(mock.origin.clone()), store.clone());
+    *mock.hold.path.lock().unwrap() = Some("/api/v1/native/me".into());
+    let restoring = {
+        let fresh = fresh.clone();
+        tokio::spawn(async move { fresh.restore().await })
+    };
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        mock.hold.observed.notified(),
+    )
+    .await
+    .unwrap();
+    fresh.logout().await.unwrap();
+    mock.hold.release.notify_one();
+    assert!(restoring.await.unwrap().is_err());
+    assert!(fresh.session().await.is_none());
+    assert!(fresh.try_sync_identity().unwrap().is_none());
+    assert!(store.load(&mock.origin, "user-restored").unwrap().is_none());
+    assert!(!dir.join("cloud-account.json").exists());
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn aborted_logout_does_not_leave_local_credentials_or_identity() {
+    let dir = TempDir::new("held-logout");
+    let mock = MockCloud::start("user-logout").await;
+    let store: Arc<dyn TokenStore> = Arc::new(MemoryTokenStore::new());
+    let auth = manager(&dir, Some(mock.origin.clone()), store.clone());
+    let begun = auth.begin_login().await.unwrap();
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "logout-race").await;
+    waiter.await.unwrap().unwrap();
+    *mock.hold.path.lock().unwrap() = Some("/api/v1/native/logout".into());
+    let logout = {
+        let auth = auth.clone();
+        tokio::spawn(async move { auth.logout().await })
+    };
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        mock.hold.observed.notified(),
+    )
+    .await
+    .unwrap();
+    assert!(!dir.join("cloud-account.json").exists());
+    assert!(store.load(&mock.origin, "user-logout").unwrap().is_none());
+    logout.abort();
+    assert!(logout.await.unwrap_err().is_cancelled());
+    assert!(auth.session().await.is_none());
+    assert!(auth.try_sync_identity().unwrap().is_none());
+    mock.hold.release.notify_one();
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn aborting_completion_does_not_leave_identity_permanently_busy() {
+    let dir = TempDir::new("aborted-login");
+    let mock = MockCloud::start("user-aborted").await;
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let begun = auth.begin_login().await.unwrap();
+    *mock.hold.path.lock().unwrap() = Some("/api/v1/native/handoff/redeem".into());
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "abort-login").await;
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        mock.hold.observed.notified(),
+    )
+    .await
+    .unwrap();
+    waiter.abort();
+    assert!(waiter.await.unwrap_err().is_cancelled());
+    assert!(matches!(auth.try_sync_identity(), Ok(None)));
+    assert_eq!(auth.status().await.state, AccountState::SignedOut);
+    assert!(auth.begin_login().await.is_ok());
+    auth.cancel_login().await.unwrap();
+    mock.hold.release.notify_one();
     mock.stop();
 }
 

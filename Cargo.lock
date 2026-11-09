@@ -5904,10 +5904,13 @@ name = "tiktools-cloud-sync"
 version = "4.0.2"
 dependencies = [
  "cloud-client",
+ "fs2",
+ "getrandom 0.4.3",
  "reqwest 0.13.5",
  "schemars",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "tempfile",
  "thiserror 2.0.21",
  "tiktools-cloud-auth",
@@ -6000,6 +6003,7 @@ dependencies = [
  "ttl-live-events",
  "ttl-live-proto",
  "url",
+ "uuid",
 ]
 
 [[package]]

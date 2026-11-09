@@ -377,6 +377,67 @@ CREATE TABLE IF NOT EXISTS behavior_plugins (
   enabled INTEGER NOT NULL DEFAULT 1,
   updated_at INTEGER NOT NULL
 );
+-- The source revision remains after deletion, so remove/recreate and ABA
+-- changes cannot make a stale Cloud review valid again.
+CREATE TABLE IF NOT EXISTS plugin_sync_source_versions (
+  plugin_id TEXT PRIMARY KEY,
+  generation INTEGER NOT NULL CHECK(generation > 0)
+);
+-- Native-only durable candidates; identity is partitioned and never a token.
+-- Acknowledgement must compare the generation so it cannot erase a newer edit.
+CREATE TABLE IF NOT EXISTS plugin_sync_outbox (
+  origin TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  generation INTEGER NOT NULL CHECK(generation > 0),
+  config_generation TEXT NOT NULL,
+  -- Runtime confirmation is scoped to one host lifetime and must be
+  -- re-established after restart before a candidate may be acknowledged.
+  runtime_epoch TEXT,
+  version TEXT,
+  enabled INTEGER CHECK(enabled IN (0,1)),
+  CHECK((version IS NULL AND enabled IS NULL) OR
+        (version IS NOT NULL AND enabled IS NOT NULL)),
+  PRIMARY KEY(origin, account_id, plugin_id)
+);
+-- A staged v1 pending value retains its source and consent fence after the
+-- outbox entry is consumed. Without this receipt another account's later
+-- local edit could leave an obsolete pending value eligible for upload.
+CREATE TABLE IF NOT EXISTS plugin_sync_receipts (
+  origin TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  generation INTEGER NOT NULL CHECK(generation > 0),
+  config_generation TEXT NOT NULL,
+  runtime_epoch TEXT NOT NULL,
+  pending_json TEXT NOT NULL,
+  PRIMARY KEY(origin, account_id, plugin_id)
+);
+-- A conflict decision is frozen before either the v1 JSON state or its
+-- receipt is changed. At most one unresolved decision is admitted per account.
+CREATE TABLE IF NOT EXISTS plugin_sync_rebase_intents (
+  origin TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  PRIMARY KEY(origin, account_id)
+);
+-- An application decision survives crashes without treating the persisted
+-- remote value as permission to run a plugin. The opaque native payload
+-- contains no credential or plugin source.
+CREATE TABLE IF NOT EXISTS plugin_sync_apply_intents (
+  intent_id TEXT PRIMARY KEY,
+  plugin_id TEXT NOT NULL,
+  phase TEXT NOT NULL CHECK(phase IN ('prepared','ready','runtime_pending','applied','finalized')),
+  payload_json TEXT NOT NULL,
+  committed_generation INTEGER,
+  runtime_epoch TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_plugin_sync_apply_active
+  ON plugin_sync_apply_intents(plugin_id) WHERE phase != 'finalized';
+-- Discovery pages should not scan retained finalized history on every restart.
+CREATE INDEX IF NOT EXISTS idx_plugin_sync_apply_recovery
+  ON plugin_sync_apply_intents(intent_id) WHERE phase != 'finalized';
 -- Metadata only: the owner's WebView/browser never owns a durable command ID
 -- or stores proposal source. One unresolved authority transfer spans clients.
 CREATE TABLE IF NOT EXISTS owner_automation_adoptions (
@@ -507,6 +568,7 @@ impl DatabaseManager {
         // The workflow seed references the shared version table.
         automation.execute_batch(COORDINATION_SCHEMA)?;
         automation.execute_batch(AUTOMATION_SCHEMA)?;
+        migrate_plugin_sync_outbox(&mut automation)?;
         migrate_effect_kinds(&mut automation)?;
 
         self.ensure_analytics_schema()?;
@@ -515,6 +577,32 @@ impl DatabaseManager {
     pub(in crate::db) fn open(&self, path: &std::path::Path) -> Result<Connection, DatabaseError> {
         Ok(Connection::open(path)?)
     }
+}
+
+/// Interim development builds created this outbox before consent generations
+/// were recorded. Preserve every candidate and leave its generation NULL:
+/// readers must require a fresh review instead of inventing prior consent.
+fn migrate_plugin_sync_outbox(db: &mut Connection) -> Result<(), DatabaseError> {
+    db.execute_batch("PRAGMA synchronous=FULL;")?;
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let present: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('plugin_sync_outbox') WHERE name='config_generation'",
+        [],
+        |row| row.get(0),
+    )?;
+    if present == 0 {
+        tx.execute_batch("ALTER TABLE plugin_sync_outbox ADD COLUMN config_generation TEXT;")?;
+    }
+    let present: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('plugin_sync_outbox') WHERE name='runtime_epoch'",
+        [],
+        |row| row.get(0),
+    )?;
+    if present == 0 {
+        tx.execute_batch("ALTER TABLE plugin_sync_outbox ADD COLUMN runtime_epoch TEXT;")?;
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 /// Extend the unreleased journal's closed kind constraint without deleting any

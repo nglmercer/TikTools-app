@@ -557,3 +557,41 @@ fn bounded_catalog_validation_has_closed_inputs_and_exact_generation_strings() {
     )
     .is_ok());
 }
+
+#[cfg(feature = "cloud-auth")]
+#[test]
+fn cloud_library_requests_are_closed_and_revisions_are_strings() {
+    assert!(tiktools_client::validate_params(
+        "cloudLibrary.list",
+        &serde_json::json!({
+            "scope":"mine", "kind":"template", "query":"gift", "after":null
+        })
+    )
+    .is_ok());
+    assert!(tiktools_client::validate_params(
+        "cloudLibrary.list",
+        &serde_json::json!({
+            "scope":"mine", "origin":"https://attacker.invalid"
+        })
+    )
+    .is_err());
+    assert!(tiktools_client::validate_params(
+        "cloudLibrary.list",
+        &serde_json::json!({"scope":"other"})
+    )
+    .is_err());
+    assert!(tiktools_client::validate_params(
+        "cloudLibrary.read",
+        &serde_json::json!({
+            "scope":"public", "id":"f2f3f4f5-0102-4304-8506-070809101112", "revision":"1"
+        })
+    )
+    .is_ok());
+    assert!(tiktools_client::validate_params(
+        "cloudLibrary.read",
+        &serde_json::json!({
+            "scope":"public", "id":"f2f3f4f5-0102-4304-8506-070809101112", "revision":1
+        })
+    )
+    .is_err());
+}

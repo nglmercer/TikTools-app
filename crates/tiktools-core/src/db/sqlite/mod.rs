@@ -31,6 +31,20 @@ mod owner_definition;
 mod owner_library;
 pub(crate) use owner_definition::validate_owner_definition_input;
 mod points;
+#[cfg(feature = "cloud-auth")]
+// The transactional storage boundary is not exposed to the product until the
+// coordinator can enforce draining and identity/session authorization.
+#[allow(dead_code)]
+mod plugin_sync;
+#[cfg(feature = "cloud-auth")]
+// Storage only: product activation still needs coordinator/session fencing.
+#[allow(dead_code)]
+mod plugin_sync_apply;
+#[cfg(feature = "cloud-auth")]
+#[allow(dead_code)]
+mod plugin_sync_rebase;
+#[cfg(feature = "cloud-auth")]
+pub(crate) use plugin_sync::{LocalPluginSyncIntent, PluginSyncOutboxEntry};
 mod schema;
 #[cfg(test)]
 mod tests;

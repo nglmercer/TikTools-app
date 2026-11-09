@@ -3,9 +3,16 @@ pub use crate::state::{AccountState, AccountStatus, Persistence};
 pub use crate::store::OsTokenStore;
 pub use crate::store::{MemoryTokenStore, TokenStore, TokenStoreError};
 
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
-use cloud_client::{LoginAttempt, LoginResult, Session};
+use cloud_client::{LoginAttempt, LoginResult, Session, SyncError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::{oneshot, Mutex};
@@ -103,6 +110,31 @@ struct Inner {
     pending: Option<PendingLogin>,
     cancel_tx: Option<oneshot::Sender<()>>,
     last_error: Option<String>,
+    epoch: u64,
+    offline_identity_allowed: bool,
+}
+
+fn login_waiting(inner: &Inner) -> bool {
+    inner.pending.is_some()
+        || inner
+            .cancel_tx
+            .as_ref()
+            .is_some_and(|sender| !sender.is_closed())
+}
+
+fn normalized_origin(raw: &str) -> Option<String> {
+    let url = url::Url::parse(raw).ok()?;
+    let loopback = matches!(url.host_str(), Some("127.0.0.1" | "[::1]"));
+    if !(url.scheme() == "https" || url.scheme() == "http" && loopback)
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    Some(url.origin().ascii_serialization())
 }
 
 /// Cloud account manager. Cheap to clone; state lives behind one async lock.
@@ -111,9 +143,75 @@ pub struct CloudAuth {
     inner: Arc<Mutex<Inner>>,
     store: Arc<dyn TokenStore>,
     sidecar: PathBuf,
+    transitions: Arc<AtomicUsize>,
+}
+
+struct TransitionGuard(Arc<AtomicUsize>);
+impl TransitionGuard {
+    fn begin(transitions: &Arc<AtomicUsize>) -> Self {
+        transitions.fetch_add(1, Ordering::SeqCst);
+        Self(transitions.clone())
+    }
+}
+impl Drop for TransitionGuard {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+struct PendingCredentialGuard {
+    store: Arc<dyn TokenStore>,
+    origin: String,
+    account: String,
+    armed: bool,
+}
+impl Drop for PendingCredentialGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = self.store.delete(&self.origin, &self.account);
+        }
+    }
+}
+
+/// The in-memory account is being updated; do not fall back to a potentially
+/// stale persisted identity while this is returned.
+#[derive(Debug, Error)]
+#[error("cloud account state is busy")]
+pub struct SessionBusy;
+
+#[cfg(test)]
+mod session_snapshot_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn contended_account_is_distinct_from_signed_out() {
+        let auth = CloudAuth::new(
+            None,
+            PathBuf::from("unused-test-sidecar"),
+            Arc::new(MemoryTokenStore::new()),
+        );
+        assert!(matches!(auth.try_session_snapshot(), Ok(None)));
+        let locked = auth.inner.lock().await;
+        assert!(matches!(auth.try_session_snapshot(), Err(SessionBusy)));
+        drop(locked);
+        assert!(matches!(auth.try_session_snapshot(), Ok(None)));
+    }
 }
 
 impl CloudAuth {
+    fn sync_identity_locked(&self, inner: &Inner) -> Option<(String, String)> {
+        let configured = normalized_origin(inner.origin.as_deref()?)?;
+        if let Some(session) = &inner.session {
+            return (session.instance_origin() == configured)
+                .then(|| (configured, session.account_id().to_owned()));
+        }
+        if !inner.offline_identity_allowed {
+            return None;
+        }
+        let (origin, account) = self.last_identity()?;
+        (normalized_origin(&origin).as_deref() == Some(configured.as_str()))
+            .then_some((configured, account))
+    }
     /// Build from an explicit origin and a token store. `None` disables
     /// login and reports unconfigured.
     pub fn new(origin: Option<String>, sidecar: PathBuf, store: Arc<dyn TokenStore>) -> Self {
@@ -125,9 +223,12 @@ impl CloudAuth {
                 pending: None,
                 cancel_tx: None,
                 last_error: None,
+                epoch: 0,
+                offline_identity_allowed: true,
             })),
             store,
             sidecar,
+            transitions: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -143,7 +244,7 @@ impl CloudAuth {
 
     pub async fn status(&self) -> AccountStatus {
         let inner = self.inner.lock().await;
-        let state = if inner.pending.is_some() {
+        let state = if login_waiting(&inner) {
             AccountState::SigningIn
         } else if inner.session.is_some() {
             AccountState::SignedIn
@@ -207,19 +308,96 @@ impl CloudAuth {
         self.inner.try_lock().ok()?.session.clone()
     }
 
+    /// Non-blocking snapshot that distinguishes a signed-out account from a
+    /// temporarily contended account update.
+    pub fn try_session_snapshot(&self) -> Result<Option<Arc<Session>>, SessionBusy> {
+        if self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
+        }
+        let inner = self.inner.try_lock().map_err(|_| SessionBusy)?;
+        if login_waiting(&inner) || self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
+        }
+        Ok(inner.session.clone())
+    }
+
+    /// Capture a live or remembered identity without treating a running login,
+    /// restore or logout as a signed-out offline state.
+    pub fn try_sync_identity(&self) -> Result<Option<(String, String)>, SessionBusy> {
+        if self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
+        }
+        let inner = self.inner.try_lock().map_err(|_| SessionBusy)?;
+        if login_waiting(&inner) {
+            return Err(SessionBusy);
+        }
+        let identity = self.sync_identity_locked(&inner);
+        if self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
+        }
+        Ok(identity)
+    }
+
+    /// Run a bounded synchronous local operation while the account identity
+    /// remains locked. The closure must not await or call back into CloudAuth.
+    pub fn with_sync_identity<R>(
+        &self,
+        operation: impl FnOnce(Option<(String, String)>) -> R,
+    ) -> Result<R, SessionBusy> {
+        if self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
+        }
+        let inner = self.inner.try_lock().map_err(|_| SessionBusy)?;
+        if login_waiting(&inner) || self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
+        }
+        let identity = self.sync_identity_locked(&inner);
+        if self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
+        }
+        Ok(operation(identity))
+    }
+
+    /// Execute a bounded synchronous commit only while this exact session is
+    /// installed. No network or asynchronous work may occur in the closure.
+    pub fn with_current_session<R>(
+        &self,
+        captured: &Arc<Session>,
+        operation: impl FnOnce() -> R,
+    ) -> Result<R, SessionBusy> {
+        if self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
+        }
+        let inner = self.inner.try_lock().map_err(|_| SessionBusy)?;
+        if login_waiting(&inner)
+            || !inner
+                .session
+                .as_ref()
+                .is_some_and(|live| Arc::ptr_eq(live, captured))
+            || self.transitions.load(Ordering::SeqCst) != 0
+        {
+            return Err(SessionBusy);
+        }
+        Ok(operation())
+    }
+
     /// Whether this exact captured session is still installed. Account IDs
     /// alone cannot distinguish logout followed by login to the same account.
     /// A contended lock fails closed; callers must also fence their opt-in
     /// generation and recheck after asynchronous work.
     pub fn is_current_session(&self, captured: &Arc<Session>) -> bool {
+        if self.transitions.load(Ordering::SeqCst) != 0 {
+            return false;
+        }
         self.inner
             .try_lock()
             .ok()
             .and_then(|inner| {
-                inner
-                    .session
-                    .as_ref()
-                    .map(|live| Arc::ptr_eq(live, captured))
+                inner.session.as_ref().map(|live| {
+                    Arc::ptr_eq(live, captured)
+                        && !login_waiting(&inner)
+                        && self.transitions.load(Ordering::SeqCst) == 0
+                })
             })
             .unwrap_or(false)
     }
@@ -239,15 +417,22 @@ impl CloudAuth {
     /// this process. Fails when signed in (explicit logout first) or when a
     /// login is already running.
     pub async fn begin_login(&self) -> Result<LoginBegin, AuthError> {
-        let origin = {
+        let _transition = TransitionGuard::begin(&self.transitions);
+        if self.transitions.load(Ordering::SeqCst) != 1 {
+            return Err(AuthError::AlreadyInProgress);
+        }
+        let (origin, epoch) = {
             let inner = self.inner.lock().await;
             if inner.session.is_some() {
                 return Err(AuthError::AlreadySignedIn);
             }
-            if inner.pending.is_some() {
+            if login_waiting(&inner) {
                 return Err(AuthError::AlreadyInProgress);
             }
-            inner.origin.clone().ok_or(AuthError::Unconfigured)?
+            (
+                inner.origin.clone().ok_or(AuthError::Unconfigured)?,
+                inner.epoch,
+            )
         };
         let attempt = LoginAttempt::begin(&origin)
             .await
@@ -256,9 +441,13 @@ impl CloudAuth {
         let (cancel_tx, cancel_rx) = oneshot::channel();
         {
             let mut inner = self.inner.lock().await;
-            if inner.session.is_some() || inner.pending.is_some() {
+            if inner.session.is_some() || login_waiting(&inner) || inner.epoch != epoch {
                 return Err(AuthError::AlreadyInProgress);
             }
+            inner.epoch = inner
+                .epoch
+                .checked_add(1)
+                .ok_or_else(|| AuthError::Failed("account generation exhausted".into()))?;
             inner.last_error = None;
             inner.pending = Some(PendingLogin {
                 attempt: Some(attempt),
@@ -300,32 +489,41 @@ impl CloudAuth {
     /// then verify the session and persist it. Consumes the pending attempt;
     /// a concurrent [`CloudAuth::cancel_login`] aborts the wait.
     pub async fn complete_login(&self) -> Result<AccountStatus, AuthError> {
-        let (attempt, cancel_rx, origin) = {
+        let _transition = TransitionGuard::begin(&self.transitions);
+        let (attempt, cancel_rx, origin, epoch) = {
             let mut inner = self.inner.lock().await;
             let mut pending = inner.pending.take().ok_or(AuthError::NoLoginInProgress)?;
             let attempt = pending.attempt.take().ok_or(AuthError::NoLoginInProgress)?;
             let cancel_rx = pending.cancel_rx.take();
             let origin = inner.origin.clone().ok_or(AuthError::Unconfigured)?;
-            (attempt, cancel_rx, origin)
+            (attempt, cancel_rx, origin, inner.epoch)
         };
         let cancel_rx = cancel_rx.unwrap_or_else(|| oneshot::channel::<()>().1);
         let result = attempt.complete(LOGIN_TIMEOUT, cancel_rx).await;
-        {
-            let mut inner = self.inner.lock().await;
+        let finished = self.finish_login(origin, result, epoch).await;
+        let mut inner = self.inner.lock().await;
+        if inner.epoch == epoch {
             inner.cancel_tx = None;
         }
-        self.finish_login(origin, result).await
+        drop(inner);
+        finished?;
+        Ok(self.status().await)
     }
 
     /// Abort an in-flight login and drop its secrets, including a wait
     /// already blocked inside [`CloudAuth::complete_login`].
     pub async fn cancel_login(&self) -> Result<AccountStatus, AuthError> {
+        let _transition = TransitionGuard::begin(&self.transitions);
         let mut inner = self.inner.lock().await;
         let had_pending = inner.pending.take().is_some();
         let had_waiter = inner.cancel_tx.take().map(|sender| sender.send(()));
         if !had_pending && had_waiter.is_none() {
             return Err(AuthError::NoLoginInProgress);
         }
+        inner.epoch = inner
+            .epoch
+            .checked_add(1)
+            .ok_or_else(|| AuthError::Failed("account generation exhausted".into()))?;
         inner.last_error = Some("login cancelled".to_owned());
         drop(inner);
         Ok(self.status().await)
@@ -335,6 +533,14 @@ impl CloudAuth {
     /// token against `/me`, so expiry surfaces here instead of later.
     /// Refuses when the configured origin changed since sign-in.
     pub async fn restore(&self) -> Result<AccountStatus, AuthError> {
+        let _transition = TransitionGuard::begin(&self.transitions);
+        if self.transitions.load(Ordering::SeqCst) != 1 {
+            return Err(AuthError::AlreadyInProgress);
+        }
+        self.restore_inner().await
+    }
+
+    async fn restore_inner(&self) -> Result<AccountStatus, AuthError> {
         let sidecar: AccountSidecar = {
             let Ok(bytes) = std::fs::read(&self.sidecar) else {
                 // Nothing to restore is a normal signed-out start, distinct
@@ -348,16 +554,23 @@ impl CloudAuth {
             serde_json::from_slice(&bytes)
                 .map_err(|_| AuthError::Failed("saved account is unreadable".to_owned()))?
         };
-        {
+        let epoch = {
             let inner = self.inner.lock().await;
-            if let Some(origin) = inner.origin.as_deref() {
-                if origin != sidecar.origin {
-                    return Err(AuthError::Failed(
-                        "saved account belongs to a different cloud origin".to_owned(),
-                    ));
-                }
+            if login_waiting(&inner) || inner.session.is_some() {
+                return Err(AuthError::AlreadyInProgress);
             }
-        }
+            let configured = inner
+                .origin
+                .as_deref()
+                .and_then(normalized_origin)
+                .ok_or(AuthError::Unconfigured)?;
+            if normalized_origin(&sidecar.origin).as_deref() != Some(configured.as_str()) {
+                return Err(AuthError::Failed(
+                    "saved account belongs to a different cloud origin".to_owned(),
+                ));
+            }
+            inner.epoch
+        };
         let token = self
             .store
             .load(&sidecar.origin, &sidecar.account_id)
@@ -384,89 +597,118 @@ impl CloudAuth {
             }
         });
         let mut inner = self.inner.lock().await;
+        if inner.epoch != epoch || login_waiting(&inner) || inner.session.is_some() {
+            return Err(AuthError::Cancelled);
+        }
+        inner.cancel_tx = None;
         inner.origin = Some(sidecar.origin);
         inner.session = Some(Arc::new(session));
         inner.profile = profile;
+        inner.offline_identity_allowed = true;
         inner.last_error = None;
         drop(inner);
         Ok(self.status().await)
     }
 
-    /// Revoke on the server, then always wipe local credentials and state.
-    /// A network failure leaves revocation unknown but still signs out
-    /// locally; the warning is surfaced in the returned status. A fresh
-    /// process holds no in-memory session, so logout reconnects from the
-    /// store first: otherwise the server session would survive and the
-    /// stored credential would be left behind.
+    /// Wipe local credentials before attempting best-effort server revocation.
+    /// Cancellation of the network operation cannot restore the local session.
     pub async fn logout(&self) -> Result<AccountStatus, AuthError> {
-        // Best-effort reconnect; local cleanup below proceeds even when the
-        // network or the stored credential is gone.
-        let restore_error = if self.inner.lock().await.session.is_none() {
-            self.restore().await.err()
+        let _transition = TransitionGuard::begin(&self.transitions);
+        let (configured_origin, session) = {
+            let mut inner = self.inner.lock().await;
+            inner.epoch = inner
+                .epoch
+                .checked_add(1)
+                .ok_or_else(|| AuthError::Failed("account generation exhausted".into()))?;
+            if let Some(cancel) = inner.cancel_tx.take() {
+                let _ = cancel.send(());
+            }
+            let session = inner.session.take();
+            inner.profile = None;
+            inner.offline_identity_allowed = false;
+            inner.pending = None;
+            inner.last_error = None;
+            (inner.origin.clone(), session)
+        };
+        let sidecar = std::fs::read(&self.sidecar)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<AccountSidecar>(&bytes).ok());
+        let remembered = sidecar.filter(|v| {
+            configured_origin
+                .as_deref()
+                .is_none_or(|origin| origin == v.origin)
+        });
+        let identity = session
+            .as_ref()
+            .map(|s| (s.instance_origin(), s.account_id().to_owned()))
+            .or_else(|| {
+                remembered
+                    .as_ref()
+                    .map(|s| (s.origin.clone(), s.account_id.clone()))
+            });
+        let mut warning = None;
+        let mut local_cleanup_failed = false;
+        // Load a revocation credential into memory first, then synchronously
+        // remove local persistence before the first cancellable network await.
+        let token = if session.is_none() {
+            match identity
+                .as_ref()
+                .map(|(origin, account)| self.store.load(origin, account))
+            {
+                Some(Ok(token)) => token,
+                Some(Err(_)) => {
+                    warning = Some("signed out locally; credential store unavailable".into());
+                    local_cleanup_failed = true;
+                    None
+                }
+                None => None,
+            }
         } else {
             None
         };
-        let (origin, account_id, session) = {
-            let mut inner = self.inner.lock().await;
-            let session = inner.session.take();
-            inner.profile = None;
-            inner.pending = None;
-            inner.cancel_tx = None;
-            inner.last_error = None;
-            let account_id = session
-                .as_ref()
-                .map(|session| session.account_id().to_owned());
-            (inner.origin.clone(), account_id, session)
+        if let Some((origin, account)) = &identity {
+            if self.store.delete(origin, account).is_err() {
+                warning = Some("signed out locally; credential store unavailable".into());
+                local_cleanup_failed = true;
+            }
+        }
+        if let Err(error) = std::fs::remove_file(&self.sidecar) {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                warning = Some("signed out locally; account state could not be removed".into());
+                local_cleanup_failed = true;
+            }
+        }
+        let revocation = if let Some(session) = session {
+            Some(session)
+        } else if let (Some((origin, account)), Some(token)) = (&identity, token) {
+            match Session::connect_secret(origin, token).await {
+                Ok(session) if session.account_id() == account => Some(Arc::new(session)),
+                Ok(_) => {
+                    warning = Some("signed out locally; stored account did not match".into());
+                    None
+                }
+                Err(SyncError::Unauthorized) => None,
+                Err(_) => {
+                    warning = Some("signed out locally; server revocation is unknown".into());
+                    None
+                }
+            }
+        } else {
+            None
         };
-        let mut warning = None;
-        if let Some(session) = &session {
+        if let Some(session) = revocation {
             if let Err(error) = session.logout().await {
                 warning = Some(format!(
                     "signed out locally; server revocation is unknown ({error})"
                 ));
             }
         }
-        if let (Some(origin), Some(account_id)) = (origin, account_id) {
-            let _ = self.store.delete(&origin, &account_id);
-        }
-        if session.is_none() {
-            // No live session (restore failed or nothing was stored). A
-            // leftover sidecar still names a stored credential: remove it so
-            // logout never orphans tokens. A foreign origin's credential is
-            // left alone, mirroring `restore`'s origin check.
-            if let Ok(bytes) = std::fs::read(&self.sidecar) {
-                if let Ok(sidecar) = serde_json::from_slice::<AccountSidecar>(&bytes) {
-                    let origin_ok = self
-                        .inner
-                        .lock()
-                        .await
-                        .origin
-                        .as_deref()
-                        .is_none_or(|origin| origin == sidecar.origin);
-                    if origin_ok {
-                        let _ = self.store.delete(&sidecar.origin, &sidecar.account_id);
-                        let _ = std::fs::remove_file(&self.sidecar);
-                        if !matches!(
-                            restore_error,
-                            None | Some(AuthError::Unconfigured)
-                                | Some(AuthError::NoSavedSession)
-                                | Some(AuthError::Expired)
-                        ) {
-                            warning = Some(format!(
-                                "signed out locally; server revocation is unknown ({})",
-                                restore_error
-                                    .as_ref()
-                                    .map_or("unreachable cloud", AuthError::code)
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-        let _ = std::fs::remove_file(&self.sidecar);
         let mut inner = self.inner.lock().await;
         inner.last_error = warning;
         drop(inner);
+        if local_cleanup_failed {
+            return Err(AuthError::StorageUnavailable);
+        }
         Ok(self.status().await)
     }
 
@@ -474,15 +716,26 @@ impl CloudAuth {
         &self,
         origin: String,
         result: Result<LoginResult, cloud_client::SyncError>,
+        epoch: u64,
     ) -> Result<AccountStatus, AuthError> {
         let LoginResult { session, .. } = result.map_err(map_session_error)?;
         let account_id = session.account_id().to_owned();
-        if let Err(error) = self.store.store(&origin, &account_id, &session) {
+        let mut credential = {
             let mut inner = self.inner.lock().await;
-            inner.last_error = Some(store_error_text(&error));
-            drop(inner);
-            return Err(AuthError::StorageUnavailable);
-        }
+            if inner.epoch != epoch {
+                return Err(AuthError::Cancelled);
+            }
+            if let Err(error) = self.store.store(&origin, &account_id, &session) {
+                inner.last_error = Some(store_error_text(&error));
+                return Err(AuthError::StorageUnavailable);
+            }
+            PendingCredentialGuard {
+                store: self.store.clone(),
+                origin: origin.clone(),
+                account: account_id.clone(),
+                armed: true,
+            }
+        };
         let profile = Self::refresh_profile(&session).await;
         let sidecar = AccountSidecar {
             origin: origin.clone(),
@@ -492,6 +745,10 @@ impl CloudAuth {
                 .as_ref()
                 .and_then(|profile| profile.display_name.clone()),
         };
+        let mut inner = self.inner.lock().await;
+        if inner.epoch != epoch || inner.session.is_some() {
+            return Err(AuthError::Cancelled);
+        }
         if let Some(parent) = self.sidecar.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -502,16 +759,16 @@ impl CloudAuth {
             .and_then(|()| std::fs::rename(&temporary, &self.sidecar).ok())
             .is_none()
         {
-            let _ = self.store.delete(&origin, &account_id);
             return Err(AuthError::Failed(
                 "could not remember the signed-in account".to_owned(),
             ));
         }
-        let mut inner = self.inner.lock().await;
         inner.origin = Some(origin);
         inner.session = Some(Arc::new(session));
         inner.profile = profile;
+        inner.offline_identity_allowed = true;
         inner.last_error = None;
+        credential.armed = false;
         drop(inner);
         Ok(self.status().await)
     }
