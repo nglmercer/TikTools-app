@@ -167,10 +167,35 @@ impl Installer {
     }
 
     pub fn cleanup_staging(&self) {
+        // Another process may be extracting or rolling back a package. A
+        // contended or unsafe lock must leave every staging directory intact.
+        let Ok(_operation) =
+            crate::locks::try_package_operation(&self.layout.plugins, "package store")
+        else {
+            tracing::warn!("plugin staging cleanup deferred while another operation is active or the lock is unavailable");
+            return;
+        };
         let staging = self.layout.staging();
+        match fs::symlink_metadata(&staging) {
+            Ok(metadata) if metadata.file_type().is_dir() => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+            _ => {
+                tracing::warn!("plugin staging cleanup skipped: staging is not a real directory");
+                return;
+            }
+        }
         if let Ok(entries) = fs::read_dir(&staging) {
             for entry in entries.flatten() {
-                let _ = fs::remove_dir_all(entry.path());
+                // A crash or failed restoration may leave the only copy of a
+                // removed package here. Never delete it during startup cleanup.
+                if entry.file_name().to_string_lossy().starts_with("removed-") {
+                    continue;
+                }
+                // A rollback may have moved the only retained copy into a
+                // staging directory before a crash. Without a durable
+                // operation journal its contents cannot be classified as
+                // disposable; remove only empty directories.
+                let _ = fs::remove_dir(entry.path());
             }
         }
     }
@@ -294,6 +319,7 @@ impl Installer {
         reporter: &dyn JobReporter,
     ) -> Result<InstallOutcome, InstallError> {
         let id = prepared.manifest.id.clone();
+        let _operation = crate::locks::try_package_operation(&self.layout.plugins, &id)?;
         let _guard = self.locks.try_lock(&id)?;
         reporter.check()?;
         let preview = self.preview(prepared);
@@ -414,6 +440,7 @@ impl Installer {
         hooks: &dyn ActivationHooks,
         reporter: &dyn JobReporter,
     ) -> Result<InstallOutcome, InstallError> {
+        let _operation = crate::locks::try_package_operation(&self.layout.plugins, plugin_id)?;
         let _guard = self.locks.try_lock(plugin_id)?;
         let current = self
             .current_state(plugin_id)?
@@ -451,7 +478,29 @@ impl Installer {
         match self.swap_in(plugin_id, &candidate, Some(&current), hooks) {
             Ok(()) => {}
             Err(error) => {
-                let _ = move_dir(&candidate, &retained_dir);
+                if candidate.exists() {
+                    let restored_candidate = fs::read_to_string(candidate.join(MANIFEST_FILE))
+                        .ok()
+                        .and_then(|text| PluginManifest::from_json_str(&text).ok())
+                        .is_some_and(|manifest| {
+                            manifest.id == plugin_id && manifest.version == target_version
+                        });
+                    if !restored_candidate {
+                        return Err(InstallError::io(format!(
+                            "{error}; unexpected rollback staging preserved at {}",
+                            candidate.display()
+                        )));
+                    }
+                    if let Err(restore) = move_dir(&candidate, &retained_dir) {
+                        // The rollback candidate may be the only copy of the
+                        // retained version. Never delete it when restoration
+                        // fails; startup cleanup also preserves nonempty staging.
+                        return Err(InstallError::io(format!(
+                            "{error}; retained package preserved at {} because restoration failed: {restore}",
+                            candidate.display()
+                        )));
+                    }
+                }
                 let _ = fs::remove_dir_all(&staging);
                 return Err(error);
             }
@@ -501,19 +550,50 @@ impl Installer {
         purge_data: Option<&Path>,
         hooks: &dyn ActivationHooks,
     ) -> Result<(), InstallError> {
+        let _operation = crate::locks::try_package_operation(&self.layout.plugins, plugin_id)?;
         let _guard = self.locks.try_lock(plugin_id)?;
         let target = self.checked_package_dir(plugin_id)?;
         let was_running = hooks.deactivate(plugin_id).map_err(InstallError::io)?;
-        let trash = self.layout.new_staging_dir("removed")?;
+        let trash = match self.layout.new_staging_dir("removed") {
+            Ok(trash) => trash,
+            Err(error) => {
+                return Err(match hooks.activate(plugin_id, was_running) {
+                    Ok(()) => InstallError::io(format!("could not prepare plugin removal: {error}")),
+                    Err(restore) => InstallError::io(format!(
+                        "could not prepare plugin removal and runtime recovery failed: {error}; {restore}"
+                    )),
+                });
+            }
+        };
         if let Err(error) = fs::rename(&target, trash.join(plugin_id)) {
             let _ = fs::remove_dir_all(&trash);
-            let _ = hooks.activate(plugin_id, was_running);
-            return Err(InstallError::io(format!(
-                "could not remove plugin package: {error}"
-            )));
+            return Err(match hooks.activate(plugin_id, was_running) {
+                Ok(()) => InstallError::io(format!("could not remove plugin package: {error}")),
+                Err(restore) => InstallError::io(format!(
+                    "could not remove plugin package and runtime recovery failed: {error}; {restore}"
+                )),
+            });
         }
         if let Err(error) = hooks.activate(plugin_id, false) {
-            tracing::warn!(plugin = %plugin_id, %error, "plugin rescan failed after uninstall");
+            let saved = trash.join(plugin_id);
+            return match fs::rename(&saved, &target) {
+                Ok(()) => {
+                    let resumed = hooks.activate(plugin_id, was_running);
+                    let _ = fs::remove_dir_all(&trash);
+                    match resumed {
+                        Ok(()) => Err(InstallError::io(format!(
+                            "could not refresh plugins after uninstall; package restored: {error}"
+                        ))),
+                        Err(resume) => Err(InstallError::io(format!(
+                            "could not refresh plugins after uninstall; package restored but runtime recovery failed: {error}; {resume}"
+                        ))),
+                    }
+                }
+                Err(restore) => Err(InstallError::io(format!(
+                    "could not refresh plugins after uninstall; package preserved at {} because restoration failed: {error}; {restore}",
+                    saved.display()
+                ))),
+            };
         }
         let _ = fs::remove_dir_all(&trash);
         self.receipts.remove(plugin_id)?;
@@ -556,6 +636,7 @@ impl Installer {
         plugin_id: &str,
         policy: UpdatePolicy,
     ) -> Result<InstallReceipt, InstallError> {
+        let _operation = crate::locks::try_package_operation(&self.layout.plugins, plugin_id)?;
         let mut receipt = self
             .receipts
             .load(plugin_id)?
@@ -569,6 +650,8 @@ impl Installer {
         &self,
         plugin_ids: impl IntoIterator<Item = &'a str>,
     ) -> Result<Vec<InstallReceipt>, InstallError> {
+        let _operation =
+            crate::locks::try_package_operation(&self.layout.plugins, "package store")?;
         let mut adopted = Vec::new();
         for plugin_id in plugin_ids {
             if self.receipts.load(plugin_id)?.is_some() {
@@ -663,17 +746,39 @@ impl Installer {
             // caller decides its fate: installs discard their staging
             // directory, while a rollback must return it to the retained
             // store instead of losing that version.
-            if move_dir(&target, candidate).is_err() {
+            let mut preserved = None;
+            if let Err(move_error) = move_dir(&target, candidate) {
                 let failed = self.layout.new_staging_dir("failed")?;
-                let _ = move_dir(&target, &failed.join(plugin_id));
-                let _ = fs::remove_dir_all(&failed);
+                let saved = failed.join(plugin_id);
+                if let Err(save_error) = move_dir(&target, &saved) {
+                    // Do not remove either location: the target can still be
+                    // the only copy, and no rollback can safely overwrite it.
+                    return Err(InstallError::io(format!(
+                        "plugin {plugin_id} could not be activated: {message}; could not preserve candidate: {move_error}; {save_error}"
+                    )));
+                }
+                preserved = Some(saved);
             }
-            if let Some(retained) = &retained_to {
-                let _ = move_dir(retained, &target);
+            let restore_error = retained_to.as_ref().and_then(|retained| {
+                move_dir(retained, &target)
+                    .err()
+                    .map(|error| (retained, error))
+            });
+            let restart_error = hooks.activate(plugin_id, was_running).err();
+            let mut detail = preserved
+                .map(|path| format!("; candidate preserved at {}", path.display()))
+                .unwrap_or_default();
+            if let Some((path, error)) = restore_error {
+                detail.push_str(&format!(
+                    "; previous package remains at {}: {error}",
+                    path.display()
+                ));
             }
-            let _ = hooks.activate(plugin_id, was_running);
+            if let Some(error) = restart_error {
+                detail.push_str(&format!("; runtime recovery failed: {error}"));
+            }
             return Err(InstallError::io(format!(
-                "plugin {plugin_id} could not be activated: {message}"
+                "plugin {plugin_id} could not be activated: {message}{detail}"
             )));
         }
         Ok(())

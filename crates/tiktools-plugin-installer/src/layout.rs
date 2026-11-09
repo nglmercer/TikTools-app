@@ -62,12 +62,26 @@ impl StoreLayout {
     }
 
     pub fn new_staging_dir(&self, label: &str) -> io::Result<PathBuf> {
-        let directory = self.staging().join(format!(
+        fs::create_dir_all(&self.plugins)?;
+        let staging = self.staging();
+        match fs::create_dir(&staging) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+        if !fs::symlink_metadata(&staging)?.file_type().is_dir() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "plugin staging is not a real directory",
+            ));
+        }
+        let directory = staging.join(format!(
             "{label}-{}-{}",
             std::process::id(),
             unique_suffix()
         ));
-        fs::create_dir_all(&directory)?;
+        // A pre-existing name, including a symlink, is never reused.
+        fs::create_dir(&directory)?;
         Ok(directory)
     }
 }

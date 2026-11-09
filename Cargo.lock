@@ -6069,6 +6069,8 @@ version = "4.0.2"
 dependencies = [
  "base64 0.23.1",
  "flate2",
+ "fs2",
+ "libc",
  "schemars",
  "semver",
  "serde",

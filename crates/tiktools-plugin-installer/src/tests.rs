@@ -508,6 +508,473 @@ fn activation_failures_restore_the_previous_package() {
 }
 
 #[test]
+fn cross_process_package_lease_blocks_cleanup_and_mutation() {
+    const CHILD_ENV: &str = "TIKTOOLS_TEST_PACKAGE_LEASE_ROOT";
+    if let Some(root) = std::env::var_os(CHILD_ENV) {
+        let root = PathBuf::from(root);
+        let other = Installer::new(
+            InstallerConfig {
+                plugins_dir: root.join("plugins"),
+                store_dir: root.join("store"),
+                host: host(),
+                retain_versions: 2,
+                provider_endpoints: None,
+            },
+            Arc::new(RwLock::new(TrustStore::new())),
+        );
+        let staging = root.join("plugins/.staging");
+        assert!(fs::read_dir(&staging).unwrap().next().is_some());
+        other.cleanup_staging();
+        assert!(fs::read_dir(&staging).unwrap().next().is_some());
+        assert_eq!(
+            other.uninstall("demo", None, &NoopHooks).unwrap_err().code,
+            InstallErrorCode::Busy
+        );
+        return;
+    }
+    struct BlockingHooks {
+        entered: std::sync::mpsc::Sender<()>,
+        release: Mutex<std::sync::mpsc::Receiver<()>>,
+    }
+    impl ActivationHooks for BlockingHooks {
+        fn deactivate(&self, _: &str) -> Result<bool, String> {
+            self.entered.send(()).map_err(|e| e.to_string())?;
+            self.release
+                .lock()
+                .unwrap()
+                .recv_timeout(std::time::Duration::from_secs(20))
+                .map_err(|e| e.to_string())?;
+            Ok(false)
+        }
+        fn activate(&self, _: &str, _: bool) -> Result<(), String> {
+            Ok(())
+        }
+    }
+    let root = TempDir::new("cross-process-package-lease");
+    let installer = Arc::new(installer(&root));
+    let prepared = installer
+        .prepare(
+            &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    let (entered, seen) = std::sync::mpsc::channel();
+    let (release, wait) = std::sync::mpsc::channel();
+    let worker = {
+        let installer = installer.clone();
+        std::thread::spawn(move || {
+            installer.commit(
+                &prepared,
+                &implicit(false),
+                &BlockingHooks {
+                    entered,
+                    release: Mutex::new(wait),
+                },
+                &NoopReporter,
+            )
+        })
+    };
+    seen.recv_timeout(std::time::Duration::from_secs(10))
+        .unwrap();
+    let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+        .arg("--exact")
+        .arg("tests::cross_process_package_lease_blocks_cleanup_and_mutation")
+        .arg("--nocapture")
+        .env(CHILD_ENV, &root.0)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        if child.try_wait().unwrap().is_some() {
+            break;
+        }
+        if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = release.send(());
+            let _ = worker.join();
+            panic!("child did not complete package lock check");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let child = child.wait_with_output().unwrap();
+    release.send(()).unwrap();
+    let outcome = worker.join().unwrap().unwrap();
+    assert_eq!(outcome.receipt.version, "1.0.0");
+    assert!(
+        child.status.success(),
+        "child failed: {}",
+        String::from_utf8_lossy(&child.stderr)
+    );
+    assert!(root.join("plugins/demo/plugin.json").is_file());
+}
+
+#[test]
+fn package_lease_is_released_when_a_process_dies() {
+    const CHILD_ENV: &str = "TIKTOOLS_TEST_PACKAGE_LEASE_CRASH_ROOT";
+    if let Some(root) = std::env::var_os(CHILD_ENV) {
+        let root = PathBuf::from(root);
+        let _lease = crate::locks::try_package_operation(&root.join("plugins"), "fixture").unwrap();
+        fs::write(root.join("lease-ready"), b"ready").unwrap();
+        std::thread::park();
+        return;
+    }
+    let root = TempDir::new("package-lease-process-death");
+    struct KillOnDrop(std::process::Child);
+    impl Drop for KillOnDrop {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let mut child = KillOnDrop(
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("tests::package_lease_is_released_when_a_process_dies")
+            .arg("--nocapture")
+            .env(CHILD_ENV, &root.0)
+            .spawn()
+            .unwrap(),
+    );
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while !root.join("lease-ready").exists() {
+        assert!(
+            child.0.try_wait().unwrap().is_none(),
+            "child exited before acquiring lease"
+        );
+        assert!(
+            std::time::Instant::now() < deadline,
+            "child did not acquire lease"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(
+        crate::locks::try_package_operation(&root.join("plugins"), "fixture")
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Busy
+    );
+    child.0.kill().unwrap();
+    child.0.wait().unwrap();
+    assert!(crate::locks::try_package_operation(&root.join("plugins"), "fixture").is_ok());
+}
+
+#[cfg(unix)]
+#[test]
+fn staging_symlink_is_neither_cleaned_nor_used_for_installation() {
+    use std::os::unix::fs::symlink;
+    let root = TempDir::new("unsafe-staging");
+    fs::create_dir_all(root.join("plugins")).unwrap();
+    let outside = root.join("outside");
+    fs::create_dir_all(outside.join("empty-directory")).unwrap();
+    fs::write(outside.join("keep"), b"untouched").unwrap();
+    symlink(&outside, root.join("plugins/.staging")).unwrap();
+    let installer = installer(&root);
+    installer.cleanup_staging();
+    assert!(outside.join("empty-directory").is_dir());
+    let package = demo_package(&root, "demo", "1.0.0", serde_json::json!({}));
+    assert_eq!(
+        install_file(&installer, &package, false).unwrap_err().code,
+        InstallErrorCode::IoError
+    );
+    assert_eq!(fs::read(outside.join("keep")).unwrap(), b"untouched");
+    assert!(!root.join("plugins/demo").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn package_lease_rejects_a_symlink_and_preserves_staging() {
+    use std::os::unix::fs::symlink;
+    let root = TempDir::new("unsafe-package-lease");
+    let plugins = root.join("plugins");
+    let staged = plugins.join(".staging/active/package");
+    fs::create_dir_all(&staged).unwrap();
+    fs::write(staged.join("plugin.json"), b"fixture").unwrap();
+    let target = root.join("other-file");
+    fs::write(&target, b"untouched").unwrap();
+    symlink(&target, plugins.join(".tiktools-package-operations.lock")).unwrap();
+    let installer = installer(&root);
+    installer.cleanup_staging();
+    assert!(staged.join("plugin.json").is_file());
+    assert_eq!(
+        installer
+            .uninstall("demo", None, &NoopHooks)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::IoError
+    );
+    assert_eq!(fs::read(&target).unwrap(), b"untouched");
+}
+
+#[test]
+fn failed_activation_preserves_candidate_when_staging_return_path_is_occupied() {
+    struct BlockReturn {
+        staging: PathBuf,
+        attempts: AtomicUsize,
+    }
+    impl ActivationHooks for BlockReturn {
+        fn deactivate(&self, _: &str) -> Result<bool, String> {
+            Ok(true)
+        }
+        fn activate(&self, _: &str, _: bool) -> Result<(), String> {
+            if self.attempts.fetch_add(1, Ordering::AcqRel) == 0 {
+                let current = fs::read_dir(&self.staging)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path())
+                    .find(|path| {
+                        path.file_name()
+                            .unwrap()
+                            .to_string_lossy()
+                            .starts_with("demo-")
+                    })
+                    .unwrap();
+                fs::create_dir_all(current.join("package")).unwrap();
+                fs::write(current.join("package/occupied"), b"other data").unwrap();
+                Err("restart failed".into())
+            } else {
+                Ok(())
+            }
+        }
+    }
+    let root = TempDir::new("rollback-candidate-return-blocked");
+    let installer = installer(&root);
+    for version in ["1.0.0", "2.0.0"] {
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", version, serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+    }
+    let hooks = BlockReturn {
+        staging: root.join("plugins/.staging"),
+        attempts: AtomicUsize::new(0),
+    };
+    let error = installer
+        .rollback("demo", Some("1.0.0"), &hooks, &NoopReporter)
+        .unwrap_err();
+    assert_eq!(error.code, InstallErrorCode::IoError);
+    assert!(error.message.contains("candidate preserved at"));
+    assert!(fs::read_to_string(root.join("plugins/demo/plugin.json"))
+        .unwrap()
+        .contains("2.0.0"));
+    let preserved = fs::read_dir(&hooks.staging)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("failed-")
+        })
+        .unwrap()
+        .join("demo/plugin.json");
+    assert!(fs::read_to_string(&preserved).unwrap().contains("1.0.0"));
+    installer.cleanup_staging();
+    assert!(preserved.is_file());
+}
+
+#[test]
+fn failed_rollback_retains_candidate_when_return_path_is_occupied() {
+    struct FailingHooks {
+        retained: PathBuf,
+        attempts: AtomicUsize,
+    }
+    impl ActivationHooks for FailingHooks {
+        fn deactivate(&self, _: &str) -> Result<bool, String> {
+            fs::create_dir_all(&self.retained).unwrap();
+            fs::write(self.retained.join("occupied"), b"other data").unwrap();
+            Ok(true)
+        }
+        fn activate(&self, _: &str, _: bool) -> Result<(), String> {
+            if self.attempts.fetch_add(1, Ordering::AcqRel) == 0 {
+                Err("restart failed".into())
+            } else {
+                Ok(())
+            }
+        }
+    }
+    let root = TempDir::new("rollback-restore-occupied");
+    let installer = installer(&root);
+    for version in ["1.0.0", "2.0.0"] {
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", version, serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+    }
+    let hooks = FailingHooks {
+        retained: root.join("store/versions/demo/1.0.0"),
+        attempts: AtomicUsize::new(0),
+    };
+    let error = installer
+        .rollback("demo", Some("1.0.0"), &hooks, &NoopReporter)
+        .unwrap_err();
+    assert_eq!(error.code, InstallErrorCode::IoError);
+    assert!(error.message.contains("retained package preserved at"));
+    assert!(fs::read_to_string(root.join("plugins/demo/plugin.json"))
+        .unwrap()
+        .contains("2.0.0"));
+    assert_eq!(
+        fs::read(hooks.retained.join("occupied")).unwrap(),
+        b"other data"
+    );
+    let staging = root.join("plugins/.staging");
+    let preserved = fs::read_dir(&staging)
+        .unwrap()
+        .map(|entry| entry.unwrap().path().join("package/plugin.json"))
+        .find(|path| path.is_file())
+        .unwrap();
+    assert!(fs::read_to_string(&preserved).unwrap().contains("1.0.0"));
+    installer.cleanup_staging();
+    assert!(preserved.is_file());
+}
+
+#[test]
+fn uninstall_staging_failure_restarts_the_unchanged_package() {
+    let root = TempDir::new("uninstall-staging-failure");
+    let installer = installer(&root);
+    install_file(
+        &installer,
+        &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+        false,
+    )
+    .unwrap();
+    let staging = root.join("plugins/.staging");
+    fs::remove_dir(&staging).unwrap();
+    fs::write(&staging, b"not a directory").unwrap();
+    let hooks = RecordingHooks::default();
+    let error = installer.uninstall("demo", None, &hooks).unwrap_err();
+    assert_eq!(error.code, InstallErrorCode::IoError);
+    assert!(root.join("plugins/demo/plugin.json").is_file());
+    assert!(installer.receipt("demo").unwrap().is_some());
+    assert_eq!(
+        *hooks.calls.lock().unwrap(),
+        ["deactivate:demo", "activate:demo:true"]
+    );
+}
+
+#[test]
+fn failed_uninstall_rescan_restores_package_and_retains_data() {
+    let root = TempDir::new("uninstall-rescan-failure");
+    let installer = installer(&root);
+    for version in ["1.0.0", "2.0.0"] {
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", version, serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+    }
+    let receipt = installer.receipt("demo").unwrap().unwrap();
+    let data = root.join("plugin-data/demo");
+    fs::create_dir_all(&data).unwrap();
+    fs::write(data.join("settings.json"), b"private fixture").unwrap();
+    let hooks = RecordingHooks::default();
+    hooks.fail_activation.store(true, Ordering::Release);
+
+    let error = installer
+        .uninstall("demo", Some(&data), &hooks)
+        .unwrap_err();
+    assert_eq!(error.code, InstallErrorCode::IoError);
+    assert!(error.message.contains("package restored"));
+    assert!(fs::read_to_string(root.join("plugins/demo/plugin.json"))
+        .unwrap()
+        .contains("2.0.0"));
+    assert_eq!(installer.receipt("demo").unwrap().unwrap(), receipt);
+    assert!(root.join("store/versions/demo").is_dir());
+    assert_eq!(
+        fs::read(data.join("settings.json")).unwrap(),
+        b"private fixture"
+    );
+    assert_eq!(
+        *hooks.calls.lock().unwrap(),
+        [
+            "deactivate:demo",
+            "activate:demo:false",
+            "activate:demo:true"
+        ]
+    );
+}
+
+#[test]
+fn failed_uninstall_restore_preserves_the_only_package_copy() {
+    struct ConflictingRescan(PathBuf);
+    impl ActivationHooks for ConflictingRescan {
+        fn deactivate(&self, _: &str) -> Result<bool, String> {
+            Ok(true)
+        }
+        fn activate(&self, _: &str, was_running: bool) -> Result<(), String> {
+            assert!(!was_running);
+            // Simulate a competing filesystem change that blocks rename back.
+            fs::create_dir_all(&self.0).unwrap();
+            fs::write(self.0.join("occupied"), b"other data").unwrap();
+            Err("rescan failed".into())
+        }
+    }
+    let root = TempDir::new("uninstall-restore-failure");
+    let installer = installer(&root);
+    install_file(
+        &installer,
+        &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+        false,
+    )
+    .unwrap();
+    let error = installer
+        .uninstall("demo", None, &ConflictingRescan(root.join("plugins/demo")))
+        .unwrap_err();
+    assert_eq!(error.code, InstallErrorCode::IoError);
+    assert!(error.message.contains("package preserved at"));
+    let saved = fs::read_dir(root.join("plugins/.staging"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("removed-")
+        })
+        .unwrap()
+        .join("demo/plugin.json");
+    assert!(saved.is_file());
+    assert_eq!(installer.receipt("demo").unwrap().unwrap().version, "1.0.0");
+    installer.cleanup_staging();
+    assert!(saved.is_file());
+    assert_eq!(
+        fs::read(root.join("plugins/demo/occupied")).unwrap(),
+        b"other data"
+    );
+}
+
+#[test]
+fn startup_cleanup_preserves_an_interrupted_uninstall() {
+    let root = TempDir::new("uninstall-interrupted");
+    let installer = installer(&root);
+    let saved = root.join("plugins/.staging/removed-1-fixture/demo");
+    fs::create_dir_all(&saved).unwrap();
+    fs::write(saved.join("plugin.json"), b"saved package").unwrap();
+    let disposable = root.join("plugins/.staging/install-1-fixture");
+    fs::create_dir_all(&disposable).unwrap();
+    let rollback = root.join("plugins/.staging/demo-2-fixture/package");
+    fs::create_dir_all(&rollback).unwrap();
+    fs::write(rollback.join("plugin.json"), b"retained version").unwrap();
+    installer.cleanup_staging();
+    assert_eq!(
+        fs::read(saved.join("plugin.json")).unwrap(),
+        b"saved package"
+    );
+    assert_eq!(
+        fs::read(rollback.join("plugin.json")).unwrap(),
+        b"retained version"
+    );
+    assert!(!disposable.exists());
+}
+
+#[test]
 fn uninstall_removes_package_receipt_versions_and_optionally_data() {
     let root = TempDir::new("uninstall");
     let installer = installer(&root);

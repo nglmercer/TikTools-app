@@ -257,9 +257,13 @@ impl ActivationHooks for CoreActivation<'_> {
     fn activate(&self, plugin_id: &str, was_running: bool) -> Result<(), String> {
         self.0.plugins.scan().map_err(|error| error.to_string())?;
         if was_running {
-            if let Err(error) = self.0.plugins.start(plugin_id) {
-                tracing::warn!(plugin = %plugin_id, %error, "plugin runtime could not be restarted after package operation");
-            }
+            // A successful package operation must not report a runtime that
+            // failed to restart as applied. The installer will restore the
+            // previous package where possible and report the error.
+            self.0
+                .plugins
+                .start(plugin_id)
+                .map_err(|error| error.to_string())?;
         }
         Ok(())
     }
@@ -275,4 +279,51 @@ pub(crate) fn unavailable(error: &str) -> InstallError {
         tiktools_plugin_installer::InstallErrorCode::Unsupported,
         format!("plugin package management is unavailable: {error}"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ipc::messages::HostMessage, AppCore, HostEmitter, NoopMediaHost};
+
+    struct NoopEmitter;
+    impl HostEmitter for NoopEmitter {
+        fn emit(&self, _: HostMessage) {}
+    }
+
+    #[tokio::test]
+    async fn activation_reports_failed_restart_to_installer() {
+        let root = std::env::temp_dir().join(format!(
+            "plugin-activation-failed-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let paths = AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("absent"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root: root.clone(),
+        };
+        paths.ensure_directories().unwrap();
+        let core = Arc::new(AppCore::with_paths(
+            Arc::new(NoopEmitter),
+            Arc::new(NoopMediaHost),
+            paths,
+        ));
+        // A successful scan cannot make a missing running plugin start. The
+        // installer must see that failure and retain its rollback path.
+        let error = CoreActivation(&core)
+            .activate("missing.plugin", true)
+            .unwrap_err();
+        assert!(!error.is_empty());
+        assert!(CoreActivation(&core)
+            .activate("missing.plugin", false)
+            .is_ok());
+        core.shutdown().await;
+        let _ = std::fs::remove_dir_all(root);
+    }
 }
