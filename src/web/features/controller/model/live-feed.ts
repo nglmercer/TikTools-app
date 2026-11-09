@@ -43,10 +43,10 @@ function decode(value: unknown, status: ControllerStatus, after: string): Page {
 
 /** Bounded read-only LIVE activity; no commands or durable replay. */
 export function createLiveFeedModel(control: ControlClient, deps: Dependencies) {
-  const events = ref<LiveFeedEvent[]>([]); const gap = ref(false); const error = ref('');
+  const events = ref<LiveFeedEvent[]>([]); const gap = ref(false); const error = ref(''); const scopeRevision = ref(0);
   const allowed = computed(() => readable(deps.status.value));
   let token = 0; let inFlight = false; let nextPoll = 0; let loadedBinding = ''; let lastCursor = '0';
-  function clear(): void { token += 1; inFlight = false; nextPoll = 0; loadedBinding = ''; lastCursor = '0'; events.value = []; gap.value = false; error.value = ''; }
+  function clear(): void { token += 1; scopeRevision.value += 1; inFlight = false; nextPoll = 0; loadedBinding = ''; lastCursor = '0'; events.value = []; gap.value = false; error.value = ''; }
   async function refresh(current: ControllerStatus, generation: number): Promise<void> {
     if (!readable(current)) { clear(); return; }
     const captured = binding(current);
@@ -69,6 +69,6 @@ export function createLiveFeedModel(control: ControlClient, deps: Dependencies) 
       events.value = []; gap.value = true; lastCursor = '0'; error.value = 'LIVE feed unavailable';
     } finally { if (request === token) inFlight = false; }
   }
-  return { events, gap, error, allowed, clear, refresh };
+  return { events, gap, error, allowed, scopeRevision, clear, refresh };
 }
 export type LiveFeedModel = ReturnType<typeof createLiveFeedModel>;

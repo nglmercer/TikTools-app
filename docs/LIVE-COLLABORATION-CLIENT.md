@@ -131,7 +131,11 @@ indicator, effective capabilities, permitted workflow view, points board and
 closed automation status with confirmed whole-event stop/delete. Tokens and
 the pairing exchange secret remain in Rust/OS storage. The invitation input
 is cleared on submission; pending approval survives page reload in the native
-engine. A saved profile can be forgotten after explicitly confirming removal
+engine. The LIVE activity panel can filter its bounded, locally displayed
+entries by kind and search author, nickname or text. Filters do not query the
+host or extend its retained history, and are cleared when the connection or
+grant changes or LIVE access is lost.
+A saved profile can be forgotten after explicitly confirming removal
 of its local credentials, drafts and command history. The selected profile
 must first be disconnected, and a pending or actively used command journal
 blocks removal. The confirmed profile identity is rechecked under the native
