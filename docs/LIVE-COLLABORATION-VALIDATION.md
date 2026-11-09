@@ -17,7 +17,8 @@ actual TLS gateway: one workflow disable succeeded, then a workflow deletion
 completed and its reply was deliberately discarded by the fixture. After a page
 reload, a `commands.get` query recovered that original ID and the host state confirmed
 both changes. This is a simulated lost reply after receipt, not process-crash,
-physical two-PC or real LIVE evidence; the browser UI does not expose commands.
+physical two-PC or real LIVE evidence. The UI fixture also reviews missing
+storage, checks a pending outcome after reload and confirms workflow disable.
 The gateway credential
 test also exercises authenticated app/asset delivery, source-map exclusion and
 revocation. Type checking, lint and 31 focused browser tests passed. This is a

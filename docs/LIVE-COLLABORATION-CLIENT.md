@@ -30,11 +30,12 @@ gaps or overflow. It retries only explicit pre-dispatch rate limits. Tests use
 mock sockets and responses, including the existing control-client adapter;
 it is not yet a complete browser controller.
 The existing controller screen now has a `remote-web` build mode backed by a
-browser-local adapter for read-only workflows. The adapter exposes a view only
+browser-local adapter for workflows. The adapter exposes a view only
 after recovery, refreshes invalidated records against their host revisions,
-and clears it on disconnect or a sequence gap. It deliberately exposes no
-browser write commands, local profiles, persistent drafts, or other domain
-controls. It also projects the host's current LIVE connection status for a
+and clears it on disconnect or a sequence gap. It exposes browser workflow
+disable/delete with explicit confirmation and a local command
+journal; local profiles, persistent drafts and other browser domain writes are
+not available. It also projects the host's current LIVE connection status for a
 `live.read` grant, including LIVE-only observers without workflow access.
 The bounded, read-only LIVE feed uses decimal cursor strings and honors creator
 restrictions; it is polled and is not a durable event stream. If one event
@@ -59,7 +60,8 @@ For a headless host, use `-p tiktools-cli --features remote-browser-app`.
 Pairing displays the app link only when the gateway advertises the feature over
 HTTPS. The browser grant must include `workflows.read` for the workflow view
 or `live.read` for the LIVE status view.
-The browser controller remains experimental and read-only.
+The browser controller remains experimental; workflow changes require the
+appropriate write and read grants plus `commands.read`.
 
 ## Build and connect
 

@@ -2,6 +2,9 @@ import { ControlCallError, type ControlClient, type ResourceVersion, type RpcPar
 import type { RemoteBrowserHello, RemoteBrowserTransport } from '@/shared/api/remote-browser-transport.ts';
 import { createBrowserWorkflowRecovery, type BrowserWorkflowRow } from './browser-workflow-recovery.ts';
 import type { ControllerStatus } from './controller.ts';
+import { finishBrowserCommand, initializeBrowserCommandJournal, withBrowserCommandJournal, type BrowserCommandBinding } from './browser-command-journal.ts';
+import { recoverBrowserWorkflowCommand } from './browser-command-recovery.ts';
+import { sendBrowserWorkflowCommand } from './browser-workflow-command.ts';
 
 const MAX_VIEW_BYTES = 4 * 1024 * 1024;
 const PAGE_BYTES = 1024 * 1024;
@@ -15,8 +18,7 @@ function revision(value: unknown): bigint {
   return number;
 }
 
-/** Browser-local bridge for scoped workflow and LIVE reads. Commands require
- * browser journaling and are not exposed by this bridge. */
+/** Browser-local bridge for scoped reads and journaled workflow commands. */
 export function createBrowserControllerClient(remote: ControlClient, transport: RemoteBrowserTransport, origin: string): ControlClient {
   const url = new URL(origin);
   if (url.origin !== origin || url.protocol !== 'https:' || url.username || url.password) throw new Error('Invalid browser host origin');
@@ -29,19 +31,20 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
   let rows: BrowserWorkflowRow[] = [];
   let processing = false;
   let attached = false;
+  let commandBusy = false;
   let unlistenLoss: (() => void) | undefined;
   const listeners = new Set<(data: unknown) => void>();
   const notify = (): void => { for (const listener of listeners) { try { listener({}); } catch { /* one view cannot block invalidation */ } } };
   const status = (): ControllerStatus => ({
     epoch: String(epoch), viewRevision: String(viewRevision), phase, profile: phase === 'idle' ? null : 'browser',
     origin: phase === 'idle' ? null : origin, errorCode, draftsSupported: false, proposalsSupported: false,
-    commandJournal: null, commandBusy: false,
+    commandJournal: null, commandBusy,
     hello: hello && phase === 'ready' ? {
       hostId: hello.hostId, hostInstanceId: hello.hostInstanceId, connectionId: hello.connectionId,
       principalId: hello.principalId, sessionId: hello.sessionId, grantRevision: hello.grantRevision,
       // Advertise only domains that this browser bridge actually implements.
-      capabilities: hello.capabilities.filter((capability) => capability === 'workflows.read' || capability === 'live.read'),
-      features: { subscriptions: true, workflowDisable: false, workflowDelete: false, workflowSave: false, workflowEnable: false,
+      capabilities: hello.capabilities.filter((capability) => ['workflows.read', 'workflows.toggle', 'workflows.edit', 'commands.read', 'live.read'].includes(capability)),
+      features: { subscriptions: true, workflowDisable: hello.features['workflowDisable'] === true && hello.capabilities.includes('commands.read'), workflowDelete: hello.features['workflowDelete'] === true && hello.capabilities.includes('commands.read'), workflowSave: false, workflowEnable: false,
         liveFeedSupported: hello.features['browserFeed'] === true,
         creatorFeed: hello.features['creatorFeed'] === true },
       resourceRestrictions: Object.fromEntries(['workflow', 'live'].filter((kind) =>
@@ -57,6 +60,27 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
   }
   function matches(generation: number, expected: RemoteBrowserHello): boolean {
     return attached && epoch === generation && phase === 'ready' && hello === expected && transport.currentHello() === expected;
+  }
+  const bindingFor = (expected: RemoteBrowserHello): BrowserCommandBinding => ({ origin, hostId: expected.hostId, principalId: expected.principalId, sessionId: expected.sessionId });
+  const hasCommands = (expected: RemoteBrowserHello): boolean => expected.capabilities.includes('commands.read') && expected.capabilities.includes('workflows.read') &&
+    ((expected.features['workflowDisable'] === true && expected.capabilities.includes('workflows.toggle')) || (expected.features['workflowDelete'] === true && expected.capabilities.includes('workflows.edit')));
+  const permitted = (expected: RemoteBrowserHello, id: string): boolean => expected.capabilities.includes('workflows.read') &&
+    (expected.resourceRestrictions['workflow'] === undefined || expected.resourceRestrictions['workflow'].includes(id));
+  async function commandStatus(): Promise<ControllerStatus> {
+    const expected = hello; const generation = epoch;
+    if (!expected || !matches(generation, expected) || !hasCommands(expected)) return status();
+    const binding = bindingFor(expected);
+    try {
+      const journal = await withBrowserCommandJournal(binding, (value) => structuredClone(value));
+      if (!await transport.verifySession() || !matches(generation, expected)) return status();
+      const hidden = !!journal.pending && !permitted(expected, journal.pending.resourceId);
+      return { ...status(), commandJournal: { binding: { ...binding, profileId: 'browser' }, pending: hidden ? null : journal.pending,
+        unavailable: hidden, recent: journal.recent.filter((item) => permitted(expected, item.intent.resourceId)) } };
+    } catch (error) {
+      if (!matches(generation, expected)) return status();
+      const missing = error instanceof Error && error.message === 'command journal missing; review storage loss';
+      return { ...status(), browserJournalMissing: missing, commandJournal: { binding: { ...binding, profileId: 'browser' }, pending: null, unavailable: true, recent: [] } };
+    }
   }
   async function pump(): Promise<void> {
     if (processing || phase !== 'ready' || !recovery || !hello) return;
@@ -154,13 +178,44 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
     },
     async call<T = unknown>(method: string, params: RpcParams = {}): Promise<T> {
       if (!attached) throw fail('transport', 'Browser controller is unavailable');
-      if (method === 'controller.status') return status() as T;
+      if (method === 'controller.status') return await commandStatus() as T;
       if (method === 'controller.profiles') return [] as T;
       if (method === 'controller.connect') {
         if (params['profile'] !== 'browser') throw fail('invalid_params', 'Invalid browser profile');
         await connect(); return { ok: true } as T;
       }
       if (method === 'controller.disconnect') { invalidate('transport', 'idle'); transport.disconnect(); return { ok: true } as T; }
+      if (method === 'controller.command.initialize' || method === 'controller.workflow.command' || method === 'controller.command.resolve' || method === 'controller.command.review') {
+        const expected = hello; const generation = epoch;
+        if (!expected || !matches(generation, expected) || !hasCommands(expected) || params['epoch'] !== String(epoch) || commandBusy) throw fail('stale_view', 'Command view changed');
+        const binding = bindingFor(expected);
+        commandBusy = true; notify();
+        try {
+          if (method === 'controller.command.initialize') {
+            if (params['acknowledgeStorageLoss'] !== true || !await transport.verifySession() || !matches(generation, expected)) throw fail('stale_view', 'Storage review changed');
+            await initializeBrowserCommandJournal(binding, true);
+          } else if (method === 'controller.workflow.command') {
+            const operation = params['operation']; const id = params['id']; const expectedRevision = params['expectedRevision']; const capturedView = params['viewRevision'];
+            if ((operation !== 'disable' && operation !== 'delete') || typeof id !== 'string' || typeof expectedRevision !== 'string') throw fail('invalid_params', 'Invalid workflow command');
+            const isCurrent = () => matches(generation, expected) && capturedView === String(viewRevision) && permitted(expected, id) && rows.some((row) => row.version.id === id && row.version.revision === expectedRevision && (operation !== 'disable' || row.graph['enabled'] === true));
+            if (!isCurrent()) throw fail('stale_view', 'Workflow view changed');
+            await sendBrowserWorkflowCommand({ remote, transport, expected, binding, target: { operation, resourceId: id, expectedRevision }, isCurrent });
+          } else {
+            const commandId = params['commandId'];
+            if (typeof commandId !== 'string' || !await transport.verifySession() || !matches(generation, expected)) throw fail('stale_view', 'Pending command changed');
+            if (method === 'controller.command.resolve') await recoverBrowserWorkflowCommand(remote, transport, expected, binding, commandId);
+            else {
+              if (params['acknowledgeUnknown'] !== true) throw fail('invalid_params', 'Review required');
+              await withBrowserCommandJournal(binding, (journal) => {
+                if (!matches(generation, expected) || !journal.pending || journal.pending.commandId !== commandId || !permitted(expected, journal.pending.resourceId)) throw fail('stale_view', 'Pending command changed');
+                finishBrowserCommand(journal, commandId, { outcome: 'reviewed-unknown', revision: null, errorCode: null, recordedAt: Date.now() });
+              });
+            }
+          }
+          if (!matches(generation, expected)) throw fail('stale_view', 'Command session changed');
+          return { ok: true } as T;
+        } finally { commandBusy = false; notify(); }
+      }
       if (method === 'controller.live.status') {
         const expected = hello; const generation = epoch;
         if (!expected || !matches(generation, expected) || !expected.capabilities.includes('live.read') ||

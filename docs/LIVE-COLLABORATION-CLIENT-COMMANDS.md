@@ -23,8 +23,8 @@ concurrent tabs, reload, aborted transactions and corrupt records.
 An absent record now fails closed for reads, dispatch and recovery. Creating it
 requires an explicit storage-loss acknowledgement, including for a new session
 because a new record cannot be distinguished from erased data. Initialization
-of an existing record preserves its pending command. The browser UI still needs
-to present this review and call initialization; this is not yet a user flow.
+of an existing record preserves its pending command. The browser UI presents a
+storage-loss review before creating a missing record.
 
 The separate experimental recovery helper queries the original ID without
 replaying a mutation. It requires the current session, `commands.read` and
@@ -45,13 +45,14 @@ coordinator against the host: it disabled a workflow, discarded the received
 reply for a deletion, reloaded the browser page and recovered the same command ID from the host. This
 simulates a lost reply after receipt; it is not a process-crash test.
 
-These helpers are not wired to browser commands. A completed IndexedDB
+The browser workflow screen uses these helpers for explicitly confirmed
+disable/delete actions and presents pending recovery and unknown-outcome review.
+A completed IndexedDB
 transaction is not proof against browser data clearing, eviction, device loss or
-every platform's power-loss behavior. Before enabling mutations, the controller
-still needs a user-facing storage-loss review and recovery policy, permission-filtered
-views, integration of selection/connection fences, explicit command review and actual
-gateway crash/transport-loss tests. Browser actions remain
-disabled until that complete path is in place.
+every platform's power-loss behavior. Release acceptance still requires
+physical two-PC and actual gateway process-crash/transport-loss
+acceptance. The browser's storage and durability guarantees vary by platform;
+users must review host state if local storage disappears.
 
 ## Automation events
 

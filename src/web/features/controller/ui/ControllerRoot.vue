@@ -108,6 +108,16 @@ function requestPoints(): void {
 }
 type Confirmation = { kind:'draft';target:DraftSaveTarget;origin:string;hostId:string } | { kind:'points';target:PointsTarget } | { kind:'mutation';target:CommandTarget } | { kind:'review';target:ReviewTarget;intent:PendingCommand;origin:string;hostId:string } | { kind:'forget';target:ProfileForgetTarget };
 const confirmation = ref<Confirmation | null>(null);
+const storageReview = ref<string | null>(null);
+const storageIdentity = () => JSON.stringify([status.value.epoch, status.value.origin, status.value.hello?.hostId, status.value.hello?.principalId, status.value.hello?.sessionId]);
+const storageCurrent = computed(() => status.value.phase === 'ready' && status.value.browserJournalMissing === true && storageReview.value === storageIdentity());
+async function initializeBrowserJournal(): Promise<void> {
+  if (!storageCurrent.value) return;
+  const epoch = status.value.epoch; storageReview.value = null;
+  try { await control.call('controller.command.initialize', { epoch, acknowledgeStorageLoss: true }); }
+  catch (failure) { error.value = failure instanceof Error ? failure.message : 'Command storage unavailable'; }
+  await model.refresh();
+}
 const confirmOpen = computed({get:()=>confirmation.value!==null,set:(open:boolean)=>{if(!open)confirmation.value=null;}});
 const confirmationCurrent = computed(()=>!!confirmation.value && (confirmation.value.kind==='draft' ? model.draftStorage.current(confirmation.value.target) : confirmation.value.kind==='points' ? model.pointsIsCurrent(confirmation.value.target) : confirmation.value.kind==='mutation' ? model.commandIsCurrent(confirmation.value.target) : confirmation.value.kind==='forget' ? model.profileForgetCurrent(confirmation.value.target) : model.reviewIsCurrent(confirmation.value.target)));
 function requestForget(profile: RemoteProfile): void {
@@ -221,6 +231,13 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
       >
         {{ cmd.unavailable }}
       </p>
+      <button
+        v-if="props.browserMode && status.browserJournalMissing"
+        :disabled="commandSending || busy"
+        @click="storageReview = storageIdentity()"
+      >
+        {{ locale === 'es' ? 'Revisar almacenamiento de comandos' : 'Review command storage' }}
+      </button>
       <p
         v-if="status.commandBusy"
         role="status"
@@ -503,7 +520,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
     >
       <h2>{{ labels.workflows }}</h2>
       <p>
-        {{ props.browserMode ? (locale === 'es' ? 'La vista web permite consultar workflows y actividad del LIVE según tus permisos.' : 'The web view supports workflow and LIVE activity reads according to your permissions.') : labels.readOnly }}
+        {{ props.browserMode ? (locale === 'es' ? 'Las acciones disponibles dependen de tus permisos y requieren confirmación.' : 'Available actions depend on your permissions and require confirmation.') : labels.readOnly }}
       </p>
       <p v-if="!rows.length">
         {{ labels.empty }}
@@ -654,7 +671,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
     <BaseConfirmDialog
       v-model:open="confirmOpen"
       :title="confirmation?.kind === 'draft' ? dft.title : confirmation?.kind === 'forget' ? forgetLabels.title : confirmation?.kind === 'points' ? pts.confirm : confirmation?.kind === 'review' ? cmd.reviewTitle : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.deleteTitle : cmd.disableTitle"
-      :message="confirmation?.kind === 'draft' ? dft.consent : confirmation?.kind === 'forget' ? forgetLabels.message : confirmation?.kind === 'points' ? pts.note : confirmation?.kind === 'review' ? cmd.reviewMessage : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.deleteMessage : cmd.disableMessage"
+      :message="confirmation?.kind === 'draft' ? dft.consent : confirmation?.kind === 'forget' ? forgetLabels.message : confirmation?.kind === 'points' ? pts.note : confirmation?.kind === 'review' ? cmd.reviewMessage : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? (props.browserMode ? (locale === 'es' ? 'Se eliminará el workflow del anfitrión con la revisión indicada.' : 'The workflow will be removed from the host using the revision shown.') : cmd.deleteMessage) : cmd.disableMessage"
       :confirm-label="confirmation?.kind === 'draft' ? dft.save : confirmation?.kind === 'forget' ? forgetLabels.action : confirmation?.kind === 'points' ? pts.adjust : confirmation?.kind === 'review' ? cmd.reviewed : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.delete : cmd.disable"
       :busy="commandSending || busy || draftBusy || !confirmationCurrent"
       :danger="confirmation?.kind !== 'draft'"
@@ -690,6 +707,16 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
         {{ cmd.changed }}
       </p>
     </BaseConfirmDialog>
+    <BaseConfirmDialog
+      :open="storageReview !== null"
+      :title="locale === 'es' ? 'Revisar el almacenamiento local' : 'Review local command storage'"
+      :message="locale === 'es' ? 'No existe un registro local para esta sesión. Podría ser nuevo o haberse borrado, incluso con una acción pendiente. Revisa el estado del anfitrión antes de continuar. Crear el registro no recupera comandos perdidos.' : 'No local journal exists for this session. It may be new or have been erased, including a pending command. Review host state before continuing. Creating the journal does not recover lost commands.'"
+      :confirm-label="locale === 'es' ? 'Revisé el estado; crear registro' : 'I reviewed the host; create journal'"
+      :busy="!storageCurrent || commandSending || busy"
+      danger
+      @update:open="(open: boolean) => { if (!open) storageReview = null; }"
+      @confirm="initializeBrowserJournal"
+    />
   </main>
 </template>
 

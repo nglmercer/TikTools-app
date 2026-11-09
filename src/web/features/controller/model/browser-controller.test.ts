@@ -55,11 +55,11 @@ const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve()
 test('exposes the authorized workflow baseline, fences pages and denies unsupported commands', async () => {
   const f = fixture(); const status = await connected(f);
   expect(status.phase).toBe('ready');
-  expect(status.hello.capabilities).toEqual(['workflows.read', 'live.read']);
+  expect(status.hello.capabilities).toEqual(['workflows.read', 'workflows.toggle', 'workflows.edit', 'live.read']);
   expect(status.hello.features['workflowDisable']).toBe(false);
   const page = await f.client.call<{ rows: Array<{ graph: { name: string } }>; next: number | null }>('controller.workflows', { epoch: status.epoch, viewRevision: status.viewRevision, offset: 0 });
   expect(page.rows[0]?.graph.name).toBe('Original'); expect(page.next).toBeNull();
-  await expect(f.client.call('controller.workflow.command', {})).rejects.toMatchObject({ code: 'unsupported_remote' });
+  await expect(f.client.call('controller.workflow.command', {})).rejects.toMatchObject({ code: 'stale_view' });
   f.emit(event('1')); await flush();
   const updated = await f.client.call<typeof status>('controller.status');
   expect(updated.viewRevision).not.toBe(status.viewRevision);
@@ -168,7 +168,7 @@ test('browser controller screen displays the scoped view and clears it on discon
   try {
     await flushPromises();
     expect(wrapper.text()).toContain('Original');
-    expect(wrapper.text()).toContain('The web view supports workflow and LIVE activity reads according to your permissions.');
+    expect(wrapper.text()).toContain('Available actions depend on your permissions and require confirmation.');
     expect(wrapper.text()).not.toContain('Saved profiles');
     expect(wrapper.text()).not.toContain('Connect to another PC');
     expect(wrapper.text()).not.toContain('Disable workflow');

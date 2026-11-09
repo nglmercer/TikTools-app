@@ -24,6 +24,9 @@ try {
   await page.locator('#open-app').waitFor({ state: 'visible', timeout: 20_000 });
   await page.locator('#open-app').click();
   await page.getByRole('button', { name: /Host initial/ }).waitFor({ timeout: 20_000 });
+  await page.getByRole('button', { name: /Review command storage|Revisar almacenamiento de comandos/ }).click();
+  await page.getByRole('button', { name: /I reviewed the host; create journal|Revisé el estado; crear registro/ }).click();
+  await page.getByRole('button', { name: /Review command storage|Revisar almacenamiento de comandos/ }).waitFor({ state: 'hidden', timeout: 20_000 });
   const cookies = await context.cookies();
   if (!cookies.some((cookie) => cookie.name === '__Host-tiktools-remote' && cookie.httpOnly && cookie.secure)) throw new Error('session cookie flags missing');
   if (await page.evaluate(() => Object.keys(localStorage).some((key) => /token|credential|secret/i.test(key)))) throw new Error('credential-like browser storage');
@@ -44,7 +47,6 @@ try {
     try {
       const hello = await transport.connect();
       const binding = { origin: location.origin, hostId: hello.hostId, principalId: hello.principalId, sessionId: hello.sessionId };
-      await api.initializeBrowserCommandJournal(binding, true);
       const getRevision = async (id: string) => {
         let versions: Array<{ id: string; revision: string }> = [];
         await remote.call('workflows.get', { id }, { onMetadata: (meta: { resourceVersions: typeof versions }) => { versions = meta.resourceVersions; } });
@@ -71,6 +73,8 @@ try {
   });
   await page.reload();
   await page.getByRole('button', { name: /Host updated/ }).waitFor({ timeout: 20_000 });
+  await page.getByRole('button', { name: /Check outcome|Consultar resultado/ }).click({ timeout: 20_000 });
+  await page.getByRole('button', { name: /Check outcome|Consultar resultado/ }).waitFor({ state: 'hidden', timeout: 20_000 });
   await page.evaluate(async (commandId) => {
     const path = '/__command-fixture.js';
     const api = await import(/* @vite-ignore */ path);
@@ -79,11 +83,14 @@ try {
     try {
       const hello = await transport.connect();
       const binding = { origin: location.origin, hostId: hello.hostId, principalId: hello.principalId, sessionId: hello.sessionId };
-      if (await api.recoverBrowserWorkflowCommand(remote, transport, hello, binding, commandId) !== 'resolved') throw new Error('command recovery failed');
-      const saved = await api.withBrowserCommandJournal(binding, (record: { pending: unknown; recent: Array<{ outcome: string }> }) => structuredClone(record));
-      if (saved.pending || saved.recent.length !== 2 || saved.recent.some((entry: { outcome: string }) => entry.outcome !== 'succeeded')) throw new Error('invalid command journal');
+      const saved = await api.withBrowserCommandJournal(binding, (record: { pending: unknown; recent: Array<{ outcome: string; intent: { commandId: string } }> }) => structuredClone(record));
+      if (saved.pending || saved.recent.length !== 2 || saved.recent[0].intent.commandId !== commandId || saved.recent.some((entry: { outcome: string }) => entry.outcome !== 'succeeded')) throw new Error('invalid command journal');
     } finally { remote.detach(); }
   }, commandId);
+  await page.getByRole('button', { name: /UI workflow/ }).click();
+  await page.getByRole('button', { name: /Disable workflow|Desactivar workflow/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /Disable workflow|Desactivar workflow/ }).click();
+  await page.getByRole('button', { name: /Disable workflow|Desactivar workflow/ }).waitFor({ state: 'hidden', timeout: 20_000 });
   mark('commands-complete');
   const replacement = await context.newPage();
   const secondFragment = new URLSearchParams({ inviteId: input.replacementId, secret: input.replacementSecret });

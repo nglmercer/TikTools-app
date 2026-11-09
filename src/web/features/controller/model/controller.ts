@@ -10,6 +10,7 @@ import { createCompetitionModel } from './competitions.ts';
 export interface ControllerStatus {
   draftsSupported?: boolean;
   proposalsSupported?: boolean;
+  browserJournalMissing?: boolean;
   epoch: string; viewRevision: string; phase: string; profile: string | null; origin: string | null; errorCode: string | null;
   automationRevision?: string;
   pointsRevision?: string; pointsLoading?: boolean; pointsErrorCode?: string | null;
