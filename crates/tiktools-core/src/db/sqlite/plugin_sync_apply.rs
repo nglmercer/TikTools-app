@@ -215,6 +215,36 @@ fn decode_stored(id: &str, row: StoredRow) -> Result<StoredPluginApplyIntent, Da
 }
 
 impl DatabaseManager {
+    /// Inspect the persisted local source for a pulled-record decision. This
+    /// observation is not authorization: `prepare_plugin_apply` rechecks it
+    /// atomically against any later source, outbox or journal changes.
+    pub(crate) fn pulled_plugin_apply_source(
+        &self,
+        plugin_id: &str,
+    ) -> Result<Option<(i64, bool)>, DatabaseError> {
+        let db = self.open(&self.automation_path())?;
+        let found: Option<(i64, i64)> = db
+            .query_row(
+                "SELECT s.generation,b.enabled FROM plugin_sync_source_versions s
+             JOIN behavior_plugins b ON b.id=s.plugin_id
+             WHERE s.plugin_id=?1 AND b.installed=1
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL)
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_intents i
+                 WHERE i.plugin_id=s.plugin_id AND i.phase!='finalized')",
+                [plugin_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        match found {
+            Some((generation, enabled)) if generation > 0 && (enabled == 0 || enabled == 1) => {
+                Ok(Some((generation, enabled == 1)))
+            }
+            Some(_) => Err(DatabaseError::Invalid("invalid plugin apply source".into())),
+            None => Ok(None),
+        }
+    }
+
     /// Persist reviewed evidence before changing a pending record or marker.
     /// A newer local candidate, missing source revision or different installed
     /// state rejects admission without changing anything.
@@ -248,18 +278,24 @@ impl DatabaseManager {
             )
             .optional()?;
         if let Some(prior) = prior {
-            return if prior == encoded {
-                Ok(true)
-            } else {
-                Err(DatabaseError::Invalid(
+            if prior != encoded {
+                return Err(DatabaseError::Invalid(
                     "plugin apply identity reused".into(),
-                ))
-            };
+                ));
+            }
+            // Even an idempotent retry must not report admission while a
+            // package transition could change the artifact on disk.
+            let blocked: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=?1 OR p.plugin_id IS NULL)",
+                [&intent.plugin_id], |row| row.get(0),
+            )?;
+            return Ok(!blocked);
         }
         let eligible: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
              WHERE s.plugin_id=?1 AND s.generation=?2 AND b.installed=1 AND b.enabled=?3
-             AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id))",
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
             params![intent.plugin_id, intent.source_generation, bool_int(intent.expected_enabled)], |row| row.get(0),
         )?;
         if !eligible {
@@ -295,10 +331,43 @@ impl DatabaseManager {
              AND payload_json=?3 AND phase='prepared' AND EXISTS(
                 SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
                 WHERE s.plugin_id=?2 AND s.generation=?4 AND b.installed=1 AND b.enabled=?5
-                AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id))",
+                AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+                AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
             params![intent.intent_id, intent.plugin_id, encoded, intent.source_generation, bool_int(intent.expected_enabled)],
         )?;
         Ok(changed == 1)
+    }
+
+    /// Revalidate a previously-ready decision against the same durable
+    /// evidence and current source. This is observation only; the later
+    /// state/runtime transition must independently compare those inputs.
+    pub(crate) fn revalidate_ready_plugin_apply(
+        &self,
+        context: &V1LocalEditContext,
+        intent: &PluginApplyIntent,
+    ) -> Result<bool, DatabaseError> {
+        if !matches_context(intent, context) {
+            return Ok(false);
+        }
+        let encoded = payload(intent)?;
+        let db = self.open(&self.automation_path())?;
+        Ok(db.query_row(
+            "SELECT EXISTS(SELECT 1 FROM plugin_sync_apply_intents i
+             JOIN plugin_sync_source_versions s ON s.plugin_id=i.plugin_id
+             JOIN behavior_plugins b ON b.id=s.plugin_id
+             WHERE i.intent_id=?1 AND i.plugin_id=?2 AND i.payload_json=?3
+             AND i.phase='ready' AND s.generation=?4 AND b.installed=1 AND b.enabled=?5
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
+            params![
+                intent.intent_id,
+                intent.plugin_id,
+                encoded,
+                intent.source_generation,
+                bool_int(intent.expected_enabled)
+            ],
+            |row| row.get(0),
+        )?)
     }
 
     /// Atomically reserve the desired persisted state and advance its global
@@ -332,7 +401,8 @@ impl DatabaseManager {
              JOIN plugin_sync_source_versions s ON s.plugin_id=i.plugin_id
              JOIN behavior_plugins b ON b.id=s.plugin_id WHERE i.intent_id=?1 AND i.plugin_id=?2
              AND i.payload_json=?3 AND i.phase='ready' AND s.generation=?4 AND b.installed=1 AND b.enabled=?5
-             AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id))",
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
             params![intent.intent_id, intent.plugin_id, encoded, intent.source_generation, bool_int(intent.expected_enabled)], |row| row.get(0),
         )?;
         if !eligible || intent.source_generation == i64::MAX {
@@ -391,7 +461,8 @@ impl DatabaseManager {
              AND plugin_id=?3 AND payload_json=?4 AND phase IN ('runtime_pending','applied') AND committed_generation=?5
              AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
                 WHERE s.plugin_id=?3 AND s.generation=?5 AND b.installed=1 AND b.enabled=?6
-                AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id))",
+                AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+                AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
             params![runtime_epoch,intent.intent_id,intent.plugin_id,encoded,generation,bool_int(enabled)],
         )?;
         Ok(changed == 1)
@@ -428,7 +499,8 @@ impl DatabaseManager {
              AND payload_json=?3 AND phase='applied' AND committed_generation=?4 AND runtime_epoch=?5
              AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
                 WHERE s.plugin_id=?2 AND s.generation=?4 AND b.installed=1 AND b.enabled=?6
-                AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id))",
+                AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
+                AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
             params![intent.intent_id,intent.plugin_id,encoded,generation,runtime_epoch,bool_int(enabled)],
         )?;
         Ok(changed == 1)
@@ -592,6 +664,147 @@ mod tests {
             let db = self.db.open(&self.db.automation_path()).unwrap();
             db.query_row("SELECT s.generation,b.installed,b.enabled FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id WHERE s.plugin_id='acme.plugin'", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap()
         }
+    }
+
+    #[test]
+    fn pulled_source_observation_excludes_unresolved_edits_and_apply_journals() {
+        let f = Fixture::new();
+        assert_eq!(
+            f.db.pulled_plugin_apply_source("acme.plugin").unwrap(),
+            Some((1, true))
+        );
+        assert_eq!(
+            f.db.pulled_plugin_apply_source("missing.plugin").unwrap(),
+            None
+        );
+        assert!(f.db.prepare_plugin_apply(&f.context, &f.intent()).unwrap());
+        assert_eq!(
+            f.db.pulled_plugin_apply_source("acme.plugin").unwrap(),
+            None
+        );
+
+        let other = Fixture::new();
+        other
+            .db
+            .set_plugin_state_with_sync_intent(
+                "acme.plugin",
+                true,
+                false,
+                Some(super::super::LocalPluginSyncIntent {
+                    origin: &other.context.origin,
+                    account_id: &other.context.account_id,
+                    config_generation: other.context.config_generation,
+                    version: Some("1.0.0"),
+                }),
+            )
+            .unwrap();
+        assert_eq!(
+            other.db.pulled_plugin_apply_source("acme.plugin").unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn package_journal_fences_every_apply_phase_and_missing_guard_fails_closed() {
+        let f = Fixture::new();
+        let intent = f.intent();
+        let change_guard = |active: bool| {
+            let db = f.db.open(&f.db.automation_path()).unwrap();
+            if active {
+                db.execute("INSERT INTO plugin_package_mutation_intents(plugin_id,intent_id,operation,operation_digest,phase,source_generation) VALUES ('acme.plugin','test-package','install','digest','prepared',1)", []).unwrap();
+            } else {
+                db.execute(
+                    "DELETE FROM plugin_package_mutation_intents WHERE plugin_id='acme.plugin'",
+                    [],
+                )
+                .unwrap();
+            }
+        };
+        change_guard(true);
+        assert!(f
+            .db
+            .pulled_plugin_apply_source("acme.plugin")
+            .unwrap()
+            .is_none());
+        assert!(!f.db.prepare_plugin_apply(&f.context, &intent).unwrap());
+        change_guard(false);
+        assert!(f.db.prepare_plugin_apply(&f.context, &intent).unwrap());
+        change_guard(true);
+        assert!(!f
+            .db
+            .mark_plugin_apply_ready_after_native_reconciliation(&f.context, &intent)
+            .unwrap());
+        assert!(!f.db.prepare_plugin_apply(&f.context, &intent).unwrap());
+        change_guard(false);
+        assert!(f
+            .db
+            .mark_plugin_apply_ready_after_native_reconciliation(&f.context, &intent)
+            .unwrap());
+        change_guard(true);
+        assert!(!f
+            .db
+            .revalidate_ready_plugin_apply(&f.context, &intent)
+            .unwrap());
+        assert!(f
+            .db
+            .commit_plugin_apply_state(&f.context, &intent, "1.0.0")
+            .unwrap()
+            .is_none());
+        change_guard(false);
+        assert!(f
+            .db
+            .revalidate_ready_plugin_apply(&f.context, &intent)
+            .unwrap());
+        let generation =
+            f.db.commit_plugin_apply_state(&f.context, &intent, "1.0.0")
+                .unwrap()
+                .unwrap();
+        let epoch = "b".repeat(64);
+        change_guard(true);
+        assert!(!f
+            .db
+            .confirm_plugin_apply_runtime(&f.context, &intent, generation, &epoch, "1.0.0", false)
+            .unwrap());
+        change_guard(false);
+        assert!(f
+            .db
+            .confirm_plugin_apply_runtime(&f.context, &intent, generation, &epoch, "1.0.0", false)
+            .unwrap());
+        change_guard(true);
+        assert!(!f
+            .db
+            .finalize_plugin_apply_after_native_ack(&f.context, &intent, generation, &epoch)
+            .unwrap());
+        change_guard(false);
+        assert!(f
+            .db
+            .finalize_plugin_apply_after_native_ack(&f.context, &intent, generation, &epoch)
+            .unwrap());
+
+        // A malformed legacy row with no plugin identity blocks globally;
+        // a missing table produces an error rather than granting admission.
+        let other = Fixture::new();
+        let db = other.db.open(&other.db.automation_path()).unwrap();
+        db.execute_batch("DROP TABLE plugin_package_mutation_intents; CREATE TABLE plugin_package_mutation_intents(plugin_id TEXT); INSERT INTO plugin_package_mutation_intents VALUES (NULL);").unwrap();
+        drop(db);
+        assert!(other
+            .db
+            .pulled_plugin_apply_source("acme.plugin")
+            .unwrap()
+            .is_none());
+        assert!(!other
+            .db
+            .prepare_plugin_apply(&other.context, &other.intent())
+            .unwrap());
+        let db = other.db.open(&other.db.automation_path()).unwrap();
+        db.execute_batch("DROP TABLE plugin_package_mutation_intents;")
+            .unwrap();
+        drop(db);
+        assert!(other.db.pulled_plugin_apply_source("acme.plugin").is_err());
+        assert!(other
+            .db
+            .prepare_plugin_apply(&other.context, &other.intent())
+            .is_err());
     }
     impl Drop for Fixture {
         fn drop(&mut self) {

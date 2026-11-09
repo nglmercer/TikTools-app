@@ -241,7 +241,13 @@ mod durable_local_mutation_tests {
             .is_none());
         // Even an older writer that failed to advance the source generation
         // must not authorize review while the persisted state differs.
-        f.db.set_plugin_state("acme.plugin", true, true).unwrap();
+        rusqlite::Connection::open(f.db.paths().automation_database())
+            .unwrap()
+            .execute(
+                "UPDATE behavior_plugins SET enabled=1 WHERE id='acme.plugin'",
+                [],
+            )
+            .unwrap();
         assert!(adapter
             .conflict_source_proof(&context, "acme.plugin", &conflict)
             .unwrap()

@@ -30,7 +30,12 @@ pub(crate) use owner_approval::validate_owner_approval_input;
 mod owner_definition;
 mod owner_library;
 pub(crate) use owner_definition::validate_owner_definition_input;
-mod points;
+#[allow(dead_code)] // Storage only, not yet wired to product package operations.
+mod plugin_package_guard;
+#[cfg(all(feature = "plugin-install", feature = "cloud-auth"))]
+pub(crate) use plugin_package_guard::{
+    PackageMutationIntent, PackageMutationKind, PackageMutationPhase,
+};
 #[cfg(feature = "cloud-auth")]
 // The transactional storage boundary is not exposed to the product until the
 // coordinator can enforce draining and identity/session authorization.
@@ -40,6 +45,9 @@ mod plugin_sync;
 // Storage only: product activation still needs coordinator/session fencing.
 #[allow(dead_code)]
 mod plugin_sync_apply;
+mod points;
+#[cfg(feature = "cloud-auth")]
+pub(crate) use plugin_sync_apply::{PluginApplyIntent, PluginApplyPhase, PluginApplyReason};
 #[cfg(feature = "cloud-auth")]
 #[allow(dead_code)]
 mod plugin_sync_rebase;

@@ -71,7 +71,8 @@ fn source_receipt(
          JOIN behavior_plugins b ON b.id=r.plugin_id WHERE r.origin=?1 AND r.account_id=?2 AND r.plugin_id=?3
          AND r.generation=?4 AND s.generation=r.generation AND r.config_generation=?5 AND r.runtime_epoch=?6
          AND b.installed=?7 AND (?8 IS NULL OR b.enabled=?8)
-         AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=r.plugin_id)",
+         AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=r.plugin_id)
+         AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=r.plugin_id OR p.plugin_id IS NULL)",
         params![context.origin, context.account_id, intent.key(), intent.source_generation(), context.config_generation.to_string(), epoch,
             bool_int(installed), enabled.map(bool_int)], |row| row.get(0),
     ).optional()?;
@@ -107,7 +108,8 @@ fn newer_candidate(
          AND o.config_generation=?5 AND o.runtime_epoch=?6 AND o.generation>?7
          AND s.generation=o.generation
          AND b.installed=CASE WHEN o.version IS NULL THEN 0 ELSE 1 END
-         AND (o.version IS NULL OR b.enabled=o.enabled)",
+         AND (o.version IS NULL OR b.enabled=o.enabled)
+         AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=o.plugin_id OR p.plugin_id IS NULL)",
         params![context.origin, context.account_id, intent.key(), encoded,
             context.config_generation.to_string(), epoch, intent.source_generation()],
         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
@@ -157,7 +159,8 @@ fn superseding_generation(
             "SELECT s.generation FROM plugin_sync_rebase_intents j
          JOIN plugin_sync_source_versions s ON s.plugin_id=j.plugin_id
          WHERE j.origin=?1 AND j.account_id=?2 AND j.plugin_id=?3
-         AND j.payload_json=?4 AND s.generation>?5",
+         AND j.payload_json=?4 AND s.generation>?5
+         AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=j.plugin_id OR p.plugin_id IS NULL)",
             params![
                 context.origin,
                 context.account_id,
@@ -657,6 +660,38 @@ mod tests {
             .finish_plugin_sync_rebase(&f.context, &f.intent, &epoch, &proof)
             .unwrap());
         assert!(!reopened.has_plugin_sync_rebase(&f.context).unwrap());
+    }
+
+    #[test]
+    fn active_package_journal_blocks_conflict_recovery_until_it_is_reconciled() {
+        let f = Fixture::new();
+        f.prepare();
+        let db = f.db.open(&f.db.automation_path()).unwrap();
+        db.execute("INSERT INTO plugin_package_mutation_intents(plugin_id,intent_id,operation,operation_digest,phase,source_generation) VALUES (?1,?2,'update',?3,'mutating',1)",
+            params![KEY, "b".repeat(64), "c".repeat(64)]).unwrap();
+        drop(db);
+        assert!(f
+            .db
+            .plugin_sync_rebase_source(&f.context, &f.intent, &f.epoch)
+            .unwrap()
+            .is_none());
+        assert!(!f
+            .db
+            .finish_plugin_sync_rebase(&f.context, &f.intent, &f.epoch, &f.proof())
+            .unwrap());
+        assert!(f.db.has_plugin_sync_rebase(&f.context).unwrap());
+        let db = f.db.open(&f.db.automation_path()).unwrap();
+        db.execute(
+            "DELETE FROM plugin_package_mutation_intents WHERE plugin_id=?1",
+            [KEY],
+        )
+        .unwrap();
+        drop(db);
+        assert!(f
+            .db
+            .plugin_sync_rebase_source(&f.context, &f.intent, &f.epoch)
+            .unwrap()
+            .is_some());
     }
 
     #[test]

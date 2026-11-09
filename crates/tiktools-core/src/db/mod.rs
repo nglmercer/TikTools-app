@@ -5,9 +5,9 @@
 //! conservative record helpers used by the desktop binary.
 
 #[cfg(feature = "persistence")]
-mod sqlite;
-#[cfg(feature = "persistence")]
 mod analytics;
+#[cfg(feature = "persistence")]
+mod sqlite;
 #[cfg(feature = "persistence")]
 pub(crate) use analytics::writer::{AnalyticsWrite, AnalyticsWriter};
 
@@ -17,8 +17,6 @@ pub(crate) use sqlite::validate_owner_approval_input;
 pub(crate) use sqlite::validate_owner_definition_input;
 #[cfg(feature = "persistence")]
 pub use sqlite::DatabaseError;
-#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
-pub(crate) use sqlite::{LocalPluginSyncIntent, PluginSyncOutboxEntry};
 #[cfg(feature = "persistence")]
 pub(crate) use sqlite::{ActionClaimOutcome, GiftInput, GiftOutcome, ScoredInput, ScoredOutcome};
 #[cfg(feature = "persistence")]
@@ -32,6 +30,16 @@ pub(crate) use sqlite::{BehaviorAuthority, BehaviorRuntimeAuthority, BehaviorSav
 pub(crate) use sqlite::{CommandDatabase, CommandTransaction};
 #[cfg(feature = "persistence")]
 pub(crate) use sqlite::{DeliveryToken, PendingDelivery};
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+pub(crate) use sqlite::{LocalPluginSyncIntent, PluginSyncOutboxEntry};
+#[cfg(all(
+    feature = "persistence",
+    feature = "plugin-install",
+    feature = "cloud-auth"
+))]
+pub(crate) use sqlite::{PackageMutationIntent, PackageMutationKind, PackageMutationPhase};
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+pub(crate) use sqlite::{PluginApplyIntent, PluginApplyPhase, PluginApplyReason};
 
 #[cfg(feature = "persistence")]
 pub use analytics::{

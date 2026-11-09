@@ -631,6 +631,10 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 plugin_packages::unavailable("plugin invocation lease is unavailable")
             })?;
+        #[cfg(feature = "persistence")]
+        self.db
+            .invalidate_plugin_package_source(&prepared.manifest.id)
+            .map_err(tiktools_plugin_installer::InstallError::io)?;
         let outcome = packages.installer.commit(
             &prepared,
             &CommitOptions {
@@ -639,7 +643,19 @@ impl AppCore {
             },
             &plugin_packages::CoreActivation(self),
             &NoopReporter,
-        )?;
+        );
+        #[cfg(feature = "persistence")]
+        if let Err(error) = self
+            .db
+            .invalidate_plugin_package_source(&prepared.manifest.id)
+        {
+            self.rebuild_processor_index();
+            self.refresh_automation_snapshot();
+            return Err(tiktools_plugin_installer::InstallError::io(format!(
+                "package operation may have changed files but its final source fence failed: {error}"
+            )));
+        }
+        let outcome = outcome?;
         self.rebuild_processor_index();
         Ok(outcome)
     }
@@ -669,17 +685,58 @@ impl AppCore {
         let data = purge_data
             .then(|| plugin_packages::plugin_data_dir(self.db.paths(), id))
             .flatten();
-        packages.installer.uninstall(
+        #[cfg(feature = "persistence")]
+        let source_generation = self
+            .db
+            .invalidate_plugin_package_source(id)
+            .map_err(InstallError::io)?;
+        let removal = packages.installer.uninstall(
             id,
             data.as_deref(),
             &plugin_packages::CoreActivation(self),
-        )?;
+        );
         #[cfg(feature = "persistence")]
-        if let Err(error) = self.db.remove_plugin_state(id) {
-            tracing::warn!(plugin = %id, %error, "plugin package was removed but persisted state could not be cleared");
+        if removal.is_err() {
+            if let Err(error) = self.db.invalidate_plugin_package_source(id) {
+                self.rebuild_processor_index();
+                self.refresh_automation_snapshot();
+                return Err(InstallError::io(format!(
+                    "package removal may have changed files but its final source fence failed: {error}"
+                )));
+            }
         }
+        removal?;
         self.clear_plugin_activation(id);
         self.rebuild_processor_index();
+        #[cfg(feature = "persistence")]
+        match self
+            .db
+            .remove_plugin_state_after_package(id, source_generation)
+        {
+            Ok(true) => {}
+            Ok(false) => {
+                self.refresh_automation_snapshot();
+                return Err(InstallError::new(
+                    InstallErrorCode::IoError,
+                    "plugin package was removed but its persisted state changed; review required",
+                ));
+            }
+            Err(error) => {
+                // The transaction rolls back its final generation on error.
+                // Preserve a separate fence after filesystem mutation even
+                // when persisted-state cleanup fails.
+                let fence = self.db.invalidate_plugin_package_source(id);
+                self.refresh_automation_snapshot();
+                if let Err(fence_error) = fence {
+                    return Err(InstallError::io(format!(
+                        "plugin was removed, persisted state cleanup failed, and final source fence failed: {fence_error}"
+                    )));
+                }
+                return Err(InstallError::io(format!(
+                    "plugin package was removed but persisted state could not be cleared: {error}"
+                )));
+            }
+        }
         Ok(())
     }
 

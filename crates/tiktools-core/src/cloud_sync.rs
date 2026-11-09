@@ -10,6 +10,8 @@ use tiktools_cloud_sync::SyncCoordinator;
 use crate::paths::AppPaths;
 
 #[cfg(feature = "persistence")]
+mod product_apply;
+#[cfg(feature = "persistence")]
 pub(crate) mod product_outbox;
 
 pub(crate) struct CloudSync {

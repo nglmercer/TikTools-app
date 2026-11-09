@@ -198,12 +198,26 @@ impl AppCore {
                                 "plugin invocation lease is unavailable",
                             )
                         })?;
-                installer.rollback(
+                #[cfg(feature = "persistence")]
+                worker_core
+                    .db
+                    .invalidate_plugin_package_source(&plugin_id)
+                    .map_err(InstallError::io)?;
+                let outcome = installer.rollback(
                     &plugin_id,
                     version.as_deref(),
                     &CoreActivation(&worker_core),
                     worker_job.as_ref(),
-                )
+                );
+                #[cfg(feature = "persistence")]
+                if let Err(error) = worker_core.db.invalidate_plugin_package_source(&plugin_id) {
+                    worker_core.rebuild_processor_index();
+                    worker_core.refresh_automation_snapshot();
+                    return Err(InstallError::io(format!(
+                        "package rollback may have changed files but its final source fence failed: {error}"
+                    )));
+                }
+                outcome
             })
             .await
             .unwrap_or_else(|error| Err(InstallError::io(error)));
@@ -695,7 +709,11 @@ impl AppCore {
             let _invocation = core.plugin_state.invocation_gate.lock().map_err(|_| {
                 crate::plugin_packages::unavailable("plugin invocation lease is unavailable")
             })?;
-            installer.commit(
+            #[cfg(feature = "persistence")]
+            core.db
+                .invalidate_plugin_package_source(&prepared.manifest.id)
+                .map_err(InstallError::io)?;
+            let outcome = installer.commit(
                 &prepared,
                 &CommitOptions {
                     consent: Consent::Token(token),
@@ -703,7 +721,16 @@ impl AppCore {
                 },
                 &CoreActivation(&core),
                 worker_job.as_ref(),
-            )
+            );
+            #[cfg(feature = "persistence")]
+            if let Err(error) = core.db.invalidate_plugin_package_source(&prepared.manifest.id) {
+                core.rebuild_processor_index();
+                core.refresh_automation_snapshot();
+                return Err(InstallError::io(format!(
+                    "package operation may have changed files but its final source fence failed: {error}"
+                )));
+            }
+            outcome
         })
         .await
         .unwrap_or_else(|error| Err(InstallError::io(error)))

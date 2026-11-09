@@ -1,10 +1,11 @@
 # Desktop Cloud v2 implementation and acceptance specification
 
-Status: **the native v2 foundation and read-only Cloud catalog UI are implemented. Product sync cutover, local application and full Desktop v2 acceptance are pending.**
+Status: **the native v2 foundation and read-only Cloud catalog and library UI are implemented. Product sync cutover, local application and full Desktop v2 acceptance are pending.**
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
-library delivery e6728c9. The reviewed backend commit is RemakeBackend cb37900,
-including canonical shards and SDK capability discovery, following bounded pagination 9f7e642,
+library delivery e6728c9. The reviewed backend commit is RemakeBackend 1c06410,
+including byte-ordered v1 snapshot pagination, SDK pull counts, canonical shards
+and SDK capability discovery, following bounded pagination 9f7e642,
 catalog compatibility 995d496, integrity changes c0fb951 and v2 foundation
 0c552b3, and its
 docs/CLOUD-REDESIGN.md, docs/CLOUD-API-V2.md and latest
@@ -34,7 +35,7 @@ a local Owner and a delegated LIVE controller are separate authorities.
 | Atomic local profile/template/graph changes and original-outcome recovery | Existing native Owner library implementation | Reuse for reviewed local imports |
 | Backend portable v2 contracts, native transport and all-five-collection state/store/coordinator | Implemented and locally tested; additive exports preserve v1 | Product adapters and explicit cutover pending |
 | Release Cloud origin policy | Runtime overrides ignored in release; build-time provisioning and debug override retained | Four policy unit tests passed; broader trust/product restrictions still pending |
-| Single-instance product catalog, private/public library and expanded sync UI | Read-only Cloud catalog is present; custom registries and local imports remain | Verified installation, source restrictions, library and sync UI pending |
+| Single-instance product catalog, private/public library and expanded sync UI | Read-only Cloud catalog and document browsing are present; custom registries and local imports remain | Verified installation, source restrictions, reviewed library import and expanded sync UI pending |
 | Actual two-Desktop v2 offline/recovery acceptance | Not established by prior local Owner tests or v1 mock E2E | Pending |
 | Production trust, deployed migration and external infrastructure review | Separate backend/operator gates | Not established by this specification |
 
@@ -98,6 +99,27 @@ The existing product v1 application path also needs a session, consent and
 local-source fence around applying downloaded selections. A network result
 alone is not permission to alter a plugin after an account switch, opt-out,
 or a newer local edit.
+Current persisted plugin state writes and removals also advance the retained
+source generation in the same SQLite transaction, including repeated writes
+and local-only changes. This invalidates stale receipts across delete/recreate
+and remote changes, but it does not yet make legacy writes participate in the
+coordinator admission lease, cover all package filesystem transitions, or
+atomically enqueue their sync candidates. Those paths still block activation.
+The local package install, reviewed update, rollback and uninstall entry points
+invalidate source evidence before and after attempting filesystem changes.
+Uninstall deletes the persisted plugin row only if its first source generation
+is still current; a concurrent update or database error is surfaced even if
+files were already removed. These fences make some stale candidates invalid,
+but do not stop uploads during package I/O or a stale observation staged after
+the final fence. A shared admission lease and durable package-operation journal
+are still required before activating this path.
+An internal package journal and short cross-process admission callback now
+preserve uncertain operations and prevent replay. Sync outbox and local-apply
+storage reject a plugin with an active package journal. A private orchestrator
+can reserve that journal before a filesystem effect, but the real installer
+does not call it yet: trusted artifact/runtime reconciliation, recovery UI,
+cross-process package locking and the bounded receipt-retention policy remain
+required before activation.
 Legacy conflict resolution must also share the outbox admission boundary: a
 conflict based on an older staged value cannot be rebased or discarded while
 a newer local candidate awaits confirmation or delivery. A keep-local decision
@@ -167,7 +189,7 @@ it does not constitute product migration consent or a completed cutover.
 | Catalog compatibility and client surface | Five SDK catalog tests passed in each repository; a PostgreSQL pagination test checked legacy-ID routing; client parity (10 tests) and the CLI catalog parser passed |
 | Bounded catalog, local registry and UI | PostgreSQL exercised byte-bound pagination and legacy workspace IDs; bounded SDK tests passed in both repositories; a signed local registry round-trip and 31 web tests passed. The packaged Chromium fixture passed against native IPC and loopback Cloud HTTP in English, Spanish and mobile layouts, including 50+1 pages and an exact generation above 2^53; this is not a two-PC acceptance test |
 | In-progress v1 outbox admission | 61 coordinator tests passed, including marker, account and restart fences. SQLite receipt and adapter tests passed, as did a loopback HTTP case with a newer edit during an admitted write. The product does not yet use this path; package mutations, conflict resolution and local application still need fencing |
-| In-progress conflict recovery | The 91-test coordinator suite passed; SQLite journal tests and loopback HTTP integration covered failed cross-store commits, restart, source reconfirmation and preserving newer edits, including a second account's private candidate. These private paths are not product activation or two-Desktop acceptance |
+| In-progress conflict recovery | The 98-test coordinator suite passed; SQLite journal tests and loopback HTTP integration covered failed cross-store commits, restart, source reconfirmation and preserving newer edits, including a second account's private candidate. These private paths are not product activation or two-Desktop acceptance |
 | Backend populated pre-v2 upgrade, explicit digest repair and actual SQL archive restore | Passed on native PostgreSQL (17.31 s) and pgrust (18.61 s), plus 2 pure URL-guard tests; database-only scope |
 | Earlier backend v2 PostgreSQL cases | At the preceding checkpoint, 6 passed on each SQL runtime, including byte-ordered punctuation pagination; the earlier 67-case suite also passed on native PostgreSQL |
 | Backend declared minimum compiler checks | Rust 1.95 workspace and Rust 1.89 SDK checks passed |
@@ -418,7 +440,9 @@ The cloud library needs separate Public, My documents and local/imported views.
 The in-progress native `cloudLibrary.list` and `cloudLibrary.read` adapters
 provide typed, read-only public or signed-in private access; they do not import
 or activate documents. Private replies are discarded if the initiating session
-changes. Product views and the reviewed import flow remain to be wired.
+changes. Account settings can browse public and private metadata and read an
+exact revision without importing it; the view clears private responses when
+the visible account session changes. Reviewed import remains to be wired.
 Keep backend document UUID/revision/status separate from portable document IDs,
 local gallery IDs, local profile IDs and graph IDs. Public reads only expose
 published revisions; drafts/pending/rejected/withdrawn content is private.

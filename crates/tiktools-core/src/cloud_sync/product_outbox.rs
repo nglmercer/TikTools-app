@@ -406,7 +406,7 @@ mod tests {
         .unwrap();
         let auth = CloudAuth::new(Some(origin.clone()), sidecar, Arc::new(Store));
         auth.restore().await.unwrap();
-        let sync = SyncCoordinator::new(auth, paths.data.join("cloud-sync")).unwrap();
+        let sync = SyncCoordinator::new(auth.clone(), paths.data.join("cloud-sync")).unwrap();
         sync.set_enabled(true).unwrap();
         let db = Arc::new(DatabaseManager::new(paths));
         let epoch = "a".repeat(64);
@@ -484,6 +484,172 @@ mod tests {
             .next_plugin_sync_intent(&origin, "alice")
             .unwrap()
             .is_none());
+
+        // A second device changes this selection. Preparing its pulled value
+        // must bind the durable source and leave the actual plugin state
+        // untouched until a separately implemented runtime transition.
+        *remote.lock().await = Some((
+            3,
+            serde_json::json!({
+                "schemaVersion": 1, "pluginId": "acme.plugin", "version": "1.0.0", "enabled": false
+            }),
+        ));
+        let outcome = sync.sync_now_with_outbox(&mut outbox).await.unwrap();
+        assert_eq!(outcome.remote[0].selection.as_ref().unwrap().enabled, false);
+        let review = sync
+            .review_product_remote_apply("acme.plugin", &mut outbox)
+            .await
+            .unwrap();
+        let gate = std::sync::Mutex::new(());
+        let _guard = gate.lock().unwrap();
+        assert!(super::super::product_apply::prepare_pulled(
+            &sync,
+            &db,
+            &review,
+            &mut outbox,
+            "2.0.0",
+            true,
+            true
+        )
+        .unwrap()
+        .is_none());
+        assert!(super::super::product_apply::prepare_pulled(
+            &sync,
+            &db,
+            &review,
+            &mut outbox,
+            "1.0.0",
+            true,
+            false
+        )
+        .is_err());
+        // Inject a crash-equivalent failure after the intent is durable but
+        // before its ready phase is committed.
+        let conn = rusqlite::Connection::open(db.automation_path()).unwrap();
+        conn.execute_batch("CREATE TRIGGER fail_apply_ready BEFORE UPDATE OF phase ON plugin_sync_apply_intents WHEN NEW.phase='ready' BEGIN SELECT RAISE(FAIL,'injected failure'); END;").unwrap();
+        drop(conn);
+        assert!(super::super::product_apply::prepare_pulled(
+            &sync,
+            &db,
+            &review,
+            &mut outbox,
+            "1.0.0",
+            true,
+            true,
+        )
+        .is_err());
+        let context = sync.with_v1_local_edit(|context| context.unwrap()).unwrap();
+        let saved = db.plugin_apply_recovery_page(&context, None, 16).unwrap();
+        assert_eq!(saved.intents.len(), 1);
+        let original = &saved.intents[0];
+        assert_eq!(original.phase, crate::db::PluginApplyPhase::Prepared);
+        let intent = original.intent.clone();
+        let conn = rusqlite::Connection::open(db.automation_path()).unwrap();
+        conn.execute_batch("DROP TRIGGER fail_apply_ready;")
+            .unwrap();
+        drop(conn);
+        assert!(db
+            .pulled_plugin_apply_source("acme.plugin")
+            .unwrap()
+            .is_none());
+        let reopened = DatabaseManager::new(db.paths().clone());
+        let restarted = SyncCoordinator::new(auth, db.paths().data.join("cloud-sync")).unwrap();
+        let mut new_outbox = SqliteProductOutbox::new(&reopened, &epoch);
+        assert!(super::super::product_apply::resume_pulled(
+            &restarted,
+            &reopened,
+            &review,
+            &mut new_outbox,
+            &intent.intent_id,
+            "1.0.0",
+            true,
+            true
+        )
+        .is_err());
+        let fresh = restarted
+            .review_product_remote_apply("acme.plugin", &mut new_outbox)
+            .await
+            .unwrap();
+        assert!(super::super::product_apply::resume_pulled(
+            &restarted,
+            &reopened,
+            &fresh,
+            &mut new_outbox,
+            &intent.intent_id,
+            "2.0.0",
+            true,
+            true
+        )
+        .is_err());
+        assert!(super::super::product_apply::resume_pulled(
+            &restarted,
+            &reopened,
+            &fresh,
+            &mut new_outbox,
+            &intent.intent_id,
+            "1.0.0",
+            true,
+            false
+        )
+        .is_err());
+        assert_eq!(
+            super::super::product_apply::resume_pulled(
+                &restarted,
+                &reopened,
+                &fresh,
+                &mut new_outbox,
+                &intent.intent_id,
+                "1.0.0",
+                true,
+                true
+            )
+            .unwrap(),
+            Some(intent.clone())
+        );
+        let stored = reopened
+            .plugin_apply_intent(&intent.intent_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.phase, crate::db::PluginApplyPhase::Ready);
+        assert_eq!(stored.intent, intent);
+        assert!(stored.committed_generation.is_none());
+        assert!(stored.runtime_epoch.is_none());
+        assert_eq!(
+            super::super::product_apply::resume_pulled(
+                &restarted,
+                &reopened,
+                &fresh,
+                &mut new_outbox,
+                &intent.intent_id,
+                "1.0.0",
+                true,
+                true
+            )
+            .unwrap(),
+            Some(intent.clone())
+        );
+        reopened
+            .set_plugin_state_with_sync_intent("acme.plugin", true, false, None)
+            .unwrap();
+        assert!(super::super::product_apply::resume_pulled(
+            &restarted,
+            &reopened,
+            &fresh,
+            &mut new_outbox,
+            &intent.intent_id,
+            "1.0.0",
+            true,
+            true
+        )
+        .is_err());
+        assert_eq!(
+            reopened
+                .plugin_apply_intent(&intent.intent_id)
+                .unwrap()
+                .unwrap()
+                .intent,
+            intent
+        );
         server.abort();
     }
 }

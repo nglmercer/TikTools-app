@@ -16,6 +16,10 @@ use tiktools_plugin_registry::{
     STAGING_REGISTRY_NAME,
 };
 
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[allow(dead_code)] // Native journal orchestration is not enabled in product.
+mod mutation_admission;
+
 use crate::{events::DomainEvent, paths::AppPaths, EventBus};
 
 const REVIEW_TTL: Duration = Duration::from_secs(30 * 60);
@@ -289,6 +293,135 @@ mod tests {
     struct NoopEmitter;
     impl HostEmitter for NoopEmitter {
         fn emit(&self, _: HostMessage) {}
+    }
+
+    #[cfg(feature = "persistence")]
+    fn package_fixture(root: &std::path::Path, version: &str) -> std::path::PathBuf {
+        use tiktools_plugin_package::{pack, PackRequest};
+        let source = root.join(format!("source-{version}"));
+        std::fs::create_dir_all(&source).unwrap();
+        let manifest = source.join("plugin.json");
+        let entry = source.join("demo-host");
+        std::fs::write(&entry, format!("fixture binary {version}")).unwrap();
+        std::fs::write(
+            &manifest,
+            serde_json::to_vec(&serde_json::json!({
+                "schemaVersion": 3,
+                "id": "acme.package",
+                "name": "Demo",
+                "version": version,
+                "runtime": "process",
+                "entry": "demo-host"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let output = root.join(format!("package-{version}.plugin"));
+        pack(&PackRequest {
+            manifest,
+            entry: Some(entry),
+            output: output.clone(),
+            target: None,
+        })
+        .unwrap();
+        output
+    }
+
+    #[cfg(feature = "persistence")]
+    #[tokio::test]
+    async fn plugin_source_real_package_mutations_fence_files_and_uninstall() {
+        let root = std::env::temp_dir().join(format!(
+            "plugin-package-source-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let paths = AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("absent"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root: root.clone(),
+        };
+        paths.ensure_directories().unwrap();
+        let core = Arc::new(AppCore::with_paths(
+            Arc::new(NoopEmitter),
+            Arc::new(NoopMediaHost),
+            paths,
+        ));
+        let first = package_fixture(&root, "1.0.0");
+        let second = package_fixture(&root, "2.0.0");
+        let third = package_fixture(&root, "3.0.0");
+        let source = || {
+            rusqlite::Connection::open(core.db.paths().automation_database()).unwrap().query_row(
+                "SELECT generation FROM plugin_sync_source_versions WHERE plugin_id='acme.package'", [],
+                |row| row.get::<_, i64>(0),
+            ).unwrap()
+        };
+        core.db
+            .set_plugin_state("acme.package", true, true)
+            .unwrap();
+        let db = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+        db.execute_batch("CREATE TRIGGER fail_package_fence BEFORE UPDATE ON plugin_sync_source_versions BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
+        drop(db);
+        assert!(core.install_plugin(&first, false).is_err());
+        assert_eq!(source(), 1);
+        assert!(!core.db.paths().plugins.join("acme.package").exists());
+        let db = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+        db.execute_batch("DROP TRIGGER fail_package_fence;")
+            .unwrap();
+        drop(db);
+        core.install_plugin(&first, false).unwrap();
+        assert_eq!(source(), 3);
+        assert_eq!(
+            core.plugins.get("acme.package").unwrap().manifest.version,
+            "1.0.0"
+        );
+        // A rejected replacement retains old files but still fences reviews.
+        assert!(core.install_plugin(&second, false).is_err());
+        assert_eq!(source(), 5);
+        assert_eq!(
+            core.plugins.get("acme.package").unwrap().manifest.version,
+            "1.0.0"
+        );
+        core.install_plugin(&second, true).unwrap();
+        assert_eq!(source(), 7);
+        assert_eq!(
+            core.plugins.get("acme.package").unwrap().manifest.version,
+            "2.0.0"
+        );
+        // The filesystem can commit before the final fence fails. Surface
+        // this as an uncertain operation instead of reporting success.
+        let db = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+        db.execute_batch("CREATE TRIGGER fail_final_fence BEFORE UPDATE ON plugin_sync_source_versions WHEN NEW.generation=9 BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
+        drop(db);
+        let error = core.install_plugin(&third, true).unwrap_err();
+        assert!(error.message.contains("final source fence failed"));
+        assert_eq!(source(), 8);
+        assert_eq!(
+            core.plugins.get("acme.package").unwrap().manifest.version,
+            "3.0.0"
+        );
+        let db = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+        db.execute_batch("DROP TRIGGER fail_final_fence;").unwrap();
+        drop(db);
+        core.uninstall_plugin("acme.package", false).unwrap();
+        assert_eq!(source(), 10);
+        assert!(!core.db.paths().plugins.join("acme.package").exists());
+        let db = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+        let count: i64 = db
+            .query_row(
+                "SELECT COUNT(*) FROM behavior_plugins WHERE id='acme.package'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+        drop(db);
+        core.shutdown().await;
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[tokio::test]

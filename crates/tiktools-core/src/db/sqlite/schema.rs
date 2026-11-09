@@ -383,6 +383,26 @@ CREATE TABLE IF NOT EXISTS plugin_sync_source_versions (
   plugin_id TEXT PRIMARY KEY,
   generation INTEGER NOT NULL CHECK(generation > 0)
 );
+-- Native-only package operation fence, global across accounts. An unfinished
+-- mutation must survive process death until filesystem/runtime reconciliation.
+CREATE TABLE IF NOT EXISTS plugin_package_mutation_intents (
+  plugin_id TEXT NOT NULL PRIMARY KEY,
+  intent_id TEXT NOT NULL UNIQUE,
+  operation TEXT NOT NULL CHECK(operation IN ('install','update','rollback','uninstall')),
+  operation_digest TEXT NOT NULL,
+  phase TEXT NOT NULL CHECK(phase IN ('prepared','mutating')),
+  source_generation INTEGER NOT NULL CHECK(source_generation > 0)
+);
+-- Retain resolved IDs so an interrupted caller cannot replay filesystem work.
+-- Capacity is reserved before mutation; no evidence is automatically evicted.
+CREATE TABLE IF NOT EXISTS plugin_package_mutation_receipts (
+  intent_id TEXT NOT NULL PRIMARY KEY,
+  plugin_id TEXT NOT NULL,
+  operation TEXT NOT NULL CHECK(operation IN ('install','update','rollback','uninstall')),
+  operation_digest TEXT NOT NULL,
+  resolution TEXT NOT NULL CHECK(resolution IN ('cancelled','reviewed')),
+  source_generation INTEGER NOT NULL CHECK(source_generation > 0)
+);
 -- Native-only durable candidates; identity is partitioned and never a token.
 -- Acknowledgement must compare the generation so it cannot erase a newer edit.
 CREATE TABLE IF NOT EXISTS plugin_sync_outbox (
@@ -569,6 +589,7 @@ impl DatabaseManager {
         automation.execute_batch(COORDINATION_SCHEMA)?;
         automation.execute_batch(AUTOMATION_SCHEMA)?;
         migrate_plugin_sync_outbox(&mut automation)?;
+        migrate_package_journal(&mut automation)?;
         migrate_effect_kinds(&mut automation)?;
 
         self.ensure_analytics_schema()?;
@@ -577,6 +598,25 @@ impl DatabaseManager {
     pub(in crate::db) fn open(&self, path: &std::path::Path) -> Result<Connection, DatabaseError> {
         Ok(Connection::open(path)?)
     }
+}
+
+/// Development builds may contain unresolved operations without a frozen
+/// digest. Preserve them as NULL, which journal readers reject for review;
+/// inventing a digest would authorize a different package operation.
+fn migrate_package_journal(db: &mut Connection) -> Result<(), DatabaseError> {
+    db.execute_batch("PRAGMA synchronous=FULL;")?;
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let present: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('plugin_package_mutation_intents') WHERE name='operation_digest'",
+        [], |row| row.get(0),
+    )?;
+    if present == 0 {
+        tx.execute_batch(
+            "ALTER TABLE plugin_package_mutation_intents ADD COLUMN operation_digest TEXT;",
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 /// Interim development builds created this outbox before consent generations

@@ -7,6 +7,7 @@
 use rusqlite::{params, OptionalExtension, TransactionBehavior};
 
 use super::{
+    behavior::advance_plugin_source,
     util::{bool_int, now},
     DatabaseError, DatabaseManager,
 };
@@ -45,6 +46,15 @@ fn valid_runtime_epoch(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+// A package's files and runtime can be between states while this journal is
+// active. Treat an invalid NULL identity as global uncertainty, not absence.
+fn package_source_available(db: &rusqlite::Connection, id: &str) -> Result<bool, DatabaseError> {
+    Ok(!db.query_row(
+        "SELECT EXISTS(SELECT 1 FROM plugin_package_mutation_intents WHERE plugin_id=?1 OR plugin_id IS NULL)",
+        [id], |row| row.get::<_, bool>(0),
+    )?)
+}
+
 impl DatabaseManager {
     /// Record the source state and its local Cloud candidate atomically.
     /// Passing no intent records a local-only edit while still advancing the
@@ -69,16 +79,12 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         db.execute_batch("PRAGMA synchronous=FULL;")?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let generation: i64 = tx
-            .query_row(
-                "INSERT INTO plugin_sync_source_versions(plugin_id,generation) VALUES (?1,1)
-             ON CONFLICT(plugin_id) DO UPDATE SET generation=generation+1
-             WHERE generation < 9223372036854775807 RETURNING generation",
-                [id],
-                |row| row.get(0),
-            )
-            .optional()?
-            .ok_or_else(|| DatabaseError::Invalid("plugin source generation exhausted".into()))?;
+        if !package_source_available(&tx, id)? {
+            return Err(DatabaseError::Invalid(
+                "plugin package operation needs review".into(),
+            ));
+        }
+        let generation = advance_plugin_source(&tx, id)?;
         tx.execute(
             "INSERT INTO behavior_plugins(id,installed,enabled,updated_at) VALUES (?1,?2,?3,?4)
              ON CONFLICT(id) DO UPDATE SET installed=excluded.installed,
@@ -149,7 +155,14 @@ impl DatabaseManager {
             {
                 Err(DatabaseError::Invalid("invalid plugin sync outbox".into()))
             }
-            Some((entry, _, _)) => Ok(Some(entry)),
+            Some((entry, _, _)) => {
+                if !package_source_available(&db, &entry.plugin_id)? {
+                    return Err(DatabaseError::Invalid(
+                        "plugin package operation needs review".into(),
+                    ));
+                }
+                Ok(Some(entry))
+            }
             None => Ok(None),
         }
     }
@@ -175,7 +188,8 @@ impl DatabaseManager {
              AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s WHERE s.plugin_id=?3 AND s.generation=?4)
              AND EXISTS(SELECT 1 FROM behavior_plugins b WHERE b.id=?3
                  AND b.installed=CASE WHEN ?7 IS NULL THEN 0 ELSE 1 END
-                 AND (?7 IS NULL OR b.enabled=?8))",
+                 AND (?7 IS NULL OR b.enabled=?8))
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=?3 OR p.plugin_id IS NULL)",
             params![entry.origin, entry.account_id, entry.plugin_id, entry.generation,
                 entry.config_generation.to_string(), runtime_epoch, entry.version,
                 entry.enabled.map(bool_int)],
@@ -201,7 +215,8 @@ impl DatabaseManager {
             "DELETE FROM plugin_sync_outbox WHERE origin=?1 AND account_id=?2 AND plugin_id=?3
              AND generation=?4 AND config_generation=?5 AND runtime_epoch=?6
              AND version IS ?7 AND enabled IS ?8 AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s
-                 WHERE s.plugin_id=?3 AND s.generation=?4)",
+                 WHERE s.plugin_id=?3 AND s.generation=?4)
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=?3 OR p.plugin_id IS NULL)",
             params![
                 entry.origin,
                 entry.account_id,
@@ -255,7 +270,8 @@ impl DatabaseManager {
             "SELECT EXISTS(SELECT 1 FROM plugin_sync_outbox o JOIN plugin_sync_source_versions s ON s.plugin_id=o.plugin_id
              WHERE o.origin=?1 AND o.account_id=?2 AND o.plugin_id=?3 AND o.generation=?4
              AND o.config_generation=?5 AND o.runtime_epoch=?6 AND o.version IS ?7 AND o.enabled IS ?8
-             AND s.generation=o.generation)",
+             AND s.generation=o.generation
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=o.plugin_id OR p.plugin_id IS NULL))",
             params![entry.origin, entry.account_id, entry.plugin_id, entry.generation,
                 entry.config_generation.to_string(), runtime_epoch, entry.version, entry.enabled.map(bool_int)],
             |row| row.get(0),
@@ -303,7 +319,8 @@ impl DatabaseManager {
         let stored: Option<String> = db.query_row(
             "SELECT r.pending_json FROM plugin_sync_receipts r JOIN plugin_sync_source_versions s ON s.plugin_id=r.plugin_id
              WHERE r.origin=?1 AND r.account_id=?2 AND r.plugin_id=?3 AND r.config_generation=?4
-             AND r.runtime_epoch=?5 AND r.generation=s.generation",
+             AND r.runtime_epoch=?5 AND r.generation=s.generation
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=r.plugin_id OR p.plugin_id IS NULL)",
             params![origin, account, plugin_id, config_generation.to_string(), runtime_epoch],
             |row| row.get(0),
         ).optional()?;
@@ -343,7 +360,8 @@ impl DatabaseManager {
              WHERE r.origin=?1 AND r.account_id=?2 AND r.plugin_id=?3 AND r.config_generation=?4
              AND r.runtime_epoch=?5 AND r.generation=s.generation
              AND b.installed=?6 AND (?7 IS NULL OR b.enabled=?7)
-             AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=r.plugin_id)",
+             AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=r.plugin_id)
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=r.plugin_id OR p.plugin_id IS NULL)",
             params![origin, account, plugin_id, config_generation.to_string(), runtime_epoch,
                 bool_int(installed), enabled.map(bool_int)],
             |row| Ok((row.get(0)?, row.get(1)?)),
@@ -388,7 +406,8 @@ impl DatabaseManager {
             "SELECT r.pending_json FROM plugin_sync_receipts r JOIN plugin_sync_source_versions s ON s.plugin_id=r.plugin_id
              JOIN behavior_plugins b ON b.id=r.plugin_id WHERE r.origin=?1 AND r.account_id=?2 AND r.plugin_id=?3
              AND r.config_generation=?4 AND r.generation=s.generation AND b.installed=?5
-             AND (?6 IS NULL OR b.enabled=?6)",
+             AND (?6 IS NULL OR b.enabled=?6)
+             AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=r.plugin_id OR p.plugin_id IS NULL)",
             params![origin, account, plugin_id, config_generation.to_string(), bool_int(installed), enabled.map(bool_int)],
             |row| row.get(0),
         ).optional()?;
@@ -918,5 +937,88 @@ mod tests {
                 .acknowledge_plugin_sync_intent(&entry, &"a".repeat(64))
                 .unwrap());
         }
+    }
+
+    #[test]
+    fn package_journal_blocks_candidate_and_receipt_until_reconciled() {
+        use tiktools_cloud_sync::{PluginSelection, V1Edit, V1Pending};
+        let f = Fixture::new();
+        let origin = "https://cloud.example";
+        let epoch = "a".repeat(64);
+        f.db.set_plugin_state_with_sync_intent("hotkeys", true, false, Some(f.intent("alice")))
+            .unwrap();
+        let entry =
+            f.db.next_plugin_sync_intent(origin, "alice")
+                .unwrap()
+                .unwrap();
+        assert!(f.db.confirm_plugin_sync_runtime(&entry, &epoch).unwrap());
+        let confirmed =
+            f.db.next_plugin_sync_intent(origin, "alice")
+                .unwrap()
+                .unwrap();
+        let pending = V1Pending {
+            base_revision: Some(1),
+            conflict: false,
+            edit: V1Edit::Put(PluginSelection {
+                schema_version: 1,
+                plugin_id: "hotkeys".into(),
+                version: "1.0.0".into(),
+                enabled: false,
+            }),
+        };
+        let insert_guard = || {
+            let db = f.db.open(&f.db.automation_path()).unwrap();
+            db.execute("INSERT INTO plugin_package_mutation_intents(plugin_id,intent_id,operation,operation_digest,phase,source_generation) VALUES ('hotkeys',?1,'update',?2,'mutating',1)",
+                params!["b".repeat(64), "c".repeat(64)]).unwrap();
+        };
+        let remove_guard = || {
+            let db = f.db.open(&f.db.automation_path()).unwrap();
+            db.execute(
+                "DELETE FROM plugin_package_mutation_intents WHERE plugin_id='hotkeys'",
+                [],
+            )
+            .unwrap();
+        };
+        insert_guard();
+        assert!(f.db.next_plugin_sync_intent(origin, "alice").is_err());
+        assert!(!f.db.confirm_plugin_sync_runtime(&entry, &epoch).unwrap());
+        assert!(!f
+            .db
+            .acknowledge_plugin_sync_intent(&confirmed, &epoch)
+            .unwrap());
+        assert!(!f
+            .db
+            .receipt_plugin_sync_intent(&confirmed, &epoch, &pending)
+            .unwrap());
+        assert!(f
+            .db
+            .set_plugin_state_with_sync_intent("hotkeys", true, true, Some(f.intent("alice")))
+            .is_err());
+        remove_guard();
+        assert!(f
+            .db
+            .receipt_plugin_sync_intent(&confirmed, &epoch, &pending)
+            .unwrap());
+        insert_guard();
+        assert!(!f
+            .db
+            .validate_plugin_sync_receipt(origin, "alice", "hotkeys", 7, &epoch, &pending)
+            .unwrap());
+        let mut conflict = pending.clone();
+        conflict.conflict = true;
+        assert!(f
+            .db
+            .plugin_sync_conflict_source(origin, "alice", "hotkeys", 7, &epoch, &conflict)
+            .unwrap()
+            .is_none());
+        assert!(!f
+            .db
+            .confirm_plugin_sync_receipt_runtime(origin, "alice", "hotkeys", 7, &epoch, &pending)
+            .unwrap());
+        remove_guard();
+        assert!(f
+            .db
+            .validate_plugin_sync_receipt(origin, "alice", "hotkeys", 7, &epoch, &pending)
+            .unwrap());
     }
 }
