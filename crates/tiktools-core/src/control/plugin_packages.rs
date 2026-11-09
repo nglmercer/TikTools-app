@@ -235,6 +235,8 @@ impl AppCore {
                 #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
                 let _source_lease = crate::plugin_packages::try_product_mutation_lease(&worker_core)?;
                 #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+                let package_sync = crate::plugin_packages::capture_package_sync_account(&worker_core);
+                #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
                 crate::plugin_packages::reserve_package_sync_source(&worker_core, &plugin_id)?;
                 #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
                 worker_core
@@ -249,15 +251,17 @@ impl AppCore {
                     worker_job.as_ref(),
                 );
                 #[cfg(feature = "persistence")]
-                if let Err(error) = worker_core.db.invalidate_plugin_package_source(&plugin_id) {
+                let _final_generation = worker_core.db.invalidate_plugin_package_source(&plugin_id).map_err(|error| {
                     worker_core.rebuild_processor_index();
                     worker_core.refresh_automation_snapshot();
-                    return Err(InstallError::io(format!(
+                    InstallError::io(format!(
                         "package rollback may have changed files but its final source fence failed: {error}"
-                    )));
-                }
+                    ))
+                })?;
                 let outcome = outcome?;
                 activation.finish()?;
+                #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+                crate::plugin_packages::confirm_package_sync_source(&worker_core, package_sync, &outcome.receipt.id, &outcome.receipt.version, _final_generation);
                 Ok(outcome)
             })
             .await
@@ -874,6 +878,8 @@ impl AppCore {
             #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
             let _source_lease = crate::plugin_packages::try_product_mutation_lease(&core)?;
             #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+            let package_sync = crate::plugin_packages::capture_package_sync_account(&core);
+            #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
             crate::plugin_packages::reserve_package_sync_source(&core, &prepared.manifest.id)?;
             #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
             core.db
@@ -890,15 +896,17 @@ impl AppCore {
                 worker_job.as_ref(),
             );
             #[cfg(feature = "persistence")]
-            if let Err(error) = core.db.invalidate_plugin_package_source(&prepared.manifest.id) {
+            let _final_generation = core.db.invalidate_plugin_package_source(&prepared.manifest.id).map_err(|error| {
                 core.rebuild_processor_index();
                 core.refresh_automation_snapshot();
-                return Err(InstallError::io(format!(
+                InstallError::io(format!(
                     "package operation may have changed files but its final source fence failed: {error}"
-                )));
-            }
+                ))
+            })?;
             let outcome = outcome?;
             activation.finish()?;
+            #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+            crate::plugin_packages::confirm_package_sync_source(&core, package_sync, &outcome.receipt.id, &outcome.receipt.version, _final_generation);
             Ok(outcome)
         })
         .await

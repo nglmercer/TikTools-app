@@ -453,6 +453,75 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     assert_eq!(result.pushed, 1);
     assert_eq!(result.workspace_pending, 0);
     assert!(!result.more_queued);
+    // A successful package operation under the same session can transfer its
+    // fresh marker into the ordinary v2 outbox without another approval.
+    {
+        let _invocation = core.plugin_state.invocation_gate.lock().unwrap();
+        let _lease = crate::plugin_packages::try_product_mutation_lease(&core).unwrap();
+        let account = crate::plugin_packages::capture_package_sync_account(&core);
+        assert!(account.is_some());
+        core.db
+            .invalidate_plugin_package_source_untracked("acme.hotkeys")
+            .unwrap();
+        let generation = core
+            .db
+            .invalidate_plugin_package_source("acme.hotkeys")
+            .unwrap();
+        crate::plugin_packages::confirm_package_sync_source(
+            &core,
+            account,
+            "acme.hotkeys",
+            "1.0.0",
+            generation,
+        );
+        assert!(!core.db.has_untracked_plugin_sync().unwrap());
+        let candidate = core
+            .db
+            .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
+            .unwrap()
+            .unwrap();
+        assert_eq!(candidate.version.as_deref(), Some("1.0.0"));
+        assert_eq!(
+            candidate.runtime_epoch.as_deref(),
+            Some(core.sync.runtime_epoch().unwrap())
+        );
+    }
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection
+        .execute(
+            "DELETE FROM plugin_sync_outbox WHERE plugin_id='acme.hotkeys'",
+            [],
+        )
+        .unwrap();
+    drop(connection);
+    let old_account = {
+        let _invocation = core.plugin_state.invocation_gate.lock().unwrap();
+        let _lease = crate::plugin_packages::try_product_mutation_lease(&core).unwrap();
+        crate::plugin_packages::capture_package_sync_account(&core)
+    };
+    assert!(old_account.is_some());
+    auth.logout().await.unwrap();
+    {
+        let _invocation = core.plugin_state.invocation_gate.lock().unwrap();
+        let _lease = crate::plugin_packages::try_product_mutation_lease(&core).unwrap();
+        let generation = core
+            .db
+            .invalidate_plugin_package_source_untracked("acme.hotkeys")
+            .unwrap();
+        crate::plugin_packages::confirm_package_sync_source(
+            &core,
+            old_account,
+            "acme.hotkeys",
+            "1.0.0",
+            generation,
+        );
+        assert!(core.db.has_untracked_plugin_sync().unwrap());
+        assert!(core
+            .db
+            .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
+            .unwrap()
+            .is_none());
+    }
     core.shutdown().await;
     server.abort();
     let _ = std::fs::remove_dir_all(root);

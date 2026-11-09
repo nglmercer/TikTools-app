@@ -646,6 +646,8 @@ impl AppCore {
         #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
         let _source_lease = plugin_packages::try_product_mutation_lease(self)?;
         #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        let package_sync = plugin_packages::capture_package_sync_account(self);
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
         plugin_packages::reserve_package_sync_source(self, &prepared.manifest.id)?;
         #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
         self.db
@@ -662,19 +664,21 @@ impl AppCore {
             &NoopReporter,
         );
         #[cfg(feature = "persistence")]
-        if let Err(error) = self
-            .db
-            .invalidate_plugin_package_source(&prepared.manifest.id)
-        {
-            self.rebuild_processor_index();
-            self.refresh_automation_snapshot();
-            return Err(tiktools_plugin_installer::InstallError::io(format!(
-                "package operation may have changed files but its final source fence failed: {error}"
-            )));
-        }
+        let _final_generation = self.db.invalidate_plugin_package_source(&prepared.manifest.id).map_err(|error| {
+            self.rebuild_processor_index(); self.refresh_automation_snapshot();
+            tiktools_plugin_installer::InstallError::io(format!("package operation may have changed files but its final source fence failed: {error}"))
+        })?;
         let outcome = outcome?;
         self.rebuild_processor_index();
         activation.finish()?;
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        plugin_packages::confirm_package_sync_source(
+            self,
+            package_sync,
+            &outcome.receipt.id,
+            &outcome.receipt.version,
+            _final_generation,
+        );
         Ok(outcome)
     }
 

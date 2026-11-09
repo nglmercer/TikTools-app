@@ -42,8 +42,12 @@ marker survives failures and follows the source generation; pending v2 uploads
 remain blocked until the package and runtime are reconciled. Normal legacy
 installs do not create this marker solely because sync was never enabled; if
 protocol admission is unavailable, the local operation conservatively marks
-the change. Package
-reconciliation and automatic delivery are still pending.
+the change. A successful install, update or rollback can transfer a fresh
+marker to the current account's v2 outbox without a separate approval when
+the same session and consent are still current and the installed version and
+runtime match. Existing untracked work and uncertain operations retain their
+markers. Uninstall reconciliation, crash recovery and automatic delivery are
+still pending.
 
 The reviewed sibling RemakeBackend commit is `cb37900`, including canonical
 registry shards and bounded v2 capability discovery in the SDK, following bounded

@@ -365,6 +365,104 @@ pub(crate) fn reserve_package_sync_source(
     }
 }
 
+/// A fresh package operation may be attributed only to the v2 account that
+/// was already selected before filesystem work began. Older untracked work
+/// is never absorbed into that decision.
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+pub(crate) struct PackageSyncAccount {
+    context: tiktools_cloud_sync::V2LocalEditContext,
+    session: Arc<cloud_client::Session>,
+}
+
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+pub(crate) fn capture_package_sync_account(core: &crate::AppCore) -> Option<PackageSyncAccount> {
+    if core.db.has_untracked_plugin_sync().ok()? {
+        return None;
+    }
+    let session = core.cloud.auth().try_session_snapshot().ok()??;
+    core.sync
+        .coordinator()
+        .ok()?
+        .with_product_local_edit(|selected| match selected {
+            tiktools_cloud_sync::ProductLocalEditContext::V2(Some(context))
+                if core.cloud.auth().is_current_session(&session)
+                    && context.origin == session.instance_origin()
+                    && context.account_id == session.account_id() =>
+            {
+                Some(PackageSyncAccount { context, session })
+            }
+            _ => None,
+        })
+        .ok()
+        .flatten()
+}
+
+/// The invocation and product emission leases remain held by the caller.
+/// An unavailable or changed source leaves its durable marker untouched.
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+pub(crate) fn confirm_package_sync_source(
+    core: &crate::AppCore,
+    capture: Option<PackageSyncAccount>,
+    id: &str,
+    expected_version: &str,
+    generation: i64,
+) {
+    let result = (|| -> Option<bool> {
+        let capture = capture?;
+        let context = capture.context;
+        let blocked = core.plugin_state.apply_quarantine.read().ok()?;
+        if blocked.as_ref()?.contains(id) {
+            return None;
+        }
+        drop(blocked);
+        let plugin = core.plugins.get_for_admission(id).ok()??;
+        if plugin.manifest.id != id || plugin.manifest.version != expected_version {
+            return None;
+        }
+        let activation = core.plugin_state.activation.read().ok()?.get(id).copied()?;
+        if !activation.installed || (activation.enabled && !plugin.available) {
+            return None;
+        }
+        let expected = if activation.enabled {
+            tiktools_plugin_loader::PluginWorkerObservation::WorkerPresent
+        } else {
+            tiktools_plugin_loader::PluginWorkerObservation::Stopped
+        };
+        if core.plugins.observe_worker(id).ok()? != expected {
+            return None;
+        }
+        let epoch = core.sync.runtime_epoch().ok()?;
+        let sync = core.sync.coordinator().ok()?;
+        sync.with_product_local_edit(|current| {
+            if !core.cloud.auth().is_current_session(&capture.session)
+                || current
+                    != tiktools_cloud_sync::ProductLocalEditContext::V2(Some(context.clone()))
+            {
+                return None;
+            }
+            core.db
+                .confirm_package_sync_candidate(
+                    id,
+                    generation,
+                    activation.enabled,
+                    &crate::db::LocalPluginSyncIntent {
+                        origin: &context.origin,
+                        account_id: &context.account_id,
+                        config_generation: context.config_generation,
+                        version: Some(expected_version),
+                    },
+                    epoch,
+                )
+                .ok()
+        })
+        .ok()
+        .flatten()
+    })();
+    if result != Some(true) {
+        tracing::debug!(plugin = %id, "package sync marker retained for reconciliation");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
