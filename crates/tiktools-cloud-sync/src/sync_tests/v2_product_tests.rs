@@ -72,6 +72,39 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
         .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
         .await
         .unwrap();
+    assert!(sync
+        .with_v2_reconciliation_preview(&proof, |record| record.is_none())
+        .unwrap());
+    mock.inner.lock().unwrap().v2_read_record = Some(serde_json::json!({
+        "collection": "plugin-selections", "key": "acme.plugin", "revision": 1,
+        "deleted": false, "value": {"schemaVersion": 1, "pluginId": "acme.plugin", "version": "1.0.0", "enabled": true}
+    }));
+    assert!(matches!(
+        sync.with_v2_reconciliation_barrier::<()>(&proof, |_| panic!("changed remote admitted"))
+            .await,
+        Err(crate::WorkspaceCoordError::State(
+            cloud_client::WorkspaceStateError::StaleReview
+        ))
+    ));
+    assert!(source_gate.try_emission().is_ok());
+    assert!(sync.with_v2_reconciliation_preview(&proof, |_| ()).is_err());
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
+        .await
+        .unwrap();
+    assert_eq!(
+        sync.with_v2_reconciliation_preview(&proof, |record| record.unwrap().revision)
+            .unwrap(),
+        1
+    );
+    sync.with_v2_reconciliation_barrier(&proof, |_| Ok(()))
+        .await
+        .unwrap();
+    mock.inner.lock().unwrap().v2_read_record = None;
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
+        .await
+        .unwrap();
     assert!(source_gate.try_emission().is_err());
     let context = sync
         .with_v2_reconciliation_barrier(&proof, |ctx| {
@@ -86,12 +119,14 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
                 ctx.config_generation,
             ))
         })
+        .await
         .unwrap();
     assert_eq!(context.0, mock.origin);
     assert_eq!(context.1, "reconcile-user");
     assert_eq!(context.2, sync.read_config().generation);
     assert!(sync
         .with_v2_reconciliation_barrier(&proof, |_| Ok(()))
+        .await
         .is_err());
     assert!(source_gate.try_emission().is_ok());
 
@@ -103,10 +138,12 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
         .with_v2_reconciliation_barrier::<()>(&proof, |_| Err(
             crate::WorkspaceCoordError::Ineligible
         ))
+        .await
         .is_err());
     assert!(source_gate.try_emission().is_ok());
     assert!(sync
         .with_v2_reconciliation_barrier(&proof, |_| Ok(()))
+        .await
         .is_err());
 
     let proof = sync
@@ -123,6 +160,7 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
         .unwrap();
     assert!(sync
         .with_v2_reconciliation_barrier::<()>(&proof, |_| panic!("changed workspace admitted"))
+        .await
         .is_err());
     drop(proof);
     assert!(sync
@@ -151,8 +189,14 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
     auth.logout().await.unwrap();
     login(&auth, "second-reconcile-login").await;
     assert!(sync
-        .with_v2_reconciliation_barrier::<()>(&proof, |_| panic!("replaced session admitted"))
+        .with_v2_reconciliation_preview(&proof, |_| panic!("replaced session previewed"))
         .is_err());
+    let reads = mock.inner.lock().unwrap().v2_record_get_requests;
+    assert!(sync
+        .with_v2_reconciliation_barrier::<()>(&proof, |_| panic!("replaced session admitted"))
+        .await
+        .is_err());
+    assert_eq!(mock.inner.lock().unwrap().v2_record_get_requests, reads);
     mock.stop();
 }
 use cloud_client::{SyncError, WorkspaceEdit, WorkspaceKey, WorkspacePendingStatus};

@@ -10,7 +10,10 @@ use std::{
 };
 
 use crate::{SyncConfigEpoch, SyncCoordinator, V2LocalEditContext, WorkspaceCoordError};
-use cloud_client::{Session, WorkspaceStateSnapshot, WorkspaceStore};
+use cloud_client::{
+    Session, WorkspaceRead, WorkspaceRecord, WorkspaceStateError, WorkspaceStateSnapshot,
+    WorkspaceStore,
+};
 
 const REVIEW_LIFETIME: Duration = Duration::from_secs(60);
 
@@ -27,6 +30,7 @@ pub struct V2ReconciliationBarrier {
     source_guard: Arc<Mutex<Option<crate::ProductEmissionLease>>>,
     source_dir: PathBuf,
     target: cloud_client::WorkspaceKey,
+    remote: WorkspaceRead,
 }
 
 /// Borrowed evidence that the reconciliation callback owns the source lease.
@@ -150,6 +154,20 @@ impl SyncCoordinator {
             if !eligible() || !barrier.is_after(&before)? || ready(store.load()?)? != generation {
                 return Err(WorkspaceCoordError::Ineligible);
             }
+            // The read follows the acknowledged barrier, not merely a prior
+            // cached observation that an older in-flight write could replace.
+            let session_guard = sync
+                .auth
+                .try_session_emission_permit(&session)
+                .map_err(|_| WorkspaceCoordError::Ineligible)?;
+            if !eligible() {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+            let remote = session.workspace_read_for_resolution(&target).await?;
+            drop(session_guard);
+            if !eligible() || ready(store.load()?)? != generation {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
             let expires = Instant::now() + REVIEW_LIFETIME;
             let source_guard = Arc::new(Mutex::new(Some(source_guard)));
             schedule_source_release(&source_guard, expires);
@@ -163,9 +181,64 @@ impl SyncCoordinator {
                 source_guard,
                 source_dir,
                 target,
+                remote,
             })
         })
         .await
+    }
+
+    /// Inspect the authenticated post-barrier Cloud value under the captured
+    /// identity and workspace fences. The callback must only build a preview;
+    /// exposing it asynchronously needs its own session invalidation fence.
+    #[doc(hidden)]
+    pub fn with_v2_reconciliation_preview<T>(
+        &self,
+        proof: &V2ReconciliationBarrier,
+        preview: impl FnOnce(Option<&WorkspaceRecord>) -> T,
+    ) -> Result<T, WorkspaceCoordError> {
+        if !Arc::ptr_eq(&proof.binding, &self.recovery_binding)
+            || Instant::now() >= proof.expires
+            || proof.consumed.load(Ordering::Acquire)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        let source = SourceUse {
+            lease: proof
+                .source_guard
+                .try_lock()
+                .map_err(|_| WorkspaceCoordError::Busy)?,
+            expires: proof.expires,
+            consumed: &proof.consumed,
+        };
+        if source.lease.is_none() {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        let session = &proof.session;
+        let origin = session.instance_origin();
+        let account = session.account_id();
+        let _protocol = self.protocol.try_v2(&origin, account)?;
+        let marker = self.protocol.try_v1()?;
+        marker.ensure_product_outbox(&origin, account)?;
+        let root = self
+            .config_path
+            .parent()
+            .ok_or(WorkspaceCoordError::Ineligible)?;
+        let store = WorkspaceStore::open(root, &origin, account)?;
+        let _workspace = store
+            .try_operation_lock()?
+            .ok_or(WorkspaceCoordError::Busy)?;
+        self.auth
+            .with_current_session_permit(session, || {
+                if Instant::now() >= proof.expires
+                    || proof.consumed.load(Ordering::Acquire)
+                    || !self.is_v2_config_epoch_current(&proof.config, session)
+                    || ready(store.load()?)? != proof.workspace_generation
+                {
+                    return Err(WorkspaceCoordError::Ineligible);
+                }
+                Ok(preview(proof.remote.record()))
+            })
+            .map_err(|_| WorkspaceCoordError::Ineligible)?
     }
 
     /// Invoke one short native commit under the captured session/consent and
@@ -178,7 +251,7 @@ impl SyncCoordinator {
     /// bounded blocking worker: native disk calls cannot be forcibly cancelled.
     /// A failed callback consumes the proof; retry requires a new barrier.
     #[doc(hidden)]
-    pub fn with_v2_reconciliation_barrier<T>(
+    pub async fn with_v2_reconciliation_barrier<T>(
         &self,
         proof: &V2ReconciliationBarrier,
         operation: impl FnOnce(&V2ReconciliationAdmission<'_>) -> Result<T, WorkspaceCoordError>,
@@ -214,6 +287,33 @@ impl SyncCoordinator {
         let _workspace = store
             .try_operation_lock()?
             .ok_or(WorkspaceCoordError::Busy)?;
+        if Instant::now() >= proof.expires
+            || !self.is_v2_config_epoch_current(&proof.config, session)
+            || !self.auth.is_current_session(session)
+            || ready(store.load()?)? != proof.workspace_generation
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        let session_guard = self
+            .auth
+            .try_session_emission_permit(session)
+            .map_err(|_| WorkspaceCoordError::Ineligible)?;
+        if Instant::now() >= proof.expires || !self.auth.is_current_session(session) {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        let fresh = session.workspace_read_for_resolution(&proof.target).await?;
+        drop(session_guard);
+        if Instant::now() >= proof.expires
+            || !self.is_v2_config_epoch_current(&proof.config, session)
+            || !self.auth.is_current_session(session)
+            || ready(store.load()?)? != proof.workspace_generation
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        if fresh.record() != proof.remote.record() {
+            proof.consumed.store(true, Ordering::Release);
+            return Err(WorkspaceStateError::StaleReview.into());
+        }
         let result = self
             .auth
             .with_current_session_permit(session, || {

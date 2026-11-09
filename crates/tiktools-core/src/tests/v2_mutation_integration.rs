@@ -158,6 +158,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     assert!(sync
         .with_v2_reconciliation_barrier(&proof, |admission| source
             .reconcile_reviewed_under_barrier(&stale, admission))
+        .await
         .is_err());
     assert!(core.db.has_untracked_plugin_sync().unwrap());
     assert!(core
@@ -176,6 +177,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     assert!(sync
         .with_v2_reconciliation_barrier(&proof, |admission| source
             .reconcile_reviewed_under_barrier(&reviewed, admission))
+        .await
         .is_err());
     assert!(core.db.has_untracked_plugin_sync().unwrap());
     let wrong_account =
@@ -187,6 +189,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     assert!(sync
         .with_v2_reconciliation_barrier(&proof, |admission| wrong_account
             .reconcile_reviewed_under_barrier(&reviewed, admission))
+        .await
         .is_err());
     assert!(core.db.has_untracked_plugin_sync().unwrap());
 
@@ -206,6 +209,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     assert!(sync
         .with_v2_reconciliation_barrier(&proof, |admission| other_source
             .reconcile_reviewed_under_barrier(&other_review, admission))
+        .await
         .is_err());
     assert!(other.db.has_untracked_plugin_sync().unwrap());
     assert!(core.db.has_untracked_plugin_sync().unwrap());
@@ -220,6 +224,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     sync.with_v2_reconciliation_barrier(&proof, |admission| {
         source.reconcile_reviewed_under_barrier(&reviewed, admission)
     })
+    .await
     .unwrap();
     assert!(!core.db.has_untracked_plugin_sync().unwrap());
     let pending = core
@@ -232,6 +237,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     assert_eq!(pending.runtime_epoch, None);
     assert!(sync
         .with_v2_reconciliation_barrier(&proof, |_| Ok(()))
+        .await
         .is_err());
     // The old local review may be discarded: confirmation reconstructs the
     // candidate from SQLite for this host lifetime.

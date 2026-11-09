@@ -2923,6 +2923,7 @@ struct MockInner {
     v2_epoch_status: Option<u16>,
     v2_received_epochs: Vec<Option<String>>,
     v2_record_get_requests: usize,
+    v2_read_record: Option<serde_json::Value>,
 }
 
 struct MockSync {
@@ -2985,6 +2986,7 @@ impl MockSync {
             v2_epoch_status: None,
             v2_received_epochs: Vec::new(),
             v2_record_get_requests: 0,
+            v2_read_record: None,
         }));
         let held_write = Arc::new(HeldWrite::default());
         let held_v2_write = Arc::new(HeldWrite::default());
@@ -3269,7 +3271,10 @@ fn route(
         }
         ("GET", path) if path.starts_with("/api/v2/sync/collections/") => {
             state.v2_record_get_requests += 1;
-            json(404, serde_json::json!({}))
+            match &state.v2_read_record {
+                Some(record) => json(200, record.clone()),
+                None => json(404, serde_json::json!({})),
+            }
         }
         ("PUT", path) if path.starts_with("/api/v2/sync/collections/") => {
             state.v2_put_requests += 1;

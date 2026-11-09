@@ -148,9 +148,23 @@ the source/runtime under this already-held lease, require an explicit user
 choice and handle failed or uncertain native commits. Legacy emitters, mixed
 backend versions, noncooperating processes and full UI integration remain
 outside this experimental guarantee.
-The barrier does not itself read the remote record or provide a current
-Cloud/local comparison. Product review must obtain and revalidate that
-comparison before a user decision can be applied.
+After the acknowledged barrier, the experimental coordinator now performs an
+authenticated read of the exact plugin record. A preview callback exposes that
+observation only while the session, consent, workspace and source fences still
+match. Confirmation reads the same record again before invoking the local
+commit callback; a changed record consumes the proof and releases its source
+lease. The asynchronous confirmation holds advisory leases over the HTTP read
+and must run on a bounded worker with cancellation and deadline handling; its
+future is not `Send` while the native source mutex is held. A UI must fence
+publication of any preview against later session changes.
+
+This comparison is not an atomic transaction with the remote server: another
+device can change Cloud after the final read. The resulting SQLite candidate
+does not yet durably pin the reviewed Cloud revision, so later staging must not
+silently adopt a newer base. Persisting and enforcing that reviewed base across
+restarts and upload remains required before product activation. The primitive
+also does not itself collect an explicit user choice or show a complete local
+and remote comparison.
 The native local-review adapter can consume the callback's non-serializable
 admission without reacquiring the exclusive lease. It checks the canonical
 source directory, origin and account, then revalidates the exact source,
