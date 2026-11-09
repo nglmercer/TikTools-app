@@ -105,6 +105,12 @@ requests without an epoch remain pending; no epoch is assigned retroactively.
 This relies on every backend instance enforcing the epoch policy and does not
 cover legacy or noncooperating servers. It does not yet enable product review,
 clear the local marker, or provide durable local application recovery.
+An isolated coordinator HTTP test pauses a fenced request before the server
+processes it, cancels the client, stages a newer local decision, and performs
+the barrier-backed review. The simulated server rejects the delayed request
+with 412 after the barrier; the newer decision remains available for explicit
+keep-local rebase. This fixture models the epoch policy and is not a substitute
+for a coordinator-to-PostgreSQL race test or a physical two-device test.
 The prepared request is persisted as unconfirmed before the emission lease and
 marker check. Therefore a busy lease or an existing marker can require review
 even when no request was sent. This is conservative and may reduce availability.

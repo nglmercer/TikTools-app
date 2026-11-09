@@ -44,6 +44,9 @@ struct Remote {
     barrier_failure: bool,
     barrier_no_advance: bool,
     pause_next_write: Option<Pause>,
+    pause_before_write: Option<Pause>,
+    enforce_epoch: bool,
+    rejected_stale: usize,
     proofs: Vec<DurableProof>,
 }
 impl Remote {
@@ -155,6 +158,15 @@ async fn start_server() -> Server {
             let origin = server_origin.clone();
             tokio::spawn(async move {
                 let request = read_request(&mut socket).await;
+                let before_write = if matches!(request.method.as_str(), "PUT" | "DELETE") {
+                    state.lock().unwrap().pause_before_write.take()
+                } else {
+                    None
+                };
+                if let Some(pause) = before_write {
+                    let _ = pause.entered.send(());
+                    let _ = pause.release.await;
+                }
                 let (status, value, lose, pause) = {
                     let mut remote = state.lock().unwrap();
                     remote.requests.push(request.clone());
@@ -251,6 +263,12 @@ async fn start_server() -> Server {
                                 Some(record) => (200, json!(record), false, None),
                                 None => (404, json!({}), false, None),
                             }
+                        } else if remote.enforce_epoch
+                            && request.headers.get("x-workspace-write-epoch")
+                                != Some(&(7 + remote.barrier_count).to_string())
+                        {
+                            remote.rejected_stale += 1;
+                            (412, json!({}), false, None)
                         } else {
                             assert!(matches!(request.method.as_str(), "PUT" | "DELETE"));
                             if let Some(index) = remote
@@ -616,6 +634,129 @@ struct ProductUploadFixture {
     generation: std::sync::atomic::AtomicU64,
     consent: u128,
     expire_eligibility: Option<Arc<std::sync::atomic::AtomicBool>>,
+}
+
+#[tokio::test]
+async fn product_review_barrier_rejects_a_cancelled_write_that_arrives_late() {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    let server = start_server().await;
+    let session = Arc::new(connect(&server, "device-a").await);
+    let temp = tempfile::tempdir().unwrap();
+    let coordinator = Arc::new(coordinator(
+        &temp.path().join("private"),
+        &server,
+        "account-a",
+    ));
+    coordinator.bootstrap(&[], None).unwrap();
+    guard_product_fixture(&coordinator);
+    let target = key("plugin-selections", "acme.plugin");
+    let decision = crate::V2ProductDecision {
+        origin: server.origin.clone(),
+        account_id: "account-a".into(),
+        config_generation: 42,
+        source_generation: 7,
+        plugin_id: "acme.plugin".into(),
+        selection: Some(selection()),
+    };
+    coordinator
+        .stage_product_decision(
+            target.clone(),
+            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
+            7,
+            &decision.digest().unwrap(),
+        )
+        .unwrap();
+    let source = Arc::new(ProductUploadFixture {
+        generation: AtomicU64::new(7),
+        consent: 42,
+        expire_eligibility: None,
+    });
+    let eligibility =
+        WorkspaceEligibility::new(session.clone(), || true).with_test_publication_guard();
+    let (entered_tx, entered_rx) = oneshot::channel();
+    let (release_tx, release_rx) = oneshot::channel();
+    {
+        let mut remote = server.remote.lock().unwrap();
+        remote.enforce_epoch = true;
+        remote.pause_before_write = Some(Pause {
+            entered: entered_tx,
+            release: release_rx,
+        });
+    }
+    let worker_coord = coordinator.clone();
+    let worker_session = session.clone();
+    let worker_source = source.clone();
+    let worker_eligibility = eligibility.clone();
+    let worker = tokio::spawn(async move {
+        let admission = ProductUploadAdmission {
+            source: worker_source.as_ref(),
+            config_generation: 42,
+        };
+        worker_coord
+            .sync_product_guarded(&worker_session, &worker_eligibility, &admission)
+            .await
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(3), entered_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    worker.abort();
+    assert!(worker.await.err().unwrap().is_cancelled());
+    assert_eq!(
+        pending(&coordinator, &target).pending.unwrap().status,
+        WorkspacePendingStatus::Unconfirmed
+    );
+    let newer = crate::V2ProductDecision {
+        source_generation: 8,
+        ..decision.clone()
+    };
+    coordinator
+        .stage_product_decision(
+            target.clone(),
+            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
+            8,
+            &newer.digest().unwrap(),
+        )
+        .unwrap();
+    source.generation.store(8, Ordering::SeqCst);
+    assert!(pending(&coordinator, &target).next.is_some());
+    let review = coordinator
+        .review_product_guarded(&session, &target, &eligibility)
+        .await
+        .unwrap();
+    assert!(review.remote().is_none());
+    release_tx.send(()).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        loop {
+            if server.remote.lock().unwrap().rejected_stale == 1 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the delayed request must be rejected after the barrier");
+    assert!(server.remote.lock().unwrap().records.is_empty());
+    let admission = ProductUploadAdmission {
+        source: source.as_ref(),
+        config_generation: 42,
+    };
+    coordinator
+        .resolve_product_keep_local_guarded(&session, &review, &eligibility, &admission)
+        .await
+        .unwrap();
+    assert_eq!(
+        pending(&coordinator, &target).pending.unwrap().status,
+        WorkspacePendingStatus::Queued
+    );
+    assert_eq!(
+        pending(&coordinator, &target)
+            .pending
+            .unwrap()
+            .local_generation,
+        2
+    );
 }
 
 #[tokio::test]
