@@ -234,20 +234,7 @@ fn fresh_login_id(inner: &Inner) -> Result<String, AuthError> {
     ))
 }
 
-fn normalized_origin(raw: &str) -> Option<String> {
-    let url = url::Url::parse(raw).ok()?;
-    let loopback = matches!(url.host_str(), Some("127.0.0.1" | "[::1]"));
-    if !(url.scheme() == "https" || url.scheme() == "http" && loopback)
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || url.path() != "/"
-        || url.query().is_some()
-        || url.fragment().is_some()
-    {
-        return None;
-    }
-    Some(url.origin().ascii_serialization())
-}
+use crate::origin::normalize_cloud_origin as normalized_origin;
 
 /// Cloud account manager. Cheap to clone; state lives behind one async lock.
 #[derive(Clone)]

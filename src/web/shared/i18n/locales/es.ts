@@ -1133,7 +1133,7 @@ export default {
       updates: 'Actualizaciones de plugins',
       interval: 'Comprobar cada',
       hours: 'h',
-      allowSideload: 'Permitir instalar plugins desde archivos y direcciones web',
+      allowSideload: 'Permitir instalar paquetes locales',
       registries: 'Registros de plugins',
       officialUnavailable: 'El marketplace oficial todavía no está disponible en esta versión.',
       none: 'Todavía no hay registros configurados.',

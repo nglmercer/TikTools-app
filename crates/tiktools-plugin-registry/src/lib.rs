@@ -13,7 +13,9 @@ mod cloud_tests;
 #[cfg(test)]
 mod tests;
 
-pub use client::{RegistryClient, RegistryStatus, SearchEntry, SearchQuery, SearchResults};
+pub use client::{
+    RegistryClient, RegistryStatus, RegistryTrustGuard, SearchEntry, SearchQuery, SearchResults,
+};
 pub use cloud::{
     cloud_source, generation_files_url, CloudGeneration, OFFICIAL_REGISTRY_NAME,
     STAGING_REGISTRY_NAME,

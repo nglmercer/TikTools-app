@@ -29,41 +29,80 @@ generation automatically.
 Trust never comes from the server. The root keys pinned on the source are
 provisioned independently (compile-time pins in Desktop releases); the served
 `root.json` is verified like any other document and cannot introduce trust.
-Without pinned roots the source stays unverified and installs require
-explicit consent.
+Without pinned roots the product does not register the source or permit a
+Cloud installation. The explicit local-package sideload policy remains
+separate and still requires its normal review.
 
-When the origin is unreachable but a generation was resolved before, the
-client keeps that generation URL so cached signed metadata and installed
-plugins keep working offline. An authoritative "no published generation"
-(404 on `/current`) fails closed instead and is recorded on the registry
-status, which the plugin sources UI already renders per registry along with
-the verified badge, last refresh time, advisories, and revocations.
+The product fails closed if it cannot recheck the current generation: it does
+not use a cached generation as authority for another network installation or
+update. Installed plugins remain available locally. The standalone generic
+registry library retains its separate offline-cache behavior.
 
 ## Configuration
 
-The official source is a builtin and cannot be removed, only disabled:
+The product uses one fixed Cloud instance for account, catalog and signed
+registry discovery. Root pins are provisioned independently at build time.
 
 | Variable | Meaning |
 | --- | --- |
-| `TIKTOOLS_OFFICIAL_REGISTRY_URL` + `TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS` | Static v1 tree (previous behavior, kept for backwards compatibility). |
 | `TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS` (origin from the account resolver: `TIKTOOLS_CLOUD_ORIGIN` or the built-in default) | Cloud origin with per-refresh generation discovery. |
-| `TIKTOOLS_STAGING_CLOUD_ORIGIN` + `TIKTOOLS_STAGING_REGISTRY_ROOT_KEYS` | Disposable staging registry under the separate `staging` source. |
 
 Root keys are JSON arrays of public keys, baked in at compile time. Without
 pinned official root keys the official source is not registered at all (it is
 never trusted from keys served by the origin itself), and the Plugins page
-reports the marketplace as not yet published. The live backend currently
-answers `GET /api/v1/registry/current` with `404` (no active generation),
-which the client also reports as unpublished. Staging
-uses its own source name and keys so a disposable staging anchor can never be
-mistaken for the official one; configuring only half of a staging pair leaves
-staging disabled rather than running unverified.
+reports the marketplace as unavailable. Legacy static-tree and staging
+environment variables no longer configure product sources; build the product
+for the intended Cloud origin and provision its independent pins instead.
+Previously configured extra sources remain in the local configuration file but
+are neither trusted nor queried by the product. The product rejects source
+changes and arbitrary remote package URLs; explicit local package import
+continues to follow the sideload and consent policy.
+The sideload settings admission fence is process-local to one AppCore;
+separate processes or direct configuration edits are not synchronized and
+must not be treated as cross-process enforcement.
+
+For Cloud installation the product binds metadata, the archive and trust to
+one immutable registry generation. It resolves the active generation again
+after downloading and preparing the package, checks the exact version,
+target, digest and size against the live v2 catalog, then rechecks the active
+generation before the local commit. Yanked releases, revoked keys, disallowed
+publishers, missing status and active advisories fail closed. Advisory-aware
+approval and presentation remain pending, so a release with an active
+advisory cannot currently be installed through this path. A server-side
+change after the final check can still race the local commit; eliminating
+that distributed window requires backend coordination.
+
+The signed registry version list, release details and update summaries can
+still show an older yank or advisory status when the live catalog changes
+without a new generation. Their absence is not evidence of current approval;
+the current status check above is repeated during installation. Presenting
+the live status consistently across these views remains pending.
+
+The product rollback action currently restores only local-file packages with
+local installation enabled. The exact retained tree must match an integrity
+proof recorded from the reviewed archive before activation. This proof is
+checked under the same cooperative package-store lease as the swap. Packages
+without that proof, including older retained versions and Cloud releases,
+must instead be installed again through the normal review and Cloud status
+checks. The proof is not authenticated against an independent process that
+can rewrite the package store and its proof files, and an interrupted write
+or loss of the proof can make a local rollback unavailable.
+Store directories and metadata are checked against symbolic links, and
+metadata is published through exclusive temporary files. These checks share
+the cooperative store lease; a separate process racing to replace path
+components is outside that lease's guarantees.
+Migration recovery is tested for process interruption after visible writes;
+the marker and directory are not fsynced, so power loss can leave metadata
+missing and require manual review.
 
 Production trust pins must be distributed through an independent channel
 (offline root ceremony); see the Cloud `REGISTRY-OPERATIONS.md` runbook. No
 staging key may ever be presented as an official release.
 
-## Verification performed
+## Earlier verification
+
+The checks below describe the earlier generic multi-registry implementation;
+they are not evidence of acceptance for the fixed-instance product policy.
 
 - `cargo test -p tiktools-plugin-registry` — 17 tests, including Cloud
   discovery/refresh/search, install-download verification, update across
@@ -77,6 +116,9 @@ staging key may ever be presented as an official release.
   are clean.
 
 ## Real-binary end-to-end validation
+
+This is historical validation of the earlier generic registry policy, not a
+current fixed-instance product acceptance test.
 
 With disposable keys from `tiktools-plugin keygen`, a declarative demo
 plugin, and a static file server speaking the exact backend endpoint shape

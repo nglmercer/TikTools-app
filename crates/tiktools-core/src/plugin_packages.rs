@@ -1,19 +1,18 @@
 use std::{
     collections::BTreeMap,
     path::Path,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
     time::{Duration, Instant},
 };
 
 use tiktools_plugin_api::HostCompat;
 use tiktools_plugin_installer::{
-    ActivationHooks, InstallError, Installer, InstallerConfig, JobRegistry, PackageSources,
-    PreparedPackage, UpdateReport, DEFAULT_RETAINED_VERSIONS,
+    ActivationHooks, InstallError, InstallErrorCode, Installer, InstallerConfig, JobRegistry,
+    PackageSources, PreparedPackage, UpdateReport, DEFAULT_RETAINED_VERSIONS,
 };
 use tiktools_plugin_package::{PublicKey, TrustStore};
 use tiktools_plugin_registry::{
     cloud_source, Downloader, RegistryClient, RegistrySource, OFFICIAL_REGISTRY_NAME,
-    STAGING_REGISTRY_NAME,
 };
 
 #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
@@ -25,12 +24,12 @@ use crate::{events::DomainEvent, paths::AppPaths, EventBus};
 const REVIEW_TTL: Duration = Duration::from_secs(30 * 60);
 const MAX_REVIEWS: usize = 16;
 const CACHE_LIMIT_BYTES: u64 = 1024 * 1024 * 1024;
-const OFFICIAL_REGISTRY: &str = "official";
 
 pub(crate) struct PluginPackages {
     pub(crate) installer: Arc<Installer>,
     pub(crate) sources: Arc<PackageSources>,
     pub(crate) jobs: JobRegistry,
+    sideload_gate: RwLock<()>,
     reviews: Mutex<BTreeMap<String, Review>>,
     updates: Mutex<UpdateReport>,
 }
@@ -57,14 +56,15 @@ impl PluginPackages {
         );
         let layout = installer.layout().clone();
         installer.cleanup_staging();
-        let registry = RegistryClient::new(
+        let registry = RegistryClient::new_fixed(
             layout.registries(),
             layout.registries_config(),
             builtin_registries(),
             trust,
         )
         .map_err(|error| error.to_string())?;
-        let downloader = Downloader::new(layout.cache()).map_err(|error| error.to_string())?;
+        let downloader =
+            Downloader::new_fixed(layout.cache()).map_err(|error| error.to_string())?;
         if let Err(error) = downloader.prune(CACHE_LIMIT_BYTES) {
             tracing::warn!(%error, "plugin download cache could not be pruned");
         }
@@ -75,8 +75,9 @@ impl PluginPackages {
         })));
         Ok(Self {
             installer: Arc::new(installer),
-            sources: Arc::new(PackageSources::new(Arc::new(registry), downloader)),
+            sources: Arc::new(PackageSources::new_fixed(Arc::new(registry), downloader)),
             jobs,
+            sideload_gate: RwLock::new(()),
             reviews: Mutex::new(BTreeMap::new()),
             updates: Mutex::new(UpdateReport::default()),
         })
@@ -84,6 +85,34 @@ impl PluginPackages {
 
     pub(crate) fn registry(&self) -> &Arc<RegistryClient> {
         self.sources.registry()
+    }
+
+    /// Serializes local package activation against product settings changes.
+    /// The lease is process-local; independent AppCore instances do not share it.
+    pub(crate) fn try_sideload_permit(&self) -> Result<RwLockReadGuard<'_, ()>, InstallError> {
+        let guard = self.sideload_gate.try_read().map_err(|_| {
+            InstallError::new(
+                InstallErrorCode::Busy,
+                "plugin installation settings are changing",
+            )
+        })?;
+        let defaults = self.registry().try_defaults().map_err(InstallError::io)?;
+        if !defaults.allow_sideload {
+            return Err(InstallError::new(
+                InstallErrorCode::Unsupported,
+                "installing plugins from local files is disabled in the plugin settings",
+            ));
+        }
+        Ok(guard)
+    }
+
+    pub(crate) fn try_sideload_settings(&self) -> Result<RwLockWriteGuard<'_, ()>, InstallError> {
+        self.sideload_gate.try_write().map_err(|_| {
+            InstallError::new(
+                InstallErrorCode::Busy,
+                "a local plugin installation or rollback is in progress",
+            )
+        })
     }
 
     pub(crate) fn remember_review(&self, token: &str, spec: &str, prepared: PreparedPackage) {
@@ -142,51 +171,19 @@ pub(crate) fn host_compat() -> HostCompat {
 }
 
 fn builtin_registries() -> Vec<RegistrySource> {
-    let mut sources = Vec::new();
-    // A static registry tree keeps working exactly as before when an explicit
-    // URL is pinned; otherwise the official source discovers the active
-    // snapshot generation from the Cloud origin on every refresh.
-    if let Some(url) = option_env!("TIKTOOLS_OFFICIAL_REGISTRY_URL") {
-        match static_source(
-            OFFICIAL_REGISTRY,
-            url,
-            option_env!("TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS"),
-            100,
-        ) {
-            Some(source) => sources.push(source),
-            None => return sources,
-        }
-    } else if let Some(origin) = tiktools_cloud_auth::resolve_cloud_origin() {
-        // Same origin the account uses (debug override, build config, or the
-        // built-in default). Trust still comes only from the independently
-        // pinned root keys: without them the official source stays disabled
-        // and the catalog reports it as unavailable instead of trusting keys
-        // served by the origin itself.
-        match cloud_builtin(
-            OFFICIAL_REGISTRY_NAME,
-            &origin,
-            option_env!("TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS"),
-            100,
-        ) {
-            Some(source) => sources.push(source),
-            None => return sources,
-        }
-    }
-    if let Some(origin) = option_env!("TIKTOOLS_STAGING_CLOUD_ORIGIN") {
-        // Staging uses its own source name and independently pinned keys so a
-        // disposable staging trust anchor can never be mistaken for the
-        // official one. Both must be configured; half a staging pair stays
-        // disabled instead of running unverified.
-        if let Some(source) = cloud_builtin(
-            STAGING_REGISTRY_NAME,
-            origin,
-            option_env!("TIKTOOLS_STAGING_REGISTRY_ROOT_KEYS"),
-            50,
-        ) {
-            sources.push(source);
-        }
-    }
-    sources
+    // The account, catalog, and signed registry use the same provisioned
+    // origin. Trust anchors remain independently provisioned at build time.
+    tiktools_cloud_auth::resolve_cloud_origin()
+        .and_then(|origin| {
+            cloud_builtin(
+                OFFICIAL_REGISTRY_NAME,
+                &origin,
+                option_env!("TIKTOOLS_OFFICIAL_REGISTRY_ROOT_KEYS"),
+                100,
+            )
+        })
+        .into_iter()
+        .collect()
 }
 
 fn parse_root_keys(keys: Option<&str>, what: &str) -> Option<Vec<PublicKey>> {
@@ -195,27 +192,6 @@ fn parse_root_keys(keys: Option<&str>, what: &str) -> Option<Vec<PublicKey>> {
         Ok(keys) => Some(keys),
         Err(error) => {
             tracing::warn!(%error, "{what} root keys are invalid; registry disabled");
-            None
-        }
-    }
-}
-
-fn static_source(
-    name: &str,
-    url: &str,
-    keys: Option<&str>,
-    priority: i32,
-) -> Option<RegistrySource> {
-    let root_keys = parse_root_keys(keys, name)?;
-    match RegistrySource::new(name, url) {
-        Ok(mut source) => {
-            source.root_keys = root_keys;
-            source.builtin = true;
-            source.priority = priority;
-            Some(source)
-        }
-        Err(error) => {
-            tracing::warn!(%error, "{name} registry URL is invalid; registry disabled");
             None
         }
     }

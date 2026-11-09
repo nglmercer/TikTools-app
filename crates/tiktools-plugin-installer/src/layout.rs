@@ -41,12 +41,28 @@ impl StoreLayout {
     }
 
     pub fn retained(&self, plugin_id: &str, version: &str) -> PathBuf {
-        self.versions(plugin_id).join(sanitize_version(version))
+        self.versions(plugin_id).join(version_key(version))
     }
 
     pub fn retained_receipt(&self, plugin_id: &str, version: &str) -> PathBuf {
         self.versions(plugin_id)
-            .join(format!("{}.json", sanitize_version(version)))
+            .join(format!("{}.json", version_key(version)))
+    }
+
+    pub(crate) fn retained_local_proof(&self, plugin_id: &str, version: &str) -> PathBuf {
+        self.versions(plugin_id)
+            .join(format!("{}.local-proof", version_key(version)))
+    }
+
+    pub(crate) fn retained_migration_proof(&self, plugin_id: &str, version: &str) -> PathBuf {
+        self.versions(plugin_id)
+            .join(format!("{}.migrating", version_key(version)))
+    }
+
+    pub(crate) fn installed_local_proof(&self, plugin_id: &str) -> PathBuf {
+        self.store
+            .join("local-proofs")
+            .join(format!("{plugin_id}.proof"))
     }
 
     pub fn cache(&self) -> PathBuf {
@@ -84,6 +100,16 @@ impl StoreLayout {
         fs::create_dir(&directory)?;
         Ok(directory)
     }
+}
+
+// `%` was never emitted by the legacy sanitizer. Hex contains no dots, so a
+// directory name cannot collide with either of its metadata file namespaces.
+// Callers must still compare the exact version in the manifest and receipt.
+fn version_key(version: &str) -> String {
+    format!(
+        "%{}",
+        tiktools_plugin_package::Sha256Digest::of_bytes(version.as_bytes())
+    )
 }
 
 pub(crate) fn sanitize_version(version: &str) -> String {

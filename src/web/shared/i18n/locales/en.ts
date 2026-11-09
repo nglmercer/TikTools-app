@@ -1131,7 +1131,7 @@ export default {
       updates: 'Plugin updates',
       interval: 'Check every',
       hours: 'h',
-      allowSideload: 'Allow installing plugins from files and web addresses',
+      allowSideload: 'Allow local package installation',
       registries: 'Plugin registries',
       officialUnavailable: "The official marketplace isn't available in this build yet.",
       none: 'No registries are configured yet.',

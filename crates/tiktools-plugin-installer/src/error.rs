@@ -125,7 +125,8 @@ impl From<RegistryError> for InstallError {
             }
             RegistryError::Package(error) => error.into(),
             RegistryError::Io(_) => Self::new(InstallErrorCode::IoError, message),
-            RegistryError::InsecureUrl(_)
+            RegistryError::FixedSources
+            | RegistryError::InsecureUrl(_)
             | RegistryError::InvalidName(_)
             | RegistryError::DuplicateRegistry(_) => {
                 Self::new(InstallErrorCode::Unsupported, message)

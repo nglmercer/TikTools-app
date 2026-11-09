@@ -35,22 +35,55 @@ pub struct Downloader {
     client: Client,
     cache_dir: PathBuf,
     max_bytes: u64,
+    fixed_origin: bool,
 }
 
 impl Downloader {
     pub fn new(cache_dir: impl Into<PathBuf>) -> Result<Self, RegistryError> {
+        Self::new_with_policy(cache_dir, false)
+    }
+
+    /// Product downloader: redirects may not leave the initial Cloud origin.
+    /// The caller must also validate that the initial URL is the configured
+    /// Cloud instance; this restriction alone does not choose an origin.
+    pub fn new_fixed(cache_dir: impl Into<PathBuf>) -> Result<Self, RegistryError> {
+        Self::new_with_policy(cache_dir, true)
+    }
+
+    fn new_with_policy(
+        cache_dir: impl Into<PathBuf>,
+        fixed_origin: bool,
+    ) -> Result<Self, RegistryError> {
+        let redirects = if fixed_origin {
+            reqwest::redirect::Policy::custom(|attempt| {
+                let same_origin = attempt.previous().first().is_some_and(|first| {
+                    first.origin() == attempt.url().origin()
+                        && attempt.url().username().is_empty()
+                        && attempt.url().password().is_none()
+                });
+                if same_origin && attempt.previous().len() < 5 {
+                    attempt.follow()
+                } else {
+                    attempt.stop()
+                }
+            })
+        } else {
+            reqwest::redirect::Policy::limited(5)
+        };
         let client = tiktools_plugin_sdk::http::client_builder()
             .map_err(|message| RegistryError::http("", message))?
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(DOWNLOAD_TIMEOUT)
-            .redirect(reqwest::redirect::Policy::limited(5))
+            .redirect(redirects)
             .user_agent(format!(
                 "tiktools-plugin-registry/{}",
                 env!("CARGO_PKG_VERSION")
             ))
             .build()
             .map_err(|error| RegistryError::http("", error))?;
-        Ok(Self::with_client(client, cache_dir))
+        let mut downloader = Self::with_client(client, cache_dir);
+        downloader.fixed_origin = fixed_origin;
+        Ok(downloader)
     }
 
     pub fn with_client(client: Client, cache_dir: impl Into<PathBuf>) -> Self {
@@ -58,11 +91,17 @@ impl Downloader {
             client,
             cache_dir: cache_dir.into(),
             max_bytes: MAX_DOWNLOAD_BYTES,
+            fixed_origin: false,
         }
     }
 
     pub fn cache_dir(&self) -> &Path {
         &self.cache_dir
+    }
+
+    /// Whether this instance was built with the fixed-origin redirect policy.
+    pub fn enforces_fixed_origin(&self) -> bool {
+        self.fixed_origin
     }
 
     pub fn cached_path(&self, digest: &Sha256Digest) -> PathBuf {
@@ -79,7 +118,10 @@ impl Downloader {
         progress: &(dyn Fn(u64, Option<u64>) + Send + Sync),
         cancel: &AtomicBool,
     ) -> Result<Downloaded, RegistryError> {
-        checked_url(request.url)?;
+        let parsed = checked_url(request.url)?;
+        if self.fixed_origin && (!parsed.username().is_empty() || parsed.password().is_some()) {
+            return Err(RegistryError::FixedSources);
+        }
         if let Some(digest) = request.expected_digest {
             let cached = self.cached_path(digest);
             if let Some(hit) = self.cache_hit(&cached, digest, request.expected_size)? {
@@ -271,5 +313,105 @@ impl Downloader {
             _ => Err(error),
         })?;
         Ok(written)
+    }
+}
+
+#[cfg(test)]
+mod fixed_tests {
+    use super::*;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    fn temp_cache() -> PathBuf {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        std::env::temp_dir().join(format!(
+            "tiktools-fixed-download-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed),
+        ))
+    }
+
+    #[tokio::test]
+    async fn fixed_downloader_refuses_cross_origin_redirect_without_contacting_it() {
+        let foreign = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let foreign_addr = foreign.local_addr().unwrap();
+        let requests = Arc::new(AtomicUsize::new(0));
+        let counter = requests.clone();
+        let foreign_task = tokio::spawn(async move {
+            if let Ok((mut socket, _)) = foreign.accept().await {
+                counter.fetch_add(1, Ordering::AcqRel);
+                let _ = socket
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                    .await;
+            }
+        });
+        let origin = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin_addr = origin.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = origin.accept().await.unwrap();
+            let mut buffer = [0u8; 2048];
+            let _ = socket.read(&mut buffer).await;
+            let response = format!("HTTP/1.1 302 Found\r\nLocation: http://{foreign_addr}/archive.plugin\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            socket.write_all(response.as_bytes()).await.unwrap();
+        });
+        let cache = temp_cache();
+        let downloader = Downloader::new_fixed(&cache).unwrap();
+        let url = format!("http://{origin_addr}/packages/acme.plugin/a.plugin");
+        let result = downloader
+            .fetch(
+                DownloadRequest {
+                    url: &url,
+                    expected_digest: None,
+                    expected_size: None,
+                },
+                &|_, _| {},
+                &AtomicBool::new(false),
+            )
+            .await;
+        assert!(result.is_err());
+        server.await.unwrap();
+        assert_eq!(requests.load(Ordering::Acquire), 0);
+        foreign_task.abort();
+        let _ = fs::remove_dir_all(cache);
+    }
+
+    #[tokio::test]
+    async fn fixed_downloader_allows_same_origin_redirect() {
+        let origin = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = origin.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            for index in 0..2 {
+                let (mut socket, _) = origin.accept().await.unwrap();
+                let mut buffer = [0u8; 2048];
+                let _ = socket.read(&mut buffer).await;
+                let response: &[u8] = if index == 0 {
+                    b"HTTP/1.1 302 Found\r\nLocation: /package.plugin\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                } else {
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok"
+                };
+                socket.write_all(response).await.unwrap();
+            }
+        });
+        let cache = temp_cache();
+        let downloader = Downloader::new_fixed(&cache).unwrap();
+        let url = format!("http://{address}/archive.plugin");
+        let result = downloader
+            .fetch(
+                DownloadRequest {
+                    url: &url,
+                    expected_digest: None,
+                    expected_size: None,
+                },
+                &|_, _| {},
+                &AtomicBool::new(false),
+            )
+            .await
+            .unwrap();
+        assert_eq!(fs::read(result.path).unwrap(), b"ok");
+        server.await.unwrap();
+        let _ = fs::remove_dir_all(cache);
     }
 }

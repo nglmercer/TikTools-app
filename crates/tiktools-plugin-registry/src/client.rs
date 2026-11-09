@@ -78,6 +78,7 @@ pub struct RegistryStatus {
 #[derive(Debug, Clone, Default)]
 struct RegistryState {
     config: Option<RegistryConfigDocument>,
+    source_url: Option<String>,
     refreshed_at: Option<u64>,
     error: Option<String>,
 }
@@ -87,9 +88,19 @@ pub struct RegistryClient {
     cache_dir: PathBuf,
     config_path: PathBuf,
     builtin: Vec<RegistrySource>,
+    fixed_sources: bool,
+    operation: Arc<tokio::sync::Mutex<()>>,
+    operation_identity: Arc<()>,
     config: RwLock<RegistriesConfig>,
     trust: Arc<RwLock<TrustStore>>,
     state: Mutex<BTreeMap<String, RegistryState>>,
+}
+
+/// Non-forgeable fixed-client lease for one verified generation snapshot.
+#[derive(Debug)]
+pub struct RegistryTrustGuard {
+    owner: Arc<()>,
+    _guard: tokio::sync::OwnedMutexGuard<()>,
 }
 
 impl RegistryClient {
@@ -99,17 +110,54 @@ impl RegistryClient {
         builtin: Vec<RegistrySource>,
         trust: Arc<RwLock<TrustStore>>,
     ) -> Result<Self, RegistryError> {
+        Self::new_with_policy(cache_dir, config_path, builtin, trust, false)
+    }
+
+    /// Product-mode client: only independently provisioned builtins may
+    /// participate in trust or networking. Legacy sources stay on disk.
+    pub fn new_fixed(
+        cache_dir: impl Into<PathBuf>,
+        config_path: impl Into<PathBuf>,
+        builtin: Vec<RegistrySource>,
+        trust: Arc<RwLock<TrustStore>>,
+    ) -> Result<Self, RegistryError> {
+        Self::new_with_policy(cache_dir, config_path, builtin, trust, true)
+    }
+
+    fn new_with_policy(
+        cache_dir: impl Into<PathBuf>,
+        config_path: impl Into<PathBuf>,
+        builtin: Vec<RegistrySource>,
+        trust: Arc<RwLock<TrustStore>>,
+        fixed_sources: bool,
+    ) -> Result<Self, RegistryError> {
+        let redirects = if fixed_sources {
+            reqwest::redirect::Policy::custom(|attempt| {
+                let same_origin = attempt.previous().first().is_some_and(|first| {
+                    first.origin() == attempt.url().origin()
+                        && attempt.url().username().is_empty()
+                        && attempt.url().password().is_none()
+                });
+                if same_origin && attempt.previous().len() < 5 {
+                    attempt.follow()
+                } else {
+                    attempt.stop()
+                }
+            })
+        } else {
+            reqwest::redirect::Policy::limited(5)
+        };
         let http = tiktools_plugin_sdk::http::client_builder()
             .map_err(|message| RegistryError::http("", message))?
             .timeout(REQUEST_TIMEOUT)
-            .redirect(reqwest::redirect::Policy::limited(5))
+            .redirect(redirects)
             .user_agent(format!(
                 "tiktools-plugin-registry/{}",
                 env!("CARGO_PKG_VERSION")
             ))
             .build()
             .map_err(|error| RegistryError::http("", error))?;
-        Self::with_client(http, cache_dir, config_path, builtin, trust)
+        Self::with_client_policy(http, cache_dir, config_path, builtin, trust, fixed_sources)
     }
 
     pub fn with_client(
@@ -119,6 +167,17 @@ impl RegistryClient {
         builtin: Vec<RegistrySource>,
         trust: Arc<RwLock<TrustStore>>,
     ) -> Result<Self, RegistryError> {
+        Self::with_client_policy(http, cache_dir, config_path, builtin, trust, false)
+    }
+
+    fn with_client_policy(
+        http: Client,
+        cache_dir: impl Into<PathBuf>,
+        config_path: impl Into<PathBuf>,
+        builtin: Vec<RegistrySource>,
+        trust: Arc<RwLock<TrustStore>>,
+        fixed_sources: bool,
+    ) -> Result<Self, RegistryError> {
         let config_path = config_path.into();
         let mut config = RegistriesConfig::load(&config_path)?;
         config.merge_builtin(builtin.clone());
@@ -127,6 +186,9 @@ impl RegistryClient {
             cache_dir: cache_dir.into(),
             config_path,
             builtin,
+            fixed_sources,
+            operation: Arc::new(tokio::sync::Mutex::new(())),
+            operation_identity: Arc::new(()),
             config: RwLock::new(config),
             trust,
             state: Mutex::new(BTreeMap::new()),
@@ -141,15 +203,56 @@ impl RegistryClient {
         self.trust.clone()
     }
 
+    /// Whether this client restricts discovery and trust to provisioned sources.
+    pub fn enforces_fixed_sources(&self) -> bool {
+        self.fixed_sources
+    }
+
     pub fn config(&self) -> RegistriesConfig {
-        self.config
+        let mut config = self
+            .config
             .read()
             .map(|config| config.clone())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        if self.fixed_sources {
+            let persisted = config.registries;
+            config.registries = self
+                .builtin
+                .iter()
+                .map(|builtin| {
+                    let mut source = builtin.clone();
+                    // Retain only a previously resolved generation from this
+                    // exact configured origin. Never restore persisted trust,
+                    // source controls, or other origins.
+                    if let Some(origin) = source.cloud_origin.as_deref() {
+                        if let Some(saved) =
+                            persisted.iter().find(|entry| entry.name == source.name)
+                        {
+                            if saved.cloud_origin.as_deref() == Some(origin)
+                                && fixed_generation_url(&saved.url, origin)
+                            {
+                                source.url.clone_from(&saved.url);
+                            }
+                        }
+                    }
+                    source
+                })
+                .collect();
+        }
+        config
     }
 
     pub fn defaults(&self) -> RegistryDefaults {
         self.config().defaults
+    }
+
+    /// Read product security settings without silently enabling defaults if
+    /// the configuration lock was poisoned.
+    pub fn try_defaults(&self) -> Result<RegistryDefaults, RegistryError> {
+        self.config
+            .read()
+            .map(|config| config.defaults.clone())
+            .map_err(|_| RegistryError::document("registries.json", "configuration lock poisoned"))
     }
 
     pub fn set_defaults(&self, defaults: RegistryDefaults) -> Result<(), RegistryError> {
@@ -160,6 +263,9 @@ impl RegistryClient {
     }
 
     pub fn add(&self, source: RegistrySource) -> Result<RegistryStatus, RegistryError> {
+        if self.fixed_sources {
+            return Err(RegistryError::FixedSources);
+        }
         let name = source.name.clone();
         self.update_config(|config| {
             if config.get(&source.name).is_some() {
@@ -173,6 +279,9 @@ impl RegistryClient {
     }
 
     pub fn remove(&self, name: &str) -> Result<(), RegistryError> {
+        if self.fixed_sources {
+            return Err(RegistryError::FixedSources);
+        }
         if self.builtin.iter().any(|source| source.name == name) {
             return Err(RegistryError::InvalidName(name.to_owned()));
         }
@@ -195,6 +304,9 @@ impl RegistryClient {
     }
 
     pub fn set_enabled(&self, name: &str, enabled: bool) -> Result<RegistryStatus, RegistryError> {
+        if self.fixed_sources {
+            return Err(RegistryError::FixedSources);
+        }
         self.update_config(|config| {
             let source = config
                 .registries
@@ -208,6 +320,9 @@ impl RegistryClient {
     }
 
     pub async fn fetch_root(&self, url: &str) -> Result<RootDocument, RegistryError> {
+        if self.fixed_sources {
+            return Err(RegistryError::FixedSources);
+        }
         let target = join_url(url, "root.json")?;
         let bytes = self
             .get(&target, None)
@@ -247,6 +362,11 @@ impl RegistryClient {
     }
 
     pub async fn refresh(&self, name: &str) -> Result<RegistryStatus, RegistryError> {
+        let _operation = self.operation_guard().await;
+        self.refresh_unlocked(name).await
+    }
+
+    async fn refresh_unlocked(&self, name: &str) -> Result<RegistryStatus, RegistryError> {
         let source = match self.ensure_cloud_generation(name).await {
             Ok(source) => source,
             Err(error) => {
@@ -264,10 +384,15 @@ impl RegistryClient {
             match &result {
                 Ok(config) => {
                     entry.config = Some(config.clone());
+                    entry.source_url = Some(source.url.clone());
                     entry.refreshed_at = Some(now());
                     entry.error = None;
                 }
-                Err(error) => entry.error = Some(error.to_string()),
+                Err(error) => {
+                    entry.config = None;
+                    entry.source_url = None;
+                    entry.error = Some(error.to_string());
+                }
             }
         }
         result.map(|_| self.describe(&source))
@@ -303,6 +428,62 @@ impl RegistryClient {
         id: &str,
         registry: Option<&str>,
     ) -> Result<(RegistrySource, PackageDocument), RegistryError> {
+        let _operation = self.operation_guard().await;
+        self.package_unlocked(id, registry).await
+    }
+
+    /// Holds the fixed-source trust snapshot across download and archive
+    /// verification. Product callers retain the returned guard until prepare
+    /// finishes; generic clients receive no guard.
+    pub async fn package_guarded(
+        &self,
+        id: &str,
+        registry: Option<&str>,
+    ) -> Result<
+        (
+            RegistrySource,
+            PackageDocument,
+            Option<Arc<RegistryTrustGuard>>,
+        ),
+        RegistryError,
+    > {
+        let guard = self.operation_guard().await;
+        let (source, document) = self.package_unlocked(id, registry).await?;
+        Ok((source, document, guard))
+    }
+
+    /// Recheck the active Cloud generation under the same local trust lease,
+    /// after download/prepare and immediately before the product commits.
+    pub async fn check_fixed_generation(
+        &self,
+        guard: &RegistryTrustGuard,
+        registry: &str,
+        reviewed_url: &str,
+    ) -> Result<u64, RegistryError> {
+        if !self.fixed_sources || !Arc::ptr_eq(&self.operation_identity, &guard.owner) {
+            return Err(RegistryError::FixedSources);
+        }
+        let source = self.source(registry)?;
+        let origin = source
+            .cloud_origin
+            .as_deref()
+            .ok_or(RegistryError::FixedSources)?;
+        let generation = self.cloud_generation(origin).await?;
+        let current = crate::cloud::generation_files_url(origin, generation)?;
+        if current != reviewed_url {
+            return Err(RegistryError::document(
+                "registry/current",
+                "generation changed; review the package again",
+            ));
+        }
+        Ok(generation)
+    }
+
+    async fn package_unlocked(
+        &self,
+        id: &str,
+        registry: Option<&str>,
+    ) -> Result<(RegistrySource, PackageDocument), RegistryError> {
         if !tiktools_plugin_api::manifest::is_valid_plugin_id(id) {
             return Err(RegistryError::document(id, "invalid plugin ID"));
         }
@@ -318,7 +499,7 @@ impl RegistryClient {
         let mut last_error = None;
         for source in candidates {
             match self.package_from(&source, id).await {
-                Ok(document) => return Ok((source, document)),
+                Ok(result) => return Ok(result),
                 Err(RegistryError::Status { status: 404, .. }) => continue,
                 Err(error) => last_error = Some(error),
             }
@@ -331,6 +512,7 @@ impl RegistryClient {
         registry: &str,
         page: u32,
     ) -> Result<CatalogPage, RegistryError> {
+        let _operation = self.operation_guard().await;
         let source = self.source(registry)?;
         let (source, _) = self.ensure_loaded(&source).await?;
         let path = format!("catalog/page-{}.json", page.max(1));
@@ -339,6 +521,7 @@ impl RegistryClient {
     }
 
     pub async fn search(&self, query: &SearchQuery) -> SearchResults {
+        let _operation = self.operation_guard().await;
         let words: Vec<String> = query
             .query
             .split_whitespace()
@@ -389,8 +572,8 @@ impl RegistryClient {
         query: &SearchQuery,
         words: &[String],
     ) -> Result<Vec<CatalogEntry>, RegistryError> {
-        let (_, config) = self.ensure_loaded(source).await?;
-        if let Some(api) = config.api.as_deref() {
+        let (source, config) = self.ensure_loaded(source).await?;
+        if let Some(api) = config.api.as_deref().filter(|_| !self.fixed_sources) {
             let mut url = url::Url::parse(&join_url(api, "search")?)
                 .map_err(|_| RegistryError::InsecureUrl(api.to_owned()))?;
             url.query_pairs_mut()
@@ -405,7 +588,10 @@ impl RegistryClient {
         let mut entries = Vec::new();
         let pages = config.catalog_pages.clamp(1, MAX_CATALOG_PAGES);
         for page in 1..=pages {
-            let catalog = self.catalog_page(&source.name, page).await?;
+            let path = format!("catalog/page-{}.json", page.max(1));
+            let bytes = self.document(&source, &path, KeyRole::Index).await?;
+            let catalog: CatalogPage = serde_json::from_slice(&bytes)
+                .map_err(|error| RegistryError::document(&path, error))?;
             entries.extend(
                 catalog
                     .entries
@@ -423,7 +609,7 @@ impl RegistryClient {
         &self,
         source: &RegistrySource,
         id: &str,
-    ) -> Result<PackageDocument, RegistryError> {
+    ) -> Result<(RegistrySource, PackageDocument), RegistryError> {
         let (source, _) = self.ensure_loaded(source).await?;
         let path = shard_path(id);
         let bytes = self.document(&source, &path, KeyRole::Index).await?;
@@ -432,7 +618,7 @@ impl RegistryClient {
         document
             .validate(id)
             .map_err(|message| RegistryError::document(&path, message))?;
-        Ok(document)
+        Ok((source, document))
     }
 
     async fn ensure_loaded(
@@ -453,6 +639,9 @@ impl RegistryClient {
         let cached = self.state.lock().ok().and_then(|state| {
             state
                 .get(&source.name)
+                .filter(|entry| {
+                    !self.fixed_sources || entry.source_url.as_deref() == Some(&source.url)
+                })
                 .and_then(|entry| entry.config.clone())
         });
         if let Some(config) =
@@ -460,17 +649,16 @@ impl RegistryClient {
         {
             return Ok((source, config));
         }
-        self.refresh(&source.name).await?;
-        let config = self
-            .state
-            .lock()
-            .ok()
-            .and_then(|state| {
-                state
-                    .get(&source.name)
-                    .and_then(|entry| entry.config.clone())
-            })
-            .ok_or_else(|| RegistryError::UnknownRegistry(source.name.clone()))?;
+        // Do not re-resolve `current` here: all metadata in this operation
+        // must be loaded from the generation already selected above.
+        let config = self.load_registry(&source).await?;
+        if let Ok(mut state) = self.state.lock() {
+            let entry = state.entry(source.name.clone()).or_default();
+            entry.config = Some(config.clone());
+            entry.source_url = Some(source.url.clone());
+            entry.refreshed_at = Some(now());
+            entry.error = None;
+        }
         Ok((source, config))
     }
 
@@ -543,7 +731,14 @@ impl RegistryClient {
         path: &str,
     ) -> Result<Vec<u8>, RegistryError> {
         let url = join_url(&source.url, path)?;
-        let local = self.cache_dir.join(&source.name).join(path);
+        let local = if self.fixed_sources {
+            self.cache_dir
+                .join(&source.name)
+                .join(Sha256Digest::of_bytes(source.url.as_bytes()).as_hex())
+                .join(path)
+        } else {
+            self.cache_dir.join(&source.name).join(path)
+        };
         let etag_path = local.with_extension(format!(
             "{}.etag",
             local
@@ -567,6 +762,7 @@ impl RegistryClient {
             }
             Ok(None) => Ok(fs::read(&local)?),
             Err(error @ RegistryError::Status { status: 404, .. }) => Err(error),
+            Err(error) if self.fixed_sources => Err(error),
             Err(error) => match fs::read(&local) {
                 Ok(bytes) => {
                     tracing::warn!(registry = %source.name, %path, %error, "using cached registry document");
@@ -632,13 +828,33 @@ impl RegistryClient {
             .ok_or_else(|| RegistryError::UnknownRegistry(name.to_owned()))
     }
 
+    async fn operation_guard(&self) -> Option<Arc<RegistryTrustGuard>> {
+        if self.fixed_sources {
+            Some(Arc::new(RegistryTrustGuard {
+                owner: Arc::clone(&self.operation_identity),
+                _guard: self.operation.clone().lock_owned().await,
+            }))
+        } else {
+            None
+        }
+    }
+
     /// Fetch the active generation advertised by a Cloud origin. A 404 means
     /// no snapshot has been published yet, which is an availability state the
     /// UI surfaces, not a transport failure.
     async fn cloud_generation(&self, origin: &str) -> Result<u64, RegistryError> {
         let url = crate::cloud::current_url(origin)?;
         match self.get(&url, None).await {
-            Ok(Some((bytes, _))) => Ok(crate::cloud::parse_generation(&bytes)?.generation),
+            Ok(Some((bytes, _))) => {
+                let generation = crate::cloud::parse_generation(&bytes)?.generation;
+                if generation == 0 {
+                    return Err(RegistryError::document(
+                        "registry/current",
+                        "invalid generation",
+                    ));
+                }
+                Ok(generation)
+            }
             Ok(None) => Err(RegistryError::http(&url, "empty response")),
             Err(RegistryError::Status { status: 404, .. }) => {
                 Err(RegistryError::NoPublishedGeneration {
@@ -667,7 +883,7 @@ impl RegistryClient {
             Err(RegistryError::NoPublishedGeneration { .. }) => {
                 return Err(RegistryError::NoPublishedGeneration { origin });
             }
-            Err(error) if stored.url != origin => {
+            Err(error) if !self.fixed_sources && stored.url != origin => {
                 tracing::warn!(registry = %name, %error, "cloud generation lookup failed; using last resolved generation");
                 return Ok(stored);
             }
@@ -742,6 +958,20 @@ impl RegistryClient {
     }
 }
 
+fn fixed_generation_url(value: &str, origin: &str) -> bool {
+    if value == origin {
+        return true;
+    }
+    let prefix = format!("{origin}/api/v1/registry/generations/");
+    value
+        .strip_prefix(&prefix)
+        .and_then(|rest| rest.strip_suffix("/files"))
+        .and_then(|number| number.parse::<u64>().ok())
+        .filter(|generation| *generation > 0)
+        .and_then(|generation| crate::cloud::generation_files_url(origin, generation).ok())
+        .is_some_and(|expected| expected == value)
+}
+
 fn write_cache(path: &Path, bytes: &[u8]) -> Result<(), RegistryError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -757,4 +987,29 @@ pub(crate) fn now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod defaults_poison_tests {
+    use super::*;
+
+    #[test]
+    fn poisoned_configuration_never_yields_permissive_security_defaults() {
+        let root =
+            std::env::temp_dir().join(format!("registry-poison-{}-{}", std::process::id(), now()));
+        let client = RegistryClient::new_fixed(
+            root.join("cache"),
+            root.join("registries.json"),
+            Vec::new(),
+            Arc::new(RwLock::new(TrustStore::new())),
+        )
+        .unwrap();
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut config = client.config.write().unwrap();
+            config.defaults.allow_sideload = false;
+            panic!("simulate interrupted settings mutation");
+        }))
+        .is_err());
+        assert!(client.try_defaults().is_err());
+    }
 }

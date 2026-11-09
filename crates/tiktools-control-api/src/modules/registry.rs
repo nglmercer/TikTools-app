@@ -7,46 +7,17 @@ pub use tiktools_core::{
     control::{
         CloudCatalogPage, CloudCatalogPaginationCapabilities, CloudCatalogQuery,
         CloudCatalogSummariesPage, CloudCatalogSummariesQuery, CloudCatalogVersionsPage,
-        CloudCatalogVersionsQuery, RegistryAddInput, RegistryPackageView, RegistryRootPreview,
+        CloudCatalogVersionsQuery, RegistryPackageView,
     },
     plugin_registry::{RegistryDefaults, RegistryStatus, SearchQuery, SearchResults},
 };
 
-use crate::{
-    error::ApiError,
-    modules::{Empty, OkResult},
-    router::ControlRouter,
-};
+use crate::{error::ApiError, modules::Empty, router::ControlRouter};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RegistryListResult {
     pub registries: Vec<RegistryStatus>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RegistryResult {
-    pub registry: RegistryStatus,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RegistryUrlParams {
-    pub url: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RegistryNameParams {
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct RegistryEnableParams {
-    pub name: String,
-    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -113,47 +84,6 @@ pub fn register(router: &mut ControlRouter) {
                 .map_err(ApiError::from)
         },
     );
-    router.register_typed::<RegistryUrlParams, RegistryRootPreview, _, _>(
-        "registry.root",
-        "Fetches a registry's root keys so their fingerprints can be confirmed before adding it",
-        false,
-        |core: Arc<AppCore>, params: RegistryUrlParams| async move {
-            core.registry_root(&params.url)
-                .await
-                .map_err(ApiError::from)
-        },
-    );
-    router.register_typed::<RegistryAddInput, RegistryResult, _, _>(
-        "registry.add",
-        "Adds a plugin registry, pinning only the root keys whose fingerprints were confirmed",
-        true,
-        |core: Arc<AppCore>, params: RegistryAddInput| async move {
-            core.registry_add(params)
-                .await
-                .map(|registry| RegistryResult { registry })
-                .map_err(ApiError::from)
-        },
-    );
-    router.register_typed::<RegistryNameParams, OkResult, _, _>(
-        "registry.remove",
-        "Removes a user-added plugin registry and its cached metadata",
-        true,
-        |core: Arc<AppCore>, params: RegistryNameParams| async move {
-            core.registry_remove(&params.name)
-                .map(|()| OkResult::ok())
-                .map_err(ApiError::from)
-        },
-    );
-    router.register_typed::<RegistryEnableParams, RegistryResult, _, _>(
-        "registry.enable",
-        "Enables or disables a plugin registry",
-        true,
-        |core: Arc<AppCore>, params: RegistryEnableParams| async move {
-            core.registry_set_enabled(&params.name, params.enabled)
-                .map(|registry| RegistryResult { registry })
-                .map_err(ApiError::from)
-        },
-    );
     router.register_typed::<RegistryRefreshParams, RegistryListResult, _, _>(
         "registry.refresh",
         "Re-reads and re-verifies registry keys and configuration",
@@ -199,4 +129,28 @@ pub fn register(router: &mut ControlRouter) {
             core.registry_set_defaults(params).map_err(ApiError::from)
         },
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn product_does_not_register_source_enrollment_or_toggle_methods() {
+        let mut router = ControlRouter::new();
+        register(&mut router);
+        for method in [
+            "registry.root",
+            "registry.add",
+            "registry.remove",
+            "registry.enable",
+        ] {
+            assert!(
+                router.get(method).is_none(),
+                "unexpected source control: {method}"
+            );
+        }
+        assert!(router.get("registry.list").is_some());
+        assert!(router.get("registry.defaults.set").is_some());
+    }
 }

@@ -11,7 +11,6 @@ import type {
   PackageSpecInput,
   PluginVersions,
   RegistryDefaults,
-  RegistryRootPreview,
   RegistryStatus,
   RegistryPackageView,
   SearchResults,
@@ -33,14 +32,6 @@ export interface ReviewState {
   spec: PackageSpecInput | null;
   preview: PackagePreview | null;
   error: InstallError | null;
-}
-
-export interface RegistryAddInput {
-  name: string;
-  url: string;
-  fingerprints: string[];
-  scopes: string[];
-  priority: number;
 }
 
 function closedReview(): ReviewState {
@@ -329,55 +320,6 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
     }
   }
 
-  async function refreshRegistries(name?: string): Promise<void> {
-    try {
-      await client.call('registry.refresh', name ? { name } : {});
-      await loadRegistries();
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-    }
-  }
-
-  async function previewRegistry(url: string): Promise<RegistryRootPreview | null> {
-    try {
-      registryError.value = '';
-      return await client.call<RegistryRootPreview>('registry.root', { url });
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-      return null;
-    }
-  }
-
-  async function addRegistry(input: RegistryAddInput): Promise<boolean> {
-    try {
-      registryError.value = '';
-      await client.call('registry.add', { ...input });
-      await loadRegistries();
-      return true;
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-      return false;
-    }
-  }
-
-  async function removeRegistry(name: string): Promise<void> {
-    try {
-      await client.call('registry.remove', { name });
-      await loadRegistries();
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-    }
-  }
-
-  async function setRegistryEnabled(name: string, enabled: boolean): Promise<void> {
-    try {
-      await client.call('registry.enable', { name, enabled });
-      await loadRegistries();
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-    }
-  }
-
   async function saveDefaults(next: RegistryDefaults): Promise<void> {
     try {
       defaults.value = await client.call<RegistryDefaults>('registry.defaults.set', { ...next });
@@ -426,11 +368,6 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
     search,
     loadRemotePackage,
     loadRegistries,
-    refreshRegistries,
-    previewRegistry,
-    addRegistry,
-    removeRegistry,
-    setRegistryEnabled,
     saveDefaults,
   };
 });

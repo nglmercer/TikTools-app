@@ -225,11 +225,6 @@ export interface RegistryDefaults {
   allowSideload: boolean;
 }
 
-export interface RegistryRootPreview {
-  url: string;
-  keys: { keyId: string; fingerprint: string }[];
-}
-
 export interface CatalogEntry {
   id: string;
   name: string;

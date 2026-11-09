@@ -10,7 +10,7 @@ use tiktools_plugin_installer::{
 };
 use tiktools_plugin_registry::{
     Advisory, AutoUpdate, PackageDocument, RegistryDefaults, RegistrySource, RegistryStatus,
-    SearchQuery, SearchResults,
+    SearchQuery, SearchResults, OFFICIAL_REGISTRY_NAME,
 };
 
 use super::OperationError;
@@ -19,6 +19,10 @@ use crate::{
     plugin_packages::{CoreActivation, PluginPackages},
     AppCore,
 };
+
+#[cfg(test)]
+#[path = "sideload_policy_tests.rs"]
+mod sideload_policy_tests;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -96,6 +100,22 @@ enum InstallConsent {
     Automatic,
 }
 
+fn product_package_spec(input: PackageSpecInput) -> Result<PackageSpec, OperationError> {
+    let spec = PackageSpec::try_from(input).map_err(OperationError::install)?;
+    match &spec {
+        PackageSpec::Registry {
+            registry: Some(name),
+            ..
+        } if name != OFFICIAL_REGISTRY_NAME => Err(OperationError::invalid(
+            "plugin sources are managed by the application",
+        )),
+        PackageSpec::Url(_) => Err(OperationError::invalid(
+            "install plugins from the configured Cloud instance or a local package",
+        )),
+        _ => Ok(spec),
+    }
+}
+
 impl AppCore {
     fn packages(&self) -> Result<Arc<PluginPackages>, OperationError> {
         self.plugin_packages()
@@ -108,10 +128,10 @@ impl AppCore {
         input: PackageSpecInput,
     ) -> Result<PackagePreview, OperationError> {
         let packages = self.packages()?;
-        let spec = PackageSpec::try_from(input).map_err(OperationError::install)?;
+        let spec = product_package_spec(input)?;
         let label = spec.to_string();
         let reporter = tiktools_plugin_installer::NoopReporter;
-        let prepared = self
+        let (prepared, _trust_guard, _target) = self
             .fetch_prepared(
                 &packages,
                 &spec,
@@ -131,7 +151,7 @@ impl AppCore {
         consent_token: String,
         policy: Option<UpdatePolicy>,
     ) -> Result<JobSnapshot, OperationError> {
-        let spec = PackageSpec::try_from(input).map_err(OperationError::install)?;
+        let spec = product_package_spec(input)?;
         self.spawn_package_job(
             JobKind::Install,
             spec,
@@ -158,6 +178,11 @@ impl AppCore {
                 format!("{plugin_id} was not installed from a registry; install a newer package instead"),
             )));
         };
+        if registry != OFFICIAL_REGISTRY_NAME {
+            return Err(OperationError::invalid(
+                "this plugin was installed from a legacy source; review a local package or the configured Cloud catalog",
+            ));
+        }
         let spec = PackageSpec::try_from(PackageSpecInput::Registry {
             id: plugin_id.to_owned(),
             version,
@@ -188,6 +213,7 @@ impl AppCore {
             let worker_core = Arc::clone(&core);
             let worker_job = Arc::clone(&job);
             let result = tokio::task::spawn_blocking(move || {
+                let _sideload = packages.try_sideload_permit()?;
                 let _invocation =
                     worker_core
                         .plugin_state
@@ -204,7 +230,7 @@ impl AppCore {
                     .invalidate_plugin_package_source(&plugin_id)
                     .map_err(InstallError::io)?;
                 let activation = CoreActivation::new(&worker_core);
-                let outcome = installer.rollback(
+                let outcome = installer.rollback_local(
                     &plugin_id,
                     version.as_deref(),
                     &activation,
@@ -477,6 +503,15 @@ impl AppCore {
                 "search queries are at most 256 characters",
             ));
         }
+        if query
+            .registry
+            .as_deref()
+            .is_some_and(|name| name != OFFICIAL_REGISTRY_NAME)
+        {
+            return Err(OperationError::invalid(
+                "plugin sources are managed by the application",
+            ));
+        }
         Ok(self.packages()?.registry().search(&query).await)
     }
 
@@ -498,7 +533,10 @@ impl AppCore {
     }
 
     pub fn registry_defaults(&self) -> Result<RegistryDefaults, OperationError> {
-        Ok(self.packages()?.registry().defaults())
+        self.packages()?
+            .registry()
+            .try_defaults()
+            .map_err(registry_error)
     }
 
     pub fn registry_set_defaults(
@@ -516,6 +554,9 @@ impl AppCore {
             ));
         }
         let packages = self.packages()?;
+        let _settings = packages
+            .try_sideload_settings()
+            .map_err(OperationError::install)?;
         packages
             .registry()
             .set_defaults(defaults.clone())
@@ -665,12 +706,19 @@ impl AppCore {
         consent: InstallConsent,
         policy: Option<UpdatePolicy>,
     ) -> Result<InstallOutcome, InstallError> {
-        let reviewed = match &consent {
-            InstallConsent::Reviewed(token) => packages.take_review(token, &label),
-            InstallConsent::Automatic => None,
+        let reviewed = match (&consent, &spec) {
+            // A Cloud review never authorizes stale metadata. Resolve the
+            // active generation and recheck yanks, keys, digest and the
+            // exact consent token immediately before dispatching the commit.
+            (InstallConsent::Reviewed(token), PackageSpec::Registry { .. }) => {
+                let _ = packages.take_review(token, &label);
+                None
+            }
+            (InstallConsent::Reviewed(token), _) => packages.take_review(token, &label),
+            (InstallConsent::Automatic, _) => None,
         };
-        let prepared = match reviewed {
-            Some(prepared) => prepared,
+        let (prepared, trust_guard, target) = match reviewed {
+            Some(prepared) => (prepared, None, None),
             None => {
                 self.fetch_prepared(packages, &spec, job.as_ref(), &job.cancel_flag())
                     .await?
@@ -707,10 +755,53 @@ impl AppCore {
             }
         };
         job.check()?;
+        if let PackageOrigin::Registry { registry, url } = &prepared.origin {
+            let guard = trust_guard.as_ref().ok_or_else(|| {
+                InstallError::new(
+                    InstallErrorCode::Unsupported,
+                    "Cloud trust review is unavailable",
+                )
+            })?;
+            let generation = packages
+                .registry()
+                .check_fixed_generation(guard, registry, url)
+                .await?;
+            let target = target.as_deref().ok_or_else(|| {
+                InstallError::new(
+                    InstallErrorCode::Unsupported,
+                    "Cloud artifact target is unavailable",
+                )
+            })?;
+            tokio::time::timeout(
+                std::time::Duration::from_secs(20),
+                verify_current_cloud_release(&prepared, target, generation),
+            )
+            .await
+            .map_err(|_| {
+                InstallError::new(
+                    InstallErrorCode::Unsupported,
+                    "Cloud release status timed out",
+                )
+            })??;
+            packages
+                .registry()
+                .check_fixed_generation(guard, registry, url)
+                .await?;
+        }
+        job.check()?;
         let installer = packages.installer.clone();
+        let packages = Arc::clone(packages);
         let core = Arc::clone(self);
         let worker_job = Arc::clone(job);
         tokio::task::spawn_blocking(move || {
+            // For Cloud packages this retains the exact verified trust
+            // snapshot until the filesystem transaction completes.
+            let _trust_guard = trust_guard;
+            let _sideload = match &prepared.origin {
+                PackageOrigin::File => Some(packages.try_sideload_permit()?),
+                PackageOrigin::Registry { .. } => None,
+                _ => return Err(InstallError::new(InstallErrorCode::Unsupported, "unsupported plugin package origin")),
+            };
             let _invocation = core.plugin_state.invocation_gate.lock().map_err(|_| {
                 crate::plugin_packages::unavailable("plugin invocation lease is unavailable")
             })?;
@@ -750,21 +841,30 @@ impl AppCore {
         spec: &PackageSpec,
         reporter: &dyn JobReporter,
         cancel: &std::sync::atomic::AtomicBool,
-    ) -> Result<PreparedPackage, InstallError> {
+    ) -> Result<
+        (
+            PreparedPackage,
+            Option<Arc<tiktools_plugin_registry::RegistryTrustGuard>>,
+            Option<String>,
+        ),
+        InstallError,
+    > {
+        let defaults = packages
+            .registry()
+            .try_defaults()
+            .map_err(InstallError::io)?;
         let channel = match spec.plugin_id() {
             Some(id) => packages
                 .installer
                 .receipt(id)?
                 .map(|receipt| receipt.policy.channel)
-                .unwrap_or_else(|| packages.registry().defaults().channel),
-            None => packages.registry().defaults().channel,
+                .unwrap_or_else(|| defaults.channel.clone()),
+            None => defaults.channel.clone(),
         };
-        if !matches!(spec, PackageSpec::Registry { .. })
-            && !packages.registry().defaults().allow_sideload
-        {
+        if !matches!(spec, PackageSpec::Registry { .. }) && !defaults.allow_sideload {
             return Err(InstallError::new(
                 InstallErrorCode::Unsupported,
-                "installing plugins from files and URLs is disabled in the plugin source settings",
+                "installing plugins from local files is disabled in the plugin settings",
             ));
         }
         let resolved = packages
@@ -774,15 +874,121 @@ impl AppCore {
         reporter.stage(JobStage::Verify);
         let installer = packages.installer.clone();
         tokio::task::spawn_blocking(move || {
+            // Rust may otherwise capture only individual fields of
+            // `resolved`, releasing the fixed-generation trust guard before
+            // signature verification completes.
+            let trust_guard = resolved.trust_guard;
+            let target = resolved.target;
             let prepared = installer.prepare(&resolved.path, resolved.origin, resolved.policy)?;
             if let Some(expected) = &resolved.expected {
                 expected.check(&prepared)?;
             }
-            Ok(prepared)
+            Ok((prepared, trust_guard, target))
         })
         .await
         .unwrap_or_else(|error| Err(InstallError::io(error)))
     }
+}
+
+/// The signed immutable registry grants trust; the live v2 catalog supplies
+/// current revocation/yank state for the exact selected artifact. Missing,
+/// changed, unbounded, or advisory-bearing status fails closed pending review.
+async fn verify_current_cloud_release(
+    prepared: &PreparedPackage,
+    target: &str,
+    generation: u64,
+) -> Result<(), InstallError> {
+    let unavailable = || {
+        InstallError::new(
+            InstallErrorCode::Unsupported,
+            "current Cloud release status is unavailable or needs review",
+        )
+    };
+    let origin = tiktools_cloud_auth::resolve_cloud_origin().ok_or_else(unavailable)?;
+    let catalog = cloud_client::CloudCatalog::new(&origin).map_err(|_| unavailable())?;
+    verify_catalog_release(
+        &catalog,
+        &prepared.manifest.id,
+        &prepared.manifest.version,
+        target,
+        &prepared.digest.to_string(),
+        prepared.size(),
+        generation,
+    )
+    .await
+}
+
+async fn verify_catalog_release(
+    catalog: &cloud_client::CloudCatalog,
+    id: &str,
+    version: &str,
+    target: &str,
+    digest: &str,
+    size: u64,
+    generation: u64,
+) -> Result<(), InstallError> {
+    let unavailable = || {
+        InstallError::new(
+            InstallErrorCode::Unsupported,
+            "current Cloud release status is unavailable or needs review",
+        )
+    };
+    let generation = i64::try_from(generation)
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or_else(unavailable)?;
+    let mut cursor: Option<String> = None;
+    let mut seen = std::collections::BTreeSet::new();
+    for _ in 0..128 {
+        let page = catalog
+            .plugin_version_page(id, Some(target), Some(generation), cursor.as_deref())
+            .await
+            .map_err(|_| unavailable())?;
+        for item in &page.items {
+            if let Some(result) =
+                validate_current_cloud_release(item, version, target, digest, size)
+            {
+                return result;
+            }
+        }
+        let Some(next) = page.next_cursor else {
+            return Err(unavailable());
+        };
+        if !seen.insert(next.clone()) {
+            return Err(unavailable());
+        }
+        cursor = Some(next);
+    }
+    Err(unavailable())
+}
+
+fn validate_current_cloud_release(
+    item: &cloud_client::CatalogVersion,
+    version: &str,
+    target: &str,
+    digest: &str,
+    size: u64,
+) -> Option<Result<(), InstallError>> {
+    if item.version != version
+        || item.target != target
+        || item.sha256 != digest
+        || item.size != size.to_string()
+    {
+        return None;
+    }
+    if item.yanked || item.key_revoked || !item.publisher_approved {
+        return Some(Err(InstallError::new(
+            InstallErrorCode::Revoked,
+            "Cloud release, publisher or signing key is no longer approved",
+        )));
+    }
+    if item.advisory.is_some() {
+        return Some(Err(InstallError::new(
+            InstallErrorCode::ConsentRequired,
+            "Cloud release has an active advisory; installation is unavailable until it is resolved",
+        )));
+    }
+    Some(Ok(()))
 }
 
 fn release_is_compatible(
@@ -811,4 +1017,128 @@ fn registry_error(error: tiktools_plugin_registry::RegistryError) -> OperationEr
 
 fn registry_package_error(error: tiktools_plugin_package::PackageError) -> OperationError {
     OperationError::install(InstallError::from(error))
+}
+
+#[cfg(test)]
+mod fixed_source_tests {
+    use super::*;
+
+    #[test]
+    fn product_specs_cannot_choose_another_registry_or_network_url() {
+        for input in [
+            PackageSpecInput::Spec {
+                spec: "other:acme.plugin@1.0.0".into(),
+            },
+            PackageSpecInput::Registry {
+                id: "acme.plugin".into(),
+                version: None,
+                registry: Some("other".into()),
+            },
+            PackageSpecInput::Url {
+                url: "https://other.example/plugin.plugin".into(),
+            },
+            PackageSpecInput::Spec {
+                spec: "https://other.example/plugin.plugin".into(),
+            },
+        ] {
+            assert!(product_package_spec(input).is_err());
+        }
+        assert!(matches!(
+            product_package_spec(PackageSpecInput::Spec {
+                spec: "acme.plugin@1.0.0".into()
+            }),
+            Ok(PackageSpec::Registry { .. })
+        ));
+        assert!(matches!(
+            product_package_spec(PackageSpecInput::File {
+                path: "/tmp/example.plugin".into()
+            }),
+            Ok(PackageSpec::File(_))
+        ));
+    }
+
+    #[test]
+    fn current_cloud_status_must_match_exact_artifact_and_remain_approved() {
+        let digest = "a".repeat(64);
+        let mut item: cloud_client::CatalogVersion = serde_json::from_value(serde_json::json!({
+            "version": "1.2.3", "target": "linux-x64-gnu", "sha256": digest,
+            "size": "42", "yanked": false, "keyRevoked": false,
+            "publisherApproved": true, "advisory": null
+        }))
+        .unwrap();
+        let check = |item: &cloud_client::CatalogVersion, target: &str, size| {
+            validate_current_cloud_release(item, "1.2.3", target, &"a".repeat(64), size)
+        };
+        assert!(check(&item, "linux-x64-gnu", 42).unwrap().is_ok());
+        assert!(check(&item, "any", 42).is_none());
+        assert!(check(&item, "linux-x64-gnu", 43).is_none());
+        item.yanked = true;
+        assert!(check(&item, "linux-x64-gnu", 42).unwrap().is_err());
+        item.yanked = false;
+        item.key_revoked = true;
+        assert!(check(&item, "linux-x64-gnu", 42).unwrap().is_err());
+        item.key_revoked = false;
+        item.publisher_approved = false;
+        assert!(check(&item, "linux-x64-gnu", 42).unwrap().is_err());
+        item.publisher_approved = true;
+        item.advisory = Some(cloud_client::CatalogAdvisory {
+            severity: "high".into(),
+            message: None,
+            url: None,
+        });
+        assert!(check(&item, "linux-x64-gnu", 42).unwrap().is_err());
+    }
+
+    #[tokio::test]
+    async fn current_cloud_status_rejects_live_yank_without_generation_change() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let yanked = Arc::new(AtomicBool::new(false));
+        let state = Arc::clone(&yanked);
+        let server = tokio::spawn(async move {
+            for _ in 0..2 {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 4096];
+                let read = socket.read(&mut request).await.unwrap();
+                assert!(String::from_utf8_lossy(&request[..read])
+                    .contains("/api/v2/catalog/plugins/acme.plugin/version-pages"));
+                let body = serde_json::json!({
+                    "generation": "1", "id": "acme.plugin",
+                    "metadataPath": "/api/v1/registry/generations/1/files/index/ac/me/acme.plugin.json",
+                    "items": [{"version": "1.2.3", "target": "linux-x64-gnu", "sha256": "a".repeat(64), "size": "42", "yanked": state.load(Ordering::Acquire), "keyRevoked": false, "publisherApproved": true, "advisory": null}],
+                    "nextCursor": null
+                }).to_string();
+                let response = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
+                socket.write_all(response.as_bytes()).await.unwrap();
+            }
+        });
+        let catalog = cloud_client::CloudCatalog::new(&origin).unwrap();
+        let digest = "a".repeat(64);
+        assert!(verify_catalog_release(
+            &catalog,
+            "acme.plugin",
+            "1.2.3",
+            "linux-x64-gnu",
+            &digest,
+            42,
+            1
+        )
+        .await
+        .is_ok());
+        yanked.store(true, Ordering::Release);
+        assert!(verify_catalog_release(
+            &catalog,
+            "acme.plugin",
+            "1.2.3",
+            "linux-x64-gnu",
+            &digest,
+            42,
+            1
+        )
+        .await
+        .is_err());
+        server.await.unwrap();
+    }
 }

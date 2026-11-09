@@ -638,6 +638,7 @@ impl AppCore {
             PackageOrigin::File,
             SignaturePolicy::AllowWithConsent,
         )?;
+        let _sideload = packages.try_sideload_permit()?;
         let _invocation =
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 plugin_packages::unavailable("plugin invocation lease is unavailable")

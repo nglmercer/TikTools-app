@@ -98,10 +98,9 @@ const locale = computed<Locale>({
       </template>
       <template v-else-if="section === 'updates'">
         <AppUpdater />
-        <PluginSourcesEditor part="updates" />
+        <PluginSourcesEditor />
       </template>
       <template v-else>
-        <PluginSourcesEditor part="registries" />
         <BaseGroupBox
           :title="t('globals.title')"
           :description="t('globals.hint', { token: '{{ globals.key }}' })"

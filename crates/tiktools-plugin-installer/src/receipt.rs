@@ -1,5 +1,6 @@
 use std::{
     fs, io,
+    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -211,13 +212,34 @@ pub(crate) fn read_receipt(path: &Path) -> Result<Option<InstallReceipt>, Instal
 }
 
 pub(crate) fn write_receipt(path: &Path, receipt: &InstallReceipt) -> Result<(), InstallError> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
     let mut bytes = serde_json::to_vec_pretty(receipt).map_err(InstallError::io)?;
     bytes.push(b'\n');
-    let temporary = path.with_extension("json.tmp");
-    fs::write(&temporary, bytes)?;
-    fs::rename(&temporary, path)?;
+    write_atomic(path, &bytes)?;
+    Ok(())
+}
+
+/// Use an unpredictable, exclusively-created sibling and rename it into
+/// place. In particular, never open a pre-existing destination symlink.
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), InstallError> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| InstallError::io("missing parent directory"))?;
+    if let Err(error) = fs::symlink_metadata(parent) {
+        if error.kind() == io::ErrorKind::NotFound {
+            fs::create_dir_all(parent)?;
+        } else {
+            return Err(error.into());
+        }
+    }
+    if !fs::symlink_metadata(parent)?.file_type().is_dir() {
+        return Err(InstallError::io(
+            "package metadata parent is not a real directory",
+        ));
+    }
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    temporary.write_all(bytes)?;
+    temporary
+        .persist(path)
+        .map_err(|error| InstallError::io(error.error))?;
     Ok(())
 }

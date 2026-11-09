@@ -246,7 +246,9 @@ impl<A: PackageAdmission> PackageJournal<'_, A> {
         });
         let digest = operation_digest(id, PackageMutationKind::Rollback, &[present, version_bytes]);
         self.run(id, PackageMutationKind::Rollback, &digest, || {
-            store.rollback(id, version, hooks, reporter)
+            // This native-only orchestration must not bypass the same
+            // provenance and tree checks as the product rollback path.
+            store.rollback_local(id, version, hooks, reporter)
         })
     }
 

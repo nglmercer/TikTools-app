@@ -700,6 +700,749 @@ fn rollback_restores_previous_version_and_pins_it() {
 }
 
 #[test]
+fn product_local_rollback_preserves_reviewed_tree_and_can_restore_again() {
+    let root = TempDir::new("product-local-rollback");
+    let installer = installer(&root);
+    for version in ["1.0.0", "1.1.0"] {
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", version, serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+    }
+    let restored = installer
+        .rollback_local("demo", None, &NoopHooks, &NoopReporter)
+        .unwrap();
+    assert_eq!(restored.receipt.version, "1.0.0");
+    assert!(restored.receipt.policy.pinned);
+    let restored = installer
+        .rollback_local("demo", Some("1.1.0"), &NoopHooks, &NoopReporter)
+        .unwrap();
+    assert_eq!(restored.receipt.version, "1.1.0");
+}
+
+#[test]
+fn product_rollback_rejects_cloud_target_even_when_current_is_local() {
+    let root = TempDir::new("product-cloud-rollback");
+    let installer = installer(&root);
+    let cloud = installer
+        .prepare(
+            &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+            PackageOrigin::Registry {
+                registry: "official".into(),
+                url: "https://example.test/demo".into(),
+            },
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    installer
+        .commit(&cloud, &implicit(true), &NoopHooks, &NoopReporter)
+        .unwrap();
+    install_file(
+        &installer,
+        &demo_package(&root, "demo", "1.1.0", serde_json::json!({})),
+        true,
+    )
+    .unwrap();
+    assert_eq!(
+        installer
+            .rollback_local("demo", None, &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+    // A stale or altered receipt cannot manufacture an installation proof.
+    let receipt_path = installer.layout().retained_receipt("demo", "1.0.0");
+    let mut receipt: serde_json::Value =
+        serde_json::from_slice(&fs::read(&receipt_path).unwrap()).unwrap();
+    receipt["origin"] = serde_json::json!({ "kind": "file" });
+    fs::write(&receipt_path, serde_json::to_vec(&receipt).unwrap()).unwrap();
+    assert_eq!(
+        installer
+            .rollback_local("demo", None, &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+    assert_eq!(installer.receipt("demo").unwrap().unwrap().version, "1.1.0");
+}
+
+#[test]
+fn product_rollback_rejects_missing_or_changed_provenance_and_tree() {
+    let root = TempDir::new("product-local-rollback-tamper");
+    let installer = installer(&root);
+    for version in ["1.0.0", "1.1.0"] {
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", version, serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+    }
+    let layout = installer.layout();
+    let receipt_path = layout.retained_receipt("demo", "1.0.0");
+    let proof_path = layout.retained_local_proof("demo", "1.0.0");
+    let receipt = fs::read(&receipt_path).unwrap();
+    let proof = fs::read(&proof_path).unwrap();
+    fs::remove_file(&receipt_path).unwrap();
+    assert_eq!(
+        installer
+            .rollback_local("demo", None, &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+    fs::write(&receipt_path, &receipt).unwrap();
+    fs::remove_file(&proof_path).unwrap();
+    assert_eq!(
+        installer
+            .rollback_local("demo", None, &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+    fs::write(&proof_path, &proof).unwrap();
+    let mut altered: serde_json::Value = serde_json::from_slice(&receipt).unwrap();
+    altered["archiveDigest"] = serde_json::json!("0".repeat(64));
+    fs::write(&receipt_path, serde_json::to_vec(&altered).unwrap()).unwrap();
+    assert_eq!(
+        installer
+            .rollback_local("demo", None, &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+    fs::write(&receipt_path, &receipt).unwrap();
+    let retained = layout.retained("demo", "1.0.0");
+    fs::write(retained.join("demo-host"), b"tampered").unwrap();
+    // Even replacing checksums with values matching the changed files does not
+    // match the proof created when the package was originally reviewed.
+    let checksums_path = retained.join("checksums.json");
+    let mut checksums: serde_json::Value =
+        serde_json::from_slice(&fs::read(&checksums_path).unwrap()).unwrap();
+    checksums["demo-host"] = serde_json::json!(digest_bytes(b"tampered"));
+    fs::write(checksums_path, serde_json::to_vec(&checksums).unwrap()).unwrap();
+    assert_eq!(
+        installer
+            .rollback_local("demo", None, &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+    assert_eq!(installer.receipt("demo").unwrap().unwrap().version, "1.1.0");
+}
+
+#[test]
+fn product_rollback_does_not_trust_changes_made_during_activation() {
+    struct MutatingActivation(PathBuf);
+    impl ActivationHooks for MutatingActivation {
+        fn deactivate(&self, _: &str) -> Result<bool, String> {
+            Ok(false)
+        }
+        fn activate(&self, _: &str, _: bool) -> Result<(), String> {
+            let root = self.0.join("plugins/demo");
+            fs::write(root.join("demo-host"), b"changed during activation").unwrap();
+            let checksums_path = root.join("checksums.json");
+            let mut checksums: serde_json::Value =
+                serde_json::from_slice(&fs::read(&checksums_path).unwrap()).unwrap();
+            checksums["demo-host"] = serde_json::json!(digest_bytes(b"changed during activation"));
+            fs::write(checksums_path, serde_json::to_vec(&checksums).unwrap()).unwrap();
+            Ok(())
+        }
+    }
+    let root = TempDir::new("product-activation-change");
+    let installer = installer(&root);
+    let prepared = installer
+        .prepare(
+            &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    installer
+        .commit(
+            &prepared,
+            &implicit(true),
+            &MutatingActivation(root.0.clone()),
+            &NoopReporter,
+        )
+        .unwrap();
+    install_file(
+        &installer,
+        &demo_package(&root, "demo", "1.1.0", serde_json::json!({})),
+        true,
+    )
+    .unwrap();
+    assert_eq!(
+        installer
+            .rollback_local("demo", None, &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+    assert_eq!(installer.receipt("demo").unwrap().unwrap().version, "1.1.0");
+}
+
+#[test]
+fn product_rollback_invalidates_local_proof_when_cloud_reuses_version() {
+    let root = TempDir::new("product-stale-local-proof");
+    let installer = installer(&root);
+    for version in ["1.0.0", "1.1.0"] {
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", version, serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+    }
+    assert!(installer
+        .layout()
+        .retained_local_proof("demo", "1.0.0")
+        .exists());
+    let cloud = installer
+        .prepare(
+            &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+            PackageOrigin::Registry {
+                registry: "official".into(),
+                url: "https://example.test/demo".into(),
+            },
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    installer
+        .commit(&cloud, &implicit(true), &NoopHooks, &NoopReporter)
+        .unwrap();
+    install_file(
+        &installer,
+        &demo_package(&root, "demo", "1.2.0", serde_json::json!({})),
+        true,
+    )
+    .unwrap();
+    assert!(!installer
+        .layout()
+        .retained_local_proof("demo", "1.0.0")
+        .exists());
+    assert_eq!(
+        installer
+            .rollback_local("demo", Some("1.0.0"), &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+}
+
+#[test]
+fn product_local_rollback_rechecks_current_signing_trust() {
+    let root = TempDir::new("product-local-rollback-trust");
+    let key = publisher_key();
+    let mut initial = TrustStore::new();
+    initial.insert(
+        TrustedKey::new(key.public_key(), KeyRole::Publisher).publisher("acme"),
+        "local",
+    );
+    let trust = Arc::new(RwLock::new(initial));
+    let installer = installer_with(&root, trust.clone());
+    let prepared = installer
+        .prepare(
+            &signed_package(&root, &key, "acme.demo", "1.0.0"),
+            PackageOrigin::File,
+            SignaturePolicy::Require,
+        )
+        .unwrap();
+    installer
+        .commit(&prepared, &implicit(true), &NoopHooks, &NoopReporter)
+        .unwrap();
+    install_file(
+        &installer,
+        &demo_package(&root, "acme.demo", "1.1.0", serde_json::json!({})),
+        true,
+    )
+    .unwrap();
+    trust.write().unwrap().remove_source("local");
+    assert_eq!(
+        installer
+            .rollback_local("acme.demo", None, &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+    trust.write().unwrap().insert(
+        TrustedKey::new(key.public_key(), KeyRole::Publisher).publisher("acme"),
+        "local",
+    );
+    assert_eq!(
+        installer
+            .rollback_local("acme.demo", None, &NoopHooks, &NoopReporter)
+            .unwrap()
+            .receipt
+            .version,
+        "1.0.0"
+    );
+}
+
+#[test]
+fn retained_paths_confine_arbitrary_versions_and_separate_metadata() {
+    let root = TempDir::new("retention-paths");
+    let installer = installer(&root);
+    let layout = installer.layout();
+    let long_version = "x".repeat(128);
+    let versions = [
+        ".",
+        "..",
+        "1.0",
+        "1.0.json",
+        "1.0.local-proof",
+        "%aa",
+        "x/y",
+        "x_y",
+        &long_version,
+    ];
+    let mut seen = std::collections::HashSet::new();
+    for version in versions {
+        for path in [
+            layout.retained("demo", version),
+            layout.retained_receipt("demo", version),
+            layout.retained_local_proof("demo", version),
+        ] {
+            assert_eq!(path.parent(), Some(layout.versions("demo").as_path()));
+            assert!(path.file_name().unwrap().len() < 100);
+            assert!(seen.insert(path));
+        }
+    }
+    fs::create_dir_all(root.join("store/versions/sentinel")).unwrap();
+    fs::write(root.join("store/versions/sentinel/data"), b"preserve").unwrap();
+    for version in ["..", ".", "1.0", "1.0.json"] {
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", version, serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        fs::read(root.join("store/versions/sentinel/data")).unwrap(),
+        b"preserve"
+    );
+    assert_eq!(
+        installer
+            .rollback_local("demo", Some("1.0"), &NoopHooks, &NoopReporter)
+            .unwrap()
+            .receipt
+            .version,
+        "1.0"
+    );
+}
+
+#[test]
+fn retained_legacy_directory_is_migrated_only_for_matching_manifest() {
+    let root = TempDir::new("retention-legacy-migration");
+    let installer = installer(&root);
+    for version in ["1.0.0", "1.1.0"] {
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", version, serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+    }
+    let layout = installer.layout();
+    let old_dir = root.join("store/versions/demo/1.0.0");
+    let old_receipt = root.join("store/versions/demo/1.0.0.json");
+    fs::rename(layout.retained("demo", "1.0.0"), &old_dir).unwrap();
+    fs::rename(layout.retained_receipt("demo", "1.0.0"), &old_receipt).unwrap();
+    fs::remove_file(layout.retained_local_proof("demo", "1.0.0")).unwrap();
+    assert_eq!(installer.versions("demo").unwrap().retained.len(), 1);
+    // Legacy installs have no new trusted proof and cannot bypass product review.
+    assert_eq!(
+        installer
+            .rollback_local("demo", None, &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+    assert!(!old_dir.exists());
+    assert!(layout.retained("demo", "1.0.0").exists());
+    assert_eq!(
+        installer
+            .rollback("demo", None, &NoopHooks, &NoopReporter)
+            .unwrap()
+            .receipt
+            .version,
+        "1.0.0"
+    );
+}
+
+#[test]
+fn interrupted_legacy_migration_resumes_receipt_only_for_same_tree() {
+    let root = TempDir::new("retention-migration-resume");
+    let installer = installer(&root);
+    for version in ["1.0.0", "1.1.0"] {
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", version, serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+    }
+    let layout = installer.layout();
+    let canonical = layout.retained("demo", "1.0.0");
+    let old_dir = root.join("store/versions/demo/1.0.0");
+    let old_receipt = root.join("store/versions/demo/1.0.0.json");
+    fs::rename(&canonical, &old_dir).unwrap();
+    fs::rename(layout.retained_receipt("demo", "1.0.0"), &old_receipt).unwrap();
+    fs::remove_file(layout.retained_local_proof("demo", "1.0.0")).unwrap();
+    let proof =
+        Installer::migration_receipt_proof(&old_dir, &fs::read(&old_receipt).unwrap(), "demo")
+            .unwrap();
+    fs::write(layout.retained_migration_proof("demo", "1.0.0"), proof).unwrap();
+    // Simulate interruption after moving the tree, before moving its receipt.
+    fs::rename(&old_dir, &canonical).unwrap();
+    let restored = installer
+        .rollback("demo", None, &NoopHooks, &NoopReporter)
+        .unwrap();
+    assert_eq!(restored.receipt.origin, PackageOrigin::File);
+    assert!(!old_receipt.exists());
+}
+
+#[test]
+fn unexpected_retained_destination_is_preserved_before_deactivation() {
+    let root = TempDir::new("retention-unexpected-destination");
+    let installer = installer(&root);
+    install_file(
+        &installer,
+        &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+        true,
+    )
+    .unwrap();
+    let destination = installer.layout().retained("demo", "1.0.0");
+    fs::create_dir_all(&destination).unwrap();
+    fs::write(destination.join("sentinel"), b"preserve").unwrap();
+    let hooks = RecordingHooks::default();
+    let prepared = installer
+        .prepare(
+            &demo_package(&root, "demo", "1.1.0", serde_json::json!({})),
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    assert_eq!(
+        installer
+            .commit(&prepared, &implicit(true), &hooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::InvalidPackage
+    );
+    assert!(hooks.calls.lock().unwrap().is_empty());
+    assert_eq!(fs::read(destination.join("sentinel")).unwrap(), b"preserve");
+    assert_eq!(installer.receipt("demo").unwrap().unwrap().version, "1.0.0");
+}
+
+#[test]
+fn mismatched_active_receipt_preserves_only_identifiable_retained_versions() {
+    let root = TempDir::new("retention-adopted-history");
+    let installer = installer(&root);
+    for version in ["1.0.0", "1.1.0"] {
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", version, serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+    }
+    let manifest_path = root.join("plugins/demo/plugin.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["version"] = serde_json::json!("1.1.5");
+    fs::write(manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    install_file(
+        &installer,
+        &demo_package(&root, "demo", "1.2.0", serde_json::json!({})),
+        true,
+    )
+    .unwrap();
+    let versions = installer.versions("demo").unwrap();
+    assert!(versions
+        .retained
+        .iter()
+        .any(|entry| entry.version == "1.0.0"));
+    assert!(versions
+        .retained
+        .iter()
+        .any(|entry| entry.version == "1.1.5"));
+    let retained_receipt: serde_json::Value = serde_json::from_slice(
+        &fs::read(installer.layout().retained_receipt("demo", "1.1.5")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(retained_receipt["origin"]["kind"], "adopted");
+    assert_eq!(
+        installer
+            .rollback_local("demo", Some("1.1.5"), &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Unsupported
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn retention_and_proof_ancestors_cannot_follow_symlinks() {
+    use std::os::unix::fs::symlink;
+    for ancestor in ["versions", "versions/demo", "local-proofs"] {
+        let root = TempDir::new("retention-symlink");
+        let installer = installer(&root);
+        install_file(
+            &installer,
+            &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+            true,
+        )
+        .unwrap();
+        let store = root.join("store");
+        let link = store.join(ancestor);
+        if link.exists() {
+            fs::remove_dir_all(&link).unwrap();
+        }
+        if let Some(parent) = link.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        let external = root.join("external");
+        fs::create_dir_all(&external).unwrap();
+        fs::write(external.join("sentinel"), b"preserve").unwrap();
+        symlink(&external, &link).unwrap();
+        let result = install_file(
+            &installer,
+            &demo_package(&root, "demo", "1.1.0", serde_json::json!({})),
+            true,
+        );
+        assert_eq!(
+            result.unwrap_err().code,
+            InstallErrorCode::InvalidPackage,
+            "{ancestor}"
+        );
+        assert_eq!(fs::read(external.join("sentinel")).unwrap(), b"preserve");
+        assert_eq!(installer.receipt("demo").unwrap().unwrap().version, "1.0.0");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn activation_cannot_redirect_metadata_writes_through_symlinks() {
+    use std::os::unix::fs::symlink;
+    struct Hooks {
+        store: PathBuf,
+        external: PathBuf,
+    }
+    impl ActivationHooks for Hooks {
+        fn deactivate(&self, _: &str) -> Result<bool, String> {
+            Ok(false)
+        }
+        fn activate(&self, _: &str, _: bool) -> Result<(), String> {
+            symlink(&self.external, self.store.join("local-proofs/demo.proof")).unwrap();
+            symlink(&self.external, self.store.join("receipts/demo.json")).unwrap();
+            symlink(&self.external, self.store.join("receipts/demo.json.tmp")).unwrap();
+            Ok(())
+        }
+    }
+    let root = TempDir::new("metadata-final-symlink");
+    let installer = installer(&root);
+    let sentinel = root.join("external");
+    fs::write(&sentinel, b"preserve").unwrap();
+    let prepared = installer
+        .prepare(
+            &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    installer
+        .commit(
+            &prepared,
+            &implicit(true),
+            &Hooks {
+                store: root.join("store"),
+                external: sentinel.clone(),
+            },
+            &NoopReporter,
+        )
+        .unwrap();
+    assert_eq!(fs::read(sentinel).unwrap(), b"preserve");
+    assert!(fs::symlink_metadata(root.join("store/receipts/demo.json"))
+        .unwrap()
+        .file_type()
+        .is_file());
+    assert!(
+        fs::symlink_metadata(root.join("store/local-proofs/demo.proof"))
+            .unwrap()
+            .file_type()
+            .is_file()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn activation_cannot_redirect_receipt_parent_to_external_directory() {
+    use std::os::unix::fs::symlink;
+    struct Hooks {
+        store: PathBuf,
+        external: PathBuf,
+    }
+    impl ActivationHooks for Hooks {
+        fn deactivate(&self, _: &str) -> Result<bool, String> {
+            Ok(false)
+        }
+        fn activate(&self, _: &str, _: bool) -> Result<(), String> {
+            fs::remove_dir(self.store.join("receipts")).unwrap();
+            symlink(&self.external, self.store.join("receipts")).unwrap();
+            Ok(())
+        }
+    }
+    let root = TempDir::new("metadata-parent-symlink");
+    let installer = installer(&root);
+    let external = root.join("external");
+    fs::create_dir_all(&external).unwrap();
+    fs::write(external.join("sentinel"), b"preserve").unwrap();
+    let prepared = installer
+        .prepare(
+            &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    assert!(installer
+        .commit(
+            &prepared,
+            &implicit(true),
+            &Hooks {
+                store: root.join("store"),
+                external: external.clone()
+            },
+            &NoopReporter
+        )
+        .is_err());
+    assert_eq!(fs::read(external.join("sentinel")).unwrap(), b"preserve");
+    assert!(!external.join("demo.json").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn package_callbacks_cannot_redirect_metadata_cleanup_outside_store() {
+    use std::os::unix::fs::symlink;
+    struct Hooks {
+        store: PathBuf,
+        external: PathBuf,
+        component: &'static str,
+        during_deactivate: bool,
+        fired: AtomicBool,
+    }
+    impl Hooks {
+        fn redirect(&self) {
+            if !self.fired.swap(true, Ordering::AcqRel) {
+                fs::rename(
+                    self.store.join(self.component),
+                    self.store.join(format!("{}-saved", self.component)),
+                )
+                .unwrap();
+                symlink(&self.external, self.store.join(self.component)).unwrap();
+            }
+        }
+    }
+    impl ActivationHooks for Hooks {
+        fn deactivate(&self, _: &str) -> Result<bool, String> {
+            if self.during_deactivate {
+                self.redirect();
+            }
+            Ok(true)
+        }
+        fn activate(&self, _: &str, _: bool) -> Result<(), String> {
+            if !self.during_deactivate {
+                self.redirect();
+            }
+            Ok(())
+        }
+    }
+    for operation in [
+        "uninstall-receipts",
+        "uninstall-versions",
+        "rollback-versions",
+        "rollback-deactivate",
+        "commit-deactivate",
+    ] {
+        let root = TempDir::new("metadata-callback-cleanup");
+        let installer = installer(&root);
+        for version in ["1.0.0", "1.1.0"] {
+            install_file(
+                &installer,
+                &demo_package(&root, "demo", version, serde_json::json!({})),
+                true,
+            )
+            .unwrap();
+        }
+        let external = root.join("external");
+        fs::create_dir_all(external.join("demo")).unwrap();
+        fs::write(external.join("demo/sentinel"), b"preserve").unwrap();
+        fs::write(external.join("demo.json"), b"preserve").unwrap();
+        let receipt_name = installer
+            .layout()
+            .retained_receipt("demo", "1.0.0")
+            .file_name()
+            .unwrap()
+            .to_owned();
+        fs::write(external.join("demo").join(&receipt_name), b"preserve").unwrap();
+        let hooks = Hooks {
+            store: root.join("store"),
+            external: external.clone(),
+            component: if operation == "uninstall-receipts" {
+                "receipts"
+            } else {
+                "versions"
+            },
+            during_deactivate: operation == "commit-deactivate"
+                || operation == "rollback-deactivate",
+            fired: AtomicBool::new(false),
+        };
+        let result = match operation {
+            "uninstall-receipts" | "uninstall-versions" => {
+                installer.uninstall("demo", None, &hooks)
+            }
+            "rollback-versions" | "rollback-deactivate" => installer
+                .rollback_local("demo", Some("1.0.0"), &hooks, &NoopReporter)
+                .map(|_| ()),
+            _ => {
+                let prepared = installer
+                    .prepare(
+                        &demo_package(&root, "demo", "1.2.0", serde_json::json!({})),
+                        PackageOrigin::File,
+                        SignaturePolicy::AllowWithConsent,
+                    )
+                    .unwrap();
+                installer
+                    .commit(&prepared, &implicit(true), &hooks, &NoopReporter)
+                    .map(|_| ())
+            }
+        };
+        assert!(result.is_err(), "{operation}");
+        assert_eq!(
+            fs::read(external.join("demo/sentinel")).unwrap(),
+            b"preserve",
+            "{operation}"
+        );
+        assert_eq!(
+            fs::read(external.join("demo.json")).unwrap(),
+            b"preserve",
+            "{operation}"
+        );
+        assert_eq!(
+            fs::read(external.join("demo").join(receipt_name)).unwrap(),
+            b"preserve",
+            "{operation}"
+        );
+        if operation.starts_with("uninstall") {
+            assert!(result.unwrap_err().message.contains("package preserved at"));
+        }
+    }
+}
+
+#[test]
 fn failed_rollback_activation_keeps_the_retained_version() {
     let root = TempDir::new("rollback-failure");
     let installer = installer(&root);
@@ -725,11 +1468,14 @@ fn failed_rollback_activation_keeps_the_retained_version() {
         .unwrap()
         .contains("1.1.0"));
     // The rejected target must survive for a later retry.
-    assert!(
-        fs::read_to_string(root.join("store/versions/demo/1.0.0/plugin.json"))
-            .unwrap()
-            .contains("1.0.0")
-    );
+    assert!(fs::read_to_string(
+        installer
+            .layout()
+            .retained("demo", "1.0.0")
+            .join("plugin.json")
+    )
+    .unwrap()
+    .contains("1.0.0"));
     let outcome = installer
         .rollback("demo", Some("1.0.0"), &hooks, &NoopReporter)
         .unwrap();
@@ -755,7 +1501,7 @@ fn retention_prunes_the_oldest_versions() {
         .map(|entry| entry.version.as_str())
         .collect();
     assert_eq!(retained, ["1.1.0", "1.2.0"]);
-    assert!(!root.join("store/versions/demo/1.0.0").exists());
+    assert!(!installer.layout().retained("demo", "1.0.0").exists());
 }
 
 #[test]
@@ -1088,7 +1834,7 @@ fn failed_rollback_retains_candidate_when_return_path_is_occupied() {
         .unwrap();
     }
     let hooks = FailingHooks {
-        retained: root.join("store/versions/demo/1.0.0"),
+        retained: installer.layout().retained("demo", "1.0.0"),
         attempts: AtomicUsize::new(0),
     };
     let error = installer
@@ -1999,6 +2745,118 @@ async fn cloud_registry_installs_verified_package_and_update() {
         .await
         .unwrap_err();
     assert_eq!(error.code, InstallErrorCode::NoCompatibleRelease);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn fixed_cloud_refuses_yanked_version_after_independent_review() {
+    let root = TempDir::new("fixed-review-yank");
+    let root_key = SigningKey::generate(KeyId::parse("root-1").unwrap(), None).unwrap();
+    let index_key = SigningKey::generate(KeyId::parse("index-1").unwrap(), None).unwrap();
+    let publisher = publisher_key();
+    let origin = root.join("origin");
+    let archive = signed_package(&root, &publisher, "acme.demo", "1.0.0");
+    for generation in [1, 2] {
+        let tree = origin.join(format!("api/v1/registry/generations/{generation}/files"));
+        let writer = IndexWriter::open(
+            tree,
+            "test",
+            Some(SigningKey::from_json(&index_key.to_json()).unwrap()),
+        );
+        writer
+            .init(
+                &root_key,
+                vec![
+                    TrustedKey::new(index_key.public_key(), KeyRole::Index),
+                    TrustedKey::new(publisher.public_key(), KeyRole::Publisher).publisher("acme"),
+                ],
+                None,
+                None,
+            )
+            .unwrap();
+        writer.add(&archive, "stable", None).unwrap();
+        if generation == 2 {
+            writer.yank("acme.demo", "1.0.0", true).unwrap();
+        }
+    }
+    let pointer = origin.join("api/v1/registry/current");
+    fs::write(&pointer, serde_json::json!({"generation":1}).to_string()).unwrap();
+    let server = StaticServer::start(origin).await;
+    let trust = Arc::new(RwLock::new(TrustStore::new()));
+    let source = cloud_source("official", &server.base, vec![root_key.public_key()]).unwrap();
+    let registry = Arc::new(
+        RegistryClient::new_fixed(
+            root.join("store/registries"),
+            root.join("store/registries.json"),
+            vec![source],
+            trust.clone(),
+        )
+        .unwrap(),
+    );
+    let sources = PackageSources::new_fixed(
+        registry.clone(),
+        Downloader::new_fixed(root.join("store/cache")).unwrap(),
+    );
+    let installer = installer_with(&root, trust);
+    let job = JobRegistry::new(None).start(JobKind::Install, None, Some("acme.demo".to_owned()));
+    let spec: PackageSpec = "acme.demo@1.0.0".parse().unwrap();
+    let reviewed = sources
+        .fetch(
+            &spec,
+            "stable",
+            installer.host(),
+            &job,
+            &AtomicBool::new(false),
+        )
+        .await
+        .unwrap();
+    assert_eq!(reviewed.target.as_deref(), Some("any"));
+    let guard = reviewed.trust_guard.clone().unwrap();
+    let reviewed_url = match &reviewed.origin {
+        PackageOrigin::Registry { url, .. } => url.clone(),
+        _ => panic!("expected a Cloud package"),
+    };
+    let prepared = installer
+        .prepare(&reviewed.path, reviewed.origin, reviewed.policy)
+        .unwrap();
+    assert_eq!(
+        installer.preview(&prepared).signature.status,
+        SignatureStatus::Verified
+    );
+    tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        registry.check_fixed_generation(&guard, "official", &reviewed_url),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    // A change between prepare and commit must fail the last current
+    // generation check even when the local trust guard is still held.
+    fs::write(&pointer, serde_json::json!({"generation":2}).to_string()).unwrap();
+    assert!(tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        registry.check_fixed_generation(&guard, "official", &reviewed_url)
+    )
+    .await
+    .unwrap()
+    .is_err());
+    drop(reviewed.trust_guard);
+    drop(guard);
+
+    // The real product also refetches before commit. A previously approved
+    // exact version cannot be fetched after it was yanked.
+    let error = sources
+        .fetch(
+            &spec,
+            "stable",
+            installer.host(),
+            &job,
+            &AtomicBool::new(false),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, InstallErrorCode::NoCompatibleRelease);
+    assert!(installer.receipt("acme.demo").unwrap().is_none());
+    assert!(!root.join("plugins/acme.demo").exists());
 }
 
 #[cfg(feature = "native-providers")]

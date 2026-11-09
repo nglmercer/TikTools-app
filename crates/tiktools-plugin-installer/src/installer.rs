@@ -15,11 +15,11 @@ use tiktools_plugin_package::{
 
 use crate::{
     jobs::{JobReporter, JobStage},
-    layout::{move_dir, now, StoreLayout},
+    layout::{move_dir, now, sanitize_version, StoreLayout},
     locks::KeyedLocks,
     native_libs::backfill_native_libs,
     preview::{consent_token, requires_sideload_consent},
-    receipt::{read_receipt, write_receipt},
+    receipt::{read_receipt, write_atomic, write_receipt},
     ChangeKind, InstallError, InstallErrorCode, InstallReceipt, PackageOrigin, PackagePreview,
     PermissionDiff, ReceiptStore, RetainedVersion, SignatureState, SignatureStatus, UpdatePolicy,
 };
@@ -75,6 +75,14 @@ fn required_observed_file(path: &Path, limit: usize) -> Result<Vec<u8>, InstallE
             "installed package metadata is missing",
         )
     })
+}
+
+fn remove_optional_file(path: &Path) -> Result<(), InstallError> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
 }
 
 pub trait ActivationHooks: Send + Sync {
@@ -281,7 +289,21 @@ impl LockedPackageStore<'_> {
         reporter: &dyn JobReporter,
     ) -> Result<InstallOutcome, InstallError> {
         self.installer
-            .rollback_under_store_lock(plugin_id, version, hooks, reporter)
+            .rollback_under_store_lock(plugin_id, version, hooks, reporter, false)
+    }
+
+    /// Restore only a previously reviewed local package whose retained tree
+    /// still matches its installation-time proof. The provenance check and
+    /// swap both happen under this store lease.
+    pub fn rollback_local(
+        &mut self,
+        plugin_id: &str,
+        version: Option<&str>,
+        hooks: &dyn ActivationHooks,
+        reporter: &dyn JobReporter,
+    ) -> Result<InstallOutcome, InstallError> {
+        self.installer
+            .rollback_under_store_lock(plugin_id, version, hooks, reporter, true)
     }
 
     pub fn uninstall(
@@ -296,6 +318,298 @@ impl LockedPackageStore<'_> {
 }
 
 impl Installer {
+    fn ensure_store_child(&self, relative: &Path, create: bool) -> Result<bool, InstallError> {
+        let store = match fs::symlink_metadata(&self.layout.store) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound && !create => return Ok(false),
+            Err(error) => return Err(error.into()),
+        };
+        if !store.file_type().is_dir() {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "package store is not a real directory",
+            ));
+        }
+        let mut current = self.layout.store.clone();
+        for component in relative.components() {
+            let std::path::Component::Normal(name) = component else {
+                return Err(InstallError::new(
+                    InstallErrorCode::InvalidPackage,
+                    "invalid package store path",
+                ));
+            };
+            current.push(name);
+            let metadata = match fs::symlink_metadata(&current) {
+                Ok(metadata) => metadata,
+                Err(error) if error.kind() == io::ErrorKind::NotFound && !create => {
+                    return Ok(false)
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    match fs::create_dir(&current) {
+                        Ok(()) => {}
+                        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                        Err(error) => return Err(error.into()),
+                    }
+                    fs::symlink_metadata(&current)?
+                }
+                Err(error) => return Err(error.into()),
+            };
+            if !metadata.file_type().is_dir() {
+                return Err(InstallError::new(
+                    InstallErrorCode::InvalidPackage,
+                    "package store path is not a real directory",
+                ));
+            }
+        }
+        Ok(true)
+    }
+
+    fn ensure_versions_dir(&self, plugin_id: &str, create: bool) -> Result<bool, InstallError> {
+        if !is_valid_plugin_id(plugin_id) {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "invalid plugin ID",
+            ));
+        }
+        self.ensure_store_child(&Path::new("versions").join(plugin_id), create)
+    }
+
+    fn legacy_retained(&self, plugin_id: &str, version: &str) -> Option<PathBuf> {
+        let component = sanitize_version(version);
+        if matches!(component.as_str(), "" | "." | "..") {
+            return None;
+        }
+        Some(self.layout.versions(plugin_id).join(component))
+    }
+
+    fn retained_matches(path: &Path, plugin_id: &str, version: &str) -> bool {
+        if !fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_dir()) {
+            return false;
+        }
+        required_observed_file(&path.join(MANIFEST_FILE), MAX_MANIFEST_BYTES)
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .and_then(|text| PluginManifest::from_json_str(&text).ok())
+            .is_some_and(|manifest| manifest.id == plugin_id && manifest.version == version)
+    }
+
+    pub(crate) fn migration_receipt_proof(
+        root: &Path,
+        receipt: &[u8],
+        plugin_id: &str,
+    ) -> Result<String, InstallError> {
+        let checksums =
+            required_observed_file(&root.join(CHECKSUMS_FILE), MAX_INSTALLED_CHECKSUMS_BYTES)?;
+        Checksums::parse(&checksums)?.verify_tree_with_directory_limit(
+            root,
+            plugin_id,
+            MAX_FILES * 4,
+        )?;
+        let signature =
+            read_observed_file(&root.join(SIGNATURE_FILE), MAX_INSTALLED_SIGNATURE_BYTES)?;
+        let identity = serde_json::to_vec(&(
+            Sha256Digest::of_bytes(receipt).to_string(),
+            Sha256Digest::of_bytes(&checksums).to_string(),
+            signature
+                .as_deref()
+                .map(Sha256Digest::of_bytes)
+                .map(|v| v.to_string()),
+        ))
+        .map_err(InstallError::io)?;
+        Ok(Sha256Digest::of_bytes(&identity).to_string())
+    }
+
+    // Old sanitization was not injective and permitted parent components.
+    // Migrate only a real directory whose manifest identifies this exact
+    // version. Never delete ambiguous entries or attach an unrelated receipt.
+    fn migrate_legacy_retained(&self, plugin_id: &str, version: &str) -> Result<(), InstallError> {
+        if !self.ensure_versions_dir(plugin_id, false)? {
+            return Ok(());
+        }
+        let destination = self.layout.retained(plugin_id, version);
+        let Some(legacy) = self.legacy_retained(plugin_id, version) else {
+            return Ok(());
+        };
+        let old_receipt = self
+            .layout
+            .versions(plugin_id)
+            .join(format!("{}.json", sanitize_version(version)));
+        let new_receipt = self.layout.retained_receipt(plugin_id, version);
+        let marker = self.layout.retained_migration_proof(plugin_id, version);
+        let receipt_bytes = read_observed_file(&old_receipt, MAX_INSTALLED_RECEIPT_BYTES)
+            .ok()
+            .flatten()
+            .filter(|bytes| {
+                serde_json::from_slice::<InstallReceipt>(bytes)
+                    .ok()
+                    .is_some_and(|receipt| receipt.id == plugin_id && receipt.version == version)
+            });
+        let exists = match fs::symlink_metadata(&destination) {
+            Ok(_) if Self::retained_matches(&destination, plugin_id, version) => true,
+            Ok(_) => {
+                return Err(InstallError::new(
+                    InstallErrorCode::InvalidPackage,
+                    "retained destination contains unexpected data",
+                ))
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        };
+        if !exists {
+            if !Self::retained_matches(&legacy, plugin_id, version) {
+                return Ok(());
+            }
+            remove_optional_file(&marker)?;
+            if let Some(bytes) = &receipt_bytes {
+                if let Ok(proof) = Self::migration_receipt_proof(&legacy, bytes, plugin_id) {
+                    write_atomic(&marker, proof.as_bytes())?;
+                }
+            }
+            fs::rename(&legacy, &destination)?;
+        }
+        let matches = receipt_bytes.as_ref().is_some_and(|bytes| {
+            read_observed_file(&marker, 64)
+                .ok()
+                .flatten()
+                .is_some_and(|marker| {
+                    Self::migration_receipt_proof(&destination, bytes, plugin_id)
+                        .is_ok_and(|proof| marker == proof.as_bytes())
+                })
+        });
+        if matches
+            && !legacy.exists()
+            && matches!(fs::symlink_metadata(&new_receipt), Err(error) if error.kind() == io::ErrorKind::NotFound)
+        {
+            fs::rename(old_receipt, new_receipt)?;
+            remove_optional_file(&marker)?;
+        }
+        Ok(())
+    }
+
+    // The proof binds the retained tree to the local artifact previously
+    // reviewed by this installer. It is an integrity check under the
+    // cooperative store lease, not protection against a process that can
+    // arbitrarily rewrite both the store and its proofs.
+    fn local_proof(&self, root: &Path, receipt: &InstallReceipt) -> Result<String, InstallError> {
+        if !matches!(receipt.origin, PackageOrigin::File)
+            || receipt
+                .archive_digest
+                .as_deref()
+                .and_then(Sha256Digest::parse)
+                .is_none()
+        {
+            return Err(InstallError::new(
+                InstallErrorCode::Unsupported,
+                "rollback target is not a reviewed local package",
+            ));
+        }
+        let manifest_bytes = required_observed_file(&root.join(MANIFEST_FILE), MAX_MANIFEST_BYTES)?;
+        let manifest_text = std::str::from_utf8(&manifest_bytes).map_err(|error| {
+            InstallError::new(InstallErrorCode::InvalidPackage, error.to_string())
+        })?;
+        let manifest = PluginManifest::from_json_str(manifest_text).map_err(|error| {
+            InstallError::new(InstallErrorCode::InvalidPackage, error.to_string())
+        })?;
+        if manifest.id != receipt.id
+            || manifest.version != receipt.version
+            || manifest.runtime.to_string() != receipt.runtime
+            || manifest.permissions != receipt.granted_permissions
+            || manifest.capabilities != receipt.granted_capabilities
+        {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "local rollback receipt and package disagree",
+            ));
+        }
+        let checksums =
+            required_observed_file(&root.join(CHECKSUMS_FILE), MAX_INSTALLED_CHECKSUMS_BYTES)?;
+        Checksums::parse(&checksums)?.verify_tree_with_directory_limit(
+            root,
+            &receipt.id,
+            MAX_FILES * 4,
+        )?;
+        let signature =
+            read_observed_file(&root.join(SIGNATURE_FILE), MAX_INSTALLED_SIGNATURE_BYTES)?;
+        match (receipt.signature.status, signature.as_deref()) {
+            (SignatureStatus::Unsigned, None) => {}
+            (status, Some(bytes)) if status != SignatureStatus::Unsigned => {
+                let parsed = PackageSignature::parse(bytes)?;
+                if receipt.signature.publisher.as_deref() != Some(parsed.publisher.as_str())
+                    || receipt.signature.key_id.as_deref() != Some(parsed.key_id.as_str())
+                {
+                    return Err(InstallError::new(
+                        InstallErrorCode::InvalidPackage,
+                        "local package signature and review disagree",
+                    ));
+                }
+                let trust = self
+                    .trust
+                    .read()
+                    .map_err(|_| InstallError::io("trust store lock poisoned"))?;
+                match (
+                    status,
+                    trust.verify_package(&parsed, &checksums, &receipt.id, now()),
+                ) {
+                    (SignatureStatus::Verified, Ok(_)) => {}
+                    (SignatureStatus::Untrusted, Err(error))
+                        if error.kind() == PackageErrorKind::UntrustedPublisher => {}
+                    _ => {
+                        return Err(InstallError::new(
+                            InstallErrorCode::UntrustedPublisher,
+                            "local package trust changed; review it again",
+                        ))
+                    }
+                }
+            }
+            _ => {
+                return Err(InstallError::new(
+                    InstallErrorCode::InvalidPackage,
+                    "local package signature and review disagree",
+                ))
+            }
+        }
+        let identity = serde_json::to_vec(&(
+            &receipt.id,
+            &receipt.version,
+            &receipt.origin,
+            &receipt.archive_digest,
+            &receipt.signature,
+            &receipt.runtime,
+            &receipt.granted_permissions,
+            &receipt.granted_capabilities,
+            Sha256Digest::of_bytes(&checksums).to_string(),
+            signature
+                .as_deref()
+                .map(Sha256Digest::of_bytes)
+                .map(|v| v.to_string()),
+        ))
+        .map_err(InstallError::io)?;
+        Ok(Sha256Digest::of_bytes(&identity).to_string())
+    }
+
+    fn matching_local_proof(&self, root: &Path, receipt: &InstallReceipt, path: &Path) -> bool {
+        let Ok(Some(proof)) = read_observed_file(path, 64) else {
+            return false;
+        };
+        self.local_proof(root, receipt)
+            .is_ok_and(|expected| proof == expected.as_bytes())
+    }
+
+    fn record_local_proof(
+        &self,
+        root: &Path,
+        receipt: &InstallReceipt,
+        path: &Path,
+        expected: &str,
+    ) {
+        if let Ok(proof) = self.local_proof(root, receipt) {
+            if proof != expected {
+                return;
+            }
+            let _ = write_atomic(path, proof.as_bytes());
+        }
+    }
+
     fn observed_receipt(&self, plugin_id: &str) -> Result<Option<Vec<u8>>, InstallError> {
         let directory = self.layout.receipts();
         let metadata = match fs::symlink_metadata(&directory) {
@@ -783,7 +1097,6 @@ impl Installer {
 
         reporter.stage(JobStage::Activate);
         let previous = self.current_state(id)?;
-        self.swap_in(id, &extracted.root, previous.as_ref(), hooks)?;
 
         let timestamp = now();
         let mut retained = previous
@@ -818,7 +1131,20 @@ impl Installer {
                 .unwrap_or_default(),
             retained,
         };
+        // Capture the identity before activation can run plugin code. A later
+        // checksum rewrite, even together with changed files, cannot acquire a
+        // proof for the previously reviewed package.
+        let expected_local_proof = self.local_proof(&extracted.root, &receipt).ok();
+        self.swap_in(id, &extracted.root, previous.as_ref(), hooks)?;
         let receipt = self.finalize(receipt)?;
+        if let Some(expected) = expected_local_proof {
+            self.record_local_proof(
+                &self.layout.package(id),
+                &receipt,
+                &self.layout.installed_local_proof(id),
+                &expected,
+            );
+        }
         reporter.stage(JobStage::Cleanup);
         Ok(InstallOutcome {
             directory: self.layout.package(id).display().to_string(),
@@ -839,14 +1165,30 @@ impl Installer {
             .rollback(plugin_id, version, hooks, reporter)
     }
 
-    fn rollback_under_store_lock(
+    /// Product rollback restricted to a retained, verified local package.
+    pub fn rollback_local(
         &self,
         plugin_id: &str,
         version: Option<&str>,
         hooks: &dyn ActivationHooks,
         reporter: &dyn JobReporter,
     ) -> Result<InstallOutcome, InstallError> {
+        self.try_lock_store_for(plugin_id)?
+            .rollback_local(plugin_id, version, hooks, reporter)
+    }
+
+    fn rollback_under_store_lock(
+        &self,
+        plugin_id: &str,
+        version: Option<&str>,
+        hooks: &dyn ActivationHooks,
+        reporter: &dyn JobReporter,
+        local_only: bool,
+    ) -> Result<InstallOutcome, InstallError> {
         let _guard = self.locks.try_lock(plugin_id)?;
+        self.ensure_versions_dir(plugin_id, false)?;
+        self.ensure_store_child(Path::new("local-proofs"), false)?;
+        self.ensure_store_child(Path::new("receipts"), false)?;
         let current = self
             .current_state(plugin_id)?
             .ok_or_else(|| InstallError::not_installed(plugin_id))?;
@@ -864,17 +1206,59 @@ impl Installer {
                     )
                 })?,
         };
+        if local_only && target_version == current.receipt.version {
+            return Err(InstallError::new(
+                InstallErrorCode::Unsupported,
+                "rollback target is already installed",
+            ));
+        }
+        self.migrate_legacy_retained(plugin_id, &target_version)?;
         let retained_dir = self.layout.retained(plugin_id, &target_version);
+        if !Self::retained_matches(&retained_dir, plugin_id, &target_version) {
+            return Err(InstallError::new(
+                InstallErrorCode::NotFound,
+                format!("{plugin_id} {target_version} is not retained"),
+            ));
+        }
         let manifest = fs::read_to_string(retained_dir.join(MANIFEST_FILE))
             .ok()
             .and_then(|text| PluginManifest::from_json_str(&text).ok())
-            .filter(|manifest| manifest.id == plugin_id)
+            .filter(|manifest| manifest.id == plugin_id && manifest.version == target_version)
             .ok_or_else(|| {
                 InstallError::new(
                     InstallErrorCode::NotFound,
                     format!("{plugin_id} {target_version} is not retained"),
                 )
             })?;
+        let retained_receipt_path = self.layout.retained_receipt(plugin_id, &target_version);
+        let retained_receipt = read_receipt(&retained_receipt_path)?
+            .filter(|receipt| receipt.id == plugin_id && receipt.version == target_version);
+        let mut expected_local_proof = None;
+        if local_only {
+            let eligible = current
+                .receipt
+                .retained
+                .iter()
+                .any(|entry| entry.version == target_version)
+                && retained_receipt.as_ref().is_some_and(|receipt| {
+                    receipt.id == plugin_id
+                        && receipt.version == target_version
+                        && self.matching_local_proof(
+                            &retained_dir,
+                            receipt,
+                            &self.layout.retained_local_proof(plugin_id, &target_version),
+                        )
+                });
+            if !eligible {
+                return Err(InstallError::new(
+                    InstallErrorCode::Unsupported,
+                    "rollback target cannot be verified as the reviewed local package; reinstall the version after review",
+                ));
+            }
+            expected_local_proof = retained_receipt
+                .as_ref()
+                .and_then(|receipt| self.local_proof(&retained_dir, receipt).ok());
+        }
         self.host.check_manifest(&manifest)?;
         reporter.stage(JobStage::Activate);
         let staging = self.layout.new_staging_dir(plugin_id)?;
@@ -896,6 +1280,12 @@ impl Installer {
                             candidate.display()
                         )));
                     }
+                    if let Err(validation) = self.ensure_versions_dir(plugin_id, true) {
+                        return Err(InstallError::io(format!(
+                            "{error}; retained package preserved at {} because its store changed: {validation}",
+                            candidate.display()
+                        )));
+                    }
                     if let Err(restore) = move_dir(&candidate, &retained_dir) {
                         // The rollback candidate may be the only copy of the
                         // retained version. Never delete it when restoration
@@ -911,10 +1301,12 @@ impl Installer {
             }
         };
         let _ = fs::remove_dir_all(&staging);
-        let retained_receipt_path = self.layout.retained_receipt(plugin_id, &target_version);
-        let base = read_receipt(&retained_receipt_path)?
-            .unwrap_or_else(|| adopted_receipt(&manifest, now()));
+        self.ensure_versions_dir(plugin_id, false).map_err(|error| {
+            InstallError::io(format!("package metadata changed during rollback; package may already have changed: {error}"))
+        })?;
+        let base = retained_receipt.unwrap_or_else(|| adopted_receipt(&manifest, now()));
         let _ = fs::remove_file(&retained_receipt_path);
+        let _ = fs::remove_file(self.layout.retained_local_proof(plugin_id, &target_version));
         let timestamp = now();
         let mut retained: Vec<RetainedVersion> = current
             .receipt
@@ -940,6 +1332,14 @@ impl Installer {
             ..base
         };
         let receipt = self.finalize(receipt)?;
+        if let Some(expected) = expected_local_proof {
+            self.record_local_proof(
+                &self.layout.package(plugin_id),
+                &receipt,
+                &self.layout.installed_local_proof(plugin_id),
+                &expected,
+            );
+        }
         reporter.stage(JobStage::Cleanup);
         Ok(InstallOutcome {
             directory: self.layout.package(plugin_id).display().to_string(),
@@ -966,8 +1366,19 @@ impl Installer {
         hooks: &dyn ActivationHooks,
     ) -> Result<(), InstallError> {
         let _guard = self.locks.try_lock(plugin_id)?;
+        self.ensure_versions_dir(plugin_id, false)?;
+        self.ensure_store_child(Path::new("local-proofs"), false)?;
+        self.ensure_store_child(Path::new("receipts"), false)?;
         let target = self.checked_package_dir(plugin_id)?;
         let was_running = hooks.deactivate(plugin_id).map_err(InstallError::io)?;
+        let after_deactivate = self
+            .ensure_store_child(Path::new("receipts"), false)
+            .and_then(|_| self.ensure_store_child(Path::new("local-proofs"), false))
+            .and_then(|_| self.ensure_versions_dir(plugin_id, false));
+        if let Err(error) = after_deactivate {
+            let resume = hooks.activate(plugin_id, was_running);
+            return Err(InstallError::io(format!("package metadata changed while stopping plugin: {error}; runtime recovery: {resume:?}")));
+        }
         let trash = match self.layout.new_staging_dir("removed") {
             Ok(trash) => trash,
             Err(error) => {
@@ -1009,6 +1420,15 @@ impl Installer {
                 ))),
             };
         }
+        if let Err(error) = self
+            .ensure_store_child(Path::new("receipts"), false)
+            .and_then(|_| self.ensure_versions_dir(plugin_id, false))
+        {
+            return Err(InstallError::io(format!(
+                "package metadata changed during removal: {error}; package preserved at {}",
+                trash.join(plugin_id).display()
+            )));
+        }
         let _ = fs::remove_dir_all(&trash);
         self.receipts.remove(plugin_id)?;
         let versions = self.layout.versions(plugin_id);
@@ -1022,6 +1442,13 @@ impl Installer {
     }
 
     pub fn versions(&self, plugin_id: &str) -> Result<InstalledVersions, InstallError> {
+        if !is_valid_plugin_id(plugin_id) {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "invalid plugin ID",
+            ));
+        }
+        self.ensure_versions_dir(plugin_id, false)?;
         let receipt = self.receipts.load(plugin_id)?;
         let installed = self
             .installed_manifest(plugin_id)
@@ -1032,7 +1459,16 @@ impl Installer {
                 receipt
                     .retained
                     .iter()
-                    .filter(|entry| self.layout.retained(plugin_id, &entry.version).is_dir())
+                    .filter(|entry| {
+                        let path = self.layout.retained(plugin_id, &entry.version);
+                        Self::retained_matches(&path, plugin_id, &entry.version)
+                            || (!path.exists()
+                                && self.legacy_retained(plugin_id, &entry.version).is_some_and(
+                                    |legacy| {
+                                        Self::retained_matches(&legacy, plugin_id, &entry.version)
+                                    },
+                                ))
+                    })
                     .cloned()
                     .collect()
             })
@@ -1096,10 +1532,34 @@ impl Installer {
         let manifest = self.installed_manifest(plugin_id);
         let receipt = match (self.receipts.load(plugin_id)?, &manifest) {
             (Some(receipt), Some(manifest)) if receipt.version == manifest.version => receipt,
-            (Some(receipt), Some(manifest)) => InstallReceipt {
-                version: manifest.version.clone(),
-                ..receipt
-            },
+            (Some(receipt), Some(manifest)) => {
+                // The active manifest no longer matches its receipt: do not
+                // inherit its origin or signature. Retain only independently
+                // identifiable historical entries so recovery remains possible.
+                let mut adopted = adopted_receipt(manifest, now());
+                if receipt.id == plugin_id && manifest.id == plugin_id {
+                    self.ensure_versions_dir(plugin_id, false)?;
+                    adopted.retained = receipt
+                        .retained
+                        .into_iter()
+                        .filter(|entry| {
+                            let path = self.layout.retained(plugin_id, &entry.version);
+                            Self::retained_matches(&path, plugin_id, &entry.version)
+                                || (!path.exists()
+                                    && self.legacy_retained(plugin_id, &entry.version).is_some_and(
+                                        |legacy| {
+                                            Self::retained_matches(
+                                                &legacy,
+                                                plugin_id,
+                                                &entry.version,
+                                            )
+                                        },
+                                    ))
+                        })
+                        .collect();
+                }
+                adopted
+            }
             (Some(receipt), None) => receipt,
             (None, Some(manifest)) => adopted_receipt(manifest, now()),
             (None, None) => InstallReceipt {
@@ -1131,12 +1591,69 @@ impl Installer {
                 "plugin installation target escaped the plugin directory",
             ));
         }
+        self.ensure_store_child(Path::new("local-proofs"), true)?;
+        self.ensure_store_child(Path::new("receipts"), true)?;
+        if previous.is_some() {
+            self.ensure_versions_dir(plugin_id, true)?;
+        }
+        if let Some(state) = previous {
+            for entry in &state.receipt.retained {
+                self.migrate_legacy_retained(plugin_id, &entry.version)?;
+            }
+            self.migrate_legacy_retained(plugin_id, &state.receipt.version)?;
+            let destination = self.layout.retained(plugin_id, &state.receipt.version);
+            match fs::symlink_metadata(&destination) {
+                Ok(_)
+                    if !Self::retained_matches(&destination, plugin_id, &state.receipt.version) =>
+                {
+                    return Err(InstallError::new(
+                        InstallErrorCode::InvalidPackage,
+                        "retained destination contains unexpected data",
+                    ));
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
+        // Invalidate old proofs before changing either path. Older releases
+        // may have left stale receipts when receipt writes failed, so they
+        // cannot acquire the new proof retroactively.
+        let installed_proof = self.layout.installed_local_proof(plugin_id);
+        let previous_local = previous.and_then(|state| {
+            self.matching_local_proof(&state.directory, &state.receipt, &installed_proof)
+                .then(|| self.local_proof(&state.directory, &state.receipt).ok())
+                .flatten()
+        });
+        remove_optional_file(&installed_proof)?;
+        if let Some(state) = previous {
+            remove_optional_file(
+                &self
+                    .layout
+                    .retained_local_proof(plugin_id, &state.receipt.version),
+            )?;
+        }
         let was_running = hooks.deactivate(plugin_id).map_err(InstallError::io)?;
+        let after_deactivate = self
+            .ensure_store_child(Path::new("receipts"), false)
+            .and_then(|_| self.ensure_store_child(Path::new("local-proofs"), false))
+            .and_then(|_| self.ensure_versions_dir(plugin_id, false));
+        if let Err(error) = after_deactivate {
+            let resume = hooks.activate(plugin_id, was_running);
+            return Err(InstallError::io(format!("package metadata changed while stopping plugin: {error}; runtime recovery: {resume:?}")));
+        }
         let mut retained_to = None;
         if let Some(state) = previous {
             let destination = self.layout.retained(plugin_id, &state.receipt.version);
-            if destination.exists() {
-                fs::remove_dir_all(&destination)?;
+            if fs::symlink_metadata(&destination).is_ok() {
+                if !Self::retained_matches(&destination, plugin_id, &state.receipt.version) {
+                    let resume = hooks.activate(plugin_id, was_running);
+                    return Err(InstallError::io(format!("retained destination changed while stopping plugin; runtime recovery: {resume:?}")));
+                }
+                if let Err(error) = fs::remove_dir_all(&destination) {
+                    let _ = hooks.activate(plugin_id, was_running);
+                    return Err(error.into());
+                }
             }
             if let Err(error) = move_dir(&state.directory, &destination) {
                 let _ = hooks.activate(plugin_id, was_running);
@@ -1152,6 +1669,15 @@ impl Installer {
                 },
             ) {
                 tracing::warn!(plugin = %plugin_id, %error, "could not record the retained receipt");
+            } else if let Some(expected) = previous_local {
+                self.record_local_proof(
+                    &destination,
+                    &state.receipt,
+                    &self
+                        .layout
+                        .retained_local_proof(plugin_id, &state.receipt.version),
+                    &expected,
+                );
             }
             retained_to = Some(destination);
         }
@@ -1206,14 +1732,23 @@ impl Installer {
     }
 
     fn finalize(&self, mut receipt: InstallReceipt) -> Result<InstallReceipt, InstallError> {
+        self.ensure_versions_dir(&receipt.id, false)?;
+        self.ensure_store_child(Path::new("receipts"), true)?;
         receipt.retained.sort_by_key(|entry| entry.retained_at);
         while receipt.retained.len() > self.retain {
             let removed = receipt.retained.remove(0);
             let directory = self.layout.retained(&receipt.id, &removed.version);
+            if !Self::retained_matches(&directory, &receipt.id, &removed.version) {
+                continue;
+            }
             if directory.exists() {
                 fs::remove_dir_all(&directory)?;
             }
             let _ = fs::remove_file(self.layout.retained_receipt(&receipt.id, &removed.version));
+            let _ = fs::remove_file(
+                self.layout
+                    .retained_local_proof(&receipt.id, &removed.version),
+            );
         }
         self.receipts.save(&receipt)?;
         Ok(receipt)

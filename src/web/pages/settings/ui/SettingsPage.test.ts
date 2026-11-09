@@ -54,10 +54,12 @@ describe('SettingsPage', () => {
     expect(wrapper.text()).toContain('{{ globals.key }}');
   });
 
-  it('keeps registry setup collapsed under Advanced', async () => {
+  it('does not expose source enrollment and retains the local package policy', async () => {
     const { wrapper } = await mountPage('?section=advanced');
-    expect(wrapper.find('#plugin-sources-url').isVisible()).toBe(false);
-    expect(wrapper.text()).toContain('Add a registry');
+    expect(wrapper.find('#plugin-sources-url').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Add a registry');
+    const updates = await mountPage('?section=updates');
+    expect(updates.wrapper.text()).toContain('Allow local package installation');
   });
 
   it('maps legacy section links to Advanced', async () => {

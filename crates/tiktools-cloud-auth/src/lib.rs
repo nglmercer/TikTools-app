@@ -30,4 +30,6 @@ mod auth_tests;
 
 #[cfg(feature = "account")]
 pub use account::*;
-pub use origin::{resolve_cloud_origin, DEFAULT_CLOUD_ORIGIN, ENV_CLOUD_ORIGIN};
+pub use origin::{
+    normalize_cloud_origin, resolve_cloud_origin, DEFAULT_CLOUD_ORIGIN, ENV_CLOUD_ORIGIN,
+};

@@ -7,12 +7,11 @@ use tiktools_control_api::modules::packages::{
     PackagePolicyParams, PackageRollbackParams, PackageSpecInput, PackageUpdateParams, PolicyPatch,
 };
 use tiktools_control_api::modules::registry::{
-    CloudCatalogQuery, CloudCatalogSummariesQuery, CloudCatalogVersionsQuery, RegistryAddInput,
-    RegistryEnableParams, RegistryNameParams, RegistryPackageParams, RegistryRefreshParams,
-    RegistryUrlParams, SearchQuery,
+    CloudCatalogQuery, CloudCatalogSummariesQuery, CloudCatalogVersionsQuery,
+    RegistryPackageParams, RegistryRefreshParams, SearchQuery,
 };
 
-use super::args::{flag_value, flag_values, one_arg, positional, split_first};
+use super::args::{flag_value, one_arg, positional, split_first};
 use super::{result_value, CommandError};
 
 const JOB_POLL_INTERVAL: Duration = Duration::from_millis(250);
@@ -21,7 +20,6 @@ pub enum Command {
     Search {
         query: String,
         category: Option<String>,
-        registry: Option<String>,
         page: u32,
     },
     Inspect {
@@ -60,30 +58,9 @@ pub enum Command {
         id: String,
     },
     RegistryList,
-    RegistryRoot {
-        url: String,
-    },
-    RegistryAdd {
-        name: String,
-        url: String,
-        scopes: Vec<String>,
-        priority: i32,
-        yes: bool,
-        unverified: bool,
-    },
-    RegistryRemove {
-        name: String,
-    },
-    RegistryEnable {
-        name: String,
-        enabled: bool,
-    },
-    RegistryRefresh {
-        name: Option<String>,
-    },
+    RegistryRefresh,
     RegistryPackage {
         id: String,
-        registry: Option<String>,
     },
     RegistryCloudCatalog {
         query: String,
@@ -121,6 +98,15 @@ pub fn parse_plugin(verb: &str, rest: &[String]) -> Option<Result<Command, Comma
     let wait = !rest.iter().any(|arg| arg == "--no-wait");
     let yes = rest.iter().any(|arg| arg == "--yes" || arg == "-y");
     let parsed = match verb {
+        "search"
+            if rest
+                .iter()
+                .any(|arg| arg == "--registry" || arg.starts_with("--registry=")) =>
+        {
+            Err("plugin sources are managed by the application"
+                .to_owned()
+                .into())
+        }
         "search" => Ok(Command::Search {
             query: rest
                 .iter()
@@ -129,7 +115,6 @@ pub fn parse_plugin(verb: &str, rest: &[String]) -> Option<Result<Command, Comma
                 .collect::<Vec<_>>()
                 .join(" "),
             category: flag_value(rest, "--category"),
-            registry: flag_value(rest, "--registry"),
             page: flag_value(rest, "--page")
                 .and_then(|page| page.parse().ok())
                 .unwrap_or(1),
@@ -222,40 +207,14 @@ fn policy(rest: &[String]) -> Result<Command, CommandError> {
 
 pub fn parse_registry(args: &[String]) -> Result<Command, CommandError> {
     let usage =
-        "registry <list|root|add|remove|enable|disable|refresh|package|cloud-catalog|cloud-summaries|cloud-versions|cloud-pagination|defaults> ...";
+        "registry <list|refresh|package|cloud-catalog|cloud-summaries|cloud-versions|cloud-pagination|defaults> ...";
     let (verb, rest) = split_first(args, usage)?;
     match verb {
         "list" => Ok(Command::RegistryList),
-        "root" => Ok(Command::RegistryRoot {
-            url: one_arg(rest, "registry root <url>")?,
-        }),
-        "add" => {
-            let usage = "registry add <name> <url> [--scope acme.*]... [--priority n] [--yes] [--unverified]";
-            Ok(Command::RegistryAdd {
-                name: positional(rest, 0, usage)?,
-                url: positional(rest, 1, usage)?,
-                scopes: flag_values(rest, "--scope"),
-                priority: flag_value(rest, "--priority")
-                    .map(|value| value.parse().map_err(|_| usage.to_owned()))
-                    .transpose()?
-                    .unwrap_or(0),
-                yes: rest.iter().any(|arg| arg == "--yes" || arg == "-y"),
-                unverified: rest.iter().any(|arg| arg == "--unverified"),
-            })
-        }
-        "remove" => Ok(Command::RegistryRemove {
-            name: one_arg(rest, "registry remove <name>")?,
-        }),
-        "enable" | "disable" => Ok(Command::RegistryEnable {
-            name: one_arg(rest, "registry enable|disable <name>")?,
-            enabled: verb == "enable",
-        }),
-        "refresh" => Ok(Command::RegistryRefresh {
-            name: rest.first().cloned(),
-        }),
+        "refresh" if rest.is_empty() => Ok(Command::RegistryRefresh),
+        "refresh" => Err("registry refresh".to_owned().into()),
         "package" => Ok(Command::RegistryPackage {
-            id: positional(rest, 0, "registry package <id> [--registry name]")?,
-            registry: flag_value(rest, "--registry"),
+            id: one_arg(rest, "registry package <id>")?,
         }),
         "cloud-catalog" => Ok(Command::RegistryCloudCatalog {
             query: flag_value(rest, "--query").unwrap_or_default(),
@@ -276,14 +235,13 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
         Command::Search {
             query,
             category,
-            registry,
             page,
         } => result_value(
             client
                 .registry_search(SearchQuery {
                     query,
                     category,
-                    registry,
+                    registry: None,
                     page,
                 })
                 .await?,
@@ -357,59 +315,14 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
             result_value(client.plugins_jobs_cancel(JobParams { job_id: id }).await?)
         }
         Command::RegistryList => result_value(client.registry_list().await?),
-        Command::RegistryRoot { url } => {
-            result_value(client.registry_root(RegistryUrlParams { url }).await?)
-        }
-        Command::RegistryAdd {
-            name,
-            url,
-            scopes,
-            priority,
-            yes,
-            unverified,
-        } => {
-            let fingerprints = if unverified {
-                Vec::new()
-            } else {
-                let root = client
-                    .registry_root(RegistryUrlParams { url: url.clone() })
-                    .await?;
-                if !yes {
-                    return Ok(json!({
-                        "confirm": "re-run with --yes after checking these root key fingerprints with the registry operator",
-                        "root": root,
-                    }));
-                }
-                root.keys.into_iter().map(|key| key.fingerprint).collect()
-            };
-            result_value(
-                client
-                    .registry_add(RegistryAddInput {
-                        name,
-                        url,
-                        fingerprints,
-                        scopes,
-                        priority,
-                    })
-                    .await?,
-            )
-        }
-        Command::RegistryRemove { name } => {
-            result_value(client.registry_remove(RegistryNameParams { name }).await?)
-        }
-        Command::RegistryEnable { name, enabled } => result_value(
+        Command::RegistryRefresh => result_value(
             client
-                .registry_enable(RegistryEnableParams { name, enabled })
+                .registry_refresh(RegistryRefreshParams { name: None })
                 .await?,
         ),
-        Command::RegistryRefresh { name } => result_value(
+        Command::RegistryPackage { id } => result_value(
             client
-                .registry_refresh(RegistryRefreshParams { name })
-                .await?,
-        ),
-        Command::RegistryPackage { id, registry } => result_value(
-            client
-                .registry_package(RegistryPackageParams { id, registry })
+                .registry_package(RegistryPackageParams { id, registry: None })
                 .await?,
         ),
         Command::RegistryCloudCatalog {
