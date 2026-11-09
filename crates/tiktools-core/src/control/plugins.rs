@@ -888,7 +888,11 @@ impl AppCore {
         }
         #[cfg(feature = "cloud-auth")]
         let version = plugin.manifest.version.clone();
-        #[cfg(feature = "persistence")]
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        self.db
+            .set_plugin_state_with_untracked_sync(&id, installed, true)
+            .map_err(|error| OperationError::internal(error.to_string()))?;
+        #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
         self.db
             .set_plugin_state(&id, installed, true)
             .map_err(|error| OperationError::internal(error.to_string()))?;
@@ -1111,7 +1115,19 @@ impl AppCore {
                 return Ok(false);
             }
         }
-        #[cfg(feature = "persistence")]
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        if only_installed {
+            // Legacy remote application is not a local edit and must not
+            // feed the outbound reconciliation marker.
+            self.db
+                .set_plugin_state(id, true, enabled)
+                .map_err(|error| OperationError::internal(error.to_string()))?;
+        } else {
+            self.db
+                .set_plugin_state_with_untracked_sync(id, true, enabled)
+                .map_err(|error| OperationError::internal(error.to_string()))?;
+        }
+        #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
         self.db
             .set_plugin_state(id, true, enabled)
             .map_err(|error| OperationError::internal(error.to_string()))?;

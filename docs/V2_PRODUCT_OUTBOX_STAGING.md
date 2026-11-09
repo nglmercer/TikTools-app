@@ -114,11 +114,15 @@ changing the runtime; a cooperating emission makes them return busy without
 starting or stopping the plugin. The fence is independent of Cloud account and
 consent state, but an unavailable local fence also makes these calls fail.
 Public enable/disable and installed-state changes also take that lease around
-their SQLite and runtime mutations. Direct package install and uninstall,
-and the filesystem commit and rollback phases of package jobs, take it around
+their SQLite and runtime mutations. With Cloud Auth and persistence enabled,
+they now atomically record a durable untracked-local marker with the source
+change; v1 staging still runs as before. The marker blocks the experimental
+v2 emitter until a future explicit reconciliation flow clears it. Direct
+package install and uninstall, and the filesystem commit and rollback phases
+of package jobs, take the lease around
 source invalidation and package activation. These operations still use legacy
 staging and do not atomically create the product outbox or untracked marker, so
-the lease alone does not make them safe for v2 product activation. Automatic
+their lease alone does not make them safe for v2 product activation. Automatic
 worker changes, including subscriber startup after a package job, legacy v1
 emitters, and noncooperating processes are not yet fully fenced; product
 activation still requires those paths to participate and be verified together.

@@ -71,6 +71,19 @@ async fn product_upload_source_rejects_new_admission_after_shutdown() {
 }
 
 #[tokio::test]
+async fn legacy_remote_selection_does_not_create_local_reconciliation_marker() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(runtime, &["acme.hotkeys"]);
+    assert!(!core.db.has_untracked_plugin_sync().unwrap());
+    assert!(core
+        .plugin_apply_remote_selection("acme.hotkeys", false)
+        .unwrap());
+    assert!(!core.db.has_untracked_plugin_sync().unwrap());
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn public_plugin_state_changes_exclude_inflight_product_emission() {
     let runtime = Arc::new(FakePluginState::default());
     let (core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
@@ -88,7 +101,16 @@ async fn public_plugin_state_changes_exclude_inflight_product_emission() {
     assert!(core.plugin_set_installed("acme.hotkeys", false).is_err());
     assert_eq!(generation(), before);
     assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    assert!(!core.db.has_untracked_plugin_sync().unwrap());
     drop(request);
+    connection.execute_batch("CREATE TRIGGER reject_local_marker BEFORE INSERT ON plugin_sync_untracked_local BEGIN SELECT RAISE(ABORT, 'injected'); END;").unwrap();
+    assert!(core.plugin_set_enabled("acme.hotkeys", true).is_err());
+    assert_eq!(generation(), before);
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    assert!(!core.db.has_untracked_plugin_sync().unwrap());
+    connection
+        .execute_batch("DROP TRIGGER reject_local_marker")
+        .unwrap();
     let checked = Arc::new(AtomicBool::new(false));
     let observed = checked.clone();
     let runtime_fence = fence.clone();
@@ -101,12 +123,29 @@ async fn public_plugin_state_changes_exclude_inflight_product_emission() {
     core.plugin_set_enabled("acme.hotkeys", true).unwrap();
     assert!(checked.load(AtomicOrdering::SeqCst));
     assert!(generation() > before);
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    assert!(crate::db::DatabaseManager::new(core.db.paths().clone())
+        .has_untracked_plugin_sync()
+        .unwrap());
+    let source = crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(
+        &core,
+        "https://cloud.example",
+        "alice",
+    );
+    assert!(source.acquire_emission_guard().is_err());
     let current = generation();
     let request = fence.try_emission().unwrap();
     assert!(core.plugin_set_installed("acme.hotkeys", false).is_err());
     assert_eq!(generation(), current);
     assert!(core.plugins.get("acme.hotkeys").unwrap().running);
     drop(request);
+    connection.execute_batch("CREATE TRIGGER reject_local_marker BEFORE INSERT ON plugin_sync_untracked_local BEGIN SELECT RAISE(ABORT, 'injected'); END;").unwrap();
+    assert!(core.plugin_set_installed("acme.hotkeys", false).is_err());
+    assert_eq!(generation(), current);
+    assert!(core.plugins.get("acme.hotkeys").unwrap().running);
+    connection
+        .execute_batch("DROP TRIGGER reject_local_marker")
+        .unwrap();
     core.plugin_set_installed("acme.hotkeys", false).unwrap();
     assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
     assert!(generation() > current);
