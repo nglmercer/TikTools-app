@@ -57,6 +57,13 @@ function installVersion(version: string): void {
   });
 }
 
+function reviewCloudVersion(version: string): void {
+  // Re-resolve the configured Cloud source and require a fresh package
+  // review. The retained directory cannot prove a Cloud release is still
+  // approved, and a legacy receipt must not select another registry.
+  void packages.reviewSpec({ kind: 'registry', id: props.pluginId, version });
+}
+
 onMounted(load);
 watch(() => props.pluginId, load);
 </script>
@@ -138,6 +145,12 @@ watch(() => props.pluginId, load);
       <h3 class="versions-pane__heading">
         {{ t('packages.versions.retained') }}
       </h3>
+      <p
+        v-if="fromRegistry"
+        class="versions-pane__muted"
+      >
+        {{ t('packages.versions.cloudRestoreHint') }}
+      </p>
       <ul class="versions-pane__list">
         <li
           v-for="entry in versions.retained"
@@ -150,7 +163,15 @@ watch(() => props.pluginId, load);
             :disabled="busy"
             @click="packages.rollback(pluginId, entry.version)"
           >
-            {{ t('packages.versions.rollback') }}
+            {{ t(fromRegistry ? 'packages.versions.restoreLocal' : 'packages.versions.rollback') }}
+          </BaseButton>
+          <BaseButton
+            v-if="fromRegistry"
+            size="sm"
+            :disabled="busy"
+            @click="reviewCloudVersion(entry.version)"
+          >
+            {{ t('packages.versions.reviewCloud') }}
           </BaseButton>
         </li>
       </ul>
