@@ -31,7 +31,7 @@ pub use protocol_fence::{
 mod v1_recovery;
 pub use v1_recovery::{V1RecoveryChoice, V1RecoveryOutcome, V1UncertainReview};
 mod local_edit;
-pub use local_edit::V1LocalEditContext;
+pub use local_edit::{V1LocalEditContext, V2LocalEditContext};
 mod v2_product_outbox;
 pub use v2_product_outbox::{V2ProductDecision, V2ProductSource, V2ProductUploadSource};
 mod product_outbox;

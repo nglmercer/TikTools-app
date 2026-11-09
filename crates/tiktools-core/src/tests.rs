@@ -7,6 +7,8 @@ use std::{
 use super::*;
 #[cfg(feature = "persistence")]
 mod approved_observer;
+#[cfg(all(feature = "cloud-auth", feature = "persistence", feature = "plugin-install"))]
+mod v2_mutation_integration;
 use tiktools_plugin_api::{
     AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
 };

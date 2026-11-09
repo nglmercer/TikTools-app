@@ -4,6 +4,17 @@ This native-only bridge is not selected by the product and does not apply remote
 
 A candidate originates from an account-partitioned SQLite outbox committed with the local source revision. The native adapter holds the plugin invocation gate, verifies the exact source revision and this host lifetime's confirmed runtime observation, and refuses selections whose installed runtime no longer agrees. Package tombstones remain blocked pending filesystem and package-journal reconciliation. The sync coordinator independently checks the current or remembered account, exact consent generation and account scope, and a V2 protocol lease before writing the workspace. Remote application paths must never feed this local outbox.
 
+The private enable/disable adapter can now reserve a v2 local edit using the
+same SQLite transaction and runtime confirmation as its v1 counterpart. A
+candidate requires scoped v2 consent, a completed v2 protocol and the matching
+product-outbox marker, all checked while the cooperative mutation and identity
+leases are held. An opted-out or signed-out edit remains local-only and must
+be reconciled explicitly. This adapter is not selected by product operations;
+the remaining writer, package, runtime and recovery boundaries described below
+still block activation. The account mutex is released during marker and SQLite
+I/O, so account reads can continue; the identity permit remains held and a
+blocked native operation can still delay logout or account changes.
+
 The workspace saves a bounded private source receipt in the same atomic state write as the staged decision. It records the source revision, decision digest, exact edit and resulting workspace generation. Repeating that same decision after an interrupted SQLite acknowledgement returns the existing generation without restaging, including after remote delivery or snapshot rebuild. An older revision or a different decision for the same revision fails closed. Existing workspace files without receipts remain readable; older software that does not recognize the added field must fail closed rather than rewrite it. Receipts are local metadata and are not Cloud records.
 
 After the workspace save, the adapter deletes only the exact still-current confirmed SQLite candidate. A failed save, full workspace, busy operation lock, changed identity or consent, stale runtime, or failed SQLite acknowledgement returns an error and must leave or recover the outbox; retry is explicit and idempotent. The operation lock also excludes staging while a workspace network operation is in flight. Cross-process writers that ignore the protocol, source and workspace fences are outside this guarantee.

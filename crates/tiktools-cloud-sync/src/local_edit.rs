@@ -16,6 +16,10 @@ pub struct V1LocalEditContext {
     pub config_generation: u128,
 }
 
+/// The same identity-bound source evidence is recorded for v2. A distinct
+/// alias keeps callers explicit about which protocol admitted the edit.
+pub type V2LocalEditContext = V1LocalEditContext;
+
 impl SyncCoordinator {
     /// A missing or damaged preference after initialization is not opt-out.
     /// Both staging paths use this strict reader before reporting no queue.
@@ -105,6 +109,55 @@ impl SyncCoordinator {
                         })
                     }
                     None => None,
+                };
+                Ok(operation(context))
+            })
+            .map_err(|_| SyncCoordError::Protocol(ProtocolFenceError::Busy))?
+    }
+
+    /// Admit one local v2 source transaction under the same short mutation
+    /// lock used by package journaling and v1 staging. A candidate requires
+    /// account-scoped v2 consent, a completed v2 protocol marker, and the
+    /// identity-bound product-outbox marker. An opted-out or signed-out edit
+    /// remains local-only and must be reconciled explicitly before syncing.
+    ///
+    /// The callback must persist the source and its candidate atomically; it
+    /// must not await, access the network, or re-enter the coordinator/auth.
+    /// It runs without the account mutex, but the identity permit and
+    /// protocol admission remain held until it returns; blocked native I/O
+    /// can therefore delay account transitions. The v2 protocol lease does
+    /// not fence independently constructed auth managers or noncooperating
+    /// writers.
+    pub fn with_v2_local_edit<R>(
+        &self,
+        operation: impl FnOnce(Option<V2LocalEditContext>) -> R,
+    ) -> Result<R, SyncCoordError> {
+        let lease = self.protocol.try_v1()?;
+        let _admission = lease.try_admission()?;
+        let config = self.read_staging_config()?;
+        if !config.enabled {
+            return Ok(operation(None));
+        }
+        if config.version != 2 || config.scope.is_none() {
+            return Err(SyncCoordError::StaleReview);
+        }
+        self.auth
+            .with_sync_identity_permit(|identity| {
+                let context = match identity {
+                    Some((origin, account_id)) if config.allows(&origin, &account_id) => {
+                        // Recheck both durable markers while the protocol and
+                        // short admission leases remain held. Legacy-format
+                        // cutovers without a product marker cannot opt into
+                        // this source path implicitly.
+                        lease.ensure_product_outbox(&origin, &account_id)?;
+                        let _v2 = self.protocol.try_v2(&origin, &account_id)?;
+                        return Ok(operation(Some(V2LocalEditContext {
+                            origin,
+                            account_id,
+                            config_generation: config.generation,
+                        })));
+                    }
+                    _ => None,
                 };
                 Ok(operation(context))
             })

@@ -15,6 +15,13 @@ struct ReservedLocalPluginMutation {
     candidate: Option<crate::db::PluginSyncOutboxEntry>,
 }
 
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[derive(Clone, Copy)]
+enum LocalMutationProtocol {
+    V1,
+    V2,
+}
+
 /// Holds the invocation boundary before the coordinator's short admission
 /// lease. This is a momentary host-worker observation, not a promise that a
 /// child process is healthy or that the observation survives this guard.
@@ -99,7 +106,30 @@ fn reserve_local_plugin_mutation_prepared<T>(
     enabled: bool,
     prepare: impl FnOnce(bool) -> Result<T, OperationError>,
 ) -> Result<(ReservedLocalPluginMutation, T), OperationError> {
-    sync.with_v1_local_edit(|context| {
+    reserve_local_plugin_mutation_prepared_for(
+        sync,
+        db,
+        id,
+        version,
+        installed,
+        enabled,
+        LocalMutationProtocol::V1,
+        prepare,
+    )
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+fn reserve_local_plugin_mutation_prepared_for<T>(
+    sync: &tiktools_cloud_sync::SyncCoordinator,
+    db: &crate::db::DatabaseManager,
+    id: &str,
+    version: &str,
+    installed: bool,
+    enabled: bool,
+    protocol: LocalMutationProtocol,
+    prepare: impl FnOnce(bool) -> Result<T, OperationError>,
+) -> Result<(ReservedLocalPluginMutation, T), OperationError> {
+    let operation = |context: Option<tiktools_cloud_sync::V1LocalEditContext>| {
         let prepared = prepare(context.is_some())?;
         let intent = context
             .as_ref()
@@ -124,7 +154,11 @@ fn reserve_local_plugin_mutation_prepared<T>(
             enabled: installed.then_some(enabled),
         });
         Ok((ReservedLocalPluginMutation { candidate }, prepared))
-    })
+    };
+    match protocol {
+        LocalMutationProtocol::V1 => sync.with_v1_local_edit(operation),
+        LocalMutationProtocol::V2 => sync.with_v2_local_edit(operation),
+    }
     .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))?
 }
 
@@ -253,6 +287,62 @@ mod durable_local_mutation_tests {
                 .unwrap()
                 .unwrap();
         assert_ne!(old.generation, old.source_generation);
+    }
+
+    #[test]
+    fn v2_local_reservation_preserves_local_edits_and_rejects_legacy_consent() {
+        let f = Fixture::new();
+        f.sync.set_enabled(true).unwrap();
+        reserve_local_plugin_mutation(&f.sync, &f.db, "hotkeys", "1.0.0", true, true).unwrap();
+        let previous =
+            f.db.next_plugin_sync_intent("https://cloud.example", "alice")
+                .unwrap()
+                .unwrap();
+        let prepared = std::cell::Cell::new(false);
+        assert!(reserve_local_plugin_mutation_prepared_for(
+            &f.sync,
+            &f.db,
+            "hotkeys",
+            "1.0.0",
+            true,
+            false,
+            LocalMutationProtocol::V2,
+            |_| {
+                prepared.set(true);
+                Ok(())
+            },
+        )
+        .is_err());
+        assert!(!prepared.get());
+        assert_eq!(
+            f.db.next_plugin_sync_intent("https://cloud.example", "alice")
+                .unwrap()
+                .unwrap(),
+            previous
+        );
+
+        f.sync.set_enabled(false).unwrap();
+        let (local, ()) = reserve_local_plugin_mutation_prepared_for(
+            &f.sync,
+            &f.db,
+            "hotkeys",
+            "1.0.0",
+            true,
+            false,
+            LocalMutationProtocol::V2,
+            |has_candidate| {
+                assert!(!has_candidate);
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert!(local.candidate.is_none());
+        let pending =
+            f.db.next_plugin_sync_intent("https://cloud.example", "alice")
+                .unwrap()
+                .unwrap();
+        assert_eq!(pending.generation, previous.generation);
+        assert_ne!(pending.source_generation, previous.source_generation);
     }
 
     #[test]
@@ -488,6 +578,29 @@ impl AppCore {
         id: &str,
         enabled: bool,
     ) -> Result<(), OperationError> {
+        self.plugin_set_enabled_with_durable_intent_for(id, enabled, LocalMutationProtocol::V1)
+    }
+
+    /// V2 counterpart for the future product path. This remains private until
+    /// every local writer and package mutation joins the same admission and
+    /// runtime reconciliation protocol.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn plugin_set_enabled_with_v2_durable_intent(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<(), OperationError> {
+        self.plugin_set_enabled_with_durable_intent_for(id, enabled, LocalMutationProtocol::V2)
+    }
+
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    fn plugin_set_enabled_with_durable_intent_for(
+        &self,
+        id: &str,
+        enabled: bool,
+        protocol: LocalMutationProtocol,
+    ) -> Result<(), OperationError> {
         let invocation =
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
@@ -505,13 +618,14 @@ impl AppCore {
             .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))?;
         // Only an opted-in identity needs entropy, acquired before any source
         // write; local-only editing must not depend on a Cloud runtime epoch.
-        let (reservation, runtime_epoch) = reserve_local_plugin_mutation_prepared(
+        let (reservation, runtime_epoch) = reserve_local_plugin_mutation_prepared_for(
             sync,
             &self.db,
             &id,
             &plugin.manifest.version,
             true,
             enabled,
+            protocol,
             |has_candidate| {
                 if has_candidate {
                     self.sync.runtime_epoch().map(Some).map_err(|_| {

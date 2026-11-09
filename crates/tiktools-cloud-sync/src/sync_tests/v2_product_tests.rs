@@ -116,6 +116,149 @@ impl crate::CutoverSource for ResumeSource {
     }
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn v2_local_edit_releases_account_mutex_but_fences_identity_transition() {
+    let dir = TempDir::new("v2-product-local-identity-permit");
+    let mock = MockSync::start("local-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "local-identity").await;
+    let session = auth.session().await.unwrap();
+    let source = ResumeSource {
+        selections: vec![],
+        receipts: vec![],
+    };
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .require_product_outbox(&mock.origin, "local-user")
+        .unwrap();
+    drop(lease);
+    let review = sync
+        .guarded_marked_cutover_review(&session, &[], &[])
+        .unwrap();
+    sync.execute_cutover_with_source(&review, &source).unwrap();
+    sync.set_enabled(false).unwrap();
+    let resume = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&resume).unwrap();
+
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let worker_sync = sync.clone();
+    let worker = std::thread::spawn(move || {
+        worker_sync.with_v2_local_edit(|context| {
+            let context = context.expect("marked v2 edit must carry identity");
+            entered_tx.send(context).unwrap();
+            release_rx.recv().unwrap();
+        })
+    });
+    let context = tokio::time::timeout(Duration::from_secs(3), entered_rx)
+        .await
+        .expect("local edit did not enter callback")
+        .unwrap();
+    assert_eq!(context.origin, mock.origin);
+    assert_eq!(context.account_id, "local-user");
+    let status = tokio::time::timeout(Duration::from_secs(2), auth.status())
+        .await
+        .expect("account status must not wait for the native edit");
+    assert_eq!(status.account_id.as_deref(), Some("local-user"));
+    let logout_auth = auth.clone();
+    let mut logout = tokio::spawn(async move { logout_auth.logout().await });
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), &mut logout)
+            .await
+            .is_err(),
+        "logout must not replace identity during the local transaction"
+    );
+    release_tx.send(()).unwrap();
+    worker.join().unwrap().unwrap();
+    tokio::time::timeout(Duration::from_secs(3), logout)
+        .await
+        .expect("logout must finish after the edit")
+        .unwrap()
+        .unwrap();
+    assert!(auth.session().await.is_none());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn v2_local_edit_requires_reviewed_protocol_and_scoped_product_marker() {
+    for marked in [false, true] {
+        let dir = TempDir::new("v2-product-local-edit");
+        let mock = MockSync::start("local-user").await;
+        let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+        login(&auth, "local-edit").await;
+        let session = auth.session().await.unwrap();
+        let invoked = Cell::new(false);
+        // A legacy device-wide opt-in never authorizes a v2 candidate.
+        assert!(sync.with_v2_local_edit(|_| invoked.set(true)).is_err());
+        assert!(!invoked.get());
+
+        let source = ResumeSource {
+            selections: vec![],
+            receipts: vec![],
+        };
+        let review = if marked {
+            let lease = sync.protocol.try_cutover().unwrap();
+            lease
+                .require_product_outbox(&mock.origin, "local-user")
+                .unwrap();
+            drop(lease);
+            sync.guarded_marked_cutover_review(&session, &[], &[])
+                .unwrap()
+        } else {
+            sync.guarded_cutover_review(&session, &[]).unwrap()
+        };
+        assert_eq!(
+            sync.execute_cutover_with_source(&review, &source).unwrap(),
+            crate::CutoverExecution::Completed
+        );
+        sync.set_enabled(false).unwrap();
+        let resume = sync.review_v2_resume(&session, None).unwrap();
+        sync.confirm_v2_resume(&resume).unwrap();
+
+        if marked {
+            let peer = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+            let expected_generation = sync.read_config().generation;
+            sync.with_v2_local_edit(|context| {
+                let context = context.expect("reviewed v2 edit must be identity-bound");
+                assert_eq!(context.origin, mock.origin);
+                assert_eq!(context.account_id, "local-user");
+                assert_eq!(context.config_generation, expected_generation);
+                assert!(matches!(
+                    sync.set_enabled(false),
+                    Err(SyncCoordError::Protocol(crate::ProtocolFenceError::Busy))
+                ));
+                assert!(matches!(
+                    peer.with_package_journal_admission(|| ()),
+                    Err(SyncCoordError::Protocol(crate::ProtocolFenceError::Busy))
+                ));
+            })
+            .unwrap();
+            // A missing marker fails before the local transaction; corrupt or
+            // deleted migration evidence is never treated as consent.
+            let marker = std::fs::read_dir(dir.join("a-sync"))
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .find(|path| {
+                    path.file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .starts_with("v1-product-outbox-")
+                })
+                .expect("marked cutover created a product marker");
+            std::fs::write(marker, b"invalid").unwrap();
+        }
+        assert!(sync.with_v2_local_edit(|_| invoked.set(true)).is_err());
+        assert!(!invoked.get());
+        // Opt-out preserves local operation without staging an account-bound
+        // candidate, even when its previous product marker is damaged.
+        sync.set_enabled(false).unwrap();
+        assert!(sync
+            .with_v2_local_edit(|context| context.is_none())
+            .unwrap());
+        mock.stop();
+    }
+}
+
 #[tokio::test]
 async fn marked_v2_resume_requires_exact_native_receipts_and_fresh_consent() {
     for after_bootstrap in [false, true] {
