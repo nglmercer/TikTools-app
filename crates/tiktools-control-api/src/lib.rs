@@ -176,6 +176,12 @@ impl ControlApi {
             "competitions.summary",
             policy::RemotePolicy::Capability(RemoteCapability::CompetitionsRead),
         );
+        for name in ["competitions.pause", "competitions.cancel"] {
+            router.set_remote_policy(
+                name,
+                policy::RemotePolicy::Capability(RemoteCapability::CompetitionsManage),
+            );
+        }
         for name in ["automation.disable", "automation.enable"] {
             router.set_remote_policy(
                 name,
@@ -270,10 +276,19 @@ impl ControlApi {
             return Err(context::forbidden());
         }
         let grant = session.grant()?;
-        if method == "competitions.summary"
-            && grant
-                .resources
-                .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
+        if matches!(
+            method,
+            "competitions.summary" | "competitions.pause" | "competitions.cancel"
+        ) && grant
+            .resources
+            .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
+        {
+            return Err(context::forbidden());
+        }
+        if matches!(method, "competitions.pause" | "competitions.cancel")
+            && !grant
+                .capabilities
+                .contains(&RemoteCapability::CompetitionsRead)
         {
             return Err(context::forbidden());
         }
@@ -290,11 +305,19 @@ impl ControlApi {
             || policy::automation_read_allowed(&grant);
         if matches!(
             method,
-            "collaboration.commands.get"
-                | "collaboration.subscribe"
-                | "collaboration.snapshot"
-                | "collaboration.resume"
+            "collaboration.subscribe" | "collaboration.snapshot" | "collaboration.resume"
         ) && !can_read_domain
+        {
+            return Err(context::forbidden());
+        }
+        if method == "collaboration.commands.get"
+            && !can_read_domain
+            && !(grant
+                .capabilities
+                .contains(&RemoteCapability::CompetitionsRead)
+                && !grant
+                    .resources
+                    .contains_key(&tiktools_core::collaboration::ResourceKind::Live))
         {
             return Err(context::forbidden());
         }
@@ -323,6 +346,11 @@ impl ControlApi {
     ) -> Result<(), ApiError> {
         self.authorize_remote(session, method)?;
         let grant = session.grant()?;
+        if matches!(method, "competitions.pause" | "competitions.cancel")
+            && !policy::competition_stop_result_allowed(&grant, method, result)
+        {
+            return Err(context::forbidden());
+        }
         if method == "competitions.summary" {
             if !grant
                 .capabilities
@@ -543,6 +571,16 @@ impl ControlApi {
                 Some("automation") if policy::automation_read_allowed(&grant) => {
                     tiktools_core::collaboration::ResourceKind::Automation
                 }
+                Some("competition")
+                    if grant
+                        .capabilities
+                        .contains(&RemoteCapability::CompetitionsRead)
+                        && !grant
+                            .resources
+                            .contains_key(&tiktools_core::collaboration::ResourceKind::Live) =>
+                {
+                    tiktools_core::collaboration::ResourceKind::Competition
+                }
                 _ => return Err(context::forbidden()),
             };
             let scope = resource
@@ -591,6 +629,25 @@ impl ControlApi {
                                             && v.get("id") == resource.get("id")
                                     })
                             })
+                    {
+                        return Err(context::forbidden());
+                    }
+                }
+            }
+            if kind == tiktools_core::collaboration::ResourceKind::Competition {
+                if let Some(method) = result.get("method").and_then(Value::as_str) {
+                    if !result.get("result").is_some_and(|value| {
+                        policy::competition_stop_result_allowed(&grant, method, value)
+                            && value.get("id") == resource.get("id")
+                    }) || !result
+                        .get("resourceVersions")
+                        .and_then(Value::as_array)
+                        .is_some_and(|rows| {
+                            rows.len() == 1
+                                && rows[0].get("kind") == resource.get("kind")
+                                && rows[0].get("scope") == resource.get("scope")
+                                && rows[0].get("id") == resource.get("id")
+                        })
                     {
                         return Err(context::forbidden());
                     }
@@ -647,6 +704,8 @@ impl ControlApi {
                 | "points.leaderboard"
                 | "points.view"
                 | "points.adjust"
+                | "competitions.pause"
+                | "competitions.cancel"
                 | "automation.list"
                 | "automation.get"
                 | "automation.source.get"
@@ -665,6 +724,11 @@ impl ControlApi {
                     (
                         tiktools_core::collaboration::ResourceKind::Automation,
                         "automation",
+                    )
+                } else if method.starts_with("competitions.") {
+                    (
+                        tiktools_core::collaboration::ResourceKind::Competition,
+                        "competition",
                     )
                 } else if method.starts_with("points.") {
                     (tiktools_core::collaboration::ResourceKind::Viewer, "viewer")

@@ -4,6 +4,39 @@
 use crate::{context::forbidden, ApiError, RemoteCapability, RemoteSession};
 use tiktools_core::collaboration::{AutomationFamily, Grant, ResourceKind};
 
+pub(crate) fn competition_stop_result_allowed(
+    grant: &Grant,
+    method: &str,
+    value: &serde_json::Value,
+) -> bool {
+    grant
+        .capabilities
+        .contains(&RemoteCapability::CompetitionsRead)
+        && !grant.resources.contains_key(&ResourceKind::Live)
+        && value.as_object().is_some_and(|o| {
+            o.len() == 3
+                && o.keys()
+                    .all(|k| matches!(k.as_str(), "id" | "lifecycle" | "generation"))
+        })
+        && value
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|id| grant.allows_resource(ResourceKind::Competition, id))
+        && value.get("lifecycle").and_then(serde_json::Value::as_str)
+            == match method {
+                "competitions.pause" => Some("paused"),
+                "competitions.cancel" => Some("cancelled"),
+                _ => None,
+            }
+        && value
+            .get("generation")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|s| {
+                s.parse::<u64>()
+                    .is_ok_and(|n| n <= i64::MAX as u64 && n.to_string() == s)
+            })
+}
+
 pub(crate) fn automation_read_allowed(grant: &Grant) -> bool {
     grant
         .capabilities

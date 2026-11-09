@@ -180,8 +180,17 @@ can return that revision when requested; native controllers request it only
 when the host advertises `competitionSummaryVersions`, so older hosts and
 clients keep the existing summary shape. A SQLite migration check covers the
 legacy seed, state and definition changes, delete/recreate and missing metadata.
-This is the consistency foundation for commands; remote transitions and their
-durable command recovery are still pending.
+The host API supports remote `competitions.pause` and `competitions.cancel`
+under scoped read/manage grants, with expected generation, revision and durable
+command metadata. The result can be recovered by command ID. Remote stops
+publish local presentation updates without granting Owner authority to plugin
+observers or competition-triggered automation. Start/resume, controller UI,
+competition event streams and complete release acceptance remain pending.
+For either RPC, send `params: {id, expectedGeneration}` and
+`meta: {commandId, hostInstanceId, expectedRevision}` using the generation and
+revision from the scoped summary. The durable result identifies the
+competition, resulting lifecycle and generation, with its committed revision
+in response metadata. A changed revision or generation rejects a fresh command.
 
 The controller can read a bounded, paginated competition status projection
 when its grant includes `competitions.read`. Each page contains only an
@@ -199,8 +208,8 @@ requests per second, a competition-enabled controller without a recovery
 stream refreshes its identity and grant every five seconds. Its displayed
 grant can therefore lag a host-side change until the next successful refresh
 or disconnect; a rate-limited heartbeat is retried. The gateway continues to
-authorize each request and response. Competition mutations remain unavailable
-remotely.
+authorize each request and response. Remote pause/cancel are available through
+the control API; the controller UI does not yet submit them.
 
 An isolated ControlApi fixture exercised pagination, projection, denial of
 mutations and LIVE-restricted grants, and response reauthorization after a

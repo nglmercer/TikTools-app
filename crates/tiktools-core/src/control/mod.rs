@@ -56,7 +56,7 @@ pub(crate) mod cloud_sync;
 mod cloud_workspace;
 mod commands;
 mod competitions;
-pub use competitions::{CompetitionSummary, CompetitionSummaryPage};
+pub use competitions::{CompetitionRemoteTransition, CompetitionSummary, CompetitionSummaryPage};
 mod delivery;
 mod effects;
 pub use effects::{EffectHistory, EffectKind, EffectReceipt, EffectState};

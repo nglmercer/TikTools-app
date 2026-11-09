@@ -87,7 +87,12 @@ async fn scoped_competition_summary_is_bounded_redacted_and_reauthorized() {
     configuration.advertised_origin = Some("http://127.0.0.1:8788".into());
     service.configure(configuration).unwrap();
     let grant = Grant {
-        capabilities: [Capability::CompetitionsRead].into(),
+        capabilities: [
+            Capability::CompetitionsRead,
+            Capability::CompetitionsManage,
+            Capability::CommandsRead,
+        ]
+        .into(),
         resources: [(
             ResourceKind::Competition,
             ["alpha".into(), "charlie".into()].into(),
@@ -184,6 +189,39 @@ async fn scoped_competition_summary_is_bounded_redacted_and_reauthorized() {
     assert_eq!(second["competitions"][0]["id"], "charlie");
     assert!(second["nextAfter"].is_null());
     assert!(call(json!({"limit":51})).await.error.is_some());
+    let command = json!({"id":3,"method":"competitions.cancel","params":{"id":"alpha","expectedGeneration":"0"},"meta":{"commandId":"cancel-alpha","hostInstanceId":service.instance_id(),"expectedRevision":"1"}});
+    let result = api.execute_value_with_context(&context, &command).await;
+    assert!(result.is_ok(), "{result:?}");
+    assert_eq!(
+        result.result.as_ref().unwrap(),
+        &json!({"id":"alpha","lifecycle":"cancelled","generation":"0"})
+    );
+    assert_eq!(
+        result.meta.as_ref().unwrap().resource_versions[0].revision,
+        "2"
+    );
+    let replay = api.execute_value_with_context(&context, &command).await;
+    assert_eq!(replay.result, result.result);
+    let recovered = api.execute_value_with_context(&context, &json!({"id":4,"method":"collaboration.commands.get","params":{"commandId":"cancel-alpha"}})).await;
+    assert!(recovered.is_ok(), "{recovered:?}");
+    let recovered = recovered.result.unwrap();
+    assert_eq!(recovered["result"]["lifecycle"], "cancelled");
+    let mut stale = command.clone();
+    stale["meta"]["commandId"] = "stale".into();
+    assert_eq!(
+        api.execute_value_with_context(&context, &stale)
+            .await
+            .error
+            .unwrap()
+            .code,
+        "revision_conflict"
+    );
+    core.competition_transition("charlie", tiktools_competitions::Transition::Start)
+        .unwrap();
+    let pause = json!({"id":5,"method":"competitions.pause","params":{"id":"charlie","expectedGeneration":"1"},"meta":{"commandId":"pause-charlie","hostInstanceId":service.instance_id(),"expectedRevision":"2"}});
+    let paused = api.execute_value_with_context(&context, &pause).await;
+    assert!(paused.is_ok(), "{paused:?}");
+    assert_eq!(paused.result.unwrap()["lifecycle"], "paused");
     assert!(api
         .execute_value_with_context(
             &context,
@@ -203,6 +241,9 @@ async fn scoped_competition_summary_is_bounded_redacted_and_reauthorized() {
             grant: narrowed.clone(),
         })
         .unwrap();
+    assert!(api
+        .authorize_remote_response(&session, "collaboration.commands.get", &recovered)
+        .is_err());
     assert_eq!(
         api.authorize_remote_response(&session, "competitions.summary", &first)
             .unwrap_err()

@@ -90,6 +90,8 @@ fn legacy_audit(
         (ResourceKind::Workflow, "enabled") => "workflows.enable",
         (ResourceKind::Workflow, "disabled") => "workflows.disable",
         (ResourceKind::Workflow, "deleted") => "workflows.delete",
+        (ResourceKind::Competition, "paused") => "competitions.pause",
+        (ResourceKind::Competition, "cancelled") => "competitions.cancel",
         (ResourceKind::Viewer, "awarded") => "points.award",
         (ResourceKind::Viewer, "adjusted" | "automation-adjusted") => "points.adjust",
         (ResourceKind::Viewer, "reset") => "points.reset",

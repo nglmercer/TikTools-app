@@ -219,6 +219,7 @@ pub fn register(router: &mut ControlRouter) {
                     ("creatorFeed".into(), true),
                     ("browserFeed".into(), true),
                     ("competitionSummary".into(), cfg!(feature = "persistence")),
+                    ("competitionStop".into(), cfg!(feature = "persistence")),
                     (
                         "competitionSummaryVersions".into(),
                         cfg!(feature = "persistence"),

@@ -28,6 +28,147 @@ pub struct CompetitionSummaryPage {
     pub next_after: Option<String>,
 }
 
+/// Remote transitions that stop competition activity without introducing
+/// new winner actions. Start/resume require delegated-effect attribution.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum CompetitionRemoteTransition {
+    Pause,
+    Cancel,
+}
+impl CompetitionRemoteTransition {
+    #[cfg(feature = "persistence")]
+    pub(crate) fn method(self) -> &'static str {
+        match self {
+            Self::Pause => "competitions.pause",
+            Self::Cancel => "competitions.cancel",
+        }
+    }
+    #[cfg(feature = "persistence")]
+    pub(crate) fn transition(self) -> tiktools_competitions::Transition {
+        match self {
+            Self::Pause => tiktools_competitions::Transition::Pause,
+            Self::Cancel => tiktools_competitions::Transition::Cancel,
+        }
+    }
+}
+
+impl AppCore {
+    /// Atomic, recoverable stop transition for a scoped remote controller.
+    pub fn competition_remote_command(
+        &self,
+        auth: crate::collaboration::Authorization,
+        request: crate::collaboration::CommandRequest,
+        id: &str,
+        generation: &str,
+        transition: CompetitionRemoteTransition,
+    ) -> Result<crate::collaboration::Versioned<serde_json::Value>, OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            use crate::collaboration::{Capability, ResourceKind};
+            let clean = super::clean_record_id(id, "competition")?;
+            if clean != id || id.contains('*') || id.chars().any(char::is_control) {
+                return Err(OperationError::invalid("invalid competition ID"));
+            }
+            request
+                .validate()
+                .map_err(|_| OperationError::invalid("invalid command metadata"))?;
+            let generation = generation
+                .parse::<u64>()
+                .ok()
+                .filter(|n| n.to_string() == generation && *n <= i64::MAX as u64)
+                .ok_or_else(|| OperationError::invalid("invalid competition generation"))?;
+            let _gate = self
+                .coordination_gate
+                .lock()
+                .map_err(|_| OperationError::internal("command coordination is unavailable"))?;
+            if self.is_shutdown() {
+                return Err(OperationError::unavailable("host is shutting down"));
+            }
+            let _ranking = recover_mutex(&self.aggregations.mutations, "ranking mutations");
+            let _mutation = recover_mutex(&self.competitions.mutations, "competition mutations");
+            if self.competitions.load_failed {
+                return Err(OperationError::unavailable(
+                    "competition definitions unavailable",
+                ));
+            }
+            let identity = auth.snapshot().map_err(super::commands::service_error)?;
+            if !identity
+                .grant
+                .capabilities
+                .contains(&Capability::CompetitionsRead)
+                || !identity
+                    .grant
+                    .capabilities
+                    .contains(&Capability::CompetitionsManage)
+                || identity.grant.resources.contains_key(&ResourceKind::Live)
+                || !identity
+                    .grant
+                    .allows_resource(ResourceKind::Competition, id)
+            {
+                return Err(OperationError::forbidden("competition command unavailable"));
+            }
+            let service = self
+                .collaboration()
+                .map_err(super::commands::service_error)?;
+            let command = crate::db::CommandTransaction {
+                principal_id: identity.principal_id,
+                session_id: identity.session_id,
+                authorization: Some(auth),
+                request,
+                current_instance_id: service.instance_id().into(),
+                max_ids_per_principal: service
+                    .configuration()
+                    .map_err(super::commands::service_error)?
+                    .limits
+                    .command_ids_per_principal,
+            };
+            self.db
+                .check_command_admission(
+                    crate::db::CommandDatabase::Automation,
+                    &command.principal_id,
+                    &command.request.command_id,
+                    command.max_ids_per_principal,
+                )
+                .map_err(|e| super::commands::command_error(e, &command.request.command_id))?;
+            let (result, fresh) = self
+                .db
+                .execute_competition_stop(
+                    id,
+                    generation,
+                    transition,
+                    &command,
+                    &service,
+                    self.aggregations.checkpoint_owner.as_deref(),
+                )
+                .map_err(|e| super::commands::command_error(e, &command.request.command_id))?;
+            if fresh {
+                if let Some(data) = self.competition_context(id, generation) {
+                    let event = match transition {
+                        CompetitionRemoteTransition::Pause => {
+                            crate::events::DomainEvent::CompetitionPaused(data)
+                        }
+                        CompetitionRemoteTransition::Cancel => {
+                            crate::events::DomainEvent::CompetitionCancelled(data)
+                        }
+                    };
+                    // Remote stops must not acquire Owner authority through
+                    // plugin observers or competition-triggered automations.
+                    self.events.publish_presentation_domain(event);
+                }
+            }
+            Ok(result)
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = (auth, request, id, generation, transition);
+            Err(OperationError::unavailable(
+                "competition commands require persistence",
+            ))
+        }
+    }
+}
+
 impl AppCore {
     /// Coherent bounded status page filtered before serialization. This is a
     /// live keyset view, not a snapshot or authority to issue a command.

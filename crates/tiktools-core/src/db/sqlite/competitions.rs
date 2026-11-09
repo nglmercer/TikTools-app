@@ -121,6 +121,84 @@ pub(crate) enum GiftOutcome {
 }
 
 impl DatabaseManager {
+    /// The lifecycle update, retained outcome and metadata outbox commit in
+    /// one writer transaction under the current collaboration grant.
+    pub(crate) fn execute_competition_stop(
+        &self,
+        id: &str,
+        generation: u64,
+        operation: crate::control::CompetitionRemoteTransition,
+        command: &super::CommandTransaction,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        owner: Option<&str>,
+    ) -> Result<(crate::collaboration::Versioned<serde_json::Value>, bool), DatabaseError> {
+        use crate::collaboration::{Capability, ResourceKind, ResourceVersion, Versioned};
+        let auth = command
+            .authorization
+            .as_ref()
+            .ok_or(DatabaseError::CommandAuthorization(
+                crate::collaboration::Error::Forbidden,
+            ))?;
+        let subjects = service
+            .execution_authorizations(&[(command.principal_id.clone(), command.session_id.clone())])
+            .map_err(DatabaseError::CommandAuthorization)?;
+        let hash = super::commands::payload_hash(
+            operation.method(),
+            &serde_json::json!({"id":id,"generation":generation.to_string()}),
+            &command.request.expected_revision,
+        )?;
+        let mut connection = self.open(&self.automation_path())?;
+        connection.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        subjects.with_current(|identities| {
+            let identity = identities.first().ok_or(DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden))?;
+            let current = auth.snapshot().map_err(DatabaseError::CommandAuthorization)?;
+            if current.principal_id != command.principal_id || current.session_id != command.session_id
+                || current.grant_revision != identity.grant_revision() || current.grant != *identity.grant()
+                || !current.grant.capabilities.contains(&Capability::CompetitionsRead)
+                || !current.grant.capabilities.contains(&Capability::CompetitionsManage)
+                || current.grant.resources.contains_key(&ResourceKind::Live)
+                || !current.grant.allows_resource(ResourceKind::Competition, id) {
+                return Err(DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden));
+            }
+            super::commands::prune(&tx)?;
+            if let Some(result) = super::commands::replay(&tx, command, &hash)? {
+                tx.commit()?;
+                return Ok((result, false));
+            }
+            let row: Option<(String, String, i64)> = tx.query_row(
+                "SELECT d.definition_json,s.state_json,r.revision FROM competition_definitions d JOIN competition_state s ON s.competition_id=d.id JOIN competition_control_revisions r ON r.competition_id=d.id AND r.deleted=0 WHERE d.id=?1",
+                [id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            ).optional()?;
+            let (definition, state, revision) = row.ok_or(DatabaseError::NotFound)?;
+            let version = |revision: i64| ResourceVersion { kind: ResourceKind::Competition, scope: "host".into(), id: id.into(), revision: revision.to_string() };
+            if revision <= 0 || command.request.expected_revision != revision.to_string() {
+                return Err(DatabaseError::RevisionConflict(version(revision)));
+            }
+            let definition: Definition = serde_json::from_str(&definition)?;
+            let mut state: LifecycleState = serde_json::from_str(&state)?;
+            if state.generation != generation { return Err(DatabaseError::RevisionConflict(version(revision))); }
+            if state.lifecycle != Lifecycle::Draft {
+                if let Some(owner) = owner {
+                    let valid: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM competition_integrity_owners WHERE competition_id=?1 AND generation=?2 AND owner=?3)", params![id,generation as i64,owner], |r| r.get(0))?;
+                    if !valid { return Err(DatabaseError::Invalid("competition owner changed".into())); }
+                }
+            }
+            state.transition(operation.transition(), crate::now_millis(), definition.duration_ms)
+                .map_err(|_| DatabaseError::Invalid("invalid competition transition".into()))?;
+            tx.execute("UPDATE competition_state SET state_json=?2 WHERE competition_id=?1", params![id,serde_json::to_string(&state)?])?;
+            let next: i64 = tx.query_row("SELECT revision FROM competition_control_revisions WHERE competition_id=?1 AND deleted=0", [id], |r| r.get(0))?;
+            if revision.checked_add(1) != Some(next) { return Err(DatabaseError::Invalid("competition revision inconsistent".into())); }
+            tx.execute("INSERT INTO control_resource_outbox(kind,scope,resource_id,revision,change,committed_at) VALUES ('competition','host',?1,?2,?3,?4)", params![id,next,match operation { crate::control::CompetitionRemoteTransition::Pause => "paused", crate::control::CompetitionRemoteTransition::Cancel => "cancelled" },super::util::now()])?;
+            let result = Versioned::new(serde_json::json!({"id":id,"lifecycle":state.lifecycle,"generation":state.generation.to_string()}), vec![version(next)]);
+            let result = super::commands::finish(&tx, command, &hash, operation.method(), &command.request.expected_revision, result)?;
+            identity.check_deadline().map_err(DatabaseError::CommandAuthorization)?;
+            auth.snapshot().map_err(DatabaseError::CommandAuthorization)?;
+            tx.commit()?;
+            Ok((result, true))
+        }).map_err(DatabaseError::CommandAuthorization)?
+    }
+
     /// Read state and its monotonic coordination revision in one SQLite
     /// snapshot. A missing or deleted revision is an integrity failure.
     pub(crate) fn competition_state_revision(

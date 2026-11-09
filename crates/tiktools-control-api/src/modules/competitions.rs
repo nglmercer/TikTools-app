@@ -19,6 +19,13 @@ pub struct CompetitionId {
     pub id: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompetitionStopParams {
+    pub id: String,
+    #[serde(default)]
+    pub expected_generation: Option<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CompetitionList {
     pub competitions: Vec<Definition>,
 }
@@ -252,9 +259,7 @@ pub fn register(router: &mut ControlRouter) {
     );
     for (method, transition) in [
         ("competitions.start", Transition::Start),
-        ("competitions.pause", Transition::Pause),
         ("competitions.resume", Transition::Resume),
-        ("competitions.cancel", Transition::Cancel),
     ] {
         router.register_typed::<CompetitionId, LifecycleState, _, _>(
             method,
@@ -269,6 +274,72 @@ pub fn register(router: &mut ControlRouter) {
                 .map_err(ApiError::from)
             },
         );
+    }
+    for (method, transition, local_transition) in [
+        (
+            "competitions.pause",
+            tiktools_core::control::CompetitionRemoteTransition::Pause,
+            Transition::Pause,
+        ),
+        (
+            "competitions.cancel",
+            tiktools_core::control::CompetitionRemoteTransition::Cancel,
+            Transition::Cancel,
+        ),
+    ] {
+        router.register_versioned::<CompetitionStopParams, serde_json::Value, _, _>(
+            method,
+            "Stop a competition with a revision-bound command",
+            true,
+            move |core: Arc<AppCore>, context, params, metadata| async move {
+                crate::modules::blocking_task("competition stop", move || match context {
+                    crate::RequestContext::Remote(session) => {
+                        let meta = metadata.ok_or_else(|| {
+                            ApiError::invalid_params("command metadata is required")
+                        })?;
+                        let request = tiktools_core::collaboration::CommandRequest {
+                            command_id: meta
+                                .command_id
+                                .ok_or_else(|| ApiError::invalid_params("commandId is required"))?,
+                            host_instance_id: meta.host_instance_id.ok_or_else(|| {
+                                ApiError::invalid_params("hostInstanceId is required")
+                            })?,
+                            expected_revision: meta.expected_revision.ok_or_else(|| {
+                                ApiError::invalid_params("expectedRevision is required")
+                            })?,
+                        };
+                        let generation = params.expected_generation.ok_or_else(|| {
+                            ApiError::invalid_params("expectedGeneration is required")
+                        })?;
+                        core.competition_remote_command(
+                            session.authorization()?,
+                            request,
+                            &params.id,
+                            &generation,
+                            transition,
+                        )
+                        .map_err(ApiError::from)
+                    }
+                    crate::RequestContext::LocalOwner => {
+                        core.start_competition_timer();
+                        core.competition_transition(&params.id, local_transition)
+                            .and_then(|state| {
+                                serde_json::to_value(state).map_err(|_| {
+                                    tiktools_core::control::OperationError::internal(
+                                        "competition state serialization failed",
+                                    )
+                                })
+                            })
+                            .map(|value| {
+                                tiktools_core::collaboration::Versioned::new(value, Vec::new())
+                            })
+                            .map_err(ApiError::from)
+                    }
+                })
+                .await?
+            },
+        );
+        router.set_durable_commands(method, true);
     }
     router.register_typed::<Empty, CompetitionList, _, _>(
         "competitions.list",
