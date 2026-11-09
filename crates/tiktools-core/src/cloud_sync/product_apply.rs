@@ -150,7 +150,6 @@ impl AppCore {
     /// runtime effect is never repeated: only a matching observed worker can
     /// finalize a runtime-pending or applied entry.
     #[cfg(feature = "plugin-install")]
-    #[allow(dead_code)] // Product scheduling is wired after recovery discovery.
     pub(crate) async fn recover_v2_pulled_plugin_apply(
         &self,
         barrier: &tiktools_cloud_sync::V2ReconciliationBarrier,
@@ -314,7 +313,6 @@ impl AppCore {
     /// and durable storage can block. Failure after commit leaves quarantine
     /// and the durable journal for observation-based recovery.
     #[cfg(feature = "plugin-install")]
-    #[allow(dead_code)] // Product scheduling and interrupted-outcome recovery remain separate.
     pub(crate) async fn execute_v2_pulled_plugin_apply(
         &self,
         barrier: &tiktools_cloud_sync::V2ReconciliationBarrier,
@@ -464,7 +462,6 @@ impl AppCore {
     /// Prepare a v2 application only after the cached selection matches a
     /// fresh post-barrier read. This records intent but does not run code.
     #[cfg(feature = "plugin-install")]
-    #[allow(dead_code)] // Runtime execution and recovery are wired separately.
     pub(crate) async fn prepare_v2_pulled_plugin_apply(
         &self,
         barrier: &tiktools_cloud_sync::V2ReconciliationBarrier,

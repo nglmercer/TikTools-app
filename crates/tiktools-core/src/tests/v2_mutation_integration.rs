@@ -83,7 +83,21 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
                 } else if line.starts_with("POST /api/v2/sync/write-barrier ") {
                     ("200 OK", json!({"writeEpoch":"8"}))
                 } else if line.starts_with("GET /api/v2/sync/changes?") {
-                    ("200 OK", json!({"changes":[],"cursor":0,"has_more":false}))
+                    let cursor = line
+                        .split_whitespace()
+                        .nth(1)
+                        .and_then(|path| path.split('?').nth(1))
+                        .and_then(|query| {
+                            query
+                                .split('&')
+                                .find_map(|part| part.strip_prefix("cursor="))
+                        })
+                        .and_then(|value| value.parse::<i64>().ok())
+                        .unwrap_or(0);
+                    (
+                        "200 OK",
+                        json!({"changes":[],"cursor":cursor,"has_more":false}),
+                    )
                 } else if line
                     .starts_with("GET /api/v2/sync/collections/plugin-selections/acme.hotkeys ")
                 {
@@ -720,6 +734,41 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         )
         .unwrap();
     drop(connection);
+    // Simulate the next downloaded revision and run the same bounded apply
+    // pass used by the synchronization worker.
+    let remote = json!({"collection":"plugin-selections","key":"acme.hotkeys","revision":3,"deleted":false,"value":{"schemaVersion":1,"pluginId":"acme.hotkeys","version":"1.0.0","enabled":false}});
+    *remote_record.lock().unwrap() = Some(remote.clone());
+    let record = serde_json::from_value(remote).unwrap();
+    let previous = store.load().unwrap().unwrap();
+    let mut clean = cloud_client::WorkspaceState::new(origin.clone(), "alice".into()).unwrap();
+    clean
+        .install_rebuild(cloud_client::WorkspaceSnapshot {
+            schema_version: 2,
+            cursor: 3,
+            records: vec![record],
+        })
+        .unwrap();
+    clean.mark_bootstrap_complete();
+    clean.mark_product_guarded();
+    store.save(Some(previous.generation), &clean).unwrap();
+    let records = clean.ready_remote();
+    let context = tiktools_cloud_sync::V2LocalEditContext {
+        origin: origin.clone(),
+        account_id: "alice".into(),
+        config_generation: 41,
+    };
+    core.apply_cached_v2_selections(session.clone(), context, records)
+        .await;
+    assert_eq!(
+        core.plugins.observe_worker("acme.hotkeys").unwrap(),
+        tiktools_plugin_loader::PluginWorkerObservation::WorkerPresent
+    );
+    core.sync_v2_with_restore(false).await.unwrap();
+    assert_eq!(
+        core.plugins.observe_worker("acme.hotkeys").unwrap(),
+        tiktools_plugin_loader::PluginWorkerObservation::Stopped
+    );
+    assert!(!core.plugin_apply_quarantined("acme.hotkeys"));
     let old_account = {
         let _invocation = core.plugin_state.invocation_gate.lock().unwrap();
         let _lease = crate::plugin_packages::try_product_mutation_lease(&core).unwrap();

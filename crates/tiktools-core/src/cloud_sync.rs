@@ -11,6 +11,8 @@ use crate::paths::AppPaths;
 
 #[cfg(feature = "persistence")]
 mod product_apply;
+#[cfg(all(feature = "persistence", feature = "plugin-install"))]
+mod product_apply_worker;
 #[cfg(feature = "persistence")]
 #[allow(dead_code)] // Informational native preview; cutover is not enabled.
 mod product_cutover;
@@ -35,6 +37,12 @@ pub(crate) struct CloudSync {
     stopping: tokio_util::sync::CancellationToken,
     #[cfg(feature = "persistence")]
     worker: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    #[cfg(all(feature = "persistence", feature = "plugin-install"))]
+    apply_running: std::sync::atomic::AtomicBool,
+    #[cfg(all(feature = "persistence", feature = "plugin-install"))]
+    apply_cursor: std::sync::atomic::AtomicUsize,
+    #[cfg(all(feature = "persistence", feature = "plugin-install"))]
+    apply_done: tokio::sync::Notify,
 }
 
 pub use tiktools_cloud_sync::SyncStatus;
@@ -55,6 +63,12 @@ impl CloudSync {
             stopping: tokio_util::sync::CancellationToken::new(),
             #[cfg(feature = "persistence")]
             worker: std::sync::Mutex::new(None),
+            #[cfg(all(feature = "persistence", feature = "plugin-install"))]
+            apply_running: std::sync::atomic::AtomicBool::new(false),
+            #[cfg(all(feature = "persistence", feature = "plugin-install"))]
+            apply_cursor: std::sync::atomic::AtomicUsize::new(0),
+            #[cfg(all(feature = "persistence", feature = "plugin-install"))]
+            apply_done: tokio::sync::Notify::new(),
         }
     }
 
@@ -157,6 +171,20 @@ impl crate::AppCore {
             tiktools_plugin_api::sync::recover_mutex(&self.sync.worker, "cloud sync worker").take();
         if let Some(task) = task {
             let _ = task.await;
+        }
+        #[cfg(feature = "plugin-install")]
+        loop {
+            let finished = self.sync.apply_done.notified();
+            tokio::pin!(finished);
+            finished.as_mut().enable();
+            if !self
+                .sync
+                .apply_running
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                break;
+            }
+            finished.await;
         }
     }
 }

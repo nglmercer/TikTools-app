@@ -1,9 +1,8 @@
 //! Cloud plugin-selection sync through the shared control plane.
 //!
 //! Everything here is nonsecret: the opt-in flag, pending/conflict counts,
-//! and error text. Downloaded remote records stay in the durable Cloud
-//! snapshot; they are not applied to local plugins until the reviewed,
-//! source-fenced application and recovery path is ready.
+//! and error text. V2 downloaded plugin selections can be applied after the
+//! native account, server, source, package and runtime checks succeed.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -29,8 +28,8 @@ pub struct SyncNowResult {
     pub application_deferred: bool,
 }
 
-/// A v2 network pass persists its cache but does not apply Cloud records to
-/// local plugins or automation definitions.
+/// A v2 network pass persists its cache and attempts supported plugin state
+/// changes; other Cloud records are not applied by this operation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceV2SyncResult {
@@ -183,8 +182,8 @@ impl AppCore {
         })
     }
 
-    /// Explicit v2 pass for an already selected, account-scoped product
-    /// protocol. It never performs migration or applies downloaded records.
+    /// Explicit v2 pass for an already selected, account-scoped protocol.
+    /// Supported downloaded plugin state changes are applied when eligible.
     pub async fn sync_v2_now(
         self: &std::sync::Arc<Self>,
     ) -> Result<WorkspaceV2SyncResult, OperationError> {
@@ -270,8 +269,8 @@ impl AppCore {
             let source = std::sync::Arc::new(
                 crate::cloud_sync::product_v2_outbox::OwnedSqliteV2UploadSource::new(
                     self.clone(),
-                    identity.origin,
-                    identity.account_id,
+                    identity.origin.clone(),
+                    identity.account_id.clone(),
                 ),
             );
             let outcome = coordinator
@@ -282,6 +281,17 @@ impl AppCore {
                         "Cloud v2 sync could not complete; pending changes were retained",
                     )
                 })?;
+            self.cloud
+                .auth()
+                .with_current_session(&session, || {
+                    coordinator.is_v2_config_epoch_current(&epoch, &session)
+                })
+                .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
+                .then_some(())
+                .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))?;
+            #[cfg(feature = "plugin-install")]
+            self.apply_cached_v2_selections(session.clone(), identity, outcome.remote.clone())
+                .await;
             self.cloud
                 .auth()
                 .with_current_session(&session, || {

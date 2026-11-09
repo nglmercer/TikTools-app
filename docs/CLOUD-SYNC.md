@@ -15,14 +15,18 @@ The complete Desktop implementation and acceptance requirements are in
 [Desktop Cloud v2](CLOUD-V2-DESKTOP.md). Its contract/coordinator foundation is
 implemented and locally tested. Native transport, durable state/store and
 WorkspaceCoordinator support all five collections, but the application still
-uses v1. Explicit cutover, product RPC/UI, reviewed local application and actual
-two-Desktop v2 acceptance are pending. The components, flow and historical
+uses v1 by default. Explicit cutover, broader application of Cloud records and
+actual two-Desktop v2 acceptance are pending. The components, flow and historical
 validation sections below describe v1.
 
 An explicit local-Owner `sync.v2.now` operation and a background worker can
 stage confirmed plugin intents and run bounded v2 network passes for an identity that has already
 completed the guarded cutover and enabled account-scoped consent. It caches
-downloaded records without applying them locally. It does not select v2,
+downloaded records and attempts supported changes to already installed plugins
+of the same version when the server and native source checks succeed. A remote
+deletion disables an installed plugin; it does not uninstall it. Application
+requires server enforcement of workspace write epochs and a matching local
+runtime. It does not select v2,
 replace the existing `sync.now` operation, or complete the product UI and
 two-device workflow. The worker polls every five seconds when caught up, drains
 additional queued work sooner, backs off on errors, and never restores a logged-out
@@ -31,7 +35,7 @@ also signals additional local intents or a bounded network pass.
 Settings reads the selected protocol locally for the signed-in account and
 offers the matching explicit sync pass. For v2 it shows cache, pending and
 conflict counts. Server capability discovery remains a separate explicit
-check. Settings does not offer migration or automatic local application;
+check. Settings does not offer migration;
 v1 remains the default product path.
 The local-Owner migration preview reports only counts of installed selections,
 candidate pending edits, conflicts and v1-only records. It rechecks the native

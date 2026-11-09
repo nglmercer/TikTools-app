@@ -1,6 +1,6 @@
 # Desktop Cloud v2 implementation and acceptance specification
 
-Status: **the native v2 foundation and read-only Cloud catalog and library UI are implemented. Product sync cutover, local application and full Desktop v2 acceptance are pending.**
+Status: **the native v2 foundation and read-only Cloud catalog and library UI are implemented. Product sync cutover, broader local application and full Desktop v2 acceptance are pending.**
 
 The native reconciliation barrier can now admit a downloaded plugin record
 only when the cached record exactly matches the authenticated post-barrier
@@ -14,8 +14,9 @@ of package changes accept retained finalized history only after validating its m
 witness and source generation. A private recovery path can revalidate prepared
 intents and finalize an interrupted runtime change only when a fresh server
 barrier and the observed plugin state agree; it never repeats an uncertain
-start or stop. Product scheduling, unresolved runtime mismatches and bounded
-history compaction remain pending.
+start or stop. After a v2 network pass, the product now schedules bounded
+application and recovery attempts for eligible installed plugin selections;
+unresolved runtime mismatches and bounded history compaction remain pending.
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
 library delivery e6728c9. The reviewed backend commit is RemakeBackend 952e512,

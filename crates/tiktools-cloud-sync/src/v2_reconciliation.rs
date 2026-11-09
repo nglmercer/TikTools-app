@@ -33,6 +33,15 @@ pub struct V2ReconciliationBarrier {
     remote: WorkspaceRead,
 }
 
+impl V2ReconciliationBarrier {
+    /// The proof must remain bound to the consent epoch that scheduled it.
+    pub fn matches_context(&self, context: &V2LocalEditContext) -> bool {
+        self.session.instance_origin() == context.origin
+            && self.session.account_id() == context.account_id
+            && self.config.config.generation == context.config_generation
+    }
+}
+
 /// Borrowed evidence that the reconciliation callback owns the source lease.
 /// It cannot be constructed or retained outside the synchronous callback.
 pub struct V2ReconciliationAdmission<'a> {
@@ -138,12 +147,41 @@ impl SyncCoordinator {
         session: Arc<Session>,
         plugin_id: String,
     ) -> Result<V2ReconciliationBarrier, WorkspaceCoordError> {
+        self.prepare_v2_reconciliation_barrier_inner(session, plugin_id, None)
+            .await
+    }
+
+    /// Bind automatic work to the exact account and consent that scheduled it.
+    #[doc(hidden)]
+    pub async fn prepare_v2_reconciliation_barrier_for_context(
+        &self,
+        session: Arc<Session>,
+        plugin_id: String,
+        expected: V2LocalEditContext,
+    ) -> Result<V2ReconciliationBarrier, WorkspaceCoordError> {
+        self.prepare_v2_reconciliation_barrier_inner(session, plugin_id, Some(expected))
+            .await
+    }
+
+    async fn prepare_v2_reconciliation_barrier_inner(
+        &self,
+        session: Arc<Session>,
+        plugin_id: String,
+        expected: Option<V2LocalEditContext>,
+    ) -> Result<V2ReconciliationBarrier, WorkspaceCoordError> {
         let sync = self.clone();
         crate::v2_product_outbox::run_product_worker(move |cancelled, deadline| async move {
             let target = cloud_client::WorkspaceKey::new("plugin-selections", plugin_id)?;
             let config = sync
                 .capture_v2_config_epoch(&session)
                 .ok_or(WorkspaceCoordError::Ineligible)?;
+            if expected.as_ref().is_some_and(|context| {
+                context.origin != session.instance_origin()
+                    || context.account_id != session.account_id()
+                    || context.config_generation != config.config.generation
+            }) {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
             let origin = session.instance_origin();
             let account = session.account_id().to_owned();
             let _protocol = sync.protocol.try_v2(&origin, &account)?;
