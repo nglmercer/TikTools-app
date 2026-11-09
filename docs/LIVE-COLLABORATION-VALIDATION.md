@@ -87,6 +87,15 @@ capacity or prevent expiry for a smaller baseline; recovery of larger baselines
 remains future work. A local TLS SDK test verifies the error for a baseline
 with 32 pages at one request per second; the controller shows the operator
 guidance in English and Spanish and stops automatic reconnection for that error.
+Frame-aware packing now reserves the RPC envelope and exact page metadata,
+then verifies every serialized page before retaining the snapshot. A TLS SDK
+test recovers 32 medium-sized workflows at one request per second: their
+encoded size required at least 32 pages under the former half-frame budget,
+while the packed baseline completed in under the 30-second lifetime. A
+separate TLS test still rejects 32 larger one-record pages before returning a
+partial baseline. Unit coverage includes the largest allowed escaped RPC ID.
+High event rates can still exhaust retained history during recovery, and large
+records can still exceed the available request budget.
 
 ## Creator-scoped LIVE feed
 

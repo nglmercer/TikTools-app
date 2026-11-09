@@ -113,12 +113,12 @@ impl AppCore {
             // returning a page. A changed grant requires a new baseline.
             let current = auth.snapshot().map_err(stream_error)?;
             self.coordination_streams
-                .capture(
+                .capture_with_frame(
                     &current,
                     connection,
                     &params.subscription_id,
                     records,
-                    page_bytes,
+                    frame_bytes,
                 )
                 .map_err(stream_error)
         }

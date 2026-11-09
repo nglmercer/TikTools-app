@@ -568,6 +568,55 @@ fn snapshot_requires_pages_in_order_but_permits_retransmission() {
 }
 
 #[test]
+fn frame_aware_packing_fits_the_largest_escaped_rpc_id() {
+    let hub = StreamHub::default();
+    let user = identity();
+    let limits = RemoteLimits {
+        requests_per_second: 1,
+        request_burst: 1,
+        ..RemoteLimits::default()
+    };
+    let sub = hub
+        .subscribe(
+            &user,
+            "conn",
+            "instance-a",
+            SubscribeParams {
+                domains: [StreamDomain::Workflows].into(),
+                feed: false,
+                points_limit: None,
+            },
+            &limits,
+        )
+        .unwrap();
+    let records = (0..32)
+        .map(|i| {
+            let id = format!("wf-{i:02}");
+            (json!({"id":id,"body":"x".repeat(1200)}), version(&id, 1))
+        })
+        .collect();
+    let mut page = hub
+        .capture_with_frame(&user, "conn", &sub.subscription_id, records, 4096)
+        .unwrap();
+    let mut rows = 0;
+    let mut pages = 0;
+    loop {
+        pages += 1;
+        rows += page.workflows.len();
+        let response = json!({"jsonrpc":"2.0", "id":"\u{1}".repeat(128), "result":page});
+        assert!(serde_json::to_vec(&response).unwrap().len() <= 4096);
+        let Some(token) = page.next_page_token else {
+            break;
+        };
+        page = hub
+            .page(&user, "conn", &sub.subscription_id, &token)
+            .unwrap();
+    }
+    assert_eq!(rows, 32);
+    assert!(pages < 32, "packing must reduce recovery requests");
+}
+
+#[test]
 fn resumed_stream_uses_new_snapshot_rate_limits() {
     let hub = StreamHub::default();
     let user = identity();

@@ -423,14 +423,14 @@ async fn recovery_reports_impossible_rate_budget_before_receiving_partial_snapsh
         },
     )
     .await;
-    // Each permitted record occupies its own 2048-byte page. Thirty-one
+    // Each large record occupies its own page. Thirty-one
     // follow-up pages cannot fit strictly before the 30-second expiry.
     for n in 0..32 {
         f.core
             .workflow_save(json!({
                 "id": format!("large-workflow-{n:02}"),
                 "name": "Workflow",
-                "body": "x".repeat(1200),
+                "body": "x".repeat(2300),
             }))
             .unwrap();
     }
@@ -456,6 +456,55 @@ async fn recovery_reports_impossible_rate_budget_before_receiving_partial_snapsh
 }
 
 #[tokio::test]
+async fn recovery_packs_medium_records_at_minimum_gateway_rate() {
+    let f = Fixture::configured(
+        |_| {},
+        |config| {
+            config.limits.requests_per_second = 1;
+            config.limits.request_burst = 1;
+            config.limits.frame_bytes = 4096;
+            config.limits.params_bytes = 4096;
+        },
+    )
+    .await;
+    for n in 0..32 {
+        f.core.workflow_save(json!({"id":format!("packed-workflow-{n:02}"),"name":"Workflow","body":"x".repeat(1000)})).unwrap();
+    }
+    let creds = f
+        .pair(tiktools_collaboration::Grant {
+            capabilities: [tiktools_collaboration::Capability::WorkflowsRead].into(),
+            ..Default::default()
+        })
+        .await;
+    let manager = manager(&f, Arc::new(Store::default()));
+    manager
+        .install("packed-recovery", &f.endpoint, creds, ClientKind::Agent)
+        .await
+        .unwrap();
+    let remote = manager.open("packed-recovery").await.unwrap();
+    let stream = RecoveryStream::start(remote.clone(), [StreamDomain::Workflows].into())
+        .await
+        .unwrap();
+    let baseline = stream.baseline().unwrap();
+    assert_eq!(baseline.workflows.len(), 32);
+    let first_two_bytes: usize = baseline
+        .workflows
+        .iter()
+        .zip(&baseline.resource_versions)
+        .take(2)
+        .map(|(row, version)| {
+            serde_json::to_vec(row).unwrap().len() + serde_json::to_vec(version).unwrap().len() + 2
+        })
+        .sum();
+    assert!(
+        first_two_bytes > 2048,
+        "fixture must have needed at least 32 old half-frame pages"
+    );
+    stream.connection().close();
+    f.finish().await;
+}
+
+#[tokio::test]
 async fn recovery_resumes_at_minimum_gateway_rate() {
     let f = Fixture::configured(
         |_| {},
@@ -467,7 +516,7 @@ async fn recovery_resumes_at_minimum_gateway_rate() {
         },
     )
     .await;
-    for n in 0..12 {
+    for n in 0..16 {
         f.core.workflow_save(json!({"id":format!("workflow-{n:02}"),"name":format!("{n:02}-{}", "x".repeat(100))})).unwrap();
     }
     let creds = f
@@ -486,7 +535,7 @@ async fn recovery_resumes_at_minimum_gateway_rate() {
     let mut stream = RecoveryStream::start(remote.clone(), [StreamDomain::Workflows].into())
         .await
         .unwrap();
-    assert_eq!(stream.baseline().unwrap().workflows.len(), 12);
+    assert_eq!(stream.baseline().unwrap().workflows.len(), 16);
     let baseline = stream.baseline().unwrap();
     let encoded_rows: usize = baseline
         .workflows

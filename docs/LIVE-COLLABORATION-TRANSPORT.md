@@ -152,8 +152,9 @@ immutable for 30 seconds; complete the whole baseline before allowing edits.
 The host accepts forward pages in order and permits retransmission of an
 already returned page; skipping a page requires resynchronization. The host
 withholds notifications until all baseline pages have been requested.
-Pages reserve half the configured frame budget for state, capped at 512 KiB;
-snapshots retain at most 4 MiB including page/token metadata. An individual
+Pages reserve space for the RPC envelope and serialized metadata, with a
+512 KiB state cap; every serialized page is checked against the negotiated
+frame limit before capture completes. Snapshots retain at most 4 MiB including page/token metadata. An individual
 record that cannot fit fails with `too_large`; nothing is silently truncated.
 If the page count cannot fit even the configured burst plus every token that
 could refill strictly before the 30-second snapshot expiry, capture fails before

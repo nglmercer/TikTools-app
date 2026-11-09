@@ -13,6 +13,9 @@ pub const STREAM_BYTES: usize = 4 * 1024 * 1024;
 pub const STREAM_SECONDS: u64 = 60;
 pub const SNAPSHOT_BYTES: usize = 4 * 1024 * 1024;
 pub const SNAPSHOT_SECONDS: u64 = 30;
+// RPC IDs are limited to 128 bytes; JSON escaping can expand each to six.
+// This also reserves the fixed success-response envelope.
+const SNAPSHOT_RPC_RESERVE: usize = 1024;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
@@ -126,9 +129,12 @@ pub fn stream_sequence(value: &str) -> Result<u64, crate::Error> {
         .ok_or(crate::Error::Invalid("invalid stream sequence"))
 }
 
-/// Actual frame budget includes the JSON-RPC envelope and page metadata.
+/// Reserve enough for the JSON-RPC envelope and its longest escaped ID.
+/// Capture additionally subtracts its exact page metadata before packing.
 pub fn snapshot_page_bytes(frame_bytes: usize) -> usize {
-    (frame_bytes / 2).min(512 * 1024)
+    frame_bytes
+        .saturating_sub(SNAPSHOT_RPC_RESERVE)
+        .min(512 * 1024)
 }
 
 #[cfg(test)]

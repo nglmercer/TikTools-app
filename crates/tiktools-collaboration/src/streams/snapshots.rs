@@ -56,6 +56,42 @@ impl StreamHub {
         records: Vec<(Value, ResourceVersion)>,
         page_bytes: usize,
     ) -> Result<SnapshotPage, Error> {
+        self.capture_inner(identity, connection, id, records, page_bytes, None)
+    }
+
+    /// Pack each page for the negotiated frame, reserving the RPC envelope
+    /// and the exact snapshot metadata. Final serialized pages are checked
+    /// before any part of the baseline becomes visible.
+    pub fn capture_with_frame(
+        &self,
+        identity: &Authenticated,
+        connection: &str,
+        id: &str,
+        records: Vec<(Value, ResourceVersion)>,
+        frame_bytes: usize,
+    ) -> Result<SnapshotPage, Error> {
+        if !(4096..=1024 * 1024).contains(&frame_bytes) {
+            return Err(Error::Invalid("invalid snapshot frame budget"));
+        }
+        self.capture_inner(
+            identity,
+            connection,
+            id,
+            records,
+            snapshot_page_bytes(frame_bytes),
+            Some(frame_bytes),
+        )
+    }
+
+    fn capture_inner(
+        &self,
+        identity: &Authenticated,
+        connection: &str,
+        id: &str,
+        records: Vec<(Value, ResourceVersion)>,
+        page_bytes: usize,
+        frame_bytes: Option<usize>,
+    ) -> Result<SnapshotPage, Error> {
         let mut state = self.state.lock().map_err(|_| Error::ResyncRequired)?;
         let now = Instant::now();
         gc(&mut state, now);
@@ -99,6 +135,13 @@ impl StreamHub {
             } else {
                 0
             };
+        let data_budget = if frame_bytes.is_some() {
+            page_bytes
+                .checked_sub(page_overhead)
+                .ok_or(Error::TooLarge)?
+        } else {
+            page_bytes
+        };
         let mut total = page_overhead;
         if s.points_limit.is_some_and(|n| {
             records
@@ -135,10 +178,10 @@ impl StreamHub {
             let bytes =
                 serde_json::to_vec(&record)?.len() + serde_json::to_vec(&version)?.len() + 2;
             total = total.checked_add(bytes).ok_or(Error::TooLarge)?;
-            if bytes > page_bytes || total > SNAPSHOT_BYTES {
+            if bytes > data_budget || total > SNAPSHOT_BYTES {
                 return Err(Error::TooLarge);
             }
-            if used + bytes > page_bytes {
+            if used + bytes > data_budget {
                 total = total.checked_add(page_overhead).ok_or(Error::TooLarge)?;
                 if total > SNAPSHOT_BYTES {
                     return Err(Error::TooLarge);
@@ -175,6 +218,17 @@ impl StreamHub {
             .collect();
         for (index, page) in pages.iter_mut().enumerate() {
             page.next_page_token = tokens.get(index + 1).cloned();
+        }
+        if let Some(frame_bytes) = frame_bytes {
+            for page in &pages {
+                if serde_json::to_vec(page)?
+                    .len()
+                    .checked_add(SNAPSHOT_RPC_RESERVE)
+                    .is_none_or(|n| n > frame_bytes)
+                {
+                    return Err(Error::TooLarge);
+                }
+            }
         }
         let first = pages[0].clone();
         s.sent = s.sequence;
