@@ -27,7 +27,8 @@ export interface WorkflowRow { graph: Record<string, unknown>; version: Resource
 export interface PointRow { viewer: { uniqueId: string; nickname?: string; points: number; level: number }; version: ResourceVersion }
 export interface PointsPage { epoch: string; pointsRevision: string; loading: boolean; errorCode: string | null; currencyName: string | null; rows: PointRow[] | null; selectedId: string | null; selected: PointRow | null; selectedVersion: ResourceVersion | null }
 export interface PointsTarget { epoch: string; connectionId: string; origin: string; hostId: string; principalId: string; sessionId: string; hostInstanceId: string; grantRevision?: string; uniqueId: string; delta: number; currencyName: string; creates: boolean }
-export interface RemoteProfile { name: string; origin: string; hostId: string }
+export interface RemoteProfile { name: string; profileId: string; origin: string; hostId: string }
+export type ProfileForgetTarget = Readonly<RemoteProfile>;
 interface Page { epoch: string; viewRevision: string; rows: WorkflowRow[]; next: number | null }
 const idle = (): ControllerStatus => ({ epoch: '0', viewRevision: '0', phase: 'idle', profile: null, origin: null, hello: null, errorCode: null });
 
@@ -124,6 +125,28 @@ export function createControllerModel(control: ControlClient) {
     return refreshing;
   }
   async function inventory(): Promise<void> { profiles.value = await control.call<RemoteProfile[]>('controller.profiles'); }
+  function profileForgetCurrent(target: ProfileForgetTarget): boolean {
+    return !busy.value && !commandSending.value && status.value.profile !== target.name &&
+      !!target.profileId && profiles.value.some((profile) => profile.name === target.name &&
+        profile.profileId === target.profileId && profile.origin === target.origin && profile.hostId === target.hostId);
+  }
+  function prepareForget(profile: RemoteProfile): ProfileForgetTarget | null {
+    const target = { name: profile.name, profileId: profile.profileId, origin: profile.origin, hostId: profile.hostId };
+    return profileForgetCurrent(target) ? target : null;
+  }
+  async function forgetProfile(target: ProfileForgetTarget): Promise<boolean> {
+    if (!profileForgetCurrent(target) || stopped) return false;
+    const generation = selection;
+    busy.value = true; error.value = '';
+    try {
+      await control.call('controller.profile.forget', { profile: target.name, profileId: target.profileId, origin: target.origin, hostId: target.hostId, confirm: true });
+      if (!stopped && generation === selection) await inventory();
+      return true;
+    } catch (failure) {
+      if (!stopped && generation === selection) error.value = failure instanceof Error ? failure.message : 'Profile removal failed';
+      return false;
+    } finally { if (!stopped && generation === selection) busy.value = false; }
+  }
   async function connect(profile: string): Promise<void> {
     const generation = ++selection;
     draftStorage.reset(); automation.clear();
@@ -267,7 +290,7 @@ export function createControllerModel(control: ControlClient) {
   const automation = createAutomationModel(control, { status, generation: () => selection, stopped: () => stopped, retry: () => { dirty = true; }, blocked: () => commandBlocked.value, journalMatches, send: commandCall });
   const proposals = createProposalModel(control, { status, blocked: () => commandBlocked.value, journalMatches, send: commandCall });
   function stop(): void { proposals.stop(); automation.clear(); stopped = true; if (timer) clearInterval(timer); unsubscribe?.(); control.detach(); rows.value = []; points.value = null; pointsLoaded.value = ''; draftStorage.stop(); status.value = idle(); loaded.value = ''; scope.value = ''; drafts.clear(); }
-  return { proposals, automation, status, profiles, rows, points, pointsError, pointsAllowed, selectPoints, pointsCanAdjust, preparePoints, pointsIsCurrent, adjustPoints, error, busy, ready, commandSending, commandBlocked, canChange, canResolve, canReview,
+  return { proposals, automation, status, profiles, rows, points, pointsError, pointsAllowed, selectPoints, pointsCanAdjust, preparePoints, pointsIsCurrent, adjustPoints, error, busy, ready, commandSending, commandBlocked, canChange, canResolve, canReview, prepareForget, profileForgetCurrent, forgetProfile,
     prepareCommand, commandIsCurrent, changeWorkflow, resolveCommand, prepareReview, reviewIsCurrent, reviewUnknown,
     inventory, refresh, start, stop, connect, disconnect, draft, draftIds, editRetainedDraft, edit, discard, rebaseDraft, draftStorage };
 }

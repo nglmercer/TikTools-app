@@ -479,9 +479,22 @@ impl Controller {
                 self.review_command(p.epoch,p.command_id).await
             },
             "controller.status"=>serde_json::to_value(self.status()).map_err(|_|protocol()),
-            "controller.profiles"=>Ok(Value::Array(self.profiles.list().await?.into_iter().map(|p|json!({"name":p.name,"origin":p.origin,"hostId":p.host_id,"trust":p.trust})).collect())),
+            "controller.profiles"=>Ok(Value::Array(self.profiles.list().await?.into_iter().map(|p|json!({"name":p.name,"profileId":p.profile_id,"origin":p.origin,"hostId":p.host_id,"trust":p.trust})).collect())),
             "controller.connect"=>{let p:Name=parse(params)?;self.connect(&p.profile).await?;Ok(json!({"ok":true}))},
             "controller.disconnect"=>{self.disconnect().await;Ok(json!({"ok":true}))},
+            "controller.profile.forget"=>{
+                #[derive(Deserialize)] #[serde(rename_all="camelCase",deny_unknown_fields)]
+                struct Forget { profile:String, profile_id:String, origin:String, host_id:String, confirm:bool }
+                let p:Forget=parse(params)?;
+                if !p.confirm {return Err(fail("confirmation_required","confirm local profile and draft removal"));}
+                // Serialize with profile selection, pairing and disconnect.
+                let _lifecycle=self.lifecycle.lock().await;
+                if self.status().profile.as_deref()==Some(p.profile.as_str()) {
+                    return Err(fail("profile_in_use","disconnect this profile before forgetting it"));
+                }
+                self.profiles.forget_reviewed(&p.profile,&p.profile_id,&p.origin,&p.host_id).await?;
+                Ok(json!({"ok":true}))
+            },
             "controller.probe"=>{#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct Probe{origin:String} let p:Probe=parse(params)?;Ok(json!({"fingerprint":probe_fingerprint(&p.origin).await?,"verified":false}))},
             "controller.pair"=>{
                 let mut p:Pair=parse(params)?;

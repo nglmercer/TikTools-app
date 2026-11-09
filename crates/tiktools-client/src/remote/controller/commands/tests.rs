@@ -594,6 +594,14 @@ async fn controller_recovers_a_committed_id_after_restart_without_reapplying_the
     drop(remote);
     f.core.workflow_set_enabled("welcome", true).unwrap();
     let c = Controller::new(manager.clone());
+    let forget = json!({"profile":"desk","profileId":profile.profile_id,"origin":profile.origin,"hostId":profile.host_id,"confirm":true});
+    assert_eq!(
+        c.manage("controller.profile.forget", forget)
+            .await
+            .unwrap_err()
+            .code,
+        "command_pending"
+    );
     c.connect("desk").await.unwrap();
     wait(&c, |s| {
         s.command_journal

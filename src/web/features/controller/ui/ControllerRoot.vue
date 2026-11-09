@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
-import { createControllerModel, type CommandTarget, type PointsTarget, type PendingCommand, type ReviewTarget, type WorkflowOperation } from '../model/controller.ts';
+import { createControllerModel, type CommandTarget, type PointsTarget, type PendingCommand, type ProfileForgetTarget, type RemoteProfile, type ReviewTarget, type WorkflowOperation } from '../model/controller.ts';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import ControllerAutomations from './ControllerAutomations.vue';
 import ControllerProposals from './ControllerProposals.vue';
@@ -19,6 +19,13 @@ const labels = computed(() => locale.value === 'es' ? {
   title: 'Remote controller', controlling: 'Controlling', profiles: 'Saved profiles', connect: 'Connect', disconnect: 'Disconnect', pair: 'Connect to another PC', origin: 'Host HTTPS address', profile: 'Profile name', label: 'This device name', invite: 'Private invitation or join link', fingerprint: 'Approved SHA-256 fingerprint (optional)', verify: 'I compared this fingerprint with the owner', probe: 'Inspect unverified fingerprint', unverified: 'Unverified fingerprint: compare it with the owner before approving it.', submit: 'Request access', pending: 'Waiting for owner approval. Request:', workflows: 'Host workflows', empty: 'No workflows are available for this access.', draft: 'Local draft', keep: 'Drafts survive reconnection. They are not sent to the host.', conflict: 'The host changed this workflow; your draft was retained.', discard: 'Discard draft', readOnly: 'Saving and enabling definitions are not available yet. Permitted changes require host confirmation.', rights: 'Effective permissions', noProfiles: 'Create a profile to connect to the host.', idle: 'Disconnected', pairing: 'Waiting for approval', connecting: 'Connecting', ready: 'Connected', reconnecting: 'Reconnecting; recovering state', failed: 'Connection failed', hidden: 'Host data will appear after the connection recovers.',
 });
 const phase = computed(() => labels.value[status.value.phase as 'idle' | 'pairing' | 'connecting' | 'ready' | 'reconnecting' | 'failed'] ?? status.value.phase);
+const forgetLabels = computed(() => locale.value === 'es' ? {
+  action: 'Olvidar perfil', title: '¿Olvidar este perfil?',
+  message: 'Se eliminarán las credenciales, borradores e historial de comandos guardados en esta PC. Los comandos pendientes impiden eliminarlo. Las conexiones ya abiertas pueden seguir activas hasta que caduquen o el propietario revoque el acceso en el anfitrión.',
+} : {
+  action: 'Forget profile', title: 'Forget this profile?',
+  message: 'The credentials, drafts and command history saved on this PC will be removed. Pending commands prevent removal. Existing connections may remain active until they expire or the owner revokes host access.',
+});
 const cmd = computed(() => locale.value === 'es' ? {
   disable:'Desactivar workflow',delete:'Eliminar workflow','disable-event':'Desactivar evento','delete-event':'Eliminar evento','adjust-points':'Ajustar puntos','create-action-draft':'Proponer acción nueva','update-action-draft':'Proponer reemplazo de acción','create-event-draft':'Proponer evento nuevo','update-event-draft':'Proponer reemplazo de evento',requested:'Cantidad solicitada',effective:'Ajuste aplicado',balance:'Saldo confirmado',disableTitle:'¿Desactivar este workflow en el anfitrión?',deleteTitle:'¿Eliminar este workflow del anfitrión?',
   disableMessage:'El workflow dejará de estar activo. El cambio se enviará una sola vez al anfitrión y requiere la revisión indicada.',deleteMessage:'Se eliminará el workflow del anfitrión. El borrador local se conserva. Esta operación requiere la revisión indicada.',
@@ -76,10 +83,14 @@ function requestPoints(): void {
   const target = model.preparePoints(pointId.value, Number(pointAmount.value));
   if (target) confirmation.value = { kind: 'points', target };
 }
-type Confirmation = { kind:'draft';target:DraftSaveTarget;origin:string;hostId:string } | { kind:'points';target:PointsTarget } | { kind:'mutation';target:CommandTarget } | { kind:'review';target:ReviewTarget;intent:PendingCommand;origin:string;hostId:string };
+type Confirmation = { kind:'draft';target:DraftSaveTarget;origin:string;hostId:string } | { kind:'points';target:PointsTarget } | { kind:'mutation';target:CommandTarget } | { kind:'review';target:ReviewTarget;intent:PendingCommand;origin:string;hostId:string } | { kind:'forget';target:ProfileForgetTarget };
 const confirmation = ref<Confirmation | null>(null);
 const confirmOpen = computed({get:()=>confirmation.value!==null,set:(open:boolean)=>{if(!open)confirmation.value=null;}});
-const confirmationCurrent = computed(()=>!!confirmation.value && (confirmation.value.kind==='draft' ? model.draftStorage.current(confirmation.value.target) : confirmation.value.kind==='points' ? model.pointsIsCurrent(confirmation.value.target) : confirmation.value.kind==='mutation' ? model.commandIsCurrent(confirmation.value.target) : model.reviewIsCurrent(confirmation.value.target)));
+const confirmationCurrent = computed(()=>!!confirmation.value && (confirmation.value.kind==='draft' ? model.draftStorage.current(confirmation.value.target) : confirmation.value.kind==='points' ? model.pointsIsCurrent(confirmation.value.target) : confirmation.value.kind==='mutation' ? model.commandIsCurrent(confirmation.value.target) : confirmation.value.kind==='forget' ? model.profileForgetCurrent(confirmation.value.target) : model.reviewIsCurrent(confirmation.value.target)));
+function requestForget(profile: RemoteProfile): void {
+  const target = model.prepareForget(profile);
+  if (target) confirmation.value = { kind: 'forget', target };
+}
 function requestSaveDraft(): void {
   const target=model.draftStorage.prepare(selected.value);
   if(target && status.value.hello && status.value.origin)confirmation.value={kind:'draft',target,origin:status.value.origin,hostId:status.value.hello.hostId};
@@ -93,7 +104,7 @@ function requestReview(): void {
 }
 async function confirmCommand(): Promise<void> {
   const item=confirmation.value;if(!item||!confirmationCurrent.value)return;confirmation.value=null;
-  if(item.kind==='draft')await model.draftStorage.save(item.target);else if(item.kind==='points') {if(await model.adjustPoints(item.target))pointAmount.value='';}else if(item.kind==='mutation')await model.changeWorkflow(item.target);else await model.reviewUnknown(item.target);
+  if(item.kind==='draft')await model.draftStorage.save(item.target);else if(item.kind==='points') {if(await model.adjustPoints(item.target))pointAmount.value='';}else if(item.kind==='mutation')await model.changeWorkflow(item.target);else if(item.kind==='forget')await model.forgetProfile(item.target);else await model.reviewUnknown(item.target);
 }
 watch(()=>status.value.epoch,()=>{confirmation.value=null;pointSearch.value='';pointAmount.value='';});
 const selected = ref('');
@@ -253,6 +264,12 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
           @click="model.connect(profile.name)"
         >
           {{ labels.connect }}
+        </button>
+        <button
+          :disabled="!model.prepareForget(profile) || pairing"
+          @click="requestForget(profile)"
+        >
+          {{ forgetLabels.action }}
         </button>
       </div>
     </section>
@@ -580,14 +597,17 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
     </p>
     <BaseConfirmDialog
       v-model:open="confirmOpen"
-      :title="confirmation?.kind === 'draft' ? dft.title : confirmation?.kind === 'points' ? pts.confirm : confirmation?.kind === 'review' ? cmd.reviewTitle : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.deleteTitle : cmd.disableTitle"
-      :message="confirmation?.kind === 'draft' ? dft.consent : confirmation?.kind === 'points' ? pts.note : confirmation?.kind === 'review' ? cmd.reviewMessage : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.deleteMessage : cmd.disableMessage"
-      :confirm-label="confirmation?.kind === 'draft' ? dft.save : confirmation?.kind === 'points' ? pts.adjust : confirmation?.kind === 'review' ? cmd.reviewed : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.delete : cmd.disable"
+      :title="confirmation?.kind === 'draft' ? dft.title : confirmation?.kind === 'forget' ? forgetLabels.title : confirmation?.kind === 'points' ? pts.confirm : confirmation?.kind === 'review' ? cmd.reviewTitle : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.deleteTitle : cmd.disableTitle"
+      :message="confirmation?.kind === 'draft' ? dft.consent : confirmation?.kind === 'forget' ? forgetLabels.message : confirmation?.kind === 'points' ? pts.note : confirmation?.kind === 'review' ? cmd.reviewMessage : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.deleteMessage : cmd.disableMessage"
+      :confirm-label="confirmation?.kind === 'draft' ? dft.save : confirmation?.kind === 'forget' ? forgetLabels.action : confirmation?.kind === 'points' ? pts.adjust : confirmation?.kind === 'review' ? cmd.reviewed : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.delete : cmd.disable"
       :busy="commandSending || busy || draftBusy || !confirmationCurrent"
       :danger="confirmation?.kind !== 'draft'"
       @confirm="confirmCommand"
     >
-      <template v-if="confirmation?.kind === 'draft'">
+      <template v-if="confirmation?.kind === 'forget'">
+        <p>{{ confirmation.target.name }}</p><code>{{ confirmation.target.origin }}</code><code>Host {{ confirmation.target.hostId }}</code>
+      </template>
+      <template v-else-if="confirmation?.kind === 'draft'">
         <code>{{ confirmation.origin }}</code><code>Host {{ confirmation.hostId }}</code>
         <p>{{ confirmation.target.id }} · {{ dft.base }} {{ confirmation.target.revision }}</p>
       </template>

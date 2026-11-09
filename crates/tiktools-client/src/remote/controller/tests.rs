@@ -40,6 +40,95 @@ fn page(c: &Controller) -> Value {
     let s = c.status();
     c.workflows(&s.epoch, &s.view_revision, 0).unwrap()
 }
+
+#[tokio::test]
+async fn forget_requires_confirmation_and_fences_active_and_replaced_profiles() {
+    let f = Fixture::new().await;
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let profile = manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(workflow_grant()).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let controller = Controller::new(manager.clone());
+    let request = json!({"profile":"desk","profileId":profile.profile_id,"origin":profile.origin,"hostId":profile.host_id,"confirm":true});
+    let mut unconfirmed = request.clone();
+    unconfirmed["confirm"] = json!(false);
+    assert_eq!(
+        controller
+            .manage("controller.profile.forget", unconfirmed)
+            .await
+            .unwrap_err()
+            .code,
+        "confirmation_required"
+    );
+    let listed = controller
+        .manage("controller.profiles", json!({}))
+        .await
+        .unwrap();
+    assert_eq!(listed[0]["profileId"], request["profileId"]);
+    controller.connect("desk").await.unwrap();
+    assert_eq!(
+        controller
+            .manage("controller.profile.forget", request.clone())
+            .await
+            .unwrap_err()
+            .code,
+        "profile_in_use"
+    );
+    let other = Controller::new(manager.clone());
+    assert_eq!(
+        other
+            .manage("controller.profile.forget", request.clone())
+            .await
+            .unwrap_err()
+            .code,
+        "command_journal_in_use"
+    );
+    controller.disconnect().await;
+    // Direct SDK connections do not hold the controller journal lease. Local
+    // removal cannot revoke an access token already in another process.
+    let remote = manager.open("desk").await.unwrap();
+    controller
+        .manage("controller.profile.forget", request.clone())
+        .await
+        .unwrap();
+    assert!(!remote.is_closed());
+    remote
+        .call_value_with_meta("collaboration.me", json!({}), None)
+        .await
+        .unwrap();
+    remote.close();
+    let replacement = manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(workflow_grant()).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    assert_ne!(replacement.profile_id, profile.profile_id);
+    assert_eq!(
+        controller
+            .manage("controller.profile.forget", request)
+            .await
+            .unwrap_err()
+            .code,
+        "stale_view"
+    );
+    assert_eq!(
+        manager.get("desk").await.unwrap().profile_id,
+        replacement.profile_id
+    );
+    f.finish().await;
+}
 #[tokio::test]
 async fn controller_projects_only_authorized_host_data_and_recovers_without_local_core() {
     let f = Fixture::new().await;

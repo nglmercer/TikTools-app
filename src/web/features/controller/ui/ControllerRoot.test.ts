@@ -7,6 +7,34 @@ import ControllerRoot from './ControllerRoot.vue';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import type { ControllerStatus } from '../model/controller.ts';
 
+it('requires confirmation before forgetting a reviewed local profile', async () => {
+  i18n.global.locale.value = 'en';
+  let profiles = [{ name: 'desk', profileId: 'instance-1', origin: 'https://host.example', hostId: 'host-A' }];
+  const { client, calls } = createFakeControlClient((method) => {
+    if (method === 'controller.profiles') return structuredClone(profiles);
+    if (method === 'controller.status') return { epoch: '0', viewRevision: '0', phase: 'idle', profile: null, origin: null, hello: null, errorCode: null };
+    if (method === 'controller.profile.forget') { profiles = []; return { ok: true }; }
+    throw new Error(`Unexpected native call: ${method}`);
+  });
+  const wrapper = mount(ControllerRoot, { global: { plugins: [i18n], provide: { [controlClientKey as symbol]: client } } });
+  const button = (name: string) => wrapper.findAll('button').find((node) => node.text() === name)!;
+  try {
+    await flushPromises();
+    await button('Forget profile').trigger('click');
+    const dialog = wrapper.get('dialog[open]');
+    expect(dialog.text()).toContain('credentials, drafts and command history');
+    expect(dialog.text()).toContain('Existing connections may remain active until they expire or the owner revokes host access');
+    expect(dialog.text()).toContain('https://host.example');
+    await dialog.findAll('button').find((node) => node.text() === 'Cancel')!.trigger('click');
+    expect(calls.some((call) => call.method === 'controller.profile.forget')).toBe(false);
+    await button('Forget profile').trigger('click');
+    await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === 'Forget profile')!.trigger('click');
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'controller.profile.forget')?.params).toEqual({ profile: 'desk', profileId: 'instance-1', origin: 'https://host.example', hostId: 'host-A', confirm: true });
+    expect(wrapper.text()).not.toContain('https://host.example');
+  } finally { wrapper.unmount(); }
+});
+
 it('renders requested points separately from verified results and includes the unit in unknown review', async () => {
   i18n.global.locale.value = 'en';
   const intent = { commandId: 'pending-points', operation: 'adjust-points' as const, resourceId: 'alice', hostInstanceId: 'instance', delta: -3, currencyName: 'Gems', createdAt: 1 };

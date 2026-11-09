@@ -131,8 +131,14 @@ indicator, effective capabilities, permitted workflow view, points board and
 closed automation status with confirmed whole-event stop/delete. Tokens and
 the pairing exchange secret remain in Rust/OS storage. The invitation input
 is cleared on submission; pending approval survives page reload in the native
-engine. The UI currently uses CLI `remote trust`/`forget` for certificate
-rollover or profile removal; their complete desktop forms remain pending.
+engine. A saved profile can be forgotten after explicitly confirming removal
+of its local credentials, drafts and command history. The selected profile
+must first be disconnected, and a pending or actively used command journal
+blocks removal. The confirmed profile identity is rechecked under the native
+profile lease, so an old confirmation cannot remove a replacement with the
+same name. This removes local data only: direct SDK connections already opened
+may remain active until they expire or the owner revokes that session on the
+host. Certificate rollover still uses CLI `remote trust`.
 
 The native `remote::controller::Controller` owns bounded workflow and automation
 projections with independent automation display revisions.
