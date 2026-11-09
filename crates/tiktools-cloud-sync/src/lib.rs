@@ -106,7 +106,6 @@ struct SyncConfig {
 }
 
 struct Runtime {
-    syncing: bool,
     last_error: Option<String>,
     last_synced_at: Option<u64>,
 }
@@ -123,6 +122,15 @@ pub struct SyncCoordinator {
     syncing: Arc<AtomicBool>,
 }
 
+/// Clears the `syncing` flag when dropped, including on cancellation.
+struct RunningGuard<'a>(&'a AtomicBool);
+
+impl Drop for RunningGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
 impl SyncCoordinator {
     /// `dir` holds the state store and the opt-in file. It must be private
     /// to the device; [`StateStore`] enforces that on open.
@@ -135,7 +143,6 @@ impl SyncCoordinator {
             config_path: dir.join(CONFIG_FILE),
             state_path: dir.join(STATE_FILE),
             runtime: Arc::new(Mutex::new(Runtime {
-                syncing: false,
                 last_error: None,
                 last_synced_at: None,
             })),
@@ -195,16 +202,17 @@ impl SyncCoordinator {
                 keys
             })
             .unwrap_or_default();
-        // Blocking lock: status is called off hot paths only.
+        // Non-blocking reads: status is called off hot paths only, and the
+        // async [`Self::status`] refreshes these fields authoritatively.
         let runtime = self
             .runtime
             .try_lock()
-            .map(|r| (r.syncing, r.last_error.clone(), r.last_synced_at));
-        let (syncing, last_error, last_synced_at) = runtime.unwrap_or((false, None, None));
+            .map(|r| (r.last_error.clone(), r.last_synced_at));
+        let (last_error, last_synced_at) = runtime.unwrap_or((None, None));
         SyncStatus {
             enabled: self.is_enabled(),
-            signed_in: false,
-            syncing,
+            signed_in: self.auth.try_session().is_some(),
+            syncing: self.syncing.load(Ordering::SeqCst),
             pending,
             conflicts,
             last_error,
@@ -325,8 +333,12 @@ impl SyncCoordinator {
         {
             return Err(SyncCoordError::AlreadyRunning);
         }
+        // Release the run flag even when the caller drops this future
+        // mid-sync (the control plane enforces a per-request timeout);
+        // otherwise every later run reports `AlreadyRunning` until restart.
+        let running = RunningGuard(&self.syncing);
         let outcome = self.sync_inner().await;
-        self.syncing.store(false, Ordering::SeqCst);
+        drop(running);
         {
             let mut runtime = self.runtime.lock().await;
             match &outcome {

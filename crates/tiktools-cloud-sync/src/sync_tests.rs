@@ -840,3 +840,65 @@ async fn disabled_sync_stages_and_syncs_nothing() {
     assert_eq!(outcome.pushed, 1);
     mock.stop();
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancelled_sync_releases_the_running_flag() {
+    let dir = TempDir::new("cancelled");
+    let mock = MockSync::start("user-cancel").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "code-cancel").await;
+    assert!(sync
+        .record_local_change("acme.cancel", "1.0.0", true)
+        .unwrap());
+
+    // Swap the Cloud for a listener that accepts but never answers, so the
+    // run parks on the network while holding the running flag.
+    let address = mock.origin.trim_start_matches("http://").to_owned();
+    mock.stop();
+    // The aborted accept loop releases the port asynchronously.
+    let stalled = loop {
+        match tokio::net::TcpListener::bind(&address).await {
+            Ok(listener) => break listener,
+            Err(_) => tokio::time::sleep(std::time::Duration::from_millis(10)).await,
+        }
+    };
+    let stall = tokio::spawn(async move {
+        let mut held = Vec::new();
+        while let Ok((socket, _)) = stalled.accept().await {
+            held.push(socket);
+        }
+    });
+
+    let mut run = Box::pin(sync.sync_now());
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+    while !sync.status().await.syncing {
+        assert!(tokio::time::Instant::now() < deadline, "sync never started");
+        tokio::select! {
+            result = &mut run => panic!("sync finished against a stalled Cloud: {result:?}"),
+            () = tokio::time::sleep(std::time::Duration::from_millis(10)) => {}
+        }
+    }
+    // Drop the parked run the way the control plane's request timeout does.
+    drop(run);
+
+    assert!(!sync.status().await.syncing);
+    // A fresh run gets past the guard (and parks again) instead of failing
+    // fast with `AlreadyRunning`.
+    let retry = tokio::time::timeout(std::time::Duration::from_millis(200), sync.sync_now()).await;
+    assert!(retry.is_err(), "retry did not reach the network: {retry:?}");
+    stall.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn toggling_reports_the_live_session() {
+    let dir = TempDir::new("toggle-status");
+    let mock = MockSync::start("user-toggle").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    assert!(!sync.set_enabled(true).unwrap().signed_in);
+    login(&auth, "code-toggle").await;
+    let enabled = sync.set_enabled(true).unwrap();
+    assert!(enabled.enabled && enabled.signed_in && !enabled.syncing);
+    let disabled = sync.set_enabled(false).unwrap();
+    assert!(!disabled.enabled && disabled.signed_in);
+    mock.stop();
+}

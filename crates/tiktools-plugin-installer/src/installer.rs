@@ -659,13 +659,19 @@ impl Installer {
             return Err(error.into());
         }
         if let Err(message) = hooks.activate(plugin_id, was_running) {
-            let failed = self.layout.new_staging_dir("failed")?;
-            let _ = move_dir(&target, &failed.join(plugin_id));
+            // Hand the rejected package back at the candidate path so the
+            // caller decides its fate: installs discard their staging
+            // directory, while a rollback must return it to the retained
+            // store instead of losing that version.
+            if move_dir(&target, candidate).is_err() {
+                let failed = self.layout.new_staging_dir("failed")?;
+                let _ = move_dir(&target, &failed.join(plugin_id));
+                let _ = fs::remove_dir_all(&failed);
+            }
             if let Some(retained) = &retained_to {
                 let _ = move_dir(retained, &target);
             }
             let _ = hooks.activate(plugin_id, was_running);
-            let _ = fs::remove_dir_all(&failed);
             return Err(InstallError::io(format!(
                 "plugin {plugin_id} could not be activated: {message}"
             )));
