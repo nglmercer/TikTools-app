@@ -10,6 +10,48 @@ pub(super) struct Observation {
     pub rows: BTreeMap<String, CompetitionSummary>,
 }
 
+pub(super) fn readable(remote: &RemoteClient) -> bool {
+    let hello = remote.hello();
+    hello.capabilities.contains(&Capability::CompetitionsRead)
+        && !hello
+            .resource_restrictions
+            .contains_key(&ResourceKind::Live)
+        && hello.features.get("competitionSummaryVersions") == Some(&true)
+        && hello
+            .subscription_domains
+            .contains(&StreamDomain::Competitions)
+}
+
+pub(super) fn changed(
+    shared: &Shared,
+    epoch: &str,
+    remote: &RemoteClient,
+    event: &ReliableEvent,
+) -> Result<(), ClientError> {
+    if !readable(remote)
+        || remote
+            .hello()
+            .resource_restrictions
+            .get(&ResourceKind::Competition)
+            .is_some_and(|ids| !ids.contains(&event.resource.id))
+    {
+        return Err(protocol());
+    }
+    let mut view = shared.view.write().unwrap_or_else(|p| p.into_inner());
+    if view.status.epoch == epoch {
+        view.competition_observation = None;
+        view.status.competition_revision = view
+            .status
+            .competition_revision
+            .parse::<u64>()
+            .unwrap_or(0)
+            .saturating_add(1)
+            .to_string();
+        shared.changed.send_modify(|n| *n = n.wrapping_add(1));
+    }
+    Ok(())
+}
+
 fn bound(
     view: &View,
     epoch: &str,

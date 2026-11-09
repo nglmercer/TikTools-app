@@ -252,6 +252,7 @@ pub fn register(router: &mut ControlRouter) {
                         StreamDomain::Workflows,
                         StreamDomain::Points,
                         StreamDomain::Automation,
+                        StreamDomain::Competitions,
                         StreamDomain::Commands,
                     ]
                 } else {

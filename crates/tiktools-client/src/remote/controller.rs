@@ -40,6 +40,7 @@ pub struct ControllerStatus {
     pub view_revision: String,
     pub points_revision: String,
     pub automation_revision: String,
+    pub competition_revision: String,
     pub points_loading: bool,
     pub points_error_code: Option<String>,
     pub phase: String,
@@ -229,6 +230,7 @@ impl Controller {
                         view_revision: "0".into(),
                         points_revision: "0".into(),
                         automation_revision: "0".into(),
+                        competition_revision: "0".into(),
                         points_loading: true,
                         points_error_code: None,
                         phase: "idle".into(),
@@ -296,6 +298,7 @@ impl Controller {
             view_revision: "0".into(),
             points_revision: "0".into(),
             automation_revision: "0".into(),
+            competition_revision: "0".into(),
             points_loading: true,
             points_error_code: None,
             phase: "idle".into(),
@@ -677,6 +680,7 @@ async fn run(
             tokio::select! {
                 event=stream.next_event()=>match event {
                     Ok(event) if event.resource.kind==ResourceKind::Viewer && event.topic=="points.changed"=>{points::dirty(&shared,&epoch);stream.acknowledge(&event)},
+                    Ok(event) if event.resource.kind==ResourceKind::Competition && event.topic=="competition.changed"=>match competitions::changed(&shared,&epoch,&remote,&event) {Ok(())=>stream.acknowledge(&event),Err(e)=>Err(e)},
                     Ok(event) if event.resource.kind==ResourceKind::Automation=>match automations::apply(&shared,&epoch,&remote,&event).await {Ok(())=>stream.acknowledge(&event),Err(e)=>Err(e)},
                     Ok(event)=>match apply(&shared,&epoch,&remote,&event).await {Ok(())=>stream.acknowledge(&event),Err(e)=>Err(e)},
                     Err(e)=>Err(e),

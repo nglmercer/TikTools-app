@@ -61,6 +61,7 @@ export function createCompetitionModel(control: ControlClient, deps: Dependencie
   const nextAfter = ref<string | null>(null); const cursors = ref<(string | null)[]>([null]);
   let token = 0; let nextPoll = 0; let loadedBinding = '';
   function clear(): void { token += 1; rows.value = []; error.value = ''; loading.value = false; pageIndex.value = 0; nextAfter.value = null; cursors.value = [null]; nextPoll = 0; loadedBinding = ''; }
+  function invalidate(): void { token += 1; loading.value = false; nextPoll = 0; }
   async function refresh(current: ControllerStatus, generation: number): Promise<void> {
     if (!readable(current)) { clear(); return; }
     const captured = binding(current);
@@ -105,6 +106,6 @@ export function createCompetitionModel(control: ControlClient, deps: Dependencie
     const accepted = await deps.send!('controller.competition.command', { epoch:s.epoch, connectionId:h.connectionId, hostInstanceId:h.hostInstanceId, grantRevision:h.grantRevision, id:row.id, expectedRevision:row.revision, expectedGeneration:row.generation, operation });
     if (accepted && !deps.stopped() && binding(deps.status.value) === captured) { nextPoll = 0; await refresh(deps.status.value, deps.generation()); }
   }
-  return { rows, error, loading, pageIndex, nextAfter, allowed, clear, refresh, next, previous, canStop, stopCompetition };
+  return { rows, error, loading, pageIndex, nextAfter, allowed, clear, invalidate, refresh, next, previous, canStop, stopCompetition };
 }
 export type CompetitionModel = ReturnType<typeof createCompetitionModel>;

@@ -113,6 +113,7 @@ impl StreamHub {
             workflows: Vec::new(),
             points: Vec::new(),
             automation: Vec::new(),
+            competitions: Vec::new(),
             resource_versions: Vec::new(),
             next_page_token: None,
         };
@@ -132,6 +133,11 @@ impl StreamHub {
             }
             + if s.domains.contains(&StreamDomain::Automation) {
                 16
+            } else {
+                0
+            }
+            + if s.domains.contains(&StreamDomain::Competitions) {
+                18
             } else {
                 0
             };
@@ -157,6 +163,7 @@ impl StreamHub {
                 crate::ResourceKind::Workflow => (StreamDomain::Workflows, "id"),
                 crate::ResourceKind::Viewer => (StreamDomain::Points, "uniqueId"),
                 crate::ResourceKind::Automation => (StreamDomain::Automation, "id"),
+                crate::ResourceKind::Competition => (StreamDomain::Competitions, "id"),
                 _ => return Err(Error::Forbidden),
             };
             if !s.domains.contains(&domain)
@@ -195,6 +202,7 @@ impl StreamHub {
                 StreamDomain::Workflows => page.workflows.push(record),
                 StreamDomain::Points => page.points.push(record),
                 StreamDomain::Automation => page.automation.push(record),
+                StreamDomain::Competitions => page.competitions.push(record),
                 _ => unreachable!(),
             }
             page.resource_versions.push(version);

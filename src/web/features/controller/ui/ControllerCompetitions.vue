@@ -13,7 +13,7 @@ const text = computed(() => locale.value === 'es' ? {
   states: { draft:'Borrador', active:'Activa', paused:'Pausada', finalizing:'Finalizando', finished:'Finalizada', cancelled:'Cancelada', failed:'Fallida' } as Record<string, string>,
   kinds: { poll:'Encuesta', weighted_poll:'Encuesta ponderada', leaderboard_challenge:'Desafío de ranking', team_battle:'Batalla de equipos', random_draw:'Sorteo', weighted_draw:'Sorteo ponderado', roulette:'Ruleta' } as Record<string, string>,
 } : {
-  title: 'Competitions', description: 'Status of permitted competitions. Refreshed periodically.',
+  title: 'Competitions', description: 'Status of permitted competitions.',
   loading: 'Loading competitions…', error: 'Competition status is unavailable.',
   empty: 'No competitions are available on this page.', previous: 'Previous', next: 'Next', page: 'Page',
   pause: 'Pause', cancel: 'Cancel competition',

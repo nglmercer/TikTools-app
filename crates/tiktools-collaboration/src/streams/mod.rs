@@ -81,6 +81,8 @@ pub struct SnapshotPage {
     pub points: Vec<Value>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub automation: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub competitions: Vec<Value>,
     pub resource_versions: Vec<ResourceVersion>,
     pub next_page_token: Option<String>,
 }

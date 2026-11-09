@@ -131,6 +131,7 @@ fn scope(identity: &Authenticated, params: &SubscribeParams) -> Result<(), Error
                 StreamDomain::Workflows
                     | StreamDomain::Points
                     | StreamDomain::Automation
+                    | StreamDomain::Competitions
                     | StreamDomain::Commands
             )
         })
@@ -146,11 +147,15 @@ fn scope(identity: &Authenticated, params: &SubscribeParams) -> Result<(), Error
         || params.domains.contains(&StreamDomain::Automation)
             && (!caps.contains(&Capability::AutomationRead)
                 || identity.grant.resources.contains_key(&ResourceKind::Live))
+        || params.domains.contains(&StreamDomain::Competitions)
+            && (!caps.contains(&Capability::CompetitionsRead)
+                || identity.grant.resources.contains_key(&ResourceKind::Live))
         || params.domains.contains(&StreamDomain::Commands)
             && (!caps.contains(&Capability::CommandsRead)
                 || !(caps.contains(&Capability::WorkflowsRead)
                     || (caps.contains(&Capability::PointsRead)
-                        || caps.contains(&Capability::AutomationRead))
+                        || caps.contains(&Capability::AutomationRead)
+                        || caps.contains(&Capability::CompetitionsRead))
                         && !identity.grant.resources.contains_key(&ResourceKind::Live)))
     {
         return Err(Error::Forbidden);
@@ -168,6 +173,10 @@ pub(super) fn resource_allowed(grant: &crate::Grant, resource: &ResourceVersion)
             }
             ResourceKind::Automation => {
                 grant.capabilities.contains(&Capability::AutomationRead)
+                    && !grant.resources.contains_key(&ResourceKind::Live)
+            }
+            ResourceKind::Competition => {
+                grant.capabilities.contains(&Capability::CompetitionsRead)
                     && !grant.resources.contains_key(&ResourceKind::Live)
             }
             _ => false,
@@ -412,6 +421,9 @@ impl StreamHub {
                         ResourceKind::Workflow => s.domains.contains(&StreamDomain::Workflows),
                         ResourceKind::Viewer => s.domains.contains(&StreamDomain::Points),
                         ResourceKind::Automation => s.domains.contains(&StreamDomain::Automation),
+                        ResourceKind::Competition => {
+                            s.domains.contains(&StreamDomain::Competitions)
+                        }
                         _ => false,
                     } =>
                 {
@@ -428,6 +440,8 @@ impl StreamHub {
                             "points.changed"
                         } else if resource.kind == ResourceKind::Automation {
                             "automation.changed"
+                        } else if resource.kind == ResourceKind::Competition {
+                            "competition.changed"
                         } else {
                             "workflow.changed"
                         },

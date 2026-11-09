@@ -71,6 +71,19 @@ async fn native_controller_reads_only_scoped_competition_status_and_recovers_aft
     ] {
         assert!(!page.to_string().contains(secret));
     }
+    let previous_revision = controller.status().competition_revision;
+    let mut updated = f.core.competition_get("charlie").unwrap();
+    updated.name = "Updated by owner".into();
+    f.core.competition_update(updated).unwrap();
+    wait(&controller, |s| {
+        s.phase == "ready" && s.competition_revision != previous_revision
+    })
+    .await;
+    let refreshed = controller
+        .manage("controller.competitions", request.clone())
+        .await
+        .unwrap();
+    assert_eq!(refreshed["competitions"][1]["name"], "Updated by owner");
     let command = json!({"epoch":initial.epoch,"connectionId":hello.connection_id,"hostInstanceId":hello.host_instance_id,"grantRevision":hello.grant_revision,"id":"alpha","expectedRevision":"1","expectedGeneration":"0","operation":"cancel-competition"});
     let result = controller
         .manage("controller.competition.command", command)

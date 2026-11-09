@@ -302,7 +302,13 @@ impl ControlApi {
                 && !grant
                     .resources
                     .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
-            || policy::automation_read_allowed(&grant);
+            || policy::automation_read_allowed(&grant)
+            || grant
+                .capabilities
+                .contains(&RemoteCapability::CompetitionsRead)
+                && !grant
+                    .resources
+                    .contains_key(&tiktools_core::collaboration::ResourceKind::Live);
         if matches!(
             method,
             "collaboration.subscribe" | "collaboration.snapshot" | "collaboration.resume"

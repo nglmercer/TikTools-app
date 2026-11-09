@@ -132,6 +132,7 @@ impl RecoveryStream {
         baseline.workflows.clear();
         baseline.points.clear();
         baseline.automation.clear();
+        baseline.competitions.clear();
         baseline.resource_versions.clear();
         baseline.next_page_token = None;
         let mut tokens = BTreeSet::new();
@@ -147,7 +148,10 @@ impl RecoveryStream {
                 || page.points_limit != points_limit
                 || !valid_id(&page.snapshot_id)
                 || stream_sequence(&page.through_sequence).is_err()
-                || page.workflows.len() + page.points.len() + page.automation.len()
+                || page.workflows.len()
+                    + page.points.len()
+                    + page.automation.len()
+                    + page.competitions.len()
                     != page.resource_versions.len()
             {
                 return Err(protocol());
@@ -165,6 +169,7 @@ impl RecoveryStream {
             baseline.workflows.append(&mut page.workflows);
             baseline.points.append(&mut page.points);
             baseline.automation.append(&mut page.automation);
+            baseline.competitions.append(&mut page.competitions);
             baseline
                 .resource_versions
                 .append(&mut page.resource_versions);
@@ -401,6 +406,33 @@ fn validate_page_records(
     if !page.automation.is_empty() && !domains.contains(&StreamDomain::Automation) {
         return Err(protocol());
     }
+    if !page.competitions.is_empty() && !domains.contains(&StreamDomain::Competitions) {
+        return Err(protocol());
+    }
+    for record in &page.competitions {
+        let summary: tiktools_control_api::modules::competitions::CompetitionSummary =
+            serde_json::from_value(record.clone()).map_err(|_| protocol())?;
+        let id = record
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(protocol)?;
+        if summary.id.is_empty()
+            || summary.id.len() > 128
+            || summary.id.chars().any(char::is_control)
+            || summary.name.trim().is_empty()
+            || summary.name.len() > 256
+            || summary.name.chars().any(char::is_control)
+            || summary
+                .revision
+                .as_deref()
+                .is_none_or(|n| stream_sequence(n).map_or(true, |n| n == 0))
+            || bodies
+                .insert((ResourceKind::Competition, "host", id), ())
+                .is_some()
+        {
+            return Err(protocol());
+        }
+    }
     for record in &page.automation {
         let summary: tiktools_collaboration::AutomationSummary =
             serde_json::from_value(record.clone()).map_err(|_| protocol())?;
@@ -436,6 +468,15 @@ fn validate_page_records(
         {
             return Err(protocol());
         }
+        if version.kind == ResourceKind::Competition
+            && !page.competitions.iter().any(|row| {
+                row.get("id").and_then(serde_json::Value::as_str) == Some(version.id.as_str())
+                    && row.get("revision").and_then(serde_json::Value::as_str)
+                        == Some(version.revision.as_str())
+            })
+        {
+            return Err(protocol());
+        }
     }
     if !bodies.is_empty() {
         return Err(protocol());
@@ -447,7 +488,10 @@ fn resource_scope_valid(kind: ResourceKind, scope: &str) -> bool {
     if kind == ResourceKind::Automation {
         tiktools_collaboration::AutomationFamily::from_scope(scope).is_some()
     } else {
-        matches!(kind, ResourceKind::Workflow | ResourceKind::Viewer) && scope == "host"
+        matches!(
+            kind,
+            ResourceKind::Workflow | ResourceKind::Viewer | ResourceKind::Competition
+        ) && scope == "host"
     }
 }
 fn valid_event(event: &ReliableEvent, domains: &BTreeSet<StreamDomain>) -> bool {
@@ -478,11 +522,20 @@ fn valid_event(event: &ReliableEvent, domains: &BTreeSet<StreamDomain>) -> bool 
                 && event.data.get("kind").and_then(serde_json::Value::as_str)
                     == Some(event.resource.scope.as_str())
         }
+        "competition.changed" => {
+            event.resource.kind == ResourceKind::Competition
+                && domains.contains(&StreamDomain::Competitions)
+                && event.data.get("id").and_then(serde_json::Value::as_str)
+                    == Some(event.resource.id.as_str())
+        }
         "command.changed" => {
             if !domains.contains(&StreamDomain::Commands)
                 || !matches!(
                     event.resource.kind,
-                    ResourceKind::Workflow | ResourceKind::Viewer | ResourceKind::Automation
+                    ResourceKind::Workflow
+                        | ResourceKind::Viewer
+                        | ResourceKind::Automation
+                        | ResourceKind::Competition
                 )
             {
                 return false;

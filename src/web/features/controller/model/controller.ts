@@ -13,6 +13,7 @@ export interface ControllerStatus {
   browserJournalMissing?: boolean;
   epoch: string; viewRevision: string; phase: string; profile: string | null; origin: string | null; errorCode: string | null;
   automationRevision?: string;
+  competitionRevision?: string;
   pointsRevision?: string; pointsLoading?: boolean; pointsErrorCode?: string | null;
   pairingRequestId?: string | null;
   commandJournal?: CommandJournal | null; commandBusy?: boolean; commandErrorCode?: string | null;
@@ -94,6 +95,7 @@ export function createControllerModel(control: ControlClient) {
           if (generation !== selection) { dirty = true; continue; }
           if (current.epoch !== status.value.epoch || current.phase !== 'ready') { rows.value = []; loaded.value = ''; points.value = null; pointsLoaded.value = ''; draftStorage.reset(); }
           const pairingFinished = status.value.phase === 'pairing' && current.phase === 'idle';
+          const competitionChanged = current.epoch === status.value.epoch && current.competitionRevision !== undefined && current.competitionRevision !== status.value.competitionRevision;
           status.value = current;
           const currentReadBinding = JSON.stringify([current.epoch, current.phase, current.profile, current.origin, current.hello]);
           if (currentReadBinding !== readBinding) {
@@ -103,6 +105,7 @@ export function createControllerModel(control: ControlClient) {
             nextLowRatePoll = 0; lowRateTurn = 0; readBinding = currentReadBinding;
           }
           const rate = current.hello?.limits?.requestsPerSecond ?? 30;
+          if (competitionChanged) { competitions.invalidate(); void competitions.refresh(current, generation); }
           if (rate <= 2 && competitions.allowed.value) {
             // Share a small request budget across optional live/competition
             // reads, leaving capacity for the native heartbeat and points.
