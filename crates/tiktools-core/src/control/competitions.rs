@@ -200,15 +200,35 @@ impl AppCore {
                         CompetitionRemoteTransition::Resume => {
                             self.publish_competition_event("competition.resumed", data)
                         }
-                        CompetitionRemoteTransition::Pause => {
-                            self.events.publish_presentation_domain(
-                                crate::events::DomainEvent::CompetitionPaused(data),
-                            )
-                        }
-                        CompetitionRemoteTransition::Cancel => {
-                            self.events.publish_presentation_domain(
-                                crate::events::DomainEvent::CompetitionCancelled(data),
-                            )
+                        CompetitionRemoteTransition::Pause
+                        | CompetitionRemoteTransition::Cancel => {
+                            let retained = self
+                                .db
+                                .competition_retains_operator(
+                                    id,
+                                    resulting_generation,
+                                    &command.principal_id,
+                                    &command.session_id,
+                                )
+                                .unwrap_or(false);
+                            if retained {
+                                self.publish_competition_event(
+                                    if matches!(transition, CompetitionRemoteTransition::Pause) {
+                                        "competition.paused"
+                                    } else {
+                                        "competition.cancelled"
+                                    },
+                                    data,
+                                );
+                            } else {
+                                self.events.publish_presentation_domain(
+                                    if matches!(transition, CompetitionRemoteTransition::Pause) {
+                                        crate::events::DomainEvent::CompetitionPaused(data)
+                                    } else {
+                                        crate::events::DomainEvent::CompetitionCancelled(data)
+                                    },
+                                );
+                            }
                         }
                     }
                 }

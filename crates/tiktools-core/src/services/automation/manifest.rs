@@ -518,6 +518,7 @@ pub(super) fn build_with_inherited_subjects(
                         "competition.started"
                             | "competition.resumed"
                             | "competition.paused"
+                            | "competition.cancelled"
                             | "competition.finished"
                             | "competition.winner.selected"
                             | "competition.action.completed"

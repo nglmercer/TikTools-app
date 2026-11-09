@@ -127,10 +127,7 @@ fn competition_execution_fence(
     let state: LifecycleState = serde_json::from_str(&state).map_err(|_| denied())?;
     if state.generation != generation
         || revision <= 0
-        || matches!(
-            state.lifecycle,
-            Lifecycle::Draft | Lifecycle::Cancelled | Lifecycle::Failed
-        )
+        || matches!(state.lifecycle, Lifecycle::Draft | Lifecycle::Failed)
     {
         return Err(denied());
     }
@@ -538,6 +535,30 @@ impl DatabaseManager {
                     if !valid { return Err(DatabaseError::Invalid("competition owner changed".into())); }
                 }
             }
+            // Stopping remains available even if an earlier operator was
+            // revoked. Retain this caller when possible; later event effects
+            // require all retained subjects to be current at admission.
+            if state.lifecycle != Lifecycle::Draft {
+                let origin: Option<String> = tx.query_row(
+                    "SELECT origin FROM competition_execution_generations WHERE competition_id=?1 AND generation=?2",
+                    params![id, generation as i64], |row| row.get(0),
+                ).optional()?;
+                let count: i64 = tx.query_row(
+                    "SELECT COUNT(*) FROM competition_execution_subjects WHERE competition_id=?1 AND generation=?2",
+                    params![id, generation as i64], |row| row.get(0),
+                )?;
+                let existing: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM competition_execution_subjects WHERE competition_id=?1 AND generation=?2 AND principal_id=?3 AND session_id=?4)",
+                    params![id,generation as i64,command.principal_id,command.session_id], |row| row.get(0),
+                )?;
+                let valid_origin = matches!(origin.as_deref(), Some("owner")) && count == 0
+                    || matches!(origin.as_deref(), Some("delegated")) && (1..=16).contains(&count);
+                if valid_origin && (existing || count < 16) {
+                    tx.execute("UPDATE competition_execution_generations SET origin='delegated' WHERE competition_id=?1 AND generation=?2", params![id,generation as i64])?;
+                    tx.execute("INSERT OR IGNORE INTO competition_execution_subjects(competition_id,generation,principal_id,session_id,grant_revision) VALUES(?1,?2,?3,?4,?5)",
+                        params![id,generation as i64,command.principal_id,command.session_id,current.grant_revision])?;
+                }
+            }
             state.transition(operation.transition(), crate::now_millis(), definition.duration_ms)
                 .map_err(|_| DatabaseError::Invalid("invalid competition transition".into()))?;
             tx.execute("UPDATE competition_state SET state_json=?2 WHERE competition_id=?1", params![id,serde_json::to_string(&state)?])?;
@@ -550,6 +571,24 @@ impl DatabaseManager {
             tx.commit()?;
             Ok((result, true))
         }).map_err(DatabaseError::CommandAuthorization)?
+    }
+
+    /// An unretained stop caller must never cause an effect under someone
+    /// else's authority, including when a generation is at its subject limit.
+    pub(crate) fn competition_retains_operator(
+        &self,
+        id: &str,
+        generation: u64,
+        principal: &str,
+        session: &str,
+    ) -> Result<bool, DatabaseError> {
+        let generation = i64::try_from(generation)
+            .map_err(|_| DatabaseError::Invalid("invalid generation".into()))?;
+        if generation <= 0 {
+            return Ok(false);
+        }
+        let db = self.open(&self.automation_path())?;
+        Ok(db.query_row("SELECT EXISTS(SELECT 1 FROM competition_execution_subjects s JOIN competition_execution_generations g ON g.competition_id=s.competition_id AND g.generation=s.generation WHERE s.competition_id=?1 AND s.generation=?2 AND s.principal_id=?3 AND s.session_id=?4 AND g.origin='delegated')", params![id,generation,principal,session], |row| row.get(0))?)
     }
 
     /// Read state and its monotonic coordination revision in one SQLite

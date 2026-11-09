@@ -241,15 +241,17 @@ legacy seed, state and definition changes, delete/recreate and missing metadata.
 The host API supports remote `competitions.start`, `competitions.resume`,
 `competitions.pause` and `competitions.cancel` under scoped read/manage grants, with expected generation, revision and durable
 command metadata. The result can be recovered by command ID. Remote stops
-publish local presentation updates without granting Owner authority to plugin
-observers or competition-triggered automation. The native controller can
+retain the acting moderator when the generation has capacity; their events may
+trigger scoped automation under every retained operator's current grants, without
+promoting them to Owner or invoking Owner plugin observers. The native controller can
 start, resume, pause or cancel a visible competition under the same scoped grant;
 its version-8 command journal stores the generation and revision before sending
 and recovers an uncertain result using the original command ID. Remote start/resume retain every operator's current
 grants, and winner actions remain subject to those grants. Delegated start,
 resume and finish events can trigger scoped automations when every retained
-operator and saved author permits the effects. Remote stop notifications remain
-presentation-only; complete release acceptance remains pending.
+operator and saved author permits the effects. Cancelling a draft or stopping a
+generation without room to retain the actor produces presentation only. Complete
+release acceptance remains pending.
 For any of these RPCs, send `params: {id, expectedGeneration}` and
 `meta: {commandId, hostInstanceId, expectedRevision}` using the generation and
 revision from the scoped summary. The durable result identifies the

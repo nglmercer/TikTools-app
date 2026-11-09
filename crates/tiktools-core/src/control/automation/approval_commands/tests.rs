@@ -2832,3 +2832,91 @@ async fn competition_winner_actions_execute_with_current_delegation() {
         }
     }
 }
+
+#[tokio::test]
+async fn remote_stop_events_retain_the_operator_and_run_scoped_actions() {
+    use crate::control::CompetitionRemoteTransition;
+    use tiktools_competitions::Transition;
+    let f = Fixture::new();
+    f.core().ranking_create(serde_json::from_value(json!({"schemaVersion":1,"id":"rank","creatorId":"owner","roomId":"room","limit":10,"capacity":10,"sources":[{"source":"custom.score","metric":"value","weight":1,"enabled":true}]})).unwrap()).unwrap();
+    f.core().competition_create(serde_json::from_value(json!({"schemaVersion":1,"id":"shared","name":"Shared","kind":"leaderboard_challenge","rankingId":"rank","options":[],"selectionMode":"highest_score","tiePolicy":"stable","durationMs":null,"voteLimit":1,"allowSwitch":false,"minimumParticipants":1})).unwrap()).unwrap();
+    let mut action = points("stop-action", "alice", 1.0);
+    action["enabled"] = true.into();
+    f.core()
+        .automation_create(AutomationKind::Action, action)
+        .unwrap();
+    for (id, trigger) in [
+        ("on-pause", "competition.paused"),
+        ("on-cancel", "competition.cancelled"),
+    ] {
+        f.core().automation_create(AutomationKind::Event, json!({"id":id,"name":id,"enabled":true,"trigger":trigger,"actionIds":["stop-action"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1})).unwrap();
+    }
+    let mut allowed = grant();
+    allowed.capabilities.extend([
+        Capability::AutomationToggle,
+        Capability::CompetitionsRead,
+        Capability::CompetitionsManage,
+    ]);
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(allowed);
+    f.core()
+        .competition_transition("shared", Transition::Start)
+        .unwrap();
+    let revision = || {
+        f.core()
+            .db
+            .competition_state_revision("shared")
+            .unwrap()
+            .unwrap()
+            .1
+            .to_string()
+    };
+    f.core()
+        .competition_remote_command(
+            auth.clone(),
+            f.request(&revision()),
+            "shared",
+            "1",
+            CompetitionRemoteTransition::Pause,
+        )
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while f.points("alice") != 1.0 {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    f.core()
+        .competition_remote_command(
+            auth.clone(),
+            f.request(&revision()),
+            "shared",
+            "1",
+            CompetitionRemoteTransition::Resume,
+        )
+        .unwrap();
+    f.core()
+        .competition_remote_command(
+            auth,
+            f.request(&revision()),
+            "shared",
+            "1",
+            CompetitionRemoteTransition::Cancel,
+        )
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while f.points("alice") != 2.0 {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+}
