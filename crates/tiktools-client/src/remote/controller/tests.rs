@@ -42,6 +42,123 @@ fn page(c: &Controller) -> Value {
 }
 
 #[tokio::test]
+async fn live_status_is_read_only_and_fenced_to_selected_connection() {
+    let f = Fixture::new().await;
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(workflow_grant()).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let mut no_live = workflow_grant();
+    no_live.capabilities.remove(&Capability::LiveRead);
+    manager
+        .install(
+            "no-live",
+            &f.endpoint,
+            f.pair(no_live).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let mut restricted = workflow_grant();
+    restricted
+        .resources
+        .insert(ResourceKind::Live, ["creator".into()].into());
+    manager
+        .install(
+            "restricted",
+            &f.endpoint,
+            f.pair(restricted).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let controller = Controller::new(manager);
+    controller.connect("desk").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    let first = controller.status();
+    let connection = first.hello.as_ref().unwrap().connection_id.clone();
+    let request = json!({"epoch":first.epoch,"connectionId":connection});
+    let result = controller
+        .manage("controller.live.status", request.clone())
+        .await
+        .unwrap();
+    assert_eq!(result["epoch"], request["epoch"]);
+    assert_eq!(result["connectionId"], request["connectionId"]);
+    assert_eq!(result["connected"], false);
+    assert_eq!(result["uniqueId"], Value::Null);
+    assert_eq!(result.as_object().unwrap().len(), 5);
+    assert_eq!(
+        controller
+            .manage(
+                "controller.live.status",
+                json!({"epoch":first.epoch,"connectionId":"wrong"})
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "stale_view"
+    );
+    assert_eq!(
+        controller
+            .manage(
+                "controller.live.status",
+                json!({"epoch":first.epoch,"connectionId":connection,"method":"live.connect"})
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "invalid_params"
+    );
+    controller.disconnect().await;
+    assert!(controller
+        .manage("controller.live.status", request.clone())
+        .await
+        .is_err());
+    controller.connect("desk").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    assert!(controller
+        .manage("controller.live.status", request)
+        .await
+        .is_err());
+    controller.disconnect().await;
+    controller.connect("no-live").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    let denied = controller.status();
+    assert!(controller
+        .manage(
+            "controller.live.status",
+            json!({"epoch":denied.epoch,"connectionId":denied.hello.unwrap().connection_id})
+        )
+        .await
+        .is_err());
+    controller.disconnect().await;
+    controller.connect("restricted").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    let denied = controller.status();
+    assert_eq!(
+        controller
+            .manage(
+                "controller.live.status",
+                json!({"epoch":denied.epoch,"connectionId":denied.hello.unwrap().connection_id})
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "forbidden"
+    );
+    controller.disconnect().await;
+    f.finish().await;
+}
+
+#[tokio::test]
 async fn forget_requires_confirmation_and_fences_active_and_replaced_profiles() {
     let f = Fixture::new().await;
     let home = tempfile::tempdir().unwrap();

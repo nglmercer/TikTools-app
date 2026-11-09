@@ -163,6 +163,14 @@ with actions read-only and explicit event disable/delete confirmation. It never
 opens the owner definition editor. The version-4 journal preserves previous
 workflow/points/event IDs and history while adding fixed proposal operations.
 
+The native controller also presents the host LIVE connection status when its
+current grant includes `live.read`. Its dedicated read-only RPC compares the
+selected epoch, connection, host, principal, session and grant before and
+after the remote read, validates the closed result, and enforces any LIVE
+creator restriction. The panel polls every two seconds while connected and
+clears on selection, reconnection, permission or read failure. It does not
+start or stop a LIVE, and the status poll is not a real-time event feed.
+
 ## Implemented provenance and disabled authoring
 
 `behavior_provenance` is host-owned SQLite data, independent of editable action
