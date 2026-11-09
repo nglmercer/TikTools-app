@@ -23,6 +23,14 @@ pub(crate) struct CompetitionExecutionFence {
     host_id: String,
     subjects: Vec<(String, String, String, String)>,
 }
+impl CompetitionExecutionFence {
+    pub(crate) fn subjects(&self) -> Vec<(String, String)> {
+        self.subjects
+            .iter()
+            .map(|(principal, session, _, _)| (principal.clone(), session.clone()))
+            .collect()
+    }
+}
 
 fn competition_execution_fence(
     tx: &rusqlite::Transaction<'_>,

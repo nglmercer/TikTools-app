@@ -26,6 +26,8 @@ pub(crate) struct ExecutionContext {
     allow_delegation: bool,
     #[cfg(feature = "persistence")]
     execution: Option<crate::services::effects::EffectExecution>,
+    #[cfg(feature = "persistence")]
+    competition: Option<crate::db::CompetitionExecutionFence>,
 }
 impl ExecutionContext {
     /// Only explicit trusted host/Owner producers use this constructor. Never
@@ -38,6 +40,8 @@ impl ExecutionContext {
             allow_delegation: true,
             #[cfg(feature = "persistence")]
             execution: crate::services::effects::EffectExecution::fresh().ok(),
+            #[cfg(feature = "persistence")]
+            competition: None,
         }
     }
     pub(crate) fn owner_without_delegation() -> Self {
@@ -53,6 +57,8 @@ impl ExecutionContext {
             allow_delegation: true,
             #[cfg(feature = "persistence")]
             execution: crate::services::effects::EffectExecution::fresh().ok(),
+            #[cfg(feature = "persistence")]
+            competition: None,
         }
     }
     #[cfg_attr(not(feature = "persistence"), allow(dead_code))]
@@ -70,7 +76,20 @@ impl ExecutionContext {
             allow_delegation: true,
             #[cfg(feature = "persistence")]
             execution: crate::services::effects::EffectExecution::fresh().ok(),
+            #[cfg(feature = "persistence")]
+            competition: None,
         })
+    }
+    /// Records an inherited competition binding without making it an effect
+    /// approval. Restricted contexts continue to fail closed at dispatch.
+    #[cfg(feature = "persistence")]
+    pub(crate) fn restricted_competition(
+        subjects: ExecutionAuthorizations,
+        fence: crate::db::CompetitionExecutionFence,
+    ) -> Result<Self, &'static str> {
+        let mut context = Self::restricted(subjects)?;
+        context.competition = Some(fence);
+        Ok(context)
     }
     pub(crate) fn is_owner(&self) -> bool {
         matches!(self.authority, Authority::Owner)
@@ -97,6 +116,8 @@ impl ExecutionContext {
             allow_delegation: self.allow_delegation,
             #[cfg(feature = "persistence")]
             execution: self.execution.clone(),
+            #[cfg(feature = "persistence")]
+            competition: self.competition.clone(),
         })
     }
     /// Owner is neutral; denied is absorbing; restricted subjects are combined
@@ -149,6 +170,12 @@ impl ExecutionContext {
         if !allow_delegation && !matches!(authority, Authority::Owner | Authority::Denied) {
             return Err("unverified LIVE input cannot authorize delegated execution");
         }
+        #[cfg(feature = "persistence")]
+        let competition = match (&self.competition, &other.competition) {
+            (Some(a), Some(b)) if a != b => return Err("competition execution bindings conflict"),
+            (Some(fence), _) | (_, Some(fence)) => Some(fence.clone()),
+            _ => None,
+        };
         Ok(Self {
             authority,
             depth: self.depth.max(other.depth),
@@ -156,6 +183,8 @@ impl ExecutionContext {
             allow_delegation,
             #[cfg(feature = "persistence")]
             execution: self.execution.clone(),
+            #[cfg(feature = "persistence")]
+            competition,
         })
     }
     /// Revalidates identity/lifetime only. This does not approve definitions,
@@ -473,6 +502,8 @@ impl AppCore {
                 allow_delegation: true,
                 #[cfg(feature = "persistence")]
                 execution: crate::services::effects::EffectExecution::fresh().ok(),
+                #[cfg(feature = "persistence")]
+                competition: None,
             })
         })
         .await

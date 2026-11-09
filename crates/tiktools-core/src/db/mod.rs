@@ -18,6 +18,8 @@ pub(crate) use sqlite::validate_owner_definition_input;
 #[cfg(all(feature = "persistence", test))]
 pub(crate) use sqlite::CompetitionActivation;
 #[cfg(feature = "persistence")]
+pub(crate) use sqlite::CompetitionExecutionFence;
+#[cfg(feature = "persistence")]
 pub use sqlite::DatabaseError;
 #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
 pub(crate) use sqlite::PluginCutoverSource;

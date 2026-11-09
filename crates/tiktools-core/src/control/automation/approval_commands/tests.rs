@@ -196,8 +196,8 @@ fn grant() -> Grant {
     }
 }
 
-#[test]
-fn competition_activation_transaction_retains_operators_and_replays_original_command() {
+#[tokio::test]
+async fn competition_activation_transaction_retains_operators_and_replays_original_command() {
     use crate::db::{CommandTransaction, CompetitionActivation};
     use tiktools_competitions::Transition;
     let f = Fixture::new();
@@ -238,6 +238,40 @@ fn competition_activation_transaction_retains_operators_and_replays_original_com
         .unwrap();
     assert!(fresh);
     assert_eq!(started.value["generation"], "1");
+    let mut presentation = f.core().events.subscribe_domain();
+    let mut plugin = f.core().events.subscribe_plugin_domain();
+    let admitted = f
+        .core()
+        .automation_state
+        .admitted
+        .load(std::sync::atomic::Ordering::Relaxed);
+    f.core().publish_competition_event(
+        "competition.started",
+        f.core().competition_context("shared", 1).unwrap(),
+    );
+    let event = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        presentation.recv_shared(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(matches!(
+        &*event,
+        crate::events::DomainEvent::CompetitionStarted(_)
+    ));
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(50), plugin.recv_shared())
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        f.core()
+            .automation_state
+            .admitted
+            .load(std::sync::atomic::Ordering::Relaxed),
+        admitted
+    );
     let first_fence = f
         .core()
         .db

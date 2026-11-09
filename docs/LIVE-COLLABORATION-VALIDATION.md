@@ -26,6 +26,11 @@ An internal execution binding also captures the exact competition revision and
 all current operator/configuration revisions. A later lifecycle change or grant
 change invalidates that binding; a fresh binding can be captured under the
 current reusable grants. The effect pipeline does not yet consume this binding.
+Competition events now distinguish local Owner generations from delegated or
+unknown origins before publishing to plugin observers. A delegated generation
+is limited to presentation and carries a restricted private context; the
+current automation queue rejects that context until a scoped competition-event
+execution policy is implemented. Missing authority never becomes Owner input.
 
 The host now reserves competition creation, definition and lifecycle changes in
 the coordination outbox. The competition stream supplies scoped summary
