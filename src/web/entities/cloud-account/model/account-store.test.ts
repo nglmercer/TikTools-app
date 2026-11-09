@@ -155,4 +155,77 @@ describe('account store', () => {
     expect(calls.map((call) => call.method)).toEqual(['cloud.restore']);
     await flushPromises();
   });
+
+  it('never lets an earlier status response undo logout', async () => {
+    let release!: (value: AccountStatus) => void;
+    const delayed = new Promise<AccountStatus>((resolve) => { release = resolve; });
+    const { store } = harness((method) => {
+      if (method === 'cloud.status') return delayed;
+      if (method === 'cloud.logout') return signedOut();
+      throw new Error(`unexpected ${method}`);
+    });
+    store.status = signedOut({ state: 'signed-in', accountId: 'alice' });
+    const old = store.refresh();
+    await store.logout();
+    release(signedOut({ state: 'signed-in', accountId: 'alice' }));
+    await old;
+    expect(store.status?.state).toBe('signed-out');
+    expect(store.loading).toBe(false);
+    expect(store.working).toBe(false);
+  });
+
+  it('holds the loading fence through restore and rejects a reply after logout', async () => {
+    let release!: (value: AccountStatus) => void;
+    const delayed = new Promise<AccountStatus>((resolve) => { release = resolve; });
+    const { store } = harness((method) => {
+      if (method === 'cloud.status') return signedOut();
+      if (method === 'cloud.restore') return delayed;
+      if (method === 'cloud.logout') return signedOut();
+      throw new Error(`unexpected ${method}`);
+    });
+    const old = store.ensureRestored();
+    await flushPromises();
+    expect(store.loading).toBe(true);
+    await store.logout();
+    release(signedOut({ state: 'signed-in', accountId: 'alice' }));
+    await old;
+    expect(store.status?.state).toBe('signed-out');
+    expect(store.loading).toBe(false);
+  });
+
+  it('does not open or complete a login cancelled before begin replies', async () => {
+    let release!: (value: { browserUrl: string }) => void;
+    const delayed = new Promise<{ browserUrl: string }>((resolve) => { release = resolve; });
+    const { store, calls } = harness((method) => {
+      if (method === 'cloud.login.begin') return delayed;
+      if (method === 'cloud.login.cancel') return signedOut();
+      throw new Error(`unexpected ${method}`);
+    });
+    const old = store.startLogin();
+    await store.cancelLogin();
+    release({ browserUrl: 'https://cloud.example/desktop/login' });
+    await old;
+    expect(calls.map((entry) => entry.method)).toEqual(['cloud.login.begin', 'cloud.login.cancel']);
+    expect(store.loginUrl).toBeNull();
+    expect(store.status?.state).toBe('signed-out');
+    expect(store.working).toBe(false);
+  });
+
+  it('does not wait for a superseded restore before a later refresh', async () => {
+    let release!: (value: AccountStatus) => void;
+    let requests = 0;
+    const delayed = new Promise<AccountStatus>((resolve) => { release = resolve; });
+    const { store } = harness((method) => {
+      if (method === 'cloud.status') { requests += 1; return requests === 1 ? delayed : signedOut(); }
+      if (method === 'cloud.logout') return signedOut();
+      throw new Error(`unexpected ${method}`);
+    });
+    const old = store.ensureRestored();
+    await store.logout();
+    await store.refresh();
+    expect(requests).toBe(2);
+    release(signedOut({ state: 'signed-in', accountId: 'alice' }));
+    await old;
+    expect(store.status?.state).toBe('signed-out');
+  });
 });

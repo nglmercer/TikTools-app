@@ -11,34 +11,46 @@ export const useAccountStore = defineStore('cloud-account', () => {
   const working = ref(false);
   const loginUrl = ref<string | null>(null);
   const error = ref<string | null>(null);
+  // A late status/login/restore reply must never replace a newer account
+  // transition, even if the same account is signed in again.
+  let generation = 0;
+  let restoring: { ticket: number; promise: Promise<void> } | null = null;
+  let restored = false;
+  const current = (ticket: number) => ticket === generation;
 
   async function refresh(): Promise<void> {
+    if (restoring && current(restoring.ticket)) return restoring.promise;
+    if (working.value) return;
+    const ticket = ++generation;
     loading.value = true;
     try {
-      status.value = await client.call<AccountStatus>('cloud.status', {});
+      const next = await client.call<AccountStatus>('cloud.status', {});
+      if (!current(ticket)) return;
+      status.value = next;
       if (status.value.state !== 'signing-in') loginUrl.value = null;
       error.value = status.value.error ?? null;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      if (current(ticket)) error.value = errorMessage(failure);
     } finally {
-      loading.value = false;
+      if (current(ticket)) loading.value = false;
     }
   }
 
   async function restore(): Promise<void> {
+    if (working.value) return;
+    const ticket = ++generation;
     loading.value = true;
     try {
-      status.value = await client.call<AccountStatus>('cloud.restore', {});
+      const next = await client.call<AccountStatus>('cloud.restore', {});
+      if (!current(ticket)) return;
+      status.value = next;
       error.value = status.value.error ?? null;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      if (current(ticket)) error.value = errorMessage(failure);
     } finally {
-      loading.value = false;
+      if (current(ticket)) loading.value = false;
     }
   }
-
-  let restoring: Promise<void> | null = null;
-  let restored = false;
 
   /**
    * Load the status and, once per app session, reconnect a session saved in
@@ -47,77 +59,105 @@ export const useAccountStore = defineStore('cloud-account', () => {
    * Concurrent callers share one attempt.
    */
   function ensureRestored(): Promise<void> {
+    if (restoring && current(restoring.ticket)) return restoring.promise;
+    if (working.value) return Promise.resolve();
     // After the one restore attempt, later mounts just reload the status.
     if (restored) return refresh();
-    restoring ??= (async () => {
-      await refresh();
-      if (status.value?.state !== 'signed-out') return;
+    const ticket = ++generation;
+    loading.value = true;
+    const promise = (async () => {
       try {
-        status.value = await client.call<AccountStatus>('cloud.restore', {});
+        const initial = await client.call<AccountStatus>('cloud.status', {});
+        if (!current(ticket)) return;
+        status.value = initial;
+        error.value = initial.error ?? null;
+        if (initial.state !== 'signed-out') return;
+        const next = await client.call<AccountStatus>('cloud.restore', {});
+        if (!current(ticket)) return;
+        status.value = next;
         error.value = status.value.error ?? null;
       } catch (failure) {
+        if (!current(ticket)) return;
         const reason = failure instanceof ControlCallError
           ? (failure.data as { reason?: string } | undefined)?.reason
           : undefined;
         if (reason !== 'no-saved-session' && reason !== 'unconfigured') error.value = errorMessage(failure);
       } finally {
-        restored = true;
+        if (current(ticket)) { restored = true; loading.value = false; }
+        if (restoring?.ticket === ticket) restoring = null;
       }
     })();
-    return restoring;
+    restoring = { ticket, promise };
+    return promise;
   }
 
   async function startLogin(): Promise<void> {
     if (working.value) return;
+    const ticket = ++generation;
     working.value = true;
+    loading.value = false;
     error.value = null;
     try {
       const begun = await client.call<CloudLoginUrlResult>('cloud.login.begin', {});
+      if (!current(ticket)) return;
       loginUrl.value = begun.browserUrl;
       try {
         await client.call('cloud.login.open', {});
       } catch {
         // The URL stays on screen for manual opening; not fatal.
       }
-      status.value = await client.call<AccountStatus>('cloud.login.complete', {});
+      if (!current(ticket)) return;
+      const next = await client.call<AccountStatus>('cloud.login.complete', {});
+      if (!current(ticket)) return;
+      status.value = next;
       error.value = status.value.error ?? null;
       loginUrl.value = null;
     } catch (failure) {
+      if (!current(ticket)) return;
       error.value = errorMessage(failure);
       // Sync state without letting a clean status wipe the failure text.
       try {
-        status.value = await client.call<AccountStatus>('cloud.status', {});
+        const next = await client.call<AccountStatus>('cloud.status', {});
+        if (current(ticket)) status.value = next;
       } catch {
         // Keep the original failure.
       }
     } finally {
-      working.value = false;
+      if (current(ticket)) { restored = true; working.value = false; }
     }
   }
 
   async function cancelLogin(): Promise<void> {
+    const ticket = ++generation;
+    working.value = true;
+    loading.value = false;
     try {
-      status.value = await client.call<AccountStatus>('cloud.login.cancel', {});
+      const next = await client.call<AccountStatus>('cloud.login.cancel', {});
+      if (!current(ticket)) return;
+      status.value = next;
       error.value = status.value.error ?? null;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      if (current(ticket)) error.value = errorMessage(failure);
     } finally {
-      loginUrl.value = null;
-      working.value = false;
+      if (current(ticket)) { restored = true; loginUrl.value = null; working.value = false; }
     }
   }
 
   async function logout(): Promise<void> {
     if (working.value) return;
+    const ticket = ++generation;
     working.value = true;
+    loading.value = false;
     try {
-      status.value = await client.call<AccountStatus>('cloud.logout', {});
+      const next = await client.call<AccountStatus>('cloud.logout', {});
+      if (!current(ticket)) return;
+      status.value = next;
       error.value = status.value.error ?? null;
       loginUrl.value = null;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      if (current(ticket)) error.value = errorMessage(failure);
     } finally {
-      working.value = false;
+      if (current(ticket)) { restored = true; working.value = false; }
     }
   }
 
