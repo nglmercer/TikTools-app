@@ -375,10 +375,12 @@ foundation table.
    open the fixed instance's browser review portal for privileged moderation.
    A native bearer moderation UI requires an explicit backend contract change;
    do not work around the cookie boundary by copying browser credentials.
-   The existing backend admin UI has not acquired document-moderation screens
-   merely because v2 routes exist. Implement and verify that browser flow in
-   the backend repository, or present the operation as unavailable; a link to
-   an unrelated plugin review page is not document-moderation integration.
+   RemakeBackend commit `08260f3` adds a separate document moderation screen:
+   it displays the exact pending or published revision and supports decisions
+   and withdrawal with a reason. Component and Chromium checks use mocked
+   HTTP; real authenticated backend/database browser acceptance remains open.
+   The panel only discovers the current published revision, not historical
+   revisions, which remain addressable through the backend API.
 8. Session/account changes invalidate in-flight UI responses, reviews and write
    eligibility. A late response cannot restore another account's rows, complete
    its draft under a new session or reveal its private document.
