@@ -17,7 +17,7 @@ use crate::db::{
 use tiktools_cloud_sync::SyncCoordinator;
 use tiktools_plugin_installer::{
     ActivationHooks, CommitOptions, Consent, InstallError, InstallErrorCode, InstallOutcome,
-    JobReporter, LockedPackageStore, PreparedPackage,
+    InstalledPackageEvidence, JobReporter, LockedPackageStore, PreparedPackage,
 };
 use tiktools_plugin_package::Sha256Hasher;
 
@@ -42,6 +42,15 @@ struct Unreconciled<T> {
 struct PackageJournal<'a, A> {
     db: &'a DatabaseManager,
     admission: &'a A,
+}
+
+/// Artifact-only observation bound to one unchanged journal snapshot. This is
+/// not an original outcome, runtime reconciliation, consent, or permission
+/// to retire the journal; those checks require separate product integration.
+#[derive(Debug)]
+struct PackageArtifactObservation {
+    intent_id: String,
+    artifact: InstalledPackageEvidence,
 }
 
 fn field(hash: &mut Sha256Hasher, value: &[u8]) {
@@ -69,6 +78,66 @@ fn operation_digest(id: &str, kind: PackageMutationKind, parts: &[&[u8]]) -> Str
 }
 
 impl<A: PackageAdmission> PackageJournal<'_, A> {
+    /// Caller holds both the local invocation gate and the matching store
+    /// lease. Do not hold cross-process admission while walking package files.
+    /// A fresh review after the walk rejects a changed source generation.
+    fn observe_artifact(
+        &self,
+        id: &str,
+        intent_id: &str,
+        store: &LockedPackageStore<'_>,
+    ) -> Result<Option<PackageArtifactObservation>, InstallError> {
+        let paths = self.db.paths();
+        self.observe_artifact_with_roots(
+            id,
+            intent_id,
+            store,
+            &paths.plugins,
+            &paths.plugin_store(),
+            || {},
+        )
+    }
+
+    fn observe_artifact_with_roots(
+        &self,
+        id: &str,
+        intent_id: &str,
+        store: &LockedPackageStore<'_>,
+        expected_plugins: &Path,
+        expected_store: &Path,
+        after_observation: impl FnOnce(),
+    ) -> Result<Option<PackageArtifactObservation>, InstallError> {
+        if !store.matches_roots(expected_plugins, expected_store)? {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "package lease belongs to a different plugin store",
+            ));
+        }
+        let review = self
+            .admission
+            .admit(|| self.db.review_package_mutation(id, intent_id))?
+            .map_err(InstallError::io)?;
+        let Some(review) = review else {
+            return Ok(None);
+        };
+        let artifact = store.inspect_verified(id)?;
+        after_observation();
+        let current = self
+            .admission
+            .admit(|| self.db.review_package_mutation(id, intent_id))?
+            .map_err(InstallError::io)?;
+        if current.as_ref() != Some(&review) {
+            return Err(InstallError::new(
+                InstallErrorCode::Busy,
+                "package source changed during review",
+            ));
+        }
+        Ok(Some(PackageArtifactObservation {
+            intent_id: intent_id.to_owned(),
+            artifact,
+        }))
+    }
+
     /// Caller holds the local invocation gate. The callback must be the exact
     /// native operation described by `digest`; it runs once and never under
     /// admission. Do not expose this helper or its opaque intent to a UI.
@@ -332,6 +401,98 @@ mod tests {
             operation_digest("other.plugin", PackageMutationKind::Install, &[b"ab", b"c"])
         );
         assert_eq!(digest.len(), 64);
+    }
+
+    #[test]
+    fn artifact_observation_is_non_authorizing_and_rechecks_the_source() {
+        let fixture = Fixture::new();
+        let config = InstallerConfig {
+            plugins_dir: fixture.root.join("plugins"),
+            store_dir: fixture.root.join("store"),
+            host: HostCompat::new(semver::Version::new(0, 4, 0)),
+            retain_versions: 2,
+            provider_endpoints: None,
+        };
+        let installer = Installer::new(config, Arc::new(RwLock::new(TrustStore::new())));
+        let store = installer.try_lock_store().unwrap();
+        let admission = Admission {
+            held: Cell::new(false),
+        };
+        let journal = PackageJournal {
+            db: &fixture.db,
+            admission: &admission,
+        };
+        let digest = operation_digest("acme.plugin", PackageMutationKind::Uninstall, &[b"none"]);
+        let started = journal
+            .run(
+                "acme.plugin",
+                PackageMutationKind::Uninstall,
+                &digest,
+                || Ok(()),
+            )
+            .unwrap();
+        let observation = journal
+            .observe_artifact_with_roots(
+                "acme.plugin",
+                &started.intent.intent_id,
+                &store,
+                &fixture.root.join("plugins"),
+                &fixture.root.join("store"),
+                || {},
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(observation.intent_id, started.intent.intent_id);
+        assert_eq!(observation.artifact, InstalledPackageEvidence::Absent);
+        assert_eq!(
+            fixture.db.package_mutation("acme.plugin").unwrap(),
+            Some(started.intent.clone())
+        );
+        let other = Installer::new(
+            InstallerConfig {
+                plugins_dir: fixture.root.join("different-plugins"),
+                store_dir: fixture.root.join("different-store"),
+                host: HostCompat::new(semver::Version::new(0, 4, 0)),
+                retain_versions: 2,
+                provider_endpoints: None,
+            },
+            Arc::new(RwLock::new(TrustStore::new())),
+        );
+        let other_lease = other.try_lock_store().unwrap();
+        assert_eq!(
+            journal
+                .observe_artifact_with_roots(
+                    "acme.plugin",
+                    &started.intent.intent_id,
+                    &other_lease,
+                    &fixture.root.join("plugins"),
+                    &fixture.root.join("store"),
+                    || {}
+                )
+                .unwrap_err()
+                .code,
+            InstallErrorCode::InvalidPackage,
+        );
+
+        let result = journal.observe_artifact_with_roots(
+            "acme.plugin",
+            &started.intent.intent_id,
+            &store,
+            &fixture.root.join("plugins"),
+            &fixture.root.join("store"),
+            || {
+                assert!(!admission.held.get());
+                fixture
+                    .db
+                    .set_plugin_state("acme.plugin", true, false)
+                    .unwrap();
+            },
+        );
+        assert_eq!(result.unwrap_err().code, InstallErrorCode::Busy);
+        assert_eq!(
+            fixture.db.package_mutation("acme.plugin").unwrap(),
+            Some(started.intent)
+        );
     }
 
     #[test]

@@ -9,7 +9,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tiktools_plugin_api::{manifest::is_valid_plugin_id, HostCompat, PluginManifest};
 use tiktools_plugin_package::{
-    PackageArchive, PackageError, PackageErrorKind, Sha256Digest, TrustStore, MANIFEST_FILE,
+    Checksums, PackageArchive, PackageError, PackageErrorKind, PackageSignature, Sha256Digest,
+    TrustStore, CHECKSUMS_FILE, MANIFEST_FILE, MAX_FILES, MAX_MANIFEST_BYTES, SIGNATURE_FILE,
 };
 
 use crate::{
@@ -24,6 +25,57 @@ use crate::{
 };
 
 pub const DEFAULT_RETAINED_VERSIONS: usize = 2;
+const MAX_INSTALLED_CHECKSUMS_BYTES: usize = 8 * 1024 * 1024;
+const MAX_INSTALLED_SIGNATURE_BYTES: usize = 16 * 1024;
+const MAX_INSTALLED_RECEIPT_BYTES: usize = 256 * 1024;
+
+/// Reads a bounded regular file without accepting a symlink as the final
+/// component. This is an observation under the cooperative store lease; it
+/// cannot fence unrelated processes that directly rewrite the filesystem.
+fn read_observed_file(path: &Path, limit: usize) -> Result<Option<Vec<u8>>, InstallError> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    if !metadata.file_type().is_file() || metadata.len() > limit as u64 {
+        return Err(InstallError::new(
+            InstallErrorCode::InvalidPackage,
+            "installed package metadata is not a bounded regular file",
+        ));
+    }
+    let mut file = File::open(path)?;
+    let before = file.metadata()?;
+    if !before.is_file() || before.len() != metadata.len() {
+        return Err(InstallError::new(
+            InstallErrorCode::InvalidPackage,
+            "installed package changed during review",
+        ));
+    }
+    let mut bytes = Vec::new();
+    (&mut file).take(limit as u64 + 1).read_to_end(&mut bytes)?;
+    let after = file.metadata()?;
+    if bytes.len() > limit
+        || bytes.len() as u64 != before.len()
+        || after.len() != before.len()
+        || before.modified().ok() != after.modified().ok()
+    {
+        return Err(InstallError::new(
+            InstallErrorCode::InvalidPackage,
+            "installed package changed during review",
+        ));
+    }
+    Ok(Some(bytes))
+}
+
+fn required_observed_file(path: &Path, limit: usize) -> Result<Vec<u8>, InstallError> {
+    read_observed_file(path, limit)?.ok_or_else(|| {
+        InstallError::new(
+            InstallErrorCode::InvalidPackage,
+            "installed package metadata is missing",
+        )
+    })
+}
 
 pub trait ActivationHooks: Send + Sync {
     fn deactivate(&self, plugin_id: &str) -> Result<bool, String>;
@@ -114,6 +166,22 @@ pub struct InstalledVersions {
     pub retained: Vec<RetainedVersion>,
 }
 
+/// A fresh observation of the installed tree under a cooperative store lease.
+/// This does not prove the original operation's outcome, authorize clearing a
+/// journal, or attest that the plugin runtime is stopped or reconciled.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstalledPackageEvidence {
+    Absent,
+    Verified {
+        id: String,
+        version: String,
+        checksums_digest: Sha256Digest,
+        publisher: String,
+        key_id: String,
+        trust_source: String,
+    },
+}
+
 pub struct Installer {
     layout: StoreLayout,
     host: HostCompat,
@@ -124,10 +192,12 @@ pub struct Installer {
     locks: KeyedLocks,
 }
 
-/// Exclusive cooperative access to a plugin package store. The lease is tied
-/// to this installer and is released when dropped. It is intended for native
-/// journal coordination and reconciliation; it is not an authorization to
-/// install or start a plugin, and older/noncooperating binaries are not fenced.
+/// Cooperative access through installers sharing either the plugin root or
+/// the receipt store root. The lease is tied to this installer and released
+/// when dropped. It is not an authorization to install or start a plugin;
+/// older binaries and direct filesystem or ReceiptStore writers are not fenced.
+/// Only equal canonical roots contend: overlapping ancestor/descendant roots
+/// require separate configuration validation before recovery can be enabled.
 ///
 /// Mutations require an exclusive borrow of the lease, preventing callers from
 /// using one shared store guard for concurrent package operations or reads.
@@ -141,9 +211,19 @@ pub struct Installer {
 pub struct LockedPackageStore<'a> {
     installer: &'a Installer,
     _operation: crate::locks::PackageOperationLease,
+    _store_operation: Option<crate::locks::PackageOperationLease>,
 }
 
 impl LockedPackageStore<'_> {
+    /// Bind a journal caller to this lease's actual plugin and store roots.
+    /// The configured roots must exist; aliases of the same directories are
+    /// accepted. External filesystem changes remain outside this lease.
+    pub fn matches_roots(&self, plugins: &Path, store: &Path) -> Result<bool, InstallError> {
+        Ok(
+            fs::canonicalize(plugins)? == fs::canonicalize(&self.installer.layout.plugins)?
+                && fs::canonicalize(store)? == fs::canonicalize(&self.installer.layout.store)?,
+        )
+    }
     /// Read the receipt while the package-store lease remains held. The
     /// receipt alone does not prove the files or runtime are consistent.
     pub fn receipt(&self, plugin_id: &str) -> Result<Option<InstallReceipt>, InstallError> {
@@ -154,6 +234,32 @@ impl LockedPackageStore<'_> {
     /// malformed manifests both return `None` and must not authorize recovery.
     pub fn installed_manifest(&self, plugin_id: &str) -> Option<PluginManifest> {
         self.installer.installed_manifest(plugin_id)
+    }
+
+    /// Apply an already constructed policy while retaining this same lease.
+    /// Callers that merge a patch must also read the receipt under the lease.
+    pub fn set_policy(
+        &mut self,
+        plugin_id: &str,
+        policy: UpdatePolicy,
+    ) -> Result<InstallReceipt, InstallError> {
+        self.installer
+            .set_policy_under_store_lock(plugin_id, policy)
+    }
+
+    /// Recheck the actual installed files and a currently trusted publisher
+    /// signature while retaining this store lease. Unsigned, adopted,
+    /// inconsistent or unreadable installations return an error rather than
+    /// being treated as absent. The observation is not a durable receipt and
+    /// must be repeated before a future recovery decision. Cooperative locks
+    /// do not fence older binaries or external filesystem writers. Concurrent
+    /// replacement of paths by noncooperating writers and Windows junctions or
+    /// reparse points have not been verified as a secure boundary.
+    pub fn inspect_verified(
+        &self,
+        plugin_id: &str,
+    ) -> Result<InstalledPackageEvidence, InstallError> {
+        self.installer.inspect_verified_under_store_lock(plugin_id)
     }
 
     pub fn commit(
@@ -190,6 +296,153 @@ impl LockedPackageStore<'_> {
 }
 
 impl Installer {
+    fn observed_receipt(&self, plugin_id: &str) -> Result<Option<Vec<u8>>, InstallError> {
+        let directory = self.layout.receipts();
+        let metadata = match fs::symlink_metadata(&directory) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        if !metadata.file_type().is_dir()
+            || fs::canonicalize(&directory)?.parent()
+                != Some(fs::canonicalize(&self.layout.store)?.as_path())
+        {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "receipt directory is not confined to the package store",
+            ));
+        }
+        read_observed_file(&self.layout.receipt(plugin_id), MAX_INSTALLED_RECEIPT_BYTES)
+    }
+
+    fn inspect_verified_under_store_lock(
+        &self,
+        plugin_id: &str,
+    ) -> Result<InstalledPackageEvidence, InstallError> {
+        if !is_valid_plugin_id(plugin_id) {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "invalid plugin ID",
+            ));
+        }
+        let path = self.layout.package(plugin_id);
+        let receipt_bytes = self.observed_receipt(plugin_id)?;
+        let root = match fs::symlink_metadata(&path) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound && receipt_bytes.is_none() => {
+                return Ok(InstalledPackageEvidence::Absent);
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Err(InstallError::new(
+                    InstallErrorCode::InvalidPackage,
+                    "package is missing but its receipt remains",
+                ));
+            }
+            Err(error) => return Err(error.into()),
+            Ok(_) => self.checked_package_dir(plugin_id)?,
+        };
+        let receipt_bytes = receipt_bytes.ok_or_else(|| {
+            InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "installed package receipt is missing",
+            )
+        })?;
+        let receipt: InstallReceipt = serde_json::from_slice(&receipt_bytes).map_err(|_| {
+            InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "installed package receipt is invalid",
+            )
+        })?;
+        let manifest_path = root.join(MANIFEST_FILE);
+        let checksums_path = root.join(CHECKSUMS_FILE);
+        let signature_path = root.join(SIGNATURE_FILE);
+        let manifest_bytes = required_observed_file(&manifest_path, MAX_MANIFEST_BYTES)?;
+        let manifest_text = std::str::from_utf8(&manifest_bytes).map_err(|_| {
+            InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "installed manifest is not UTF-8",
+            )
+        })?;
+        let manifest = PluginManifest::from_json_str(manifest_text).map_err(|error| {
+            InstallError::new(InstallErrorCode::InvalidPackage, error.to_string())
+        })?;
+        manifest.validate_compatibility().map_err(|error| {
+            InstallError::new(InstallErrorCode::InvalidPackage, error.to_string())
+        })?;
+        self.host.check_manifest(&manifest)?;
+        if manifest.id != plugin_id
+            || receipt.id != plugin_id
+            || receipt.version != manifest.version
+            || receipt.runtime != manifest.runtime.to_string()
+            || receipt.granted_permissions != manifest.permissions
+            || receipt.granted_capabilities != manifest.capabilities
+        {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "installed manifest and receipt disagree",
+            ));
+        }
+        // This is only a syntactically valid receipt declaration: the
+        // extracted tree cannot prove which original archive supplied it.
+        // Do not return it as verified artifact evidence.
+        let _declared_archive_digest = receipt
+            .archive_digest
+            .as_deref()
+            .and_then(Sha256Digest::parse)
+            .ok_or_else(|| {
+                InstallError::new(
+                    InstallErrorCode::InvalidPackage,
+                    "installed package archive identity is missing",
+                )
+            })?;
+        if receipt.signature.status != SignatureStatus::Verified {
+            return Err(InstallError::new(
+                InstallErrorCode::SignatureRequired,
+                "installed package does not have a verified publisher receipt",
+            ));
+        }
+        let checksums = required_observed_file(&checksums_path, MAX_INSTALLED_CHECKSUMS_BYTES)?;
+        let signature = required_observed_file(&signature_path, MAX_INSTALLED_SIGNATURE_BYTES)?;
+        let parsed = PackageSignature::parse(&signature)?;
+        Checksums::parse(&checksums)?.verify_tree_with_directory_limit(
+            &root,
+            plugin_id,
+            MAX_FILES * 4,
+        )?;
+        let verified = self
+            .trust
+            .read()
+            .map_err(|_| InstallError::io("trust store lock poisoned"))?
+            .verify_package(&parsed, &checksums, plugin_id, now())?;
+        if receipt.signature.publisher.as_deref() != Some(verified.publisher.as_str())
+            || receipt.signature.key_id.as_deref() != Some(verified.key_id.as_str())
+        {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "installed signature and receipt disagree",
+            ));
+        }
+        // Refuse an inconsistent observation if these controlling files were
+        // replaced while the rest of the tree was being checked.
+        if self.observed_receipt(plugin_id)?.as_deref() != Some(receipt_bytes.as_slice())
+            || required_observed_file(&manifest_path, MAX_MANIFEST_BYTES)? != manifest_bytes
+            || required_observed_file(&checksums_path, MAX_INSTALLED_CHECKSUMS_BYTES)? != checksums
+            || required_observed_file(&signature_path, MAX_INSTALLED_SIGNATURE_BYTES)? != signature
+        {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "installed package changed during review",
+            ));
+        }
+        Ok(InstalledPackageEvidence::Verified {
+            id: plugin_id.to_owned(),
+            version: manifest.version,
+            checksums_digest: Sha256Digest::of_bytes(&checksums),
+            publisher: verified.publisher,
+            key_id: verified.key_id.to_string(),
+            trust_source: verified.source,
+        })
+    }
+
     pub fn new(config: InstallerConfig, trust: Arc<RwLock<TrustStore>>) -> Self {
         let layout = StoreLayout::new(config.plugins_dir, config.store_dir);
         Self {
@@ -215,9 +468,24 @@ impl Installer {
     }
 
     fn try_lock_store_for(&self, label: &str) -> Result<LockedPackageStore<'_>, InstallError> {
+        // Both acquisitions are nonblocking. On any second-lock failure the
+        // first lease drops immediately, so opposite root orders cannot wait
+        // on one another. Canonical aliases are locked once.
+        let operation = crate::locks::try_package_operation(&self.layout.plugins, label)?;
+        fs::create_dir_all(&self.layout.store)?;
+        let same = fs::canonicalize(&self.layout.plugins)? == fs::canonicalize(&self.layout.store)?;
+        let store_operation = if same {
+            None
+        } else {
+            Some(crate::locks::try_package_operation(
+                &self.layout.store,
+                label,
+            )?)
+        };
         Ok(LockedPackageStore {
             installer: self,
-            _operation: crate::locks::try_package_operation(&self.layout.plugins, label)?,
+            _operation: operation,
+            _store_operation: store_operation,
         })
     }
 
@@ -782,7 +1050,15 @@ impl Installer {
         plugin_id: &str,
         policy: UpdatePolicy,
     ) -> Result<InstallReceipt, InstallError> {
-        let _operation = crate::locks::try_package_operation(&self.layout.plugins, plugin_id)?;
+        self.try_lock_store_for(plugin_id)?
+            .set_policy(plugin_id, policy)
+    }
+
+    fn set_policy_under_store_lock(
+        &self,
+        plugin_id: &str,
+        policy: UpdatePolicy,
+    ) -> Result<InstallReceipt, InstallError> {
         let mut receipt = self
             .receipts
             .load(plugin_id)?
@@ -796,8 +1072,7 @@ impl Installer {
         &self,
         plugin_ids: impl IntoIterator<Item = &'a str>,
     ) -> Result<Vec<InstallReceipt>, InstallError> {
-        let _operation =
-            crate::locks::try_package_operation(&self.layout.plugins, "package store")?;
+        let _operation = self.try_lock_store_for("package store")?;
         let mut adopted = Vec::new();
         for plugin_id in plugin_ids {
             if self.receipts.load(plugin_id)?.is_some() {

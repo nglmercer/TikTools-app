@@ -286,8 +286,11 @@ impl AppCore {
         patch: PolicyPatch,
     ) -> Result<InstallReceipt, OperationError> {
         let packages = self.packages()?;
-        let receipt = packages
+        let mut store = packages
             .installer
+            .try_lock_store()
+            .map_err(OperationError::install)?;
+        let receipt = store
             .receipt(plugin_id)
             .map_err(OperationError::install)?
             .ok_or_else(|| OperationError::install(InstallError::not_installed(plugin_id)))?;
@@ -306,8 +309,7 @@ impl AppCore {
         if let Some(pinned) = patch.pinned {
             policy.pinned = pinned;
         }
-        packages
-            .installer
+        store
             .set_policy(plugin_id, policy)
             .map_err(OperationError::install)
     }

@@ -10,9 +10,87 @@ use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 use crate::{
     archive::normalized_archive_path, pack, pack::staged_entry_name, pack::validate_target,
-    sign_archive, KeyId, KeyRole, KeysDocument, PackRequest, PackageArchive, PackageError,
-    PackageErrorKind, Sha256Digest, SigningKey, TrustStore, TrustedKey, CHECKSUMS_FILE,
+    sign_archive, Checksums, KeyId, KeyRole, KeysDocument, PackRequest, PackageArchive,
+    PackageError, PackageErrorKind, Sha256Digest, SigningKey, TrustStore, TrustedKey,
+    CHECKSUMS_FILE,
 };
+
+#[cfg(unix)]
+#[test]
+fn checksum_verification_refuses_symlinked_files_and_directories() {
+    use std::os::unix::fs::symlink;
+    let temp = TempDir::new("checksum-symlinks");
+    let root = temp.join("package");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(temp.join("outside"), b"verified").unwrap();
+    let mut sums = Checksums::default();
+    sums.insert("entry", Sha256Digest::of_bytes(b"verified"));
+    symlink(temp.join("outside"), root.join("entry")).unwrap();
+    assert!(matches!(
+        sums.verify_tree(&root, "demo"),
+        Err(PackageError::Symlink)
+    ));
+    fs::remove_file(root.join("entry")).unwrap();
+    fs::write(root.join("entry"), b"verified").unwrap();
+    symlink(&root, root.join("loop")).unwrap();
+    assert!(matches!(
+        sums.verify_tree(&root, "demo"),
+        Err(PackageError::Symlink)
+    ));
+}
+
+#[cfg(unix)]
+#[test]
+fn checksum_verification_refuses_backslash_path_aliases() {
+    let temp = TempDir::new("checksum-path-alias");
+    let root = temp.join("package");
+    fs::create_dir_all(&root).unwrap();
+    fs::write(root.join("a\\b"), b"verified").unwrap();
+    let mut sums = Checksums::default();
+    sums.insert("a/b", Sha256Digest::of_bytes(b"verified"));
+    assert!(sums.verify_tree(&root, "demo").is_err());
+}
+
+#[test]
+fn checksum_verification_rejects_oversized_installed_tree() {
+    let temp = TempDir::new("checksum-large");
+    let root = temp.join("package");
+    fs::create_dir_all(&root).unwrap();
+    let path = root.join("entry");
+    File::create(&path)
+        .unwrap()
+        .set_len(crate::MAX_EXTRACTED_BYTES + 1)
+        .unwrap();
+    let mut sums = Checksums::default();
+    sums.insert("entry", Sha256Digest::of_bytes(b""));
+    assert!(matches!(
+        sums.verify_tree(&root, "demo"),
+        Err(PackageError::ExpandsTooLarge)
+    ));
+}
+
+#[test]
+fn installed_tree_counts_implicit_directories_separately_from_files() {
+    let temp = TempDir::new("checksum-directory-budget");
+    let root = temp.join("package");
+    fs::create_dir_all(root.join("first/second")).unwrap();
+    fs::write(root.join("first/a"), b"a").unwrap();
+    fs::write(root.join("first/second/b"), b"b").unwrap();
+    assert_eq!(
+        crate::checksums::relative_files_with_limits(&root, 2, 2)
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(matches!(
+        crate::checksums::relative_files_with_limits(&root, 1, 2),
+        Err(PackageError::TooManyFiles)
+    ));
+    assert!(matches!(
+        crate::checksums::relative_files_with_limits(&root, 2, 1),
+        Err(PackageError::TooManyFiles)
+    ));
+}
 
 const DEMO_MANIFEST: &[u8] = br#"{"schemaVersion":2,"id":"demo","name":"Demo","version":"1.0.0","runtime":"process","entry":"index.js"}"#;
 

@@ -15,9 +15,9 @@ mod tests;
 
 pub use error::{InstallError, InstallErrorCode};
 pub use installer::{
-    ActivationHooks, CommitOptions, Consent, InstallOutcome, InstalledVersions, Installer,
-    InstallerConfig, LockedPackageStore, NoopHooks, PreparedPackage, SignaturePolicy,
-    DEFAULT_RETAINED_VERSIONS,
+    ActivationHooks, CommitOptions, Consent, InstallOutcome, InstalledPackageEvidence,
+    InstalledVersions, Installer, InstallerConfig, LockedPackageStore, NoopHooks, PreparedPackage,
+    SignaturePolicy, DEFAULT_RETAINED_VERSIONS,
 };
 pub use jobs::{
     JobHandle, JobKind, JobListener, JobProgress, JobRegistry, JobReporter, JobSnapshot, JobStage,

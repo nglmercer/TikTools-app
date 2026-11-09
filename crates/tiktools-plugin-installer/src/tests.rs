@@ -24,9 +24,9 @@ use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 use crate::{
     check_updates, ActivationHooks, ChangeKind, CommitOptions, Consent, InstallErrorCode,
-    Installer, InstallerConfig, JobKind, JobRegistry, JobReporter, JobStage, JobStatus, NoopHooks,
-    NoopReporter, PackageOrigin, PackageSources, PackageSpec, PackageSpecInput, SignaturePolicy,
-    SignatureStatus, UpdateKind,
+    InstalledPackageEvidence, Installer, InstallerConfig, JobKind, JobRegistry, JobReporter,
+    JobStage, JobStatus, NoopHooks, NoopReporter, PackageOrigin, PackageSources, PackageSpec,
+    PackageSpecInput, SignaturePolicy, SignatureStatus, UpdateKind,
 };
 
 struct TempDir(PathBuf);
@@ -333,6 +333,111 @@ fn retained_store_lease_spans_install_review_rollback_and_uninstall() {
     assert!(lease.installed_manifest("demo").is_none());
     drop(lease);
     assert!(other.try_lock_store().is_ok());
+}
+
+#[test]
+fn cooperating_installers_lock_both_plugin_and_receipt_roots() {
+    let root = TempDir::new("both-store-roots");
+    let make = |plugins: PathBuf, store: PathBuf| {
+        Installer::new(
+            InstallerConfig {
+                plugins_dir: plugins,
+                store_dir: store,
+                host: host(),
+                retain_versions: 2,
+                provider_endpoints: None,
+            },
+            Arc::new(RwLock::new(TrustStore::new())),
+        )
+    };
+    let first = make(root.join("plugins-a"), root.join("store-a"));
+    let shared_store = make(root.join("plugins-b"), root.join("store-a"));
+    let shared_plugins = make(root.join("plugins-a"), root.join("store-b"));
+    let lease = first.try_lock_store().unwrap();
+    assert!(lease
+        .matches_roots(&root.join("plugins-a"), &root.join("store-a"))
+        .unwrap());
+    assert_eq!(
+        shared_store.try_lock_store().err().unwrap().code,
+        InstallErrorCode::Busy
+    );
+    assert_eq!(
+        shared_plugins.try_lock_store().err().unwrap().code,
+        InstallErrorCode::Busy
+    );
+    assert_eq!(
+        shared_store
+            .set_policy("demo", Default::default())
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Busy
+    );
+    assert_eq!(
+        shared_store.adopt(["demo"]).unwrap_err().code,
+        InstallErrorCode::Busy
+    );
+    drop(lease);
+    assert!(shared_store.try_lock_store().is_ok());
+    let same = make(root.join("same"), root.join("same"));
+    assert!(same.try_lock_store().is_ok());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+        symlink(root.join("same"), root.join("same-alias")).unwrap();
+        let alias = make(root.join("same"), root.join("same-alias"));
+        let lease = alias.try_lock_store().unwrap();
+        assert!(lease
+            .matches_roots(&root.join("same-alias"), &root.join("same"))
+            .unwrap());
+    }
+}
+
+#[test]
+fn policy_patch_read_and_write_share_the_package_lease() {
+    let root = TempDir::new("policy-lease");
+    let first = installer(&root);
+    let other = installer(&root);
+    install_file(
+        &first,
+        &demo_package(&root, "acme.demo", "1.0.0", serde_json::json!({})),
+        false,
+    )
+    .unwrap();
+    let mut lease = first.try_lock_store().unwrap();
+    let mut policy = lease.receipt("acme.demo").unwrap().unwrap().policy;
+    policy.pinned = true;
+    assert_eq!(
+        other
+            .set_policy("acme.demo", Default::default())
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Busy
+    );
+    lease.set_policy("acme.demo", policy).unwrap();
+    drop(lease);
+    let mut lease = other.try_lock_store().unwrap();
+    let mut policy = lease.receipt("acme.demo").unwrap().unwrap().policy;
+    policy.channel = "beta".into();
+    lease.set_policy("acme.demo", policy).unwrap();
+    let result = lease.receipt("acme.demo").unwrap().unwrap().policy;
+    assert!(result.pinned);
+    assert_eq!(result.channel, "beta");
+}
+
+#[cfg(unix)]
+#[test]
+fn receipt_directory_symlink_cannot_authorize_installed_evidence() {
+    use std::os::unix::fs::symlink;
+    let root = TempDir::new("receipt-directory-symlink");
+    let installer = installer(&root);
+    fs::create_dir_all(root.join("external")).unwrap();
+    fs::create_dir_all(root.join("store")).unwrap();
+    symlink(root.join("external"), root.join("store/receipts")).unwrap();
+    let lease = installer.try_lock_store().unwrap();
+    assert_eq!(
+        lease.inspect_verified("acme.demo").unwrap_err().code,
+        InstallErrorCode::InvalidPackage
+    );
 }
 
 #[cfg(unix)]
@@ -1264,6 +1369,109 @@ fn signed_package(root: &TempDir, key: &SigningKey, id: &str, version: &str) -> 
     .unwrap();
     sign_archive(&output.path, key).unwrap();
     output.path
+}
+
+#[test]
+fn installed_evidence_requires_current_trust_consistent_receipt_and_exact_tree() {
+    let root = TempDir::new("installed-evidence");
+    let key = publisher_key();
+    let signed = signed_package(&root, &key, "acme.demo", "1.0.0");
+    let mut initial = TrustStore::new();
+    initial.insert(
+        TrustedKey::new(key.public_key(), KeyRole::Publisher).publisher("acme"),
+        "local",
+    );
+    let trust = Arc::new(RwLock::new(initial));
+    let installer = installer_with(&root, trust.clone());
+    {
+        let store = installer.try_lock_store().unwrap();
+        assert_eq!(
+            store.inspect_verified("acme.demo").unwrap(),
+            InstalledPackageEvidence::Absent
+        );
+    }
+    let prepared = installer
+        .prepare(&signed, PackageOrigin::File, SignaturePolicy::Require)
+        .unwrap();
+    let preview = installer.preview(&prepared);
+    installer
+        .commit(
+            &prepared,
+            &CommitOptions {
+                consent: Consent::Token(preview.consent_token),
+                policy: None,
+            },
+            &NoopHooks,
+            &NoopReporter,
+        )
+        .unwrap();
+    let store = installer.try_lock_store().unwrap();
+    let evidence = store.inspect_verified("acme.demo").unwrap();
+    assert!(
+        matches!(evidence, InstalledPackageEvidence::Verified { ref id, ref version, ref publisher, ref key_id, .. }
+        if id == "acme.demo" && version == "1.0.0" && publisher == "acme" && key_id == "acme-1")
+    );
+
+    let executable = root.join("plugins/acme.demo/demo-host");
+    let original = fs::read(&executable).unwrap();
+    fs::write(&executable, b"changed").unwrap();
+    assert!(store.inspect_verified("acme.demo").is_err());
+    fs::write(&executable, original).unwrap();
+    fs::write(root.join("plugins/acme.demo/extra"), b"unlisted").unwrap();
+    assert!(store.inspect_verified("acme.demo").is_err());
+    fs::remove_file(root.join("plugins/acme.demo/extra")).unwrap();
+    assert_eq!(store.inspect_verified("acme.demo").unwrap(), evidence);
+
+    let receipt_path = root.join("store/receipts/acme.demo.json");
+    let receipt = fs::read(&receipt_path).unwrap();
+    let mut modified: serde_json::Value = serde_json::from_slice(&receipt).unwrap();
+    modified["version"] = serde_json::json!("2.0.0");
+    fs::write(&receipt_path, serde_json::to_vec(&modified).unwrap()).unwrap();
+    assert!(store.inspect_verified("acme.demo").is_err());
+    // A receipt's archive digest is only an unauthenticated declaration;
+    // it must never be presented as evidence of the original archive.
+    let mut changed_digest: serde_json::Value = serde_json::from_slice(&receipt).unwrap();
+    changed_digest["archiveDigest"] = serde_json::json!("f".repeat(64));
+    fs::write(&receipt_path, serde_json::to_vec(&changed_digest).unwrap()).unwrap();
+    assert_eq!(store.inspect_verified("acme.demo").unwrap(), evidence);
+    fs::write(receipt_path, receipt).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::symlink;
+        let receipt_path = root.join("store/receipts/acme.demo.json");
+        let saved = fs::read(&receipt_path).unwrap();
+        let external = root.join("external-receipt.json");
+        fs::write(&external, &saved).unwrap();
+        fs::remove_file(&receipt_path).unwrap();
+        symlink(&external, &receipt_path).unwrap();
+        assert!(store.inspect_verified("acme.demo").is_err());
+        fs::remove_file(&receipt_path).unwrap();
+        fs::write(receipt_path, saved).unwrap();
+    }
+    trust.write().unwrap().remove_source("local");
+    assert!(store.inspect_verified("acme.demo").is_err());
+}
+
+#[test]
+fn installed_evidence_does_not_treat_orphans_or_unsigned_installs_as_absent() {
+    let root = TempDir::new("installed-evidence-incomplete");
+    let installer = installer(&root);
+    install_file(
+        &installer,
+        &demo_package(&root, "acme.demo", "1.0.0", serde_json::json!({})),
+        false,
+    )
+    .unwrap();
+    let store = installer.try_lock_store().unwrap();
+    assert_eq!(
+        store.inspect_verified("acme.demo").unwrap_err().code,
+        InstallErrorCode::SignatureRequired
+    );
+    fs::remove_dir_all(root.join("plugins/acme.demo")).unwrap();
+    assert_eq!(
+        store.inspect_verified("acme.demo").unwrap_err().code,
+        InstallErrorCode::InvalidPackage
+    );
 }
 
 #[test]

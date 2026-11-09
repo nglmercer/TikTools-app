@@ -3,8 +3,8 @@
 Status: **the native v2 foundation and read-only Cloud catalog and library UI are implemented. Product sync cutover, local application and full Desktop v2 acceptance are pending.**
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
-library delivery e6728c9. The reviewed backend commit is RemakeBackend 1c06410,
-including byte-ordered v1 snapshot pagination, SDK pull counts, canonical shards
+library delivery e6728c9. The reviewed backend commit is RemakeBackend 2955f00,
+including retained-feed gap detection, byte-ordered v1 snapshot pagination, SDK pull counts, canonical shards
 and SDK capability discovery, following bounded pagination 9f7e642,
 catalog compatibility 995d496, integrity changes c0fb951 and v2 foundation
 0c552b3, and its
@@ -103,6 +103,13 @@ upload resolution, including keep-local, until those protections are wired.
 An internal SQLite transaction can now persist a plugin state, source
 generation and identity/consent-bound outbox candidate together; this storage
 primitive is not yet connected to product mutations or coordinator delivery.
+An internal enable/disable adapter now joins that reservation to the local
+runtime change and confirms only the same source generation after success.
+It is not selected by product operations: runtime failure/restart recovery,
+package mutations, fenced outbox draining and legacy-writer coordination must
+be integrated together. Even local-only edits currently require an available
+coordinator in this experimental adapter; the final product path must retain
+independent local operation.
 The in-progress coordinator bridge moves staged candidates to durable receipts
 and rechecks the exact pending edit, source generation, consent and runtime
 epoch before upload. A durable per-account marker can make cooperating legacy
@@ -138,6 +145,14 @@ in a private temporary snapshot until installation completes. Product package
 operations do not yet use the journal: trusted artifact/runtime reconciliation,
 recovery UI, older-binary coordination and a bounded receipt-retention policy
 remain required before activation.
+The experimental package observation now checks the current signed installed
+tree and receipt under cooperative locks for both the configured plugin and
+receipt-store roots, and binds the observation to an unchanged journal and
+matching roots. This describes present files, not the original operation's
+result or the running process. Direct receipt/filesystem writers, older
+binaries, overlapping ancestor roots, non-cooperating concurrent replacements
+and unverified Windows junction behavior remain outside that fence. Policy
+patches now read, merge and save under the same cooperative lease.
 
 An experimental runtime quarantine blocks known unfinished plugin applications
 after restart and rejects several activation and late-response paths. Finalized
