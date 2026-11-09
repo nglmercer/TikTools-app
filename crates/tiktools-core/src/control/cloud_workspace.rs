@@ -21,12 +21,16 @@ pub enum WorkspaceV2DiscoveryState {
 pub struct WorkspaceV2Discovery {
     pub state: WorkspaceV2DiscoveryState,
     pub desktop_sync_available: bool,
+    /// True only for the currently signed-in account with a completed v2
+    /// marker and matching, enabled account-scoped consent.
+    pub selected: bool,
 }
 
 fn discovery(state: WorkspaceV2DiscoveryState) -> WorkspaceV2Discovery {
     WorkspaceV2Discovery {
         state,
         desktop_sync_available: false,
+        selected: false,
     }
 }
 
@@ -42,7 +46,43 @@ impl AppCore {
             .sync
             .coordinator()
             .map_err(|_| OperationError::unavailable("Cloud sync storage is unavailable"))?;
-        discover_v2(self.cloud.auth(), coordinator).await
+        let before = self.cloud.auth().session().await;
+        let mut result = discover_v2(self.cloud.auth(), coordinator).await?;
+        if result.state == WorkspaceV2DiscoveryState::BackendCompatible {
+            let Some(session) = self.cloud.auth().session().await else {
+                return Err(changed());
+            };
+            if !before
+                .as_ref()
+                .is_some_and(|previous| std::sync::Arc::ptr_eq(previous, &session))
+            {
+                return Err(changed());
+            }
+            let selected = coordinator
+                .with_product_local_edit(|context| context)
+                .map_err(|_| changed())?;
+            if let tiktools_cloud_sync::ProductLocalEditContext::V2(Some(identity)) = selected {
+                let epoch = coordinator
+                    .capture_v2_config_epoch(&session)
+                    .ok_or_else(changed)?;
+                if identity.origin != session.instance_origin()
+                    || identity.account_id != session.account_id()
+                {
+                    return Err(changed());
+                }
+                result.selected = self
+                    .cloud
+                    .auth()
+                    .with_current_session(&session, || {
+                        coordinator.is_v2_config_epoch_current(&epoch, &session)
+                    })
+                    .map_err(|_| changed())?;
+                if !result.selected {
+                    return Err(changed());
+                }
+            }
+        }
+        Ok(result)
     }
 }
 

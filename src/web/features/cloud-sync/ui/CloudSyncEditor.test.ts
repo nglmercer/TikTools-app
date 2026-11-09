@@ -60,9 +60,32 @@ describe('CloudSyncEditor', () => {
     expect(calls.some((call) => call.method === 'sync.v2.discover')).toBe(false);
     await wrapper.findAll('button').find((item) => item.text() === 'Check Cloud v2 compatibility')!.trigger('click');
     await flushPromises();
-    expect(wrapper.text()).toContain('The server supports v2. Desktop v2 synchronization is not available yet.');
+    expect(wrapper.text()).toContain('The server supports v2. Migration in this app is not available yet.');
     expect(calls.filter((call) => call.method === 'sync.v2.discover')).toHaveLength(1);
     expect(calls.some((call) => call.method === 'sync.enable' || call.method === 'sync.now')).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('uses v2 sync only for the selected account and reports cached records', async () => {
+    const { client, calls } = createFakeControlClient((method) => {
+      if (method === 'cloud.status') return account();
+      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.uncertain.list') return [];
+      if (method === 'sync.v2.discover') return { state: 'backendCompatible', desktopSyncAvailable: false, selected: true };
+      if (method === 'sync.v2.now') return { pushed: 1, pulled: 2, workspacePending: 0, availableRecords: 2, conflicts: [], moreQueued: true };
+      throw new Error(`unexpected ${method}`);
+    });
+    const wrapper = mountWithPlugins(CloudSyncEditor, { global: { plugins: storePlugins(client) } });
+    await flushPromises();
+    await wrapper.findAll('button').find((item) => item.text() === 'Check Cloud v2 compatibility')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Cloud v2 is selected for this account.');
+    await wrapper.findAll('button').find((item) => item.text() === 'Sync now')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Sent: 1. Downloaded: 2.');
+    expect(wrapper.text()).toContain('More changes are queued');
+    expect(calls.filter((call) => call.method === 'sync.v2.now')).toHaveLength(1);
+    expect(calls.some((call) => call.method === 'sync.now')).toBe(false);
     wrapper.unmount();
   });
 

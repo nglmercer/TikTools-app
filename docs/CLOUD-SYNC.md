@@ -26,6 +26,10 @@ downloaded records without applying them locally. It does not select v2,
 replace the existing `sync.now` operation, or complete the product UI and
 two-device workflow. `workspacePending` counts workspace edits; `moreQueued`
 also signals additional local intents or a bounded network pass.
+The settings compatibility check recognizes an already selected v2 account
+and offers this explicit pass with cache, pending and conflict counts. It does
+not offer migration or automatic local application; the check is still an
+explicit action and v1 remains the default product path.
 
 The reviewed sibling RemakeBackend commit is `cb37900`, including canonical
 registry shards and bounded v2 capability discovery in the SDK, following bounded
