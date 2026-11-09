@@ -1,5 +1,6 @@
 use std::{
-    fs,
+    fs::{self, File},
+    io::{self, Read},
     path::{Path, PathBuf},
     sync::{Arc, RwLock},
 };
@@ -71,6 +72,9 @@ pub struct InstallerConfig {
 #[derive(Debug, Clone)]
 pub struct PreparedPackage {
     archive: PackageArchive,
+    original_path: PathBuf,
+    // Keeps the private copy alive across all clones until the last review ends.
+    _snapshot: Arc<tempfile::TempDir>,
     pub origin: PackageOrigin,
     pub digest: Sha256Digest,
     pub manifest: PluginManifest,
@@ -81,7 +85,7 @@ pub struct PreparedPackage {
 
 impl PreparedPackage {
     pub fn path(&self) -> &Path {
-        self.archive.path()
+        &self.original_path
     }
 
     pub fn size(&self) -> u64 {
@@ -120,6 +124,71 @@ pub struct Installer {
     locks: KeyedLocks,
 }
 
+/// Exclusive cooperative access to a plugin package store. The lease is tied
+/// to this installer and is released when dropped. It is intended for native
+/// journal coordination and reconciliation; it is not an authorization to
+/// install or start a plugin, and older/noncooperating binaries are not fenced.
+///
+/// Mutations require an exclusive borrow of the lease, preventing callers from
+/// using one shared store guard for concurrent package operations or reads.
+///
+/// ```compile_fail
+/// use tiktools_plugin_installer::{ActivationHooks, LockedPackageStore};
+/// fn cannot_mutate_through_shared_lease(store: &LockedPackageStore<'_>, hooks: &dyn ActivationHooks) {
+///     store.uninstall("demo.plugin", None, hooks).unwrap();
+/// }
+/// ```
+pub struct LockedPackageStore<'a> {
+    installer: &'a Installer,
+    _operation: crate::locks::PackageOperationLease,
+}
+
+impl LockedPackageStore<'_> {
+    /// Read the receipt while the package-store lease remains held. The
+    /// receipt alone does not prove the files or runtime are consistent.
+    pub fn receipt(&self, plugin_id: &str) -> Result<Option<InstallReceipt>, InstallError> {
+        self.installer.receipt(plugin_id)
+    }
+
+    /// Read the installed manifest while the lease remains held. Missing or
+    /// malformed manifests both return `None` and must not authorize recovery.
+    pub fn installed_manifest(&self, plugin_id: &str) -> Option<PluginManifest> {
+        self.installer.installed_manifest(plugin_id)
+    }
+
+    pub fn commit(
+        &mut self,
+        prepared: &PreparedPackage,
+        options: &CommitOptions,
+        hooks: &dyn ActivationHooks,
+        reporter: &dyn JobReporter,
+    ) -> Result<InstallOutcome, InstallError> {
+        self.installer
+            .commit_under_store_lock(prepared, options, hooks, reporter)
+    }
+
+    pub fn rollback(
+        &mut self,
+        plugin_id: &str,
+        version: Option<&str>,
+        hooks: &dyn ActivationHooks,
+        reporter: &dyn JobReporter,
+    ) -> Result<InstallOutcome, InstallError> {
+        self.installer
+            .rollback_under_store_lock(plugin_id, version, hooks, reporter)
+    }
+
+    pub fn uninstall(
+        &mut self,
+        plugin_id: &str,
+        purge_data: Option<&Path>,
+        hooks: &dyn ActivationHooks,
+    ) -> Result<(), InstallError> {
+        self.installer
+            .uninstall_under_store_lock(plugin_id, purge_data, hooks)
+    }
+}
+
 impl Installer {
     pub fn new(config: InstallerConfig, trust: Arc<RwLock<TrustStore>>) -> Self {
         let layout = StoreLayout::new(config.plugins_dir, config.store_dir);
@@ -136,6 +205,20 @@ impl Installer {
 
     pub fn layout(&self) -> &StoreLayout {
         &self.layout
+    }
+
+    /// Acquire the same process-wide store lock used by every cooperative
+    /// package mutation. Never hold a sync admission or CloudAuth lock while
+    /// waiting for a store lease; acquisition itself is nonblocking.
+    pub fn try_lock_store(&self) -> Result<LockedPackageStore<'_>, InstallError> {
+        self.try_lock_store_for("package store")
+    }
+
+    fn try_lock_store_for(&self, label: &str) -> Result<LockedPackageStore<'_>, InstallError> {
+        Ok(LockedPackageStore {
+            installer: self,
+            _operation: crate::locks::try_package_operation(&self.layout.plugins, label)?,
+        })
     }
 
     pub fn host(&self) -> &HostCompat {
@@ -206,7 +289,39 @@ impl Installer {
         origin: PackageOrigin,
         policy: SignaturePolicy,
     ) -> Result<PreparedPackage, InstallError> {
-        let archive = PackageArchive::open(archive_path)?;
+        let source = PackageArchive::open(archive_path)?;
+        let original_path = source.path().to_owned();
+        let mut input = File::open(&original_path).map_err(InstallError::io)?;
+        let before = input.metadata().map_err(InstallError::io)?;
+        if !before.is_file() || before.len() != source.size() {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "package changed while preparing the review",
+            ));
+        }
+        let snapshot = Arc::new(
+            tempfile::Builder::new()
+                .prefix("tiktools-package-review-")
+                .tempdir()
+                .map_err(InstallError::io)?,
+        );
+        let snapshot_path = snapshot.path().join("review.plugin");
+        let mut output = File::create(&snapshot_path).map_err(InstallError::io)?;
+        // Bound the copy even if the source grows while it is being read.
+        let copied = io::copy(&mut (&mut input).take(before.len() + 1), &mut output)
+            .map_err(InstallError::io)?;
+        let after = input.metadata().map_err(InstallError::io)?;
+        if copied != before.len()
+            || after.len() != before.len()
+            || before.modified().ok() != after.modified().ok()
+        {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "package changed while preparing the review",
+            ));
+        }
+        drop(output);
+        let archive = PackageArchive::open(&snapshot_path)?;
         let digest = archive.digest()?;
         let inspection = archive.inspect()?;
         let manifest = inspection.manifest;
@@ -255,6 +370,8 @@ impl Installer {
         }
         Ok(PreparedPackage {
             archive,
+            original_path,
+            _snapshot: snapshot,
             origin,
             digest,
             manifest,
@@ -318,8 +435,18 @@ impl Installer {
         hooks: &dyn ActivationHooks,
         reporter: &dyn JobReporter,
     ) -> Result<InstallOutcome, InstallError> {
+        self.try_lock_store_for(&prepared.manifest.id)?
+            .commit(prepared, options, hooks, reporter)
+    }
+
+    fn commit_under_store_lock(
+        &self,
+        prepared: &PreparedPackage,
+        options: &CommitOptions,
+        hooks: &dyn ActivationHooks,
+        reporter: &dyn JobReporter,
+    ) -> Result<InstallOutcome, InstallError> {
         let id = prepared.manifest.id.clone();
-        let _operation = crate::locks::try_package_operation(&self.layout.plugins, &id)?;
         let _guard = self.locks.try_lock(&id)?;
         reporter.check()?;
         let preview = self.preview(prepared);
@@ -440,7 +567,17 @@ impl Installer {
         hooks: &dyn ActivationHooks,
         reporter: &dyn JobReporter,
     ) -> Result<InstallOutcome, InstallError> {
-        let _operation = crate::locks::try_package_operation(&self.layout.plugins, plugin_id)?;
+        self.try_lock_store_for(plugin_id)?
+            .rollback(plugin_id, version, hooks, reporter)
+    }
+
+    fn rollback_under_store_lock(
+        &self,
+        plugin_id: &str,
+        version: Option<&str>,
+        hooks: &dyn ActivationHooks,
+        reporter: &dyn JobReporter,
+    ) -> Result<InstallOutcome, InstallError> {
         let _guard = self.locks.try_lock(plugin_id)?;
         let current = self
             .current_state(plugin_id)?
@@ -550,7 +687,16 @@ impl Installer {
         purge_data: Option<&Path>,
         hooks: &dyn ActivationHooks,
     ) -> Result<(), InstallError> {
-        let _operation = crate::locks::try_package_operation(&self.layout.plugins, plugin_id)?;
+        self.try_lock_store_for(plugin_id)?
+            .uninstall(plugin_id, purge_data, hooks)
+    }
+
+    fn uninstall_under_store_lock(
+        &self,
+        plugin_id: &str,
+        purge_data: Option<&Path>,
+        hooks: &dyn ActivationHooks,
+    ) -> Result<(), InstallError> {
         let _guard = self.locks.try_lock(plugin_id)?;
         let target = self.checked_package_dir(plugin_id)?;
         let was_running = hooks.deactivate(plugin_id).map_err(InstallError::io)?;

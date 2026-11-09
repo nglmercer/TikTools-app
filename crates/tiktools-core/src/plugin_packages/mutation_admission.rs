@@ -6,6 +6,9 @@
 //! Product activation also requires a confined native purge path, enforced
 //! invocation/package lock ownership, a verified artifact/runtime review and
 //! a fresh trusted preview to determine whether a commit is install or update.
+//! The caller acquires the local invocation gate, then the store lease, then
+//! short protocol admission. Never acquire the store lease from admission: a
+//! mutating journal remains the durable guard while filesystem work runs.
 use std::path::Path;
 
 use crate::db::{
@@ -14,7 +17,7 @@ use crate::db::{
 use tiktools_cloud_sync::SyncCoordinator;
 use tiktools_plugin_installer::{
     ActivationHooks, CommitOptions, Consent, InstallError, InstallErrorCode, InstallOutcome,
-    Installer, JobReporter, PreparedPackage,
+    JobReporter, LockedPackageStore, PreparedPackage,
 };
 use tiktools_plugin_package::Sha256Hasher;
 
@@ -118,7 +121,7 @@ impl<A: PackageAdmission> PackageJournal<'_, A> {
     fn commit(
         &self,
         kind: PackageMutationKind,
-        installer: &Installer,
+        store: &mut LockedPackageStore<'_>,
         prepared: &PreparedPackage,
         options: &CommitOptions,
         hooks: &dyn ActivationHooks,
@@ -157,13 +160,13 @@ impl<A: PackageAdmission> PackageJournal<'_, A> {
             ],
         );
         self.run(&prepared.manifest.id, kind, &digest, || {
-            installer.commit(prepared, options, hooks, reporter)
+            store.commit(prepared, options, hooks, reporter)
         })
     }
 
     fn rollback(
         &self,
-        installer: &Installer,
+        store: &mut LockedPackageStore<'_>,
         id: &str,
         version: Option<&str>,
         hooks: &dyn ActivationHooks,
@@ -174,13 +177,13 @@ impl<A: PackageAdmission> PackageJournal<'_, A> {
         });
         let digest = operation_digest(id, PackageMutationKind::Rollback, &[present, version_bytes]);
         self.run(id, PackageMutationKind::Rollback, &digest, || {
-            installer.rollback(id, version, hooks, reporter)
+            store.rollback(id, version, hooks, reporter)
         })
     }
 
     fn uninstall(
         &self,
-        installer: &Installer,
+        store: &mut LockedPackageStore<'_>,
         id: &str,
         purge_data: Option<&Path>,
         hooks: &dyn ActivationHooks,
@@ -190,7 +193,7 @@ impl<A: PackageAdmission> PackageJournal<'_, A> {
         });
         let digest = operation_digest(id, PackageMutationKind::Uninstall, &[present, path]);
         self.run(id, PackageMutationKind::Uninstall, &digest, || {
-            installer.uninstall(id, purge_data, hooks)
+            store.uninstall(id, purge_data, hooks)
         })
     }
 }
@@ -199,7 +202,15 @@ impl<A: PackageAdmission> PackageJournal<'_, A> {
 mod tests {
     use super::*;
     use crate::paths::AppPaths;
-    use std::cell::Cell;
+    use std::{
+        cell::Cell,
+        sync::{Arc, RwLock},
+    };
+    use tiktools_plugin_api::HostCompat;
+    use tiktools_plugin_installer::{
+        Installer, InstallerConfig, NoopHooks, NoopReporter, PackageOrigin, SignaturePolicy,
+    };
+    use tiktools_plugin_package::{pack, PackRequest, TrustStore};
 
     struct Admission {
         held: Cell<bool>,
@@ -321,5 +332,101 @@ mod tests {
             operation_digest("other.plugin", PackageMutationKind::Install, &[b"ab", b"c"])
         );
         assert_eq!(digest.len(), 64);
+    }
+
+    #[test]
+    fn real_store_guard_and_journal_span_the_same_package_installation() {
+        let fixture = Fixture::new();
+        let source = fixture.root.join("source");
+        std::fs::create_dir_all(&source).unwrap();
+        let manifest = source.join("plugin.json");
+        let entry = source.join("demo-host");
+        std::fs::write(&entry, b"fixture executable").unwrap();
+        std::fs::write(
+            &manifest,
+            serde_json::to_vec(&serde_json::json!({
+                "schemaVersion": 3, "id": "acme.plugin", "name": "Fixture",
+                "version": "1.0.0", "runtime": "process", "entry": "demo-host"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let archive = fixture.root.join("fixture.plugin");
+        pack(&PackRequest {
+            manifest,
+            entry: Some(entry),
+            output: archive.clone(),
+            target: None,
+        })
+        .unwrap();
+        let config = InstallerConfig {
+            plugins_dir: fixture.root.join("plugins"),
+            store_dir: fixture.root.join("store"),
+            host: HostCompat::new(semver::Version::new(0, 4, 0)),
+            retain_versions: 2,
+            provider_endpoints: None,
+        };
+        let installer = Installer::new(config.clone(), Arc::new(RwLock::new(TrustStore::new())));
+        let other = Installer::new(config, Arc::new(RwLock::new(TrustStore::new())));
+        let prepared = installer
+            .prepare(
+                &archive,
+                PackageOrigin::File,
+                SignaturePolicy::AllowWithConsent,
+            )
+            .unwrap();
+        let mut store = installer.try_lock_store().unwrap();
+        let admission = Admission {
+            held: Cell::new(false),
+        };
+        let journal = PackageJournal {
+            db: &fixture.db,
+            admission: &admission,
+        };
+        let options = CommitOptions {
+            consent: Consent::Implicit {
+                replace_existing: false,
+            },
+            policy: None,
+        };
+        let completed = journal
+            .commit(
+                PackageMutationKind::Install,
+                &mut store,
+                &prepared,
+                &options,
+                &NoopHooks,
+                &NoopReporter,
+            )
+            .unwrap();
+        assert!(completed.result.is_ok());
+        assert_eq!(completed.intent.phase, PackageMutationPhase::Mutating);
+        assert_eq!(
+            store.receipt("acme.plugin").unwrap().unwrap().version,
+            "1.0.0"
+        );
+        assert!(other.try_lock_store().is_err());
+        let saved = fixture.db.package_mutation("acme.plugin").unwrap().unwrap();
+        assert_eq!(saved, completed.intent);
+        drop(store);
+        let mut other_store = other.try_lock_store().unwrap();
+        assert!(journal
+            .commit(
+                PackageMutationKind::Install,
+                &mut other_store,
+                &prepared,
+                &options,
+                &NoopHooks,
+                &NoopReporter
+            )
+            .is_err());
+        assert_eq!(
+            other_store.receipt("acme.plugin").unwrap().unwrap().version,
+            "1.0.0"
+        );
+        assert_eq!(
+            fixture.db.package_mutation("acme.plugin").unwrap().unwrap(),
+            saved
+        );
     }
 }

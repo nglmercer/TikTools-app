@@ -210,6 +210,181 @@ fn installs_checksum_checked_package_atomically_with_receipt() {
 }
 
 #[test]
+fn installation_uses_the_reviewed_bytes_after_archive_replacement() {
+    let root = TempDir::new("reviewed-archive");
+    let installer = installer(&root);
+    let path = root.join("demo.plugin");
+    let manifest = manifest("demo", "1.0.0", serde_json::json!({}));
+    write_archive(
+        &path,
+        &[("plugin.json", &manifest), ("demo-host", b"reviewed")],
+        true,
+    );
+    let prepared = installer
+        .prepare(
+            &path,
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    let reviewed_digest = prepared.digest.to_string();
+    assert_eq!(prepared.path(), fs::canonicalize(&path).unwrap());
+    // The private copy also survives a clone outliving the original review.
+    let prepared_clone = prepared.clone();
+    drop(prepared);
+    write_archive(
+        &path,
+        &[("plugin.json", &manifest), ("demo-host", b"replacement")],
+        true,
+    );
+    let outcome = installer
+        .commit(&prepared_clone, &implicit(false), &NoopHooks, &NoopReporter)
+        .unwrap();
+    assert_eq!(
+        fs::read(root.join("plugins/demo/demo-host")).unwrap(),
+        b"reviewed"
+    );
+    assert_eq!(
+        outcome.receipt.archive_digest.as_deref(),
+        Some(reviewed_digest.as_str())
+    );
+}
+
+#[test]
+fn replacement_cannot_make_a_reviewed_package_without_checksums_installable() {
+    let root = TempDir::new("reviewed-archive-without-checksums");
+    let installer = installer(&root);
+    let path = root.join("demo.plugin");
+    let manifest = manifest("demo", "1.0.0", serde_json::json!({}));
+    write_archive(
+        &path,
+        &[("plugin.json", &manifest), ("demo-host", b"reviewed")],
+        false,
+    );
+    let prepared = installer
+        .prepare(
+            &path,
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    write_archive(
+        &path,
+        &[("plugin.json", &manifest), ("demo-host", b"replacement")],
+        true,
+    );
+    let error = installer
+        .commit(&prepared, &implicit(false), &NoopHooks, &NoopReporter)
+        .unwrap_err();
+    assert_eq!(error.code, InstallErrorCode::InvalidPackage);
+    assert!(!root.join("plugins/demo").exists());
+}
+
+#[test]
+fn retained_store_lease_spans_install_review_rollback_and_uninstall() {
+    let root = TempDir::new("retained-package-lease");
+    let first = installer(&root);
+    let other = installer(&root);
+    let v1 = first
+        .prepare(
+            &demo_package(&root, "demo", "1.0.0", serde_json::json!({})),
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    let v2 = first
+        .prepare(
+            &demo_package(&root, "demo", "2.0.0", serde_json::json!({})),
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    let mut lease = first.try_lock_store().unwrap();
+    assert_eq!(
+        other.try_lock_store().err().unwrap().code,
+        InstallErrorCode::Busy
+    );
+    let installed = lease
+        .commit(&v1, &implicit(false), &NoopHooks, &NoopReporter)
+        .unwrap();
+    assert_eq!(installed.receipt.version, "1.0.0");
+    assert_eq!(lease.receipt("demo").unwrap().unwrap().version, "1.0.0");
+    assert_eq!(lease.installed_manifest("demo").unwrap().version, "1.0.0");
+    assert_eq!(
+        other
+            .commit(&v2, &implicit(true), &NoopHooks, &NoopReporter)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::Busy
+    );
+    lease
+        .commit(&v2, &implicit(true), &NoopHooks, &NoopReporter)
+        .unwrap();
+    assert_eq!(
+        lease
+            .rollback("demo", Some("1.0.0"), &NoopHooks, &NoopReporter)
+            .unwrap()
+            .receipt
+            .version,
+        "1.0.0"
+    );
+    lease.uninstall("demo", None, &NoopHooks).unwrap();
+    assert!(lease.receipt("demo").unwrap().is_none());
+    assert!(lease.installed_manifest("demo").is_none());
+    drop(lease);
+    assert!(other.try_lock_store().is_ok());
+}
+
+#[cfg(unix)]
+#[test]
+fn dropping_store_lease_unlocks_before_an_inherited_descriptor_executes() {
+    use std::{
+        io::Read,
+        os::unix::{net::UnixStream, process::CommandExt},
+    };
+    let root = TempDir::new("package-lease-fork");
+    let first = installer(&root);
+    let other = installer(&root);
+    let lease = first.try_lock_store().unwrap();
+    let (mut parent, mut child) = UnixStream::pair().unwrap();
+    parent
+        .set_read_timeout(Some(std::time::Duration::from_secs(10)))
+        .unwrap();
+    child
+        .set_read_timeout(Some(std::time::Duration::from_secs(10)))
+        .unwrap();
+    let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+    command
+        .arg("--list")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    // Only socket I/O runs in the child between fork and exec.
+    unsafe {
+        command.pre_exec(move || {
+            child.write_all(&[1])?;
+            let mut resume = [0u8; 1];
+            child.read_exact(&mut resume)?;
+            Ok(())
+        });
+    }
+    let handle = std::thread::spawn(move || command.spawn().and_then(|mut process| process.wait()));
+    let mut ready = [0u8; 1];
+    parent.read_exact(&mut ready).unwrap();
+    assert_eq!(
+        other.try_lock_store().err().unwrap().code,
+        InstallErrorCode::Busy
+    );
+    drop(lease);
+    let acquired = other.try_lock_store();
+    parent.write_all(&[1]).unwrap();
+    assert!(handle.join().unwrap().unwrap().success());
+    assert!(
+        acquired.is_ok(),
+        "a forked child must not extend a dropped lease"
+    );
+}
+
+#[test]
 fn rejects_bad_archives_without_touching_plugins() {
     let root = TempDir::new("bad");
     let installer = installer(&root);

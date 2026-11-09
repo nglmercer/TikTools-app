@@ -6081,6 +6081,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "tar",
+ "tempfile",
  "thiserror 2.0.21",
  "tiktools-plugin-api",
  "tiktools-plugin-package",

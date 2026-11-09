@@ -13,7 +13,21 @@ use crate::InstallError;
 /// A lock shared by every cooperating installer for the same plugin root.
 /// Older binaries that do not take it are not fenced. Keep the file outside
 /// `.staging`: cleanup must never unlink its own lock.
-pub(crate) fn try_package_operation(root: &Path, label: &str) -> Result<File, InstallError> {
+#[derive(Debug)]
+pub(crate) struct PackageOperationLease(File);
+
+impl Drop for PackageOperationLease {
+    fn drop(&mut self) {
+        // A child forked before close-on-exec can inherit this descriptor.
+        // Explicit unlock prevents that child from extending our lease.
+        let _ = FileExt::unlock(&self.0);
+    }
+}
+
+pub(crate) fn try_package_operation(
+    root: &Path,
+    label: &str,
+) -> Result<PackageOperationLease, InstallError> {
     fs::create_dir_all(root)?;
     let path = root.join(".tiktools-package-operations.lock");
     match fs::symlink_metadata(&path) {
@@ -50,7 +64,7 @@ pub(crate) fn try_package_operation(root: &Path, label: &str) -> Result<File, In
         }
     }
     match FileExt::try_lock_exclusive(&file) {
-        Ok(()) => Ok(file),
+        Ok(()) => Ok(PackageOperationLease(file)),
         Err(error) if error.kind() == io::ErrorKind::WouldBlock => Err(InstallError::busy(label)),
         Err(error) => Err(error.into()),
     }
