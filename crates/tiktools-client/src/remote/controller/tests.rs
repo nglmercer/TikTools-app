@@ -599,4 +599,5 @@ async fn removing_and_restoring_workflow_permission_rebuilds_under_new_grants() 
 }
 
 mod automation;
+mod competitions;
 mod proposals;

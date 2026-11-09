@@ -1,0 +1,67 @@
+import { ref } from 'vue';
+import { expect, it, vi } from 'vitest';
+import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
+import { createCompetitionModel } from './competitions.ts';
+import type { ControllerStatus } from './controller.ts';
+
+function status(): ControllerStatus {
+  return { epoch:'1', viewRevision:'1', phase:'ready', profile:'desk', origin:'https://host.example', errorCode:null,
+    hello:{ connectionId:'connection', grantRevision:'1', hostId:'host', hostInstanceId:'instance', principalId:'moderator', sessionId:'device',
+      capabilities:['competitions.read'], features:{ competitionSummary:true }, resourceRestrictions:{ competition:['alpha','charlie'] } } };
+}
+const row = (id: string) => ({ id, name:`Competition ${id}`, kind:'poll', lifecycle:'active', generation:'9007199254740993', deadlineMs:null, remainingMs:null });
+const page = (rows: ReturnType<typeof row>[], nextAfter: string | null = null) => ({ epoch:'1', connectionId:'connection', competitions:rows, nextAfter });
+
+it('paginates authorized status without sending mutations', async () => {
+  const current = ref(status());
+  const { client, calls } = createFakeControlClient((method, params) => method === 'controller.status' ? JSON.parse(JSON.stringify(current.value)) :
+    params?.['after'] ? page([row('charlie')]) : page([row('alpha')], 'alpha'));
+  const model = createCompetitionModel(client, { status:current, generation:() => 1, stopped:() => false });
+  await model.refresh(current.value, 1);
+  expect(model.rows.value.map((r) => r.id)).toEqual(['alpha']);
+  await model.next();
+  expect(model.rows.value.map((r) => r.id)).toEqual(['charlie']);
+  await model.previous();
+  expect(model.rows.value[0]?.generation).toBe('9007199254740993');
+  expect(calls.filter((call) => call.method === 'controller.competitions').map((call) => call.params?.['after'])).toEqual([null, 'alpha', null]);
+  expect(calls.every((call) => ['controller.competitions', 'controller.status'].includes(call.method))).toBe(true);
+});
+
+it('never displays delayed rows after scope change or a denied LIVE restriction', async () => {
+  const current = ref(status()); let release!: (value: unknown) => void;
+  const { client, calls } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(current.value)) :
+    new Promise((resolve) => { release = resolve; }));
+  const model = createCompetitionModel(client, { status:current, generation:() => 1, stopped:() => false });
+  const pending = model.refresh(current.value, 1);
+  current.value.hello!.resourceRestrictions = { competition:['charlie'] };
+  current.value.hello!.grantRevision = '2';
+  release(page([row('alpha')])); await pending;
+  expect(model.rows.value).toEqual([]);
+  current.value.hello!.resourceRestrictions = { live:['creator'], competition:['charlie'] };
+  await model.refresh(current.value, 1);
+  expect(model.allowed.value).toBe(false);
+  expect(calls.filter((call) => call.method === 'controller.competitions')).toHaveLength(1);
+});
+
+it('rejects hidden IDs, malformed pages and noncanonical counters', async () => {
+  const current = ref(status());
+  const responses = [page([row('hidden')]), page([{ ...row('alpha'), generation:'01' }]), page([row('charlie'), row('alpha')])];
+  const { client } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(current.value)) : responses.shift());
+  const model = createCompetitionModel(client, { status:current, generation:() => 1, stopped:() => false });
+  vi.useFakeTimers();
+  try {
+    for (let i = 0; i < 3; i += 1) {
+      await model.refresh(current.value, 1);
+      expect(model.rows.value).toEqual([]); expect(model.error.value).toBe('Competition status unavailable');
+      vi.advanceTimersByTime(2000);
+    }
+  } finally { vi.useRealTimers(); }
+});
+
+it('accepts host byte ordering for non-BMP IDs', async () => {
+  const current = ref(status()); current.value.hello!.resourceRestrictions = {};
+  const { client } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(current.value)) : page([row('\uE000'), row('\u{10000}')]));
+  const model = createCompetitionModel(client, { status:current, generation:() => 1, stopped:() => false });
+  await model.refresh(current.value, 1);
+  expect(model.rows.value.map((item) => item.id)).toEqual(['\uE000', '\u{10000}']);
+});

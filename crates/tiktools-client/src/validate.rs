@@ -29,7 +29,7 @@ use tiktools_control_api::modules::automation_library::{
 #[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::cloud::CloudLoginOperationParams;
 use tiktools_control_api::modules::competitions::{
-    CompetitionActionId, CompetitionId, CompetitionResultsRequest,
+    CompetitionActionId, CompetitionId, CompetitionResultsRequest, CompetitionSummaryParams,
     Definition as CompetitionDefinition, ResolveCompetitionAction, SelectWinner,
 };
 use tiktools_control_api::modules::creators::{CreatorGetParams, CreatorsRecentParams};
@@ -253,6 +253,9 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
             .map(|_| ())
             .map_err(invalid),
         "competitions.results" => CompetitionResultsRequest::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "competitions.summary" => CompetitionSummaryParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
         "competitions.list" => Empty::deserialize(params).map(|_| ()).map_err(invalid),

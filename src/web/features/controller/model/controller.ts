@@ -5,6 +5,7 @@ import { createAutomationModel } from './automations.ts';
 import { createProposalModel } from './proposals.ts';
 import { createLiveStatusModel } from './live.ts';
 import { createLiveFeedModel } from './live-feed.ts';
+import { createCompetitionModel } from './competitions.ts';
 
 export interface ControllerStatus {
   draftsSupported?: boolean;
@@ -14,7 +15,7 @@ export interface ControllerStatus {
   pointsRevision?: string; pointsLoading?: boolean; pointsErrorCode?: string | null;
   pairingRequestId?: string | null;
   commandJournal?: CommandJournal | null; commandBusy?: boolean; commandErrorCode?: string | null;
-  hello: { connectionId?: string; grantRevision?: string; hostId: string; principalId: string; sessionId: string; hostInstanceId: string; capabilities: string[]; features: Record<string, boolean>; resourceRestrictions?: Record<string, string[]> } | null;
+  hello: { connectionId?: string; grantRevision?: string; hostId: string; principalId: string; sessionId: string; hostInstanceId: string; capabilities: string[]; features: Record<string, boolean>; resourceRestrictions?: Record<string, string[]>; limits?: { requestsPerSecond: number; requestBurst: number } } | null;
 }
 export type WorkflowOperation = 'disable' | 'delete';
 export interface PendingCommand { commandId: string; operation: WorkflowOperation | 'adjust-points' | 'disable-event' | 'delete-event' | 'create-event-draft' | 'update-event-draft' | 'create-action-draft' | 'update-action-draft'; resourceId: string; hostInstanceId: string; expectedRevision?: string; delta?: number; currencyName?: string; proposalRevision?: string; createdAt: number }
@@ -55,6 +56,9 @@ export function createControllerModel(control: ControlClient) {
   let selection = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
   let unsubscribe: (() => void) | undefined;
+  let nextLowRatePoll = 0;
+  let lowRateTurn = 0;
+  let readBinding = '';
   const key = (s: ControllerStatus) => `${s.epoch}:${s.viewRevision}`;
   const ready = computed(() => status.value.phase === 'ready' && loaded.value === key(status.value));
   const pointsAllowed = computed(() => !!status.value.hello?.features['pointsProjection'] && status.value.hello.capabilities.includes('points.read') && !Object.prototype.hasOwnProperty.call(status.value.hello.resourceRestrictions ?? {}, 'live'));
@@ -90,8 +94,34 @@ export function createControllerModel(control: ControlClient) {
           if (current.epoch !== status.value.epoch || current.phase !== 'ready') { rows.value = []; loaded.value = ''; points.value = null; pointsLoaded.value = ''; draftStorage.reset(); }
           const pairingFinished = status.value.phase === 'pairing' && current.phase === 'idle';
           status.value = current;
-          void live.refresh(current, generation);
-          void liveFeed.refresh(current, generation);
+          const currentReadBinding = JSON.stringify([current.epoch, current.phase, current.profile, current.origin, current.hello]);
+          if (currentReadBinding !== readBinding) {
+            // Never keep the previous scope visible while low-rate polling
+            // waits for its next turn.
+            live.clear(); liveFeed.clear(); competitions.clear();
+            nextLowRatePoll = 0; lowRateTurn = 0; readBinding = currentReadBinding;
+          }
+          const rate = current.hello?.limits?.requestsPerSecond ?? 30;
+          if (rate <= 2 && competitions.allowed.value) {
+            // Share a small request budget across optional live/competition
+            // reads, leaving capacity for the native heartbeat and points.
+            if (performance.now() >= nextLowRatePoll) {
+              const reads = [live, liveFeed, competitions];
+              for (let offset = 0; offset < reads.length; offset += 1) {
+                const index = (lowRateTurn + offset) % reads.length;
+                const read = reads[index]!;
+                if (!read.allowed.value) continue;
+                lowRateTurn = (index + 1) % reads.length;
+                nextLowRatePoll = performance.now() + (rate <= 1 ? 3000 : 1500);
+                void read.refresh(current, generation);
+                break;
+              }
+            }
+          } else {
+            void live.refresh(current, generation);
+            void liveFeed.refresh(current, generation);
+            void competitions.refresh(current, generation);
+          }
           void proposals.refresh();
           if (pairingFinished) await inventory();
           if (current.hello) scope.value = JSON.stringify([current.origin, current.hello.hostId, current.hello.principalId, current.hello.sessionId]);
@@ -120,7 +150,7 @@ export function createControllerModel(control: ControlClient) {
         } catch (failure) {
           if (stopped) return;
           if (generation !== selection) { dirty = true; continue; }
-          rows.value = []; loaded.value = ''; live.clear(); liveFeed.clear();
+          rows.value = []; loaded.value = ''; live.clear(); liveFeed.clear(); competitions.clear();
           error.value = failure instanceof Error ? failure.message : 'Controller unavailable';
           // Next native change/heartbeat retries the read, never a mutation.
         }
@@ -153,7 +183,7 @@ export function createControllerModel(control: ControlClient) {
   }
   async function connect(profile: string): Promise<void> {
     const generation = ++selection;
-    draftStorage.reset(); automation.clear(); live.clear(); liveFeed.clear();
+    draftStorage.reset(); automation.clear(); live.clear(); liveFeed.clear(); competitions.clear();
     busy.value = true; rows.value = []; points.value = null; pointsLoaded.value = ''; loaded.value = ''; scope.value = ''; status.value = { ...idle(), phase: 'connecting', profile };
     try { await control.call('controller.connect', { profile }); if (generation === selection) await refresh(); }
     catch (failure) { if (generation === selection) { error.value = failure instanceof Error ? failure.message : 'Connection failed'; await refresh(); } }
@@ -161,7 +191,7 @@ export function createControllerModel(control: ControlClient) {
   }
   async function disconnect(): Promise<void> {
     selection += 1;
-    draftStorage.reset(); automation.clear(); live.clear(); liveFeed.clear();
+    draftStorage.reset(); automation.clear(); live.clear(); liveFeed.clear(); competitions.clear();
     busy.value = true; loaded.value = ''; rows.value = []; points.value = null; pointsLoaded.value = '';
     try { await control.call('controller.disconnect'); await refresh(); } finally { busy.value = false; }
   }
@@ -295,8 +325,9 @@ export function createControllerModel(control: ControlClient) {
   const proposals = createProposalModel(control, { status, blocked: () => commandBlocked.value, journalMatches, send: commandCall });
   const live = createLiveStatusModel(control, { status, generation: () => selection, stopped: () => stopped });
   const liveFeed = createLiveFeedModel(control, { status, generation: () => selection, stopped: () => stopped });
-  function stop(): void { proposals.stop(); automation.clear(); live.clear(); liveFeed.clear(); stopped = true; if (timer) clearInterval(timer); unsubscribe?.(); control.detach(); rows.value = []; points.value = null; pointsLoaded.value = ''; draftStorage.stop(); status.value = idle(); loaded.value = ''; scope.value = ''; drafts.clear(); }
-  return { proposals, automation, live, liveFeed, status, profiles, rows, points, pointsError, pointsAllowed, selectPoints, pointsCanAdjust, preparePoints, pointsIsCurrent, adjustPoints, error, busy, ready, commandSending, commandBlocked, canChange, canResolve, canReview, prepareForget, profileForgetCurrent, forgetProfile,
+  const competitions = createCompetitionModel(control, { status, generation: () => selection, stopped: () => stopped });
+  function stop(): void { proposals.stop(); automation.clear(); live.clear(); liveFeed.clear(); competitions.clear(); stopped = true; if (timer) clearInterval(timer); unsubscribe?.(); control.detach(); rows.value = []; points.value = null; pointsLoaded.value = ''; draftStorage.stop(); status.value = idle(); loaded.value = ''; scope.value = ''; drafts.clear(); }
+  return { proposals, automation, live, liveFeed, competitions, status, profiles, rows, points, pointsError, pointsAllowed, selectPoints, pointsCanAdjust, preparePoints, pointsIsCurrent, adjustPoints, error, busy, ready, commandSending, commandBlocked, canChange, canResolve, canReview, prepareForget, profileForgetCurrent, forgetProfile,
     prepareCommand, commandIsCurrent, changeWorkflow, resolveCommand, prepareReview, reviewIsCurrent, reviewUnknown,
     inventory, refresh, start, stop, connect, disconnect, draft, draftIds, editRetainedDraft, edit, discard, rebaseDraft, draftStorage };
 }

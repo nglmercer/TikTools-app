@@ -4,8 +4,9 @@ use tiktools_control_api::{
     modules::{
         competitions::{
             CompetitionActionId, CompetitionActionResult, CompetitionId, CompetitionList,
-            CompetitionResults, CompetitionResultsRequest, Definition, LifecycleState,
-            ManualCandidates, ResolveCompetitionAction, ResultRecord, SelectWinner,
+            CompetitionResults, CompetitionResultsRequest, CompetitionSummaryPage,
+            CompetitionSummaryParams, Definition, LifecycleState, ManualCandidates,
+            ResolveCompetitionAction, ResultRecord, SelectWinner,
         },
         Empty, OkResult,
     },
@@ -29,8 +30,15 @@ pub(crate) const METHODS: &[&str] = &[
     "competitions.delete",
     "competitions.list",
     "competitions.get",
+    "competitions.summary",
 ];
 impl TikToolsClient {
+    pub async fn competitions_summary(
+        &self,
+        params: CompetitionSummaryParams,
+    ) -> Result<CompetitionSummaryPage, ClientError> {
+        self.call("competitions.summary", params).await
+    }
     pub async fn competitions_create(
         &self,
         definition: Definition,

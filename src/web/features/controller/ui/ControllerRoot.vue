@@ -8,6 +8,7 @@ import ControllerAutomations from './ControllerAutomations.vue';
 import ControllerProposals from './ControllerProposals.vue';
 import ControllerLiveStatus from './ControllerLiveStatus.vue';
 import ControllerLiveFeed from './ControllerLiveFeed.vue';
+import ControllerCompetitions from './ControllerCompetitions.vue';
 import type { LiveFeedEvent } from '../model/live-feed.ts';
 import type { DraftSaveTarget } from '../model/drafts.ts';
 
@@ -370,6 +371,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
     </p>
     <ControllerLiveStatus :model="model.live" />
     <ControllerLiveFeed :model="model.liveFeed" :can-lookup-points="canLookupFeedViewer" :show-ambiguous-viewer="ready && pointsAllowed" @lookup-points="lookupFeedViewer" />
+    <ControllerCompetitions :model="model.competitions" />
     <ControllerAutomations
       :model="model.automation"
       :epoch="status.epoch"

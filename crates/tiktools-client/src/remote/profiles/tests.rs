@@ -412,6 +412,71 @@ async fn recovery_resumes_unacknowledged_events_and_replaces_the_baseline_after_
 }
 
 #[tokio::test]
+async fn recovery_resumes_at_minimum_gateway_rate() {
+    let f = Fixture::configured(
+        |_| {},
+        |config| {
+            config.limits.requests_per_second = 1;
+            config.limits.request_burst = 1;
+            config.limits.frame_bytes = 4096;
+            config.limits.params_bytes = 4096;
+        },
+    )
+    .await;
+    for n in 0..12 {
+        f.core.workflow_save(json!({"id":format!("workflow-{n:02}"),"name":format!("{n:02}-{}", "x".repeat(100))})).unwrap();
+    }
+    let creds = f
+        .pair(tiktools_collaboration::Grant {
+            capabilities: [tiktools_collaboration::Capability::WorkflowsRead].into(),
+            ..Default::default()
+        })
+        .await;
+    let session = creds.session_id().to_owned();
+    let manager = manager(&f, Arc::new(Store::default()));
+    manager
+        .install("limited-recovery", &f.endpoint, creds, ClientKind::Agent)
+        .await
+        .unwrap();
+    let remote = manager.open("limited-recovery").await.unwrap();
+    let mut stream = RecoveryStream::start(remote.clone(), [StreamDomain::Workflows].into())
+        .await
+        .unwrap();
+    assert_eq!(stream.baseline().unwrap().workflows.len(), 12);
+    let baseline = stream.baseline().unwrap();
+    let encoded_rows: usize = baseline
+        .workflows
+        .iter()
+        .zip(&baseline.resource_versions)
+        .map(|(row, version)| {
+            serde_json::to_vec(row).unwrap().len() + serde_json::to_vec(version).unwrap().len() + 2
+        })
+        .sum();
+    assert!(
+        encoded_rows > tiktools_collaboration::snapshot_page_bytes(4096),
+        "fixture must span snapshot pages"
+    );
+    let snapshot = stream.baseline().unwrap().snapshot_id.clone();
+    remote.close();
+    disconnected(&f).await;
+    // Upgrade itself consumes a token; let it refill before opening again.
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    assert_eq!(stream.reconnect().await.unwrap(), RecoveryMode::Resumed);
+    assert_eq!(stream.baseline().unwrap().snapshot_id, snapshot);
+    f.service.revoke_session(&session, "local-owner").unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while stream.is_ready() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(stream.baseline().is_none());
+    stream.connection().close();
+    f.finish().await;
+}
+
+#[tokio::test]
 async fn points_only_recovery_replays_then_resnapshots_after_grant_change() {
     use tiktools_collaboration::{Capability, Grant, ResourceKind};
     let f = Fixture::new().await;

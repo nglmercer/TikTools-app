@@ -172,6 +172,10 @@ impl ControlApi {
             );
         }
         router.set_remote_policy(
+            "competitions.summary",
+            policy::RemotePolicy::Capability(RemoteCapability::CompetitionsRead),
+        );
+        router.set_remote_policy(
             "automation.disable",
             policy::RemotePolicy::Capability(RemoteCapability::AutomationToggle),
         );
@@ -263,6 +267,13 @@ impl ControlApi {
             return Err(context::forbidden());
         }
         let grant = session.grant()?;
+        if method == "competitions.summary"
+            && grant
+                .resources
+                .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
+        {
+            return Err(context::forbidden());
+        }
         if method.starts_with("automation.") && !policy::automation_read_allowed(&grant) {
             return Err(context::forbidden());
         }
@@ -309,6 +320,62 @@ impl ControlApi {
     ) -> Result<(), ApiError> {
         self.authorize_remote(session, method)?;
         let grant = session.grant()?;
+        if method == "competitions.summary" {
+            if !grant
+                .capabilities
+                .contains(&RemoteCapability::CompetitionsRead)
+                || grant
+                    .resources
+                    .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
+            {
+                return Err(context::forbidden());
+            }
+            if serde_json::from_value::<tiktools_core::control::CompetitionSummaryPage>(
+                result.clone(),
+            )
+            .is_err()
+            {
+                return Err(context::forbidden());
+            }
+            let allowed = |id: &str| {
+                grant.allows_resource(tiktools_core::collaboration::ResourceKind::Competition, id)
+            };
+            let rows = result
+                .get("competitions")
+                .and_then(Value::as_array)
+                .ok_or_else(context::forbidden)?;
+            if result.as_object().is_none_or(|obj| {
+                obj.len() != 2
+                    || obj
+                        .keys()
+                        .any(|key| !matches!(key.as_str(), "competitions" | "nextAfter"))
+            }) || rows.len() > 50
+                || !rows.iter().all(|row| {
+                    row.as_object().is_some_and(|obj| {
+                        obj.len() == 7
+                            && obj.keys().all(|key| {
+                                matches!(
+                                    key.as_str(),
+                                    "id" | "name"
+                                        | "kind"
+                                        | "lifecycle"
+                                        | "generation"
+                                        | "deadlineMs"
+                                        | "remainingMs"
+                                )
+                            })
+                    }) && row.get("id").and_then(Value::as_str).is_some_and(allowed)
+                })
+                || !result.get("nextAfter").is_some_and(|value| {
+                    value.is_null()
+                        || value.as_str().is_some_and(|id| {
+                            allowed(id) && rows.last().and_then(|row| row.get("id")) == Some(value)
+                        })
+                })
+            {
+                return Err(context::forbidden());
+            }
+        }
         if method == "ui.feed.creator"
             && !result
                 .get("creatorId")

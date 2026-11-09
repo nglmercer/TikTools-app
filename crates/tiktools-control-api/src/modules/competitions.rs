@@ -11,6 +11,7 @@ use tiktools_competitions::Transition;
 pub use tiktools_competitions::{
     ActionExecution, ActionResolution, Definition, LifecycleState, ResultRecord,
 };
+pub use tiktools_core::control::{CompetitionSummary, CompetitionSummaryPage};
 use tiktools_core::AppCore;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -20,6 +21,15 @@ pub struct CompetitionId {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CompetitionList {
     pub competitions: Vec<Definition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompetitionSummaryParams {
+    #[serde(default)]
+    pub after: Option<String>,
+    #[serde(default)]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -68,6 +78,26 @@ pub struct ManualCandidates {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_contextual::<CompetitionSummaryParams, tiktools_core::control::CompetitionSummaryPage, _, _>(
+        "competitions.summary",
+        "Read bounded authorized competition status without definitions or participants",
+        |core, context, params| async move {
+            let grant = match &context {
+                crate::RequestContext::LocalOwner => tiktools_core::collaboration::Grant {
+                    capabilities: [tiktools_core::collaboration::Capability::CompetitionsRead].into(),
+                    ..Default::default()
+                },
+                crate::RequestContext::Remote(session) => session.grant()?,
+            };
+            let budget = match &context {
+                crate::RequestContext::Remote(session) => session.connection_limits().map_or(512 * 1024, |v| v.frame_bytes / 2),
+                _ => 512 * 1024,
+            };
+            crate::modules::blocking_task("competitions.summary", move || {
+                core.competition_summary_page(&grant, params.after.as_deref(), params.limit.unwrap_or(20), budget)
+            }).await?.map_err(ApiError::from)
+        },
+    );
     router.register_typed::<Definition, OkResult, _, _>(
         "competitions.create",
         "Create a competition definition",

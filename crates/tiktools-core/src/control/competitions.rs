@@ -1,7 +1,123 @@
 //! Competition definition operations. The host owns the authoritative state.
 use super::OperationError;
 use crate::{recover_mutex, AppCore};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use tiktools_competitions::Definition;
+
+/// Read-only remote projection. Definitions, commands, winner actions,
+/// ranking IDs and participant information never leave the host here.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompetitionSummary {
+    pub id: String,
+    pub name: String,
+    pub kind: tiktools_competitions::CompetitionKind,
+    pub lifecycle: tiktools_competitions::Lifecycle,
+    pub generation: String,
+    pub deadline_ms: Option<String>,
+    pub remaining_ms: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompetitionSummaryPage {
+    pub competitions: Vec<CompetitionSummary>,
+    pub next_after: Option<String>,
+}
+
+impl AppCore {
+    /// Coherent bounded status page filtered before serialization. This is a
+    /// live keyset view, not a snapshot or authority to issue a command.
+    pub fn competition_summary_page(
+        &self,
+        grant: &crate::collaboration::Grant,
+        after: Option<&str>,
+        limit: usize,
+        byte_budget: usize,
+    ) -> Result<CompetitionSummaryPage, OperationError> {
+        use crate::collaboration::{Capability, ResourceKind};
+        if !grant.capabilities.contains(&Capability::CompetitionsRead)
+            || grant.resources.contains_key(&ResourceKind::Live)
+        {
+            return Err(OperationError::forbidden(
+                "competition status is unavailable",
+            ));
+        }
+        if !(1..=50).contains(&limit)
+            || after.is_some_and(|id| {
+                id.is_empty() || id.len() > 128 || id.chars().any(char::is_control)
+            })
+            || byte_budget < 1024
+        {
+            return Err(OperationError::invalid("invalid competition page"));
+        }
+        let _mutation = recover_mutex(&self.competitions.mutations, "competition mutations");
+        if self.competitions.load_failed {
+            return Err(OperationError::unavailable(
+                "competition definitions unavailable",
+            ));
+        }
+        let definitions = recover_mutex(&self.competitions.definitions, "competition definitions");
+        let mut rows = Vec::new();
+        // Reserve space for the JSON envelope and a fully escaped cursor.
+        let mut bytes = 512usize;
+        let mut more = false;
+        for (id, definition) in definitions.iter() {
+            if after.is_some_and(|cursor| id.as_str() <= cursor)
+                || !grant.allows_resource(ResourceKind::Competition, id)
+            {
+                continue;
+            }
+            if rows.len() == limit {
+                more = true;
+                break;
+            }
+            if id.is_empty()
+                || id.len() > 128
+                || id.chars().any(char::is_control)
+                || definition.name.trim().is_empty()
+                || definition.name.len() > 256
+                || definition.name.chars().any(char::is_control)
+            {
+                return Err(OperationError::unavailable("competition status is invalid"));
+            }
+            let state = self.competition_state(id)?;
+            let row = CompetitionSummary {
+                id: id.clone(),
+                name: definition.name.clone(),
+                kind: definition.kind,
+                lifecycle: state.lifecycle,
+                generation: state.generation.to_string(),
+                deadline_ms: state.deadline_ms.map(|value| value.to_string()),
+                remaining_ms: state.remaining_ms.map(|value| value.to_string()),
+            };
+            let row_bytes = serde_json::to_vec(&row)
+                .map_err(|_| OperationError::internal("competition status serialization failed"))?
+                .len();
+            if bytes.saturating_add(row_bytes).saturating_add(1) > byte_budget {
+                if rows.is_empty() {
+                    return Err(OperationError::unavailable(
+                        "competition page exceeds transport limit",
+                    ));
+                }
+                more = true;
+                break;
+            }
+            bytes += row_bytes + 1;
+            rows.push(row);
+        }
+        let next_after = if more {
+            rows.last().map(|row| row.id.clone())
+        } else {
+            None
+        };
+        Ok(CompetitionSummaryPage {
+            competitions: rows,
+            next_after,
+        })
+    }
+}
 
 /// Presentation transports have a per-message limit. Preserve accounting
 /// totals and order while dropping optional artwork/identity first, then

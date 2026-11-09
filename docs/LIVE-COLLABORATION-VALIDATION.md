@@ -37,6 +37,47 @@ The v3 policy adds bounded scripts and exact-topic scoped emits with inherited
 authority through downstream rules. Broader remote activation, delegated plugin
 execution, HTTP response emission and full product acceptance remain pending.
 
+## Scoped competition status
+
+The controller can read a bounded, paginated competition status projection
+when its grant includes `competitions.read`. Each page contains only an
+authorized competition's ID, name, kind, lifecycle and time/generation
+metadata; definitions, ranking IDs, participant information and winner
+actions stay on the host. A grant restricted by LIVE creator is denied until
+competitions have a verified creator association. The host rechecks the grant
+against the rows immediately before remote delivery; the native controller
+also binds a reply to the current connection and grant, and its UI clears
+stale results on scope changes. The UI polls periodically; at very low gateway
+request limits it rotates among LIVE, feed and competition reads and leaves
+capacity for the native heartbeat or points refresh. Keyset pages are live,
+not a coherent replayable snapshot. At advertised limits of at most two
+requests per second, a competition-enabled controller without a recovery
+stream refreshes its identity and grant every five seconds. Its displayed
+grant can therefore lag a host-side change until the next successful refresh
+or disconnect; a rate-limited heartbeat is retried. The gateway continues to
+authorize each request and response. Competition mutations remain unavailable
+remotely.
+
+An isolated ControlApi fixture exercised pagination, projection, denial of
+mutations and LIVE-restricted grants, and response reauthorization after a
+grant change. A native controller connected over local TLS exercised the same
+scope, reconnect and redaction path. A separate local TLS test exercises a
+competition-only grant at one request per second and burst one. Frontend tests
+cover pagination, stale replies, malformed data, escaped rendering and a
+simulated low-rate polling schedule. These tests do not
+demonstrate remote competition mutations, a real TikTok LIVE or two physical
+PCs.
+
+Recovery retries only explicit pre-dispatch rate-limit rejections for
+subscribe, snapshot pages and resume; transport failures and timeouts are not
+retried. Local TLS tests at one request per second cover combined competition,
+workflow, points and LIVE grants, as well as a multipage workflow baseline,
+resume and revocation. Snapshot pages retain the existing 30-second lifetime.
+At a very low request rate, a sufficiently large multipage baseline can expire
+before it is fully read, so recovery for every allowed baseline size is not
+guaranteed at the minimum gateway quota. An explicit early capacity check and
+recovery of larger baselines remain future work.
+
 ## Creator-scoped LIVE feed
 
 The new `ui.feed.creator` read checks the authenticated `live.read` grant for
@@ -49,7 +90,8 @@ reset or eviction; a random-source failure makes scoped history unavailable.
 The at-most-64-stream bound can expose that a stream was evicted, but does not
 identify other creators or expose their activity counts. The desktop selects
 among the current grant's creators and clears old rows on a scope or connection
-change; it polls every two seconds and retains at most 100 displayed rows.
+change; it normally polls every two seconds, slows when the host advertises a
+low request limit, and retains at most 100 displayed rows.
 
 The gap flag also reports known ingress drops attributable to a stamped native
 generation. The pump binds a generation only when native discovery verified

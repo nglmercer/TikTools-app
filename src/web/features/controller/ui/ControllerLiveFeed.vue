@@ -8,7 +8,7 @@ const emit = defineEmits<{ lookupPoints: [event: LiveFeedEvent] }>();
 const { locale } = useI18n();
 const text = computed(() => locale.value === 'es' ? {
   title: 'Actividad del LIVE', empty: 'Todavía no hay actividad disponible.', gap: 'Se perdió parte de la actividad; la lista puede estar incompleta.',
-  unavailable: 'No se pudo consultar la actividad del LIVE.', polling: 'Se consulta cada dos segundos y puede incluir actividad anterior. Algunos eventos pueden faltar aunque no aparezca un aviso.',
+  unavailable: 'No se pudo consultar la actividad del LIVE.', polling: 'Se consulta periódicamente y puede incluir actividad anterior. Algunos eventos pueden faltar aunque no aparezca un aviso.',
   kind: 'Tipo de actividad', all: 'Toda la actividad', search: 'Buscar en actividad visible', noMatches: 'Ninguna actividad visible coincide con los filtros.',
   creator: 'Creador autorizado',
   points: (id: string) => `Consultar puntos de @${id}`,
@@ -16,7 +16,7 @@ const text = computed(() => locale.value === 'es' ? {
   kinds: { chat: 'Chat', gift: 'Regalo', like: 'Me gusta', member: 'Ingreso', social: 'Social' } as Record<string, string>,
 } : {
   title: 'LIVE activity', empty: 'No activity is available yet.', gap: 'Some activity was missed; this list may be incomplete.',
-  unavailable: 'LIVE activity is unavailable.', polling: 'Checked every two seconds; earlier activity may be included. Some events may be missing even when no warning is shown.',
+  unavailable: 'LIVE activity is unavailable.', polling: 'Checked periodically; earlier activity may be included. Some events may be missing even when no warning is shown.',
   kind: 'Activity type', all: 'All activity', search: 'Search visible activity', noMatches: 'No visible activity matches these filters.',
   creator: 'Allowed creator',
   points: (id: string) => `Look up points for @${id}`,

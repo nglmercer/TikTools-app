@@ -16,6 +16,7 @@ use tiktools_control_api::modules::collaboration::HelloResult;
 use tokio::sync::{watch, Mutex};
 mod automations;
 mod commands;
+mod competitions;
 mod drafts;
 mod live_status;
 mod points;
@@ -461,6 +462,7 @@ impl Controller {
             "controller.points.select"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,unique_id:Option<String>}let p:P=parse(params)?;self.select_points(&p.epoch,p.unique_id)},
             "controller.live.status"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,connection_id:String}let p:P=parse(params)?;self.live_status(&p.epoch,&p.connection_id).await},
             "controller.live.feed"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,connection_id:String,after:String,creator_id:Option<String>,stream_id:Option<String>}let p:P=parse(params)?;self.live_feed(&p.epoch,&p.connection_id,&p.after,p.creator_id.as_deref(),p.stream_id.as_deref()).await},
+            "controller.competitions"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,connection_id:String,after:Option<String>}let p:P=parse(params)?;self.competitions(&p.epoch,&p.connection_id,p.after.as_deref()).await},
             "controller.workflow.command"=>self.workflow_command(parse(params)?).await,
             "controller.points.command"=>self.points_command(parse(params)?).await,
             "controller.automation.command"=>self.automation_command(parse(params)?).await,
@@ -657,7 +659,7 @@ async fn run(
                     if points::due(&shared,&epoch) {
                         match points::refresh(&shared,&epoch,&remote).await {
                             Ok(())=>Ok(()),
-                            Err(e) if matches!(e.code.as_str(),"too_large"|"internal"|"storage")=>{points::failure(&shared,&epoch,&e);Ok(())},
+                            Err(e) if matches!(e.code.as_str(),"too_large"|"internal"|"storage"|"rate_limited")=>{points::failure(&shared,&epoch,&e);Ok(())},
                             Err(e)=>Err(e),
                         }
                     } else {Ok(())}
@@ -666,7 +668,20 @@ async fn run(
         } else {
             // Without a domain stream there is no epoch-gap notification.
             // Refresh hello when the live identity's permissions change.
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            // A minimal-rate host needs room for the controller's permitted
+            // reads as well as this authorization heartbeat. A rejected
+            // heartbeat is retried; it is not evidence of a lost connection.
+            let period = if remote
+                .hello()
+                .capabilities
+                .contains(&Capability::CompetitionsRead)
+                && remote.hello().limits.requests_per_second <= 2
+            {
+                5
+            } else {
+                1
+            };
+            tokio::time::sleep(Duration::from_secs(period)).await;
             if remote.is_closed() {
                 Err(network())
             } else {
@@ -681,6 +696,7 @@ async fn run(
                         continue
                     }
                     Ok(_) => Err(fail("resync_required", "remote permissions changed")),
+                    Err(e) if e.code == "rate_limited" => continue,
                     Err(e) => Err(e),
                 }
             }

@@ -8,11 +8,11 @@ const { locale } = useI18n();
 const text = computed(() => locale.value === 'es' ? {
   title: 'LIVE del anfitrión', connected: 'Conectado al LIVE', disconnected: 'Sin conexión al LIVE',
   creator: 'Creador', loading: 'Consultando el estado del LIVE…', unavailable: 'No se pudo consultar el estado del LIVE.',
-  polling: 'El estado se consulta cada dos segundos mientras el controlador está conectado.',
+  polling: 'El estado se consulta periódicamente mientras el controlador está conectado.',
 } : {
   title: 'Host LIVE', connected: 'Connected to LIVE', disconnected: 'Not connected to LIVE',
   creator: 'Creator', loading: 'Checking LIVE status…', unavailable: 'LIVE status is unavailable.',
-  polling: 'Status is checked every two seconds while the controller is connected.',
+  polling: 'Status is checked periodically while the controller is connected.',
 });
 </script>
 
