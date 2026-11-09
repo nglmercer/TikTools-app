@@ -152,7 +152,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         .unwrap();
     core.plugin_set_enabled("acme.hotkeys", true).unwrap();
     let proof = sync
-        .prepare_v2_reconciliation_barrier(session.clone())
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
         .await
         .unwrap();
     assert!(sync
@@ -169,10 +169,19 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         .review_untracked_selection("acme.hotkeys")
         .unwrap()
         .unwrap();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.other".into())
+        .await
+        .unwrap();
+    assert!(sync
+        .with_v2_reconciliation_barrier(&proof, |admission| source
+            .reconcile_reviewed_under_barrier(&reviewed, admission))
+        .is_err());
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
     let wrong_account =
         crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&core, &origin, "bob");
     let proof = sync
-        .prepare_v2_reconciliation_barrier(session.clone())
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
         .await
         .unwrap();
     assert!(sync
@@ -191,7 +200,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         .unwrap()
         .unwrap();
     let proof = sync
-        .prepare_v2_reconciliation_barrier(session.clone())
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
         .await
         .unwrap();
     assert!(sync
@@ -205,7 +214,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     let _ = std::fs::remove_dir_all(other_root);
 
     let proof = sync
-        .prepare_v2_reconciliation_barrier(session.clone())
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
         .await
         .unwrap();
     sync.with_v2_reconciliation_barrier(&proof, |admission| {

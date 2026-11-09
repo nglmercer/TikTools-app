@@ -38,7 +38,7 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
     let worker_session = session.clone();
     let task = tokio::spawn(async move {
         worker_sync
-            .prepare_v2_reconciliation_barrier(worker_session)
+            .prepare_v2_reconciliation_barrier(worker_session, "acme.plugin".into())
             .await
     });
     tokio::time::timeout(
@@ -64,12 +64,12 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
 
     mock.inner.lock().unwrap().v2_epoch_required = Some(false);
     assert!(sync
-        .prepare_v2_reconciliation_barrier(session.clone())
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
         .await
         .is_err());
     mock.inner.lock().unwrap().v2_epoch_required = Some(true);
     let proof = sync
-        .prepare_v2_reconciliation_barrier(session.clone())
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
         .await
         .unwrap();
     assert!(source_gate.try_emission().is_err());
@@ -77,6 +77,8 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
         .with_v2_reconciliation_barrier(&proof, |ctx| {
             assert!(ctx.matches_source_dir(&dir.join("plugin-sync-emission")));
             assert!(!ctx.matches_source_dir(&dir.join("other-source")));
+            assert_eq!(ctx.target().collection, "plugin-selections");
+            assert_eq!(ctx.target().key, "acme.plugin");
             let ctx = ctx.context();
             Ok((
                 ctx.origin.clone(),
@@ -94,7 +96,7 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
     assert!(source_gate.try_emission().is_ok());
 
     let proof = sync
-        .prepare_v2_reconciliation_barrier(session.clone())
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
         .await
         .unwrap();
     assert!(sync
@@ -108,7 +110,7 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
         .is_err());
 
     let proof = sync
-        .prepare_v2_reconciliation_barrier(session.clone())
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
         .await
         .unwrap();
     let store =
@@ -124,7 +126,7 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
         .is_err());
     drop(proof);
     assert!(sync
-        .prepare_v2_reconciliation_barrier(session.clone())
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
         .await
         .is_err());
 
@@ -143,7 +145,7 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
     clean.mark_product_guarded();
     store.save(Some(store_snapshot.generation), &clean).unwrap();
     let proof = sync
-        .prepare_v2_reconciliation_barrier(session.clone())
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
         .await
         .unwrap();
     auth.logout().await.unwrap();

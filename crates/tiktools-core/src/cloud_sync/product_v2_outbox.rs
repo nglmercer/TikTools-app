@@ -89,7 +89,11 @@ impl<'a> SqliteV2ProductSource<'a> {
         admission: &tiktools_cloud_sync::V2ReconciliationAdmission<'_>,
     ) -> Result<(), WorkspaceCoordError> {
         let context = admission.context();
-        if context.origin != self.origin || context.account_id != self.account {
+        if context.origin != self.origin
+            || context.account_id != self.account
+            || admission.target().collection != "plugin-selections"
+            || admission.target().key != review.source.plugin_id
+        {
             return Err(WorkspaceCoordError::Ineligible);
         }
         self.with_untracked_source(

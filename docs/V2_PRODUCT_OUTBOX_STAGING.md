@@ -138,8 +138,8 @@ barrier for older in-flight writes before transferring any marker. There is no
 product or UI call to this primitive, and no automatic reconciliation.
 An experimental coordinator now obtains a fresh required-epoch observation and
 server barrier, then retains the exclusive cooperative source lease while an
-opaque, single-use confirmation is valid. Confirmation rechecks the same
-session, consent and unchanged product workspace under their locks; pending
+opaque, single-use confirmation for one exact plugin is valid. Confirmation
+rechecks the same plugin, session, consent and unchanged product workspace under their locks; pending
 workspace edits reject the operation. The proof expires after 60 seconds and
 normally releases the source lease even if the caller retains it. A blocked
 native confirmation can still retain its lease until it returns. This may make
@@ -148,6 +148,9 @@ the source/runtime under this already-held lease, require an explicit user
 choice and handle failed or uncertain native commits. Legacy emitters, mixed
 backend versions, noncooperating processes and full UI integration remain
 outside this experimental guarantee.
+The barrier does not itself read the remote record or provide a current
+Cloud/local comparison. Product review must obtain and revalidate that
+comparison before a user decision can be applied.
 The native local-review adapter can consume the callback's non-serializable
 admission without reacquiring the exclusive lease. It checks the canonical
 source directory, origin and account, then revalidates the exact source,

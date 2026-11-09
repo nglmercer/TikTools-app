@@ -26,6 +26,7 @@ pub struct V2ReconciliationBarrier {
     consumed: AtomicBool,
     source_guard: Arc<Mutex<Option<crate::ProductEmissionLease>>>,
     source_dir: PathBuf,
+    target: cloud_client::WorkspaceKey,
 }
 
 /// Borrowed evidence that the reconciliation callback owns the source lease.
@@ -33,10 +34,14 @@ pub struct V2ReconciliationBarrier {
 pub struct V2ReconciliationAdmission<'a> {
     context: V2LocalEditContext,
     source_dir: &'a Path,
+    target: &'a cloud_client::WorkspaceKey,
 }
 impl V2ReconciliationAdmission<'_> {
     pub fn context(&self) -> &V2LocalEditContext {
         &self.context
+    }
+    pub fn target(&self) -> &cloud_client::WorkspaceKey {
+        self.target
     }
     /// Confirm the native source uses the same on-disk fence. An unavailable
     /// or changed directory fails closed; noncooperating filesystem writers
@@ -86,9 +91,11 @@ impl SyncCoordinator {
     pub async fn prepare_v2_reconciliation_barrier(
         &self,
         session: Arc<Session>,
+        plugin_id: String,
     ) -> Result<V2ReconciliationBarrier, WorkspaceCoordError> {
         let sync = self.clone();
         crate::v2_product_outbox::run_product_worker(move |cancelled, deadline| async move {
+            let target = cloud_client::WorkspaceKey::new("plugin-selections", plugin_id)?;
             let config = sync
                 .capture_v2_config_epoch(&session)
                 .ok_or(WorkspaceCoordError::Ineligible)?;
@@ -155,6 +162,7 @@ impl SyncCoordinator {
                 consumed: AtomicBool::new(false),
                 source_guard,
                 source_dir,
+                target,
             })
         })
         .await
@@ -223,6 +231,7 @@ impl SyncCoordinator {
                         config_generation: proof.config.config.generation,
                     },
                     source_dir: &proof.source_dir,
+                    target: &proof.target,
                 })
             })
             .map_err(|_| WorkspaceCoordError::Ineligible)?;
