@@ -533,10 +533,69 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         )
     );
     let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection.execute_batch("CREATE TRIGGER fail_v2_apply BEFORE UPDATE OF enabled ON behavior_plugins WHEN NEW.id='acme.hotkeys' BEGIN SELECT RAISE(ABORT, 'injected failure'); END;").unwrap();
+    drop(connection);
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
+        .await
+        .unwrap();
+    assert!(core
+        .execute_v2_pulled_plugin_apply(&proof, &intent)
+        .await
+        .is_err());
+    assert!(!core.plugin_apply_quarantined("acme.hotkeys"));
+    assert_eq!(
+        core.db
+            .plugin_apply_intent(&intent.intent_id)
+            .unwrap()
+            .unwrap()
+            .phase,
+        crate::db::PluginApplyPhase::Ready
+    );
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection
+        .execute_batch("DROP TRIGGER fail_v2_apply;")
+        .unwrap();
+    drop(connection);
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
+        .await
+        .unwrap();
+    core.execute_v2_pulled_plugin_apply(&proof, &intent)
+        .await
+        .unwrap();
+    let stored = core
+        .db
+        .plugin_apply_intent(&intent.intent_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.phase, crate::db::PluginApplyPhase::Finalized);
+    assert!(!core.plugin_apply_quarantined("acme.hotkeys"));
+    assert_eq!(
+        core.plugins.observe_worker("acme.hotkeys").unwrap(),
+        tiktools_plugin_loader::PluginWorkerObservation::Stopped
+    );
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection
+        .execute(
+            "DELETE FROM plugin_sync_apply_finalizations WHERE intent_id=?1",
+            [&intent.intent_id],
+        )
+        .unwrap();
     connection
         .execute(
             "DELETE FROM plugin_sync_apply_intents WHERE intent_id=?1",
             [&intent.intent_id],
+        )
+        .unwrap();
+    drop(connection);
+    core.plugin_set_enabled_with_product_intent("acme.hotkeys", true)
+        .unwrap();
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection
+        .execute(
+            "DELETE FROM plugin_sync_outbox WHERE plugin_id='acme.hotkeys'",
+            [],
         )
         .unwrap();
     drop(connection);

@@ -6,8 +6,11 @@ The native reconciliation barrier can now admit a downloaded plugin record
 only when the cached record exactly matches the authenticated post-barrier
 server record. A missing or different cache entry is rejected. Native v2
 preparation also checks the installed version, current worker and outstanding
-local edits before recording a durable application intent. It is not yet
-connected to product sync; runtime changes and crash recovery remain pending.
+local edits before recording a durable application intent. A private executor
+can recheck that intent, persist the desired state, run the local plugin
+transition and record its observed outcome. If a post-commit step fails, the
+plugin remains quarantined with its journal. Product scheduling, recovery of
+interrupted outcomes and safe retention of finalized history remain pending.
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
 library delivery e6728c9. The reviewed backend commit is RemakeBackend 952e512,

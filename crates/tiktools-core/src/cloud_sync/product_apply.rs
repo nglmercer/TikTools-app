@@ -139,6 +139,158 @@ pub(super) fn resume_pulled(
 }
 
 impl AppCore {
+    /// Complete one prepared v2 application under a fresh post-barrier
+    /// observation. Run on a bounded blocking worker: plugin lifecycle calls
+    /// and durable storage can block. Failure after commit leaves quarantine
+    /// and the durable journal for observation-based recovery.
+    #[cfg(feature = "plugin-install")]
+    #[allow(dead_code)] // Product scheduling and interrupted-outcome recovery remain separate.
+    pub(crate) async fn execute_v2_pulled_plugin_apply(
+        &self,
+        barrier: &tiktools_cloud_sync::V2ReconciliationBarrier,
+        intent: &PluginApplyIntent,
+    ) -> Result<(), tiktools_cloud_sync::WorkspaceCoordError> {
+        use tiktools_cloud_sync::WorkspaceCoordError;
+        use tiktools_plugin_loader::PluginWorkerObservation;
+        let unavailable = || WorkspaceCoordError::Ineligible;
+        if self.is_shutdown() {
+            return Err(unavailable());
+        }
+        let sync = self.sync.coordinator().map_err(|_| unavailable())?;
+        let target = sync
+            .with_cached_v2_reconciliation_barrier(barrier, |admission| {
+                if self.is_shutdown()
+                    || !admission
+                        .matches_source_dir(&self.db.paths().data.join("plugin-sync-emission"))
+                {
+                    return Err(unavailable());
+                }
+                let remote = admission.remote().ok_or_else(unavailable)?;
+                if intent.reason != PluginApplyReason::Pulled
+                    || intent.origin != admission.context().origin
+                    || intent.account_id != admission.context().account_id
+                    || intent.config_generation != admission.context().config_generation
+                    || intent.plugin_id != remote.key
+                    || serde_json::to_value(intent.remote.as_ref().ok_or_else(unavailable)?)
+                        .map_err(|_| unavailable())?
+                        != serde_json::to_value(remote).map_err(|_| unavailable())?
+                {
+                    return Err(unavailable());
+                }
+                let runtime = self
+                    .try_plugin_sync_runtime_guard()
+                    .map_err(|_| unavailable())?;
+                if self.is_shutdown() {
+                    return Err(unavailable());
+                }
+                let packages = self.plugin_packages().map_err(|_| unavailable())?;
+                let store = packages
+                    .installer
+                    .try_lock_store()
+                    .map_err(|_| unavailable())?;
+                if !store
+                    .matches_roots(&self.db.paths().plugins, &self.db.paths().plugin_store())
+                    .map_err(|_| unavailable())?
+                    || !runtime.matches_selection(
+                        &intent.plugin_id,
+                        &intent.installed_version,
+                        intent.expected_enabled,
+                    )
+                    || !self
+                        .db
+                        .revalidate_ready_plugin_apply(admission.context(), intent)
+                        .map_err(|_| unavailable())?
+                {
+                    return Err(unavailable());
+                }
+                let enabled = intent
+                    .remote
+                    .as_ref()
+                    .and_then(|record| record.value.as_ref())
+                    .map(|selection| selection.enabled)
+                    .unwrap_or(false);
+                let epoch = self.sync.runtime_epoch().map_err(|_| unavailable())?;
+                if !self.quarantine_plugin_apply_before_commit(&intent.plugin_id) {
+                    return Err(unavailable());
+                }
+                let generation = match self.db.commit_plugin_apply_state(
+                    admission.context(),
+                    intent,
+                    &intent.installed_version,
+                ) {
+                    Ok(Some(generation)) => generation,
+                    _ => {
+                        // Re-read the durable phase even on a storage error:
+                        // an unknown commit must remain quarantined.
+                        let _ = self.refresh_plugin_apply_quarantine_locked();
+                        return Err(unavailable());
+                    }
+                };
+                if enabled {
+                    self.plugins
+                        .start_generation_before_events(&intent.plugin_id, || {
+                            self.set_plugin_activation(&intent.plugin_id, true, true);
+                        })
+                        .map_err(|_| unavailable())?;
+                } else {
+                    self.plugins
+                        .stop(&intent.plugin_id)
+                        .map_err(|_| unavailable())?;
+                    self.set_plugin_activation(&intent.plugin_id, true, false);
+                }
+                let expected = if enabled {
+                    PluginWorkerObservation::WorkerPresent
+                } else {
+                    PluginWorkerObservation::Stopped
+                };
+                if self
+                    .plugins
+                    .observe_worker(&intent.plugin_id)
+                    .map_err(|_| unavailable())?
+                    != expected
+                    || !self
+                        .db
+                        .confirm_plugin_apply_runtime(
+                            admission.context(),
+                            intent,
+                            generation,
+                            epoch,
+                            &intent.installed_version,
+                            enabled,
+                        )
+                        .map_err(|_| unavailable())?
+                    || !self
+                        .db
+                        .finalize_plugin_apply_after_native_ack(
+                            admission.context(),
+                            intent,
+                            generation,
+                            epoch,
+                        )
+                        .map_err(|_| unavailable())?
+                {
+                    return Err(unavailable());
+                }
+                self.refresh_plugin_apply_quarantine_locked()
+                    .map_err(|_| unavailable())?;
+                Ok(enabled)
+            })
+            .await;
+        // The journal and quarantine remain authoritative on every failure.
+        self.refresh_automation_snapshot();
+        let enabled = target?;
+        self.events.publish_domain(if enabled {
+            crate::events::DomainEvent::PluginStarted {
+                plugin_id: intent.plugin_id.clone(),
+            }
+        } else {
+            crate::events::DomainEvent::PluginStopped {
+                plugin_id: intent.plugin_id.clone(),
+            }
+        });
+        Ok(())
+    }
+
     /// Prepare a v2 application only after the cached selection matches a
     /// fresh post-barrier read. This records intent but does not run code.
     #[cfg(feature = "plugin-install")]
