@@ -41,6 +41,8 @@ pub enum WorkspaceCoordError {
     State(#[from] WorkspaceStateError),
     #[error(transparent)]
     Transport(#[from] SyncError),
+    #[error(transparent)]
+    Protocol(#[from] crate::ProtocolFenceError),
 }
 
 /// Captures one product session and opt-in generation. The callback must remain
@@ -164,6 +166,7 @@ impl WorkspaceReview {
 pub struct WorkspaceCoordinator {
     binding: Arc<()>,
     store: WorkspaceStore,
+    protocol: crate::ProtocolFence,
     origin: String,
     account_id: String,
 }
@@ -173,10 +176,12 @@ impl WorkspaceCoordinator {
         origin: String,
         account_id: String,
     ) -> Result<Self, WorkspaceCoordError> {
-        let store = WorkspaceStore::open(root, origin.clone(), account_id.clone())?;
+        let store = WorkspaceStore::open(&root, origin.clone(), account_id.clone())?;
+        let protocol = crate::ProtocolFence::open(root)?;
         Ok(Self {
             binding: Arc::new(()),
             store,
+            protocol,
             origin,
             account_id,
         })
@@ -192,6 +197,11 @@ impl WorkspaceCoordinator {
             return Err(WorkspaceStateError::WrongIdentity.into());
         }
         Ok(())
+    }
+    fn generic_lease(&self) -> Result<crate::protocol_fence::V1Lease, WorkspaceCoordError> {
+        let lease = self.protocol.try_v1()?;
+        lease.ensure_generic_workspace_allowed(&self.origin, &self.account_id)?;
+        Ok(lease)
     }
     fn update<T>(
         &self,
@@ -241,6 +251,7 @@ impl WorkspaceCoordinator {
         selections: &[PluginSelection],
         legacy: Option<&SyncState>,
     ) -> Result<(), WorkspaceCoordError> {
+        let _lease = self.generic_lease()?;
         self.bootstrap_inner(selections, legacy, None)
     }
 
@@ -300,6 +311,7 @@ impl WorkspaceCoordinator {
         key: WorkspaceKey,
         edit: WorkspaceEdit,
     ) -> Result<u64, WorkspaceCoordError> {
+        let _lease = self.generic_lease()?;
         self.update(|state| {
             if !state.bootstrap_complete {
                 return Err(WorkspaceCoordError::BootstrapRequired);
@@ -349,6 +361,7 @@ impl WorkspaceCoordinator {
     /// The product must check that the captured session is still current
     /// before returning private rows to a UI or offering local application.
     pub async fn sync(&self, session: &Session) -> Result<WorkspaceOutcome, WorkspaceCoordError> {
+        let _lease = self.generic_lease()?;
         self.sync_inner(session, None, None).await
     }
     /// Product callers must use a generation-bound eligibility and recheck it
@@ -358,6 +371,7 @@ impl WorkspaceCoordinator {
         session: &Session,
         eligibility: &WorkspaceEligibility,
     ) -> Result<WorkspaceOutcome, WorkspaceCoordError> {
+        let _lease = self.generic_lease()?;
         self.sync_inner(session, Some(eligibility), None).await
     }
     pub(crate) async fn sync_product_guarded(
@@ -662,6 +676,7 @@ impl WorkspaceCoordinator {
         session: &Session,
         target: &WorkspaceKey,
     ) -> Result<WorkspaceReview, WorkspaceCoordError> {
+        let _lease = self.generic_lease()?;
         self.review_inner(session, target, None, None).await
     }
     pub async fn review_guarded(
@@ -670,6 +685,7 @@ impl WorkspaceCoordinator {
         target: &WorkspaceKey,
         eligibility: &WorkspaceEligibility,
     ) -> Result<WorkspaceReview, WorkspaceCoordError> {
+        let _lease = self.generic_lease()?;
         self.review_inner(session, target, Some(eligibility), None)
             .await
     }
@@ -754,6 +770,7 @@ impl WorkspaceCoordinator {
         review: &WorkspaceReview,
         keep_local: bool,
     ) -> Result<(), WorkspaceCoordError> {
+        let _lease = self.generic_lease()?;
         self.resolve_inner(session, review, keep_local, None, None)
             .await
     }
@@ -764,6 +781,7 @@ impl WorkspaceCoordinator {
         keep_local: bool,
         eligibility: &WorkspaceEligibility,
     ) -> Result<(), WorkspaceCoordError> {
+        let _lease = self.generic_lease()?;
         self.resolve_inner(session, review, keep_local, Some(eligibility), None)
             .await
     }
@@ -863,6 +881,7 @@ impl WorkspaceCoordinator {
     /// Explicit 410 recovery reads a consistent snapshot and atomically
     /// replaces only the fetched cloud baseline. No application source changes.
     pub async fn rebuild_remote_cache(&self, session: &Session) -> Result<(), WorkspaceCoordError> {
+        let _lease = self.generic_lease()?;
         self.rebuild_inner(session, None).await
     }
     pub async fn rebuild_remote_cache_guarded(
@@ -870,6 +889,7 @@ impl WorkspaceCoordinator {
         session: &Session,
         eligibility: &WorkspaceEligibility,
     ) -> Result<(), WorkspaceCoordError> {
+        let _lease = self.generic_lease()?;
         self.rebuild_inner(session, Some(eligibility)).await
     }
     async fn rebuild_inner(

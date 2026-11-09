@@ -81,9 +81,7 @@ async fn cached_v2_remote_review_rejects_legacy_v2_without_product_marker() {
         "v2-legacy-user".into(),
     )
     .unwrap();
-    workspace
-        .bootstrap(&preview.selections(), preview.legacy())
-        .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
     lease
         .finish(&preview, &mock.origin, "v2-legacy-user")
         .unwrap();
@@ -113,12 +111,6 @@ async fn cached_v2_remote_review_revalidates_session_consent_snapshot_and_pendin
     login(&auth, "first-login").await;
     let session = auth.session().await.unwrap();
     marked_v2(&sync, &session);
-    let workspace = crate::WorkspaceCoordinator::open(
-        dir.join("a-sync"),
-        mock.origin.clone(),
-        "v2-remote-user".into(),
-    )
-    .unwrap();
     let store = WorkspaceStore::open(dir.join("a-sync"), &mock.origin, "v2-remote-user").unwrap();
     replace_remote(&store, true, 1);
     let review = sync
@@ -144,8 +136,15 @@ async fn cached_v2_remote_review_revalidates_session_consent_snapshot_and_pendin
         .review_v2_product_remote(&session, "acme.plugin")
         .unwrap();
     let target = WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
-    workspace
+    // Emulate a locally committed pending edit without using the generic
+    // coordinator, which is forbidden on product partitions.
+    let mut pending = store.load().unwrap().unwrap();
+    pending
+        .state
         .stage(target, WorkspaceEdit::Put(remote(true, 1).value.unwrap()))
+        .unwrap();
+    store
+        .save(Some(pending.generation), &pending.state)
         .unwrap();
     assert!(sync
         .with_reviewed_v2_product_remote::<()>(&review, |_, _| panic!("pending edit admitted"))

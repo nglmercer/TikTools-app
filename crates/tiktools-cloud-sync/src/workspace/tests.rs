@@ -362,6 +362,168 @@ fn pending(coordinator: &WorkspaceCoordinator, target: &WorkspaceKey) -> Workspa
         .clone()
 }
 
+#[tokio::test]
+async fn marked_product_partition_rejects_generic_paths_even_after_restart() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("workspace");
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let coord = coordinator(&root, &server, "account-a");
+    coord.bootstrap(&[], None).unwrap();
+    let target = key("preferences", "desktop");
+    coord
+        .stage(target.clone(), WorkspaceEdit::Put(preference("dark")))
+        .unwrap();
+    let prior_review = coord.review(&session, &target).await.unwrap();
+    let gate = coord.protocol.try_cutover().unwrap();
+    assert!(matches!(
+        gate.require_product_outbox(&server.origin, "account-a"),
+        Err(crate::ProtocolFenceError::UnsettledV2)
+    ));
+    drop(gate);
+    coord.resolve(&session, &prior_review, false).await.unwrap();
+    let before = coord.snapshot().unwrap();
+    let gate = coord.protocol.try_cutover().unwrap();
+    gate.require_product_outbox(&server.origin, "account-a")
+        .unwrap();
+    drop(gate);
+    let requests = server.remote.lock().unwrap().requests.len();
+
+    assert!(matches!(
+        coord.stage(target.clone(), WorkspaceEdit::Put(preference("light"))),
+        Err(WorkspaceCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    assert!(matches!(
+        coord.sync(&session).await,
+        Err(WorkspaceCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    assert!(matches!(
+        coord.review(&session, &target).await,
+        Err(WorkspaceCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    assert!(matches!(
+        coord.resolve(&session, &prior_review, false).await,
+        Err(WorkspaceCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    assert!(matches!(
+        coord.rebuild_remote_cache(&session).await,
+        Err(WorkspaceCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    let after = coord.snapshot().unwrap();
+    assert_eq!(after.generation, before.generation);
+    assert_eq!(after.state, before.state);
+    assert_eq!(server.remote.lock().unwrap().requests.len(), requests);
+    drop(coord);
+    let reopened = coordinator(&root, &server, "account-a");
+    assert!(matches!(
+        reopened.stage(target, WorkspaceEdit::Put(preference("light"))),
+        Err(WorkspaceCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    // The independent account partition is unaffected.
+    coordinator(&root, &server, "account-b")
+        .bootstrap(&[], None)
+        .unwrap();
+}
+
+#[tokio::test]
+async fn generic_network_operation_blocks_cutover_until_response_published() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("workspace");
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let coord = coordinator(&root, &server, "account-a");
+    coord.bootstrap(&[], None).unwrap();
+    coord
+        .stage(
+            key("preferences", "desktop"),
+            WorkspaceEdit::Put(preference("dark")),
+        )
+        .unwrap();
+    let (entered_tx, entered_rx) = oneshot::channel();
+    let (release_tx, release_rx) = oneshot::channel();
+    server.remote.lock().unwrap().pause_next_write = Some(Pause {
+        entered: entered_tx,
+        release: release_rx,
+    });
+    let control = async {
+        entered_rx.await.unwrap();
+        assert!(matches!(
+            coord.protocol.try_cutover(),
+            Err(crate::ProtocolFenceError::Busy)
+        ));
+        release_tx.send(()).unwrap();
+    };
+    let (outcome, ()) = tokio::join!(coord.sync(&session), control);
+    assert_eq!(outcome.unwrap().pushed, 1);
+    let gate = coord.protocol.try_cutover().unwrap();
+    gate.require_product_outbox(&server.origin, "account-a")
+        .unwrap();
+    drop(gate);
+    assert!(matches!(
+        coord.sync(&session).await,
+        Err(WorkspaceCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+}
+
+#[tokio::test]
+async fn cancelled_generic_write_blocks_product_marker_and_preserves_review() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("workspace");
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let coord = coordinator(&root, &server, "account-a");
+    coord.bootstrap(&[], None).unwrap();
+    let target = key("preferences", "desktop");
+    coord
+        .stage(target.clone(), WorkspaceEdit::Put(preference("dark")))
+        .unwrap();
+    let (entered_tx, entered_rx) = oneshot::channel();
+    let (release_tx, release_rx) = oneshot::channel();
+    server.remote.lock().unwrap().pause_next_write = Some(Pause {
+        entered: entered_tx,
+        release: release_rx,
+    });
+    let mut attempt = Box::pin(coord.sync(&session));
+    tokio::select! {
+        _result = &mut attempt => panic!("write returned before the held response"),
+        result = entered_rx => result.unwrap(),
+    }
+    drop(attempt);
+    assert_eq!(
+        pending(&coord, &target).pending.unwrap().status,
+        WorkspacePendingStatus::Unconfirmed
+    );
+    let before = coord.snapshot().unwrap();
+    let gate = coord.protocol.try_cutover().unwrap();
+    assert!(matches!(
+        gate.require_product_outbox(&server.origin, "account-a"),
+        Err(crate::ProtocolFenceError::UnsettledV2)
+    ));
+    drop(gate);
+    let after = coord.snapshot().unwrap();
+    assert_eq!(after.generation, before.generation);
+    assert_eq!(after.state, before.state);
+    // The generic review path remains available rather than being trapped
+    // by a newly installed product marker. A GET alone does not establish
+    // that an earlier server handler can no longer commit.
+    assert!(coord.review(&session, &target).await.is_ok());
+    release_tx.send(()).unwrap();
+}
+
 struct ProductUploadFixture {
     generation: std::sync::atomic::AtomicU64,
     consent: u128,

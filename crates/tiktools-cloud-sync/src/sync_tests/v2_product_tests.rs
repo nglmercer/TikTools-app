@@ -1,6 +1,19 @@
 use super::*;
 use std::cell::Cell;
 
+fn marked_preview(
+    sync: &SyncCoordinator,
+    session: &Arc<cloud_client::Session>,
+) -> crate::CutoverPreview {
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .require_product_outbox(&session.instance_origin(), session.account_id())
+        .unwrap();
+    drop(lease);
+    sync.preview_v2_cutover_inner(session, &[], Some(&[]), || {})
+        .unwrap()
+}
+
 struct Source {
     decision: crate::V2ProductDecision,
     fail_ack: Cell<bool>,
@@ -29,7 +42,7 @@ async fn v2_product_outbox_replays_receipt_after_ack_failure_and_obeys_consent()
     let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
     login(&auth, "source-login").await;
     let session = auth.session().await.unwrap();
-    let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+    let preview = marked_preview(&sync, &session);
     let lease = sync.protocol.try_cutover().unwrap();
     lease
         .prepare(&preview, &mock.origin, "v2-source-user", &[])
@@ -40,9 +53,7 @@ async fn v2_product_outbox_replays_receipt_after_ack_failure_and_obeys_consent()
         "v2-source-user".into(),
     )
     .unwrap();
-    workspace
-        .bootstrap(&preview.selections(), preview.legacy())
-        .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
     lease
         .finish(&preview, &mock.origin, "v2-source-user")
         .unwrap();
@@ -405,7 +416,7 @@ async fn product_worker_deadline_releases_v2_protocol_lease() {
     let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
     login(&auth, "deadline-login").await;
     let session = auth.session().await.unwrap();
-    let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+    let preview = marked_preview(&sync, &session);
     let lease = sync.protocol.try_cutover().unwrap();
     lease
         .prepare(&preview, &mock.origin, "deadline-user", &[])
@@ -416,9 +427,7 @@ async fn product_worker_deadline_releases_v2_protocol_lease() {
         "deadline-user".into(),
     )
     .unwrap();
-    workspace
-        .bootstrap(&preview.selections(), preview.legacy())
-        .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
     lease
         .finish(&preview, &mock.origin, "deadline-user")
         .unwrap();
@@ -563,7 +572,7 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
             let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
             login(&auth, "first-session").await;
             let session = auth.session().await.unwrap();
-            let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+            let preview = marked_preview(&sync, &session);
             let lease = sync.protocol.try_cutover().unwrap();
             lease
                 .prepare(&preview, &mock.origin, "v2-http-user", &[])
@@ -574,9 +583,7 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                 "v2-http-user".into(),
             )
             .unwrap();
-            workspace
-                .bootstrap(&preview.selections(), preview.legacy())
-                .unwrap();
+            workspace.bootstrap_reviewed(&preview).unwrap();
             lease
                 .finish(&preview, &mock.origin, "v2-http-user")
                 .unwrap();
@@ -780,7 +787,7 @@ async fn product_dispatch_does_not_block_logout_or_send_after_logout() {
     let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
     login(&auth, "logout-login").await;
     let session = auth.session().await.unwrap();
-    let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+    let preview = marked_preview(&sync, &session);
     let lease = sync.protocol.try_cutover().unwrap();
     lease
         .prepare(&preview, &mock.origin, "logout-user", &[])
@@ -791,9 +798,7 @@ async fn product_dispatch_does_not_block_logout_or_send_after_logout() {
         "logout-user".into(),
     )
     .unwrap();
-    workspace
-        .bootstrap(&preview.selections(), preview.legacy())
-        .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
     lease.finish(&preview, &mock.origin, "logout-user").unwrap();
     drop(lease);
     sync.set_enabled(false).unwrap();
@@ -854,7 +859,7 @@ async fn logout_during_prepared_workspace_write_prevents_publication() {
     let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
     login(&auth, "pull-logout-login").await;
     let session = auth.session().await.unwrap();
-    let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+    let preview = marked_preview(&sync, &session);
     let cutover = sync.protocol.try_cutover().unwrap();
     cutover
         .prepare(&preview, &mock.origin, "pull-logout-user", &[])
@@ -865,9 +870,7 @@ async fn logout_during_prepared_workspace_write_prevents_publication() {
         "pull-logout-user".into(),
     )
     .unwrap();
-    workspace
-        .bootstrap(&preview.selections(), preview.legacy())
-        .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
     cutover
         .finish(&preview, &mock.origin, "pull-logout-user")
         .unwrap();

@@ -39,6 +39,8 @@ pub enum ProtocolFenceError {
     NotV1,
     #[error("v1 has an uncertain prior upload; review its outcome before cutover")]
     UncertainV1,
+    #[error("v2 workspace has pending local work; review it before enabling the product outbox")]
+    UnsettledV2,
     #[error("this account requires the product outbox; legacy operations are unavailable")]
     ProductOutboxRequired,
     #[error("product sync is unavailable until the account has a reviewed outbox migration")]
@@ -607,6 +609,30 @@ impl ProtocolFence {
 }
 
 impl V1Lease {
+    /// A raw workspace coordinator must not bypass product source, consent,
+    /// and uncertainty fences. Hold this lease for the entire generic
+    /// operation, including network awaits, so cutover cannot change the
+    /// classification after this check.
+    pub(crate) fn ensure_generic_workspace_allowed(
+        &self,
+        origin: &str,
+        account: &str,
+    ) -> Result<(), ProtocolFenceError> {
+        let product_outbox = self.fence.product_outbox_required(origin, account)?;
+        let protocol = self.fence.read_record(origin, account)?;
+        if product_outbox
+            || protocol
+                .as_ref()
+                .is_some_and(|record| record.format_version == 3)
+        {
+            return Err(ProtocolFenceError::ProductOutboxRequired);
+        }
+        if protocol.is_some_and(|record| record.mode == ProtocolMode::Preparing) {
+            return Err(ProtocolFenceError::StaleCutover);
+        }
+        Ok(())
+    }
+
     /// A product drain may run only after explicit migration installed the
     /// per-account marker that fences cooperating legacy writers. Call this
     /// while holding the shared admission lease, not as a preflight alone.
@@ -864,20 +890,41 @@ impl CutoverLease {
         if self.fence.product_outbox_required(origin, account)? {
             return Ok(());
         }
-        let target = self.fence.product_outbox_path(origin, account)?;
-        let record = ProductOutboxRecord {
-            format_version: 1,
-            origin: origin.to_owned(),
-            account_id: account.to_owned(),
-        };
-        let bytes = marker_bytes(&record, MAX_PROTOCOL_MARKER_BYTES)?;
-        let mut temp = tempfile::NamedTempFile::new_in(&self.fence.dir)?;
-        temp.write_all(&bytes)?;
-        temp.flush()?;
-        temp.as_file().sync_all()?;
-        temp.persist_noclobber(target)
-            .map_err(|error| error.error)?;
-        sync_dir(&self.fence.dir)
+        // Generic operations hold the shared protocol lease. The exclusive
+        // cutover lease held by this method therefore prevents new generic
+        // work; also hold both workspace locks through marker publication so
+        // even a cooperating direct store writer cannot race this check.
+        let workspace = WorkspaceStore::open(&self.fence.dir, origin, account)?;
+        let _operation = workspace
+            .try_operation_lock()?
+            .ok_or(ProtocolFenceError::Busy)?;
+        workspace
+            .try_with_locked_snapshot(|snapshot| {
+                if snapshot.is_some_and(|snapshot| {
+                    snapshot
+                        .state
+                        .entries
+                        .iter()
+                        .any(|entry| entry.pending.is_some() || entry.next.is_some())
+                }) {
+                    return Err(ProtocolFenceError::UnsettledV2);
+                }
+                let target = self.fence.product_outbox_path(origin, account)?;
+                let record = ProductOutboxRecord {
+                    format_version: 1,
+                    origin: origin.to_owned(),
+                    account_id: account.to_owned(),
+                };
+                let bytes = marker_bytes(&record, MAX_PROTOCOL_MARKER_BYTES)?;
+                let mut temp = tempfile::NamedTempFile::new_in(&self.fence.dir)?;
+                temp.write_all(&bytes)?;
+                temp.flush()?;
+                temp.as_file().sync_all()?;
+                temp.persist_noclobber(target)
+                    .map_err(|error| error.error)?;
+                sync_dir(&self.fence.dir)
+            })?
+            .ok_or(ProtocolFenceError::Busy)
     }
     pub(crate) fn ensure_v1(&self, origin: &str, account: &str) -> Result<(), ProtocolFenceError> {
         if self.fence.read_record(origin, account)?.is_some() {
@@ -1184,9 +1231,7 @@ mod tests {
             .is_some());
         let workspace =
             crate::WorkspaceCoordinator::open(&dir, ORIGIN.into(), ACCOUNT.into()).unwrap();
-        workspace
-            .bootstrap(&preview.selections(), preview.legacy())
-            .unwrap();
+        workspace.bootstrap_reviewed(&preview).unwrap();
         cutover.finish(&preview, ORIGIN, ACCOUNT).unwrap();
         drop(cutover);
         let v2 = fence.try_v2(ORIGIN, ACCOUNT).unwrap();
@@ -1215,9 +1260,33 @@ mod tests {
         cutover.finish(&preview, ORIGIN, ACCOUNT).unwrap();
         drop(cutover);
         assert!(fence.try_v2(ORIGIN, ACCOUNT).is_ok());
+        assert!(matches!(
+            workspace.stage(
+                cloud_client::WorkspaceKey::new("preferences", "desktop").unwrap(),
+                cloud_client::WorkspaceEdit::Put(
+                    serde_json::json!({"schemaVersion": 1, "theme": "dark"})
+                ),
+            ),
+            Err(crate::WorkspaceCoordError::Protocol(
+                ProtocolFenceError::ProductOutboxRequired
+            ))
+        ));
         let path = fence.product_outbox_path(ORIGIN, ACCOUNT).unwrap();
         let original = fs::read(&path).unwrap();
         fs::remove_file(&path).unwrap();
+        // The immutable v3 protocol record still protects the partition
+        // when the separate product marker is missing.
+        assert!(matches!(
+            workspace.stage(
+                cloud_client::WorkspaceKey::new("preferences", "desktop").unwrap(),
+                cloud_client::WorkspaceEdit::Put(
+                    serde_json::json!({"schemaVersion": 1, "theme": "dark"})
+                ),
+            ),
+            Err(crate::WorkspaceCoordError::Protocol(
+                ProtocolFenceError::ProductOutboxRequired
+            ))
+        ));
         assert!(matches!(
             fence.try_v2(ORIGIN, ACCOUNT),
             Err(ProtocolFenceError::ProductOutboxNotEnabled)
@@ -1235,6 +1304,14 @@ mod tests {
             fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
         }
         assert!(fence.try_v2(ORIGIN, ACCOUNT).is_err());
+        assert!(workspace
+            .stage(
+                cloud_client::WorkspaceKey::new("preferences", "desktop").unwrap(),
+                cloud_client::WorkspaceEdit::Put(
+                    serde_json::json!({"schemaVersion": 1, "theme": "dark"})
+                ),
+            )
+            .is_err());
         let cutover = fence.try_cutover().unwrap();
         assert!(cutover.resume_record(ORIGIN, ACCOUNT).is_err());
         drop(cutover);
@@ -1252,7 +1329,7 @@ mod tests {
         cutover.prepare(&preview, ORIGIN, ACCOUNT, &[]).unwrap();
         let coordinator =
             crate::WorkspaceCoordinator::open(&dir, ORIGIN.into(), ACCOUNT.into()).unwrap();
-        coordinator.bootstrap(&[], None).unwrap();
+        coordinator.bootstrap_reviewed(&preview).unwrap();
         let store = WorkspaceStore::open(&dir, ORIGIN, ACCOUNT).unwrap();
         let snapshot = store.load().unwrap().unwrap();
         let mut newer = snapshot.state.clone();

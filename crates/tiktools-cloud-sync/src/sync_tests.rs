@@ -2140,9 +2140,7 @@ async fn v2_resume_requires_fresh_review_exact_session_and_unchanged_workspace()
         )
         .unwrap();
         if finish {
-            workspace
-                .bootstrap(&preview.selections(), preview.legacy())
-                .unwrap();
+            workspace.bootstrap_reviewed(&preview).unwrap();
             lease.finish(&preview, &mock.origin, "resume-user").unwrap();
         }
         drop(lease);
@@ -2207,9 +2205,7 @@ async fn v2_resume_requires_fresh_review_exact_session_and_unchanged_workspace()
                 .stage(key, cloud_client::WorkspaceEdit::Put(value))
                 .unwrap();
         } else {
-            workspace
-                .bootstrap(&preview.selections(), preview.legacy())
-                .unwrap();
+            workspace.bootstrap_reviewed(&preview).unwrap();
         }
         assert!(sync.confirm_v2_resume(&review).is_err());
         assert!(!sync.is_enabled());
@@ -2337,9 +2333,7 @@ async fn opt_out_remains_available_during_and_after_cutover_without_discarding_d
         )
         .unwrap();
         if finish {
-            workspace
-                .bootstrap(&preview.selections(), preview.legacy())
-                .unwrap();
+            workspace.bootstrap_reviewed(&preview).unwrap();
             lease
                 .finish(&preview, &mock.origin, "cutover-user")
                 .unwrap();
@@ -4560,9 +4554,7 @@ async fn switched_account_can_use_v1_without_touching_completed_v2_accounts_lega
     gate.prepare(&preview, &mock.origin, "user-a", &[]).unwrap();
     let workspace =
         crate::WorkspaceCoordinator::open(&root, mock.origin.clone(), "user-a".into()).unwrap();
-    workspace
-        .bootstrap(&preview.selections(), preview.legacy())
-        .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
     gate.finish(&preview, &mock.origin, "user-a").unwrap();
     drop(gate);
     auth.logout().await.unwrap();
@@ -4662,9 +4654,7 @@ async fn simultaneous_first_stages_for_distinct_identities_preserve_both() {
         partition_account.into(),
     )
     .unwrap();
-    workspace
-        .bootstrap(&preview.selections(), preview.legacy())
-        .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
     gate.finish(&preview, partition_origin, partition_account)
         .unwrap();
     drop(gate);

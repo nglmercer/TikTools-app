@@ -246,6 +246,13 @@ impl SyncCoordinator {
             .protocol
             .try_v2(&origin, &account)
             .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        let marker_lease = self
+            .protocol
+            .try_v1()
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        marker_lease
+            .ensure_product_outbox(&origin, &account)
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
         let root = self
             .config_path
             .parent()
@@ -329,6 +336,8 @@ impl SyncCoordinator {
                 return Err(SyncCoordError::StaleReview);
             }
             let _lease = self.protocol.try_v2(&identity.0, &identity.1)?;
+            let marker_lease = self.protocol.try_v1()?;
+            marker_lease.ensure_product_outbox(&identity.0, &identity.1)?;
             self.auth
                 .with_sync_identity_permit(|current| {
                     if current.as_ref() != Some(&identity) {

@@ -25,6 +25,31 @@ The dispatcher runs local disk and source checks on a blocking worker rather tha
 
 Before enabling product integration, all local plugin mutations and package operations must participate in the source admission/outbox protocol; restart reconciliation and tombstones need explicit review; and account, consent, protocol and cancellation must be fenced through actual request emission. The current shared protocol lease spans HTTP and can make opt-out return busy; a session can also change between the last eligibility observation and request emission. The runtime observation is momentary and does not fence independent processes, direct filesystem writers or every autonomous plugin start. A staged value alone is not upload authority. Changes made while opted out require a separate reviewed reconciliation; they must not silently inherit a prior account's consent.
 
+The generic workspace coordinator holds a shared protocol lease for the whole
+operation, including its HTTP request and state publication. It refuses
+generic bootstrap, stage, sync, review, resolution and rebuild for an account
+with a product outbox marker or a marked (version 3) protocol record, including
+an interrupted cutover. Corrupt marker files fail closed. Product staging and
+dispatch require the product outbox marker in addition to a v2 lease. This
+cooperative restriction covers already-migrated partitions without rewriting
+them and prevents a concurrent cooperative cutover from overtaking a generic
+operation. It does not fence older binaries or callers that directly mutate
+the lower-level workspace store, and the separate product marker can be
+removed by noncooperating filesystem access. A durable mode inside the
+workspace format and safe handling of older processes remain necessary before
+product activation.
+
+Installing a new product outbox marker now refuses any existing generic v2
+pending or staged-next edit while holding the exclusive protocol lease and
+both workspace locks. This avoids trapping a cancelled write's durable
+`Unconfirmed` state behind the product-only path. It is not proof of remote
+quiescence: a previous generic review may already have cleared an uncertain
+request while its server handler remained in flight. Both protocol and product
+markers can also be deleted by noncooperating software; if both are absent,
+this cooperative classification cannot infer product ownership from the
+workspace. A durable workspace mode and a server-backed write barrier remain
+requirements for product integration.
+
 For product dispatch, pull state, push acknowledgements and conflict results are prepared and fsynced under the workspace CAS lock before acquiring an exact-session permit. With the cooperative v2 protocol lease still held to exclude consent changes, the permit covers only the final atomic rename; logout that wins before that permit prevents publication. A push whose response cannot be recorded under the captured session remains `Unconfirmed`, even if the server processed it, and requires explicit review. The account mutex is not held during preparation or rename. A rename syscall that does not return can still delay logout while the identity permit is held; directory fsync follows after the permit is released. These guarantees do not fence noncooperative filesystem writers and do not close the request-emission window described above.
 
 A local HTTP integration test holds both successful and conflicting responses while the real CloudAuth manager logs out or replaces its session. In all four transitions the persisted request remains unconfirmed; control cases with the original session record the acknowledgement or conflict. This does not establish the full product workflow or physical two-device acceptance.

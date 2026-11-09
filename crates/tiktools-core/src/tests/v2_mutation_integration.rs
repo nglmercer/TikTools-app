@@ -122,6 +122,10 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         .unwrap(),
     )
     .unwrap();
+    // This test seeds the reviewed cutover directly; create its empty
+    // workspace before publishing the product protocol markers.
+    let workspace = WorkspaceCoordinator::open(&sync_dir, origin.into(), account.into()).unwrap();
+    workspace.bootstrap(&[], None).unwrap();
     let protocol_marker = sync_dir.join(format!("protocol-{identity}.json"));
     std::fs::write(
         &protocol_marker,
@@ -154,8 +158,6 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
             .unwrap(),
         42
     );
-    let workspace = WorkspaceCoordinator::open(&sync_dir, origin.into(), account.into()).unwrap();
-    workspace.bootstrap(&[], None).unwrap();
     let source =
         crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&core, origin, account);
 
