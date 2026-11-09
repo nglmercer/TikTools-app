@@ -15,6 +15,9 @@ const labels = computed(() => locale.value === 'es' ? {
   dynamicPointsNote: 'El ID se tomará de cada evento. El evento debe contener un espectador y sus permisos se comprobarán en cada ejecución. El propietario debe revisar y aprobar la definición; este borrador no ajusta puntos.',
   trigger: 'Cuándo ocurre', chat: 'Mensaje en el chat', gift: 'Regalo', like: 'Me gusta', follow: 'Seguir', share: 'Compartir', join: 'Ingreso',
   contains: 'El mensaje contiene (opcional)', actionId: 'ID de acción (opcional)', cooldown: 'Espera entre ejecuciones (ms)',
+  giftContains: 'El nombre del regalo contiene (opcional)', giftHint: 'La coincidencia es parcial. Si el nombre no está disponible, el anfitrión puede mostrar «Gift».',
+  cooldownScope: 'A quién se aplica la espera', cooldownGlobal: 'Compartida para este evento', cooldownViewer: 'Por espectador para este evento',
+  cooldownNote: 'La espera puede reiniciarse al reiniciar la app o bajo carga muy alta. Los eventos sin ID de espectador comparten una espera.',
   actionNote: 'El ID escrito se incluirá al preparar el borrador. Usa Agregar para conservarlo antes de elegir otro. El anfitrión comprobará el acceso; sin acciones vinculadas, el evento no hará nada.',
   addAction: 'Agregar acción', selectedActions: 'Acciones agregadas en orden', removeAction: (id: string) => `Quitar ${id}`,
   moveEarlier: (id: string) => `Mover ${id} hacia arriba`, moveLater: (id: string) => `Mover ${id} hacia abajo`,
@@ -34,6 +37,9 @@ const labels = computed(() => locale.value === 'es' ? {
   dynamicPointsNote: 'The ID comes from each event. The event must contain a viewer, and permissions are checked on every execution. The owner must review and approve the definition; this draft does not adjust points.',
   trigger: 'When it happens', chat: 'Chat message', gift: 'Gift', like: 'Like', follow: 'Follow', share: 'Share', join: 'Join',
   contains: 'Message contains (optional)', actionId: 'Action ID (optional)', cooldown: 'Delay between runs (ms)',
+  giftContains: 'Gift name contains (optional)', giftHint: 'This is a partial match. If the name is unavailable, the host may display “Gift”.',
+  cooldownScope: 'Who the delay applies to', cooldownGlobal: 'Shared for this event', cooldownViewer: 'Per viewer for this event',
+  cooldownNote: 'The delay can reset after app restart or under very high load. Events without a viewer ID share a delay.',
   actionNote: 'The typed ID is included when preparing the draft. Use Add to keep it before choosing another. The host checks access; without linked actions, the event will do nothing.',
   addAction: 'Add action', selectedActions: 'Added actions in order', removeAction: (id: string) => `Remove ${id}`,
   moveEarlier: (id: string) => `Move ${id} up`, moveLater: (id: string) => `Move ${id} down`,
@@ -56,11 +62,13 @@ const viewerTarget = ref<'specific' | 'event'>('specific');
 const delta = ref('');
 const trigger = ref<'tiktok.chat' | 'tiktok.gift' | 'tiktok.like' | 'tiktok.follow' | 'tiktok.share' | 'tiktok.join'>('tiktok.chat');
 const contains = ref('');
+const giftContains = ref('');
 const actionId = ref('');
 const selectedActionIds = ref<string[]>([]);
 const runMode = ref<'all' | 'random'>('all');
 const actionSearch = ref('');
 const cooldown = ref('0');
+const cooldownScope = ref<'global' | 'user'>('global');
 const encoder = new TextEncoder();
 const triggers = new Set(['tiktok.chat', 'tiktok.gift', 'tiktok.like', 'tiktok.follow', 'tiktok.share', 'tiktok.join']);
 const integer = (value: string, max: number): number | null => {
@@ -128,12 +136,17 @@ const draft = computed<string | null>(() => {
     return null;
   }
   const wait = integer(cooldown.value, 86_400_000);
-  if (wait === null || !triggers.has(trigger.value) || !actionsValid.value || !['all', 'random'].includes(runMode.value) || encoder.encode(contains.value).length > 500) return null;
+  if (wait === null || !triggers.has(trigger.value) || !actionsValid.value || !['all', 'random'].includes(runMode.value) ||
+    !['global', 'user'].includes(cooldownScope.value) ||
+    (trigger.value === 'tiktok.chat' && encoder.encode(contains.value).length > 500) ||
+    (trigger.value === 'tiktok.gift' && encoder.encode(giftContains.value).length > 500)) return null;
   const filters = trigger.value === 'tiktok.chat' && contains.value
     ? [{ path: 'event.data.comment', operator: 'contains', value: contains.value }]
-    : [];
+    : trigger.value === 'tiktok.gift' && giftContains.value
+      ? [{ path: 'event.data.giftName', operator: 'contains', value: giftContains.value }]
+      : [];
   return JSON.stringify({ id, name: name.value, enabled: false, trigger: trigger.value,
-    actionIds: actionIds.value, filters, cooldownMs: wait, cooldownScope: 'global', runMode: runMode.value, schemaVersion: 1 }, null, 2);
+    actionIds: actionIds.value, filters, cooldownMs: wait, cooldownScope: cooldownScope.value, runMode: runMode.value, schemaVersion: 1 }, null, 2);
 });
 
 type Capture = { before: ProposalConfirmation; generated: string };
@@ -152,8 +165,8 @@ function apply(): void {
 }
 // Source and form state are both private to the current connection/selection.
 watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.id.value], () => {
-  capture.value = null; name.value = ''; message.value = ''; actionId.value = ''; selectedActionIds.value = []; actionSearch.value = ''; contains.value = ''; viewer.value = ''; delta.value = '';
-  actionType.value = 'core.log'; viewerTarget.value = 'specific'; runMode.value = 'all'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0';
+  capture.value = null; name.value = ''; message.value = ''; actionId.value = ''; selectedActionIds.value = []; actionSearch.value = ''; contains.value = ''; giftContains.value = ''; viewer.value = ''; delta.value = '';
+  actionType.value = 'core.log'; viewerTarget.value = 'specific'; runMode.value = 'all'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0'; cooldownScope.value = 'global';
 }, { flush: 'sync' });
 </script>
 
@@ -176,9 +189,11 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
       <template v-else>
         <label>{{ labels.trigger }}<select v-model="trigger" :disabled="model.busy.value"><option value="tiktok.chat">{{ labels.chat }}</option><option value="tiktok.gift">{{ labels.gift }}</option><option value="tiktok.like">{{ labels.like }}</option><option value="tiktok.follow">{{ labels.follow }}</option><option value="tiktok.share">{{ labels.share }}</option><option value="tiktok.join">{{ labels.join }}</option></select></label>
         <label v-if="trigger === 'tiktok.chat'">{{ labels.contains }}<input v-model="contains" maxlength="500" :disabled="model.busy.value"></label>
+        <label v-if="trigger === 'tiktok.gift'">{{ labels.giftContains }}<input v-model="giftContains" maxlength="500" :disabled="model.busy.value"></label>
         <label>{{ labels.actionId }}<input v-model="actionId" maxlength="128" spellcheck="false" :disabled="model.busy.value"></label>
         <label>{{ labels.runMode }}<select v-model="runMode" :disabled="model.busy.value"><option value="all">{{ labels.runAll }}</option><option value="random">{{ labels.runRandom }}</option></select></label>
         <label>{{ labels.cooldown }}<input v-model="cooldown" type="number" min="0" max="86400000" step="1" :disabled="model.busy.value"></label>
+        <label>{{ labels.cooldownScope }}<select v-model="cooldownScope" :disabled="model.busy.value"><option value="global">{{ labels.cooldownGlobal }}</option><option value="user">{{ labels.cooldownViewer }}</option></select></label>
       </template>
     </div>
     <div v-if="model.kind.value === 'event'" class="selected-actions">
@@ -210,6 +225,8 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
       <p v-if="matchingActions.length > 50">{{ labels.actionLimit }}</p>
     </section>
     <p v-if="model.kind.value === 'event'">{{ labels.actionNote }}</p>
+    <p v-if="model.kind.value === 'event' && trigger === 'tiktok.gift'">{{ labels.giftHint }}</p>
+    <p v-if="model.kind.value === 'event' && cooldown !== '0'">{{ labels.cooldownNote }}</p>
     <p v-if="model.kind.value === 'action' && actionType === 'core.points'">{{ viewerTarget === 'event' ? labels.dynamicPointsNote : labels.pointsNote }}</p>
     <p v-if="draft === null" role="status">{{ labels.invalid }}</p>
     <button type="button" :disabled="draft === null || !model.prepare('save')" @click="prepare">{{ labels.generate }}</button>

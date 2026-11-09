@@ -32,14 +32,18 @@ for (const locale of ['en', 'es'] as const) {
       } };
     }, { status, locale });
     await page.goto('/');
-    const labels = locale === 'es' ? { title:'Propuestas de automatización', family:'Tipo de propuesta', id:'ID de la propuesta', start:'Preparar propuesta nueva', builder:'Crear una propuesta con campos', name:'Nombre', actions:'Acciones visibles en el anfitrión', search:'Buscar acción visible', useId:'Usar ID', actionId:'ID de acción (opcional)', add:'Agregar acción', runMode:'Cómo ejecutar las acciones', prepare:'Preparar borrador', apply:'Usar este borrador' } :
-      { title:'Automation proposals', family:'Proposal type', id:'Proposal ID', start:'Prepare new proposal', builder:'Create a proposal with fields', name:'Name', actions:'Actions visible on the host', search:'Search visible actions', useId:'Use ID', actionId:'Action ID (optional)', add:'Add action', runMode:'How to run the actions', prepare:'Prepare draft', apply:'Use this draft' };
+    const labels = locale === 'es' ? { title:'Propuestas de automatización', family:'Tipo de propuesta', id:'ID de la propuesta', start:'Preparar propuesta nueva', builder:'Crear una propuesta con campos', name:'Nombre', trigger:'Cuándo ocurre', giftContains:'El nombre del regalo contiene (opcional)', cooldown:'Espera entre ejecuciones (ms)', scope:'A quién se aplica la espera', actions:'Acciones visibles en el anfitrión', search:'Buscar acción visible', useId:'Usar ID', actionId:'ID de acción (opcional)', add:'Agregar acción', runMode:'Cómo ejecutar las acciones', prepare:'Preparar borrador', apply:'Usar este borrador' } :
+      { title:'Automation proposals', family:'Proposal type', id:'Proposal ID', start:'Prepare new proposal', builder:'Create a proposal with fields', name:'Name', trigger:'When it happens', giftContains:'Gift name contains (optional)', cooldown:'Delay between runs (ms)', scope:'Who the delay applies to', actions:'Actions visible on the host', search:'Search visible actions', useId:'Use ID', actionId:'Action ID (optional)', add:'Add action', runMode:'How to run the actions', prepare:'Prepare draft', apply:'Use this draft' };
     const region = page.getByRole('region', { name: labels.title, exact: true });
     await region.getByRole('combobox', { name: labels.family, exact: true }).selectOption('event');
     await region.getByLabel(labels.id, { exact: true }).fill('new.event');
     await region.getByRole('button', { name: labels.start, exact: true }).click();
     await region.getByText(labels.builder, { exact: true }).click();
     await region.getByLabel(labels.name, { exact: true }).fill('Chat alert');
+    await region.getByRole('combobox', { name: labels.trigger, exact: true }).selectOption('tiktok.gift');
+    await region.getByLabel(labels.giftContains, { exact: true }).fill('Rose');
+    await region.getByLabel(labels.cooldown, { exact: true }).fill('1000');
+    await region.getByRole('combobox', { name: labels.scope, exact: true }).selectOption('user');
     const actions = region.getByRole('region', { name: labels.actions, exact: true });
     await actions.getByLabel(labels.search, { exact: true }).fill('alert');
     await actions.getByRole('button', { name: labels.useId, exact: true }).click();
@@ -53,6 +57,8 @@ for (const locale of ['en', 'es'] as const) {
     const preview = page.getByRole('dialog');
     await expect(preview.locator('pre')).toContainText('"actionIds": [\n    "alert.action",\n    "reward.action"\n  ]');
     await expect(preview.locator('pre')).toContainText('"runMode": "random"');
+    await expect(preview.locator('pre')).toContainText('"path": "event.data.giftName"');
+    await expect(preview.locator('pre')).toContainText('"cooldownScope": "user"');
     await expect(preview.locator('pre')).toContainText('"enabled": false');
     await preview.getByRole('button', { name: labels.apply, exact: true }).click();
     await expect(region.locator('textarea')).toHaveValue(/alert\.action/);

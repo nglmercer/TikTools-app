@@ -70,6 +70,60 @@ it('generates a disabled chat event with a bounded filter and one selected actio
   } finally { f.wrapper.unmount(); f.model.stop(); }
 });
 
+it('prepares a gift-name condition and a per-viewer cooldown for owner review', async () => {
+  const f = await setup('event');
+  try {
+    const original = f.model.text.value;
+    await f.wrapper.findAll('select')[0]!.setValue('tiktok.gift');
+    const inputs = f.wrapper.findAll('input');
+    await inputs[0]!.setValue('Reward roses');
+    await inputs[1]!.setValue('Rose');
+    await inputs[2]!.setValue('points.action');
+    await inputs[3]!.setValue('1000');
+    await f.wrapper.findAll('select')[2]!.setValue('user');
+    expect(f.wrapper.text()).toContain('Events without a viewer ID share a delay');
+    await f.button('Prepare draft').trigger('click');
+    expect(f.wrapper.get('dialog[open]').text()).toContain('"cooldownScope": "user"');
+    expect(f.model.text.value).toBe(original);
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toEqual({ id:'author.example', name:'Reward roses', enabled:false,
+      trigger:'tiktok.gift', actionIds:['points.action'], filters:[{ path:'event.data.giftName', operator:'contains', value:'Rose' }],
+      cooldownMs:1000, cooldownScope:'user', runMode:'all', schemaVersion:1 });
+    expect(f.model.saved.value).toBeNull();
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('does not carry a hidden chat filter into a gift event and invalidates changed cooldown review', async () => {
+  const f = await setup('event');
+  try {
+    const original = f.model.text.value;
+    await f.wrapper.findAll('input')[0]!.setValue('Gift event');
+    await f.wrapper.findAll('input')[1]!.setValue('private chat text');
+    await f.wrapper.findAll('select')[0]!.setValue('tiktok.gift');
+    await f.wrapper.findAll('input')[3]!.setValue('1000');
+    await f.button('Prepare draft').trigger('click');
+    expect(f.wrapper.get('dialog[open]').text()).toContain('"filters": []');
+    expect(f.wrapper.get('dialog[open]').text()).not.toContain('private chat text');
+    await f.wrapper.findAll('select')[2]!.setValue('user');
+    expect(f.dialogButton('Use this draft').attributes('disabled')).toBeDefined();
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(f.model.text.value).toBe(original);
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('rejects a gift condition exceeding the UTF-8 byte bound', async () => {
+  const f = await setup('event');
+  try {
+    await f.wrapper.findAll('select')[0]!.setValue('tiktok.gift');
+    await f.wrapper.findAll('input')[0]!.setValue('Event');
+    await f.wrapper.findAll('input')[1]!.setValue('é'.repeat(251));
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
 it('prepares several ordered actions and invalidates a preview when their order changes', async () => {
   const f = await setup('event');
   try {

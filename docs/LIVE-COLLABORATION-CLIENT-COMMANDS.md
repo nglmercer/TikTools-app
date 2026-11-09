@@ -62,6 +62,14 @@ references and the owner reviews the complete dependency set, including actions
 that are disabled or not selected by a random run. Building the draft does not
 enable or execute anything.
 
+Gift event drafts may optionally match part of the public gift name; the
+host may substitute `Gift` when that name is unavailable. Cooldown can be
+shared across the event or kept separately per viewer. These in-memory
+cooldowns can reset after a host restart or when tracking reaches its bounded
+capacity; events without a viewer ID share a separate anonymous cooldown.
+Event IDs, global scope and viewer IDs are tracked as distinct key parts so
+colons and usernames such as `global` or `anonymous` cannot collide.
+
 **Use this status as base** requires explicit confirmation. It chooses create
 for an absent target and replacement for an existing one, preserving your text.
 It does not save or send. **Save proposal on this PC** separately confirms

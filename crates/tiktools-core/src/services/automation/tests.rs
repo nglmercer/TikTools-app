@@ -70,6 +70,33 @@ fn matches_filters_and_enforces_user_cooldowns() {
     assert!(service.claim_event(&record, &event, 1_100));
     assert_eq!(service.actions_for_event(&record).len(), 1);
 }
+
+#[cfg(feature = "persistence")]
+#[test]
+fn gift_name_filter_and_user_cooldown_respect_projected_live_events() {
+    let service = AutomationService::default();
+    let record = json!({"id":"gift-event","enabled":true,"trigger":"tiktok.gift",
+        "filters":[{"path":"event.data.giftName","operator":"contains","value":"rose"}],
+        "cooldownMs":1000,"cooldownScope":"user","actionIds":[]});
+    let event = |viewer: &str, name: Option<&str>| {
+        let mut data = serde_json::Map::new();
+        if let Some(name) = name {
+            data.insert("giftName".into(), json!(name));
+        }
+        crate::services::automation_approval_policy::project_event(&json!({
+            "type":"tiktok.gift","user":{"uniqueId":viewer},"data":data,
+        }))
+    };
+    let alice = event("alice", Some("ROSE bouquet"));
+    let bob = event("bob", Some("Rose"));
+    assert!(service.event_record_matches(&record, &alice));
+    assert!(!service.event_record_matches(&record, &event("alice", Some("Heart"))));
+    assert!(!service.event_record_matches(&record, &event("alice", None)));
+    assert!(service.claim_projected_event(&record, &alice, 100, || true));
+    assert!(!service.claim_projected_event(&record, &alice, 500, || true));
+    assert!(service.claim_projected_event(&record, &bob, 500, || true));
+    assert!(service.claim_projected_event(&record, &alice, 1100, || true));
+}
 #[test]
 fn plugin_triggers_match_only_while_their_plugin_is_active() {
     let service = AutomationService::default();
