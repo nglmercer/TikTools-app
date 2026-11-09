@@ -213,6 +213,7 @@ async fn stored_reusable_policy_enables_saved_remote_definition() {
     author_grant.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     let author = f.pair(author_grant);
     let instance = f.instance();
@@ -1309,5 +1310,32 @@ async fn malformed_remote_drafts_do_not_reveal_whether_owner_or_foreign_payload_
             assert_eq!(f.core.automation_get_versioned(parsed, id).unwrap(), before);
         }
     }
+    f.close().await;
+}
+
+#[tokio::test]
+async fn remote_owner_definition_edit_requires_explicit_reusable_permission() {
+    use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new();
+    f.core.automation_create(AutomationKind::Action, json!({"id":"owned","name":"Owner","enabled":true,"typeId":"core.log","config":{"message":"private owner source"}})).unwrap();
+    let mut author_grant = grant(&["action:owned"]);
+    author_grant.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: true,
+    });
+    let author = f.pair(author_grant);
+    let response = f.remote(&author, "automation.update", json!({"kind":"action","id":"owned","record":{"id":"owned","name":"Edited","enabled":true,"typeId":"core.log","config":{"message":"moderator source"}}}), metadata(&f.instance(), "owner-edit", "1")).await;
+    assert!(response.is_ok(), "{response:?}");
+    assert_eq!(
+        response.result.unwrap(),
+        json!({"kind":"action","id":"owned","enabled":true,"pendingReview":false})
+    );
+    assert_delegated(
+        &f.authority("action", "owned").await,
+        &author,
+        "action",
+        "owned",
+    );
     f.close().await;
 }

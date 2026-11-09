@@ -21,9 +21,15 @@ and [full collaboration contract](LIVE-COLLABORATION-SPEC.md) remain authoritati
 The owner can configure an optional `automationDelegation` for a moderator or
 agent, with explicit effect classes and dynamic-target permission. Existing
 grants omit it and are not elevated. The grant editor exposes the policy, and
-resource restrictions and effect-specific limits continue to apply. Older
-clients may reject grants containing the new field; mixed-version compatibility
-has not yet been established.
+resource restrictions and effect-specific limits continue to apply. An optional
+`allowOwnerEdits` flag, absent and false on existing grants, lets that identity
+update scoped Owner definitions under the same policy. Updated definitions are
+attributed to the remote identity; its later revocation can stop their execution.
+For an action, every referencing Owner event must also be in scope and its full
+closure must pass policy before the edit commits. The controller still receives
+only summaries of existing definitions and cannot import their source; users must
+supply their own copy to edit them. Older clients may reject grants containing
+new fields; mixed-version compatibility has not yet been established.
 
 The host now permits a remote author to activate an existing saved action or
 event through `automation.enable` when the complete post-activation closure

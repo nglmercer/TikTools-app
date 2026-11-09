@@ -29,12 +29,20 @@ function setDelegatedEffect(effect: DelegatedEffect, enabled: boolean): void {
   if (enabled) effects.add(effect); else effects.delete(effect);
   if (!effects.size) delete value.automationDelegation;
   else {
-    value.automationDelegation = { effects: [...effects], allowDynamicTargets: value.automationDelegation?.allowDynamicTargets ?? false };
+    value.automationDelegation = { ...value.automationDelegation, effects: [...effects], allowDynamicTargets: value.automationDelegation?.allowDynamicTargets ?? false };
     const caps = new Set(value.capabilities);
     requiredAutomation.forEach((capability) => caps.add(capability));
     const needed = effectCapability[effect];
     if (enabled && needed) caps.add(needed);
     value.capabilities = [...caps];
+  }
+  model.value = value;
+}
+function setOwnerEdits(enabled: boolean): void {
+  const value = copy();
+  if (value.automationDelegation) {
+    if (enabled) value.automationDelegation.allowOwnerEdits = true;
+    else delete value.automationDelegation.allowOwnerEdits;
   }
   model.value = value;
 }
@@ -154,6 +162,14 @@ function applyJson(): void {
       >
         {{ t(`collaboration.delegationEffects.${effect}`) }}
       </BaseCheckbox>
+      <BaseCheckbox
+        :model-value="model.automationDelegation?.allowOwnerEdits ?? false"
+        :disabled="disabled || !model.automationDelegation"
+        @update:model-value="setOwnerEdits"
+      >
+        {{ t('collaboration.delegationOwnerEdits') }}
+      </BaseCheckbox>
+      <p>{{ t('collaboration.delegationOwnerEditsHint') }}</p>
       <BaseCheckbox
         :model-value="model.automationDelegation?.allowDynamicTargets ?? false"
         :disabled="disabled || !model.automationDelegation"

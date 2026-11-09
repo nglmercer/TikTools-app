@@ -764,6 +764,7 @@ async fn reusable_grant_activates_authored_action_and_event_through_native_contr
     delegated.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     let credentials = f.pair(delegated).await;
     let auth = f

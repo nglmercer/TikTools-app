@@ -39,7 +39,7 @@ impl DatabaseManager {
                 command
                     .authorization
                     .as_ref()
-                    .map(|auth| provenance::authorize_authoring(tx, kind.table(), id, auth))
+                    .map(|auth| provenance::authorize_authoring(tx, kind.table(), id, auth, false))
                     .transpose()?
             } else {
                 None
@@ -186,7 +186,14 @@ impl DatabaseManager {
         let (kind, id) = operation.target();
         // Existing authoring ownership and dependency rules also prevent an
         // activation from changing an Owner or another author's graph.
-        let author = provenance::authorize_authoring(&tx, kind.table(), id, auth)?;
+        let author = provenance::authorize_authoring(
+            &tx,
+            kind.table(),
+            id,
+            auth,
+            matches!(operation, AutomationMutation::Update { .. })
+                || operation.is_remote_activation(),
+        )?;
         // Stage the new record inside the uncommitted transaction, so all
         // subjects are derived from its actual final closure, including new
         // dependencies and a changed author session.
@@ -226,8 +233,31 @@ impl DatabaseManager {
             }
         };
         let after = review::snapshot(&tx, kind.table(), id)?;
-        let mut required = manifest::required_subjects(&after)
-            .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?;
+        if author.affected_events.len() > 512 {
+            return Err(DatabaseError::SnapshotTooLarge);
+        }
+        let mut review_bytes = serde_json::to_vec(&after)?.len();
+        let mut reviews = vec![after];
+        for event_id in &author.affected_events {
+            let candidate = review::snapshot(&tx, "behavior_events", event_id)?;
+            review_bytes = review_bytes
+                .checked_add(serde_json::to_vec(&candidate)?.len())
+                .ok_or(DatabaseError::SnapshotTooLarge)?;
+            if review_bytes > crate::collaboration::SNAPSHOT_BYTES {
+                return Err(DatabaseError::SnapshotTooLarge);
+            }
+            reviews.push(candidate);
+        }
+        let mut required = Vec::new();
+        for review in &reviews {
+            for subject in manifest::required_subjects(review)
+                .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?
+            {
+                if !required.contains(&subject) {
+                    required.push(subject);
+                }
+            }
+        }
         let caller_pair = (command.principal_id.clone(), command.session_id.clone());
         if !required.contains(&caller_pair) {
             required.push(caller_pair);
@@ -258,39 +288,53 @@ impl DatabaseManager {
                         crate::collaboration::Error::Forbidden,
                     ));
                 }
-                let authors = manifest::required_subjects(&after)
-                    .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?;
-                let selected: Vec<_> = identities
-                    .iter()
-                    .filter(|identity| {
-                        authors.iter().any(|(p, s)| {
-                            p == identity.principal_id() && s == identity.session_id()
+                for review in &reviews {
+                    if review.value.get("kind").and_then(Value::as_str) == Some("event")
+                        && review
+                            .value
+                            .get("record")
+                            .is_none_or(|record| !crate::services::public_filter_paths(record))
+                    {
+                        return Err(DatabaseError::CommandAuthorization(
+                            crate::collaboration::Error::Forbidden,
+                        ));
+                    }
+                    let authors = manifest::required_subjects(review)
+                        .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?;
+                    let selected: Vec<_> = identities
+                        .iter()
+                        .filter(|identity| {
+                            authors.iter().any(|(p, s)| {
+                                p == identity.principal_id() && s == identity.session_id()
+                            })
                         })
-                    })
-                    .cloned()
-                    .collect();
-                let subjects: Vec<_> = selected
-                    .iter()
-                    .map(|identity| ManifestSubject {
-                        principal_id: identity.principal_id(),
-                        session_id: identity.session_id(),
-                        grant_revision: identity.grant_revision(),
-                        configuration_revision: identity.configuration_revision(),
-                        grant: identity.grant(),
-                    })
-                    .collect();
-                let built = manifest::build(
-                    &after,
-                    ManifestSubjects {
-                        host_id: service.host_id(),
-                        subjects: &subjects,
-                    },
-                )
-                .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?;
-                crate::services::automation_approval_policy::reusable_preflight(&built, &selected)
+                        .cloned()
+                        .collect();
+                    let subjects: Vec<_> = selected
+                        .iter()
+                        .map(|identity| ManifestSubject {
+                            principal_id: identity.principal_id(),
+                            session_id: identity.session_id(),
+                            grant_revision: identity.grant_revision(),
+                            configuration_revision: identity.configuration_revision(),
+                            grant: identity.grant(),
+                        })
+                        .collect();
+                    let built = manifest::build(
+                        review,
+                        ManifestSubjects {
+                            host_id: service.host_id(),
+                            subjects: &subjects,
+                        },
+                    )
+                    .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?;
+                    crate::services::automation_approval_policy::reusable_preflight(
+                        &built, &selected,
+                    )
                     .map_err(|_| {
                         DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden)
                     })?;
+                }
                 let result = result.map(|_| {
                     if operation.is_reusable_write() {
                         json!({"kind":kind,"id":id,"enabled":true,"pendingReview":false})

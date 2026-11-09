@@ -14,7 +14,7 @@ const current = computed(() => dialog.value !== null && props.model.current(dial
 const labels = computed(() => locale.value === 'es' ? {
   title: 'Automatizaciones', note: 'El anfitrión devuelve un resumen; el texto editable es tu copia local. Puedes aplicar la definición activa si tu permiso lo permite.',
   family: 'Tipo de propuesta', action: 'Acción', event: 'Evento', id: 'ID de la propuesta', start: 'Preparar propuesta nueva', stored: 'Copias guardadas en esta PC',
-  load: 'Abrir copia guardada', inspect: 'Consultar estado actual', missing: 'No existe una definición actual para este ID.', present: 'Existe una definición actual. Solo su autor puede proponer cambios; el anfitrión comprobará el acceso.',
+  load: 'Abrir copia guardada', inspect: 'Consultar estado actual', missing: 'No existe una definición actual para este ID.', present: 'Existe una definición actual. El anfitrión comprobará si tu permiso permite modificarla.',
   base: 'Revisión base', mode: 'Operación', create: 'Crear', update: 'Reemplazar', useBase: 'Usar este estado como base', json: 'JSON de tu propuesta',
   save: 'Guardar propuesta en esta PC', send: 'Enviar propuesta para revisión', sendActive: 'Aplicar activa', remove: 'Eliminar copia guardada', unsaved: 'Este texto tiene cambios sin guardar.', matches: 'El texto coincide con la copia guardada.',
   saveTitle: '¿Guardar la propuesta en esta PC?', saveNote: 'Se conservará el texto completo, incluidos los valores sensibles que contenga, en el perfil privado de este controlador.',
@@ -25,7 +25,7 @@ const labels = computed(() => locale.value === 'es' ? {
 } : {
   title: 'Automations', note: 'The host returns a summary; the editable text is your local copy. You can apply the definition active if your grant allows it.',
   family: 'Proposal type', action: 'Action', event: 'Event', id: 'Proposal ID', start: 'Prepare new proposal', stored: 'Copies saved on this PC',
-  load: 'Open saved copy', inspect: 'Inspect current status', missing: 'No current definition exists for this ID.', present: 'A current definition exists. Only its author can propose changes; the host will check access.',
+  load: 'Open saved copy', inspect: 'Inspect current status', missing: 'No current definition exists for this ID.', present: 'A current definition exists. The host will check whether your grant allows changes.',
   base: 'Base revision', mode: 'Operation', create: 'Create', update: 'Replace', useBase: 'Use this status as base', json: 'Your proposal JSON',
   save: 'Save proposal on this PC', send: 'Send proposal for review', sendActive: 'Apply active', remove: 'Remove saved copy', unsaved: 'This text has unsaved changes.', matches: 'The text matches the saved copy.',
   saveTitle: 'Save this proposal on this PC?', saveNote: 'The complete text, including any sensitive values it contains, will be retained in this controller’s private profile.',

@@ -155,7 +155,7 @@ impl Fixture {
         let id = record["id"].as_str().unwrap();
         self.db
             .behavior_transaction(|tx| {
-                let permit = provenance::authorize_authoring(tx, table, id, auth)?;
+                let permit = provenance::authorize_authoring(tx, table, id, auth, false)?;
                 save_record(tx, table, &record, Some("0"), BehaviorSave::Create)?;
                 provenance::mark_delegated_new(tx, table, id, &permit)
             })

@@ -55,6 +55,23 @@ describe('grant restrictions', () => {
       expect(grant.resources.automation).toEqual(['event:allowed']);
     } finally { wrapper.unmount(); }
   });
+  it('requires an explicit choice to allow changes to owner definitions', async () => {
+    let grant = viewerGrant();
+    const wrapper = mount(GrantEditor, { props: { modelValue: grant, 'onUpdate:modelValue': async (value: Grant) => { grant = value; await wrapper.setProps({ modelValue: value }); } }, global: { plugins: [i18n] } });
+    const checkbox = (label: string) => wrapper.findAll('label').find((item) => item.text() === label)!.find('input');
+    try {
+      const share = checkbox('Allow edits to existing owner automations within this scope');
+      expect(share.attributes('disabled')).toBeDefined();
+      await checkbox('Log messages').setValue(true);
+      expect(grant.automationDelegation?.allowOwnerEdits).toBeUndefined();
+      await share.setValue(true);
+      expect(parseGrant(grant).automationDelegation?.allowOwnerEdits).toBe(true);
+      await checkbox('Delay').setValue(true);
+      expect(grant.automationDelegation?.allowOwnerEdits).toBe(true);
+      await share.setValue(false);
+      expect(grant.automationDelegation?.allowOwnerEdits).toBeUndefined();
+    } finally { wrapper.unmount(); }
+  });
   it('edits the points ceiling and rejects invalid limits before saving', async () => {
     let grant: Grant = { ...viewerGrant(), capabilities: ['points.adjust'] };
     const wrapper = mount(GrantEditor, { props: { modelValue: grant, 'onUpdate:modelValue': async (value: Grant) => { grant = value; await wrapper.setProps({ modelValue: value }); } }, global: { plugins: [i18n] } });

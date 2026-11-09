@@ -624,6 +624,7 @@ async fn native_proposals_create_and_edit_active_definitions_with_reusable_grant
     allowed.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     manager
         .install(
@@ -710,6 +711,72 @@ async fn native_proposals_create_and_edit_active_definitions_with_reusable_grant
         .expect("second controller did not receive the active change");
     }
     observer.disconnect().await;
+    c.disconnect().await;
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn native_controller_edits_owner_definition_under_explicit_reusable_grant() {
+    use tiktools_collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new().await;
+    f.core.automation_create(AutomationKind::Action, json!({"id":"same","name":"Owner","enabled":true,"typeId":"core.log","config":{"message":"owner source"}})).unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let mut allowed = grant();
+    allowed
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::LiveRead]);
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: true,
+    });
+    manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(allowed).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let c = Controller::new(manager);
+    c.connect("desk").await.unwrap();
+    let inspected = inspect(&c, "action").await;
+    assert_eq!(inspected["revision"], "1");
+    let edited = json!({"id":"same","name":"Moderator edit","enabled":false,"typeId":"core.log","config":{"message":"moderator source"}});
+    let saved = save(&c, "action", "update", "1", "0", &edited.to_string()).await;
+    let mut input = submit(
+        &c,
+        "action",
+        &inspected,
+        saved["storeRevision"].as_str().unwrap(),
+    );
+    input["active"] = true.into();
+    let result = c
+        .manage("controller.proposals.submit", input)
+        .await
+        .unwrap();
+    assert!(result["pending"].is_null());
+    assert_eq!(
+        result["recent"][0]["intent"]["operation"],
+        "update-action-active"
+    );
+    let after = f
+        .core
+        .automation_get(AutomationKind::Action, "same")
+        .unwrap();
+    assert_eq!(after["name"], "Moderator edit");
+    assert_eq!(after["enabled"], true);
+    let authority = f
+        .core
+        .automation_authority(AutomationKind::Action, "same")
+        .unwrap();
+    assert_eq!(
+        authority.value["provenance"]["authority"]["kind"],
+        "delegated"
+    );
     c.disconnect().await;
     f.finish().await;
 }

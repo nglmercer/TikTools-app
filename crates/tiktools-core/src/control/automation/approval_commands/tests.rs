@@ -846,6 +846,7 @@ async fn reusable_grant_runs_saved_live_event_and_revocation_stops_it() {
     permitted.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Points].into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
@@ -994,6 +995,7 @@ fn remote_activation_requires_reusable_policy_and_author_ownership() {
     permitted.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     let other = f.pair(permitted);
     assert!(f
@@ -1022,6 +1024,7 @@ fn remote_activation_rejects_effects_outside_reusable_grant() {
     limited.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     let auth = f.pair(limited);
     f.draft(
@@ -1063,6 +1066,7 @@ async fn reusable_grant_creates_and_edits_active_automation_atomically() {
     permitted.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Points].into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     let auth = f.pair(permitted);
     let mut action = points("active-points", "alice", 1.0);
@@ -1170,6 +1174,7 @@ async fn native_live_ingress_applies_reusable_grants_only_for_verified_generatio
     permitted.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Points].into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
@@ -1286,6 +1291,7 @@ async fn reusable_grant_revocation_during_delay_stops_later_effects() {
         ]
         .into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     let auth = f.pair(permitted);
     let identity = auth.snapshot().unwrap();
@@ -1353,6 +1359,7 @@ async fn reusable_event_intersects_grants_of_multiple_authors() {
     permission.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Points].into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     let action_author = f.pair(permission.clone());
     let event_author = f.pair(permission.clone());
@@ -1403,4 +1410,169 @@ async fn reusable_event_intersects_grants_of_multiple_authors() {
         2.0,
         "either author's grant removal must stop the combined rule"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn explicit_reusable_grant_can_edit_owner_action_and_revalidates_dependent_event() {
+    let f = Fixture::new();
+    let mut original = points("owner-shared", "alice", 1.0);
+    original["enabled"] = true.into();
+    let mut rule = event("owner-shared-event", &["owner-shared"]);
+    rule["enabled"] = true.into();
+    f.core()
+        .automation_create(AutomationKind::Action, original)
+        .unwrap();
+    f.core()
+        .automation_create(AutomationKind::Event, rule)
+        .unwrap();
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.max_points_delta = Some(5.0);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+    });
+    let auth = f.pair(permitted.clone());
+    let identity = auth.snapshot().unwrap();
+    let mut edited = points("owner-shared", "alice", 2.0);
+    edited["enabled"] = true.into();
+    let operation = || AutomationMutation::Update {
+        kind: AutomationKind::Action,
+        id: "owner-shared".into(),
+        record: edited.clone(),
+    };
+    let initial = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "owner-shared")
+        .unwrap();
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(auth.clone()),
+            f.request(&initial.resource_versions[0].revision),
+            operation()
+        )
+        .is_err());
+    assert_eq!(
+        f.core()
+            .automation_get_versioned(AutomationKind::Action, "owner-shared")
+            .unwrap()
+            .value,
+        initial.value
+    );
+    permitted
+        .automation_delegation
+        .as_mut()
+        .unwrap()
+        .allow_owner_edits = true;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id.clone(),
+            expected_revision: identity.grant_revision,
+            grant: permitted.clone(),
+        })
+        .unwrap();
+    f.core()
+        .automation_command(
+            CommandCaller::Remote(auth),
+            f.request(&initial.resource_versions[0].revision),
+            operation(),
+        )
+        .unwrap();
+    f.assert_delegated(AutomationKind::Action, "owner-shared");
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 2.0);
+    permitted.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: "2".into(),
+            grant: permitted,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 2.0);
+}
+
+#[test]
+fn owner_action_edit_rejects_unscoped_or_unsupported_dependent_events() {
+    for case in 0..3 {
+        let unsupported = case == 1;
+        let f = Fixture::new();
+        let mut action = log("shared-log", "before");
+        action["enabled"] = true.into();
+        f.core()
+            .automation_create(AutomationKind::Action, action)
+            .unwrap();
+        if unsupported {
+            f.core().automation_create(AutomationKind::Action, json!({"id":"unsupported","name":"Unknown","enabled":true,"typeId":"unknown.extension","config":{}})).unwrap();
+        }
+        let ids = if unsupported {
+            vec!["shared-log", "unsupported"]
+        } else {
+            vec!["shared-log"]
+        };
+        let mut rule = event("owner-dependent", &ids);
+        rule["enabled"] = true.into();
+        if case == 2 {
+            rule["filters"] = json!([{"path":"event.data.private","operator":"exists"}]);
+        }
+        f.core()
+            .automation_create(AutomationKind::Event, rule)
+            .unwrap();
+        let mut permission = grant();
+        permission.capabilities.insert(Capability::AutomationToggle);
+        permission.automation_delegation = Some(AutomationDelegation {
+            effects: [DelegatedAutomationEffect::Log].into(),
+            allow_dynamic_targets: false,
+            allow_owner_edits: true,
+        });
+        if case == 0 {
+            permission.resources.insert(
+                ResourceKind::Automation,
+                ["action:shared-log".into()].into(),
+            );
+        }
+        let auth = f.pair(permission);
+        let before = f
+            .core()
+            .automation_get_versioned(AutomationKind::Action, "shared-log")
+            .unwrap();
+        let mut changed = log("shared-log", "after");
+        changed["enabled"] = true.into();
+        assert!(f
+            .core()
+            .automation_command(
+                CommandCaller::Remote(auth),
+                f.request(&before.resource_versions[0].revision),
+                AutomationMutation::Update {
+                    kind: AutomationKind::Action,
+                    id: "shared-log".into(),
+                    record: changed
+                }
+            )
+            .is_err());
+        let after = f
+            .core()
+            .automation_get_versioned(AutomationKind::Action, "shared-log")
+            .unwrap();
+        assert_eq!(before.value, after.value);
+        assert_eq!(before.resource_versions, after.resource_versions);
+        assert_eq!(
+            f.core()
+                .automation_authority(AutomationKind::Action, "shared-log")
+                .unwrap()
+                .value["provenance"]["authority"]["kind"],
+            "owner"
+        );
+    }
 }

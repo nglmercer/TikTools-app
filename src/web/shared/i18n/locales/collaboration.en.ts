@@ -28,6 +28,8 @@ export default {
   pointsLimit: 'Maximum points adjustment per action', pointsLimitHint: 'Leave empty for no maximum; otherwise enter a positive number. This also limits direct adjustments.',
   delegationTitle: 'Reusable automation authorization',
   delegationHint: 'Choose the effects this identity may use in supported saved automations. Selecting an effect also enables its required permissions. Existing resource and external effect restrictions still apply.',
+  delegationOwnerEdits: 'Allow edits to existing owner automations within this scope',
+  delegationOwnerEditsHint: 'Edited definitions become attributed to this identity and follow its active grant. Their execution stops if that grant is revoked.',
   delegationDynamic: 'Allow supported dynamic targets within the granted limits',
   delegationEffects: { log: 'Log messages', delay: 'Delay', points: 'Adjust points', http: 'HTTP requests', audio: 'Play audio', emit: 'Emit internal events', script: 'Run scripts' },
   effectRules: 'External effects and exact rules', capHttp: 'Make approved HTTP requests', capAudio: 'Play approved audio on this host', capEmit: 'Emit approved internal topics', capScript: 'Run exact reviewed scripts',

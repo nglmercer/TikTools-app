@@ -82,6 +82,12 @@ pub enum DelegatedAutomationEffect {
 pub struct AutomationDelegation {
     pub effects: BTreeSet<DelegatedAutomationEffect>,
     pub allow_dynamic_targets: bool,
+    /// Explicitly allow scoped changes to existing Owner definitions.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub allow_owner_edits: bool,
+}
+fn is_false(value: &bool) -> bool {
+    !value
 }
 
 #[derive(
@@ -200,7 +206,7 @@ pub struct Grant {
     /// a missing or empty policy never means unrestricted access.
     #[serde(default, skip_serializing_if = "crate::EffectGrants::is_empty")]
     pub effects: crate::EffectGrants,
-    /// Absent on all existing grants. Stored but not yet used for execution.
+    /// Missing on legacy grants; reusable execution is bounded by this policy.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub automation_delegation: Option<AutomationDelegation>,
 }
@@ -719,11 +725,24 @@ mod tests {
             ]
             .into(),
             allow_dynamic_targets: false,
+            allow_owner_edits: false,
         });
         grant.validate().unwrap();
         let serialized = serde_json::to_value(&grant).unwrap();
         let restored: Grant = serde_json::from_value(serialized.clone()).unwrap();
         assert_eq!(restored, grant);
+        assert!(serialized["automationDelegation"]
+            .get("allowOwnerEdits")
+            .is_none());
+        let mut shared = grant.clone();
+        shared
+            .automation_delegation
+            .as_mut()
+            .unwrap()
+            .allow_owner_edits = true;
+        let encoded = serde_json::to_value(&shared).unwrap();
+        assert_eq!(encoded["automationDelegation"]["allowOwnerEdits"], true);
+        assert_eq!(serde_json::from_value::<Grant>(encoded).unwrap(), shared);
         let mut extra = serialized.clone();
         extra["automationDelegation"]["effects"] = serde_json::json!(["plugin"]);
         assert!(serde_json::from_value::<Grant>(extra).is_err());

@@ -562,6 +562,7 @@ fn reusable_automation_policy_is_persisted_versioned_and_revocable() {
         ]
         .into(),
         allow_dynamic_targets: false,
+        allow_owner_edits: false,
     });
     s.set_grant(GrantSet {
         principal_id: a.principal_id.clone(),

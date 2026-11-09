@@ -1,5 +1,15 @@
 # LIVE collaboration implementation evidence
 
+## Explicit edits to Owner automations
+
+An optional `allowOwnerEdits` policy flag defaults to false and is omitted from
+legacy-format grants. Focused core and API tests verify that an authorized
+remote update changes provenance to the editor, validates every affected event
+closure, rejects unscoped references, private filters and unsupported effects,
+and stops after revocation. A native controller test submits an active update
+over local TLS. The editor still requires the moderator to supply a local source
+copy; this does not establish remote source sharing or physical two-PC use.
+
 ## Reusable grant: native ingress and two controllers
 
 A native TikTok chat fixture now traverses `prepare_live_event_with_generation`

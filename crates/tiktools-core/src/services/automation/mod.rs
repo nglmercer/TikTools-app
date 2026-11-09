@@ -23,6 +23,8 @@ mod snapshot;
 mod tests;
 
 pub(crate) use filters::read_event_path;
+#[cfg(feature = "persistence")]
+pub(crate) use matching::public_filter_paths;
 
 use std::{
     collections::BTreeMap,
