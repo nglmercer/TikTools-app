@@ -119,7 +119,8 @@ colons and usernames such as `global` or `anonymous` cannot collide.
 for an absent target and replacement for an existing one, preserving your text.
 It does not save or send. **Save proposal on this PC** separately confirms
 retaining the complete text, including sensitive values. **Send proposal for
-review** shows the exact saved text, host, family/ID, mode and base. Edited text
+review** sends the saved text using the displayed host, family/ID, mode and base
+without an additional confirmation dialog. Edited text
 must be saved again; a successful submission requires a fresh inspection before
 another send. Existing Owner/foreign records remain protected by host policy.
 

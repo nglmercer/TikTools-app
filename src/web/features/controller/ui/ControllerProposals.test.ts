@@ -7,7 +7,7 @@ import { createProposalModel, type ProposalDraft } from '../model/proposals.ts';
 import type { ControllerStatus } from '../model/controller.ts';
 import ControllerProposals from './ControllerProposals.vue';
 
-it.each(['en', 'es'] as const)('reviews explicit source storage and sending and removes captures after permission loss (%s)', async (locale) => {
+it.each(['en', 'es'] as const)('reviews source storage, sends once and clears private text after permission loss (%s)', async (locale) => {
   await activateLocale(locale);
   const status = ref<ControllerStatus>({ proposalsSupported: true, epoch: '1', viewRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://owner.example', errorCode: null,
     hello: { connectionId: 'connection', hostId: 'host-A', hostInstanceId: 'instance', principalId: 'author', sessionId: 'device', grantRevision: '1', capabilities: ['automation.read', 'automation.edit'], features: { automationDrafts: true } } });
@@ -19,7 +19,7 @@ it.each(['en', 'es'] as const)('reviews explicit source storage and sending and 
     if (method === 'controller.proposals.inspect') return { ...identity, kind: 'action', id: 'same', revision: '0', inspectionId: 'native-inspection', summary: null };
     throw new Error(method);
   });
-  const send = vi.fn(async () => true);
+  const send = vi.fn<(method: string, params: Record<string, unknown>) => Promise<boolean>>(async () => true);
   const model = createProposalModel(client, { status, blocked: () => false, journalMatches: () => true, send }); await model.refresh();
   const wrapper = mount(ControllerProposals, { props: { model }, global: { plugins: [i18n] } });
   const labels = locale === 'es' ? { start: 'Preparar propuesta nueva', inspect: 'Consultar estado actual', save: 'Guardar propuesta en esta PC', send: 'Enviar propuesta para revisión', cancel: 'Cancelar', consent: 'valores sensibles' } :
@@ -36,9 +36,11 @@ it.each(['en', 'es'] as const)('reviews explicit source storage and sending and 
     expect(calls.filter((c) => c.method === 'controller.proposals.save')).toHaveLength(0);
     await dialogButton(labels.cancel).trigger('click'); await button(labels.save).trigger('click'); await dialogButton(labels.save).trigger('click'); await flushPromises();
     expect(calls.filter((c) => c.method === 'controller.proposals.save')).toHaveLength(1);
-    await button(labels.send).trigger('click'); expect(wrapper.get('dialog[open]').text()).toContain('https://owner.example'); expect(wrapper.get('dialog[open]').text()).toContain('host-A'); expect(wrapper.get('dialog[open]').text()).toContain(text);
-    await dialogButton(labels.cancel).trigger('click'); expect(send).not.toHaveBeenCalled();
-    await button(labels.send).trigger('click'); status.value.hello!.capabilities = []; await flushPromises();
-    expect(wrapper.find('dialog[open]').exists()).toBe(false); expect(wrapper.text()).not.toContain('private candidate source'); expect(wrapper.find('textarea').exists()).toBe(false); expect(model.text.value).toBe(''); expect(send).not.toHaveBeenCalled();
+    await button(labels.send).trigger('click'); await flushPromises();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0]).toBe('controller.proposals.submit');
+    expect(send.mock.calls[0]?.[1]).toMatchObject({ kind: 'action', id: 'same', inspectionId: 'native-inspection', acknowledgeProposal: true });
+    status.value.hello!.capabilities = []; await flushPromises();
+    expect(wrapper.find('dialog[open]').exists()).toBe(false); expect(wrapper.text()).not.toContain('private candidate source'); expect(wrapper.find('textarea').exists()).toBe(false); expect(model.text.value).toBe(''); expect(send).toHaveBeenCalledTimes(1);
   } finally { wrapper.unmount(); model.stop(); }
 });

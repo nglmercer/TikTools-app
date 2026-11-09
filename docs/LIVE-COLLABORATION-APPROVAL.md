@@ -16,6 +16,48 @@ validation and share the native pending gate; see the
 The [automation specification](LIVE-COLLABORATION-AUTOMATION.md)
 and [full collaboration contract](LIVE-COLLABORATION-SPEC.md) remain authoritative.
 
+## Target: one-time delegated automation authority
+
+The owner should be able to authorize an identified moderator or agent once,
+then let that subject create, change and activate automations within the granted
+scope without approving each definition. This target is **not implemented**:
+current proposals are still disabled and need the existing per-closure approval
+or owner adoption. Removing a client confirmation does not change that host
+boundary.
+
+Implement this as an explicit, revocable owner-managed delegation policy, not
+as an implicit consequence of `automation.edit` or a role name. Existing grants
+must retain their present meaning after upgrades. The policy must identify the
+host and delegated subject, constrain allowed automation resources and effect
+classes, carry its own version and lifecycle, and intersect with the subject's
+current grants and closed effect policies. It must never turn a delegated
+definition into Owner authority. The owner may grant broad or narrow authority
+once and may later narrow or revoke it.
+
+For every create, edit or activation under that policy, the host must build and
+validate the current complete saved dependency closure and effect manifest
+against the current policy and all participating subjects. This validation is
+automatic: ordinary in-scope changes need no per-definition owner interaction.
+Unknown or unsupported effects, untrusted provenance, invalid dependencies and
+out-of-scope resources fail closed. A changed definition or dependency must
+invalidate any prior execution permit and trigger fresh automatic admission;
+it must not resurrect an older permit. The final effect dispatch must recheck
+the policy, grant and revocation state as well as effect-specific limits.
+
+Persist the policy and its generation with transactional command, audit and
+recovery records; make policy changes and definition admission race safely.
+An uncertain command remains recoverable by its original ID and must not be
+replayed automatically. UI/API/agent capability discovery must distinguish
+editable proposals from actual reusable execution authority. A migration must
+never grant this authority to an existing moderator silently.
+
+Acceptance requires a single owner grant followed by multiple independent
+in-scope creations, edits and activations with no intervening owner approval;
+negative coverage must include out-of-scope effects, mixed-subject dependencies,
+grant narrowing, revocation racing dispatch, restart, stale policy generation,
+lost responses and duplicate commands. Exercise the same behavior through two
+real controller instances before treating it as complete.
+
 ## Existing boundary
 
 The host currently accepts author-isolated, explicitly disabled remote

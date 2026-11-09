@@ -36,7 +36,13 @@ const labels = computed(() => locale.value === 'es' ? {
 });
 function choose(): void { props.model.select(family.value, targetId.value); }
 async function load(kind: 'action' | 'event', id: string): Promise<void> { if (props.model.kind.value !== kind || props.model.id.value !== id) props.model.select(kind, id); await props.model.load(); }
-function request(operation: ProposalConfirmation['operation']): void { dialog.value = props.model.prepare(operation); }
+async function request(operation: ProposalConfirmation['operation']): Promise<void> {
+  const capture = props.model.prepare(operation);
+  if (!capture) return;
+  if (operation === 'send') {
+    if (props.model.current(capture)) await props.model.confirm(capture);
+  } else dialog.value = capture;
+}
 async function confirm(): Promise<void> { const capture = dialog.value; if (!capture || !current.value) return; dialog.value = null; await props.model.confirm(capture); }
 watch(() => props.model.identityKey.value, () => { dialog.value = null; targetId.value = ''; });
 const dialogTitle = computed(() => dialog.value?.operation === 'send' ? labels.value.sendTitle : dialog.value?.operation === 'remove' ? labels.value.removeTitle : dialog.value?.operation === 'base' ? labels.value.baseTitle : labels.value.saveTitle);
