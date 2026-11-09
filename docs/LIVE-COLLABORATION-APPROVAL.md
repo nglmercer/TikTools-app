@@ -36,6 +36,14 @@ presented to users as working preauthorization. Clients predating the field may
 reject an advanced grant containing it; do not use it in a deployed mixed-version
 environment until the complete feature and compatibility path are implemented.
 
+An owner-only `automation.delegation.preflight` read now checks the trusted saved
+closure against current subject identities, their reusable policies, resource
+restrictions and the existing closed effect classifier. It returns an advisory
+`eligible` and reason with `executionAuthorized: false`; it neither activates
+definitions nor creates a runtime permit, and its snapshot cannot authorize a
+later dispatch. Remote callers cannot invoke it. Final admission, automatic
+activation, effect-time rechecks and the user-facing policy editor remain open.
+
 Implement this as an explicit, revocable owner-managed delegation policy, not
 as an implicit consequence of `automation.edit` or a role name. Existing grants
 must retain their present meaning after upgrades. The policy must identify the

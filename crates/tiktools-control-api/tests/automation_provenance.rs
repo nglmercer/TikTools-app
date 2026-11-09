@@ -251,6 +251,24 @@ async fn stored_reusable_policy_does_not_yet_enable_remote_definitions() {
         "action",
         "draft",
     );
+    let owner = f
+        .owner(
+            "automation.delegation.preflight",
+            json!({"kind":"action","id":"draft"}),
+            Value::Null,
+        )
+        .await;
+    assert!(owner.is_ok(), "{owner:?}");
+    assert_eq!(owner.result.unwrap()["executionAuthorized"], false);
+    let remote = f
+        .remote(
+            &author,
+            "automation.delegation.preflight",
+            json!({"kind":"action","id":"draft"}),
+            Value::Null,
+        )
+        .await;
+    assert_eq!(remote.error.unwrap().code, "forbidden");
     f.close().await;
 }
 

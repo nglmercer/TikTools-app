@@ -217,6 +217,19 @@ pub struct AutomationAdoptParams {
 }
 pub fn register(router: &mut ControlRouter) {
     router.register_versioned::<AutomationManifestParams, Value, _, _>(
+        "automation.delegation.preflight",
+        "Owner-only advisory reusable-grant check; never an execution permit",
+        false,
+        |core, context, params, meta| async move {
+            owner_metadata(context, meta, false)?;
+            crate::modules::blocking_task("automation.delegation.preflight", move || {
+                core.automation_delegation_preflight(params.kind, &params.id)
+            })
+            .await?
+            .map_err(ApiError::from)
+        },
+    );
+    router.register_versioned::<AutomationManifestParams, Value, _, _>(
         "automation.manifest.get",
         "Owner-only exact definition and delegated effect manifest preview; never approval",
         false,

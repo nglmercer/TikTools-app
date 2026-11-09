@@ -200,7 +200,9 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "automation.review" => AutomationGetParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
-        "automation.manifest.get" => validate::<AutomationManifestParams>(params),
+        "automation.manifest.get" | "automation.delegation.preflight" => {
+            validate::<AutomationManifestParams>(params)
+        }
         "automation.list" => AutomationListParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),

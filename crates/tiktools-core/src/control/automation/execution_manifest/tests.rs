@@ -204,6 +204,182 @@ fn delegated_manifest_uses_trusted_saved_identity_and_current_grant_instead_of_d
 }
 
 #[test]
+fn reusable_preflight_uses_current_saved_grant_and_does_not_activate() {
+    let f = Fixture::new();
+    f.action("same");
+    let auth = author(f.core());
+    let identity = auth.snapshot().unwrap();
+    delegated(f.core(), &auth, "proposal");
+    let service = f.core().collaboration().unwrap();
+    let mut grant = Grant {
+        capabilities: [
+            Capability::AutomationRead,
+            Capability::AutomationEdit,
+            Capability::AutomationToggle,
+            Capability::LiveRead,
+        ]
+        .into(),
+        automation_delegation: Some(AutomationDelegation {
+            effects: [DelegatedAutomationEffect::Log].into(),
+            allow_dynamic_targets: false,
+        }),
+        ..Grant::default()
+    };
+    let mut no_policy = grant.clone();
+    no_policy.automation_delegation = None;
+    service
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id.clone(),
+            expected_revision: identity.grant_revision,
+            grant: no_policy,
+        })
+        .unwrap();
+    assert_eq!(
+        f.core()
+            .automation_delegation_preflight(AutomationKind::Event, "proposal")
+            .unwrap()
+            .value,
+        json!({"eligible":false,"reason":"delegation_not_granted","executionAuthorized":false})
+    );
+    service
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id.clone(),
+            expected_revision: "2".into(),
+            grant: grant.clone(),
+        })
+        .unwrap();
+    let allowed = f
+        .core()
+        .automation_delegation_preflight(AutomationKind::Event, "proposal")
+        .unwrap();
+    assert_eq!(
+        allowed.value,
+        json!({"eligible":true,"reason":null,"executionAuthorized":false})
+    );
+    assert!(!allowed.value.to_string().contains(SECRET));
+    assert_eq!(
+        f.core()
+            .automation_get(AutomationKind::Event, "proposal")
+            .unwrap()["enabled"],
+        false
+    );
+    assert!(f.core().automation_runs().is_empty());
+    grant
+        .resources
+        .insert(ResourceKind::Automation, ["event:proposal".into()].into());
+    service
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id.clone(),
+            expected_revision: "3".into(),
+            grant: grant.clone(),
+        })
+        .unwrap();
+    let narrowed = f
+        .core()
+        .automation_delegation_preflight(AutomationKind::Event, "proposal")
+        .unwrap();
+    assert_eq!(
+        narrowed.value,
+        json!({"eligible":false,"reason":"unsupported_closure","executionAuthorized":false})
+    );
+    grant.resources.clear();
+    grant.automation_delegation.as_mut().unwrap().effects =
+        [DelegatedAutomationEffect::Delay].into();
+    service
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id.clone(),
+            expected_revision: "4".into(),
+            grant,
+        })
+        .unwrap();
+    let denied = f
+        .core()
+        .automation_delegation_preflight(AutomationKind::Event, "proposal")
+        .unwrap();
+    assert_eq!(
+        denied.value,
+        json!({"eligible":false,"reason":"effect_not_granted","executionAuthorized":false})
+    );
+    service
+        .revoke_session(&identity.session_id, "local-owner")
+        .unwrap();
+    assert_eq!(
+        f.core()
+            .automation_delegation_preflight(AutomationKind::Event, "proposal")
+            .unwrap_err()
+            .code,
+        "unauthorized"
+    );
+}
+
+#[test]
+fn reusable_preflight_requires_policy_from_every_delegated_author() {
+    let f = Fixture::new();
+    let first = author(f.core());
+    let second = author(f.core());
+    let a = first.snapshot().unwrap();
+    let b = second.snapshot().unwrap();
+    f.core().automation_command(
+        CommandCaller::Remote(second),
+        CommandRequest { command_id: "second-action".into(), host_instance_id: f.core().collaboration().unwrap().instance_id().into(), expected_revision: "0".into() },
+        AutomationMutation::Create { kind: AutomationKind::Action, record: json!({"id":"same","name":"Second author","enabled":false,"typeId":"core.log","config":{"message":"hello"}}) },
+    ).unwrap();
+    delegated(f.core(), &first, "proposal");
+    let grant = Grant {
+        capabilities: [
+            Capability::AutomationRead,
+            Capability::AutomationEdit,
+            Capability::AutomationToggle,
+            Capability::LiveRead,
+        ]
+        .into(),
+        automation_delegation: Some(AutomationDelegation {
+            effects: [DelegatedAutomationEffect::Log].into(),
+            allow_dynamic_targets: false,
+        }),
+        ..Grant::default()
+    };
+    let service = f.core().collaboration().unwrap();
+    service
+        .set_grant(GrantSet {
+            principal_id: a.principal_id,
+            expected_revision: a.grant_revision,
+            grant: grant.clone(),
+        })
+        .unwrap();
+    service
+        .set_grant(GrantSet {
+            principal_id: b.principal_id.clone(),
+            expected_revision: b.grant_revision,
+            grant: grant.clone(),
+        })
+        .unwrap();
+    assert_eq!(
+        f.core()
+            .automation_delegation_preflight(AutomationKind::Event, "proposal")
+            .unwrap()
+            .value["eligible"],
+        true
+    );
+    let mut no_policy = grant;
+    no_policy.automation_delegation = None;
+    service
+        .set_grant(GrantSet {
+            principal_id: b.principal_id,
+            expected_revision: "2".into(),
+            grant: no_policy,
+        })
+        .unwrap();
+    let rejected = f
+        .core()
+        .automation_delegation_preflight(AutomationKind::Event, "proposal")
+        .unwrap();
+    assert_eq!(rejected.value["eligible"], false);
+    assert_eq!(rejected.value["reason"], "delegation_not_granted");
+    assert_eq!(rejected.value["executionAuthorized"], false);
+}
+
+#[test]
 fn manifest_reopens_from_provenance_and_session_storage_without_a_bearer_or_live_connection() {
     let mut f = Fixture::new();
     f.action("same");
