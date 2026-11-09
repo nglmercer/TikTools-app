@@ -15,7 +15,11 @@ const labels = computed(() => locale.value === 'es' ? {
   dynamicPointsNote: 'El ID se tomará de cada evento. El evento debe contener un espectador y sus permisos se comprobarán en cada ejecución. El propietario debe revisar y aprobar la definición; este borrador no ajusta puntos.',
   trigger: 'Cuándo ocurre', chat: 'Mensaje en el chat', gift: 'Regalo', like: 'Me gusta', follow: 'Seguir', share: 'Compartir', join: 'Ingreso',
   contains: 'El mensaje contiene (opcional)', actionId: 'ID de acción (opcional)', cooldown: 'Espera entre ejecuciones (ms)',
-  actionNote: 'El anfitrión verificará el acceso a la acción. Sin una acción vinculada, el evento no hará nada.',
+  actionNote: 'El ID escrito se incluirá al preparar el borrador. Usa Agregar para conservarlo antes de elegir otro. El anfitrión comprobará el acceso; sin acciones vinculadas, el evento no hará nada.',
+  addAction: 'Agregar acción', selectedActions: 'Acciones agregadas en orden', removeAction: (id: string) => `Quitar ${id}`,
+  moveEarlier: (id: string) => `Mover ${id} hacia arriba`, moveLater: (id: string) => `Mover ${id} hacia abajo`,
+  actionError: 'Usa IDs válidos, sin repetir, y agrega como máximo 512 acciones.',
+  runMode: 'Cómo ejecutar las acciones', runAll: 'Todas las acciones activas, en orden', runRandom: 'Una acción activa al azar',
   availableActions: 'Acciones visibles en el anfitrión', actionSearch: 'Buscar acción visible', noActions: 'No hay acciones visibles que coincidan.',
   actionLimit: 'Se muestran las primeras 50 coincidencias. Busca por nombre o ID para encontrar otras.', selectAction: 'Usar ID',
   actionDisabled: 'inactiva', actionEnabled: 'activa', actionStatusNote: 'La lista es una instantánea. El anfitrión comprobará las referencias y el propietario revisará la definición antes de activarla.',
@@ -30,7 +34,11 @@ const labels = computed(() => locale.value === 'es' ? {
   dynamicPointsNote: 'The ID comes from each event. The event must contain a viewer, and permissions are checked on every execution. The owner must review and approve the definition; this draft does not adjust points.',
   trigger: 'When it happens', chat: 'Chat message', gift: 'Gift', like: 'Like', follow: 'Follow', share: 'Share', join: 'Join',
   contains: 'Message contains (optional)', actionId: 'Action ID (optional)', cooldown: 'Delay between runs (ms)',
-  actionNote: 'The host checks access to the action. Without a linked action, the event will do nothing.',
+  actionNote: 'The typed ID is included when preparing the draft. Use Add to keep it before choosing another. The host checks access; without linked actions, the event will do nothing.',
+  addAction: 'Add action', selectedActions: 'Added actions in order', removeAction: (id: string) => `Remove ${id}`,
+  moveEarlier: (id: string) => `Move ${id} up`, moveLater: (id: string) => `Move ${id} down`,
+  actionError: 'Use valid, unique IDs and add at most 512 actions.',
+  runMode: 'How to run the actions', runAll: 'All enabled actions, in order', runRandom: 'One enabled action at random',
   availableActions: 'Actions visible on the host', actionSearch: 'Search visible actions', noActions: 'No visible actions match.',
   actionLimit: 'Showing the first 50 matches. Search by name or ID to find others.', selectAction: 'Use ID',
   actionDisabled: 'disabled', actionEnabled: 'enabled', actionStatusNote: 'This list is a snapshot. The host checks references and the owner reviews the definition before activation.',
@@ -49,6 +57,8 @@ const delta = ref('');
 const trigger = ref<'tiktok.chat' | 'tiktok.gift' | 'tiktok.like' | 'tiktok.follow' | 'tiktok.share' | 'tiktok.join'>('tiktok.chat');
 const contains = ref('');
 const actionId = ref('');
+const selectedActionIds = ref<string[]>([]);
+const runMode = ref<'all' | 'random'>('all');
 const actionSearch = ref('');
 const cooldown = ref('0');
 const encoder = new TextEncoder();
@@ -60,6 +70,24 @@ const integer = (value: string, max: number): number | null => {
 };
 const canonicalId = (value: string) => value.length > 0 && value.trim() === value
   && encoder.encode(value).length <= 128 && !/[\p{Cc}*]/u.test(value);
+const actionIds = computed(() => [...selectedActionIds.value, ...(actionId.value ? [actionId.value] : [])]);
+const actionsValid = computed(() => actionIds.value.length <= 512 && actionIds.value.every(canonicalId) && new Set(actionIds.value).size === actionIds.value.length);
+function addAction(): void {
+  if (props.model.busy.value || !props.model.editable.value || !actionId.value || !actionsValid.value) return;
+  selectedActionIds.value = [...selectedActionIds.value, actionId.value];
+  actionId.value = '';
+}
+function removeAction(index: number): void {
+  if (props.model.busy.value || !props.model.editable.value || index < 0 || index >= selectedActionIds.value.length) return;
+  selectedActionIds.value = selectedActionIds.value.filter((_, i) => i !== index);
+}
+function moveAction(index: number, delta: -1 | 1): void {
+  const next = index + delta;
+  if (props.model.busy.value || !props.model.editable.value || index < 0 || next < 0 || index >= selectedActionIds.value.length || next >= selectedActionIds.value.length) return;
+  const reordered = [...selectedActionIds.value];
+  [reordered[index], reordered[next]] = [reordered[next]!, reordered[index]!];
+  selectedActionIds.value = reordered;
+}
 const literalViewer = (value: string) => canonicalId(value) && !value.startsWith('@') && !value.includes('{{') && !value.includes('}}');
 const pointsChange = (value: string): number | null => {
   if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)) return null;
@@ -100,12 +128,12 @@ const draft = computed<string | null>(() => {
     return null;
   }
   const wait = integer(cooldown.value, 86_400_000);
-  if (wait === null || !triggers.has(trigger.value) || (actionId.value && !canonicalId(actionId.value)) || encoder.encode(contains.value).length > 500) return null;
+  if (wait === null || !triggers.has(trigger.value) || !actionsValid.value || !['all', 'random'].includes(runMode.value) || encoder.encode(contains.value).length > 500) return null;
   const filters = trigger.value === 'tiktok.chat' && contains.value
     ? [{ path: 'event.data.comment', operator: 'contains', value: contains.value }]
     : [];
   return JSON.stringify({ id, name: name.value, enabled: false, trigger: trigger.value,
-    actionIds: actionId.value ? [actionId.value] : [], filters, cooldownMs: wait, cooldownScope: 'global', runMode: 'all', schemaVersion: 1 }, null, 2);
+    actionIds: actionIds.value, filters, cooldownMs: wait, cooldownScope: 'global', runMode: runMode.value, schemaVersion: 1 }, null, 2);
 });
 
 type Capture = { before: ProposalConfirmation; generated: string };
@@ -124,8 +152,8 @@ function apply(): void {
 }
 // Source and form state are both private to the current connection/selection.
 watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.id.value], () => {
-  capture.value = null; name.value = ''; message.value = ''; actionId.value = ''; actionSearch.value = ''; contains.value = ''; viewer.value = ''; delta.value = '';
-  actionType.value = 'core.log'; viewerTarget.value = 'specific'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0';
+  capture.value = null; name.value = ''; message.value = ''; actionId.value = ''; selectedActionIds.value = []; actionSearch.value = ''; contains.value = ''; viewer.value = ''; delta.value = '';
+  actionType.value = 'core.log'; viewerTarget.value = 'specific'; runMode.value = 'all'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0';
 }, { flush: 'sync' });
 </script>
 
@@ -149,7 +177,23 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
         <label>{{ labels.trigger }}<select v-model="trigger" :disabled="model.busy.value"><option value="tiktok.chat">{{ labels.chat }}</option><option value="tiktok.gift">{{ labels.gift }}</option><option value="tiktok.like">{{ labels.like }}</option><option value="tiktok.follow">{{ labels.follow }}</option><option value="tiktok.share">{{ labels.share }}</option><option value="tiktok.join">{{ labels.join }}</option></select></label>
         <label v-if="trigger === 'tiktok.chat'">{{ labels.contains }}<input v-model="contains" maxlength="500" :disabled="model.busy.value"></label>
         <label>{{ labels.actionId }}<input v-model="actionId" maxlength="128" spellcheck="false" :disabled="model.busy.value"></label>
+        <label>{{ labels.runMode }}<select v-model="runMode" :disabled="model.busy.value"><option value="all">{{ labels.runAll }}</option><option value="random">{{ labels.runRandom }}</option></select></label>
         <label>{{ labels.cooldown }}<input v-model="cooldown" type="number" min="0" max="86400000" step="1" :disabled="model.busy.value"></label>
+      </template>
+    </div>
+    <div v-if="model.kind.value === 'event'" class="selected-actions">
+      <button type="button" :disabled="model.busy.value || !model.editable.value || !actionId || !actionsValid" @click="addAction">{{ labels.addAction }}</button>
+      <p v-if="!actionsValid" role="status">{{ labels.actionError }}</p>
+      <template v-if="selectedActionIds.length">
+        <h4>{{ labels.selectedActions }}</h4>
+        <ol>
+          <li v-for="(id, index) in selectedActionIds" :key="id">
+            <span>{{ id }}</span>
+            <button type="button" :aria-label="labels.moveEarlier(id)" :disabled="model.busy.value || !model.editable.value || index === 0" @click="moveAction(index, -1)">↑</button>
+            <button type="button" :aria-label="labels.moveLater(id)" :disabled="model.busy.value || !model.editable.value || index === selectedActionIds.length - 1" @click="moveAction(index, 1)">↓</button>
+            <button type="button" :aria-label="labels.removeAction(id)" :disabled="model.busy.value || !model.editable.value" @click="removeAction(index)">×</button>
+          </li>
+        </ol>
       </template>
     </div>
     <section v-if="model.kind.value === 'event' && actionsReady" :aria-label="labels.availableActions" class="available-actions">

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { ControllerStatus } from '../../src/web/features/controller/model/controller.ts';
 
 for (const locale of ['en', 'es'] as const) {
-  test(`a moderator selects a visible host action for a disabled event (${locale})`, async ({ page }) => {
+  test(`a moderator selects visible host actions for a disabled event (${locale})`, async ({ page }) => {
     await page.setViewportSize({ width: locale === 'es' ? 390 : 1100, height: 900 });
     const status: ControllerStatus = { proposalsSupported: true, epoch: '1', viewRevision: '1', automationRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://host.example', errorCode: null,
       hello: { connectionId: 'connection', hostId: 'host', principalId: 'author', sessionId: 'device', hostInstanceId: 'instance', grantRevision: '1', capabilities: ['automation.read', 'automation.edit'], features: { automationDrafts: true, automationSummary: true } },
@@ -25,14 +25,15 @@ for (const locale of ['en', 'es'] as const) {
         else if (request.method === 'controller.proposals.list') result = { ...tuple, storeRevision: '0', rows: [], next: null };
         else if (request.method === 'controller.automations') result = { epoch: '1', automationRevision: '1', rows: [
           { summary: { kind: 'action', id: 'alert.action', name: 'Alert sound', enabled: false, definitionRedacted: true }, version: { kind: 'automation', scope: 'action', id: 'alert.action', revision: '4' } },
+          { summary: { kind: 'action', id: 'reward.action', name: 'Reward viewer', enabled: false, definitionRedacted: true }, version: { kind: 'automation', scope: 'action', id: 'reward.action', revision: '2' } },
         ], next: null };
         else error = { code: 'forbidden', message: 'Unexpected controller write' };
         queueMicrotask(() => window.__webview_on_message__?.(JSON.stringify({ type: 'rpc-response', response: { jsonrpc: '2.0', id: request.id, ...(error ? { error } : { result }) } })));
       } };
     }, { status, locale });
     await page.goto('/');
-    const labels = locale === 'es' ? { title:'Propuestas de automatización', family:'Tipo de propuesta', id:'ID de la propuesta', start:'Preparar propuesta nueva', builder:'Crear una propuesta con campos', name:'Nombre', actions:'Acciones visibles en el anfitrión', search:'Buscar acción visible', useId:'Usar ID', actionId:'ID de acción (opcional)', prepare:'Preparar borrador', apply:'Usar este borrador' } :
-      { title:'Automation proposals', family:'Proposal type', id:'Proposal ID', start:'Prepare new proposal', builder:'Create a proposal with fields', name:'Name', actions:'Actions visible on the host', search:'Search visible actions', useId:'Use ID', actionId:'Action ID (optional)', prepare:'Prepare draft', apply:'Use this draft' };
+    const labels = locale === 'es' ? { title:'Propuestas de automatización', family:'Tipo de propuesta', id:'ID de la propuesta', start:'Preparar propuesta nueva', builder:'Crear una propuesta con campos', name:'Nombre', actions:'Acciones visibles en el anfitrión', search:'Buscar acción visible', useId:'Usar ID', actionId:'ID de acción (opcional)', add:'Agregar acción', runMode:'Cómo ejecutar las acciones', prepare:'Preparar borrador', apply:'Usar este borrador' } :
+      { title:'Automation proposals', family:'Proposal type', id:'Proposal ID', start:'Prepare new proposal', builder:'Create a proposal with fields', name:'Name', actions:'Actions visible on the host', search:'Search visible actions', useId:'Use ID', actionId:'Action ID (optional)', add:'Add action', runMode:'How to run the actions', prepare:'Prepare draft', apply:'Use this draft' };
     const region = page.getByRole('region', { name: labels.title, exact: true });
     await region.getByRole('combobox', { name: labels.family, exact: true }).selectOption('event');
     await region.getByLabel(labels.id, { exact: true }).fill('new.event');
@@ -43,9 +44,15 @@ for (const locale of ['en', 'es'] as const) {
     await actions.getByLabel(labels.search, { exact: true }).fill('alert');
     await actions.getByRole('button', { name: labels.useId, exact: true }).click();
     await expect(region.getByLabel(labels.actionId, { exact: true })).toHaveValue('alert.action');
+    await region.getByRole('button', { name: labels.add, exact: true }).click();
+    await actions.getByLabel(labels.search, { exact: true }).fill('reward');
+    await actions.getByRole('button', { name: labels.useId, exact: true }).click();
+    await expect(region.getByLabel(labels.actionId, { exact: true })).toHaveValue('reward.action');
+    await region.getByRole('combobox', { name: labels.runMode, exact: true }).selectOption('random');
     await region.getByRole('button', { name: labels.prepare, exact: true }).click();
     const preview = page.getByRole('dialog');
-    await expect(preview.locator('pre')).toContainText('"actionIds": [\n    "alert.action"\n  ]');
+    await expect(preview.locator('pre')).toContainText('"actionIds": [\n    "alert.action",\n    "reward.action"\n  ]');
+    await expect(preview.locator('pre')).toContainText('"runMode": "random"');
     await expect(preview.locator('pre')).toContainText('"enabled": false');
     await preview.getByRole('button', { name: labels.apply, exact: true }).click();
     await expect(region.locator('textarea')).toHaveValue(/alert\.action/);

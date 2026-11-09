@@ -70,6 +70,72 @@ it('generates a disabled chat event with a bounded filter and one selected actio
   } finally { f.wrapper.unmount(); f.model.stop(); }
 });
 
+it('prepares several ordered actions and invalidates a preview when their order changes', async () => {
+  const f = await setup('event');
+  try {
+    const original = f.model.text.value;
+    await f.wrapper.findAll('input')[0]!.setValue('Welcome and reward');
+    const actionInput = () => f.wrapper.findAll('input')[2]!;
+    await actionInput().setValue('log.action');
+    await f.button('Add action').trigger('click');
+    await actionInput().setValue('points.action');
+    await f.button('Add action').trigger('click');
+    await actionInput().setValue('audio.action');
+    await f.wrapper.findAll('select')[0]!.setValue('tiktok.chat');
+    await f.wrapper.findAll('select')[1]!.setValue('random');
+    await f.button('Prepare draft').trigger('click');
+    expect(f.wrapper.get('dialog[open]').text()).toContain('"runMode": "random"');
+    expect(f.model.text.value).toBe(original);
+    await f.wrapper.get('button[aria-label="Move points.action up"]').trigger('click');
+    expect(f.dialogButton('Use this draft').attributes('disabled')).toBeDefined();
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(f.model.text.value).toBe(original);
+    await f.dialogButton('Cancel').trigger('click');
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toMatchObject({ enabled:false, runMode:'random',
+      actionIds:['points.action', 'log.action', 'audio.action'] });
+    expect(f.model.saved.value).toBeNull();
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('rejects duplicate action IDs until the moderator removes or replaces one', async () => {
+  const f = await setup('event');
+  try {
+    await f.wrapper.findAll('input')[0]!.setValue('Example');
+    const actionInput = () => f.wrapper.findAll('input')[2]!;
+    await actionInput().setValue('same.action');
+    await f.button('Add action').trigger('click');
+    await actionInput().setValue('same.action');
+    expect(f.wrapper.text()).toContain('Use valid, unique IDs');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    await f.wrapper.get('button[aria-label="Remove same.action"]').trigger('click');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeUndefined();
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value).actionIds).toEqual(['same.action']);
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('clears added actions and closes the preview when the controller grant changes', async () => {
+  const f = await setup('event');
+  try {
+    await f.wrapper.findAll('input')[0]!.setValue('Scoped event');
+    await f.wrapper.findAll('input')[2]!.setValue('private.action');
+    await f.button('Add action').trigger('click');
+    await f.button('Prepare draft').trigger('click');
+    expect(f.wrapper.get('dialog[open]').text()).toContain('private.action');
+    f.status.value.hello!.grantRevision = '2';
+    await flushPromises();
+    expect(f.wrapper.find('dialog[open]').exists()).toBe(false);
+    expect(f.wrapper.text()).not.toContain('private.action');
+    expect(f.model.text.value).toBe('');
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
 it('selects a permitted host action without saving or sending the proposal', async () => {
   const f = await setup('event');
   f.status.value.automationRevision = '1';

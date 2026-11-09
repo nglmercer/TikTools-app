@@ -54,6 +54,14 @@ and each execution requires an event containing a viewer and the current
 viewer/points grants and limits. Preview, local save and host submission remain
 separate explicit steps.
 
+For event drafts the builder accepts multiple unique action IDs, lets the
+author remove or reorder added IDs and choose all enabled actions in order or
+one enabled action at random. The currently typed ID is also included in the
+preview; adding it first preserves it before selecting another. The host checks
+references and the owner reviews the complete dependency set, including actions
+that are disabled or not selected by a random run. Building the draft does not
+enable or execute anything.
+
 **Use this status as base** requires explicit confirmation. It chooses create
 for an absent target and replacement for an existing one, preserving your text.
 It does not save or send. **Save proposal on this PC** separately confirms
