@@ -41,7 +41,7 @@ impl<'a> SqliteV2ProductSource<'a> {
         &self,
         id: &str,
     ) -> Result<Option<LocalUntrackedSelectionReview>, SyncCoordError> {
-        self.with_untracked_source(id, |source, version, epoch| {
+        self.with_untracked_source(id, None, |source, version, epoch| {
             Ok(LocalUntrackedSelectionReview {
                 source: source.clone(),
                 version: version.to_owned(),
@@ -59,7 +59,7 @@ impl<'a> SqliteV2ProductSource<'a> {
         review: &LocalUntrackedSelectionReview,
         operation: impl FnOnce(&crate::db::UntrackedPluginReview, &str) -> Result<T, SyncCoordError>,
     ) -> Result<T, SyncCoordError> {
-        self.with_untracked_source(&review.source.plugin_id, |source, version, epoch| {
+        self.with_untracked_source(&review.source.plugin_id, None, |source, version, epoch| {
             if source != &review.source
                 || version != review.version
                 || epoch != review.runtime_epoch
@@ -71,9 +71,52 @@ impl<'a> SqliteV2ProductSource<'a> {
         .ok_or_else(unavailable)
     }
 
+    /// Transfer one explicitly approved local review while the coordinator
+    /// holds the account/session and source barriers. This is not wired to
+    /// product UI; the caller must first obtain the user's explicit choice.
+    /// Runtime confirmation and outbox staging remain separate steps.
+    #[allow(dead_code)]
+    pub(crate) fn reconcile_reviewed_under_barrier(
+        &self,
+        review: &LocalUntrackedSelectionReview,
+        admission: &tiktools_cloud_sync::V2ReconciliationAdmission<'_>,
+    ) -> Result<(), WorkspaceCoordError> {
+        let context = admission.context();
+        if context.origin != self.origin || context.account_id != self.account {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        self.with_untracked_source(
+            &review.source.plugin_id,
+            Some(admission),
+            |source, version, epoch| {
+                if source != &review.source
+                    || version != review.version
+                    || epoch != review.runtime_epoch
+                {
+                    return Err(unavailable());
+                }
+                self.core
+                    .db
+                    .reconcile_untracked_plugin(
+                        source,
+                        &crate::db::LocalPluginSyncIntent {
+                            origin: &context.origin,
+                            account_id: &context.account_id,
+                            config_generation: context.config_generation,
+                            version: Some(version),
+                        },
+                    )
+                    .map_err(|_| unavailable())
+            },
+        )
+        .map_err(|_| WorkspaceCoordError::Ineligible)?
+        .ok_or(WorkspaceCoordError::Ineligible)
+    }
+
     fn with_untracked_source<T>(
         &self,
         id: &str,
+        admission: Option<&tiktools_cloud_sync::V2ReconciliationAdmission<'_>>,
         operation: impl FnOnce(
             &crate::db::UntrackedPluginReview,
             &str,
@@ -91,11 +134,17 @@ impl<'a> SqliteV2ProductSource<'a> {
             .core
             .try_plugin_sync_runtime_guard()
             .map_err(|_| unavailable())?;
-        let fence = tiktools_cloud_sync::ProductEmissionFence::open(
-            self.core.db.paths().data.join("plugin-sync-emission"),
-        )
-        .map_err(|_| unavailable())?;
-        let _lease = fence.try_untracked_edit().map_err(|_| unavailable())?;
+        let source_dir = self.core.db.paths().data.join("plugin-sync-emission");
+        let _lease = if let Some(admission) = admission {
+            if !admission.matches_source_dir(&source_dir) {
+                return Err(unavailable());
+            }
+            None
+        } else {
+            let fence = tiktools_cloud_sync::ProductEmissionFence::open(source_dir)
+                .map_err(|_| unavailable())?;
+            Some(fence.try_untracked_edit().map_err(|_| unavailable())?)
+        };
         let Some(source) = self
             .core
             .db

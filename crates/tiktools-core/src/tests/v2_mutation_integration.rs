@@ -34,6 +34,203 @@ fn assert_staged_decision(workspace: &WorkspaceCoordinator, decision: &V2Product
 }
 
 #[tokio::test]
+async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier() {
+    use secrecy::SecretString;
+    use tiktools_cloud_auth::{Persistence, TokenStore, TokenStoreError};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+
+    struct Store;
+    impl TokenStore for Store {
+        fn persistence(&self) -> Persistence {
+            Persistence::MemoryOnly
+        }
+        fn load(&self, _: &str, _: &str) -> Result<Option<SecretString>, TokenStoreError> {
+            Ok(Some(SecretString::from("test-token".to_owned())))
+        }
+        fn store(
+            &self,
+            _: &str,
+            _: &str,
+            _: &cloud_client::Session,
+        ) -> Result<(), TokenStoreError> {
+            Ok(())
+        }
+        fn delete(&self, _: &str, _: &str) -> Result<(), TokenStoreError> {
+            Ok(())
+        }
+    }
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let mut buf = [0u8; 8192];
+                let Ok(n) = socket.read(&mut buf).await else {
+                    return;
+                };
+                let request = String::from_utf8_lossy(&buf[..n]);
+                let line = request.lines().next().unwrap_or_default();
+                let (status, value) = if line.starts_with("GET /api/v1/native/me ") {
+                    ("200 OK", json!({"id":"alice"}))
+                } else if line.starts_with("GET /api/v2/sync/write-epoch ") {
+                    ("200 OK", json!({"writeEpoch":"7","epochRequired":true}))
+                } else if line.starts_with("POST /api/v2/sync/write-barrier ") {
+                    ("200 OK", json!({"writeEpoch":"8"}))
+                } else {
+                    ("404 Not Found", json!({}))
+                };
+                let body = serde_json::to_vec(&value).unwrap();
+                let header = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                let _ = socket.write_all(header.as_bytes()).await;
+                let _ = socket.write_all(&body).await;
+            });
+        }
+    });
+    let runtime = Arc::new(FakePluginState::default());
+    let (mut core, _, root) = core_with_fake_plugins(runtime, &["acme.hotkeys"]);
+    let paths = core.db.paths().clone();
+    let sidecar = paths.data.join("reconcile-account.json");
+    std::fs::write(
+        &sidecar,
+        serde_json::to_vec(&json!({"origin":origin,"account_id":"alice"})).unwrap(),
+    )
+    .unwrap();
+    let auth = CloudAuth::new(Some(origin.clone()), sidecar, Arc::new(Store));
+    auth.restore().await.unwrap();
+    let session = auth.session().await.unwrap();
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    let sync = core.sync.coordinator().unwrap();
+    sync.set_enabled(true).unwrap();
+    let sync_dir = paths.data.join("cloud-sync");
+    let workspace = WorkspaceCoordinator::open(&sync_dir, origin.clone(), "alice".into()).unwrap();
+    workspace.bootstrap(&[], None).unwrap();
+    let store = cloud_client::WorkspaceStore::open(&sync_dir, &origin, "alice").unwrap();
+    let mut snapshot = store.load().unwrap().unwrap();
+    snapshot.state.mark_product_guarded();
+    store
+        .save(Some(snapshot.generation), &snapshot.state)
+        .unwrap();
+    let identity = Sha256Digest::of_bytes(&serde_json::to_vec(&(&origin, "alice")).unwrap());
+    let scope = Sha256Digest::of_bytes(
+        &serde_json::to_vec(&("tiktools-v2-consent", &origin, "alice")).unwrap(),
+    );
+    std::fs::write(
+        sync_dir.join("cloud-sync.json"),
+        serde_json::to_vec(
+            &json!({"version":2,"enabled":true,"generation":42,"scope":scope.as_bytes()}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let protocol_marker = sync_dir.join(format!("protocol-{identity}.json"));
+    std::fs::write(&protocol_marker, serde_json::to_vec(&json!({"formatVersion":3,"origin":origin,"accountId":"alice","mode":"v2","candidateSha256":"a".repeat(64)})).unwrap()).unwrap();
+    let product_marker = sync_dir.join(format!("v1-product-outbox-{identity}.json"));
+    std::fs::write(
+        &product_marker,
+        serde_json::to_vec(&json!({"formatVersion":1,"origin":origin,"accountId":"alice"}))
+            .unwrap(),
+    )
+    .unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        for path in [&protocol_marker, &product_marker] {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+    }
+
+    core.plugin_set_enabled("acme.hotkeys", false).unwrap();
+    let source =
+        crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&core, &origin, "alice");
+    let stale = source
+        .review_untracked_selection("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    core.plugin_set_enabled("acme.hotkeys", true).unwrap();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone())
+        .await
+        .unwrap();
+    assert!(sync
+        .with_v2_reconciliation_barrier(&proof, |admission| source
+            .reconcile_reviewed_under_barrier(&stale, admission))
+        .is_err());
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    assert!(core
+        .db
+        .next_plugin_sync_intent(&origin, "alice")
+        .unwrap()
+        .is_none());
+    let reviewed = source
+        .review_untracked_selection("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    let wrong_account =
+        crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&core, &origin, "bob");
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone())
+        .await
+        .unwrap();
+    assert!(sync
+        .with_v2_reconciliation_barrier(&proof, |admission| wrong_account
+            .reconcile_reviewed_under_barrier(&reviewed, admission))
+        .is_err());
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+
+    let (other, _, other_root) =
+        core_with_fake_plugins(Arc::new(FakePluginState::default()), &["acme.hotkeys"]);
+    other.plugin_set_enabled("acme.hotkeys", false).unwrap();
+    let other_source =
+        crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&other, &origin, "alice");
+    let other_review = other_source
+        .review_untracked_selection("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone())
+        .await
+        .unwrap();
+    assert!(sync
+        .with_v2_reconciliation_barrier(&proof, |admission| other_source
+            .reconcile_reviewed_under_barrier(&other_review, admission))
+        .is_err());
+    assert!(other.db.has_untracked_plugin_sync().unwrap());
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    other.shutdown().await;
+    drop(other_source);
+    let _ = std::fs::remove_dir_all(other_root);
+
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone())
+        .await
+        .unwrap();
+    sync.with_v2_reconciliation_barrier(&proof, |admission| {
+        source.reconcile_reviewed_under_barrier(&reviewed, admission)
+    })
+    .unwrap();
+    assert!(!core.db.has_untracked_plugin_sync().unwrap());
+    let pending = core
+        .db
+        .next_plugin_sync_intent(&origin, "alice")
+        .unwrap()
+        .unwrap();
+    assert_eq!(pending.config_generation, 42);
+    assert_eq!(pending.enabled, Some(true));
+    assert_eq!(pending.runtime_epoch, None);
+    assert!(sync
+        .with_v2_reconciliation_barrier(&proof, |_| Ok(()))
+        .is_err());
+    core.shutdown().await;
+    drop(source);
+    server.abort();
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn product_upload_source_rejects_new_admission_after_shutdown() {
     let runtime = Arc::new(FakePluginState::default());
     let (core, _, root) = core_with_fake_plugins(runtime, &["acme.hotkeys"]);

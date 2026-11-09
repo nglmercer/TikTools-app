@@ -1,6 +1,7 @@
 //! Experimental account-scoped barrier for explicitly reviewed local edits.
 //! This does not inspect or transfer local plugin state, and is not a UI API.
 use std::{
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, MutexGuard,
@@ -24,6 +25,25 @@ pub struct V2ReconciliationBarrier {
     expires: Instant,
     consumed: AtomicBool,
     source_guard: Arc<Mutex<Option<crate::ProductEmissionLease>>>,
+    source_dir: PathBuf,
+}
+
+/// Borrowed evidence that the reconciliation callback owns the source lease.
+/// It cannot be constructed or retained outside the synchronous callback.
+pub struct V2ReconciliationAdmission<'a> {
+    context: V2LocalEditContext,
+    source_dir: &'a Path,
+}
+impl V2ReconciliationAdmission<'_> {
+    pub fn context(&self) -> &V2LocalEditContext {
+        &self.context
+    }
+    /// Confirm the native source uses the same on-disk fence. An unavailable
+    /// or changed directory fails closed; noncooperating filesystem writers
+    /// remain outside the advisory lock guarantee.
+    pub fn matches_source_dir(&self, path: &Path) -> bool {
+        std::fs::canonicalize(path).is_ok_and(|actual| actual == self.source_dir)
+    }
 }
 
 // If expiry fires while final validation holds the mutex, the timer cannot
@@ -85,9 +105,11 @@ impl SyncCoordinator {
             // the reviewed local commit. This prevents cooperative emitters or
             // source writers from starting in the gap between those steps.
             let source_root = root.parent().ok_or(WorkspaceCoordError::Ineligible)?;
+            let source_dir = source_root.join("plugin-sync-emission");
             let source_guard =
-                crate::ProductEmissionFence::open(source_root.join("plugin-sync-emission"))?
-                    .try_untracked_edit()?;
+                crate::ProductEmissionFence::open(&source_dir)?.try_untracked_edit()?;
+            let source_dir =
+                std::fs::canonicalize(source_dir).map_err(|_| WorkspaceCoordError::Ineligible)?;
             let store = WorkspaceStore::open(root, &origin, &account)?;
             let _operation = store
                 .try_operation_lock()?
@@ -132,6 +154,7 @@ impl SyncCoordinator {
                 expires,
                 consumed: AtomicBool::new(false),
                 source_guard,
+                source_dir,
             })
         })
         .await
@@ -150,7 +173,7 @@ impl SyncCoordinator {
     pub fn with_v2_reconciliation_barrier<T>(
         &self,
         proof: &V2ReconciliationBarrier,
-        operation: impl FnOnce(&V2LocalEditContext) -> Result<T, WorkspaceCoordError>,
+        operation: impl FnOnce(&V2ReconciliationAdmission<'_>) -> Result<T, WorkspaceCoordError>,
     ) -> Result<T, WorkspaceCoordError> {
         if !Arc::ptr_eq(&proof.binding, &self.recovery_binding)
             || Instant::now() >= proof.expires
@@ -193,10 +216,13 @@ impl SyncCoordinator {
                 {
                     return Err(WorkspaceCoordError::Ineligible);
                 }
-                operation(&V2LocalEditContext {
-                    origin,
-                    account_id: account.to_owned(),
-                    config_generation: proof.config.config.generation,
+                operation(&V2ReconciliationAdmission {
+                    context: V2LocalEditContext {
+                        origin,
+                        account_id: account.to_owned(),
+                        config_generation: proof.config.config.generation,
+                    },
+                    source_dir: &proof.source_dir,
                 })
             })
             .map_err(|_| WorkspaceCoordError::Ineligible)?;

@@ -148,10 +148,12 @@ the source/runtime under this already-held lease, require an explicit user
 choice and handle failed or uncertain native commits. Legacy emitters, mixed
 backend versions, noncooperating processes and full UI integration remain
 outside this experimental guarantee.
-The existing local source-review helper acquires that same exclusive lease
-itself and therefore cannot yet be called inside the confirmation callback;
-the adapter must be refactored to validate under the already-held lease before
-the two pieces can be safely connected.
+The native local-review adapter can consume the callback's non-serializable
+admission without reacquiring the exclusive lease. It checks the canonical
+source directory, origin and account, then revalidates the exact source,
+version and runtime before transferring the marker into a runtime-unconfirmed
+outbox entry. This remains private: an explicit user choice, runtime
+confirmation, all legacy writers, and product/UI integration are still needed.
 The native adapter can now capture an opaque local selection review and
 recheck the same source revision, installed version, runtime observation and
 host lifetime under the invocation and exclusive emission fences. It does not

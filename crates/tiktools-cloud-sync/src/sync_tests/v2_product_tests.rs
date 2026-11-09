@@ -75,6 +75,9 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
     assert!(source_gate.try_emission().is_err());
     let context = sync
         .with_v2_reconciliation_barrier(&proof, |ctx| {
+            assert!(ctx.matches_source_dir(&dir.join("plugin-sync-emission")));
+            assert!(!ctx.matches_source_dir(&dir.join("other-source")));
+            let ctx = ctx.context();
             Ok((
                 ctx.origin.clone(),
                 ctx.account_id.clone(),

@@ -42,7 +42,7 @@ pub use product_remote_apply::V1RemoteApplyReview;
 mod v2_product_remote_apply;
 pub use v2_product_remote_apply::V2RemoteApplyReview;
 mod v2_reconciliation;
-pub use v2_reconciliation::V2ReconciliationBarrier;
+pub use v2_reconciliation::{V2ReconciliationAdmission, V2ReconciliationBarrier};
 #[doc(hidden)]
 pub mod consent_generation;
 mod product_conflict;
