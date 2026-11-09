@@ -1897,11 +1897,13 @@ async fn browser_controller_pairs_reads_live_updates_and_clears_on_revocation() 
         .core
         .workflow_save(json!({"id":"welcome","name":"Host initial","enabled":true}))
         .unwrap();
+    fixture.core.workflow_save(json!({"id":"other","name":"Other workflow","enabled":true})).unwrap();
     let grant = Grant {
-        capabilities: [tiktools_collaboration::Capability::WorkflowsRead].into(),
+        capabilities: [tiktools_collaboration::Capability::WorkflowsRead, tiktools_collaboration::Capability::WorkflowsToggle,
+            tiktools_collaboration::Capability::WorkflowsEdit, tiktools_collaboration::Capability::CommandsRead].into(),
         resources: [(
             tiktools_collaboration::ResourceKind::Workflow,
-            ["welcome".into()].into(),
+            ["welcome".into(), "other".into()].into(),
         )]
         .into(),
         ..Grant::default()
@@ -1962,6 +1964,9 @@ async fn browser_controller_pairs_reads_live_updates_and_clears_on_revocation() 
         .workflow_save(json!({"id":"welcome","name":"Host updated","enabled":true}))
         .unwrap();
     stage(&mut child, signals.path(), "updated").await;
+    stage(&mut child, signals.path(), "commands-complete").await;
+    assert_eq!(fixture.core.workflow_get("welcome").unwrap()["enabled"], false);
+    assert!(fixture.core.workflow_get("other").is_err());
     stage(&mut child, signals.path(), "replacement-requested").await;
     let replacement_request_id = tokio::time::timeout(Duration::from_secs(10), async {
         loop {

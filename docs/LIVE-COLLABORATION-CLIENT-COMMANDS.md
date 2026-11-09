@@ -34,14 +34,18 @@ dispatch, and verifies the host receipt and resource revision before recording
 success. A lost or malformed response retains the pending ID for recovery;
 there is no automatic mutation retry. A stale view detected before dispatch is
 recorded as unsent. Chromium tests use simulated host replies and cover a
-confirmed response, lost response and pre-dispatch session change.
+confirmed response, lost response and pre-dispatch session change. The local
+TLS gateway Chromium fixture also ran the actual browser transport and
+coordinator against the host: it disabled a workflow, discarded the received
+reply for a deletion, reloaded the browser page and recovered the same command ID from the host. This
+simulates a lost reply after receipt; it is not a process-crash test.
 
 These helpers are not wired to browser commands. A completed IndexedDB
 transaction is not proof against browser data clearing, eviction, device loss or
 every platform's power-loss behavior. Before enabling mutations, the controller
 still needs storage-loss detection and recovery policy, permission-filtered
 views, integration of selection/connection fences, explicit review and actual
-gateway crash/lost-reply tests. Browser actions remain
+gateway crash/transport-loss tests. Browser actions remain
 disabled until that complete path is in place.
 
 ## Automation events

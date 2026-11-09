@@ -12,6 +12,12 @@ workflow subscription, and checked that revocation cleared the replacement
 view. At the minimum 4 KiB frame size it also displayed a shortened multibyte
 message followed by a second message. The creator-restricted gateway test denies the unscoped browser feed;
 focused tests cover decimal cursors, filtered fields and response-budget paging.
+The same local Chromium fixture exercised the browser command helper against the
+actual TLS gateway: one workflow disable succeeded, then a workflow deletion
+completed and its reply was deliberately discarded by the fixture. After a page
+reload, a `commands.get` query recovered that original ID and the host state confirmed
+both changes. This is a simulated lost reply after receipt, not process-crash,
+physical two-PC or real LIVE evidence; the browser UI does not expose commands.
 The gateway credential
 test also exercises authenticated app/asset delivery, source-map exclusion and
 revocation. Type checking, lint and 31 focused browser tests passed. This is a

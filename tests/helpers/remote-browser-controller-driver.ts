@@ -31,6 +31,59 @@ try {
   mark('ready');
   await page.getByRole('button', { name: /Host updated/ }).waitFor({ timeout: 20_000 });
   mark('updated');
+  const built = await Bun.build({ entrypoints: ['tests/helpers/browser-command-test-entry.ts'], target: 'browser', format: 'esm' });
+  if (!built.success || built.outputs.length !== 1) throw new Error('command fixture build failed');
+  const bundle = await built.outputs[0]!.text();
+  await context.route('**/__command-fixture.js', (route) => route.fulfill({ contentType: 'text/javascript', body: bundle }));
+  const commandId = await page.evaluate(async () => {
+    const path = '/__command-fixture.js';
+    const api = await import(/* @vite-ignore */ path);
+    const transport = api.createRemoteBrowserTransport();
+    const remote = api.createControlClient({ transport });
+    remote.attach();
+    try {
+      const hello = await transport.connect();
+      const binding = { origin: location.origin, hostId: hello.hostId, principalId: hello.principalId, sessionId: hello.sessionId };
+      const getRevision = async (id: string) => {
+        let versions: Array<{ id: string; revision: string }> = [];
+        await remote.call('workflows.get', { id }, { onMetadata: (meta: { resourceVersions: typeof versions }) => { versions = meta.resourceVersions; } });
+        const match = versions.find((version) => version.id === id);
+        if (!match) throw new Error('workflow version missing');
+        return match.revision;
+      };
+      await api.sendBrowserWorkflowCommand({ remote, transport, expected: hello, binding,
+        target: { operation: 'disable', resourceId: 'welcome', expectedRevision: await getRevision('welcome') }, isCurrent: () => true });
+      const lossy = { ...remote, call: async (...args: unknown[]) => {
+        const result = await remote.call(...args);
+        if (args[0] === 'workflows.delete') throw new Error('fixture discarded the reply');
+        return result;
+      } };
+      let lost = false;
+      try { await api.sendBrowserWorkflowCommand({ remote: lossy, transport, expected: hello, binding,
+        target: { operation: 'delete', resourceId: 'other', expectedRevision: await getRevision('other') }, isCurrent: () => true }); }
+      catch { lost = true; }
+      if (!lost) throw new Error('fixture did not discard reply');
+      const pending = await api.withBrowserCommandJournal(binding, (record: { pending: { commandId: string } | null }) => structuredClone(record.pending));
+      if (!pending) throw new Error('missing pending command');
+      return pending.commandId as string;
+    } finally { remote.detach(); }
+  });
+  await page.reload();
+  await page.getByRole('button', { name: /Host updated/ }).waitFor({ timeout: 20_000 });
+  await page.evaluate(async (commandId) => {
+    const path = '/__command-fixture.js';
+    const api = await import(/* @vite-ignore */ path);
+    const transport = api.createRemoteBrowserTransport(); const remote = api.createControlClient({ transport });
+    remote.attach();
+    try {
+      const hello = await transport.connect();
+      const binding = { origin: location.origin, hostId: hello.hostId, principalId: hello.principalId, sessionId: hello.sessionId };
+      if (await api.recoverBrowserWorkflowCommand(remote, transport, hello, binding, commandId) !== 'resolved') throw new Error('command recovery failed');
+      const saved = await api.withBrowserCommandJournal(binding, (record: { pending: unknown; recent: Array<{ outcome: string }> }) => structuredClone(record));
+      if (saved.pending || saved.recent.length !== 2 || saved.recent.some((entry: { outcome: string }) => entry.outcome !== 'succeeded')) throw new Error('invalid command journal');
+    } finally { remote.detach(); }
+  }, commandId);
+  mark('commands-complete');
   const replacement = await context.newPage();
   const secondFragment = new URLSearchParams({ inviteId: input.replacementId, secret: input.replacementSecret });
   await replacement.goto(`${input.origin}/remote/v1/join#${secondFragment}`, { waitUntil: 'domcontentloaded' });
