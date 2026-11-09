@@ -13,6 +13,18 @@ execution remain incomplete. See the
 and the metadata-aware SDK/CLI
 [automation proposal contract](LIVE-COLLABORATION-CLIENT-COMMANDS.md#automation-proposals-through-the-sdkapi).
 
+The web source now includes a separate experimental same-origin browser
+transport. It bootstraps the browser session, requests a CSRF-protected
+single-use socket ticket and negotiates the protocol before exposing the
+connection. The socket identity and grant revision must match the bootstrap;
+frames and requests are bounded by negotiated limits. Disconnects and stream
+gaps invalidate the connection, and reconnection never replays requests.
+Credentials and CSRF values are not written to browser storage. Unit tests use
+mock fetch and sockets and exercise the existing control-client response
+adapter. This transport is not yet connected to a browser controller adapter,
+served app bundle or pairing flow; the native controller bridge cannot simply
+be reused in a browser. Real-browser gateway acceptance remains outstanding.
+
 ## Build and connect
 
 `tiktools-client` exposes optional `remote` and `remote-profiles` features.
