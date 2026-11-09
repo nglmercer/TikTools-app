@@ -1,4 +1,5 @@
 use super::*;
+use cloud_client::{SyncError, WorkspaceEdit, WorkspaceKey, WorkspacePendingStatus};
 use std::cell::Cell;
 
 fn marked_preview(
@@ -559,7 +560,7 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
 
     // Both acknowledged and conflicted writes require the session that sent
     // them. Control runs prove both mock responses can actually commit.
-    for status in [200, 409] {
+    for status in [200, 409, 412, 428] {
         for transition in [
             "logout",
             "replace",
@@ -651,11 +652,38 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                     .status,
                 WorkspacePendingStatus::Unconfirmed
             );
+            assert_eq!(
+                prepared
+                    .state
+                    .entry(&key)
+                    .unwrap()
+                    .pending
+                    .as_ref()
+                    .unwrap()
+                    .write_epoch
+                    .as_ref()
+                    .unwrap()
+                    .decimal(),
+                "7"
+            );
+            let reopened = crate::WorkspaceCoordinator::open(
+                dir.join("a-sync"),
+                mock.origin.clone(),
+                "v2-http-user".into(),
+            )
+            .unwrap();
+            assert_eq!(reopened.snapshot().unwrap().state, prepared.state);
             assert_eq!(upload.calls.load(Ordering::SeqCst), 1);
             assert_eq!(
                 mock.inner.lock().unwrap().v2_put_requests,
                 usize::from(transition != "cancel_before_commit")
             );
+            if transition != "cancel_before_commit" {
+                assert_eq!(
+                    mock.inner.lock().unwrap().v2_received_epochs,
+                    vec![Some("7".into())]
+                );
+            }
             assert!(matches!(
                 upload.fence.try_untracked_edit(),
                 Err(crate::ProtocolFenceError::Busy)
@@ -689,6 +717,10 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                     })
                     .await
                     .expect("server must be able to execute after client cancellation");
+                    assert_eq!(
+                        mock.inner.lock().unwrap().v2_received_epochs,
+                        vec![Some("7".into())]
+                    );
                 } else {
                     assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
                     mock.held_v2_write.release.notify_one();
@@ -730,6 +762,19 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                         .status,
                     WorkspacePendingStatus::Unconfirmed
                 );
+            } else if status == 412 || status == 428 {
+                assert!(
+                    matches!(outcome, Err(crate::WorkspaceCoordError::Transport(SyncError::Http(code))) if code == status)
+                );
+                assert_eq!(after.state, prepared.state);
+                // An explicit second sync must never replay the frozen
+                // uncertain request even when the remote status changes.
+                mock.inner.lock().unwrap().v2_put_status = Some(200);
+                let original_session = auth.session().await.unwrap();
+                sync.sync_v2_product(original_session, upload.clone())
+                    .await
+                    .unwrap();
+                assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
             } else {
                 let outcome = outcome.unwrap();
                 if status == 200 {
@@ -756,6 +801,236 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
             );
             mock.stop();
         }
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn logout_during_epoch_read_does_not_prepare_or_emit() {
+    use std::sync::atomic::Ordering;
+    let dir = TempDir::new("v2-product-epoch-logout");
+    let mock = MockSync::start("epoch-logout-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "epoch-logout-login").await;
+    let session = auth.session().await.unwrap();
+    let preview = marked_preview(&sync, &session);
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .prepare(&preview, &mock.origin, "epoch-logout-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "epoch-logout-user".into(),
+    )
+    .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
+    lease
+        .finish(&preview, &mock.origin, "epoch-logout-user")
+        .unwrap();
+    drop(lease);
+    sync.set_enabled(false).unwrap();
+    let consent = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&consent).unwrap();
+    let decision = crate::V2ProductDecision {
+        origin: mock.origin.clone(),
+        account_id: "epoch-logout-user".into(),
+        config_generation: sync.read_config().generation,
+        source_generation: 1,
+        plugin_id: "acme.plugin".into(),
+        selection: Some(PluginSelection {
+            schema_version: 1,
+            plugin_id: "acme.plugin".into(),
+            version: "1.0.0".into(),
+            enabled: true,
+        }),
+    };
+    sync.stage_v2_product_decision(&Source {
+        decision: decision.clone(),
+        fail_ack: Cell::new(false),
+        ack_attempts: Cell::new(0),
+    })
+    .unwrap();
+    let upload = Arc::new(ExactUpload {
+        fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
+        digest: decision.digest().unwrap(),
+        calls: std::sync::atomic::AtomicUsize::new(0),
+    });
+    mock.held_v2_epoch.armed.store(true, Ordering::SeqCst);
+    let worker = sync.clone();
+    let source = upload.clone();
+    let task = tokio::spawn(async move { worker.sync_v2_product(session, source).await });
+    tokio::time::timeout(
+        Duration::from_secs(3),
+        mock.held_v2_epoch.started.notified(),
+    )
+    .await
+    .unwrap();
+    tokio::time::timeout(Duration::from_secs(3), auth.logout())
+        .await
+        .unwrap()
+        .unwrap();
+    mock.held_v2_epoch.release.notify_one();
+    assert!(matches!(
+        task.await.unwrap(),
+        Err(crate::WorkspaceCoordError::Ineligible)
+    ));
+    let after = workspace.snapshot().unwrap();
+    let key = WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
+    let pending = after.state.entry(&key).unwrap().pending.as_ref().unwrap();
+    assert_eq!(pending.status, WorkspacePendingStatus::Queued);
+    assert!(pending.write_epoch.is_none());
+    assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 0);
+    assert_eq!(upload.calls.load(Ordering::SeqCst), 0);
+    mock.stop();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn product_absent_delete_remains_queued_without_a_server_barrier() {
+    let dir = TempDir::new("v2-product-delete-barrier");
+    let mock = MockSync::start("delete-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "delete-login").await;
+    let session = auth.session().await.unwrap();
+    let preview = marked_preview(&sync, &session);
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .prepare(&preview, &mock.origin, "delete-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "delete-user".into(),
+    )
+    .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
+    lease.finish(&preview, &mock.origin, "delete-user").unwrap();
+    drop(lease);
+    sync.set_enabled(false).unwrap();
+    let consent = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&consent).unwrap();
+    let decision = crate::V2ProductDecision {
+        origin: mock.origin.clone(),
+        account_id: "delete-user".into(),
+        config_generation: sync.read_config().generation,
+        source_generation: 1,
+        plugin_id: "acme.plugin".into(),
+        selection: None,
+    };
+    sync.stage_v2_product_decision(&Source {
+        decision: decision.clone(),
+        fail_ack: Cell::new(false),
+        ack_attempts: Cell::new(0),
+    })
+    .unwrap();
+    let upload = Arc::new(ExactUpload {
+        fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
+        digest: decision.digest().unwrap(),
+        calls: std::sync::atomic::AtomicUsize::new(0),
+    });
+    let before = workspace.snapshot().unwrap();
+    assert!(matches!(
+        sync.sync_v2_product(session, upload.clone()).await,
+        Err(crate::WorkspaceCoordError::Ineligible)
+    ));
+    let after = workspace.snapshot().unwrap();
+    assert_eq!(after.state, before.state);
+    let key = WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
+    let pending = after.state.entry(&key).unwrap().pending.as_ref().unwrap();
+    assert_eq!(pending.status, WorkspacePendingStatus::Queued);
+    assert_eq!(pending.edit, WorkspaceEdit::Delete);
+    assert_eq!(mock.inner.lock().unwrap().v2_record_get_requests, 0);
+    assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 0);
+    assert_eq!(upload.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    mock.stop();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn product_dispatch_requires_fresh_server_epoch_enforcement() {
+    for (required, status) in [
+        (None, None),
+        (Some(false), None),
+        (Some(true), Some(429)),
+        (Some(true), Some(503)),
+    ] {
+        let dir = TempDir::new("v2-product-epoch-policy");
+        let mock = MockSync::start("policy-user").await;
+        let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+        login(&auth, "policy-login").await;
+        let session = auth.session().await.unwrap();
+        let preview = marked_preview(&sync, &session);
+        let lease = sync.protocol.try_cutover().unwrap();
+        lease
+            .prepare(&preview, &mock.origin, "policy-user", &[])
+            .unwrap();
+        let workspace = crate::WorkspaceCoordinator::open(
+            dir.join("a-sync"),
+            mock.origin.clone(),
+            "policy-user".into(),
+        )
+        .unwrap();
+        workspace.bootstrap_reviewed(&preview).unwrap();
+        lease.finish(&preview, &mock.origin, "policy-user").unwrap();
+        drop(lease);
+        sync.set_enabled(false).unwrap();
+        let consent = sync.review_v2_resume(&session, None).unwrap();
+        sync.confirm_v2_resume(&consent).unwrap();
+        let decision = crate::V2ProductDecision {
+            origin: mock.origin.clone(),
+            account_id: "policy-user".into(),
+            config_generation: sync.read_config().generation,
+            source_generation: 1,
+            plugin_id: "acme.plugin".into(),
+            selection: Some(PluginSelection {
+                schema_version: 1,
+                plugin_id: "acme.plugin".into(),
+                version: "1.0.0".into(),
+                enabled: true,
+            }),
+        };
+        sync.stage_v2_product_decision(&Source {
+            decision: decision.clone(),
+            fail_ack: Cell::new(false),
+            ack_attempts: Cell::new(0),
+        })
+        .unwrap();
+        let upload = Arc::new(ExactUpload {
+            fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
+            digest: decision.digest().unwrap(),
+            calls: std::sync::atomic::AtomicUsize::new(0),
+        });
+        {
+            let mut inner = mock.inner.lock().unwrap();
+            inner.v2_epoch_required = required;
+            inner.v2_epoch_status = status;
+        }
+        let before = workspace.snapshot().unwrap();
+        let outcome = sync.sync_v2_product(session, upload.clone()).await;
+        match status {
+            None => assert!(matches!(
+                outcome,
+                Err(crate::WorkspaceCoordError::Ineligible)
+            )),
+            Some(429) => assert!(matches!(
+                outcome,
+                Err(crate::WorkspaceCoordError::Transport(
+                    SyncError::RateLimited { .. }
+                ))
+            )),
+            Some(503) => assert!(matches!(
+                outcome,
+                Err(crate::WorkspaceCoordError::Transport(SyncError::Http(503)))
+            )),
+            _ => unreachable!(),
+        }
+        let after = workspace.snapshot().unwrap();
+        let key = WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
+        let pending = after.state.entry(&key).unwrap().pending.as_ref().unwrap();
+        assert_eq!(pending.status, WorkspacePendingStatus::Queued);
+        assert!(pending.write_epoch.is_none());
+        assert_eq!(after.state, before.state);
+        assert_eq!(upload.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 0);
+        mock.stop();
     }
 }
 

@@ -160,8 +160,10 @@ impl WorkspaceStore {
         }
         let envelope: Envelope =
             serde_json::from_slice(&bytes).map_err(|_| StoreError::InvalidState)?;
-        if envelope.format_version != 2
-            || envelope.generation == 0
+        if !matches!(
+            (envelope.format_version, envelope.state.is_product_guarded()),
+            (2, false) | (3, true)
+        ) || envelope.generation == 0
             || envelope.state.validate().is_err()
         {
             return Err(StoreError::InvalidState);
@@ -272,10 +274,26 @@ impl WorkspaceStore {
         if state.origin != self.origin || state.account_id != self.account_id {
             return Err(StoreError::WrongIdentity);
         }
+        // Legacy v2 files containing product receipts are readable for a
+        // reviewed upgrade, but may not be rewritten by a current client
+        // until the workspace guard has been made durable.
+        if state.has_product_receipts() && !state.is_product_guarded() {
+            return Err(StoreError::InvalidState);
+        }
         let state_lock = self.lock()?;
         let current = self.read_locked()?;
         if current.as_ref().map(|snapshot| snapshot.generation) != expected_generation {
             return Err(StoreError::ConcurrentChange);
+        }
+        // Once a product workspace is published it cannot be rewritten in a
+        // format understood by older, unfenced clients, even by a caller that
+        // has retained a stale unguarded state object.
+        if current
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.state.is_product_guarded())
+            && !state.is_product_guarded()
+        {
+            return Err(StoreError::InvalidState);
         }
         let generation = expected_generation
             .unwrap_or(0)
@@ -289,7 +307,7 @@ impl WorkspaceStore {
         serde_json::to_writer(
             &mut writer,
             &EnvelopeRef {
-                format_version: 2,
+                format_version: if state.is_product_guarded() { 3 } else { 2 },
                 generation,
                 state,
             },

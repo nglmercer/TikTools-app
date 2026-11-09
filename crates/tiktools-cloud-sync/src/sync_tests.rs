@@ -2918,6 +2918,11 @@ struct MockInner {
     page_size: Option<usize>,
     v2_put_requests: usize,
     v2_put_status: Option<u16>,
+    v2_write_epoch: String,
+    v2_epoch_required: Option<bool>,
+    v2_epoch_status: Option<u16>,
+    v2_received_epochs: Vec<Option<String>>,
+    v2_record_get_requests: usize,
 }
 
 struct MockSync {
@@ -2926,6 +2931,7 @@ struct MockSync {
     held_write: Arc<HeldWrite>,
     held_v2_write: Arc<HeldWrite>,
     held_v2_before_route: Arc<HeldExport>,
+    held_v2_epoch: Arc<HeldExport>,
     held_export: Arc<HeldExport>,
     held_pull: Arc<HeldExport>,
     inner: Arc<Mutex<MockInner>>,
@@ -2973,10 +2979,16 @@ impl MockSync {
             page_size: None,
             v2_put_requests: 0,
             v2_put_status: None,
+            v2_write_epoch: "7".into(),
+            v2_epoch_required: Some(true),
+            v2_epoch_status: None,
+            v2_received_epochs: Vec::new(),
+            v2_record_get_requests: 0,
         }));
         let held_write = Arc::new(HeldWrite::default());
         let held_v2_write = Arc::new(HeldWrite::default());
         let held_v2_before_route = Arc::new(HeldExport::default());
+        let held_v2_epoch = Arc::new(HeldExport::default());
         let held_export = Arc::new(HeldExport::default());
         let held_pull = Arc::new(HeldExport::default());
         let task = tokio::spawn({
@@ -2984,6 +2996,7 @@ impl MockSync {
             let held_write = held_write.clone();
             let held_v2_write = held_v2_write.clone();
             let held_v2_before_route = held_v2_before_route.clone();
+            let held_v2_epoch = held_v2_epoch.clone();
             let held_export = held_export.clone();
             let held_pull = held_pull.clone();
             async move {
@@ -2995,6 +3008,7 @@ impl MockSync {
                     let held_write = held_write.clone();
                     let held_v2_write = held_v2_write.clone();
                     let held_v2_before_route = held_v2_before_route.clone();
+                    let held_v2_epoch = held_v2_epoch.clone();
                     let held_export = held_export.clone();
                     let held_pull = held_pull.clone();
                     tokio::spawn(async move {
@@ -3029,6 +3043,15 @@ impl MockSync {
                         }
                         let (status, payload) =
                             route(&method, path, query, &headers, &body, &inner);
+                        if method == "GET"
+                            && path == "/api/v2/sync/write-epoch"
+                            && held_v2_epoch
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            held_v2_epoch.started.notify_one();
+                            held_v2_epoch.release.notified().await;
+                        }
                         if method == "GET"
                             && path == "/api/v1/native/sync/export"
                             && held_export
@@ -3092,6 +3115,7 @@ impl MockSync {
             held_write,
             held_v2_write,
             held_v2_before_route,
+            held_v2_epoch,
             held_export,
             held_pull,
             inner,
@@ -3207,8 +3231,25 @@ fn route(
                 serde_json::json!({"changes": [], "cursor": cursor, "has_more": false}),
             )
         }
+        ("GET", "/api/v2/sync/write-epoch") => {
+            if let Some(status) = state.v2_epoch_status {
+                return json(status, serde_json::json!({}));
+            }
+            let mut value = serde_json::json!({"writeEpoch": state.v2_write_epoch});
+            if let Some(required) = state.v2_epoch_required {
+                value["epochRequired"] = required.into();
+            }
+            json(200, value)
+        }
+        ("GET", path) if path.starts_with("/api/v2/sync/collections/") => {
+            state.v2_record_get_requests += 1;
+            json(404, serde_json::json!({}))
+        }
         ("PUT", path) if path.starts_with("/api/v2/sync/collections/") => {
             state.v2_put_requests += 1;
+            state
+                .v2_received_epochs
+                .push(headers.get("x-workspace-write-epoch").cloned());
             match state.v2_put_status {
                 Some(200) => {
                     let suffix = path.strip_prefix("/api/v2/sync/collections/").unwrap();

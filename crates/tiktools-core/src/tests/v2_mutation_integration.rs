@@ -152,6 +152,13 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
         }
     }
+    // The seeded fixture simulates the completed workspace-format upgrade.
+    let store = cloud_client::WorkspaceStore::open(&sync_dir, origin, account).unwrap();
+    let mut snapshot = store.load().unwrap().unwrap();
+    snapshot.state.mark_product_guarded();
+    store
+        .save(Some(snapshot.generation), &snapshot.state)
+        .unwrap();
     assert_eq!(
         coordinator
             .with_v2_local_edit(|context| context.unwrap().config_generation)

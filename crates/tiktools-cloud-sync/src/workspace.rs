@@ -201,14 +201,35 @@ impl WorkspaceCoordinator {
     fn generic_lease(&self) -> Result<crate::protocol_fence::V1Lease, WorkspaceCoordError> {
         let lease = self.protocol.try_v1()?;
         lease.ensure_generic_workspace_allowed(&self.origin, &self.account_id)?;
+        // A product-mode workspace remains private even if its separate
+        // protocol markers are lost. Older, not-yet-migrated workspaces with
+        // product receipts also fail closed rather than bypassing admission.
+        if self.store.load()?.is_some_and(|snapshot| {
+            snapshot.state.is_product_guarded() || snapshot.state.has_product_receipts()
+        }) {
+            return Err(crate::ProtocolFenceError::ProductOutboxRequired.into());
+        }
         Ok(lease)
     }
     fn update<T>(
         &self,
+        change: impl FnMut(&mut WorkspaceState) -> Result<T, WorkspaceCoordError>,
+    ) -> Result<T, WorkspaceCoordError> {
+        self.update_inner(false, change)
+    }
+
+    fn update_inner<T>(
+        &self,
+        allow_product_bootstrap: bool,
         mut change: impl FnMut(&mut WorkspaceState) -> Result<T, WorkspaceCoordError>,
     ) -> Result<T, WorkspaceCoordError> {
         for _ in 0..MAX_LOCAL_RETRIES {
             let mut snapshot = self.snapshot()?;
+            if !allow_product_bootstrap
+                && (snapshot.state.is_product_guarded() || snapshot.state.has_product_receipts())
+            {
+                return Err(crate::ProtocolFenceError::ProductOutboxRequired.into());
+            }
             let result = change(&mut snapshot.state)?;
             let expected = (snapshot.generation != 0).then_some(snapshot.generation);
             match self.store.save(expected, &snapshot.state) {
@@ -279,31 +300,37 @@ impl WorkspaceCoordinator {
                 return Err(WorkspaceStateError::Invalid.into());
             }
         }
-        self.update(|state| {
-            if state.bootstrap_complete {
-                return Err(WorkspaceCoordError::AlreadyBootstrapped);
-            }
-            if *state != WorkspaceState::new(self.origin.clone(), self.account_id.clone())? {
-                return Err(WorkspaceCoordError::BootstrapNeedsReview);
-            }
-            for selection in selections {
-                let key = WorkspaceKey::new("plugin-selections", selection.plugin_id.clone())?;
-                let value =
-                    serde_json::to_value(selection).map_err(|_| WorkspaceStateError::Invalid)?;
-                state.stage(key, WorkspaceEdit::Put(value))?;
-            }
-            if let Some(legacy) = legacy {
-                state.import_v1_pending(legacy)?;
-            }
-            if let Some(preview) = preview {
-                preview.apply_review_policy(state)?;
-            }
-            state.mark_bootstrap_complete();
-            if preview.is_some_and(|preview| !preview.matches_bootstrap(state)) {
-                return Err(WorkspaceStateError::StaleReview.into());
-            }
-            Ok(())
-        })
+        self.update_inner(
+            preview.is_some_and(|preview| preview.is_marked()),
+            |state| {
+                if state.bootstrap_complete {
+                    return Err(WorkspaceCoordError::AlreadyBootstrapped);
+                }
+                if *state != WorkspaceState::new(self.origin.clone(), self.account_id.clone())? {
+                    return Err(WorkspaceCoordError::BootstrapNeedsReview);
+                }
+                for selection in selections {
+                    let key = WorkspaceKey::new("plugin-selections", selection.plugin_id.clone())?;
+                    let value = serde_json::to_value(selection)
+                        .map_err(|_| WorkspaceStateError::Invalid)?;
+                    state.stage(key, WorkspaceEdit::Put(value))?;
+                }
+                if let Some(legacy) = legacy {
+                    state.import_v1_pending(legacy)?;
+                }
+                if let Some(preview) = preview {
+                    preview.apply_review_policy(state)?;
+                    if preview.is_marked() {
+                        state.mark_product_guarded();
+                    }
+                }
+                state.mark_bootstrap_complete();
+                if preview.is_some_and(|preview| !preview.matches_bootstrap(state)) {
+                    return Err(WorkspaceStateError::StaleReview.into());
+                }
+                Ok(())
+            },
+        )
     }
     /// An offline local decision is queued only after its private atomic save.
     pub fn stage(
@@ -337,6 +364,9 @@ impl WorkspaceCoordinator {
             let mut snapshot = self.snapshot()?;
             if !snapshot.state.bootstrap_complete {
                 return Err(WorkspaceCoordError::BootstrapRequired);
+            }
+            if !snapshot.state.is_product_guarded() {
+                return Err(crate::ProtocolFenceError::ProductOutboxNotEnabled.into());
             }
             let result = snapshot.state.stage_product_decision(
                 key.clone(),
@@ -446,6 +476,9 @@ impl WorkspaceCoordinator {
         if !initial.bootstrap_complete {
             return Err(WorkspaceCoordError::BootstrapRequired);
         }
+        if product.is_some() != initial.is_product_guarded() {
+            return Err(crate::ProtocolFenceError::ProductOutboxRequired.into());
+        }
         if initial.needs_rebuild {
             return Err(WorkspaceStateError::NeedsRebuild.into());
         }
@@ -514,6 +547,13 @@ impl WorkspaceCoordinator {
                 continue;
             }
             if pending.base_revision.is_none() && matches!(pending.edit, WorkspaceEdit::Delete) {
+                // A GET returning absent is not a write barrier: an older
+                // request may still create the record after that read. Keep
+                // product tombstones queued until an authenticated barrier
+                // and durable application recovery are wired end to end.
+                if product.is_some() {
+                    return Err(WorkspaceCoordError::Ineligible);
+                }
                 let generation = pending.local_generation;
                 attempts += 1;
                 check_eligibility(eligibility, session)?;
@@ -561,6 +601,20 @@ impl WorkspaceCoordinator {
                 }
                 continue;
             }
+            // Product dispatch needs an authenticated fresh observation of
+            // enforced epoch policy before preparing any uncertain request.
+            // A restored epoch or a GET from an older server is not enough.
+            let product_epoch = if product.is_some() {
+                check_eligibility(eligibility, session)?;
+                let epoch = session.workspace_write_epoch().await?;
+                check_eligibility(eligibility, session)?;
+                if epoch.epoch_required() != Some(true) {
+                    return Err(WorkspaceCoordError::Ineligible);
+                }
+                Some(epoch)
+            } else {
+                None
+            };
             let ticket = if let Some(product) = product {
                 self.admit_product(
                     &key,
@@ -569,7 +623,14 @@ impl WorkspaceCoordinator {
                     |proof| {
                         self.update_product(
                             eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
-                            |state| Ok(state.prepare_product_push(proof)?),
+                            |state| {
+                                Ok(state.prepare_product_push_fenced(
+                                    proof,
+                                    product_epoch
+                                        .as_ref()
+                                        .ok_or(WorkspaceCoordError::Ineligible)?,
+                                )?)
+                            },
                         )
                     },
                 )?
@@ -587,8 +648,35 @@ impl WorkspaceCoordinator {
             // If eligibility changed after prepare, keep the durable ticket
             // unconfirmed; never dispatch or infer an outcome.
             check_eligibility(eligibility, session)?;
-            let response = match ticket.edit() {
-                WorkspaceEdit::Put(value) => {
+            let response = match (ticket.edit(), product.is_some()) {
+                (WorkspaceEdit::Put(value), true) => {
+                    session
+                        .workspace_put_fenced(
+                            &key.collection,
+                            &key.key,
+                            value.clone(),
+                            ticket.base_revision(),
+                            ticket
+                                .write_epoch()
+                                .ok_or(WorkspaceCoordError::Ineligible)?,
+                        )
+                        .await
+                }
+                (WorkspaceEdit::Delete, true) => {
+                    session
+                        .workspace_delete_fenced(
+                            &key.collection,
+                            &key.key,
+                            ticket
+                                .base_revision()
+                                .ok_or(WorkspaceStateError::NeedsRead)?,
+                            ticket
+                                .write_epoch()
+                                .ok_or(WorkspaceCoordError::Ineligible)?,
+                        )
+                        .await
+                }
+                (WorkspaceEdit::Put(value), false) => {
                     session
                         .workspace_put(
                             &key.collection,
@@ -598,7 +686,7 @@ impl WorkspaceCoordinator {
                         )
                         .await
                 }
-                WorkspaceEdit::Delete => {
+                (WorkspaceEdit::Delete, false) => {
                     session
                         .workspace_delete(
                             &key.collection,
@@ -648,7 +736,8 @@ impl WorkspaceCoordinator {
                     }
                 }
                 // A failed/ambiguous response leaves the durable original
-                // Unconfirmed. A later explicit review performs a fresh GET.
+                // Unconfirmed. Product recovery must fence the old request
+                // with a server barrier before relying on any subsequent GET.
                 Err(error) => return Err(error.into()),
             }
         }
@@ -724,6 +813,9 @@ impl WorkspaceCoordinator {
             .store
             .try_operation_lock()?
             .ok_or(WorkspaceCoordError::Busy)?;
+        if self.snapshot()?.state.is_product_guarded() != product_proof.is_some() {
+            return Err(crate::ProtocolFenceError::ProductOutboxRequired.into());
+        }
         check_eligibility(eligibility, session)?;
         let read = session.workspace_read_for_resolution(target).await?;
         check_eligibility(eligibility, session)?;
@@ -836,6 +928,9 @@ impl WorkspaceCoordinator {
             .store
             .try_operation_lock()?
             .ok_or(WorkspaceCoordError::Busy)?;
+        if self.snapshot()?.state.is_product_guarded() != product.is_some() {
+            return Err(crate::ProtocolFenceError::ProductOutboxRequired.into());
+        }
         check_eligibility(eligibility, session)?;
         let fresh = session
             .workspace_read_for_resolution(review.target())

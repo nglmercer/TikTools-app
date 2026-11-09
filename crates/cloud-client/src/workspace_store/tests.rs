@@ -161,6 +161,97 @@ fn concurrent_generation_cas_has_one_winner_and_retains_the_other_staged_copy() 
 }
 
 #[test]
+fn product_workspace_upgrade_preserves_pending_and_rejects_downgrade() {
+    let root = tempfile::tempdir().unwrap();
+    let store_root = private_test_path(root.path());
+    let store = WorkspaceStore::open(&store_root, "https://cloud.example", "account").unwrap();
+    let mut original = state("account");
+    original
+        .stage(key(), WorkspaceEdit::Put(value(true)))
+        .unwrap();
+    original.prepare_push(&key()).unwrap();
+    original
+        .stage(key(), WorkspaceEdit::Put(value(false)))
+        .unwrap();
+    store.save(None, &original).unwrap();
+    let path = store.directory.join("workspace-state.json");
+    let old: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    assert_eq!(old["formatVersion"], 2);
+    let mut guarded = store.load().unwrap().unwrap().state;
+    guarded.mark_product_guarded();
+    let upgraded = store.save(Some(1), &guarded).unwrap();
+    assert_eq!(upgraded.generation, 2);
+    let encoded: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    assert_eq!(encoded["formatVersion"], 3);
+    // An old reader that only accepts format 2 must refuse the upgraded file.
+    assert_ne!(encoded["formatVersion"], 2);
+    let reopened = WorkspaceStore::open(&store_root, "https://cloud.example", "account").unwrap();
+    let loaded = reopened.load().unwrap().unwrap();
+    assert_eq!(loaded.state, guarded);
+    assert_eq!(loaded.state.entry(&key()), original.entry(&key()));
+    assert!(matches!(
+        reopened.save(Some(2), &original),
+        Err(StoreError::InvalidState)
+    ));
+    assert_eq!(reopened.load().unwrap().unwrap().state, guarded);
+}
+
+#[test]
+fn fenced_product_request_and_newer_edit_survive_restart_with_exact_epoch() {
+    let root = tempfile::tempdir().unwrap();
+    let store_root = private_test_path(root.path());
+    let store = WorkspaceStore::open(&store_root, "https://cloud.example", "account").unwrap();
+    let mut source = state("account");
+    source.mark_bootstrap_complete();
+    source.mark_product_guarded();
+    source
+        .apply_changes(WorkspaceChanges {
+            changes: vec![record(1, false)],
+            cursor: 1,
+            has_more: false,
+        })
+        .unwrap();
+    source
+        .stage_product_decision(key(), WorkspaceEdit::Put(value(true)), 1, &"a".repeat(64))
+        .unwrap();
+    let proof = source.product_queued_proof(&key()).unwrap();
+    let epoch: crate::WorkspaceWriteEpoch = serde_json::from_value(json!({
+        "origin":"https://cloud.example", "accountId":"account",
+        "writeEpoch":"9007199254740993", "epochRequired":true
+    }))
+    .unwrap();
+    let newer_epoch: crate::WorkspaceWriteEpoch = serde_json::from_value(json!({
+        "origin":"https://cloud.example", "accountId":"account",
+        "writeEpoch":"9007199254740994", "epochRequired":true
+    }))
+    .unwrap();
+    let mut wrong = source.clone();
+    let wrong_ticket = wrong
+        .prepare_product_push_fenced(&proof, &newer_epoch)
+        .unwrap();
+    let ticket = source.prepare_product_push_fenced(&proof, &epoch).unwrap();
+    source
+        .stage_product_decision(key(), WorkspaceEdit::Put(value(false)), 2, &"b".repeat(64))
+        .unwrap();
+    store.save(None, &source).unwrap();
+    drop(store);
+    let reopened = WorkspaceStore::open(&store_root, "https://cloud.example", "account").unwrap();
+    let mut loaded = reopened.load().unwrap().unwrap().state;
+    assert_eq!(loaded, source);
+    let pending = loaded.entry(&key()).unwrap().pending.as_ref().unwrap();
+    assert_eq!(pending.status, WorkspacePendingStatus::Unconfirmed);
+    assert_eq!(pending.write_epoch.as_ref(), Some(&epoch));
+    assert_eq!(ticket.write_epoch(), Some(&epoch));
+    assert!(loaded.entry(&key()).unwrap().next.is_some());
+    assert!(loaded.acknowledge(&wrong_ticket, record(2, true)).is_err());
+    loaded.acknowledge(&ticket, record(2, true)).unwrap();
+    let pending = loaded.entry(&key()).unwrap().pending.as_ref().unwrap();
+    assert_eq!(pending.status, WorkspacePendingStatus::Queued);
+    assert!(pending.write_epoch.is_none());
+    assert!(loaded.entry(&key()).unwrap().next.is_none());
+}
+
+#[test]
 fn operation_lock_serializes_network_work_but_not_state_staging_and_is_identity_scoped() {
     let root = tempfile::tempdir().unwrap();
     let store_root = private_test_path(root.path());

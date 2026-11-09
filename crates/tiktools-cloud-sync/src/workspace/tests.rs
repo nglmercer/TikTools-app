@@ -200,6 +200,14 @@ async fn start_server() -> Server {
                                 None,
                             )
                         }
+                    } else if path == "/api/v2/sync/write-epoch" {
+                        assert_eq!(request.method, "GET");
+                        (
+                            200,
+                            json!({"writeEpoch":"7", "epochRequired":true}),
+                            false,
+                            None,
+                        )
                     } else if path == "/api/v2/sync/export" {
                         let records: Vec<_> = remote
                             .records
@@ -255,6 +263,16 @@ async fn start_server() -> Server {
                                     pending.edit, proof.edit,
                                     "durable request source differs from actual request"
                                 );
+                                if durable.state.is_product_guarded() {
+                                    let epoch = pending
+                                        .write_epoch
+                                        .as_ref()
+                                        .expect("product epoch persisted before HTTP");
+                                    assert_eq!(
+                                        request.headers.get("x-workspace-write-epoch"),
+                                        Some(&epoch.decimal())
+                                    );
+                                }
                                 assert_eq!(
                                     pending.edit,
                                     if request.method == "DELETE" {
@@ -324,6 +342,16 @@ async fn connect(server: &Server, token: &str) -> Session {
 fn coordinator(root: &Path, server: &Server, account: &str) -> WorkspaceCoordinator {
     WorkspaceCoordinator::open(root, server.origin.clone(), account.into()).unwrap()
 }
+// These low-level tests supply a trusted product fixture directly, without
+// running the separate protocol cutover transaction.
+fn guard_product_fixture(coordinator: &WorkspaceCoordinator) {
+    let mut snapshot = coordinator.snapshot().unwrap();
+    snapshot.state.mark_product_guarded();
+    coordinator
+        .store
+        .save(Some(snapshot.generation), &snapshot.state)
+        .unwrap();
+}
 fn key(collection: &str, name: &str) -> WorkspaceKey {
     WorkspaceKey::new(collection, name).unwrap()
 }
@@ -360,6 +388,48 @@ fn pending(coordinator: &WorkspaceCoordinator, target: &WorkspaceKey) -> Workspa
         .entry(target)
         .unwrap()
         .clone()
+}
+
+#[tokio::test]
+async fn durable_product_mode_blocks_all_generic_routes_without_protocol_markers() {
+    let temp = tempfile::tempdir().unwrap();
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let coord = coordinator(&temp.path().join("workspace"), &server, "account-a");
+    coord.bootstrap(&[], None).unwrap();
+    let target = key("preferences", "desktop");
+    coord
+        .stage(target.clone(), WorkspaceEdit::Put(preference("dark")))
+        .unwrap();
+    let review = coord.review(&session, &target).await.unwrap();
+    guard_product_fixture(&coord);
+    let before = coord.snapshot().unwrap();
+    let requests = server.remote.lock().unwrap().requests.len();
+    let is_blocked = |error| {
+        matches!(
+            error,
+            WorkspaceCoordError::Protocol(crate::ProtocolFenceError::ProductOutboxRequired)
+        )
+    };
+    assert!(is_blocked(coord.bootstrap(&[], None).unwrap_err()));
+    assert!(is_blocked(
+        coord
+            .stage(target.clone(), WorkspaceEdit::Delete)
+            .unwrap_err()
+    ));
+    assert!(is_blocked(coord.sync(&session).await.err().unwrap()));
+    assert!(is_blocked(
+        coord.review(&session, &target).await.err().unwrap()
+    ));
+    assert!(is_blocked(
+        coord.resolve(&session, &review, true).await.unwrap_err()
+    ));
+    assert!(is_blocked(
+        coord.rebuild_remote_cache(&session).await.unwrap_err()
+    ));
+    assert_eq!(server.remote.lock().unwrap().requests.len(), requests);
+    assert_eq!(coord.snapshot().unwrap().state, before.state);
+    assert_eq!(coord.snapshot().unwrap().generation, before.generation);
 }
 
 #[tokio::test]
@@ -565,6 +635,7 @@ async fn product_recovery_rebases_only_latest_staged_decision_without_replaying(
     let temp = tempfile::tempdir().unwrap();
     let coordinator = coordinator(&temp.path().join("private"), &server, "account-a");
     coordinator.bootstrap(&[], None).unwrap();
+    guard_product_fixture(&coordinator);
     let target = key("plugin-selections", "acme.plugin");
     let mut decision = crate::V2ProductDecision {
         origin: server.origin.clone(),
@@ -687,6 +758,7 @@ async fn product_uncertain_keep_local_requires_fresh_review_source_and_publicati
     let temp = tempfile::tempdir().unwrap();
     let coordinator = coordinator(&temp.path().join("private"), &server, "account-a");
     coordinator.bootstrap(&[], None).unwrap();
+    guard_product_fixture(&coordinator);
     let target = key("plugin-selections", "acme.plugin");
     let decision = crate::V2ProductDecision {
         origin: server.origin.clone(),
@@ -881,6 +953,7 @@ async fn product_upload_requires_exact_receipt_source_and_current_eligibility() 
     let edit = WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap());
     // A generic queued edit has no trusted native receipt and cannot upload.
     coordinator.stage(target.clone(), edit.clone()).unwrap();
+    guard_product_fixture(&coordinator);
     assert!(coordinator
         .sync_product_guarded(&session, &eligibility, &admission)
         .await
@@ -934,12 +1007,16 @@ async fn product_upload_requires_exact_receipt_source_and_current_eligibility() 
         1
     );
     assert_eq!(server.remote.lock().unwrap().writes(), 1);
-    // A new generic decision cannot reuse the delivered receipt.
-    coordinator.stage(target.clone(), edit).unwrap();
-    assert!(coordinator
-        .sync_product_guarded(&session, &eligibility, &admission)
-        .await
-        .is_err());
+    // The product partition rejects a new generic decision outright.
+    assert!(coordinator.stage(target.clone(), edit).is_err());
+    assert_eq!(
+        coordinator
+            .sync_product_guarded(&session, &eligibility, &admission)
+            .await
+            .unwrap()
+            .pushed,
+        0
+    );
     assert_eq!(server.remote.lock().unwrap().writes(), 1);
 }
 
@@ -958,6 +1035,7 @@ async fn product_response_publication_requires_captured_session_and_consent() {
             let temp = tempfile::tempdir().unwrap();
             let coordinator = coordinator(&temp.path().join("private"), &server, "account-a");
             coordinator.bootstrap(&[], None).unwrap();
+            guard_product_fixture(&coordinator);
             let target = key("plugin-selections", "acme.plugin");
             let decision = crate::V2ProductDecision {
                 origin: server.origin.clone(),
@@ -1076,6 +1154,7 @@ async fn cancelled_while_last_eligibility_check_is_blocked_does_not_send() {
         "account-a",
     ));
     coordinator.bootstrap(&[], None).unwrap();
+    guard_product_fixture(&coordinator);
     let target = key("plugin-selections", "acme.plugin");
     let decision = crate::V2ProductDecision {
         origin: server.origin.clone(),
@@ -1235,6 +1314,7 @@ async fn product_worker_cancellation_does_not_block_executor_or_send_after_sourc
         "account-a",
     ));
     coordinator.bootstrap(&[], None).unwrap();
+    guard_product_fixture(&coordinator);
     let target = key("plugin-selections", "acme.plugin");
     let decision = crate::V2ProductDecision {
         origin: server.origin.clone(),
@@ -1327,6 +1407,7 @@ async fn product_worker_deadline_returns_while_source_blocked_without_sending_la
         "account-a",
     ));
     coordinator.bootstrap(&[], None).unwrap();
+    guard_product_fixture(&coordinator);
     let target = key("plugin-selections", "acme.plugin");
     let decision = crate::V2ProductDecision {
         origin: server.origin.clone(),
@@ -1436,6 +1517,7 @@ async fn cancelled_product_worker_releases_http_lease_and_retains_unknown_result
         "account-a",
     ));
     coordinator.bootstrap(&[], None).unwrap();
+    guard_product_fixture(&coordinator);
     let target = key("plugin-selections", "acme.plugin");
     let decision = crate::V2ProductDecision {
         origin: server.origin.clone(),

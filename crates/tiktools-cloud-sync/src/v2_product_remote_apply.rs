@@ -27,6 +27,7 @@ fn ready_record(
 ) -> Result<(u64, WorkspaceRecord), SyncCoordError> {
     let snapshot = snapshot.ok_or(SyncCoordError::StaleReview)?;
     if snapshot.generation == 0
+        || !snapshot.state.is_product_guarded()
         || !snapshot.state.bootstrap_complete
         || snapshot.state.needs_rebuild
     {
@@ -43,6 +44,31 @@ fn ready_record(
 }
 
 impl SyncCoordinator {
+    /// Explicitly upgrade an already-marked product workspace. The operation
+    /// changes only its durable guard and storage generation; pending edits,
+    /// receipts and cursor are preserved. It performs no HTTP or local apply.
+    /// Call from a bounded blocking worker. Older processes that ignore the
+    /// protocol lock must not run concurrently with this migration.
+    #[doc(hidden)]
+    pub fn upgrade_v2_product_workspace(
+        &self,
+        session: &Arc<Session>,
+    ) -> Result<bool, SyncCoordError> {
+        let epoch = self
+            .capture_v2_config_epoch(session)
+            .ok_or(SyncCoordError::StaleReview)?;
+        let lease = self.protocol.try_cutover()?;
+        self.auth
+            .with_current_session_permit(session, || {
+                if !self.is_v2_config_epoch_current(&epoch, session) {
+                    return Err(SyncCoordError::StaleReview);
+                }
+                Ok(lease
+                    .upgrade_marked_workspace(&session.instance_origin(), session.account_id())?)
+            })
+            .map_err(|_| SyncCoordError::StaleReview)?
+    }
+
     fn v2_product_remote_store(&self, session: &Session) -> Result<WorkspaceStore, SyncCoordError> {
         let root = self
             .config_path

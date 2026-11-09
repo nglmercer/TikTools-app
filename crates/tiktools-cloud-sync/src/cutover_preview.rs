@@ -180,6 +180,12 @@ impl CutoverPreview {
     /// exact candidate produced by review.
     pub(crate) fn matches_bootstrap(&self, actual: &WorkspaceState) -> bool {
         let mut expected = self.candidate.clone();
+        // Existing marked cutovers may have been bootstrapped before the
+        // workspace-level guard existed. They remain resumable, but product
+        // operations require a separate guarded-format upgrade before use.
+        if self.is_marked() && actual.is_product_guarded() {
+            expected.mark_product_guarded();
+        }
         expected.mark_bootstrap_complete();
         expected == *actual
     }

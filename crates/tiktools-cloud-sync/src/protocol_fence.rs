@@ -768,6 +768,40 @@ impl V1Lease {
 }
 
 impl CutoverLease {
+    /// Upgrade an existing, explicitly marked product workspace to the
+    /// durable workspace-level guard. This is local metadata only: it does
+    /// not reconcile or dispatch pending work. The exclusive protocol lease,
+    /// operation lock and store CAS protect cooperating writers; old binaries
+    /// that ignore these locks are outside this migration's guarantee.
+    pub(crate) fn upgrade_marked_workspace(
+        &self,
+        origin: &str,
+        account: &str,
+    ) -> Result<bool, ProtocolFenceError> {
+        let record = self
+            .fence
+            .read_record(origin, account)?
+            .ok_or(ProtocolFenceError::StaleCutover)?;
+        if record.format_version != 3 || !self.fence.product_outbox_required(origin, account)? {
+            return Err(ProtocolFenceError::ProductOutboxNotEnabled);
+        }
+        let workspace = WorkspaceStore::open(&self.fence.dir, origin, account)?;
+        let _operation = workspace
+            .try_operation_lock()?
+            .ok_or(ProtocolFenceError::Busy)?;
+        let Some(mut snapshot) = workspace.load()? else {
+            if record.mode == ProtocolMode::Preparing {
+                return Ok(false);
+            }
+            return Err(ProtocolFenceError::StaleCutover);
+        };
+        if snapshot.state.is_product_guarded() {
+            return Ok(false);
+        }
+        snapshot.state.mark_product_guarded();
+        workspace.save(Some(snapshot.generation), &snapshot.state)?;
+        Ok(true)
+    }
     #[allow(dead_code)] // Used by the not-yet-exposed native v2 consent review.
     pub(crate) fn resume_record(
         &self,
@@ -1317,6 +1351,99 @@ mod tests {
         drop(cutover);
         fs::write(&path, original).unwrap();
         assert!(fence.try_v2(ORIGIN, ACCOUNT).is_ok());
+        assert!(workspace.snapshot().unwrap().state.is_product_guarded());
+        assert!(!workspace.snapshot().unwrap().state.has_product_receipts());
+        fs::remove_file(path).unwrap();
+        fs::remove_file(fence.record_path(ORIGIN, ACCOUNT).unwrap()).unwrap();
+        assert!(matches!(
+            workspace.stage(
+                cloud_client::WorkspaceKey::new("preferences", "desktop").unwrap(),
+                cloud_client::WorkspaceEdit::Put(
+                    serde_json::json!({"schemaVersion": 1, "theme": "dark"})
+                ),
+            ),
+            Err(crate::WorkspaceCoordError::Protocol(
+                ProtocolFenceError::ProductOutboxRequired
+            ))
+        ));
+    }
+
+    #[test]
+    fn marked_workspace_upgrade_preserves_intents_and_survives_lost_markers() {
+        use cloud_client::{WorkspaceEdit, WorkspaceKey};
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("private");
+        let fence = ProtocolFence::open(&dir).unwrap();
+        let preview =
+            CutoverPreview::new_marked(ORIGIN.into(), ACCOUNT.into(), &[], None, &[]).unwrap();
+        let gate = fence.try_cutover().unwrap();
+        gate.require_product_outbox(ORIGIN, ACCOUNT).unwrap();
+        gate.prepare(&preview, ORIGIN, ACCOUNT, &[]).unwrap();
+
+        // Simulate a marked workspace written by the previous software, before
+        // a product-mode bit and the v3 envelope existed.
+        let store = WorkspaceStore::open(&dir, ORIGIN, ACCOUNT).unwrap();
+        let mut old = WorkspaceState::new(ORIGIN.into(), ACCOUNT.into()).unwrap();
+        old.mark_bootstrap_complete();
+        store.save(None, &old).unwrap();
+        gate.finish(&preview, ORIGIN, ACCOUNT).unwrap();
+        let key = WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
+        let first = WorkspaceEdit::Put(
+            serde_json::json!({"schemaVersion":1,"pluginId":"acme.plugin","version":"1.0.0","enabled":true}),
+        );
+        old.stage_product_decision(key.clone(), first, 1, &"a".repeat(64))
+            .unwrap();
+        old.prepare_push(&key).unwrap();
+        old.stage_product_decision(key.clone(), WorkspaceEdit::Delete, 2, &"b".repeat(64))
+            .unwrap();
+        // Reproduce the exact legacy v2 envelope; current writers reject
+        // saving unguarded product receipts until they are upgraded.
+        let identity = serde_json::to_vec(&("workspace-v2", ORIGIN, ACCOUNT)).unwrap();
+        let partition = Sha256::digest(identity)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let path = dir
+            .join("workspace-v2")
+            .join(partition)
+            .join("workspace-state.json");
+        fs::write(
+            path,
+            serde_json::to_vec(&serde_json::json!({
+                "formatVersion": 2, "generation": 2, "state": &old
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let saved = store.load().unwrap().unwrap();
+        assert!(!saved.state.is_product_guarded());
+        assert!(gate.upgrade_marked_workspace(ORIGIN, ACCOUNT).unwrap());
+        assert!(!gate.upgrade_marked_workspace(ORIGIN, ACCOUNT).unwrap());
+        let upgraded = store.load().unwrap().unwrap();
+        assert_eq!(upgraded.generation, saved.generation + 1);
+        assert!(upgraded.state.is_product_guarded());
+        assert_eq!(upgraded.state.entries, old.entries);
+        assert_eq!(upgraded.state.cursor, old.cursor);
+        assert_eq!(
+            upgraded.state.next_local_generation,
+            old.next_local_generation
+        );
+        assert!(upgraded.state.has_product_receipts());
+        drop(gate);
+
+        // Even simultaneous loss of both separate protocol markers cannot
+        // make the upgraded workspace available through generic operations.
+        fs::remove_file(fence.record_path(ORIGIN, ACCOUNT).unwrap()).unwrap();
+        fs::remove_file(fence.product_outbox_path(ORIGIN, ACCOUNT).unwrap()).unwrap();
+        let workspace =
+            crate::WorkspaceCoordinator::open(&dir, ORIGIN.into(), ACCOUNT.into()).unwrap();
+        assert!(matches!(
+            workspace.stage(key, WorkspaceEdit::Delete),
+            Err(crate::WorkspaceCoordError::Protocol(
+                ProtocolFenceError::ProductOutboxRequired
+            ))
+        ));
+        assert_eq!(store.load().unwrap().unwrap().state, upgraded.state);
     }
 
     #[test]

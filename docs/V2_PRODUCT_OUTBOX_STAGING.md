@@ -118,3 +118,40 @@ response against account or session changes. Account permits and workspace locks
 during native I/O, so a product adapter needs bounded worker admission. The
 server barrier described above and durable application recovery remain required
 before enabling remote application.
+
+Marked product workspaces now persist their mode within a version-3 workspace
+envelope. Generic coordinator mutations reject this mode even when both
+separate protocol markers are missing, and the store refuses to downgrade it
+to the version-2 format used by older readers. An explicit local upgrade of an
+existing marked workspace takes the exclusive protocol and workspace operation
+locks, verifies both original product markers and preserves the state through a
+generation-checked save. This increments the generation and invalidates prior
+workspace reviews. The upgrade changes no runtime state and sends nothing.
+Unmigrated version-2 files with product receipts remain readable for upgrade,
+but current generic operations and unguarded saves reject those receipts.
+
+Protection against missing markers starts only after a successful workspace
+upgrade. An older version-2 partition with no product receipts that has
+already lost both markers is indistinguishable from a generic partition and
+must not be inferred to be product-owned. This guard coordinates current
+participating clients; direct storage writers and older processes that bypass
+the protocol are outside its guarantee. Server barriers, source admission and
+durable local application are still required before enabling product v2.
+
+The private dispatcher now obtains a fresh authenticated write epoch and
+requires the server to report epoch enforcement before preparing an upload.
+The account-bound epoch is persisted with the exact `Unconfirmed` original
+request before PUT or DELETE; the same epoch is sent in the request header.
+A newer local decision remains separate, and an unknown response or HTTP 412
+or 428 leaves the original unconfirmed without automatic replay. Product
+tombstones without a known base are retained rather than cleared from an
+absence GET, which cannot establish quiescence. These paths remain private.
+
+The mode reported by a backend does not protect against older backend
+instances that do not enforce it. Session and consent are rechecked after the
+epoch GET and before request emission, but the last check is not atomic with
+the actual HTTP send. The source/runtime admission is also released after
+preparing the request and can change before or during HTTP. Neither the durable
+epoch nor server policy closes those windows. Product activation still
+requires homogeneous backend rollout, end-to-end emission/source fencing,
+fresh authenticated barrier recovery, and durable local application.

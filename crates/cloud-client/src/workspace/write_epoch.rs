@@ -59,6 +59,10 @@ impl WorkspaceWriteEpoch {
         self.epoch_required
     }
 
+    pub(crate) fn matches_identity(&self, origin: &str, account_id: &str) -> bool {
+        self.origin == origin && self.account_id == account_id
+    }
+
     /// Compare two durable epochs without converting through JSON numbers.
     /// This alone does not prove that a request used the older epoch.
     pub fn is_after(&self, older: &Self) -> Result<bool, SyncError> {

@@ -1,6 +1,9 @@
 //! V2 workspace synchronization state. Transport never applies application
 //! source, and uncertainty never becomes permission to repeat a write.
-use crate::{Session, SyncError, SyncState, WorkspaceChanges, WorkspaceRecord, WorkspaceSnapshot};
+use crate::{
+    Session, SyncError, SyncState, WorkspaceChanges, WorkspaceRecord, WorkspaceSnapshot,
+    WorkspaceWriteEpoch,
+};
 use cloud_contracts::portable;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -105,6 +108,10 @@ pub struct WorkspacePending {
     pub local_generation: u64,
     pub base_record: Option<WorkspaceRecord>,
     pub status: WorkspacePendingStatus,
+    /// Exact account-bound epoch prepared before a fenced product request.
+    /// Its presence is not proof that the request reached the server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub write_epoch: Option<WorkspaceWriteEpoch>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -134,6 +141,13 @@ pub struct WorkspaceState {
     /// Private local product-source receipts; never uploaded to Cloud.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     product_receipts: Vec<WorkspaceProductReceipt>,
+    /// Once set, this partition must never be downgraded to generic mode.
+    #[serde(default, skip_serializing_if = "is_false")]
+    product_guarded: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -190,6 +204,9 @@ impl WorkspacePush {
     pub fn local_generation(&self) -> u64 {
         self.pending.local_generation
     }
+    pub fn write_epoch(&self) -> Option<&WorkspaceWriteEpoch> {
+        self.pending.write_epoch.as_ref()
+    }
 }
 /// Only an actual authenticated target GET (including verified 404) creates a
 /// resolution read. A cached equal body is never an original-write receipt.
@@ -232,6 +249,19 @@ fn remote_revision(entry: &WorkspaceEntry) -> Option<i64> {
     entry.remote.as_ref().map(|r| r.revision)
 }
 impl WorkspaceState {
+    pub fn is_product_guarded(&self) -> bool {
+        self.product_guarded
+    }
+
+    /// Requires a durably saved product-aware workspace envelope before the
+    /// caller may rely on this flag. There is deliberately no inverse setter.
+    pub fn mark_product_guarded(&mut self) {
+        self.product_guarded = true;
+    }
+
+    pub fn has_product_receipts(&self) -> bool {
+        !self.product_receipts.is_empty()
+    }
     /// Capture a receipt only when it identifies the currently queued edit.
     /// Unconfirmed writes and newer edits never inherit an older receipt.
     pub fn product_queued_proof(&self, target: &WorkspaceKey) -> Option<WorkspaceProductProof> {
@@ -291,8 +321,42 @@ impl WorkspaceState {
 
     /// Persist this transition before the caller sends the approved request.
     pub fn prepare_product_push(&mut self, proof: &WorkspaceProductProof) -> Result<WorkspacePush> {
+        if self.product_guarded {
+            return Err(WorkspaceStateError::Invalid);
+        }
         self.verify_product_queued(proof)?;
         self.prepare_push(proof.target())
+    }
+
+    /// Prepare the exact account-bound epoch with the immutable original
+    /// request. Persist the returned state atomically before emitting HTTP.
+    /// Never attach an epoch retroactively to a legacy unconfirmed request.
+    pub fn prepare_product_push_fenced(
+        &mut self,
+        proof: &WorkspaceProductProof,
+        epoch: &WorkspaceWriteEpoch,
+    ) -> Result<WorkspacePush> {
+        if !self.product_guarded {
+            return Err(WorkspaceStateError::Invalid);
+        }
+        if !epoch.matches_identity(&self.origin, &self.account_id) {
+            return Err(WorkspaceStateError::WrongIdentity);
+        }
+        self.verify_product_queued(proof)?;
+        let mut candidate = self.clone();
+        let mut ticket = candidate.prepare_push_inner(proof.target())?;
+        let index = candidate
+            .index(proof.target())
+            .map_err(|_| WorkspaceStateError::StaleReview)?;
+        candidate.entries[index]
+            .pending
+            .as_mut()
+            .ok_or(WorkspaceStateError::StaleReview)?
+            .write_epoch = Some(epoch.clone());
+        ticket.pending.write_epoch = Some(epoch.clone());
+        candidate.validate()?;
+        *self = candidate;
+        Ok(ticket)
     }
     pub fn new(origin: String, account_id: String) -> Result<Self> {
         if !identity_valid(&origin, &account_id) {
@@ -307,6 +371,7 @@ impl WorkspaceState {
             next_local_generation: 1,
             entries: Vec::new(),
             product_receipts: Vec::new(),
+            product_guarded: false,
         })
     }
     pub fn validate(&self) -> Result<()> {
@@ -380,6 +445,11 @@ impl WorkspaceState {
                         .is_some_and(|record| !valid_record(&entry.target, record))
                     || (pending.status == WorkspacePendingStatus::Queued
                         && pending.base_revision != remote_revision(entry))
+                    || pending.write_epoch.as_ref().is_some_and(|epoch| {
+                        !self.product_guarded
+                            || pending.status == WorkspacePendingStatus::Queued
+                            || !epoch.matches_identity(&self.origin, &self.account_id)
+                    })
                 {
                     return Err(WorkspaceStateError::Invalid);
                 }
@@ -539,6 +609,7 @@ impl WorkspaceState {
                 edit,
                 local_generation: generation,
                 status: WorkspacePendingStatus::Queued,
+                write_epoch: None,
             });
         }
         candidate.validate()?;
@@ -548,6 +619,13 @@ impl WorkspaceState {
     /// The changed state MUST be saved successfully before sending this ticket.
     /// A restart leaves Unconfirmed and refuses automatic repeat dispatch.
     pub fn prepare_push(&mut self, key: &WorkspaceKey) -> Result<WorkspacePush> {
+        if self.product_guarded {
+            return Err(WorkspaceStateError::Invalid);
+        }
+        self.prepare_push_inner(key)
+    }
+
+    fn prepare_push_inner(&mut self, key: &WorkspaceKey) -> Result<WorkspacePush> {
         if self.needs_rebuild {
             return Err(WorkspaceStateError::NeedsRebuild);
         }
@@ -582,6 +660,7 @@ impl WorkspaceState {
                 && p.base_record == ticket.pending.base_record
                 && p.edit == ticket.pending.edit
                 && p.local_generation == ticket.pending.local_generation
+                && p.write_epoch == ticket.pending.write_epoch
                 && p.status != WorkspacePendingStatus::Queued
         }) {
             return Err(WorkspaceStateError::StaleReview);
@@ -626,6 +705,7 @@ impl WorkspaceState {
             } else {
                 WorkspacePendingStatus::Conflict
             },
+            write_epoch: None,
         });
         candidate.validate()?;
         *self = candidate;
@@ -729,6 +809,7 @@ impl WorkspaceState {
         candidate.bootstrap_complete = self.bootstrap_complete;
         candidate.next_local_generation = self.next_local_generation;
         candidate.product_receipts = self.product_receipts.clone();
+        candidate.product_guarded = self.product_guarded;
         for record in snapshot.records {
             candidate.apply_record(record)?;
         }
@@ -864,6 +945,7 @@ impl WorkspaceState {
                 edit: desired,
                 local_generation: expected_local_generation,
                 status: WorkspacePendingStatus::Queued,
+                write_epoch: None,
             });
         } else {
             entry.pending = None;
@@ -980,6 +1062,7 @@ impl WorkspaceState {
                 } else {
                     WorkspacePendingStatus::Queued
                 },
+                write_epoch: None,
             });
             entry.next = next;
             count += 1;
