@@ -2546,9 +2546,10 @@ async fn competition_winner_actions_execute_with_current_delegation() {
         Candidate, CompetitionKind, Definition, OptionDefinition, ResultRecord, Selection,
         SelectionMode, TiePolicy, Transition, WinnerAction,
     };
-    for mode in 0..3 {
+    for mode in 0..4 {
         let is_points = mode == 1;
         let is_audio = mode == 2;
+        let is_emit = mode == 3;
         let mut f = Fixture::new();
         let audio_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         if is_audio {
@@ -2564,6 +2565,8 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             points("winner-action", "alice", 1.0)
         } else if is_audio {
             json!({"id":"winner-action","name":"Audio","enabled":true,"typeId":"audio.play","config":{"fileRef":"alert.wav","volume":0.5,"overlap":"drop"}})
+        } else if is_emit {
+            json!({"id":"winner-action","name":"Emit","enabled":true,"typeId":"core.emit","config":{"type":"overlay.alert","data":{}}})
         } else {
             log("winner-action", "original")
         };
@@ -2595,11 +2598,17 @@ async fn competition_winner_actions_execute_with_current_delegation() {
                 overlaps: ["drop".into()].into(),
             });
         }
+        if is_emit {
+            allowed.capabilities.insert(Capability::EventsEmit);
+            allowed.effects.emit_topics.insert("overlay.alert".into());
+        }
         allowed.automation_delegation = Some(AutomationDelegation {
             effects: [if is_points {
                 DelegatedAutomationEffect::Points
             } else if is_audio {
                 DelegatedAutomationEffect::Audio
+            } else if is_emit {
+                DelegatedAutomationEffect::Emit
             } else {
                 DelegatedAutomationEffect::Log
             }]
@@ -2615,7 +2624,7 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             action_id: "winner-action".into(),
             inputs: if is_points {
                 json!({"delta": 3})
-            } else if is_audio {
+            } else if is_audio || is_emit {
                 json!({})
             } else {
                 json!({"message":"winner override"})
@@ -2698,7 +2707,7 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             .unwrap();
         if is_points {
             effective["config"]["delta"] = json!(3);
-        } else if !is_audio {
+        } else if !is_audio && !is_emit {
             effective["config"]["message"] = json!("winner override");
         }
         let context = f
@@ -2723,6 +2732,8 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             assert_eq!(f.points("alice"), 3.0);
         } else if is_audio {
             assert_eq!(audio_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        } else if is_emit {
+            assert_eq!(run["summary"], "emit overlay.alert");
         } else {
             assert_eq!(run["summary"], "winner override");
         }

@@ -671,14 +671,33 @@ impl AutomationService {
                         .as_ref()
                         .is_some_and(|(claim, _)| admission.winner() != Some(claim))
             })
-            || !(permits
+            || !permits
                 .iter()
                 .any(|permit| permit.authorizes_action(action))
-                || owner_rules
-                    .iter()
-                    .any(|rule| rule.authorizes_action(action)))
         {
             return Err("saved competition approval definition binding has changed".into());
+        }
+        apply()
+    }
+
+    pub(crate) fn with_current_competition_chain<R>(
+        &self,
+        admission: &crate::db::CompetitionExecutionAdmission<'_>,
+        permits: &[RuntimeApprovalPermit],
+        owner_rules: &[RuntimeOwnerRuleFence],
+        apply: impl FnOnce() -> Result<R, String>,
+    ) -> Result<R, String> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !execution_chain_current(&index, permits, owner_rules, Some(admission.fence()))
+            || permits.iter().any(|permit| {
+                permit.check_subjects(admission.identities()).is_err()
+                    || permit
+                        .competition_winner
+                        .as_ref()
+                        .is_some_and(|(claim, _)| admission.winner() != Some(claim))
+            })
+        {
+            return Err("saved competition execution binding has changed".into());
         }
         apply()
     }

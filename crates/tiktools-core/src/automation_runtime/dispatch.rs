@@ -487,7 +487,7 @@ impl AppCore {
                 return false;
             };
             context
-                .with_current_chain(&self.automation, |identities| {
+                .with_current_chain(self, |identities| {
                     Ok(self.automation.claim_projected_event(
                         &record.definition,
                         &event,

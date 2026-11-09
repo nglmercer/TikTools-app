@@ -26,29 +26,27 @@ impl AppCore {
             }
             {
                 let _writer = self.automation_gate().map_err(|error| error.to_string())?;
-                envelope
-                    .context()
-                    .with_current_chain(&self.automation, |identities| {
-                        if self.is_shutdown()
-                            || identities
-                                .iter()
-                                .any(|identity| !identity.grant().allows_emit_topic(topic))
-                        {
-                            return Err("scoped event is outside inherited execution scope".into());
-                        }
-                        for identity in identities {
-                            identity
-                                .check_deadline()
-                                .map_err(|_| "scoped execution subject has expired")?;
-                        }
-                        self.events.publish_presentation_domain(
-                            crate::events::DomainEvent::LiveEvent {
-                                event_type: topic.to_owned(),
-                                event: payload.clone(),
-                            },
-                        );
-                        Ok(())
-                    })?;
+                envelope.context().with_current_chain(self, |identities| {
+                    if self.is_shutdown()
+                        || identities
+                            .iter()
+                            .any(|identity| !identity.grant().allows_emit_topic(topic))
+                    {
+                        return Err("scoped event is outside inherited execution scope".into());
+                    }
+                    for identity in identities {
+                        identity
+                            .check_deadline()
+                            .map_err(|_| "scoped execution subject has expired")?;
+                    }
+                    self.events.publish_presentation_domain(
+                        crate::events::DomainEvent::LiveEvent {
+                            event_type: topic.to_owned(),
+                            event: payload.clone(),
+                        },
+                    );
+                    Ok(())
+                })?;
             }
             // No processor, Owner observer publication or remember call may
             // be inserted here; the retained private context is authoritative.

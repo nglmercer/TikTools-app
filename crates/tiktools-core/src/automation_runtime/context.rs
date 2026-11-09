@@ -408,7 +408,7 @@ impl ExecutionContext {
     #[cfg(feature = "persistence")]
     pub(crate) fn with_current_chain<R>(
         &self,
-        automation: &crate::services::AutomationService,
+        core: &AppCore,
         apply: impl FnOnce(&[crate::collaboration::ExecutionIdentity]) -> Result<R, String>,
     ) -> Result<R, String> {
         if self.depth >= DEPTH_LIMIT {
@@ -422,12 +422,40 @@ impl ExecutionContext {
         else {
             return Err("delegated execution approval is unavailable".into());
         };
+        if let (Some(fence), Some(claim)) = (&self.competition, &self.competition_winner) {
+            let additional = subjects
+                .snapshot()
+                .map_err(|_| "saved execution subjects are unavailable")?
+                .iter()
+                .map(|id| (id.principal_id().to_owned(), id.session_id().to_owned()))
+                .collect::<Vec<_>>();
+            let service = core
+                .collaboration()
+                .map_err(|_| "collaboration is unavailable")?;
+            return core
+                .db
+                .with_competition_winner_admission(
+                    &service,
+                    fence,
+                    claim,
+                    &additional,
+                    |_, identities, admission, _| {
+                        core.automation
+                            .with_current_competition_chain(admission, permits, owner_rules, || {
+                                apply(identities)
+                            })
+                            .map_err(crate::db::DatabaseError::Invalid)
+                    },
+                )
+                .map_err(|error| error.to_string());
+        }
         subjects
             .with_current(|identities| {
                 for permit in permits {
                     permit.check_subjects(identities).map_err(str::to_owned)?;
                 }
-                automation.with_current_execution_chain(permits, owner_rules, || apply(identities))
+                core.automation
+                    .with_current_execution_chain(permits, owner_rules, || apply(identities))
             })
             .map_err(|_| "saved execution subjects are unavailable".to_owned())?
     }
@@ -524,7 +552,7 @@ impl AppCore {
         #[cfg(feature = "persistence")]
         {
             let _writer = self.automation_gate().map_err(|error| error.to_string())?;
-            context.with_current_chain(&self.automation, |_| Ok(()))
+            context.with_current_chain(self, |_| Ok(()))
         }
         #[cfg(not(feature = "persistence"))]
         {
@@ -579,7 +607,7 @@ impl AppCore {
                     .and_then(serde_json::Value::as_str)
                     .ok_or("saved child rule identity is unavailable")?;
                 context
-                    .with_current_chain(&self.automation, |identities| {
+                    .with_current_chain(self, |identities| {
                         use crate::collaboration::{AutomationFamily, Capability, ResourceKind};
                         if identities.iter().any(|identity| {
                             let grant = identity.grant();
