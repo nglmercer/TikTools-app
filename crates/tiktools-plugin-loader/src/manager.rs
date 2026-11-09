@@ -148,6 +148,8 @@ impl RuntimeRegistry {
 #[derive(Default)]
 struct PluginRegistry {
     entries: BTreeMap<String, DiscoveredPlugin>,
+    /// Only an uninterrupted, complete scan can support migration preview.
+    complete_for_cutover: bool,
 }
 
 /// Runtime plugin manager. Discovery is deterministic: later roots override
@@ -263,29 +265,65 @@ impl PluginManager {
             .lifecycle
             .lock()
             .map_err(|_| lock_poisoned("plugin lifecycle"))?;
+        {
+            let mut registry = self
+                .registry
+                .write()
+                .map_err(|_| lock_poisoned("plugin registry"))?;
+            registry.complete_for_cutover = false;
+            self.bump_registry_revision();
+        }
         let mut discovered = BTreeMap::new();
+        let mut complete = true;
         for root in &self.roots {
-            if !root.path.exists() {
-                continue;
+            match fs::metadata(&root.path) {
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    // An absent configured root cannot prove an empty local
+                    // inventory, even in a freshly started host.
+                    complete = false;
+                    continue;
+                }
+                Err(error) => {
+                    complete = false;
+                    tracing::warn!(path = %root.path.display(), %error, "could not inspect plugin root");
+                    continue;
+                }
             }
             let entries = fs::read_dir(&root.path).map_err(|error| {
                 PluginLoaderError::InvalidDirectory(format!("{}: {error}", root.path.display()))
             })?;
             for (index, entry) in entries.enumerate() {
                 if index >= MAX_DIRECTORY_ENTRIES {
+                    complete = false;
                     tracing::warn!(path = %root.path.display(), "plugin directory entry limit reached");
                     break;
                 }
                 let entry = match entry {
                     Ok(entry) => entry,
                     Err(error) => {
+                        complete = false;
                         tracing::warn!(path = %root.path.display(), %error, "could not inspect plugin entry");
                         continue;
                     }
                 };
                 let directory = entry.path();
                 let hidden = entry.file_name().to_string_lossy().starts_with('.');
-                if hidden || !entry.file_type().map(|kind| kind.is_dir()).unwrap_or(false) {
+                if hidden {
+                    continue;
+                }
+                let kind = match entry.file_type() {
+                    Ok(kind) => kind,
+                    Err(error) => {
+                        complete = false;
+                        tracing::warn!(path = %directory.display(), %error, "could not inspect plugin entry type");
+                        continue;
+                    }
+                };
+                if kind.is_symlink() {
+                    complete = false;
+                }
+                if !kind.is_dir() {
                     continue;
                 }
                 match read_discovered_plugin(&directory, root.source) {
@@ -293,6 +331,7 @@ impl PluginManager {
                         if let Some(previous) =
                             discovered.insert(plugin.manifest.id.clone(), plugin)
                         {
+                            complete = false;
                             tracing::debug!(
                                 id = %previous.manifest.id,
                                 "plugin overridden by a later runtime root"
@@ -300,6 +339,7 @@ impl PluginManager {
                         }
                     }
                     Err(error) => {
+                        complete = false;
                         tracing::warn!(path = %directory.display(), %error, "plugin skipped")
                     }
                 }
@@ -332,8 +372,9 @@ impl PluginManager {
             .cloned()
             .map(|plugin| (plugin.manifest.id.clone(), plugin))
             .collect();
-        drop(registry);
+        registry.complete_for_cutover = complete;
         self.bump_registry_revision();
+        drop(registry);
         Ok(result)
     }
 
@@ -343,6 +384,30 @@ impl PluginManager {
             .values()
             .cloned()
             .collect()
+    }
+
+    /// Inventory for an informational migration preview. It is not a proof
+    /// that files have stayed unchanged since the scan, nor permission to
+    /// apply or migrate them. A failed/partial scan invalidates this evidence
+    /// while ordinary plugin listing and local operation remain available.
+    /// Every configured root, including optional development roots, must exist;
+    /// absence cannot distinguish an empty inventory from a missing store.
+    pub fn list_complete_for_cutover(
+        &self,
+    ) -> Result<(u64, Vec<DiscoveredPlugin>), PluginLoaderError> {
+        let registry = self
+            .registry
+            .read()
+            .map_err(|_| lock_poisoned("plugin registry"))?;
+        if !registry.complete_for_cutover {
+            return Err(PluginLoaderError::InvalidDirectory(
+                "plugin inventory is incomplete".into(),
+            ));
+        }
+        Ok((
+            self.registry_revision(),
+            registry.entries.values().cloned().collect(),
+        ))
     }
 
     pub fn get(&self, id: &str) -> Option<DiscoveredPlugin> {
@@ -1002,10 +1067,8 @@ impl PluginManager {
     }
 
     fn set_running(&self, id: &str, running: bool) {
-        if let Some(plugin) = recover_rwlock_write(&self.registry, "plugin registry")
-            .entries
-            .get_mut(id)
-        {
+        let mut registry = recover_rwlock_write(&self.registry, "plugin registry");
+        if let Some(plugin) = registry.entries.get_mut(id) {
             plugin.running = running;
         }
         self.bump_registry_revision();

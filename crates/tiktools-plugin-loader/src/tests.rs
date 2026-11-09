@@ -93,6 +93,56 @@ fn later_root_overrides_by_id_without_compile_time_registration() {
 }
 
 #[test]
+fn cutover_inventory_rejects_partial_failed_and_ambiguous_scans() {
+    let root = temp_root();
+    let other = temp_root();
+    fs::create_dir_all(root.join("demo")).unwrap();
+    fs::write(root.join("demo/plugin.json"), r#"{"schemaVersion":3,"id":"demo","name":"Demo","version":"1.0.0","runtime":"declarative"}"#).unwrap();
+    let manager = PluginManager::with_runtimes(
+        plugin_roots(root.clone(), other.clone(), None),
+        RuntimeRegistry::default(),
+    );
+    assert!(manager.list_complete_for_cutover().is_err());
+    manager.scan().unwrap();
+    assert!(manager.list_complete_for_cutover().is_err());
+    fs::create_dir_all(&other).unwrap();
+    manager.scan().unwrap();
+    let (revision, plugins) = manager.list_complete_for_cutover().unwrap();
+    assert_eq!(plugins.len(), 1);
+    fs::create_dir_all(root.join("broken")).unwrap();
+    manager.scan().unwrap();
+    assert!(manager.list_complete_for_cutover().is_err());
+    assert_eq!(manager.list().len(), 1);
+    fs::remove_dir(root.join("broken")).unwrap();
+    manager.scan().unwrap();
+    assert!(manager.list_complete_for_cutover().unwrap().0 > revision);
+    fs::create_dir_all(other.join("demo")).unwrap();
+    fs::write(other.join("demo/plugin.json"), r#"{"schemaVersion":3,"id":"demo","name":"Duplicate","version":"1.0.0","runtime":"declarative"}"#).unwrap();
+    manager.scan().unwrap();
+    assert!(manager.list_complete_for_cutover().is_err());
+    assert_eq!(manager.list().len(), 1);
+    fs::remove_dir_all(&other).unwrap();
+    manager.scan().unwrap();
+    assert!(manager.list_complete_for_cutover().is_err());
+    let restarted = PluginManager::with_runtimes(
+        plugin_roots(root.clone(), other.clone(), None),
+        RuntimeRegistry::default(),
+    );
+    restarted.scan().unwrap();
+    assert!(restarted.list_complete_for_cutover().is_err());
+    fs::create_dir_all(&other).unwrap();
+    manager.scan().unwrap();
+    assert!(manager.list_complete_for_cutover().is_ok());
+    fs::remove_dir_all(&root).unwrap();
+    fs::write(&root, b"not a directory").unwrap();
+    assert!(manager.scan().is_err());
+    assert!(manager.list_complete_for_cutover().is_err());
+    assert_eq!(manager.list().len(), 1);
+    fs::remove_file(root).unwrap();
+    fs::remove_dir_all(other).unwrap();
+}
+
+#[test]
 fn scan_preserves_the_authoritative_running_instance_state() {
     let root = temp_root();
     fs::create_dir_all(root.join("demo")).unwrap();
@@ -711,6 +761,19 @@ fn read_paths_recover_from_poisoned_locks() {
     // and shuts the instance down instead of failing typed.
     manager.stop_all();
     assert!(!manager.is_running("demo"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn admission_catalog_rejects_poisoned_registry() {
+    let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
+    assert_eq!(manager.list_complete_for_cutover().unwrap().1.len(), 1);
+    manager.poison_locks_for_test();
+    assert!(matches!(
+        manager.list_complete_for_cutover(),
+        Err(PluginLoaderError::LockPoisoned(_))
+    ));
+    assert_eq!(manager.list().len(), 1);
     let _ = fs::remove_dir_all(root);
 }
 

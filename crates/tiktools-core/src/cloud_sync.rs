@@ -12,6 +12,9 @@ use crate::paths::AppPaths;
 #[cfg(feature = "persistence")]
 mod product_apply;
 #[cfg(feature = "persistence")]
+#[allow(dead_code)] // Informational native preview; cutover is not enabled.
+mod product_cutover;
+#[cfg(feature = "persistence")]
 pub(crate) mod product_outbox;
 
 pub(crate) struct CloudSync {

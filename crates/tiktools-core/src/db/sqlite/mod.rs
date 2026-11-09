@@ -30,7 +30,12 @@ pub(crate) use owner_approval::validate_owner_approval_input;
 mod owner_definition;
 mod owner_library;
 mod plugin_apply_quarantine;
+#[cfg(feature = "cloud-auth")]
+#[allow(dead_code)] // Native cutover preview is not yet exposed to the UI.
+mod plugin_cutover;
 pub(crate) use owner_definition::validate_owner_definition_input;
+#[cfg(feature = "cloud-auth")]
+pub(crate) use plugin_cutover::PluginCutoverSource;
 #[allow(dead_code)] // Storage only, not yet wired to product package operations.
 mod plugin_package_guard;
 #[cfg(all(feature = "plugin-install", feature = "cloud-auth"))]

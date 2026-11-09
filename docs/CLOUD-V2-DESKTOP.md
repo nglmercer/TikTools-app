@@ -100,6 +100,19 @@ session/opt-in invalidation and a local-source fence. Guard
 checks cannot recall an HTTP request already dispatched, or replace an atomic
 local-application consent fence.
 
+An in-progress private preview reads a coherent SQLite snapshot including
+deleted source generations and compares it with catalog selections, the
+activation map, session and consent. It rejects partial catalog scans, package
+journals, any retained apply journal or finalization witness, and this account's
+unfinished outbox or conflict journal. This deliberately conservative check
+can block preview even for finalized applications until a safe witness review
+and retention policy exists. The later freshness check does not recheck v1
+state, and scan completeness does not fence filesystem changes after the scan.
+Even an absent optional configured root blocks this private preview until its
+inventory can be accounted for.
+Other processes, worker health and a final local-source fence still need
+coverage; this preview is not a product RPC or authority to cut over.
+
 The in-progress v1 uncertain-upload recovery must not be treated as a finished
 product flow. A plugin change can currently be applied locally before its
 sync staging succeeds, including while an exclusive recovery lease is held.
@@ -218,8 +231,13 @@ when that candidate belongs to the same account and has current source and
 runtime confirmation. A separate reviewed abandonment accepts only evidence
 of a newer source generation, restoring the conflict without revealing or
 copying another account's value; it does not authorize any upload.
-Reauthorizing a journal from a previous consent identity remains unimplemented.
-These paths remain unavailable in product.
+A separate private review can abandon a journal from a previous consent
+identity for the same account, restoring its exact original conflict before
+removing the journal. A crash after restoration requires another review;
+receipts and newer candidates, including those from other accounts, remain
+untouched. This does not renew consent for an old receipt or authorize an
+upload: reauthorizing that receipt remains unimplemented. These paths remain
+unavailable in product.
 The in-progress consent epoch migration preserves legacy numeric identities
 and assigns newly confirmed consent a 127-bit random identity, serialized as
 decimal text. Legacy enabled settings without a usable identity require a
