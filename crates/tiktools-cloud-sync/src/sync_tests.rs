@@ -2932,6 +2932,7 @@ struct MockSync {
     held_v2_write: Arc<HeldWrite>,
     held_v2_before_route: Arc<HeldExport>,
     held_v2_epoch: Arc<HeldExport>,
+    held_v2_barrier: Arc<HeldExport>,
     held_export: Arc<HeldExport>,
     held_pull: Arc<HeldExport>,
     inner: Arc<Mutex<MockInner>>,
@@ -2989,6 +2990,7 @@ impl MockSync {
         let held_v2_write = Arc::new(HeldWrite::default());
         let held_v2_before_route = Arc::new(HeldExport::default());
         let held_v2_epoch = Arc::new(HeldExport::default());
+        let held_v2_barrier = Arc::new(HeldExport::default());
         let held_export = Arc::new(HeldExport::default());
         let held_pull = Arc::new(HeldExport::default());
         let task = tokio::spawn({
@@ -2997,6 +2999,7 @@ impl MockSync {
             let held_v2_write = held_v2_write.clone();
             let held_v2_before_route = held_v2_before_route.clone();
             let held_v2_epoch = held_v2_epoch.clone();
+            let held_v2_barrier = held_v2_barrier.clone();
             let held_export = held_export.clone();
             let held_pull = held_pull.clone();
             async move {
@@ -3009,6 +3012,7 @@ impl MockSync {
                     let held_v2_write = held_v2_write.clone();
                     let held_v2_before_route = held_v2_before_route.clone();
                     let held_v2_epoch = held_v2_epoch.clone();
+                    let held_v2_barrier = held_v2_barrier.clone();
                     let held_export = held_export.clone();
                     let held_pull = held_pull.clone();
                     tokio::spawn(async move {
@@ -3043,6 +3047,15 @@ impl MockSync {
                         }
                         let (status, payload) =
                             route(&method, path, query, &headers, &body, &inner);
+                        if method == "POST"
+                            && path == "/api/v2/sync/write-barrier"
+                            && held_v2_barrier
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            held_v2_barrier.started.notify_one();
+                            held_v2_barrier.release.notified().await;
+                        }
                         if method == "GET"
                             && path == "/api/v2/sync/write-epoch"
                             && held_v2_epoch
@@ -3116,6 +3129,7 @@ impl MockSync {
             held_v2_write,
             held_v2_before_route,
             held_v2_epoch,
+            held_v2_barrier,
             held_export,
             held_pull,
             inner,
@@ -3240,6 +3254,18 @@ fn route(
                 value["epochRequired"] = required.into();
             }
             json(200, value)
+        }
+        ("POST", "/api/v2/sync/write-barrier") => {
+            let Some(next) = state
+                .v2_write_epoch
+                .parse::<i64>()
+                .ok()
+                .and_then(|v| v.checked_add(1))
+            else {
+                return json(503, serde_json::json!({}));
+            };
+            state.v2_write_epoch = next.to_string();
+            json(200, serde_json::json!({"writeEpoch": state.v2_write_epoch}))
         }
         ("GET", path) if path.starts_with("/api/v2/sync/collections/") => {
             state.v2_record_get_requests += 1;

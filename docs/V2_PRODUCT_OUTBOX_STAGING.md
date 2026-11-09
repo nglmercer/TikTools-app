@@ -136,6 +136,22 @@ the future caller must hold the emission, exact identity/consent and runtime
 fences, verify the installed artifact and version, and establish a server
 barrier for older in-flight writes before transferring any marker. There is no
 product or UI call to this primitive, and no automatic reconciliation.
+An experimental coordinator now obtains a fresh required-epoch observation and
+server barrier, then retains the exclusive cooperative source lease while an
+opaque, single-use confirmation is valid. Confirmation rechecks the same
+session, consent and unchanged product workspace under their locks; pending
+workspace edits reject the operation. The proof expires after 60 seconds and
+normally releases the source lease even if the caller retains it. A blocked
+native confirmation can still retain its lease until it returns. This may make
+cooperating plugin mutations return busy during review. The caller must verify
+the source/runtime under this already-held lease, require an explicit user
+choice and handle failed or uncertain native commits. Legacy emitters, mixed
+backend versions, noncooperating processes and full UI integration remain
+outside this experimental guarantee.
+The existing local source-review helper acquires that same exclusive lease
+itself and therefore cannot yet be called inside the confirmation callback;
+the adapter must be refactored to validate under the already-held lease before
+the two pieces can be safely connected.
 The native adapter can now capture an opaque local selection review and
 recheck the same source revision, installed version, runtime observation and
 host lifetime under the invocation and exclusive emission fences. It does not

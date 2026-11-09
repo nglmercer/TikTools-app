@@ -1,4 +1,155 @@
 use super::*;
+
+#[tokio::test]
+async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and_session() {
+    let dir = TempDir::new("v2-reconcile-barrier");
+    let mock = MockSync::start("reconcile-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "first-reconcile-login").await;
+    let session = auth.session().await.unwrap();
+    let preview = marked_preview(&sync, &session);
+    let cutover = sync.protocol.try_cutover().unwrap();
+    cutover
+        .prepare(&preview, &mock.origin, "reconcile-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "reconcile-user".into(),
+    )
+    .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
+    cutover
+        .finish(&preview, &mock.origin, "reconcile-user")
+        .unwrap();
+    drop(cutover);
+    sync.set_enabled(false).unwrap();
+    let consent = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&consent).unwrap();
+
+    // Cancellation after the server advances the epoch returns no proof and
+    // must release local admission; the server's completed barrier is not
+    // mistaken for an acknowledged review.
+    let source_gate = crate::ProductEmissionFence::open(dir.join("plugin-sync-emission")).unwrap();
+    mock.held_v2_barrier
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let worker_sync = sync.clone();
+    let worker_session = session.clone();
+    let task = tokio::spawn(async move {
+        worker_sync
+            .prepare_v2_reconciliation_barrier(worker_session)
+            .await
+    });
+    tokio::time::timeout(
+        Duration::from_secs(3),
+        mock.held_v2_barrier.started.notified(),
+    )
+    .await
+    .unwrap();
+    assert!(source_gate.try_emission().is_err());
+    task.abort();
+    assert!(task.await.err().unwrap().is_cancelled());
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            if source_gate.try_emission().is_ok() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .unwrap();
+    mock.held_v2_barrier.release.notify_one();
+
+    mock.inner.lock().unwrap().v2_epoch_required = Some(false);
+    assert!(sync
+        .prepare_v2_reconciliation_barrier(session.clone())
+        .await
+        .is_err());
+    mock.inner.lock().unwrap().v2_epoch_required = Some(true);
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone())
+        .await
+        .unwrap();
+    assert!(source_gate.try_emission().is_err());
+    let context = sync
+        .with_v2_reconciliation_barrier(&proof, |ctx| {
+            Ok((
+                ctx.origin.clone(),
+                ctx.account_id.clone(),
+                ctx.config_generation,
+            ))
+        })
+        .unwrap();
+    assert_eq!(context.0, mock.origin);
+    assert_eq!(context.1, "reconcile-user");
+    assert_eq!(context.2, sync.read_config().generation);
+    assert!(sync
+        .with_v2_reconciliation_barrier(&proof, |_| Ok(()))
+        .is_err());
+    assert!(source_gate.try_emission().is_ok());
+
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone())
+        .await
+        .unwrap();
+    assert!(sync
+        .with_v2_reconciliation_barrier::<()>(&proof, |_| Err(
+            crate::WorkspaceCoordError::Ineligible
+        ))
+        .is_err());
+    assert!(source_gate.try_emission().is_ok());
+    assert!(sync
+        .with_v2_reconciliation_barrier(&proof, |_| Ok(()))
+        .is_err());
+
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone())
+        .await
+        .unwrap();
+    let store =
+        cloud_client::WorkspaceStore::open(dir.join("a-sync"), &mock.origin, "reconcile-user")
+            .unwrap();
+    let mut snapshot = store.load().unwrap().unwrap();
+    snapshot.state.stage(cloud_client::WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap(), cloud_client::WorkspaceEdit::Put(serde_json::json!({"schemaVersion":1,"pluginId":"acme.plugin","version":"1.0.0","enabled":true}))).unwrap();
+    store
+        .save(Some(snapshot.generation), &snapshot.state)
+        .unwrap();
+    assert!(sync
+        .with_v2_reconciliation_barrier::<()>(&proof, |_| panic!("changed workspace admitted"))
+        .is_err());
+    drop(proof);
+    assert!(sync
+        .prepare_v2_reconciliation_barrier(session.clone())
+        .await
+        .is_err());
+
+    // Exact-session binding remains authoritative even for the same account.
+    let store_snapshot = store.load().unwrap().unwrap();
+    let mut clean =
+        cloud_client::WorkspaceState::new(mock.origin.clone(), "reconcile-user".into()).unwrap();
+    clean
+        .install_rebuild(cloud_client::WorkspaceSnapshot {
+            schema_version: 2,
+            cursor: 0,
+            records: vec![],
+        })
+        .unwrap();
+    clean.mark_bootstrap_complete();
+    clean.mark_product_guarded();
+    store.save(Some(store_snapshot.generation), &clean).unwrap();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone())
+        .await
+        .unwrap();
+    auth.logout().await.unwrap();
+    login(&auth, "second-reconcile-login").await;
+    assert!(sync
+        .with_v2_reconciliation_barrier::<()>(&proof, |_| panic!("replaced session admitted"))
+        .is_err());
+    mock.stop();
+}
 use cloud_client::{SyncError, WorkspaceEdit, WorkspaceKey, WorkspacePendingStatus};
 use std::cell::Cell;
 
