@@ -139,6 +139,123 @@ pub(super) fn resume_pulled(
 }
 
 impl AppCore {
+    /// Prepare a v2 application only after the cached selection matches a
+    /// fresh post-barrier read. This records intent but does not run code.
+    #[cfg(feature = "plugin-install")]
+    #[allow(dead_code)] // Runtime execution and recovery are wired separately.
+    pub(crate) async fn prepare_v2_pulled_plugin_apply(
+        &self,
+        barrier: &tiktools_cloud_sync::V2ReconciliationBarrier,
+    ) -> Result<Option<PluginApplyIntent>, tiktools_cloud_sync::WorkspaceCoordError> {
+        use tiktools_cloud_sync::WorkspaceCoordError;
+        let unavailable = || WorkspaceCoordError::Ineligible;
+        if self.is_shutdown() {
+            return Err(unavailable());
+        }
+        let sync = self.sync.coordinator().map_err(|_| unavailable())?;
+        sync.with_cached_v2_reconciliation_barrier(barrier, |admission| {
+            if !admission.matches_source_dir(&self.db.paths().data.join("plugin-sync-emission")) {
+                return Err(unavailable());
+            }
+            let runtime = self
+                .try_plugin_sync_runtime_guard()
+                .map_err(|_| unavailable())?;
+            if self.is_shutdown() {
+                return Err(unavailable());
+            }
+            let packages = self.plugin_packages().map_err(|_| unavailable())?;
+            let store = packages
+                .installer
+                .try_lock_store()
+                .map_err(|_| unavailable())?;
+            if !store
+                .matches_roots(&self.db.paths().plugins, &self.db.paths().plugin_store())
+                .map_err(|_| unavailable())?
+            {
+                return Err(unavailable());
+            }
+            let remote = admission.remote().ok_or_else(unavailable)?;
+            let Some(plugin) = self
+                .plugins
+                .get_for_admission(&remote.key)
+                .map_err(|_| unavailable())?
+            else {
+                return Ok(None);
+            };
+            let Some((generation, enabled)) = self
+                .db
+                .pulled_plugin_apply_source(&remote.key)
+                .map_err(|_| unavailable())?
+            else {
+                return Ok(None);
+            };
+            if !runtime.matches_selection(&remote.key, &plugin.manifest.version, enabled) {
+                return Err(unavailable());
+            }
+            let selection = remote
+                .value
+                .as_ref()
+                .map(|value| {
+                    serde_json::from_value::<tiktools_cloud_sync::PluginSelection>(value.clone())
+                })
+                .transpose()
+                .map_err(|_| unavailable())?;
+            let target = match &selection {
+                Some(value)
+                    if value.plugin_id == remote.key
+                        && value.version == plugin.manifest.version =>
+                {
+                    value.enabled
+                }
+                Some(_) => return Ok(None),
+                None if remote.deleted => false,
+                None => return Err(unavailable()),
+            };
+            if target == enabled {
+                return Ok(None);
+            }
+            let mut bytes = [0u8; 32];
+            getrandom::fill(&mut bytes).map_err(|_| unavailable())?;
+            let context = admission.context();
+            let intent = PluginApplyIntent {
+                intent_id: bytes.iter().map(|byte| format!("{byte:02x}")).collect(),
+                origin: context.origin.clone(),
+                account_id: context.account_id.clone(),
+                config_generation: context.config_generation,
+                plugin_id: remote.key.clone(),
+                source_generation: generation,
+                installed_version: plugin.manifest.version,
+                expected_enabled: enabled,
+                reviewed_pending: None,
+                base_record: None,
+                remote: Some(tiktools_cloud_sync::V1Record {
+                    collection: remote.collection.clone(),
+                    key: remote.key.clone(),
+                    revision: remote.revision,
+                    deleted: remote.deleted,
+                    value: selection,
+                }),
+                reason: PluginApplyReason::Pulled,
+            };
+            if !self
+                .db
+                .prepare_plugin_apply(context, &intent)
+                .map_err(|_| unavailable())?
+            {
+                return Err(unavailable());
+            }
+            if !self
+                .db
+                .mark_plugin_apply_ready_after_native_reconciliation(context, &intent)
+                .map_err(|_| unavailable())?
+            {
+                return Err(unavailable());
+            }
+            Ok(Some(intent))
+        })
+        .await
+    }
+
     /// Prepare only while the installed artifact and activation are stable.
     /// This private method is intentionally not called by product sync yet.
     #[allow(dead_code)]

@@ -4,8 +4,10 @@ Status: **the native v2 foundation and read-only Cloud catalog and library UI ar
 
 The native reconciliation barrier can now admit a downloaded plugin record
 only when the cached record exactly matches the authenticated post-barrier
-server record. A missing or different cache entry is rejected. This is one
-part of local application; runtime changes and crash recovery remain pending.
+server record. A missing or different cache entry is rejected. Native v2
+preparation also checks the installed version, current worker and outstanding
+local edits before recording a durable application intent. It is not yet
+connected to product sync; runtime changes and crash recovery remain pending.
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
 library delivery e6728c9. The reviewed backend commit is RemakeBackend 952e512,

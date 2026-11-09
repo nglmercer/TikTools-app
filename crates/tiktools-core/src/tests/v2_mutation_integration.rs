@@ -64,8 +64,11 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     }
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let origin = format!("http://{}", listener.local_addr().unwrap());
+    let remote_record = Arc::new(std::sync::Mutex::new(None::<serde_json::Value>));
+    let server_record = remote_record.clone();
     let server = tokio::spawn(async move {
         while let Ok((mut socket, _)) = listener.accept().await {
+            let server_record = server_record.clone();
             tokio::spawn(async move {
                 let mut buf = [0u8; 8192];
                 let Ok(n) = socket.read(&mut buf).await else {
@@ -81,6 +84,13 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
                     ("200 OK", json!({"writeEpoch":"8"}))
                 } else if line.starts_with("GET /api/v2/sync/changes?") {
                     ("200 OK", json!({"changes":[],"cursor":0,"has_more":false}))
+                } else if line
+                    .starts_with("GET /api/v2/sync/collections/plugin-selections/acme.hotkeys ")
+                {
+                    match server_record.lock().unwrap().clone() {
+                        Some(record) => ("200 OK", record),
+                        None => ("404 Not Found", json!({})),
+                    }
                 } else if line
                     .starts_with("PUT /api/v2/sync/collections/plugin-selections/acme.hotkeys ")
                     && request
@@ -115,7 +125,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     let session = auth.session().await.unwrap();
     Arc::get_mut(&mut core).unwrap().sync =
         Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
-    let sync = core.sync.coordinator().unwrap();
+    let sync = core.sync.coordinator().unwrap().clone();
     sync.set_enabled(true).unwrap();
     let sync_dir = paths.data.join("cloud-sync");
     let workspace = WorkspaceCoordinator::open(&sync_dir, origin.clone(), "alice".into()).unwrap();
@@ -468,6 +478,68 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
         .unwrap()
         .is_none());
+    // The cached server revision and native runtime must agree before the
+    // remote change can create a durable application intent.
+    let remote = json!({"collection":"plugin-selections","key":"acme.hotkeys","revision":2,"deleted":false,"value":{"schemaVersion":1,"pluginId":"acme.hotkeys","version":"1.0.0","enabled":false}});
+    *remote_record.lock().unwrap() = Some(remote.clone());
+    let snapshot = store.load().unwrap().unwrap();
+    let mut state = snapshot.state;
+    state
+        .install_rebuild(cloud_client::WorkspaceSnapshot {
+            schema_version: 2,
+            cursor: 2,
+            records: vec![serde_json::from_value(remote).unwrap()],
+        })
+        .unwrap();
+    store.save(Some(snapshot.generation), &state).unwrap();
+    core.db
+        .invalidate_plugin_package_source_untracked("acme.hotkeys")
+        .unwrap();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
+        .await
+        .unwrap();
+    assert!(core
+        .prepare_v2_pulled_plugin_apply(&proof)
+        .await
+        .unwrap()
+        .is_none());
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection
+        .execute(
+            "DELETE FROM plugin_sync_untracked_local WHERE plugin_id='acme.hotkeys'",
+            [],
+        )
+        .unwrap();
+    drop(connection);
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
+        .await
+        .unwrap();
+    let intent = core
+        .prepare_v2_pulled_plugin_apply(&proof)
+        .await
+        .unwrap()
+        .unwrap();
+    let stored = core
+        .db
+        .plugin_apply_intent(&intent.intent_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.phase, crate::db::PluginApplyPhase::Ready);
+    assert!(
+        core.plugins.observe_worker("acme.hotkeys").is_ok_and(
+            |state| state == tiktools_plugin_loader::PluginWorkerObservation::WorkerPresent
+        )
+    );
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection
+        .execute(
+            "DELETE FROM plugin_sync_apply_intents WHERE intent_id=?1",
+            [&intent.intent_id],
+        )
+        .unwrap();
+    drop(connection);
     // A successful package operation under the same session can transfer its
     // fresh marker into the ordinary v2 outbox without another approval.
     {
