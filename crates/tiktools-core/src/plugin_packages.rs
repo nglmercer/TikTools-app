@@ -316,6 +316,24 @@ pub(crate) fn unavailable(error: &str) -> InstallError {
     )
 }
 
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+pub(crate) fn try_product_mutation_lease(
+    core: &crate::AppCore,
+) -> Result<tiktools_cloud_sync::ProductEmissionLease, InstallError> {
+    use tiktools_cloud_sync::ProtocolFenceError;
+    let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+        core.db.paths().data.join("plugin-sync-emission"),
+    )
+    .map_err(InstallError::io)?;
+    fence.try_untracked_edit().map_err(|error| match error {
+        ProtocolFenceError::Busy => InstallError::new(
+            InstallErrorCode::Busy,
+            "plugin sync emission is in progress",
+        ),
+        other => InstallError::io(other),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -618,6 +636,19 @@ mod tests {
         core.db
             .set_plugin_state("acme.package", true, true)
             .unwrap();
+        #[cfg(feature = "cloud-auth")]
+        {
+            let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+                core.db.paths().data.join("plugin-sync-emission"),
+            )
+            .unwrap();
+            let in_flight = fence.try_emission().unwrap();
+            let error = core.install_plugin(&first, false).unwrap_err();
+            assert_eq!(error.code, InstallErrorCode::Busy);
+            assert_eq!(source(), 1);
+            assert!(!core.db.paths().plugins.join("acme.package").exists());
+            drop(in_flight);
+        }
         let db = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
         db.execute_batch("CREATE TRIGGER fail_package_fence BEFORE UPDATE ON plugin_sync_source_versions BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
         drop(db);
@@ -634,6 +665,30 @@ mod tests {
             core.plugins.get("acme.package").unwrap().manifest.version,
             "1.0.0"
         );
+        #[cfg(feature = "cloud-auth")]
+        {
+            let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+                core.db.paths().data.join("plugin-sync-emission"),
+            )
+            .unwrap();
+            let in_flight = fence.try_emission().unwrap();
+            assert_eq!(
+                core.install_plugin(&second, true).unwrap_err().code,
+                InstallErrorCode::Busy
+            );
+            assert_eq!(
+                core.uninstall_plugin("acme.package", false)
+                    .unwrap_err()
+                    .code,
+                InstallErrorCode::Busy
+            );
+            assert_eq!(source(), 3);
+            assert_eq!(
+                core.plugins.get("acme.package").unwrap().manifest.version,
+                "1.0.0"
+            );
+            drop(in_flight);
+        }
         // A rejected replacement retains old files but still fences reviews.
         assert!(core.install_plugin(&second, false).is_err());
         assert_eq!(source(), 5);

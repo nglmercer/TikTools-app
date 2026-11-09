@@ -232,6 +232,8 @@ impl AppCore {
                                 "plugin invocation lease is unavailable",
                             )
                         })?;
+                #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+                let _source_lease = crate::plugin_packages::try_product_mutation_lease(&worker_core)?;
                 #[cfg(feature = "persistence")]
                 worker_core
                     .db
@@ -867,6 +869,8 @@ impl AppCore {
             let _invocation = core.plugin_state.invocation_gate.lock().map_err(|_| {
                 crate::plugin_packages::unavailable("plugin invocation lease is unavailable")
             })?;
+            #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+            let _source_lease = crate::plugin_packages::try_product_mutation_lease(&core)?;
             #[cfg(feature = "persistence")]
             core.db
                 .invalidate_plugin_package_source(&prepared.manifest.id)

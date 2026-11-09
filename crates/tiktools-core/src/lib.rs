@@ -643,6 +643,8 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 plugin_packages::unavailable("plugin invocation lease is unavailable")
             })?;
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        let _source_lease = plugin_packages::try_product_mutation_lease(self)?;
         #[cfg(feature = "persistence")]
         self.db
             .invalidate_plugin_package_source(&prepared.manifest.id)
@@ -685,6 +687,8 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 plugin_packages::unavailable("plugin invocation lease is unavailable")
             })?;
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        let _source_lease = plugin_packages::try_product_mutation_lease(self)?;
         let packages = self.plugin_packages()?;
         let plugin = self
             .plugins

@@ -155,6 +155,59 @@ async fn install_both_versions(fixture: &Fixture) {
     assert_eq!(receipt.version, "1.1.0");
 }
 
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[tokio::test]
+async fn package_jobs_preserve_installed_files_while_product_emission_is_active() {
+    let fixture = Fixture::new();
+    let core = &fixture.core;
+    let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+        core.db.paths().data.join("plugin-sync-emission"),
+    )
+    .unwrap();
+    let preview = core.plugin_package_inspect(fixture.spec()).await.unwrap();
+    let emission = fence.try_emission().unwrap();
+    let job = core
+        .plugin_package_install(fixture.spec(), preview.consent_token, None)
+        .unwrap();
+    let result = finished(core, &job.id).await;
+    assert_eq!(result.status, JobStatus::Failed);
+    assert_eq!(result.error.unwrap().code, InstallErrorCode::Busy);
+    assert!(core
+        .packages()
+        .unwrap()
+        .installer
+        .receipt("acme.sideload")
+        .unwrap()
+        .is_none());
+    drop(emission);
+    install_both_versions(&fixture).await;
+
+    let emission = fence.try_emission().unwrap();
+    let job = core
+        .plugin_package_rollback("acme.sideload", Some("1.0.0".into()))
+        .unwrap();
+    let result = finished(core, &job.id).await;
+    assert_eq!(result.status, JobStatus::Failed);
+    assert_eq!(result.error.unwrap().code, InstallErrorCode::Busy);
+    assert_eq!(
+        core.packages()
+            .unwrap()
+            .installer
+            .receipt("acme.sideload")
+            .unwrap()
+            .unwrap()
+            .version,
+        "1.1.0"
+    );
+    drop(emission);
+    let job = core
+        .plugin_package_rollback("acme.sideload", Some("1.0.0".into()))
+        .unwrap();
+    let result = finished(core, &job.id).await;
+    assert_eq!(result.status, JobStatus::Succeeded, "{:?}", result.error);
+    core.shutdown().await;
+}
+
 #[tokio::test]
 async fn disabling_sideload_after_inspect_rejects_reviewed_and_direct_install() {
     let fixture = Fixture::new();
