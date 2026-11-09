@@ -100,6 +100,42 @@ describe('CloudLibrary', () => {
     wrapper.unmount();
   });
 
+  it('clears private content on a same-host context event or event gap', async () => {
+    let resolveDetail!: (value: unknown) => void;
+    let cloudInvalidated = () => {};
+    let gap = () => {};
+    const pending = new Promise((resolve) => { resolveDetail = resolve; });
+    const { client } = createFakeControlClient((method, params) => {
+      if (method === 'cloudLibrary.list') return params?.scope === 'mine'
+        ? { items: [summary(firstId, 'Private title')], nextCursor: null }
+        : { items: [], nextCursor: null };
+      if (method === 'cloudLibrary.read') return pending;
+      throw new Error(`unexpected ${method}`);
+    });
+    client.onTopic = (topic, handler) => {
+      if (topic === 'cloud.context.invalidated') cloudInvalidated = () => handler({} as never);
+      return () => { cloudInvalidated = () => {}; };
+    };
+    client.onGap = (handler) => { gap = () => handler(1); return () => { gap = () => {}; }; };
+    const stores = createStoreHarness(client);
+    const account = stores.use(() => useAccountStore());
+    account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+    const wrapper = mountWithPlugins(CloudLibrary, { global: { plugins: stores.plugins } });
+    await flushPromises();
+    await wrapper.findAll('select')[0]!.setValue('mine'); await flushPromises();
+    await button(wrapper, 'Private title').trigger('click');
+    cloudInvalidated(); await nextTick();
+    expect(wrapper.text()).not.toContain('Private title');
+    resolveDetail({ meta: summary(firstId, 'Private title'), document: { title: 'Old detail' } });
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Old detail');
+    await wrapper.get('form').trigger('submit'); await flushPromises();
+    expect(wrapper.text()).toContain('Private title');
+    gap(); await nextTick();
+    expect(wrapper.text()).not.toContain('Private title');
+    wrapper.unmount();
+  });
+
   it('rejects malformed pages and mismatched document revisions', async () => {
     let invalidPage = true;
     const { client } = createFakeControlClient((method) => {

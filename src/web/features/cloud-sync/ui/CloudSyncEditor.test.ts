@@ -64,6 +64,56 @@ describe('CloudSyncEditor', () => {
     expect(wrapper.text()).toContain('Sync now');
   });
 
+  it('explains deferred application and does not offer unsafe conflict decisions', async () => {
+    let gap!: () => void;
+    const { client, calls } = createFakeControlClient((method) => {
+      if (method === 'cloud.status') return account();
+      if (method === 'sync.status') return status({ enabled: true, conflicts: ['acme.plugin'] });
+      if (method === 'sync.uncertain.list') return [];
+      if (method === 'sync.now') return { pushed: 0, pulled: 1, applied: 0, skipped: 2, applicationDeferred: true, conflicts: ['acme.plugin'] };
+      throw new Error(`unexpected ${method}`);
+    });
+    client.onGap = (handler) => { gap = () => handler(1); return () => {}; };
+    const wrapper = mountWithPlugins(CloudSyncEditor, { global: { plugins: storePlugins(client) } });
+    await flushPromises();
+    expect(wrapper.text()).toContain('not applied to this device automatically');
+    expect(wrapper.text()).toContain('Local changes are not guaranteed to enter the upload queue');
+    expect(wrapper.text()).toContain('Your pending changes are retained');
+    for (const label of ['Keep mine', 'Use cloud']) {
+      expect(wrapper.findAll('button').find((item) => item.text() === label)?.attributes('disabled')).toBeDefined();
+    }
+    await wrapper.findAll('button').find((item) => item.text() === 'Sync now')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('2 Cloud selection record(s) are available without automatic application');
+    expect(wrapper.text()).toContain('some may already match this device');
+    expect(calls.filter((call) => call.method === 'sync.resolve')).toHaveLength(0);
+    gap(); await flushPromises();
+    expect(wrapper.text()).not.toContain('2 Cloud selection record(s)');
+    wrapper.unmount();
+  });
+
+  it('discards a late sync outcome and review on Cloud context invalidation', async () => {
+    let release!: (value: unknown) => void;
+    let invalidate!: () => void;
+    const pending = new Promise((resolve) => { release = resolve; });
+    const { client } = createFakeControlClient((method) => {
+      if (method === 'cloud.status') return account();
+      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.uncertain.list') return [];
+      if (method === 'sync.now') return pending;
+      throw new Error(`unexpected ${method}`);
+    });
+    client.onTopic = (topic, handler) => { if (topic === 'cloud.context.invalidated') invalidate = () => (handler as (value: unknown) => void)({}); return () => {}; };
+    const wrapper = mountWithPlugins(CloudSyncEditor, { global: { plugins: storePlugins(client) } });
+    await flushPromises();
+    await wrapper.findAll('button').find((item) => item.text() === 'Sync now')!.trigger('click');
+    invalidate();
+    release({ pushed: 0, pulled: 1, applied: 0, skipped: 2, applicationDeferred: true, conflicts: [] });
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('2 Cloud selection record(s)');
+    wrapper.unmount();
+  });
+
   it('shows the review but disables decisions until local changes are protected', async () => {
     const selection = { state: 'selected', version: '1.0.0', enabled: true };
     const { client, calls } = createFakeControlClient((method) => {

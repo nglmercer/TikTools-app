@@ -356,7 +356,7 @@ impl AppCore {
         #[cfg(feature = "plugin-install")]
         let packages = plugin_packages::PluginPackages::new(&paths, events.clone()).map(Arc::new);
         #[cfg(feature = "cloud-auth")]
-        let cloud = Arc::new(cloud_account::CloudAccount::new(&paths));
+        let cloud = Arc::new(cloud_account::CloudAccount::new(&paths, &events));
         #[cfg(feature = "cloud-auth")]
         let sync = Arc::new(cloud_sync::CloudSync::new(&paths, cloud.auth()));
         #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]

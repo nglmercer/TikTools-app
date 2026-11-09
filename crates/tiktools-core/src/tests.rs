@@ -2856,6 +2856,196 @@ async fn cloud_sync_uncertain_resolution_is_unavailable_without_durable_source_f
     core.shutdown().await;
 }
 
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[tokio::test]
+async fn cloud_sync_defers_remote_selection_and_preserves_local_conflict_choices() {
+    use secrecy::SecretString;
+    use tiktools_cloud_auth::{CloudAuth, Persistence, TokenStore, TokenStoreError};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+
+    struct Store;
+    impl TokenStore for Store {
+        fn persistence(&self) -> Persistence {
+            Persistence::MemoryOnly
+        }
+        fn load(&self, _: &str, _: &str) -> Result<Option<SecretString>, TokenStoreError> {
+            Ok(Some(SecretString::from("fixture-token".to_owned())))
+        }
+        fn store(
+            &self,
+            _: &str,
+            _: &str,
+            _: &cloud_client::Session,
+        ) -> Result<(), TokenStoreError> {
+            Ok(())
+        }
+        fn delete(&self, _: &str, _: &str) -> Result<(), TokenStoreError> {
+            Ok(())
+        }
+    }
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let tombstone = Arc::new(AtomicBool::new(false));
+    let server_tombstone = Arc::clone(&tombstone);
+    let server = tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            let tombstone = Arc::clone(&server_tombstone);
+            tokio::spawn(async move {
+                let mut request = Vec::new();
+                loop {
+                    let mut bytes = [0u8; 1024];
+                    let Ok(n) = socket.read(&mut bytes).await else {
+                        return;
+                    };
+                    if n == 0 || request.len() + n > 16384 {
+                        return;
+                    }
+                    request.extend_from_slice(&bytes[..n]);
+                    if request.windows(4).any(|part| part == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let request = String::from_utf8_lossy(&request);
+                let first = request.lines().next().unwrap_or_default();
+                let (status, body) = if first.starts_with("GET /api/v1/native/me ") {
+                    ("200 OK", json!({"id":"alice"}))
+                } else if first.starts_with("GET /api/v1/native/sync/changes?") {
+                    let cursor = first
+                        .split("cursor=")
+                        .nth(1)
+                        .and_then(|value| value.split(['&', ' ']).next())
+                        .and_then(|value| value.parse::<u64>().ok())
+                        .unwrap_or(0);
+                    let deleted = tombstone.load(AtomicOrdering::SeqCst);
+                    let changes = if cursor == 0 {
+                        vec![json!({
+                            "collection":"plugin-selections", "key":"acme.hotkeys", "revision":1,
+                            "deleted":false, "value":{"schemaVersion":1,"pluginId":"acme.hotkeys","version":"1.0.0","enabled":false}
+                        })]
+                    } else if cursor == 1 && deleted {
+                        vec![
+                            json!({"collection":"plugin-selections", "key":"acme.hotkeys", "revision":2, "deleted":true, "value":null}),
+                        ]
+                    } else {
+                        Vec::new()
+                    };
+                    let latest = if cursor == 0 || !deleted { 1 } else { 2 };
+                    (
+                        "200 OK",
+                        json!({"changes":changes,"cursor":latest,"has_more":false}),
+                    )
+                } else if first.starts_with(
+                    "PUT /api/v1/native/sync/collections/plugin-selections/acme.hotkeys ",
+                ) {
+                    ("409 Conflict", json!({"error":"conflict"}))
+                } else {
+                    ("404 Not Found", json!({}))
+                };
+                let body = serde_json::to_vec(&body).unwrap();
+                let headers = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                let _ = socket.write_all(headers.as_bytes()).await;
+                let _ = socket.write_all(&body).await;
+            });
+        }
+    });
+
+    let runtime = Arc::new(FakePluginState::default());
+    let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
+    core.plugin_set_enabled("acme.hotkeys", true).unwrap();
+    let loads_before = runtime.loads.load(AtomicOrdering::SeqCst);
+    let paths = core.db.paths().clone();
+    let sidecar = paths.data.join("test-account.json");
+    std::fs::write(
+        &sidecar,
+        serde_json::to_vec(&json!({"origin":origin,"account_id":"alice"})).unwrap(),
+    )
+    .unwrap();
+    let events = core.events.clone();
+    let auth = CloudAuth::new(Some(origin), sidecar, Arc::new(Store)).with_context_observer(
+        Arc::new(move || {
+            events
+                .publish_presentation_domain(crate::events::DomainEvent::CloudContextInvalidated {})
+        }),
+    );
+    auth.restore().await.unwrap();
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    core.sync_set_enabled(true).unwrap();
+    let mut notifications = core.events.subscribe_projection();
+
+    let first = core.sync_now().await.unwrap();
+    assert_eq!((first.pulled, first.applied, first.skipped), (1, 0, 1));
+    assert!(first.application_deferred);
+    while let Ok(event) = notifications.try_recv() {
+        assert_ne!(event.topic(), "cloud.context.invalidated");
+    }
+    assert!(
+        recover_rwlock_read(&core.plugin_state.activation, "plugin activation")["acme.hotkeys"]
+            .enabled
+    );
+    assert_eq!(runtime.loads.load(AtomicOrdering::SeqCst), loads_before);
+
+    // Restart the sync coordinator with the same account partition: the
+    // retained Cloud record is still reported even with no new feed changes.
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    let again = core.sync_now().await.unwrap();
+    assert_eq!((again.pulled, again.applied, again.skipped), (0, 0, 1));
+    assert!(again.application_deferred);
+    assert!(
+        recover_rwlock_read(&core.plugin_state.activation, "plugin activation")["acme.hotkeys"]
+            .enabled
+    );
+
+    // A later tombstone is retained too, without stopping the local plugin.
+    tombstone.store(true, AtomicOrdering::SeqCst);
+    let deleted = core.sync_now().await.unwrap();
+    assert_eq!(
+        (deleted.pulled, deleted.applied, deleted.skipped),
+        (1, 0, 1)
+    );
+    assert!(deleted.application_deferred);
+    assert!(
+        recover_rwlock_read(&core.plugin_state.activation, "plugin activation")["acme.hotkeys"]
+            .enabled
+    );
+
+    // No conflict choice can discard or rebase an existing pending edit.
+    core.sync
+        .coordinator()
+        .unwrap()
+        .record_local_change("acme.hotkeys", "1.0.0", true)
+        .unwrap();
+    let conflict = core.sync_now().await.unwrap();
+    assert_eq!(conflict.conflicts, vec!["acme.hotkeys"]);
+    let before = core.sync_status().await.unwrap();
+    assert_eq!(before.pending, 1);
+    assert_eq!(before.conflicts, vec!["acme.hotkeys"]);
+    for keep in [false, true] {
+        let error = core
+            .sync_resolve_selection("acme.hotkeys", keep)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "unavailable");
+        assert_eq!(error.data.unwrap()["reason"], "conflict-review-unavailable");
+        let after = core.sync_status().await.unwrap();
+        assert_eq!(after.pending, before.pending);
+        assert_eq!(after.conflicts, before.conflicts);
+    }
+    core.plugin_set_enabled("acme.hotkeys", false).unwrap();
+    assert!(
+        !recover_rwlock_read(&core.plugin_state.activation, "plugin activation")["acme.hotkeys"]
+            .enabled
+    );
+    core.shutdown().await;
+    server.abort();
+    let _ = std::fs::remove_dir_all(root);
+}
+
 #[cfg(feature = "cloud-auth")]
 #[tokio::test]
 async fn cloud_sync_remote_never_installs_or_stages() {

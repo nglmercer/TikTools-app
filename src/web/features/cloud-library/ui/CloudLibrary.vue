@@ -126,8 +126,12 @@ watch(scope, () => search());
 // Observe the status object itself as well as transition flags: a logout and
 // re-login to the same account must invalidate an in-flight private response.
 watch(() => [account.status, account.working, account.loading], () => { if (scope.value === 'mine') clear(); }, { flush: 'sync' });
+// This is an advisory same-host notification, not a cross-process delivery
+// barrier. A missed reliable notification is reported through onGap.
+const offCloudContext = client.onTopic('cloud.context.invalidated', () => { if (scope.value === 'mine') clear(); });
+const offGap = client.onGap(() => { if (scope.value === 'mine') clear(); });
 onMounted(search);
-onUnmounted(() => { disposed = true; generation += 1; });
+onUnmounted(() => { disposed = true; generation += 1; offCloudContext(); offGap(); });
 </script>
 
 <template>

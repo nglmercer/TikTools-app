@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use tiktools_cloud_auth::{CloudAuth, LoginBegin, OsTokenStore, TokenStore};
 
+use crate::events::{DomainEvent, EventBus};
 use crate::paths::AppPaths;
 
 pub use tiktools_cloud_auth::{AccountState, AccountStatus, AuthError, Persistence};
@@ -16,9 +17,13 @@ pub(crate) struct CloudAccount {
 }
 
 impl CloudAccount {
-    pub(crate) fn new(paths: &AppPaths) -> Self {
+    pub(crate) fn new(paths: &AppPaths, events: &EventBus) -> Self {
         let store: Arc<dyn TokenStore> = Arc::new(OsTokenStore::new());
-        let auth = CloudAuth::from_environment(paths.data.clone(), store);
+        let events = events.clone();
+        let auth =
+            CloudAuth::from_environment(paths.data.clone(), store).with_context_observer(Arc::new(
+                move || events.publish_presentation_domain(DomainEvent::CloudContextInvalidated {}),
+            ));
         Self { auth }
     }
 

@@ -1,10 +1,9 @@
 //! Cloud plugin-selection sync through the shared control plane.
 //!
 //! Everything here is nonsecret: the opt-in flag, pending/conflict counts,
-//! and error text. Remote records are applied only to already-installed
-//! plugins and never re-staged, which is what prevents sync loops. Version
-//! drift in a remote record does not install or update anything; the
-//! registry UI remains the only update path.
+//! and error text. Downloaded remote records stay in the durable Cloud
+//! snapshot; they are not applied to local plugins until the reviewed,
+//! source-fenced application and recovery path is ready.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,6 +23,10 @@ pub struct SyncNowResult {
     pub applied: usize,
     pub skipped: usize,
     pub conflicts: Vec<String>,
+    /// At least one remote selection was retained without automatic local
+    /// application. This is not a count of local differences or failures.
+    #[serde(default)]
+    pub application_deferred: bool,
 }
 
 /// A nonsecret projection of a single selection shown during explicit review.
@@ -138,66 +141,45 @@ impl AppCore {
     }
 
     pub fn sync_set_enabled(&self, enabled: bool) -> Result<SyncStatus, OperationError> {
+        let _invalidate = super::cloud_account::CloudContextInvalidation::new(&self.events);
         self.sync_coordinator()?
             .set_enabled(enabled)
             .map_err(sync_error)
     }
 
-    /// Pull, push, persist, then apply remote selections to already-installed
-    /// plugins. Applying never stages, so remote changes cannot loop back.
+    /// Pull and push selections. Remote values remain in the durable account
+    /// snapshot; applying them needs a session-, consent- and source-fenced
+    /// review and a recoverable local-runtime outcome.
     pub async fn sync_now(&self) -> Result<SyncNowResult, OperationError> {
         let outcome = self
             .sync_coordinator()?
             .sync_now()
             .await
             .map_err(sync_error)?;
-        let mut applied = 0_usize;
-        let mut skipped = 0_usize;
-        for remote in &outcome.remote {
-            let enabled = remote
-                .selection
-                .as_ref()
-                .map(|selection| selection.enabled)
-                .unwrap_or(false);
-            match self.plugin_apply_remote_selection(&remote.key, enabled) {
-                Ok(true) => applied += 1,
-                Ok(false) => skipped += 1,
-                Err(_) => skipped += 1,
-            }
-        }
+        let skipped = outcome.remote.len();
         Ok(SyncNowResult {
             pushed: outcome.pushed,
             pulled: outcome.pulled,
-            applied,
+            applied: 0,
             skipped,
             conflicts: outcome.conflicts,
+            application_deferred: skipped != 0,
         })
     }
 
-    /// Resolve one conflicted key. Keeping the local edit rebases it for the
-    /// next upload; taking the remote drops the edit and applies the remote
-    /// selection to the installed plugin immediately.
+    /// Keep both sides of a conflict until source-fenced recovery can bind the
+    /// reviewed Cloud and local states to a durable outcome. Neither choice
+    /// may discard or rebase a newer local edit through the legacy bypass.
     pub async fn sync_resolve_selection(
         &self,
-        key: &str,
-        keep_local: bool,
+        _key: &str,
+        _keep_local: bool,
     ) -> Result<SyncStatus, OperationError> {
-        if keep_local {
-            self.sync_coordinator()?
-                .keep_local(key)
-                .map_err(sync_error)?;
-        } else {
-            let remote = self
-                .sync_coordinator()?
-                .take_remote(key)
-                .map_err(sync_error)?;
-            let enabled = remote
-                .as_ref()
-                .map(|selection| selection.enabled)
-                .unwrap_or(false);
-            let _ = self.plugin_apply_remote_selection(key, enabled);
-        }
-        Ok(self.sync_coordinator()?.status().await)
+        let mut error = OperationError::unavailable(
+            "Cloud conflict resolution is unavailable until local application and recovery are protected",
+        );
+        error.data = Some(serde_json::json!({ "reason": "conflict-review-unavailable" }));
+        Err(error)
     }
 
     /// List only keys; marker details and credentials stay in the native process.

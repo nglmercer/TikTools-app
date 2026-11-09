@@ -10,68 +10,99 @@ export const useSyncStore = defineStore('cloud-sync', () => {
   const loading = ref(false);
   const working = ref(false);
   const error = ref<string | null>(null);
+  let generation = 0;
+  let invalidationRevision = 0;
+  let refreshAfterWork = false;
 
   async function refresh(): Promise<void> {
+    if (working.value) { refreshAfterWork = true; return; }
+    const ticket = ++generation;
     loading.value = true;
     try {
-      status.value = await client.call<SyncStatus>('sync.status', {});
-      error.value = status.value.lastError ?? null;
+      const next = await client.call<SyncStatus>('sync.status', {});
+      if (ticket !== generation) return;
+      status.value = next;
+      error.value = next.lastError ?? null;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      if (ticket === generation) error.value = errorMessage(failure);
     } finally {
-      loading.value = false;
+      if (ticket === generation) loading.value = false;
     }
+  }
+
+  /** Discard old data and delayed replies after an advisory context event. */
+  function invalidate(): void {
+    generation += 1;
+    invalidationRevision += 1;
+    status.value = null; error.value = null; loading.value = false;
+    if (working.value) refreshAfterWork = true;
+    else void refresh();
+  }
+
+  function beginWork(): number {
+    generation += 1;
+    loading.value = false;
+    working.value = true;
+    error.value = null;
+    return generation;
+  }
+
+  async function finishWork(): Promise<void> {
+    working.value = false;
+    if (refreshAfterWork) { refreshAfterWork = false; await refresh(); }
   }
 
   async function setEnabled(enabled: boolean): Promise<void> {
     if (working.value) return;
-    working.value = true;
-    error.value = null;
+    const ticket = beginWork();
     try {
-      status.value = await client.call<SyncStatus>(
+      const next = await client.call<SyncStatus>(
         enabled ? 'sync.enable' : 'sync.disable',
         {},
       );
-      error.value = status.value.lastError ?? null;
+      if (ticket !== generation) return;
+      status.value = next;
+      error.value = next.lastError ?? null;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      if (ticket === generation) error.value = errorMessage(failure);
     } finally {
-      working.value = false;
+      await finishWork();
     }
   }
 
   async function syncNow(): Promise<SyncNowResult | null> {
     if (working.value) return null;
-    working.value = true;
-    error.value = null;
+    const ticket = beginWork();
+    const context = invalidationRevision;
+    let outcome: SyncNowResult | null = null;
     try {
-      const outcome = await client.call<SyncNowResult>('sync.now', {});
-      await refresh();
-      return outcome;
+      const next = await client.call<SyncNowResult>('sync.now', {});
+      if (ticket === generation) { outcome = next; refreshAfterWork = true; }
     } catch (failure) {
-      error.value = errorMessage(failure);
-      return null;
+      if (ticket === generation) error.value = errorMessage(failure);
     } finally {
-      working.value = false;
+      await finishWork();
     }
+    return context === invalidationRevision ? outcome : null;
   }
 
   async function resolve(key: string, keepLocal: boolean): Promise<void> {
     if (working.value) return;
-    working.value = true;
-    error.value = null;
+    const ticket = beginWork();
     try {
-      status.value = await client.call<SyncStatus>('sync.resolve', {
+      const next = await client.call<SyncStatus>('sync.resolve', {
         key,
         keepLocal,
       });
-      error.value = status.value.lastError ?? null;
+      if (ticket !== generation) return;
+      status.value = next;
+      error.value = next.lastError ?? null;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      if (ticket === generation) error.value = errorMessage(failure);
     } finally {
-      working.value = false;
+      await finishWork();
     }
   }
 
-  return { status, loading, working, error, refresh, setEnabled, syncNow, resolve };
+  return { status, loading, working, error, refresh, invalidate, setEnabled, syncNow, resolve };
 });

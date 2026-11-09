@@ -575,11 +575,10 @@ impl AppCore {
         Ok(true)
     }
 
-    /// Apply one remote selection to an already-installed plugin. Returns
-    /// whether anything changed. Unknown plugins are skipped without error:
-    /// remote records never install anything. This path never stages, so
-    /// applied remote changes cannot loop back to the server.
-    #[cfg(feature = "cloud-auth")]
+    /// Legacy low-level operation, retained only for existing compatibility
+    /// tests. It does not bind account, consent, Cloud revision or crash
+    /// recovery and must not be called from a product sync path.
+    #[cfg(all(feature = "cloud-auth", test))]
     pub(crate) fn plugin_apply_remote_selection(
         &self,
         id: &str,

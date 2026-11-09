@@ -75,7 +75,16 @@ the candidate outside the admission and identity locks and rejects changed
 inputs afterward. The caller still needs a local-source fence. There is no
 product preview RPC/UI: Cloud account and consent changes are not yet
 broadcast to other windows with ordered invalidation, so a displayed preview
-could otherwise expose stale account data. A cooperative cross-process protocol fence
+could otherwise expose stale account data. Account and consent transitions now
+through the host's shared CloudAuth manager publish a nonsecret advisory
+invalidation within the same host, including coordinator-initiated restore;
+consent changes through AppCore publish the same signal. The Cloud
+library and sync settings clear their current private views and delayed replies
+on that event or a detected event gap. Delivery remains asynchronous, can be
+lost before detection and does not cover every pending-login state change,
+independently constructed managers, consent changes outside AppCore or separate
+processes. It is not a
+privacy or authorization fence for exposing the v2 preview. A cooperative cross-process protocol fence
 and per-identity v1 partitions are being validated; product wiring still needs
 session/opt-in invalidation and a local-source fence. Guard
 checks cannot recall an HTTP request already dispatched, or replace an atomic
@@ -100,10 +109,12 @@ epoch before upload. A durable per-account marker can make cooperating legacy
 entry points fail closed, but product activation and compatibility with older
 binaries remain unfinished. Package mutation coverage and conflict resolution
 still need the same boundary before product activation.
-The existing product v1 application path also needs a session, consent and
-local-source fence around applying downloaded selections. A network result
-alone is not permission to alter a plugin after an account switch, opt-out,
-or a newer local edit.
+The product v1 path now retains downloaded selections in the account snapshot
+without applying them to local plugins. `sync.now` reports deferred records,
+and both conflict choices fail without changing the retained conflict; Settings
+explains the limitation. Reviewed application still needs a session, consent
+and local-source fence and durable recovery. A network result alone is not
+permission to alter a plugin after an account switch, opt-out, or a newer edit.
 Current persisted plugin state writes and removals also advance the retained
 source generation in the same SQLite transaction, including repeated writes
 and local-only changes. This invalidates stale receipts across delete/recreate

@@ -93,4 +93,54 @@ describe('sync store', () => {
     expect(store.status).toBeNull();
     expect(store.error).toContain('not enabled');
   });
+
+  it('discards a status reply from before a context invalidation', async () => {
+    let oldReply!: (status: SyncStatus) => void;
+    let calls = 0;
+    const { store } = harness(() => {
+      calls += 1;
+      return calls === 1 ? new Promise<SyncStatus>((resolve) => { oldReply = resolve; }) : idle({ enabled: false });
+    });
+    const old = store.refresh();
+    store.invalidate();
+    await Promise.resolve(); await Promise.resolve();
+    oldReply(idle({ enabled: true, conflicts: ['old-account'] }));
+    await old;
+    expect(store.status?.enabled).toBe(false);
+    expect(store.status?.conflicts).toEqual([]);
+  });
+
+  it('waits for a mutation to settle before refreshing an invalidated status', async () => {
+    let finish!: (status: SyncStatus) => void;
+    const { store, calls } = harness((method) => method === 'sync.disable'
+      ? new Promise<SyncStatus>((resolve) => { finish = resolve; })
+      : idle({ enabled: true, pending: 7 }));
+    const disabling = store.setEnabled(false);
+    store.invalidate();
+    expect(store.status).toBeNull();
+    expect(calls.map((call) => call.method)).toEqual(['sync.disable']);
+    finish(idle({ enabled: false, conflicts: ['stale'] }));
+    await disabling;
+    expect(calls.map((call) => call.method)).toEqual(['sync.disable', 'sync.status']);
+    expect(store.status?.enabled).toBe(true);
+    expect(store.status?.conflicts).toEqual([]);
+    expect(store.status?.pending).toBe(7);
+  });
+
+  it('does not return an old sync outcome when invalidated during its follow-up read', async () => {
+    let finishRead!: (status: SyncStatus) => void;
+    let reads = 0;
+    const { store } = harness((method) => {
+      if (method === 'sync.now') return { pushed: 1, pulled: 1, applied: 0, skipped: 1, conflicts: ['old'] };
+      reads += 1;
+      return reads === 1 ? new Promise<SyncStatus>((resolve) => { finishRead = resolve; }) : idle({ enabled: false });
+    });
+    const syncing = store.syncNow();
+    await Promise.resolve(); await Promise.resolve();
+    store.invalidate();
+    finishRead(idle({ enabled: true }));
+    expect(await syncing).toBeNull();
+    await Promise.resolve();
+    expect(store.status?.enabled).toBe(false);
+  });
 });

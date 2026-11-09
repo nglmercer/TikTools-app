@@ -13,5 +13,6 @@ export interface SyncNowResult {
   pulled: number;
   applied: number;
   skipped: number;
+  applicationDeferred: boolean;
   conflicts: string[];
 }

@@ -131,15 +131,15 @@ or completed two-Desktop v2 product workflow is claimed.
    pages returns `TooManyPages` without updating the old state. Repeating it
    cannot advance an oversized rebuild; restartable snapshot recovery remains
    required before claiming support for that volume.
-4. The core applies each remote record **only to already-installed plugins**
-   (enabled flag; tombstone disables). Unknown plugins are skipped, versions
-   never trigger installs, and applying never re-stages — that is what
-   prevents sync loops.
-   Records with unresolved pending local edits are withheld from application;
-   discovering a conflict never changes the local plugin before a user choice.
-5. Conflicts resolve explicitly: `sync.resolve {key, keepLocal:true}`
-   rebases for the next upload; `keepLocal:false` drops the edit and applies
-   the remote value immediately. `SyncStatus.conflicts` lists them.
+4. Downloaded remote records remain in the durable account snapshot. The
+   product does not automatically apply their enabled state or tombstones to
+   local plugins. `sync.now` reports `applied: 0`, a `skipped` record count and
+   `applicationDeferred`; these count retained remote records, not differences.
+   Settings explains that reviewed local application is not yet available.
+5. `SyncStatus.conflicts` lists conflicting keys. Until the durable reviewed
+   recovery path is wired, `sync.resolve` rejects either decision without
+   discarding or rebasing either side; the corresponding Settings actions are
+   disabled. Local plugin operations remain available.
 
 ## Existing v1 state isolation
 
@@ -167,6 +167,7 @@ or completed two-Desktop v2 product workflow is claimed.
   push → B login → pull → remote apply toggles B's installed plugin →
   B disable → push → A pull applies → both directions settle with
   `pushed:0` on re-sync (no loops) → logout wipes the keychain.
-  ALL-E2E-PASS.
+  ALL-E2E-PASS. This historical result predates the suspension of automatic
+  remote application described above and does not establish current acceptance.
 - Not validated: real RemakeBackend sync endpoints, Windows/macOS
   keychains, concurrent multi-process state access.

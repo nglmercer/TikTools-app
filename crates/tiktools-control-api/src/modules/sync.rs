@@ -1,8 +1,8 @@
 //! Cloud plugin-selection sync exposed through the shared control plane.
 //!
 //! Everything here is nonsecret: the opt-in flag, pending/conflict counts,
-//! and error text. Applying remote records never installs plugins; unknown
-//! plugins are skipped and only the enabled flag of installed ones changes.
+//! and error text. Remote records stay in the durable Cloud snapshot; local
+//! plugin application and conflict resolution wait for a reviewed recovery path.
 
 use std::sync::Arc;
 
@@ -133,7 +133,7 @@ pub fn register(router: &mut ControlRouter) {
     );
     router.register_typed::<Empty, SyncNowResult, _, _>(
         "sync.now",
-        "Pulls and pushes plugin selections, applying remote changes to installed plugins",
+        "Pulls and pushes plugin selections without automatically applying remote changes",
         true,
         |core: Arc<AppCore>, _params: Empty| async move {
             core.sync_now().await.map_err(map_error)
@@ -141,7 +141,7 @@ pub fn register(router: &mut ControlRouter) {
     );
     router.register_typed::<SyncResolveParams, SyncStatusResult, _, _>(
         "sync.resolve",
-        "Resolves one conflicted selection, keeping the local edit or taking the remote record",
+        "Conflict resolution is unavailable until local recovery is protected",
         true,
         |core: Arc<AppCore>, params: SyncResolveParams| async move {
             core.sync_resolve_selection(&params.key, params.keep_local)

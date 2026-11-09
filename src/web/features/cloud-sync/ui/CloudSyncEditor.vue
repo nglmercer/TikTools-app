@@ -22,6 +22,7 @@ const review = ref<RecoveryReview | null>(null);
 const recoveryBusy = ref(false);
 const recoveryError = ref('');
 const newerNeedsReview = ref(false);
+const deferredCount = ref<number | null>(null);
 let requestGeneration = 0;
 function validRecoveryValue(value: unknown): value is RecoveryValue {
   if (value == null || typeof value !== 'object') return false;
@@ -109,14 +110,37 @@ const lastSynced = computed(() => {
   return new Date(at * 1000).toLocaleString();
 });
 
-watch(() => [account.status, account.working, account.loading, enabled.value], () => {
+async function synchronize(): Promise<void> {
+  const generation = requestGeneration;
+  deferredCount.value = null;
+  const result = await sync.syncNow();
+  if (generation !== requestGeneration || !result) return;
+  if (result.applicationDeferred === true && Number.isSafeInteger(result.skipped) && result.skipped > 0) {
+    deferredCount.value = result.skipped;
+  }
+}
+
+function clearReviews(): void {
   requestGeneration += 1; uncertain.value = []; review.value = null; recoveryError.value = ''; recoveryBusy.value = false; newerNeedsReview.value = false;
+  deferredCount.value = null;
+}
+watch(() => [account.status, account.working, account.loading, enabled.value], () => {
+  clearReviews();
   void refreshUncertain();
 }, { flush: 'sync' });
 watch(() => sync.working, (working, previous) => { if (previous && !working) void refreshUncertain(); });
-onUnmounted(() => { requestGeneration += 1; });
+let unsubscribeContext: (() => void) | undefined;
+let unsubscribeGap: (() => void) | undefined;
+function invalidateContext(): void {
+  clearReviews();
+  sync.invalidate();
+  void account.refresh();
+}
+onUnmounted(() => { requestGeneration += 1; unsubscribeContext?.(); unsubscribeGap?.(); });
 
 onMounted(() => {
+  unsubscribeContext = client.onTopic('cloud.context.invalidated', invalidateContext);
+  unsubscribeGap = client.onGap(invalidateContext);
   void account.ensureRestored();
   void sync.refresh();
 });
@@ -147,6 +171,8 @@ onMounted(() => {
       </BaseSwitch>
       <template v-if="status != null && enabled">
         <p>{{ t('sync.pending', { count: status.pending }) }}</p>
+        <BaseAlert tone="info" :title="t('sync.applicationDeferred')" />
+        <p v-if="deferredCount !== null" role="status">{{ t('sync.deferredCount', { count: deferredCount }) }}</p>
         <BaseAlert
           v-if="recoveryError"
           tone="warning"
@@ -214,6 +240,7 @@ onMounted(() => {
           tone="warning"
           :title="t('sync.conflicts', { count: conflicts.length })"
         />
+        <p v-if="conflicts.length > 0">{{ t('sync.conflictResolutionUnavailable') }}</p>
         <ul v-if="conflicts.length > 0">
           <li
             v-for="key in conflicts"
@@ -221,13 +248,13 @@ onMounted(() => {
           >
             {{ key }}
             <BaseButton
-              :disabled="sync.working"
+              disabled
               @click="sync.resolve(key, true)"
             >
               {{ t('sync.keepMine') }}
             </BaseButton>
             <BaseButton
-              :disabled="sync.working"
+              disabled
               @click="sync.resolve(key, false)"
             >
               {{ t('sync.useCloud') }}
@@ -237,7 +264,7 @@ onMounted(() => {
         <BaseButton
           variant="primary"
           :disabled="sync.working"
-          @click="sync.syncNow()"
+          @click="synchronize"
         >
           {{ t('sync.syncNow') }}
         </BaseButton>

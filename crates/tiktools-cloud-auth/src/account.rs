@@ -194,6 +194,23 @@ pub struct CloudAuth {
     store: Arc<dyn TokenStore>,
     sidecar: PathBuf,
     transitions: Arc<AtomicUsize>,
+    context_observer: Option<Arc<dyn Fn() + Send + Sync>>,
+}
+
+/// Optional advisory notifications around identity transitions. The observer
+/// receives no credentials and cannot veto authentication.
+struct ContextInvalidation(Option<Arc<dyn Fn() + Send + Sync>>);
+impl ContextInvalidation {
+    fn notify(&self) {
+        if let Some(observer) = &self.0 {
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| observer()));
+        }
+    }
+}
+impl Drop for ContextInvalidation {
+    fn drop(&mut self) {
+        self.notify();
+    }
 }
 
 struct TransitionGuard(Arc<AtomicUsize>);
@@ -253,6 +270,46 @@ mod session_snapshot_tests {
             PathBuf::from("unused-test-sidecar"),
             Arc::new(MemoryTokenStore::new()),
         )
+    }
+
+    #[tokio::test]
+    async fn observer_follows_restore_and_aborted_completion_across_clones() {
+        let auth = configured();
+        let transitions = auth.transitions.clone();
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let wake = Arc::new(tokio::sync::Notify::new());
+        let observer_seen = seen.clone();
+        let observer_wake = wake.clone();
+        let auth = auth.with_context_observer(Arc::new(move || {
+            observer_seen
+                .lock()
+                .unwrap()
+                .push(transitions.load(Ordering::SeqCst));
+            observer_wake.notify_one();
+        }));
+        assert!(matches!(
+            auth.clone().restore().await,
+            Err(AuthError::NoSavedSession)
+        ));
+        assert_eq!(*seen.lock().unwrap(), vec![1, 0]);
+        seen.lock().unwrap().clear();
+        let id = auth.reserve_login().await.unwrap();
+        auth.begin_login_for(Some(&id)).await.unwrap();
+        let clone = auth.clone();
+        let task = tokio::spawn(async move { clone.complete_login_for(Some(&id)).await });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if !seen.lock().unwrap().is_empty() {
+                    break;
+                }
+                wake.notified().await;
+            }
+        })
+        .await
+        .unwrap();
+        task.abort();
+        let _ = task.await;
+        assert_eq!(*seen.lock().unwrap(), vec![1, 0]);
     }
 
     #[tokio::test]
@@ -499,7 +556,19 @@ impl CloudAuth {
             store,
             sidecar,
             transitions: Arc::new(AtomicUsize::new(0)),
+            context_observer: None,
         }
+    }
+
+    /// Install an advisory, nonsecret identity-change notification before
+    /// cloning this manager. It provides no cross-process or delivery fence.
+    pub fn with_context_observer(mut self, observer: Arc<dyn Fn() + Send + Sync>) -> Self {
+        self.context_observer = Some(observer);
+        self
+    }
+
+    fn context_invalidation(&self) -> ContextInvalidation {
+        ContextInvalidation(self.context_observer.clone())
     }
 
     /// Build from the resolved Cloud origin ([`resolve_cloud_origin`]).
@@ -861,7 +930,11 @@ impl CloudAuth {
         &self,
         operation: Option<&str>,
     ) -> Result<AccountStatus, AuthError> {
+        // Declare the invalidation first so its final notification happens
+        // after the transition guard releases, including on future abort.
+        let invalidation = self.context_invalidation();
         let _transition = TransitionGuard::begin(&self.transitions);
+        invalidation.notify();
         let (attempt, cancel_rx, origin, epoch) = {
             let mut inner = self.inner.lock().await;
             check_login_reservation(&inner, operation)?;
@@ -931,7 +1004,9 @@ impl CloudAuth {
     /// token against `/me`, so expiry surfaces here instead of later.
     /// Refuses when the configured origin changed since sign-in.
     pub async fn restore(&self) -> Result<AccountStatus, AuthError> {
+        let invalidation = self.context_invalidation();
         let _transition = TransitionGuard::begin(&self.transitions);
+        invalidation.notify();
         if self.transitions.load(Ordering::SeqCst) != 1 {
             return Err(AuthError::AlreadyInProgress);
         }
@@ -1011,7 +1086,9 @@ impl CloudAuth {
     /// Wipe local credentials before attempting best-effort server revocation.
     /// Cancellation of the network operation cannot restore the local session.
     pub async fn logout(&self) -> Result<AccountStatus, AuthError> {
+        let invalidation = self.context_invalidation();
         let _transition = TransitionGuard::begin(&self.transitions);
+        invalidation.notify();
         let (configured_origin, session) = {
             let mut inner = self.inner.lock().await;
             inner.epoch = inner
