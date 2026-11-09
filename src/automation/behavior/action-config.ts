@@ -127,8 +127,10 @@ export function resolveActionConfig(type: ActionTypeDefinition, config: JsonObje
     if (typeof value !== 'string') continue;
     const hint = hints[key];
     const templated = hint?.template === true || fieldSchema['x-tiktools-template'] === true;
-    const rendered = templated || fieldSchema.format === 'json' ? renderTemplate(value, event) : value;
-    resolved[key] = fieldSchema.format === 'json' ? renderJsonTemplate(rendered, event) : rendered;
+    // JSON fields render exactly once and escape string context; rendering
+    // twice would expand `{{...}}` found inside viewer-supplied values.
+    if (fieldSchema.format === 'json') resolved[key] = renderJsonTemplate(value, event);
+    else if (templated) resolved[key] = renderTemplate(value, event);
   }
   return resolved;
 }
