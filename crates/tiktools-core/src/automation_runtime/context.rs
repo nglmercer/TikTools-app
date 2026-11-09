@@ -332,6 +332,22 @@ impl ExecutionContext {
             )
             .map_err(|error| error.to_string())
     }
+    /// Caller holds the automation writer gate. Points transactions also hold
+    /// their own writer; acquire the competition writer before grant locks.
+    #[cfg(feature = "persistence")]
+    pub(crate) fn with_action_admission<R>(
+        &self,
+        core: &AppCore,
+        action: &serde_json::Value,
+        apply: impl FnOnce(&[crate::collaboration::ExecutionIdentity]) -> Result<R, String>,
+    ) -> Result<R, String> {
+        if self.is_competition_winner() {
+            self.with_competition_action(core, action, apply)
+        } else {
+            self.with_current_subjects(action, &core.automation, apply)
+        }
+    }
+
     #[cfg(feature = "persistence")]
     pub(crate) fn is_competition_winner(&self) -> bool {
         self.competition_winner.is_some()

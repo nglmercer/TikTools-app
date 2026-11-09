@@ -490,11 +490,7 @@ impl AppCore {
                 Self::check_core_subjects(action, identities)?;
                 apply(identities)
             };
-            if context.is_competition_winner() {
-                context.with_competition_action(self, action, admit)
-            } else {
-                context.with_current_subjects(action, &self.automation, admit)
-            }
+            context.with_action_admission(self, action, admit)
         }
         #[cfg(not(feature = "persistence"))]
         {
@@ -645,7 +641,7 @@ impl AppCore {
                 // callback below repeats this after actual SQLite admission.
                 // The writer gate is already held; do not reenter the helper
                 // that acquires it for ordinary action admission.
-                context.with_current_subjects(&action, &core.automation, |identities| {
+                context.with_action_admission(&core, &action, |identities| {
                     if core.is_shutdown() {
                         return Err("host is shutting down".into());
                     }
@@ -654,7 +650,7 @@ impl AppCore {
                 core.points
                     .adjust_approved(&key, &unique_id, delta, |effective, commit| {
                         context
-                            .with_current_subjects(&action, &core.automation, |identities| {
+                            .with_action_admission(&core, &action, |identities| {
                                 if core.is_shutdown() {
                                     return Err("host is shutting down".into());
                                 }
