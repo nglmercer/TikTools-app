@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
@@ -57,10 +57,10 @@ onMounted(() => {
           >{{ handle }}</span>
           <span class="cloud-account__status">{{ t('account.signedIn') }}</span>
         </div>
-        <BaseAlert
+        <DiagnosticStatusAction
           v-if="error"
-          :title="error"
-          compact
+          :label="error"
+          source="account"
         />
         <div class="cloud-account__actions">
           <BaseButton
@@ -72,10 +72,10 @@ onMounted(() => {
         </div>
       </template>
       <template v-else>
-        <BaseAlert
+        <DiagnosticStatusAction
           v-if="error"
-          :title="error"
-          compact
+          :label="error"
+          source="account"
         />
         <template v-if="state === 'signing-in'">
           <p class="cloud-account__muted">

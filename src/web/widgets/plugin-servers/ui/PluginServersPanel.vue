@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed, type ComputedRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
@@ -12,7 +13,6 @@ import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
 import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconServer from '@/shared/ui/icon/icons/IconServer.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
-import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 import { serverEntries, type ServerEntry } from '../model/server-entries.ts';
 
 const expanded = defineModel<Record<string, boolean>>('expanded', { default: () => ({}) });
@@ -34,7 +34,7 @@ function statusText(connection: PluginConnectionState | undefined): string {
   if (!connection) return t('connections.servers.notConfigured');
   if (connection.ok) return t('connections.servers.connectedIn', { ms: connection.latencyMs });
   if (connection.reachable && connection.gameplayReady === false) return t('connections.servers.apiNotReady');
-  return connection.error || t('connections.servers.failed');
+  return t('connections.servers.failed');
 }
 
 function toggle(id: string): void {
@@ -72,23 +72,31 @@ function toggle(id: string): void {
         :key="server.id"
         class="plugin-servers__item"
       >
-        <button
-          v-tooltip="statusText(server.connection)"
-          class="plugin-servers__head"
-          type="button"
-          :aria-expanded="expanded[server.id] ?? false"
-          :aria-controls="`server-${server.id}`"
-          @click="toggle(server.id)"
-        >
-          <IconChevronDown v-if="expanded[server.id]" />
-          <IconChevronRight v-else />
-          <IconServer />
-          <span class="plugin-servers__name">{{ server.name }}</span>
+        <div class="plugin-servers__head">
+          <button
+            class="plugin-servers__toggle"
+            type="button"
+            :aria-expanded="expanded[server.id] ?? false"
+            :aria-controls="`server-${server.id}`"
+            @click="toggle(server.id)"
+          >
+            <IconChevronDown v-if="expanded[server.id]" />
+            <IconChevronRight v-else />
+            <IconServer />
+            <span class="plugin-servers__name">{{ server.name }}</span>
+          </button>
+          <DiagnosticStatusAction
+            v-if="server.connection && !server.connection.ok"
+            :label="statusText(server.connection)"
+            source="plugins"
+            :entity-id="server.id"
+          />
           <span
+            v-else
             class="plugin-servers__status"
             :class="`plugin-servers__status--${tone(server.connection)}`"
           >{{ statusText(server.connection) }}</span>
-        </button>
+        </div>
         <div
           v-show="expanded[server.id]"
           :id="`server-${server.id}`"
@@ -120,6 +128,7 @@ function toggle(id: string): void {
 </template>
 
 <style scoped>
+.plugin-servers__toggle { display:flex; align-items:center; gap:8px; flex:1; border:0; background:transparent; color:inherit; font:inherit; text-align:left; min-height:44px; cursor:pointer; }
 .plugin-servers {
   margin: 0;
   padding: 0;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed, markRaw, ref, useTemplateRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isConnectionBusy } from '@/entities/connection/lib/connection-status.ts';
@@ -71,7 +72,13 @@ function onRecent(action: MenuAction): void {
 <template>
   <BasePanel :title="t('connections.live.title')">
     <template #actions>
+      <DiagnosticStatusAction
+        v-if="error"
+        :label="t('diagnostics.connectionFailed')"
+        source="live"
+      />
       <ConnectionIndicator
+        v-else
         :status="status"
         :reconnect-attempt="reconnectAttempt"
         :reconnect-delay-ms="reconnectDelayMs"
@@ -164,19 +171,17 @@ function onRecent(action: MenuAction): void {
       >
         {{ t('connections.monitor.status', { phase: t(`connections.monitor.phases.${monitorPhase || 'waiting'}`) }) }}
       </p>
-      <p
+      <DiagnosticStatusAction
         v-if="monitorError"
-        role="alert"
-        class="live-connect__error"
-      >
-        {{ monitorError }}
-      </p>
+        :label="t('diagnostics.monitorFailed')"
+        source="monitor"
+      />
       <p
-        v-if="error"
+        v-if="error && !handle.trim()"
         class="live-connect__error"
         role="alert"
       >
-        {{ error }}
+        {{ t('connection.handleRequired') }}
       </p>
       <p
         v-if="live && creator"

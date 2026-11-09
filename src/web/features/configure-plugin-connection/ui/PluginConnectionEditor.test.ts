@@ -59,11 +59,12 @@ test('discovery completes before opening the sign-in dialog on a first connectio
   expect(document.querySelector('#provision-password')).not.toBeNull();
 });
 
-test('an unreachable server shows a simple recovery instruction before technical details', async () => {
+test('an unreachable server keeps recovery guidance and moves technical details to logs', async () => {
   const wrapper = mountEditor(false, false);
   await wrapper.setProps({ connection: { ok: false, reachable: false, error: 'raw network failure', latencyMs: 5, at: 2 } });
   expect(wrapper.text()).toContain('Open SonicBoom on this computer');
   expect(wrapper.text()).not.toContain('raw network failure');
   await wrapper.findAll('button').find(button => button.text() === 'Advanced settings')!.trigger('click');
-  expect(wrapper.text()).toContain('raw network failure');
+  expect(wrapper.text()).not.toContain('raw network failure');
+  expect(wrapper.find('button[aria-label="Connection failed. View logs"]').exists()).toBe(true);
 });

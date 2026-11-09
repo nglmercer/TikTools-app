@@ -1,3 +1,4 @@
+import diagnostics from './diagnostics.es.ts';
 import libraryRecovery from './library-recovery.es.ts';
 import collaboration from './collaboration.es.ts';
 import automationProposal from './automation-proposal.es.ts';
@@ -6,6 +7,7 @@ import definitionRecovery from './definition-recovery.es.ts';
 import type { MessageSchema } from '../i18n.ts';
 
 export default {
+  diagnostics,
   collaboration,
   automationProposal,
   automationApproval,

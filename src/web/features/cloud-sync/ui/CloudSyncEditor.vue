@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
@@ -45,9 +46,10 @@ onMounted(() => {
       :title="t('sync.loading')"
     />
     <template v-else>
-      <BaseAlert
+      <DiagnosticStatusAction
         v-if="sync.error"
-        :title="sync.error"
+        :label="t('diagnostics.syncFailed')"
+        source="sync"
       />
       <BaseSwitch
         v-model="enabled"

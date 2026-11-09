@@ -1,9 +1,9 @@
 <script setup lang="ts">
+import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppUpdaterStore } from '../model/updater-store.ts';
 import type { UpdateChannel } from '../api/updater-types.ts';
-import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
@@ -14,6 +14,7 @@ import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 const { t, locale } = useI18n();
 const updater = useAppUpdaterStore();
 const status = computed(() => updater.status);
+const unavailable = computed(() => status.value?.checkSupported === false || /unavailable in this host/i.test(updater.error || status.value?.error?.message || ''));
 const matchingChannel = computed(() => updater.preferencesLoaded && status.value?.channel === updater.preferences.channel);
 const busy = computed(() => ['checking', 'downloading', 'verifying', 'installing'].includes(status.value?.state ?? ''));
 const progress = computed(() => status.value?.totalBytes ? Math.min(100, Math.round(status.value.downloadedBytes * 100 / status.value.totalBytes)) : null);
@@ -137,10 +138,11 @@ function install(): void {
       >
         {{ status.releaseNotes }}
       </p>
-      <BaseAlert
+      <DiagnosticStatusAction
         v-if="updater.error || status?.error"
-        compact
-        :title="updater.error || status?.error?.message || ''"
+        :label="t(unavailable ? 'diagnostics.updaterUnavailable' : 'diagnostics.updateFailed')"
+        source="updates"
+        :tone="unavailable ? 'info' : 'error'"
       />
       <p v-if="status?.state === 'failed' && status.error?.code === 'download_failed'">
         {{ t('appUpdater.retryHelp') }}

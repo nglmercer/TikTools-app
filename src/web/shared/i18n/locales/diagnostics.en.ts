@@ -1,0 +1,16 @@
+export default {
+  title: 'Diagnostics', viewLogs: 'View logs', session: 'This UI session only. Sensitive fields are redacted; history resets on reload.',
+  search: 'Search diagnostics', allSources: 'All sources', allLevels: 'All levels',
+  info: 'Info', warning: 'Warning', error: 'Error', empty: 'No matching entries.',
+  copyAll: 'Copy all', copyFiltered: 'Copy filtered', copyEntry: 'Copy entry', export: 'Export TXT', clear: 'Clear history',
+  copied: 'Copied with sensitive fields redacted.', copyFailed: 'Clipboard unavailable. Select and copy the text below.',
+  exportFailed: 'Could not export. You can still copy the text.', exported: 'Export requested.',
+  cleared: 'History cleared. Connection states are unchanged.', dropped: '{count} older entries removed by retention limits.',
+  missing: 'This entry is no longer retained. The matching history is shown below.',
+  repeated: 'Repeated {count} times', last: 'Last occurrence', back: 'Back', close: 'Close diagnostics',
+  minimize: 'Minimize', restore: 'Restore', move: 'Move panel (drag or use arrow keys)', reset: 'Reset position', fullPage: 'Open full page',
+  newEntries: '{count} new entries', filterEntity: 'Entity filter: {entity}', resetFilters: 'Reset filters',
+  connectionFailed: 'Connection failed', monitorFailed: 'Monitor needs attention', accountFailed: 'Sign-in needs attention',
+  syncFailed: 'Sync needs attention', updateFailed: 'Update needs attention', updaterUnavailable: 'Automatic updates unavailable here',
+  discoveryFailed: 'Could not load rooms', sources: { live: 'TikTok LIVE', monitor: 'Live monitor', discovery: 'Room explorer', plugins: 'Plugins', account: 'Cloud account', sync: 'Cloud sync', updates: 'Updates', transport: 'Host connection' },
+};
