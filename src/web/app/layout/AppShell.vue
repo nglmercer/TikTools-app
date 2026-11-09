@@ -213,7 +213,10 @@ function connect(): void {
 </script>
 
 <template>
-  <div class="app-layout">
+  <div
+    class="app-layout"
+    :class="{ 'app-layout--automation': route.path === '/automations' }"
+  >
     <PluginProgressToast
       v-if="pluginProgress"
       :progress="pluginProgress"

@@ -6,6 +6,7 @@ import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake
 import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import SettingsPage from './SettingsPage.vue';
+import { collaborationStatus, emptyCollaborationPage } from '@/shared/lib/testing/collaboration.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -15,7 +16,7 @@ async function mountPage(query = '') {
     routes: [{ path: '/settings', component: defineComponent({ render: () => null }) }],
   });
   await router.push(`/settings${query}`);
-  const { client } = createFakeControlClient(() => ({ globals: { commandPort: '46665' } }));
+  const { client } = createFakeControlClient(method => method === 'collaboration.status' ? collaborationStatus() : method.startsWith('collaboration.') ? emptyCollaborationPage(method) : ({ globals: { commandPort: '46665' } }));
   const wrapper = mountWithPlugins(SettingsPage, {
     attachTo: document.body,
     global: {
@@ -32,6 +33,15 @@ describe('SettingsPage', () => {
     expect(wrapper.get('[role="option"][aria-selected="true"]').text()).toBe('General');
     expect(wrapper.get('legend').text()).toBe('Language');
     expect(wrapper.get('#settings-language').text()).toContain('English');
+  });
+
+  it('uses a complete mobile section selector and preserves route navigation', async () => {
+    const { wrapper, router } = await mountPage();
+    const select = wrapper.get('.settings-page__mobile-nav select');
+    await select.setValue('collaboration'); await flushPromises();
+    expect(router.currentRoute.value.query.section).toBe('collaboration');
+    expect(wrapper.get('h1').text()).toBe('Collaboration');
+    expect(select.findAll('option').map(option => option.text())).toContain('Updates');
   });
 
   it('lists the simplified sections', async () => {

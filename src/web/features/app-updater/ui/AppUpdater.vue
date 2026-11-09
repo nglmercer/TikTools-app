@@ -74,6 +74,7 @@ function install(): void {
           for="app-update-automatic"
           :label="t('appUpdater.automaticChecks')"
           :description="t('formsDesign.automaticChecksHint')"
+          toggle
         >
           <BaseCheckbox
             id="app-update-automatic"
@@ -87,6 +88,7 @@ function install(): void {
           for="app-update-notifications"
           :label="t('appUpdater.notifications')"
           :description="t('formsDesign.notificationsHint')"
+          toggle
         >
           <BaseCheckbox
             id="app-update-notifications"

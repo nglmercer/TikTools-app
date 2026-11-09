@@ -1,3 +1,4 @@
+import settingsLayout from './settings-layout.en.ts';
 import formsDesign from './forms-design.en.ts';
 import designKit from './design-kit.en.ts';
 import diagnostics from './diagnostics.en.ts';
@@ -7,6 +8,7 @@ import automationProposal from './automation-proposal.en.ts';
 import automationApproval from './automation-approval.en.ts';
 import definitionRecovery from './definition-recovery.en.ts';
 export default {
+  settingsLayout,
   formsDesign,
   designKit,
   diagnostics,

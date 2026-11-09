@@ -60,4 +60,7 @@ onMounted(() => {
   overflow-wrap: anywhere;
   font-family: var(--font-family-mono);
 }
+
+.cloud-diagnostics dd { overflow-wrap:anywhere; min-width:0; }
+@media (width < 600px) { .cloud-diagnostics { grid-template-columns:minmax(0,1fr); gap:var(--space-2); } .cloud-diagnostics dt { margin-top:var(--space-4); } .cloud-diagnostics dd { margin:0; } }
 </style>

@@ -305,7 +305,7 @@ describe('AutomationsPage', () => {
     expect(wrapper.get('.automation-runs').text()).toContain('logged');
   });
 
-  it('opens a nonmodal detail view with guarded back and recovery actions on narrow screens', async () => {
+  it('opens the editor as a full-screen sheet with a back button on narrow screens', async () => {
     vi.stubGlobal('matchMedia', () => ({
       matches: true,
       addEventListener: () => {},
@@ -315,14 +315,14 @@ describe('AutomationsPage', () => {
     }));
     try {
       const { wrapper, client } = await mountPage();
-      expect(wrapper.find('.automations-page__workspace').exists()).toBe(true);
-      expect(wrapper.get('.master-detail__detail').attributes('hidden')).toBeDefined();
+      expect(wrapper.find('.automations-page__workspace').exists()).toBe(false);
+      expect(wrapper.find('.automations-page__sheet').exists()).toBe(false);
       await selectRow(wrapper, 'Big gifts');
-      const sheet = wrapper.get('.master-detail__detail');
-      expect(sheet.attributes('hidden')).toBeUndefined();
-      expect(sheet.attributes('aria-modal')).toBeUndefined();
-      expect(sheet.get('.master-detail__title').text()).toBe('Big gifts');
-      expect(wrapper.find('.master-detail__detail .event-editor').exists()).toBe(true);
+      const sheet = wrapper.find('.automations-page__sheet');
+      expect(sheet.exists()).toBe(true);
+      expect(sheet.attributes('role')).toBe('dialog');
+      expect(sheet.get('.automations-page__sheet-title').text()).toBe('Big gifts');
+      expect(wrapper.find('.automations-page__sheet .event-editor').exists()).toBe(true);
       const original = client.call.bind(client);
       let release!: () => void;
       const loading = new Promise<void>((resolve) => { release = resolve; });
@@ -343,8 +343,8 @@ describe('AutomationsPage', () => {
       calls.mockRestore();
       await buttonByText(wrapper, 'Back').trigger('click');
       await nextTick();
-      expect(wrapper.get('.master-detail__detail').attributes('hidden')).toBeDefined();
-      expect(wrapper.get('.master-detail__master').attributes('hidden')).toBeUndefined();
+      expect(wrapper.find('.automations-page__sheet').exists()).toBe(false);
+      expect(wrapper.find('.automations-page__narrow').exists()).toBe(true);
     } finally {
       vi.unstubAllGlobals();
     }

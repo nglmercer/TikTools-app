@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { useId } from 'vue';
-defineProps<{ label: string; description?: string; for?: string }>();
+defineProps<{ label: string; description?: string; for?: string; toggle?: boolean }>();
 const id = useId();
 </script>
 <template>
-  <div class="settings-row">
+  <div
+    class="settings-row"
+    :class="{ 'settings-row--toggle': toggle }"
+  >
     <div class="settings-row__text">
       <component
         :is="$props.for ? 'label' : 'div'"
@@ -48,4 +51,9 @@ const id = useId();
 .settings-row__control { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .settings-row__details { grid-column: 1 / -1; }
 @media (width < 600px) { .settings-row { grid-template-columns: minmax(0, 1fr); } }
+
+@media (width < 600px) {
+  .settings-row--toggle { grid-template-columns:minmax(0,1fr) auto; align-items:start; }
+  .settings-row--toggle .settings-row__control { min-width:44px; min-height:44px; justify-content:center; }
+}
 </style>

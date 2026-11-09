@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "vue-i18n";
+import BaseDisclosure from "@/shared/ui/disclosure/BaseDisclosure.vue";
 import { computed, ref, watch } from 'vue';
 import type { LiveChannel } from '@/types.ts';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
@@ -8,6 +10,8 @@ import LiveExplorerPanel from '@/features/explore-live-rooms/ui/LiveExplorerPane
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import PluginServersPanel from '@/widgets/plugin-servers/ui/PluginServersPanel.vue';
 
+const { t } = useI18n();
+const explorerExpanded = ref(false);
 const connection = useConnectionStore();
 const discovery = useDiscoveryStore();
 const saved = loadViewState().connections;
@@ -59,6 +63,9 @@ watch([useCookie, expandedServers], persist, { deep: true });
 
 <template>
   <div class="connections-page">
+    <header class="connections-page__heading">
+      <h1>{{ t('settingsLayout.connections') }}</h1><p>{{ t('settingsLayout.connectionsHint') }}</p>
+    </header>
     <div class="connections-page__top">
       <LiveConnectPanel
         v-model:handle="handle"
@@ -84,16 +91,21 @@ watch([useCookie, expandedServers], persist, { deep: true });
         @pick-random="connection.handlePickLive()"
         @select-recent="selectRecent"
       />
-      <LiveExplorerPanel
-        class="connections-page__explorer"
-        :current-creator="connection.activeCreator"
-        @connect="connectRoom"
-      />
     </div>
     <PluginServersPanel
       v-model:expanded="expandedServers"
       class="connections-page__servers"
     />
+    <BaseDisclosure
+      v-model:open="explorerExpanded"
+      :title="t('settingsLayout.explorer')"
+    >
+      <LiveExplorerPanel
+        class="connections-page__explorer"
+        :current-creator="connection.activeCreator"
+        @connect="connectRoom"
+      />
+    </BaseDisclosure>
   </div>
 </template>
 
@@ -105,16 +117,17 @@ watch([useCookie, expandedServers], persist, { deep: true });
   gap: var(--space-4);
   min-width: 0;
   min-height: 0;
-  padding: var(--space-4);
+  padding: var(--space-6);
+  max-width: 1000px;
   overflow-y: auto;
 }
 
 .connections-page__top {
   display: grid;
   flex: none;
-  grid-template-columns: minmax(360px, 1fr) minmax(0, 1.5fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
-  min-height: 360px;
+  min-height: 0;
 }
 
 .connections-page__servers {
@@ -132,4 +145,10 @@ watch([useCookie, expandedServers], persist, { deep: true });
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.connections-page__heading h1 { margin:0; font-size:20px; }
+.connections-page__heading p { color:var(--color-text-muted); line-height:var(--line-height-normal); }
+.connections-page :deep(.base-panel) { background:transparent; border:0; border-top:var(--border-width) solid var(--color-border); }
+.connections-page :deep(.base-panel__header) { background:transparent; padding:var(--space-5) 0; }
+.connections-page :deep(.base-panel__body) { padding:var(--space-5) 0; }
 </style>

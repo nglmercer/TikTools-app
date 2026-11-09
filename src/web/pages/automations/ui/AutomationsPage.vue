@@ -40,12 +40,11 @@ import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
+import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
 import BaseSplitter from '@/shared/ui/splitter/BaseSplitter.vue';
-import MasterDetailLayout from '@/shared/ui/layout/MasterDetailLayout.vue';
-import CollectionToolbar from '@/shared/ui/collection-toolbar/CollectionToolbar.vue';
 import { isLibraryTab, type LibraryTab } from '@/widgets/automation-library/model/library-tab.ts';
 import AutomationLibrary from '@/widgets/automation-library/ui/AutomationLibrary.vue';
 import AutomationRunsPanel from '@/widgets/automation-runs/ui/AutomationRunsPanel.vue';
@@ -392,10 +391,7 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
 
 <template>
   <div class="automations-page">
-    <CollectionToolbar
-      class="automations-page__toolbar"
-      :label="t('navigation.automations')"
-    >
+    <header class="automations-page__toolbar">
       <ProfileToolbar
         :packs="packs"
         :active-id="automation.activeProfileId.value"
@@ -455,7 +451,7 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
         :access-pending="automation.hotkeyAccessPending.value"
         @request-access="automation.requestHotkeyAccess()"
       />
-    </CollectionToolbar>
+    </header>
     <div
       v-if="automation.profileLoading.value"
       class="automations-page__banner"
@@ -488,26 +484,21 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
     </p>
 
     <BaseSplitter
+      v-if="!isNarrow"
       v-model:size="runsHeight"
       class="automations-page__workspace"
-      :class="{ 'automations-page__workspace--narrow': isNarrow, 'automations-page__workspace--editing': isNarrow && editing }"
       orientation="vertical"
       :min="96"
       sized="end"
     >
       <template #start>
-        <MasterDetailLayout
+        <BaseSplitter
           v-model:size="libraryWidth"
           class="automations-page__main"
-          :narrow="isNarrow"
-          :detail-open="Boolean(editing)"
-          :back-label="t('common.back')"
-          :detail-title="editing?.record.name"
           :min="320"
           :max="900"
-          @back="closeEditor"
         >
-          <template #master>
+          <template #start>
             <AutomationLibrary
               v-model:tab="libraryTab"
               v-model:selected="librarySelected"
@@ -526,7 +517,7 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
               @set-enabled="setEnabled"
             />
           </template>
-          <template #detail>
+          <template #end>
             <AutomationEditNotice
               :edit="editor.state.value"
               :host-changed="hostChanged"
@@ -589,49 +580,142 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
               </BaseEmptyState>
             </div>
           </template>
-          <template #detail-actions>
-            <BaseButton
-              v-if="automation.persistent.value !== false"
-              size="sm"
-              :disabled="!libraryPanel || libraryPanel.busy"
-              data-test="library-history"
-              @click="libraryPanel?.openHistory()"
-            >
-              {{ t(libraryPanel?.hasPending ? 'libraryRecovery.pendingButton' : 'libraryRecovery.history') }}
-            </BaseButton>
-            <BaseButton
-              v-if="automation.persistent.value === true || automation.sourceHost.value !== null"
-              size="sm"
-              :disabled="!definitionRecoveryPanel || definitionRecoveryPanel.busy"
-              data-test="definition-history"
-              @click="definitionRecoveryPanel?.openHistory()"
-            >
-              {{ t(definitionRecoveryPanel?.hasPending ? 'definitionRecovery.pendingButton' : 'definitionRecovery.history') }}
-            </BaseButton>
-            <BaseButton
-              v-if="automation.persistent.value === true && proposalTarget"
-              class="automations-page__proposal-button"
-              size="sm"
-              @click="proposalReviewPanel?.openReview()"
-            >
-              {{ t('automationProposal.open') }}
-            </BaseButton>
-            <BaseButton
-              v-if="automation.persistent.value === true && proposalTarget"
-              size="sm"
-              data-test="approval-open"
-              @click="approvalReviewPanel?.openReview()"
-            >
-              {{ t('automationApproval.open') }}
-            </BaseButton>
-          </template>
-        </MasterDetailLayout>
+        </BaseSplitter>
       </template>
       <template #end>
         <AutomationRunsPanel :runs="automation.runs.value" />
       </template>
     </BaseSplitter>
 
+    <template v-else>
+      <div class="automations-page__narrow">
+        <AutomationLibrary
+          v-model:tab="libraryTab"
+          v-model:selected="librarySelected"
+          v-model:event-query="eventQuery"
+          v-model:action-query="actionQuery"
+          v-model:event-sort="eventSort"
+          v-model:action-sort="actionSort"
+          :events="events"
+          :actions="actions"
+          :action-types="snapshot.actionTypes"
+          :available-types="availableTypes"
+          :event-types="eventTypes"
+          :runs="automation.runs.value"
+          @new-event="newEvent"
+          @new-action="pickerOpen = true"
+          @set-enabled="setEnabled"
+        />
+        <AutomationRunsPanel
+          class="automations-page__runs"
+          :runs="automation.runs.value"
+        />
+      </div>
+      <div
+        v-if="editing"
+        class="automations-page__sheet"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="editing.record.name"
+      >
+        <header class="automations-page__sheet-bar">
+          <BaseButton
+            size="sm"
+            @click="closeEditor"
+          >
+            <template #icon>
+              <IconChevronLeft />
+            </template>
+            {{ t('common.back') }}
+          </BaseButton>
+          <BaseButton
+            v-if="automation.persistent.value !== false"
+            size="sm"
+            :disabled="!libraryPanel || libraryPanel.busy"
+            data-test="library-history"
+            @click="libraryPanel?.openHistory()"
+          >
+            {{ t(libraryPanel?.hasPending ? 'libraryRecovery.pendingButton' : 'libraryRecovery.history') }}
+          </BaseButton>
+          <span class="automations-page__sheet-title">{{ editing.record.name }}</span>
+          <BaseButton
+            v-if="automation.persistent.value === true || automation.sourceHost.value !== null"
+            size="sm"
+            :disabled="!definitionRecoveryPanel || definitionRecoveryPanel.busy"
+            data-test="definition-history"
+            @click="definitionRecoveryPanel?.openHistory()"
+          >
+            {{ t(definitionRecoveryPanel?.hasPending ? 'definitionRecovery.pendingButton' : 'definitionRecovery.history') }}
+          </BaseButton>
+          <BaseButton
+            v-if="automation.persistent.value === true && proposalTarget"
+            class="automations-page__proposal-button"
+            size="sm"
+            @click="proposalReviewPanel?.openReview()"
+          >
+            {{ t('automationProposal.open') }}
+          </BaseButton>
+          <BaseButton
+            v-if="automation.persistent.value === true && proposalTarget"
+            size="sm"
+            data-test="approval-open"
+            @click="approvalReviewPanel?.openReview()"
+          >
+            {{ t('automationApproval.open') }}
+          </BaseButton>
+        </header>
+        <div class="automations-page__sheet-body">
+          <AutomationEditNotice
+            :edit="editor.state.value"
+            :host-changed="hostChanged"
+            :memory="automation.persistent.value === false"
+            @compare="compare"
+          />
+          <EventEditor
+            v-if="editing.kind === 'event'"
+            :key="editor.state.value?.token"
+            :baseline="eventBaseline ?? undefined"
+            :busy="editor.state.value?.busy"
+            :save-blocked="editor.saveBlocked.value"
+            :event="editing.record"
+            :is-new="editing.isNew"
+            :actions="actions"
+            :event-types="eventTypes"
+            :gifts="gifts"
+            :viewers="viewers"
+            :test-runs="automation.testRuns.value"
+            :hotkey-status="automation.hotkeyStatus.value"
+            :error="automation.error.value"
+            @save="saveEvent"
+            @change="editor.change"
+            @delete="removeRecord('events', $event)"
+            @test="automation.testEvent"
+            @fire="automation.fireEvent"
+          />
+          <ActionEditor
+            v-else
+            :key="editor.state.value?.token"
+            :baseline="actionBaseline ?? undefined"
+            :busy="editor.state.value?.busy"
+            :save-blocked="editor.saveBlocked.value"
+            :action="editing.record"
+            :is-new="editing.isNew"
+            :action-types="snapshot.actionTypes"
+            :test-runs="automation.testRuns.value"
+            :globals="automation.globals.value"
+            :action-options="automation.actionOptions.value"
+            :action-option-errors="automation.actionOptionErrors.value"
+            :open-media-picker="automation.openMediaPicker"
+            :error="automation.error.value"
+            @save="saveAction"
+            @change="editor.change"
+            @delete="removeRecord('actions', $event)"
+            @test="automation.testAction"
+            @load-options="automation.loadOptions"
+          />
+        </div>
+      </div>
+    </template>
 
     <ActionTypeDialog
       v-model:open="pickerOpen"
@@ -791,10 +875,55 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
     display: none;
   }
 
-  .automations-page__workspace--narrow { min-height: 480px; }
-  .automations-page__workspace--narrow > :deep(.base-splitter__handle) { display:none; }
-  .automations-page__workspace--narrow > :deep(.base-splitter__pane:first-child) { flex:1 1 auto; min-height:320px; }
-  .automations-page__workspace--narrow > :deep(.base-splitter__pane:last-child) { flex:0 0 auto; min-height:160px; }
-  .automations-page__workspace--editing > :deep(.base-splitter__pane:last-child) { display:none; }
+  .automations-page__narrow {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-height: 0;
+  }
+
+  .automations-page__narrow > :first-child {
+    flex: none;
+    height: min(64dvh, 560px);
+  }
+
+  .automations-page__runs {
+    flex: none;
+  }
+
+  .automations-page__sheet {
+    position: fixed;
+    inset: 30px 0 0 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--color-bg-app);
+  }
+
+  .automations-page__sheet-bar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: var(--border-width) solid var(--color-border-subtle);
+    background: var(--color-bg-panel-header);
+  }
+
+  .automations-page__sheet-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .automations-page__sheet-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+  }
 }
 </style>

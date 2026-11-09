@@ -180,3 +180,31 @@ body {
     transition: none;
   }
 }
+
+/* Keep the existing automation workspace density while settings adopt the new
+   patterns. These overrides also cover its mobile sheet and shared editors. */
+.app-layout--automation {
+  --control-height-sm: 22px;
+  --control-height-md: 26px;
+  --control-height-lg: 32px;
+  --chrome-height: 30px;
+}
+.app-layout--automation .automations-page .base-panel__header {
+  min-height: 32px;
+  flex-wrap: nowrap;
+}
+.app-layout--automation .automations-page .base-panel__title {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.app-layout--automation .automations-page .base-panel__actions {
+  flex-basis: auto;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+.app-layout--automation .automations-page .base-panel__subtitle { white-space: nowrap; }
+.app-layout--automation .automations-page .base-form-row__hint {
+  color: var(--color-text-subtle);
+  line-height: inherit;
+  overflow-wrap: normal;
+}

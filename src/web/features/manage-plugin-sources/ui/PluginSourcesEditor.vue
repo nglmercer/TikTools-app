@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SettingsRow from "@/shared/ui/settings-row/SettingsRow.vue";
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AutoUpdate, RegistryDefaults, RegistryRootPreview } from '@/entities/plugin-package/api/package-types.ts';
@@ -112,8 +113,8 @@ onMounted(() => void packages.loadRegistries());
       v-if="props.part === 'updates'"
       :title="t('packages.sources.updates')"
     >
-      <BaseFormGrid>
-        <BaseFormRow
+      <div>
+        <SettingsRow
           for="plugin-sources-channel"
           :label="t('packages.policy.channel')"
         >
@@ -123,11 +124,11 @@ onMounted(() => void packages.loadRegistries());
             :options="channelOptions"
             :disabled="!packages.defaults"
           />
-        </BaseFormRow>
-        <BaseFormRow
+        </SettingsRow>
+        <SettingsRow
           for="plugin-sources-auto"
           :label="t('packages.policy.autoUpdate')"
-          :hint="t('packages.policy.autoHint')"
+          :description="t('packages.policy.autoHint')"
         >
           <BaseComboBox
             id="plugin-sources-auto"
@@ -135,8 +136,8 @@ onMounted(() => void packages.loadRegistries());
             :options="autoOptions"
             :disabled="!packages.defaults"
           />
-        </BaseFormRow>
-        <BaseFormRow
+        </SettingsRow>
+        <SettingsRow
           for="plugin-sources-interval"
           :label="t('packages.sources.interval')"
         >
@@ -148,8 +149,8 @@ onMounted(() => void packages.loadRegistries());
             :suffix="t('packages.sources.hours')"
             :disabled="!packages.defaults"
           />
-        </BaseFormRow>
-      </BaseFormGrid>
+        </SettingsRow>
+      </div>
     </BaseGroupBox>
 
     <BaseGroupBox

@@ -50,6 +50,7 @@ onMounted(() => {
         source="sync"
       />
       <SettingsRow
+        toggle
         for="cloud-sync-enabled"
         :label="t('sync.toggle')"
         :description="t('formsDesign.syncDescription')"

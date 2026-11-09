@@ -54,6 +54,14 @@ const locale = computed<Locale>({
 
 <template>
   <div class="settings-page">
+    <label class="settings-page__mobile-nav">
+      <span>{{ t('settingsLayout.section') }}</span>
+      <select v-model="section"><option
+        v-for="item in sections"
+        :key="item.id"
+        :value="item.id"
+      >{{ t(`settings.sections.${item.id}`) }}</option></select>
+    </label>
     <BaseList
       v-model:selected="section"
       class="settings-page__sections"
@@ -70,6 +78,9 @@ const locale = computed<Locale>({
       class="settings-page__content"
       :aria-label="t(`settings.sections.${section}`)"
     >
+      <header class="settings-page__heading">
+        <h1>{{ t(`settings.sections.${section}`) }}</h1><p>{{ t(`settingsLayout.${section}`) }}</p>
+      </header>
       <template v-if="section === 'general'">
         <BaseGroupBox :title="t('settings.language.group')">
           <SettingsRow
@@ -96,14 +107,27 @@ const locale = computed<Locale>({
         <PluginSourcesEditor part="updates" />
       </template>
       <template v-else>
-        <PluginSourcesEditor part="registries" />
-        <BaseGroupBox
-          :title="t('globals.title')"
-          :description="t('globals.hint', { token: '{{ globals.key }}' })"
+        <details
+          class="settings-page__advanced"
+          open
         >
-          <RuntimeGlobalsEditor />
-        </BaseGroupBox>
-        <CloudAccountDiagnostics />
+          <summary>{{ t('settingsLayout.sources') }}</summary><PluginSourcesEditor part="registries" />
+        </details>
+        <details
+          class="settings-page__advanced"
+          :open="route.query.section === 'globals'"
+        >
+          <summary>{{ t('settingsLayout.variables') }}</summary>
+          <BaseGroupBox
+            :title="t('globals.title')"
+            :description="t('globals.hint', { token: '{{ globals.key }}' })"
+          >
+            <RuntimeGlobalsEditor />
+          </BaseGroupBox>
+        </details>
+        <details class="settings-page__advanced">
+          <summary>{{ t('settingsLayout.diagnostics') }}</summary><CloudAccountDiagnostics />
+        </details>
       </template>
     </section>
   </div>
@@ -113,10 +137,10 @@ const locale = computed<Locale>({
 .settings-page {
   display: flex;
   flex: 1;
-  gap: var(--space-4);
+  gap: var(--space-7);
   min-width: 0;
   min-height: 0;
-  padding: var(--space-4);
+  padding: var(--space-6);
 }
 
 .settings-page__sections {
@@ -139,6 +163,16 @@ const locale = computed<Locale>({
   max-width: 320px;
 }
 
+.settings-page__mobile-nav { display:none; }
+.settings-page__mobile-nav select { width:100%; min-height:var(--control-height-touch); padding:var(--space-4); color:var(--color-text); background:var(--color-bg-field); border:var(--border-width) solid var(--color-border); border-radius:var(--radius-md); }
+.settings-page__heading h1 { margin:0; font-size:20px; }
+.settings-page__heading p { margin:var(--space-4) 0 var(--space-6); color:var(--color-text-muted); line-height:var(--line-height-normal); }
+.settings-page__content > :deep(.base-group-box), .settings-page__advanced :deep(.base-group-box) { border:0; border-top:var(--border-width) solid var(--color-border); padding:var(--space-6) 0; background:transparent; }
+.settings-page__advanced { border-top:var(--border-width) solid var(--color-border); }
+.settings-page__advanced > summary { min-height:44px; padding:var(--space-5) 0; cursor:pointer; font-weight:var(--font-weight-semibold); }
+.settings-page__advanced :deep(.base-group-box__title) { font-size:var(--font-size-md); }
+.settings-page__advanced[open] { padding-bottom:var(--space-6); }
+.settings-page__content :deep(.settings-row__control) { max-width:100%; }
 @media (width < 900px) {
   .settings-page {
     flex-direction: column;
@@ -146,21 +180,8 @@ const locale = computed<Locale>({
     overflow-y: auto;
   }
 
-  /* Sections become a horizontal strip of equal tabs. */
-  .settings-page__sections {
-    display: flex;
-    flex: none;
-    gap: var(--space-1);
-    width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
-
-  .settings-page__sections :deep(.base-list__item) {
-    flex: 1 0 auto;
-    justify-content: center;
-    height: var(--control-height-lg);
-  }
+  .settings-page__sections { display: none; }
+  .settings-page__mobile-nav { display: grid; gap: var(--space-3); }
 
   .settings-page__content {
     flex: none;

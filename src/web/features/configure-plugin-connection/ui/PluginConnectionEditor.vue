@@ -255,6 +255,9 @@ onMounted(() => {
       >
         {{ t('plugins.connection.openGuided', { name: pluginName }) }}
       </p>
+      <h3 class="connection-editor__heading">
+        {{ t('settingsLayout.connectionSettings') }}
+      </h3>
       <BaseSchemaForm
         v-if="settings && !(supportsTokenImport && working)"
         v-model="formValues"
@@ -281,6 +284,8 @@ onMounted(() => {
       </div>
       <BaseButton
         v-if="guided"
+        variant="ghost"
+        :aria-expanded="advanced"
         @click="advanced = !advanced"
       >
         {{ t('plugins.connection.advanced') }}
@@ -297,6 +302,9 @@ onMounted(() => {
       v-if="supportsTokenImport"
       class="connection-editor__token"
     >
+      <h3 class="connection-editor__heading">
+        {{ t('settingsLayout.credentials') }}
+      </h3>
       <div class="connection-editor__actions">
         <template v-if="supportsTokenDiscovery">
           <BaseButton
@@ -488,4 +496,8 @@ onMounted(() => {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+.connection-editor__heading { font-size:var(--font-size-lg); margin:var(--space-5) 0; }
+.connection-editor__token { border-top:var(--border-width) solid var(--color-border); padding-top:var(--space-5); }
+.connection-editor__actions { flex-wrap:wrap; }
 </style>
