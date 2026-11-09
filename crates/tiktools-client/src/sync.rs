@@ -18,6 +18,7 @@ pub(crate) const METHODS: &[&str] = &[
     "sync.uncertain.review",
     "sync.uncertain.resolve",
     "sync.v2.discover",
+    "sync.v2.selected",
     "sync.v2.now",
     "cloudLibrary.list",
     "cloudLibrary.read",
@@ -30,6 +31,10 @@ const SYNC_NOW: &str = "sync.now";
 const SYNC_RESOLVE: &str = "sync.resolve";
 
 impl TikToolsClient {
+    pub async fn sync_v2_selected(&self) -> Result<bool, ClientError> {
+        self.call("sync.v2.selected", Empty::default()).await
+    }
+
     pub async fn cloud_library_list(
         &self,
         query: CloudLibraryQuery,

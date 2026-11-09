@@ -53,6 +53,12 @@ fn map_error(error: OperationError) -> ApiError {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<Empty, bool, _, _>(
+        "sync.v2.selected",
+        "Reads the selected Cloud protocol without contacting the server",
+        false,
+        |core: Arc<AppCore>, _| async move { core.workspace_v2_selected().await.map_err(map_error) },
+    );
     router.register_typed::<CloudLibraryQuery, CloudLibraryPage, _, _>(
         "cloudLibrary.list",
         "Lists published or private Cloud documents without importing them",

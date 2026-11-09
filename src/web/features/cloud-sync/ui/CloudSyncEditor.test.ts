@@ -34,6 +34,7 @@ function status(overrides: Partial<SyncStatus> = {}): SyncStatus {
 function setup(accountStatus: AccountStatus, syncStatus: SyncStatus) {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'cloud.status') return account(accountStatus);
+    if (method === 'sync.v2.selected') return false;
     if (method === 'sync.status') return status(syncStatus);
     if (method === 'sync.enable') return status({ ...syncStatus, enabled: true });
     if (method === 'sync.disable') return status({ ...syncStatus, enabled: false });
@@ -50,7 +51,8 @@ describe('CloudSyncEditor', () => {
   it('reports v2 server compatibility without enabling v2', async () => {
     const { client, calls } = createFakeControlClient((method) => {
       if (method === 'cloud.status') return account();
-      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.v2.selected') return false;
+    if (method === 'sync.status') return status({ enabled: true });
       if (method === 'sync.uncertain.list') return [];
       if (method === 'sync.v2.discover') return { state: 'backendCompatible', desktopSyncAvailable: false };
       throw new Error(`unexpected ${method}`);
@@ -69,15 +71,14 @@ describe('CloudSyncEditor', () => {
   it('uses v2 sync only for the selected account and reports cached records', async () => {
     const { client, calls } = createFakeControlClient((method) => {
       if (method === 'cloud.status') return account();
-      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.v2.selected') return true;
+    if (method === 'sync.status') return status({ enabled: true });
       if (method === 'sync.uncertain.list') return [];
       if (method === 'sync.v2.discover') return { state: 'backendCompatible', desktopSyncAvailable: false, selected: true };
       if (method === 'sync.v2.now') return { pushed: 1, pulled: 2, workspacePending: 0, availableRecords: 2, conflicts: [], moreQueued: true };
       throw new Error(`unexpected ${method}`);
     });
     const wrapper = mountWithPlugins(CloudSyncEditor, { global: { plugins: storePlugins(client) } });
-    await flushPromises();
-    await wrapper.findAll('button').find((item) => item.text() === 'Check Cloud v2 compatibility')!.trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain('Cloud v2 is selected for this account.');
     await wrapper.findAll('button').find((item) => item.text() === 'Sync now')!.trigger('click');
@@ -110,7 +111,8 @@ describe('CloudSyncEditor', () => {
     let gap!: () => void;
     const { client, calls } = createFakeControlClient((method) => {
       if (method === 'cloud.status') return account();
-      if (method === 'sync.status') return status({ enabled: true, conflicts: ['acme.plugin'] });
+      if (method === 'sync.v2.selected') return false;
+    if (method === 'sync.status') return status({ enabled: true, conflicts: ['acme.plugin'] });
       if (method === 'sync.uncertain.list') return [];
       if (method === 'sync.now') return { pushed: 0, pulled: 1, applied: 0, skipped: 2, applicationDeferred: true, conflicts: ['acme.plugin'] };
       throw new Error(`unexpected ${method}`);
@@ -140,7 +142,8 @@ describe('CloudSyncEditor', () => {
     const pending = new Promise((resolve) => { release = resolve; });
     const { client } = createFakeControlClient((method) => {
       if (method === 'cloud.status') return account();
-      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.v2.selected') return false;
+    if (method === 'sync.status') return status({ enabled: true });
       if (method === 'sync.uncertain.list') return [];
       if (method === 'sync.now') return pending;
       throw new Error(`unexpected ${method}`);
@@ -160,7 +163,8 @@ describe('CloudSyncEditor', () => {
     const selection = { state: 'selected', version: '1.0.0', enabled: true };
     const { client, calls } = createFakeControlClient((method) => {
       if (method === 'cloud.status') return account();
-      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.v2.selected') return false;
+    if (method === 'sync.status') return status({ enabled: true });
       if (method === 'sync.uncertain.list') return ['acme.plugin'];
       if (method === 'sync.uncertain.review') return { handle: 'a'.repeat(64), key: 'acme.plugin', base: selection, original: selection, local: selection, cloud: selection };
       throw new Error(`unexpected ${method}`);
@@ -181,7 +185,8 @@ describe('CloudSyncEditor', () => {
   it('rejects an incomplete recovery review instead of offering a decision', async () => {
     const { client } = createFakeControlClient((method) => {
       if (method === 'cloud.status') return account();
-      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.v2.selected') return false;
+    if (method === 'sync.status') return status({ enabled: true });
       if (method === 'sync.uncertain.list') return ['acme.plugin'];
       if (method === 'sync.uncertain.review') return { handle: 'a'.repeat(64), key: 'acme.plugin' };
       throw new Error(`unexpected ${method}`);
@@ -200,7 +205,8 @@ describe('CloudSyncEditor', () => {
     const pending = new Promise((resolve) => { resolveReview = resolve; });
     const { client } = createFakeControlClient((method) => {
       if (method === 'cloud.status') return account();
-      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.v2.selected') return false;
+    if (method === 'sync.status') return status({ enabled: true });
       if (method === 'sync.uncertain.list') return ['acme.plugin'];
       if (method === 'sync.uncertain.review') return pending;
       throw new Error(`unexpected ${method}`);

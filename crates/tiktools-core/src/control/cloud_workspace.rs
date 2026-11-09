@@ -39,6 +39,43 @@ fn changed() -> OperationError {
 }
 
 impl AppCore {
+    /// Read the selected protocol locally, without contacting Cloud. A v2
+    /// selection is reported only for the current account and consent.
+    pub async fn workspace_v2_selected(&self) -> Result<bool, OperationError> {
+        let coordinator = self.sync.coordinator().map_err(|_| changed())?.clone();
+        let selected = tokio::task::spawn_blocking(move || {
+            coordinator.with_product_local_edit(|context| context)
+        })
+        .await
+        .map_err(|_| changed())?
+        .map_err(|_| changed())?;
+        match selected {
+            tiktools_cloud_sync::ProductLocalEditContext::Legacy
+            | tiktools_cloud_sync::ProductLocalEditContext::OptedOut => Ok(false),
+            tiktools_cloud_sync::ProductLocalEditContext::V2(None) => Err(changed()),
+            tiktools_cloud_sync::ProductLocalEditContext::V2(Some(identity)) => {
+                let session = self.cloud.auth().session().await.ok_or_else(changed)?;
+                let coordinator = self.sync.coordinator().map_err(|_| changed())?;
+                let epoch = coordinator
+                    .capture_v2_config_epoch(&session)
+                    .ok_or_else(changed)?;
+                if identity.origin != session.instance_origin()
+                    || identity.account_id != session.account_id()
+                {
+                    return Err(changed());
+                }
+                self.cloud
+                    .auth()
+                    .with_current_session(&session, || {
+                        coordinator.is_v2_config_epoch_current(&epoch, &session)
+                    })
+                    .map_err(|_| changed())?
+                    .then_some(true)
+                    .ok_or_else(changed)
+            }
+        }
+    }
+
     /// Only this explicitly invoked check contacts the fixed capabilities URL.
     /// It never sends a credential, reads account data, or enables a protocol.
     pub async fn workspace_v2_discover(&self) -> Result<WorkspaceV2Discovery, OperationError> {

@@ -28,6 +28,8 @@ const v2State = ref<V2State | null>(null);
 const v2Busy = ref(false);
 const v2Error = ref(false);
 const v2Selected = ref(false);
+const protocolReady = ref(false);
+const protocolLoading = ref(false);
 type V2Result = { pushed: number; pulled: number; workspacePending: number; availableRecords: number; conflicts: string[]; moreQueued: boolean };
 const v2Result = ref<V2Result | null>(null);
 let requestGeneration = 0;
@@ -130,7 +132,7 @@ async function synchronize(): Promise<void> {
 async function checkV2(): Promise<void> {
   if (v2Busy.value) return;
   const generation = requestGeneration;
-  v2Busy.value = true; v2Error.value = false; v2State.value = null; v2Selected.value = false; v2Result.value = null;
+  v2Busy.value = true; v2Error.value = false; v2State.value = null; v2Result.value = null;
   try {
     const result = await client.call<unknown>('sync.v2.discover');
     if (generation !== requestGeneration) return;
@@ -140,11 +142,28 @@ async function checkV2(): Promise<void> {
     if (typeof value['state'] !== 'string' || !states.includes(value['state'] as V2State) || value['desktopSyncAvailable'] !== false) throw new Error('Invalid compatibility response');
     v2State.value = value['state'] as V2State;
     if (value['selected'] !== undefined && typeof value['selected'] !== 'boolean') throw new Error('Invalid protocol response');
-    v2Selected.value = value['selected'] === true && v2State.value === 'backendCompatible';
+    if (v2State.value === 'backendCompatible' && value['selected'] !== undefined && value['selected'] !== v2Selected.value) throw new Error('Protocol changed');
   } catch {
     if (generation === requestGeneration) v2Error.value = true;
   } finally {
     if (generation === requestGeneration) v2Busy.value = false;
+  }
+}
+
+async function loadProtocol(): Promise<void> {
+  if (!signedIn.value || !enabled.value || protocolLoading.value) return;
+  const generation = requestGeneration;
+  protocolLoading.value = true; v2Error.value = false;
+  try {
+    const selected = await client.call<unknown>('sync.v2.selected', {});
+    if (generation !== requestGeneration) return;
+    if (typeof selected !== 'boolean') throw new Error('Invalid protocol response');
+    v2Selected.value = selected; protocolReady.value = true;
+    if (!selected) void refreshUncertain();
+  } catch {
+    if (generation === requestGeneration) v2Error.value = true;
+  } finally {
+    if (generation === requestGeneration) protocolLoading.value = false;
   }
 }
 
@@ -169,13 +188,13 @@ async function synchronizeV2(): Promise<void> {
 
 function clearReviews(): void {
   requestGeneration += 1; uncertain.value = []; review.value = null; recoveryError.value = ''; recoveryBusy.value = false; newerNeedsReview.value = false;
-  deferredCount.value = null; v2State.value = null; v2Busy.value = false; v2Error.value = false; v2Selected.value = false; v2Result.value = null;
+  deferredCount.value = null; v2State.value = null; v2Busy.value = false; v2Error.value = false; v2Selected.value = false; v2Result.value = null; protocolReady.value = false; protocolLoading.value = false;
 }
 watch(() => [account.status, account.working, account.loading, enabled.value], () => {
   clearReviews();
-  void refreshUncertain();
+  void loadProtocol();
 }, { flush: 'sync' });
-watch(() => sync.working, (working, previous) => { if (previous && !working) void refreshUncertain(); });
+watch(() => sync.working, (working, previous) => { if (previous && !working && protocolReady.value && !v2Selected.value) void refreshUncertain(); });
 let unsubscribeContext: (() => void) | undefined;
 let unsubscribeGap: (() => void) | undefined;
 function invalidateContext(): void {
@@ -217,15 +236,17 @@ onMounted(() => {
         {{ t('sync.toggle') }}
       </BaseSwitch>
       <template v-if="status != null && enabled">
-        <BaseButton :disabled="v2Busy || sync.working" @click="checkV2">{{ t('sync.checkV2') }}</BaseButton>
-        <p v-if="v2State" role="status">{{ t(v2Selected ? 'sync.v2.selected' : `sync.v2.${v2State}`) }}</p>
+        <BaseButton :disabled="v2Busy || sync.working || !protocolReady" @click="checkV2">{{ t('sync.checkV2') }}</BaseButton>
+        <p v-if="v2Selected" role="status">{{ t('sync.v2.selected') }}</p>
+        <p v-if="v2State && (!v2Selected || v2State !== 'backendCompatible')" role="status">{{ t(`sync.v2.${v2State}`) }}</p>
         <p v-if="v2Error" role="alert">{{ t('sync.v2.error') }}</p>
-        <template v-if="v2Selected">
+        <BaseButton v-if="v2Error && !protocolReady" :disabled="protocolLoading" @click="loadProtocol">{{ t('sync.v2.retry') }}</BaseButton>
+        <template v-if="protocolReady && v2Selected">
           <p>{{ t('sync.v2.cachedOnly') }}</p>
           <p v-if="v2Result" role="status">{{ t('sync.v2.result', { pushed: v2Result.pushed, pulled: v2Result.pulled, pending: v2Result.workspacePending, available: v2Result.availableRecords, conflicts: v2Result.conflicts.length }) }} <span v-if="v2Result.moreQueued">{{ t('sync.v2.moreQueued') }}</span></p>
           <BaseButton variant="primary" :disabled="v2Busy || sync.working" @click="synchronizeV2">{{ t('sync.syncNow') }}</BaseButton>
         </template>
-        <template v-else>
+        <template v-else-if="protocolReady">
         <p>{{ t('sync.pending', { count: status.pending }) }}</p>
         <BaseAlert tone="info" :title="t('sync.applicationDeferred')" />
         <p v-if="deferredCount !== null" role="status">{{ t('sync.deferredCount', { count: deferredCount }) }}</p>

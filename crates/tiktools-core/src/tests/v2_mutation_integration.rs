@@ -443,6 +443,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     Arc::get_mut(&mut core).unwrap().cloud = Arc::new(
         crate::cloud_account::CloudAccount::with_test_auth(auth.clone()),
     );
+    assert!(core.workspace_v2_selected().await.unwrap());
     let result = core.sync_v2_now().await.unwrap();
     assert!(core
         .db
