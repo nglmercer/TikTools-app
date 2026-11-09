@@ -92,6 +92,42 @@ fn ready(snapshot: Option<WorkspaceStateSnapshot>) -> Result<u64, WorkspaceCoord
 }
 
 impl SyncCoordinator {
+    /// Admit a cached plugin record only if it is still the exact record
+    /// observed after the server barrier. The caller remains responsible for
+    /// fencing native plugin state and journaling any local runtime effect.
+    /// A missing or different cache entry requires another sync, not an apply.
+    #[doc(hidden)]
+    pub async fn with_cached_v2_reconciliation_barrier<T>(
+        &self,
+        proof: &V2ReconciliationBarrier,
+        operation: impl FnOnce(&V2ReconciliationAdmission<'_>) -> Result<T, WorkspaceCoordError>,
+    ) -> Result<T, WorkspaceCoordError> {
+        self.with_v2_reconciliation_barrier(proof, |admission| {
+            let context = admission.context();
+            let root = self
+                .config_path
+                .parent()
+                .ok_or(WorkspaceCoordError::Ineligible)?;
+            let store = WorkspaceStore::open(root, &context.origin, &context.account_id)?;
+            let snapshot = store.load()?.ok_or(WorkspaceCoordError::Ineligible)?;
+            if snapshot.generation != proof.workspace_generation {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+            let cached = snapshot
+                .state
+                .entry(admission.target())
+                .and_then(|entry| entry.remote.as_ref());
+            let Some(remote) = admission.remote() else {
+                return Err(WorkspaceStateError::StaleReview.into());
+            };
+            if cached != Some(remote) {
+                return Err(WorkspaceStateError::StaleReview.into());
+            }
+            operation(admission)
+        })
+        .await
+    }
+
     /// Perform an authenticated policy check and account-wide server barrier.
     /// This does not activate the server's irreversible epoch policy. Older
     /// servers or an account without that policy fail closed. Product remains

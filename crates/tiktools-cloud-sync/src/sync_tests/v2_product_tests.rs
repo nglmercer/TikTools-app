@@ -88,6 +88,56 @@ async fn reconciliation_barrier_is_single_use_and_bound_to_current_workspace_and
     ));
     assert!(source_gate.try_emission().is_ok());
     assert!(sync.with_v2_reconciliation_preview(&proof, |_| ()).is_err());
+    // A current server value is insufficient if the local cache has not yet
+    // observed that same revision. A later matching cache may be admitted.
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
+        .await
+        .unwrap();
+    assert!(sync
+        .with_cached_v2_reconciliation_barrier::<()>(&proof, |_| panic!("uncached record admitted"))
+        .await
+        .is_err());
+    let store =
+        cloud_client::WorkspaceStore::open(dir.join("a-sync"), &mock.origin, "reconcile-user")
+            .unwrap();
+    let old = store.load().unwrap().unwrap();
+    let mut cached = old.state.clone();
+    let record =
+        serde_json::from_value(mock.inner.lock().unwrap().v2_read_record.clone().unwrap()).unwrap();
+    cached
+        .install_rebuild(cloud_client::WorkspaceSnapshot {
+            schema_version: 2,
+            cursor: 1,
+            records: vec![record],
+        })
+        .unwrap();
+    store.save(Some(old.generation), &cached).unwrap();
+    mock.inner.lock().unwrap().v2_read_record.as_mut().unwrap()["revision"] = 2.into();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
+        .await
+        .unwrap();
+    assert!(sync
+        .with_cached_v2_reconciliation_barrier::<()>(&proof, |_| panic!(
+            "stale cached revision admitted"
+        ))
+        .await
+        .is_err());
+    mock.inner.lock().unwrap().v2_read_record.as_mut().unwrap()["revision"] = 1.into();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
+        .await
+        .unwrap();
+    let revision = sync
+        .with_cached_v2_reconciliation_barrier(&proof, |admission| {
+            Ok(admission.remote().unwrap().revision)
+        })
+        .await
+        .unwrap();
+    assert_eq!(revision, 1);
+    let current = store.load().unwrap().unwrap();
+    store.save(Some(current.generation), &old.state).unwrap();
     let proof = sync
         .prepare_v2_reconciliation_barrier(session.clone(), "acme.plugin".into())
         .await

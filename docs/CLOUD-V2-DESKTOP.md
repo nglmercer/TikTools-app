@@ -2,6 +2,11 @@
 
 Status: **the native v2 foundation and read-only Cloud catalog and library UI are implemented. Product sync cutover, local application and full Desktop v2 acceptance are pending.**
 
+The native reconciliation barrier can now admit a downloaded plugin record
+only when the cached record exactly matches the authenticated post-barrier
+server record. A missing or different cache entry is rejected. This is one
+part of local application; runtime changes and crash recovery remain pending.
+
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
 library delivery e6728c9. The reviewed backend commit is RemakeBackend 952e512,
 including stored-record validation, retained-feed gap detection, byte-ordered v1 snapshot pagination, SDK pull counts, canonical shards
