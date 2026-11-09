@@ -71,12 +71,13 @@ impl Controller {
             let view = self.shared.view.read().unwrap_or_else(|p| p.into_inner());
             bound(&view, epoch, connection, None)?
         };
+        let versioned = remote.hello().features.get("competitionSummaryVersions") == Some(&true);
+        let mut request = json!({"after":after,"limit":20});
+        if versioned {
+            request["includeRevision"] = json!(true);
+        }
         let response = remote
-            .call_value_with_meta(
-                "competitions.summary",
-                json!({"after":after,"limit":20}),
-                None,
-            )
+            .call_value_with_meta("competitions.summary", request, None)
             .await?;
         let page: CompetitionSummaryPage =
             serde_json::from_value(response.result).map_err(|_| protocol())?;
@@ -93,6 +94,11 @@ impl Controller {
                 || row.name.chars().any(char::is_control)
                 || previous.is_some_and(|old| row.id.as_str() <= old)
                 || !valid_decimal(&row.generation)
+                || (versioned && row.revision.is_none())
+                || row
+                    .revision
+                    .as_deref()
+                    .is_some_and(|n| !n.parse::<i64>().is_ok_and(|v| v > 0 && v.to_string() == n))
                 || row
                     .deadline_ms
                     .as_deref()

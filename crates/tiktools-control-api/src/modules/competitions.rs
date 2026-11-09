@@ -30,6 +30,8 @@ pub struct CompetitionSummaryParams {
     pub after: Option<String>,
     #[serde(default)]
     pub limit: Option<usize>,
+    #[serde(default)]
+    pub include_revision: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -94,7 +96,7 @@ pub fn register(router: &mut ControlRouter) {
                 _ => 512 * 1024,
             };
             crate::modules::blocking_task("competitions.summary", move || {
-                core.competition_summary_page(&grant, params.after.as_deref(), params.limit.unwrap_or(20), budget)
+                core.competition_summary_page(&grant, params.after.as_deref(), params.limit.unwrap_or(20), budget, params.include_revision)
             }).await?.map_err(ApiError::from)
         },
     );

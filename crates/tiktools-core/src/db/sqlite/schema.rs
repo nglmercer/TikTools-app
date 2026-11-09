@@ -606,6 +606,7 @@ impl DatabaseManager {
         // The workflow seed references the shared version table.
         automation.execute_batch(COORDINATION_SCHEMA)?;
         automation.execute_batch(AUTOMATION_SCHEMA)?;
+        migrate_competition_revisions(&mut automation)?;
         migrate_plugin_sync_outbox(&mut automation)?;
         migrate_package_journal(&mut automation)?;
         migrate_effect_kinds(&mut automation)?;
@@ -615,6 +616,108 @@ impl DatabaseManager {
     }
     pub(in crate::db) fn open(&self, path: &std::path::Path) -> Result<Connection, DatabaseError> {
         Ok(Connection::open(path)?)
+    }
+}
+
+/// Competition definitions and lifecycle state share one generation-independent
+/// revision. SQLite triggers cover every writer (including timer/finalization
+/// paths) and preserve tombstones when an ID is deleted and recreated.
+fn migrate_competition_revisions(db: &mut Connection) -> Result<(), DatabaseError> {
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    tx.execute_batch(r#"
+CREATE TABLE IF NOT EXISTS competition_control_revisions (
+  competition_id TEXT PRIMARY KEY,
+  revision INTEGER NOT NULL CHECK(typeof(revision)='integer' AND revision>0),
+  deleted INTEGER NOT NULL CHECK(deleted IN (0,1))
+);
+CREATE TABLE IF NOT EXISTS competition_revision_migration (
+  singleton INTEGER PRIMARY KEY CHECK(singleton=1)
+);
+INSERT INTO competition_control_revisions(competition_id,revision,deleted)
+  SELECT id,1,0 FROM competition_definitions
+  WHERE NOT EXISTS(SELECT 1 FROM competition_revision_migration WHERE singleton=1);
+INSERT OR IGNORE INTO competition_revision_migration(singleton) VALUES (1);
+CREATE TRIGGER IF NOT EXISTS competition_revision_insert AFTER INSERT ON competition_definitions BEGIN
+  INSERT INTO competition_control_revisions(competition_id,revision,deleted) VALUES (NEW.id,1,0)
+  ON CONFLICT(competition_id) DO UPDATE SET
+    revision=CASE WHEN deleted=1 THEN revision+1 ELSE RAISE(ABORT,'competition revision inconsistent') END,
+    deleted=0;
+END;
+CREATE TRIGGER IF NOT EXISTS competition_revision_definition_update AFTER UPDATE ON competition_definitions BEGIN
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM competition_control_revisions WHERE competition_id=NEW.id AND deleted=0)
+    THEN RAISE(ABORT,'competition revision missing') END;
+  UPDATE competition_control_revisions SET revision=revision+1 WHERE competition_id=NEW.id;
+END;
+CREATE TRIGGER IF NOT EXISTS competition_revision_definition_delete AFTER DELETE ON competition_definitions BEGIN
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM competition_control_revisions WHERE competition_id=OLD.id AND deleted=0)
+    THEN RAISE(ABORT,'competition revision missing') END;
+  UPDATE competition_control_revisions SET revision=revision+1,deleted=1 WHERE competition_id=OLD.id;
+END;
+CREATE TRIGGER IF NOT EXISTS competition_revision_state_update AFTER UPDATE ON competition_state
+WHEN OLD.state_json IS NOT NEW.state_json BEGIN
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM competition_control_revisions WHERE competition_id=NEW.competition_id AND deleted=0)
+    THEN RAISE(ABORT,'competition revision missing') END;
+  UPDATE competition_control_revisions SET revision=revision+1 WHERE competition_id=NEW.competition_id;
+END;
+"#)?;
+    tx.commit()?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod competition_revision_tests {
+    use super::*;
+
+    #[test]
+    fn migration_and_writers_preserve_revisions_across_delete_and_recreate() {
+        let mut db = Connection::open_in_memory().unwrap();
+        db.execute_batch("CREATE TABLE competition_definitions(id TEXT PRIMARY KEY, definition_json TEXT NOT NULL); CREATE TABLE competition_state(competition_id TEXT PRIMARY KEY, state_json TEXT NOT NULL); INSERT INTO competition_definitions VALUES ('a','old'); INSERT INTO competition_state VALUES ('a','draft');").unwrap();
+        migrate_competition_revisions(&mut db).unwrap();
+        let revision = |db: &Connection| {
+            db.query_row("SELECT revision,deleted FROM competition_control_revisions WHERE competition_id='a'", [], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))).unwrap()
+        };
+        assert_eq!(revision(&db), (1, 0));
+        db.execute(
+            "UPDATE competition_state SET state_json='active' WHERE competition_id='a'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(revision(&db), (2, 0));
+        db.execute(
+            "UPDATE competition_definitions SET definition_json='changed' WHERE id='a'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(revision(&db), (3, 0));
+        db.execute("DELETE FROM competition_definitions WHERE id='a'", [])
+            .unwrap();
+        assert_eq!(revision(&db), (4, 1));
+        db.execute("INSERT INTO competition_definitions VALUES ('a','new')", [])
+            .unwrap();
+        assert_eq!(revision(&db), (5, 0));
+        migrate_competition_revisions(&mut db).unwrap();
+        assert_eq!(revision(&db), (5, 0));
+        db.execute(
+            "DELETE FROM competition_control_revisions WHERE competition_id='a'",
+            [],
+        )
+        .unwrap();
+        assert!(db
+            .execute(
+                "UPDATE competition_state SET state_json='paused' WHERE competition_id='a'",
+                []
+            )
+            .is_err());
+        migrate_competition_revisions(&mut db).unwrap();
+        assert_eq!(
+            db.query_row(
+                "SELECT COUNT(*) FROM competition_control_revisions",
+                [],
+                |row| row.get::<_, i64>(0)
+            )
+            .unwrap(),
+            0
+        );
     }
 }
 

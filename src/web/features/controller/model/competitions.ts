@@ -5,6 +5,7 @@ import type { ControllerStatus } from './controller.ts';
 export interface CompetitionSummary {
   id: string; name: string; kind: string; lifecycle: string;
   generation: string; deadlineMs: string | null; remainingMs: string | null;
+  revision?: string;
 }
 interface Dependencies { status: Ref<ControllerStatus>; generation: () => number; stopped: () => boolean }
 interface Page { competitions: CompetitionSummary[]; nextAfter: string | null }
@@ -38,10 +39,12 @@ function decode(value: unknown, s: ControllerStatus, after: string | null): Page
   const rows: CompetitionSummary[] = page['competitions'].map((value: unknown) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid competition');
     const row = value as Record<string, unknown>;
-    if (Object.keys(row).length !== 7 || Object.keys(row).some((k) => !['id','name','kind','lifecycle','generation','deadlineMs','remainingMs'].includes(k)) ||
+    if ((Object.keys(row).length !== 7 && Object.keys(row).length !== 8) || Object.keys(row).some((k) => !['id','name','kind','lifecycle','generation','revision','deadlineMs','remainingMs'].includes(k)) ||
       !text(row['id'], 128) || !text(row['name'], 256) || !row['name'].trim() ||
       (previous !== null && byteCompare(row['id'], previous) <= 0) || typeof row['kind'] !== 'string' || !kinds.has(row['kind']) ||
       typeof row['lifecycle'] !== 'string' || !states.has(row['lifecycle']) || !decimal(row['generation']) ||
+      (s.hello?.features['competitionSummaryVersions'] === true && row['revision'] === undefined) ||
+      (row['revision'] !== undefined && (!decimal(row['revision']) || row['revision'] === '0' || BigInt(row['revision']) > 9223372036854775807n)) ||
       !(row['deadlineMs'] === null || decimal(row['deadlineMs'])) || !(row['remainingMs'] === null || decimal(row['remainingMs'])) ||
       (s.hello?.resourceRestrictions?.['competition'] !== undefined && !s.hello.resourceRestrictions['competition'].includes(row['id']))) throw new Error('Invalid competition');
     previous = row['id'];

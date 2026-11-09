@@ -145,6 +145,12 @@ async fn scoped_competition_summary_is_bounded_redacted_and_reauthorized() {
     assert_eq!(first["competitions"][0]["id"], "alpha");
     assert_eq!(first["competitions"][0]["lifecycle"], "draft");
     assert_eq!(first["nextAfter"], "alpha");
+    assert!(first["competitions"][0].get("revision").is_none());
+    let versioned = call(json!({"limit":1,"includeRevision":true}))
+        .await
+        .result
+        .unwrap();
+    assert_eq!(versioned["competitions"][0]["revision"], "1");
     let mut extended = first.clone();
     extended["competitions"][0]["privateAction"] = json!("secret");
     assert_eq!(

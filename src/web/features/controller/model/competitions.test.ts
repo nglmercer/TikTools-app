@@ -10,7 +10,7 @@ function status(): ControllerStatus {
       capabilities:['competitions.read'], features:{ competitionSummary:true }, resourceRestrictions:{ competition:['alpha','charlie'] } } };
 }
 const row = (id: string) => ({ id, name:`Competition ${id}`, kind:'poll', lifecycle:'active', generation:'9007199254740993', deadlineMs:null, remainingMs:null });
-const page = (rows: ReturnType<typeof row>[], nextAfter: string | null = null) => ({ epoch:'1', connectionId:'connection', competitions:rows, nextAfter });
+const page = (rows: (ReturnType<typeof row> & { revision?: string })[], nextAfter: string | null = null) => ({ epoch:'1', connectionId:'connection', competitions:rows, nextAfter });
 
 it('paginates authorized status without sending mutations', async () => {
   const current = ref(status());
@@ -25,6 +25,19 @@ it('paginates authorized status without sending mutations', async () => {
   expect(model.rows.value[0]?.generation).toBe('9007199254740993');
   expect(calls.filter((call) => call.method === 'controller.competitions').map((call) => call.params?.['after'])).toEqual([null, 'alpha', null]);
   expect(calls.every((call) => ['controller.competitions', 'controller.status'].includes(call.method))).toBe(true);
+});
+
+it('requires canonical revisions when the host advertises them', async () => {
+  const current = ref(status()); current.value.hello!.features['competitionSummaryVersions'] = true;
+  let revision = '2';
+  const { client } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(current.value)) : page([{...row('alpha'), revision}]));
+  const model = createCompetitionModel(client, { status:current, generation:() => 1, stopped:() => false });
+  vi.useFakeTimers();
+  try {
+    await model.refresh(current.value, 1); expect(model.rows.value[0]?.revision).toBe('2');
+    revision = '02'; vi.advanceTimersByTime(2000);
+    await model.refresh(current.value, 1); expect(model.rows.value).toEqual([]);
+  } finally { vi.useRealTimers(); }
 });
 
 it('never displays delayed rows after scope change or a denied LIVE restriction', async () => {

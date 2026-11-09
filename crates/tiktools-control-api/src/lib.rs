@@ -355,7 +355,14 @@ impl ControlApi {
             }) || rows.len() > 50
                 || !rows.iter().all(|row| {
                     row.as_object().is_some_and(|obj| {
-                        obj.len() == 7
+                        (obj.len() == 7
+                            || (obj.len() == 8
+                                && obj
+                                    .get("revision")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|s| {
+                                        s.parse::<i64>().is_ok_and(|n| n > 0 && n.to_string() == s)
+                                    })))
                             && obj.keys().all(|key| {
                                 matches!(
                                     key.as_str(),
@@ -363,6 +370,7 @@ impl ControlApi {
                                         | "kind"
                                         | "lifecycle"
                                         | "generation"
+                                        | "revision"
                                         | "deadlineMs"
                                         | "remainingMs"
                                 )

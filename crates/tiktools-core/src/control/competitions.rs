@@ -15,6 +15,8 @@ pub struct CompetitionSummary {
     pub kind: tiktools_competitions::CompetitionKind,
     pub lifecycle: tiktools_competitions::Lifecycle,
     pub generation: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
     pub deadline_ms: Option<String>,
     pub remaining_ms: Option<String>,
 }
@@ -35,6 +37,7 @@ impl AppCore {
         after: Option<&str>,
         limit: usize,
         byte_budget: usize,
+        include_revision: bool,
     ) -> Result<CompetitionSummaryPage, OperationError> {
         use crate::collaboration::{Capability, ResourceKind};
         if !grant.capabilities.contains(&Capability::CompetitionsRead)
@@ -82,13 +85,29 @@ impl AppCore {
             {
                 return Err(OperationError::unavailable("competition status is invalid"));
             }
-            let state = self.competition_state(id)?;
+            #[cfg(feature = "persistence")]
+            let (state, revision) = if include_revision {
+                let (state, revision) = self
+                    .db
+                    .competition_state_revision(id)
+                    .map_err(|_| OperationError::unavailable("competition revision unavailable"))?
+                    .ok_or_else(|| OperationError::unavailable("competition state unavailable"))?;
+                (state, Some(revision.to_string()))
+            } else {
+                (self.competition_state(id)?, None)
+            };
+            #[cfg(not(feature = "persistence"))]
+            let (state, revision) = {
+                let _ = include_revision;
+                (self.competition_state(id)?, None)
+            };
             let row = CompetitionSummary {
                 id: id.clone(),
                 name: definition.name.clone(),
                 kind: definition.kind,
                 lifecycle: state.lifecycle,
                 generation: state.generation.to_string(),
+                revision,
                 deadline_ms: state.deadline_ms.map(|value| value.to_string()),
                 remaining_ms: state.remaining_ms.map(|value| value.to_string()),
             };

@@ -173,6 +173,16 @@ execution, HTTP response emission and full product acceptance remain pending.
 
 ## Scoped competition status
 
+Competition definitions and lifecycle changes now advance a transactionally
+maintained revision, including timer/finalization updates. Deleted IDs keep a
+tombstone so recreating one does not reuse its revision. The scoped summary
+can return that revision when requested; native controllers request it only
+when the host advertises `competitionSummaryVersions`, so older hosts and
+clients keep the existing summary shape. A SQLite migration check covers the
+legacy seed, state and definition changes, delete/recreate and missing metadata.
+This is the consistency foundation for commands; remote transitions and their
+durable command recovery are still pending.
+
 The controller can read a bounded, paginated competition status projection
 when its grant includes `competitions.read`. Each page contains only an
 authorized competition's ID, name, kind, lifecycle and time/generation

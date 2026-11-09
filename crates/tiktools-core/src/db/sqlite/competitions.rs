@@ -121,6 +121,27 @@ pub(crate) enum GiftOutcome {
 }
 
 impl DatabaseManager {
+    /// Read state and its monotonic coordination revision in one SQLite
+    /// snapshot. A missing or deleted revision is an integrity failure.
+    pub(crate) fn competition_state_revision(
+        &self,
+        id: &str,
+    ) -> Result<Option<(LifecycleState, i64)>, DatabaseError> {
+        let connection = self.open(&self.automation_path())?;
+        let row: Option<(String, Option<i64>, Option<i64>)> = connection.query_row(
+            "SELECT s.state_json,r.revision,r.deleted FROM competition_state s LEFT JOIN competition_control_revisions r ON r.competition_id=s.competition_id WHERE s.competition_id=?1",
+            [id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).optional()?;
+        row.map(|(json, revision, deleted)| {
+            let revision = revision
+                .filter(|n| *n > 0)
+                .filter(|_| deleted == Some(0))
+                .ok_or_else(|| DatabaseError::Invalid("competition revision missing".into()))?;
+            Ok((serde_json::from_str(&json)?, revision))
+        })
+        .transpose()
+    }
+
     pub(crate) fn insert_competition_definition(
         &self,
         definition: &Definition,

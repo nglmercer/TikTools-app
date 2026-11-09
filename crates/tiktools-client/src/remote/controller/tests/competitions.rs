@@ -50,6 +50,7 @@ async fn native_controller_reads_only_scoped_competition_status_and_recovers_aft
         .await
         .unwrap();
     let rows = page["competitions"].as_array().unwrap();
+    assert!(rows.iter().all(|row| row["revision"] == "1"));
     assert_eq!(
         rows.iter()
             .map(|row| row["id"].as_str().unwrap())
