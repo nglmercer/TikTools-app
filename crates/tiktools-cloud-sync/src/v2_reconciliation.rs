@@ -39,6 +39,7 @@ pub struct V2ReconciliationAdmission<'a> {
     context: V2LocalEditContext,
     source_dir: &'a Path,
     target: &'a cloud_client::WorkspaceKey,
+    remote: Option<&'a WorkspaceRecord>,
 }
 impl V2ReconciliationAdmission<'_> {
     pub fn context(&self) -> &V2LocalEditContext {
@@ -46,6 +47,10 @@ impl V2ReconciliationAdmission<'_> {
     }
     pub fn target(&self) -> &cloud_client::WorkspaceKey {
         self.target
+    }
+    /// The exact remote record revalidated immediately before admission.
+    pub fn remote(&self) -> Option<&WorkspaceRecord> {
+        self.remote
     }
     /// Confirm the native source uses the same on-disk fence. An unavailable
     /// or changed directory fails closed; noncooperating filesystem writers
@@ -332,6 +337,7 @@ impl SyncCoordinator {
                     },
                     source_dir: &proof.source_dir,
                     target: &proof.target,
+                    remote: proof.remote.record(),
                 })
             })
             .map_err(|_| WorkspaceCoordError::Ineligible)?;

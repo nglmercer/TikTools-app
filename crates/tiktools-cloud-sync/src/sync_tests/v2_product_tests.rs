@@ -223,9 +223,9 @@ struct Source {
 impl crate::V2ProductSource for Source {
     fn with_fenced_decision<T>(
         &self,
-        stage: impl FnOnce(&crate::V2ProductDecision) -> Result<T, SyncCoordError>,
+        stage: impl FnOnce(&crate::V2ProductDecision, Option<&str>) -> Result<T, SyncCoordError>,
     ) -> Result<T, SyncCoordError> {
-        let value = stage(&self.decision)?;
+        let value = stage(&self.decision, None)?;
         self.ack_attempts.set(self.ack_attempts.get() + 1);
         if self.fail_ack.replace(false) {
             return Err(SyncCoordError::Local(

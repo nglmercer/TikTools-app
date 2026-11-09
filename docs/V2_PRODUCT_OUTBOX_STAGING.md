@@ -159,12 +159,17 @@ future is not `Send` while the native source mutex is held. A UI must fence
 publication of any preview against later session changes.
 
 This comparison is not an atomic transaction with the remote server: another
-device can change Cloud after the final read. The resulting SQLite candidate
-does not yet durably pin the reviewed Cloud revision, so later staging must not
-silently adopt a newer base. Persisting and enforcing that reviewed base across
-restarts and upload remains required before product activation. The primitive
-also does not itself collect an explicit user choice or show a complete local
-and remote comparison.
+device can change Cloud after the final read. The SQLite transaction now stores
+the exact reviewed record (including reviewed absence) with the reconciled
+candidate. Staging checks that the cached remote still equals that record and
+that no different edit is pending; the workspace persists the same base for
+the conditional write. A later remote change must conflict rather than becoming
+an unreviewed base. SQLite confirmation and acknowledgement compare the stored
+base as well. Candidates from older development builds do not distinguish
+reviewed and direct changes and are refused by the v2 source adapter until a
+separate reviewed recovery is provided. This path still needs complete product
+integration and real two-device acceptance. The primitive does not itself
+collect an explicit user choice or show a complete local and remote comparison.
 The native local-review adapter can consume the callback's non-serializable
 admission without reacquiring the exclusive lease. It checks the canonical
 source directory, origin and account, then revalidates the exact source,

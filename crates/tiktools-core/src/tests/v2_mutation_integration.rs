@@ -235,6 +235,7 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     assert_eq!(pending.config_generation, 42);
     assert_eq!(pending.enabled, Some(true));
     assert_eq!(pending.runtime_epoch, None);
+    assert_eq!(pending.reviewed_base.as_deref(), Some("null"));
     assert!(sync
         .with_v2_reconciliation_barrier(&proof, |_| Ok(()))
         .await
@@ -304,6 +305,31 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
             .plugin_id,
         "aaa.other"
     );
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection
+        .execute(
+            "DELETE FROM plugin_sync_outbox WHERE plugin_id='aaa.other'",
+            [],
+        )
+        .unwrap();
+    drop(connection);
+    sync.stage_v2_product_decision(&source).unwrap();
+    assert!(core
+        .db
+        .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
+        .unwrap()
+        .is_none());
+    let pending = workspace
+        .snapshot()
+        .unwrap()
+        .state
+        .entry(&WorkspaceKey::new("plugin-selections", "acme.hotkeys").unwrap())
+        .unwrap()
+        .pending
+        .clone()
+        .unwrap();
+    assert_eq!(pending.base_record, None);
+    assert_eq!(pending.base_revision, None);
     core.shutdown().await;
     drop(source);
     server.abort();
@@ -502,6 +528,7 @@ async fn untracked_local_review_revalidates_runtime_and_source_before_callback()
                         config_generation: 7,
                         version: Some(version),
                     },
+                    None,
                 )
                 .map_err(|error| tiktools_cloud_sync::SyncCoordError::Local(error.to_string()))
         })
@@ -514,6 +541,22 @@ async fn untracked_local_review_revalidates_runtime_and_source_before_callback()
         .unwrap();
     assert_eq!(pending.version.as_deref(), Some("1.0.0"));
     assert_eq!(pending.runtime_epoch, None);
+    let runtime_review = source
+        .review_reconciled_runtime("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    source.confirm_reconciled_runtime(&runtime_review).unwrap();
+    assert!(
+        tiktools_cloud_sync::V2ProductSource::with_fenced_decision::<()>(&source, |_, _| panic!(
+            "legacy unclassified candidate staged"
+        ))
+        .is_err()
+    );
+    assert!(core
+        .db
+        .plugin_sync_intent_for("https://cloud.example", "alice", "acme.hotkeys")
+        .unwrap()
+        .is_some());
     core.shutdown().await;
     drop(source);
     let _ = std::fs::remove_dir_all(root);

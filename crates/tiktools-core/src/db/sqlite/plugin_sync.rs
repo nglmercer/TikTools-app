@@ -31,6 +31,7 @@ pub(crate) struct PluginSyncOutboxEntry {
     pub config_generation: u128,
     /// Confirmation is valid only for this particular native host lifetime.
     pub runtime_epoch: Option<String>,
+    pub reviewed_base: Option<String>,
     pub version: Option<String>,
     pub enabled: Option<bool>,
 }
@@ -202,6 +203,7 @@ impl DatabaseManager {
         &self,
         review: &UntrackedPluginReview,
         intent: &LocalPluginSyncIntent<'_>,
+        reviewed_base: Option<&str>,
     ) -> Result<(), DatabaseError> {
         let version = intent
             .version
@@ -230,7 +232,7 @@ impl DatabaseManager {
                 "untracked plugin review is stale or blocked".into(),
             ));
         }
-        tx.execute("INSERT INTO plugin_sync_outbox(origin,account_id,plugin_id,generation,config_generation,version,enabled,runtime_epoch) VALUES (?1,?2,?3,?4,?5,?6,?7,NULL)", params![intent.origin, intent.account_id, review.plugin_id, review.generation, intent.config_generation.to_string(), version, bool_int(review.enabled)])?;
+        tx.execute("INSERT INTO plugin_sync_outbox(origin,account_id,plugin_id,generation,config_generation,version,enabled,runtime_epoch,reviewed_base) VALUES (?1,?2,?3,?4,?5,?6,?7,NULL,?8)", params![intent.origin, intent.account_id, review.plugin_id, review.generation, intent.config_generation.to_string(), version, bool_int(review.enabled), reviewed_base])?;
         if tx.execute(
             "DELETE FROM plugin_sync_untracked_local WHERE plugin_id=?1 AND generation=?2",
             params![review.plugin_id, review.generation],
@@ -287,11 +289,11 @@ impl DatabaseManager {
         if let Some(candidate) = intent {
             let sync_enabled = candidate.version.map(|_| bool_int(enabled));
             let written = tx.execute(
-                "INSERT INTO plugin_sync_outbox(origin,account_id,plugin_id,generation,config_generation,version,enabled)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7)
+                "INSERT INTO plugin_sync_outbox(origin,account_id,plugin_id,generation,config_generation,version,enabled,reviewed_base)
+                 VALUES (?1,?2,?3,?4,?5,?6,?7,'direct')
                  ON CONFLICT(origin,account_id,plugin_id) DO UPDATE SET
                     generation=excluded.generation,config_generation=excluded.config_generation,
-                    runtime_epoch=NULL,version=excluded.version,enabled=excluded.enabled
+                    runtime_epoch=NULL,reviewed_base='direct',version=excluded.version,enabled=excluded.enabled
                  WHERE plugin_sync_outbox.config_generation IS NOT NULL",
                 params![candidate.origin, candidate.account_id, id, generation, candidate.config_generation.to_string(), candidate.version, sync_enabled],
             )?;
@@ -336,7 +338,7 @@ impl DatabaseManager {
     ) -> Result<Option<PluginSyncOutboxEntry>, DatabaseError> {
         let db = self.open(&self.automation_path())?;
         let entry = db.query_row(
-            "SELECT o.origin,o.account_id,o.plugin_id,o.generation,s.generation,o.config_generation,o.version,o.enabled,o.runtime_epoch
+            "SELECT o.origin,o.account_id,o.plugin_id,o.generation,s.generation,o.config_generation,o.version,o.enabled,o.runtime_epoch,o.reviewed_base
              FROM plugin_sync_outbox o LEFT JOIN plugin_sync_source_versions s ON s.plugin_id=o.plugin_id
              WHERE o.origin=?1 AND o.account_id=?2 AND (?3 IS NULL OR o.plugin_id=?3) ORDER BY o.plugin_id COLLATE BINARY LIMIT 1",
             params![origin, account, plugin_id], |row| {
@@ -347,7 +349,7 @@ impl DatabaseManager {
                     origin: row.get(0)?, account_id: row.get(1)?, plugin_id: row.get(2)?,
                     generation: row.get(3)?, source_generation: source.unwrap_or(0),
                     config_generation: config.as_deref().and_then(|s| s.parse::<u128>().ok()).unwrap_or_default(),
-                    version: row.get(6)?, enabled: raw.map(|value| value != 0), runtime_epoch: row.get(8)?,
+                    version: row.get(6)?, enabled: raw.map(|value| value != 0), runtime_epoch: row.get(8)?, reviewed_base: row.get(9)?,
                 }, raw, config))
             },
         ).optional()?;
@@ -398,7 +400,7 @@ impl DatabaseManager {
         let db = self.open(&self.automation_path())?;
         let changed = db.execute(
             "UPDATE plugin_sync_outbox SET runtime_epoch=?6 WHERE origin=?1 AND account_id=?2 AND plugin_id=?3
-             AND generation=?4 AND config_generation=?5 AND version IS ?7 AND enabled IS ?8
+             AND generation=?4 AND config_generation=?5 AND version IS ?7 AND enabled IS ?8 AND reviewed_base IS ?9
              AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s WHERE s.plugin_id=?3 AND s.generation=?4)
              AND EXISTS(SELECT 1 FROM behavior_plugins b WHERE b.id=?3
                  AND b.installed=CASE WHEN ?7 IS NULL THEN 0 ELSE 1 END
@@ -406,7 +408,7 @@ impl DatabaseManager {
              AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=?3 OR p.plugin_id IS NULL)",
             params![entry.origin, entry.account_id, entry.plugin_id, entry.generation,
                 entry.config_generation.to_string(), runtime_epoch, entry.version,
-                entry.enabled.map(bool_int)],
+                entry.enabled.map(bool_int), entry.reviewed_base],
         )?;
         Ok(changed == 1)
     }
@@ -428,7 +430,7 @@ impl DatabaseManager {
         let removed = db.execute(
             "DELETE FROM plugin_sync_outbox WHERE origin=?1 AND account_id=?2 AND plugin_id=?3
              AND generation=?4 AND config_generation=?5 AND runtime_epoch=?6
-             AND version IS ?7 AND enabled IS ?8 AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s
+             AND version IS ?7 AND enabled IS ?8 AND reviewed_base IS ?9 AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s
                  WHERE s.plugin_id=?3 AND s.generation=?4)
              AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=?3 OR p.plugin_id IS NULL)",
             params![
@@ -440,6 +442,7 @@ impl DatabaseManager {
                 runtime_epoch,
                 entry.version,
                 entry.enabled.map(bool_int),
+                entry.reviewed_base,
             ],
         )?;
         Ok(removed == 1)
@@ -710,7 +713,7 @@ mod tests {
             .unwrap();
         assert!(f
             .db
-            .reconcile_untracked_plugin(&old, &f.intent("alice"))
+            .reconcile_untracked_plugin(&old, &f.intent("alice"), None)
             .is_err());
         assert!(f.db.has_untracked_plugin_sync().unwrap());
         assert!(f
@@ -725,7 +728,7 @@ mod tests {
         db.execute_batch("CREATE TRIGGER reject_marker_delete BEFORE DELETE ON plugin_sync_untracked_local BEGIN SELECT RAISE(ABORT, 'injected'); END;").unwrap();
         assert!(f
             .db
-            .reconcile_untracked_plugin(&review, &f.intent("alice"))
+            .reconcile_untracked_plugin(&review, &f.intent("alice"), None)
             .is_err());
         assert!(f.db.has_untracked_plugin_sync().unwrap());
         assert!(f
@@ -735,7 +738,7 @@ mod tests {
             .is_none());
         db.execute_batch("DROP TRIGGER reject_marker_delete")
             .unwrap();
-        f.db.reconcile_untracked_plugin(&review, &f.intent("alice"))
+        f.db.reconcile_untracked_plugin(&review, &f.intent("alice"), None)
             .unwrap();
         assert!(!f.db.has_untracked_plugin_sync().unwrap());
         let outbox =
@@ -748,7 +751,7 @@ mod tests {
         assert_eq!(outbox.runtime_epoch, None);
         assert!(f
             .db
-            .reconcile_untracked_plugin(&review, &f.intent("alice"))
+            .reconcile_untracked_plugin(&review, &f.intent("alice"), None)
             .is_err());
     }
 
@@ -762,7 +765,7 @@ mod tests {
         let review = f.db.review_untracked_plugin("hotkeys").unwrap().unwrap();
         assert!(f
             .db
-            .reconcile_untracked_plugin(&review, &f.intent("alice"))
+            .reconcile_untracked_plugin(&review, &f.intent("alice"), None)
             .is_err());
         assert!(f.db.has_untracked_plugin_sync().unwrap());
         assert!(f
@@ -776,7 +779,7 @@ mod tests {
         assert!(!removed.installed);
         assert!(f
             .db
-            .reconcile_untracked_plugin(&removed, &f.intent("alice"))
+            .reconcile_untracked_plugin(&removed, &f.intent("alice"), None)
             .is_err());
         assert!(f.db.review_untracked_plugin("removed").unwrap().is_some());
         f.db.set_plugin_state_with_untracked_sync("legacy", true, false)
@@ -786,7 +789,7 @@ mod tests {
         db.execute("INSERT INTO plugin_sync_receipts(origin,account_id,plugin_id,generation,config_generation,runtime_epoch,pending_json) VALUES (?1,?2,?3,?4,?5,?6,?7)", params!["https://cloud.example", "bob", "legacy", legacy.generation, "7", "a".repeat(64), "{}"] ).unwrap();
         assert!(f
             .db
-            .reconcile_untracked_plugin(&legacy, &f.intent("alice"))
+            .reconcile_untracked_plugin(&legacy, &f.intent("alice"), None)
             .is_err());
         assert_eq!(
             f.db.review_untracked_plugin("legacy").unwrap(),

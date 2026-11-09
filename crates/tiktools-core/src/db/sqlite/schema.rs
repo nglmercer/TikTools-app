@@ -420,6 +420,9 @@ CREATE TABLE IF NOT EXISTS plugin_sync_outbox (
   -- Runtime confirmation is scoped to one host lifetime and must be
   -- re-established after restart before a candidate may be acknowledged.
   runtime_epoch TEXT,
+  -- JSON null is a reviewed absence, 'direct' is a new direct edit and SQL
+  -- NULL is an older unclassified candidate that requires review.
+  reviewed_base TEXT,
   version TEXT,
   enabled INTEGER CHECK(enabled IN (0,1)),
   CHECK((version IS NULL AND enabled IS NULL) OR
@@ -655,6 +658,14 @@ fn migrate_plugin_sync_outbox(db: &mut Connection) -> Result<(), DatabaseError> 
     )?;
     if present == 0 {
         tx.execute_batch("ALTER TABLE plugin_sync_outbox ADD COLUMN runtime_epoch TEXT;")?;
+    }
+    let present: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('plugin_sync_outbox') WHERE name='reviewed_base'",
+        [],
+        |row| row.get(0),
+    )?;
+    if present == 0 {
+        tx.execute_batch("ALTER TABLE plugin_sync_outbox ADD COLUMN reviewed_base TEXT;")?;
     }
     tx.commit()?;
     Ok(())

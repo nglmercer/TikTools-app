@@ -388,6 +388,92 @@ fn guard_product_fixture(coordinator: &WorkspaceCoordinator) {
         .save(Some(snapshot.generation), &snapshot.state)
         .unwrap();
 }
+
+#[tokio::test]
+async fn reviewed_base_is_required_when_staging_and_survives_restart() {
+    let server = start_server().await;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("private");
+    let coord = coordinator(&root, &server, "account-a");
+    coord.bootstrap(&[], None).unwrap();
+    guard_product_fixture(&coord);
+    let target = key("plugin-selections", "acme.plugin");
+    let record = WorkspaceRecord {
+        collection: target.collection.clone(),
+        key: target.key.clone(),
+        revision: 7,
+        deleted: false,
+        value: Some(serde_json::to_value(selection()).unwrap()),
+    };
+    let mut snapshot = coord.snapshot().unwrap();
+    snapshot
+        .state
+        .install_rebuild(cloud_client::WorkspaceSnapshot {
+            schema_version: 2,
+            cursor: 7,
+            records: vec![record.clone()],
+        })
+        .unwrap();
+    coord
+        .store
+        .save(Some(snapshot.generation), &snapshot.state)
+        .unwrap();
+    let edit = WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap());
+    let digest = "a".repeat(64);
+    assert!(coord
+        .stage_product_decision_with_base(target.clone(), edit.clone(), 3, &digest, Some(None))
+        .is_err());
+    assert!(coord
+        .snapshot()
+        .unwrap()
+        .state
+        .entry(&target)
+        .unwrap()
+        .pending
+        .is_none());
+    let mut changed = record.clone();
+    changed.revision = 8;
+    assert!(coord
+        .stage_product_decision_with_base(
+            target.clone(),
+            edit.clone(),
+            3,
+            &digest,
+            Some(Some(&changed))
+        )
+        .is_err());
+    assert!(
+        coord
+            .stage_product_decision_with_base(
+                target.clone(),
+                edit.clone(),
+                3,
+                &digest,
+                Some(Some(&record))
+            )
+            .unwrap()
+            .1
+    );
+    drop(coord);
+    let reopened = coordinator(&root, &server, "account-a");
+    let pending = reopened
+        .snapshot()
+        .unwrap()
+        .state
+        .entry(&target)
+        .unwrap()
+        .pending
+        .clone()
+        .unwrap();
+    assert_eq!(pending.base_revision, Some(7));
+    assert_eq!(pending.base_record.as_ref(), Some(&record));
+    assert!(
+        !reopened
+            .stage_product_decision_with_base(target, edit, 3, &digest, Some(Some(&record)))
+            .unwrap()
+            .1
+    );
+}
 fn key(collection: &str, name: &str) -> WorkspaceKey {
     WorkspaceKey::new(collection, name).unwrap()
 }

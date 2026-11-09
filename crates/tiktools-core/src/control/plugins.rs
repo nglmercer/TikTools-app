@@ -188,6 +188,7 @@ fn reserve_local_plugin_mutation_prepared_for<T>(
             source_generation: generation,
             config_generation: context.config_generation,
             runtime_epoch: None,
+            reviewed_base: Some("direct".to_owned()),
             version: installed.then(|| version.to_owned()),
             enabled: installed.then_some(enabled),
         });

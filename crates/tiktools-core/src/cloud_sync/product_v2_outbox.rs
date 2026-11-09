@@ -96,6 +96,8 @@ impl<'a> SqliteV2ProductSource<'a> {
         {
             return Err(WorkspaceCoordError::Ineligible);
         }
+        let reviewed_base = serde_json::to_string(&admission.remote())
+            .map_err(|_| WorkspaceCoordError::Ineligible)?;
         self.with_untracked_source(
             &review.source.plugin_id,
             Some(admission),
@@ -116,6 +118,7 @@ impl<'a> SqliteV2ProductSource<'a> {
                             config_generation: context.config_generation,
                             version: Some(version),
                         },
+                        Some(&reviewed_base),
                     )
                     .map_err(|_| unavailable())
             },
@@ -326,7 +329,7 @@ impl<'a> SqliteV2ProductSource<'a> {
 impl V2ProductSource for SqliteV2ProductSource<'_> {
     fn with_fenced_decision<T>(
         &self,
-        stage: impl FnOnce(&V2ProductDecision) -> Result<T, SyncCoordError>,
+        stage: impl FnOnce(&V2ProductDecision, Option<&str>) -> Result<T, SyncCoordError>,
     ) -> Result<T, SyncCoordError> {
         let runtime = self
             .core
@@ -369,7 +372,14 @@ impl V2ProductSource for SqliteV2ProductSource<'_> {
                 enabled,
             }),
         };
-        let result = stage(&decision)?;
+        // Older entries cannot prove whether they came from a reviewed
+        // reconciliation or a direct edit. Never guess their remote base.
+        let base = match entry.reviewed_base.as_deref() {
+            Some("direct") => None,
+            Some(base) => Some(base),
+            None => return Err(unavailable()),
+        };
+        let result = stage(&decision, base)?;
         if !self
             .core
             .db

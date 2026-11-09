@@ -209,7 +209,7 @@ pub trait V2ProductUploadSource: Send + Sync {
 pub trait V2ProductSource {
     fn with_fenced_decision<T>(
         &self,
-        stage: impl FnOnce(&V2ProductDecision) -> Result<T, SyncCoordError>,
+        stage: impl FnOnce(&V2ProductDecision, Option<&str>) -> Result<T, SyncCoordError>,
     ) -> Result<T, SyncCoordError>;
 }
 
@@ -348,7 +348,7 @@ impl SyncCoordinator {
         &self,
         source: &S,
     ) -> Result<(u64, bool), SyncCoordError> {
-        source.with_fenced_decision(|decision| {
+        source.with_fenced_decision(|decision, reviewed_base| {
             let identity = self
                 .auth
                 .try_sync_identity()
@@ -391,6 +391,10 @@ impl SyncCoordinator {
                         None => WorkspaceEdit::Delete,
                     };
                     let digest = decision.digest().map_err(|_| SyncCoordError::StaleReview)?;
+                    let base = reviewed_base
+                        .map(serde_json::from_str::<Option<cloud_client::WorkspaceRecord>>)
+                        .transpose()
+                        .map_err(|_| SyncCoordError::StaleReview)?;
                     let root = self
                         .config_path
                         .parent()
@@ -399,7 +403,13 @@ impl SyncCoordinator {
                         WorkspaceCoordinator::open(root, identity.0.clone(), identity.1.clone())
                             .map_err(|_| SyncCoordError::StaleReview)?;
                     workspace
-                        .stage_product_decision(target, edit, decision.source_generation, &digest)
+                        .stage_product_decision_with_base(
+                            target,
+                            edit,
+                            decision.source_generation,
+                            &digest,
+                            base.as_ref().map(Option::as_ref),
+                        )
                         .map_err(|_| SyncCoordError::StaleReview)
                 })
                 .map_err(|_| SyncCoordError::Protocol(ProtocolFenceError::Busy))?
