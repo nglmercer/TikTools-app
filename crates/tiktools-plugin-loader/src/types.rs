@@ -276,6 +276,7 @@ impl PluginEventSender {
 /// per-plugin channels the manager could never drain.
 pub struct WorkerContext {
     emit_tx: PluginEventSender,
+    close_events_on_drop: bool,
     generation: u64,
     /// Startup-handshake bound the runtime must honour before reporting a
     /// load failure. Owned by the manager so one stuck plugin cannot freeze
@@ -297,6 +298,7 @@ impl WorkerContext {
     ) -> Self {
         Self {
             emit_tx: PluginEventSender::starting(emit_tx, plugin_id, generation),
+            close_events_on_drop: true,
             start_deadline,
             generation,
             retain_uncertain_start,
@@ -322,6 +324,12 @@ impl WorkerContext {
         self.emit_tx.activate_with(before)
     }
 
+    /// Transfer responsibility for completing or closing startup events to
+    /// the package lease after the worker was successfully registered.
+    pub(crate) fn defer_events_to_package(&mut self) {
+        self.close_events_on_drop = false;
+    }
+
     /// How long a runtime may take to report a finished load (`onLoad`,
     /// native addon init) before the manager treats it as a failed start.
     pub fn start_deadline(&self) -> std::time::Duration {
@@ -331,7 +339,9 @@ impl WorkerContext {
 
 impl Drop for WorkerContext {
     fn drop(&mut self) {
-        self.emit_tx.close_if_starting();
+        if self.close_events_on_drop {
+            self.emit_tx.close_if_starting();
+        }
     }
 }
 

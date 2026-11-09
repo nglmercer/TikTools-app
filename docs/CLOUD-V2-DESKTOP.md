@@ -232,6 +232,28 @@ binaries, overlapping ancestor roots, non-cooperating concurrent replacements
 and unverified Windows junction behavior remain outside that fence. Policy
 patches now read, merge and save under the same cooperative lease.
 
+The local plugin manager also fences ordinary starts, calls and package
+operations for a plugin during installation, replacement, rollback or
+removal. It buffers up to 64 startup events from an authorized replacement
+worker until the package operation and its final source fence succeed; an
+overflow fails the emit, and cancellation or an uncertain result discards the
+buffer and keeps the plugin fenced for this manager's lifetime. Shutdown
+reports an active or unresolved package operation as unsafe. This is not a
+blocking wait: if another lifecycle operation holds the manager lock at
+finalization, the package stays conservatively fenced and requires recovery,
+even if its files were successfully written. This is not a
+durable transaction: process restart loses the in-memory fence and does not
+prove whether external effects completed. A durable package journal,
+reconciliation and recovery remain required. Guest `onLoad` still runs before
+finalization so activation failure can trigger rollback; its direct external
+I/O cannot be undone. Previously dispatched calls and events that passed their
+last generation check may still complete across the fence. An isolated call
+prepared before the fence can still dispatch independently, and preparation
+can race acquisition; a shared admission epoch and tracking are needed.
+Startup event delivery remains bounded by the existing broadcast and consumer
+semantics, without replay or a guaranteed gap indication. These limits do not
+establish complete package atomicity or reliable event delivery.
+
 An experimental runtime quarantine blocks known unfinished plugin applications
 after restart and rejects several activation and late-response paths. Finalized
 records now have a separate witness written in the same SQLite transaction;

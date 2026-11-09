@@ -203,10 +203,11 @@ impl AppCore {
                     .db
                     .invalidate_plugin_package_source(&plugin_id)
                     .map_err(InstallError::io)?;
+                let activation = CoreActivation::new(&worker_core);
                 let outcome = installer.rollback(
                     &plugin_id,
                     version.as_deref(),
-                    &CoreActivation(&worker_core),
+                    &activation,
                     worker_job.as_ref(),
                 );
                 #[cfg(feature = "persistence")]
@@ -217,7 +218,9 @@ impl AppCore {
                         "package rollback may have changed files but its final source fence failed: {error}"
                     )));
                 }
-                outcome
+                let outcome = outcome?;
+                activation.finish()?;
+                Ok(outcome)
             })
             .await
             .unwrap_or_else(|error| Err(InstallError::io(error)));
@@ -715,13 +718,14 @@ impl AppCore {
             core.db
                 .invalidate_plugin_package_source(&prepared.manifest.id)
                 .map_err(InstallError::io)?;
+            let activation = CoreActivation::new(&core);
             let outcome = installer.commit(
                 &prepared,
                 &CommitOptions {
                     consent: Consent::Token(token),
                     policy,
                 },
-                &CoreActivation(&core),
+                &activation,
                 worker_job.as_ref(),
             );
             #[cfg(feature = "persistence")]
@@ -732,7 +736,9 @@ impl AppCore {
                     "package operation may have changed files but its final source fence failed: {error}"
                 )));
             }
-            outcome
+            let outcome = outcome?;
+            activation.finish()?;
+            Ok(outcome)
         })
         .await
         .unwrap_or_else(|error| Err(InstallError::io(error)))

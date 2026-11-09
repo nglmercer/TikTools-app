@@ -65,6 +65,63 @@ fn temp_root() -> PathBuf {
 }
 
 #[test]
+fn package_lease_fences_racing_starts_and_preserves_other_plugins() {
+    let root = temp_root();
+    write_plugin_with_runtime(&root, "first", "process");
+    write_plugin_with_runtime(&root, "second", "process");
+    let mut runtimes = RuntimeRegistry::default();
+    runtimes.register(Arc::new(TestRuntime));
+    let manager = Arc::new(PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    ));
+    manager.scan().unwrap();
+    manager.start("first").unwrap();
+    let lease = manager.begin_package_mutation("first").unwrap();
+    assert_eq!(
+        manager.observe_worker("first").unwrap(),
+        PluginWorkerObservation::Uncertain
+    );
+    assert!(lease.stop_if_present().unwrap());
+    let other = Arc::clone(&manager);
+    let raced = std::thread::spawn(move || other.start("first"))
+        .join()
+        .unwrap();
+    assert!(matches!(
+        raced,
+        Err(PluginLoaderError::RuntimeUnavailable(_))
+    ));
+    manager.start("second").unwrap();
+    lease.start().unwrap();
+    assert!(manager.stop("first").is_err());
+    assert!(manager.start("first").is_err());
+    lease.finish().unwrap();
+    manager.start("first").unwrap();
+    assert!(manager.stop_all_checked());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn interrupted_package_and_shutdown_stay_fail_closed() {
+    let manager = Arc::new(PluginManager::new(Vec::new()));
+    let lease = manager.begin_package_mutation("first").unwrap();
+    assert!(!manager.stop_all_checked());
+    assert!(lease.start().is_err());
+    assert!(manager.begin_package_mutation("second").is_err());
+    drop(lease);
+    assert!(!manager.stop_all_checked());
+
+    let manager = Arc::new(PluginManager::new(Vec::new()));
+    drop(manager.begin_package_mutation("first").unwrap());
+    assert!(manager.start("first").is_err());
+    assert!(manager.begin_package_mutation("first").is_err());
+    assert!(!manager.stop_all_checked());
+}
+
+#[test]
 fn later_root_overrides_by_id_without_compile_time_registration() {
     let first = temp_root();
     let second = temp_root();
@@ -223,6 +280,153 @@ fn quickjs_onload_events_are_published_only_after_successful_start() {
     );
     assert!(!manager.is_running("startup-bad"));
     manager.stop("startup-good").unwrap();
+    let _ = fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn package_worker_defers_startup_events_and_calls_until_commit() {
+    let root = temp_root();
+    for id in ["committed", "cancelled"] {
+        let dir = root.join(id);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("plugin.json"), format!(r#"{{"schemaVersion":3,"id":"{id}","name":"test","version":"1.0.0","runtime":"napi-vm","entry":"index.js","capabilities":["events.publish"],"eventTypes":[{{"type":"push.tick","title":{{"default":"Tick"}}}}],"apiVersion":1}}"#)).unwrap();
+        fs::write(dir.join("index.js"), format!(r#"import {{ emit }} from 'tiktools:events'; export default {{ onLoad() {{ emit({{type:'push.tick',data:{{id:'{id}'}}}}); }}, call() {{ return {{ok:true}}; }}, onUnload() {{}} }};"#)).unwrap();
+    }
+    let manager = Arc::new(PluginManager::new(vec![PluginRoot {
+        path: root.clone(),
+        source: PluginSource::Development,
+    }]));
+    manager.scan().unwrap();
+    let mut events = manager.subscribe_emitted_events();
+    let lease = manager.begin_package_mutation("committed").unwrap();
+    assert!(!lease.stop_if_present().unwrap());
+    lease.start().unwrap();
+    assert!(events.try_recv().is_err());
+    assert!(manager.running_generation("committed").is_none());
+    assert!(manager
+        .call("committed", &serde_json::Value::Null)
+        .await
+        .is_err());
+    lease.finish().unwrap();
+    assert_eq!(events.try_recv().unwrap().plugin_id, "committed");
+    assert!(manager
+        .call("committed", &serde_json::Value::Null)
+        .await
+        .is_ok());
+    let lease = manager.begin_package_mutation("cancelled").unwrap();
+    assert!(!lease.stop_if_present().unwrap());
+    lease.start().unwrap();
+    drop(lease);
+    assert!(events.try_recv().is_err());
+    assert!(manager
+        .call("cancelled", &serde_json::Value::Null)
+        .await
+        .is_err());
+    assert!(manager.running_generation("cancelled").is_none());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn package_cannot_finish_if_restarted_worker_already_exited() {
+    struct Exiting;
+    impl PluginRuntime for Exiting {
+        fn kind(&self) -> PluginRuntimeKind {
+            PluginRuntimeKind::Process
+        }
+        fn load(
+            &self,
+            _: &PluginManifest,
+            _: &Path,
+        ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+            unreachable!()
+        }
+        fn spawn_worker(
+            &self,
+            _: &PluginManifest,
+            _: &Path,
+            _: &WorkerContext,
+        ) -> Option<Result<ManagedWorker, PluginLoaderError>> {
+            let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+            Some(Ok(ManagedWorker::new(tx, std::thread::spawn(|| Ok(())))))
+        }
+    }
+    let root = temp_root();
+    write_plugin_with_runtime(&root, "exited", "process");
+    let mut runtimes = RuntimeRegistry::default();
+    runtimes.register(Arc::new(Exiting));
+    let manager = Arc::new(PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    ));
+    manager.scan().unwrap();
+    let lease = manager.begin_package_mutation("exited").unwrap();
+    lease.start().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !manager.worker_finished_for_test("exited") {
+        assert!(Instant::now() < deadline);
+        std::thread::yield_now();
+    }
+    assert!(lease.finish().is_err());
+    assert!(manager.begin_package_mutation("exited").is_err());
+    assert!(!manager.stop_all_checked());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn aborted_package_requests_worker_shutdown_without_reopening_admission() {
+    struct Runtime(Arc<std::sync::atomic::AtomicBool>);
+    struct Instance(Arc<std::sync::atomic::AtomicBool>);
+    impl PluginRuntime for Runtime {
+        fn kind(&self) -> PluginRuntimeKind {
+            PluginRuntimeKind::Process
+        }
+        fn load(
+            &self,
+            _: &PluginManifest,
+            _: &Path,
+        ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+            Ok(Box::new(Instance(Arc::clone(&self.0))))
+        }
+    }
+    impl PluginInstance for Instance {
+        fn id(&self) -> &str {
+            "aborted"
+        }
+        fn handle_message(&mut self, _: &[u8]) -> Result<Vec<u8>, PluginLoaderError> {
+            Ok(b"null".to_vec())
+        }
+        fn shutdown(&mut self) -> Result<(), PluginLoaderError> {
+            self.0.store(true, std::sync::atomic::Ordering::Release);
+            Ok(())
+        }
+    }
+    let root = temp_root();
+    write_plugin_with_runtime(&root, "aborted", "process");
+    let stopped = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut runtimes = RuntimeRegistry::default();
+    runtimes.register(Arc::new(Runtime(Arc::clone(&stopped))));
+    let manager = Arc::new(PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    ));
+    manager.scan().unwrap();
+    let lease = manager.begin_package_mutation("aborted").unwrap();
+    lease.start().unwrap();
+    drop(lease);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !stopped.load(std::sync::atomic::Ordering::Acquire) {
+        assert!(Instant::now() < deadline, "worker did not receive shutdown");
+        std::thread::yield_now();
+    }
+    assert!(manager.start("aborted").is_err());
+    assert!(manager.begin_package_mutation("aborted").is_err());
+    assert!(!manager.stop_all_checked());
     let _ = fs::remove_dir_all(root);
 }
 
@@ -1089,7 +1293,7 @@ async fn stopped_generation_reports_unavailable_without_changing_generic_not_fou
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn generation_bound_call_discards_response_after_stop_and_restart() {
+async fn generation_bound_call_discards_response_after_uncertain_stop() {
     let root = temp_root();
     write_plugin_with_runtime(&root, "demo", &in_process_test_kind().to_string());
     let gate = Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
@@ -1146,8 +1350,10 @@ async fn generation_bound_call_discards_response_after_stop_and_restart() {
             .unwrap()
     };
     assert!(stopped.is_err(), "the blocked old worker must time out");
-    let replacement = manager.start_generation("demo").unwrap();
-    assert_ne!(generation, replacement);
+    assert!(matches!(
+        manager.start_generation("demo"),
+        Err(PluginLoaderError::StartupUncertain(_))
+    ));
     {
         let (lock, changed) = &*gate;
         *lock.lock().unwrap() = true;
@@ -1157,17 +1363,11 @@ async fn generation_bound_call_discards_response_after_stop_and_restart() {
         pending.await.unwrap(),
         Err(PluginLoaderError::RuntimeUnavailable(_))
     ));
-    assert_eq!(manager.running_generation("demo"), Some(replacement));
-    assert!(manager
-        .call_with_generation(
-            "demo",
-            &serde_json::Value::Null,
-            Duration::from_secs(1),
-            replacement
-        )
-        .await
-        .is_ok());
-    manager.stop("demo").unwrap();
+    assert_eq!(manager.running_generation("demo"), None);
+    assert!(matches!(
+        manager.start_generation("demo"),
+        Err(PluginLoaderError::StartupUncertain(_))
+    ));
     let _ = fs::remove_dir_all(root);
 }
 
@@ -1417,6 +1617,36 @@ async fn stop_abandons_a_wedged_worker_after_the_deadline_instead_of_hanging() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[test]
+fn failed_package_stop_keeps_worker_and_admission_uncertain() {
+    let gate = ShutdownGate::new();
+    let root = temp_root();
+    write_plugin_with_runtime(&root, "wedged", &in_process_test_kind().to_string());
+    let mut runtimes = RuntimeRegistry::default();
+    runtimes.register(Arc::new(WedgedShutdownRuntime {
+        gate: ShutdownGate(Arc::clone(&gate.0)),
+    }));
+    let manager = Arc::new(PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    ));
+    manager.scan().unwrap();
+    manager.start("wedged").unwrap();
+    manager.set_stop_deadline_for_test(Duration::from_millis(50));
+    let lease = manager.begin_package_mutation("wedged").unwrap();
+    assert!(lease.stop_if_present().is_err());
+    assert_eq!(manager.uncertain_startup_worker_count_for_test("wedged"), 1);
+    assert!(lease.finish().is_err());
+    assert!(manager.start("wedged").is_err());
+    assert!(manager.begin_package_mutation("wedged").is_err());
+    assert!(!manager.stop_all_checked());
+    gate.release();
+    let _ = fs::remove_dir_all(root);
+}
+
 /// Runtime whose first owned worker thread exits immediately (a worker that
 /// died before any caller observed it) and whose later starts fall back to
 /// the generic worker, so the restarted generation can answer a call.
@@ -1555,15 +1785,20 @@ async fn panic_retirement_keeps_join_ownership_until_the_next_reap() {
         1,
         "the hot path must retain the failed worker's join handle instead of dropping it"
     );
-    // Any later lifecycle pass reaps retained handles once their thread has
-    // finished; the reap never waits on a live thread, so give the panicked
-    // worker its unwind window and re-ap pass until it is joined (its panic
-    // logged), never abandoned.
+    // A package operation reaps finished retired workers without waiting for
+    // a live one, and succeeds as soon as the failed worker is joined.
     let deadline = Instant::now() + Duration::from_secs(5);
-    while manager.retired_worker_count() > 0 && Instant::now() < deadline {
-        manager.stop_all();
+    let lease = loop {
+        if let Ok(lease) = manager.begin_package_mutation("doomed") {
+            break lease;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "finished worker was never reaped"
+        );
         tokio::time::sleep(Duration::from_millis(5)).await;
-    }
+    };
+    lease.finish().unwrap();
     assert_eq!(
         manager.retired_worker_count(),
         0,

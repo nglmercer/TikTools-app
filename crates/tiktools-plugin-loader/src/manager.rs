@@ -199,6 +199,8 @@ pub struct PluginManager {
     starts_inflight: AtomicU64,
     /// Once checked shutdown begins, no later start can be admitted.
     shutdown_admission_closed: AtomicBool,
+    package_fences: Mutex<BTreeMap<String, u64>>,
+    next_package_token: AtomicU64,
     next_token: AtomicU64,
     emit_bus: broadcast::Sender<EmittedEvent>,
     /// Bumped on every registry/instance mutation (scan, start, stop,
@@ -222,12 +224,209 @@ pub struct PluginManager {
     isolated_admission: Arc<tokio::sync::Semaphore>,
 }
 
+/// Exclusive admission for one package transaction. Dropping without a
+/// successful finish deliberately leaves the package fenced for this manager.
+pub struct PluginPackageLease {
+    manager: Arc<PluginManager>,
+    id: String,
+    token: u64,
+    failed: AtomicBool,
+    finished: AtomicBool,
+    started: Mutex<Option<u64>>,
+}
+
+impl PluginPackageLease {
+    pub fn stop_if_present(&self) -> Result<bool, PluginLoaderError> {
+        let result = self.manager.stop_with_package(&self.id, Some(self.token));
+        if result.is_err() {
+            self.failed.store(true, Ordering::Release);
+        }
+        result
+    }
+
+    pub fn start(&self) -> Result<(), PluginLoaderError> {
+        let result = self
+            .manager
+            .start_generation_with_package(&self.id, || {}, Some(self.token))
+            .and_then(|generation| {
+                *self
+                    .started
+                    .lock()
+                    .map_err(|_| lock_poisoned("plugin package lease generation"))? =
+                    Some(generation);
+                Ok(())
+            });
+        if result.is_err() {
+            self.failed.store(true, Ordering::Release);
+        }
+        result
+    }
+
+    pub fn finish(self) -> Result<(), PluginLoaderError> {
+        if self.failed.load(Ordering::Acquire) {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin package lease requires recovery".into(),
+            ));
+        }
+        let _lifecycle = self.manager.lifecycle.try_lock().map_err(|_| {
+            PluginLoaderError::RuntimeUnavailable("plugin lifecycle is busy or unavailable".into())
+        })?;
+        self.manager.reap_retired();
+        self.manager.ensure_startup_known(&self.id)?;
+        self.manager.ensure_no_retiring_worker(&self.id)?;
+        let mut fences = self
+            .manager
+            .package_fences
+            .lock()
+            .map_err(|_| lock_poisoned("plugin package fences"))?;
+        if fences.get(&self.id) != Some(&self.token) {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin package lease is invalid".into(),
+            ));
+        }
+        let started = *self
+            .started
+            .lock()
+            .map_err(|_| lock_poisoned("plugin package lease generation"))?;
+        if let Some(generation) = started {
+            let instances = self
+                .manager
+                .instances
+                .read()
+                .map_err(|_| lock_poisoned("plugin instances"))?;
+            let instance = instances
+                .get(&self.id)
+                .filter(|instance| instance.token == generation)
+                .ok_or_else(|| {
+                    PluginLoaderError::RuntimeUnavailable(
+                        "package worker generation changed".into(),
+                    )
+                })?;
+            if !instance
+                .worker
+                .lock()
+                .map_err(|_| lock_poisoned("plugin worker"))?
+                .as_ref()
+                .is_some_and(|worker| !worker.is_finished())
+            {
+                return Err(PluginLoaderError::RuntimeUnavailable(
+                    "package worker exited before completion".into(),
+                ));
+            }
+            instance
+                .events
+                .activate_with(|| {
+                    fences.remove(&self.id);
+                })
+                .map_err(PluginLoaderError::RuntimeUnavailable)?;
+        } else {
+            fences.remove(&self.id);
+        }
+        self.finished.store(true, Ordering::Release);
+        Ok(())
+    }
+}
+
+impl Drop for PluginPackageLease {
+    fn drop(&mut self) {
+        if self.finished.load(Ordering::Acquire) {
+            return;
+        }
+        if let Ok(started) = self.started.lock() {
+            if let Some(generation) = *started {
+                if let Ok(instances) = self.manager.instances.read() {
+                    if let Some(instance) = instances
+                        .get(&self.id)
+                        .filter(|instance| instance.token == generation)
+                    {
+                        instance.events.close();
+                        instance.admission.close();
+                        let _ = instance.tx.send(WorkerMsg::Shutdown);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Push-bus buffer: burst headroom for guest-emitted events while core
 /// drains. Bounded: a lagging subscriber drops with a `Lagged` error
 /// instead of growing memory, and emits stay small by construction.
 const EMIT_BUS_CAPACITY: usize = 256;
 
 impl PluginManager {
+    // Called with lifecycle held. A failure retirement may leave the instance
+    // map before handing its worker to the retired list; `stopping` bridges it.
+    fn ensure_no_retiring_worker(&self, id: &str) -> Result<(), PluginLoaderError> {
+        if self
+            .stopping
+            .lock()
+            .map_err(|_| lock_poisoned("plugin stopping"))?
+            .contains_key(id)
+        {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin worker is stopping".into(),
+            ));
+        }
+        let retired = self
+            .retired
+            .lock()
+            .map_err(|_| lock_poisoned("plugin retired workers"))?;
+        if self.abandoned_workers.load(Ordering::Acquire) != 0
+            || retired.iter().any(|worker| worker.id == id)
+        {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin worker outcome is uncertain".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Fence all ordinary starts while a package transaction is in progress.
+    /// A failed or interrupted transaction keeps the fence until restart.
+    pub fn begin_package_mutation(
+        self: &Arc<Self>,
+        id: &str,
+    ) -> Result<PluginPackageLease, PluginLoaderError> {
+        let _lifecycle = self.lifecycle.try_lock().map_err(|_| {
+            PluginLoaderError::RuntimeUnavailable("plugin lifecycle is busy or unavailable".into())
+        })?;
+        if self.shutdown_admission_closed.load(Ordering::Acquire) {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin manager is shutting down".into(),
+            ));
+        }
+        self.ensure_startup_known(id)?;
+        self.reap_retired();
+        self.ensure_no_retiring_worker(id)?;
+        let mut fences = self
+            .package_fences
+            .lock()
+            .map_err(|_| lock_poisoned("plugin package fences"))?;
+        if fences.contains_key(id) {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin package mutation is already active or requires recovery".into(),
+            ));
+        }
+        let token = self
+            .next_package_token
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |token| {
+                token.checked_add(1)
+            })
+            .map_err(|_| {
+                PluginLoaderError::RuntimeUnavailable("plugin token space exhausted".into())
+            })?;
+        fences.insert(id.to_owned(), token);
+        Ok(PluginPackageLease {
+            manager: Arc::clone(self),
+            id: id.to_owned(),
+            token,
+            failed: AtomicBool::new(false),
+            finished: AtomicBool::new(false),
+            started: Mutex::new(None),
+        })
+    }
+
     pub fn new(roots: Vec<PluginRoot>) -> Self {
         Self::with_runtimes(roots, RuntimeRegistry::new())
     }
@@ -242,6 +441,8 @@ impl PluginManager {
             uncertain_startups: Arc::new(Mutex::new(BTreeMap::new())),
             starts_inflight: AtomicU64::new(0),
             shutdown_admission_closed: AtomicBool::new(false),
+            package_fences: Mutex::new(BTreeMap::new()),
+            next_package_token: AtomicU64::new(1),
             next_token: AtomicU64::new(1),
             emit_bus: broadcast::channel(EMIT_BUS_CAPACITY).0,
             registry_revision: AtomicU64::new(1),
@@ -510,6 +711,14 @@ impl PluginManager {
             }
         };
         if self
+            .package_fences
+            .lock()
+            .map_err(|_| lock_poisoned("plugin package fences"))?
+            .contains_key(id)
+        {
+            return Ok(PluginWorkerObservation::Uncertain);
+        }
+        if self
             .uncertain_startups
             .lock()
             .map_err(|_| lock_poisoned("plugin uncertain startups"))?
@@ -589,6 +798,15 @@ impl PluginManager {
         id: &str,
         before_events: impl FnOnce(),
     ) -> Result<u64, PluginLoaderError> {
+        self.start_generation_with_package(id, before_events, None)
+    }
+
+    fn start_generation_with_package(
+        &self,
+        id: &str,
+        before_events: impl FnOnce(),
+        package_token: Option<u64>,
+    ) -> Result<u64, PluginLoaderError> {
         if self.shutdown_admission_closed.load(Ordering::Acquire) {
             return Err(PluginLoaderError::RuntimeUnavailable(
                 "plugin manager is shutting down".into(),
@@ -602,6 +820,20 @@ impl PluginManager {
             return Err(PluginLoaderError::RuntimeUnavailable(
                 "plugin manager is shutting down".into(),
             ));
+        }
+        {
+            let fences = self
+                .package_fences
+                .lock()
+                .map_err(|_| lock_poisoned("plugin package fences"))?;
+            if fences.get(id).copied() != package_token {
+                return Err(PluginLoaderError::RuntimeUnavailable(
+                    "plugin package mutation is active or requires recovery".into(),
+                ));
+            }
+        }
+        if package_token.is_some() {
+            self.ensure_no_retiring_worker(id)?;
         }
         self.reap_uncertain_startups();
         {
@@ -693,7 +925,7 @@ impl PluginManager {
                 .or_default()
                 .push(worker);
         });
-        let worker_ctx = WorkerContext::new(
+        let mut worker_ctx = WorkerContext::new(
             self.emit_bus.clone(),
             self.deadlines().start,
             id.to_owned(),
@@ -778,11 +1010,15 @@ impl PluginManager {
         }
         recover_rwlock_write(&self.instances, "plugin instances").insert(id.to_owned(), instance);
         self.set_running(id, true);
-        if let Err(error) = worker_ctx.activate_events(before_events) {
-            if let Some(instance) = self.retire_generation_locked(id, token) {
-                self.retire_instance(id, token, instance);
+        if package_token.is_none() {
+            if let Err(error) = worker_ctx.activate_events(before_events) {
+                if let Some(instance) = self.retire_generation_locked(id, token) {
+                    self.retire_instance(id, token, instance);
+                }
+                return Err(PluginLoaderError::RuntimeUnavailable(error));
             }
-            return Err(PluginLoaderError::RuntimeUnavailable(error));
+        } else {
+            worker_ctx.defer_events_to_package();
         }
         tracing::info!(
             id = %id,
@@ -799,11 +1035,34 @@ impl PluginManager {
     /// Atomically determine whether a worker was running and stop it. An
     /// unresolved startup must never be reported as a successful absence.
     pub fn stop_if_present(&self, id: &str) -> Result<bool, PluginLoaderError> {
+        self.stop_with_package(id, None)
+    }
+
+    fn stop_with_package(
+        &self,
+        id: &str,
+        package_token: Option<u64>,
+    ) -> Result<bool, PluginLoaderError> {
         let (instance, stopping) = {
             let _lifecycle = self
                 .lifecycle
                 .lock()
                 .map_err(|_| lock_poisoned("plugin lifecycle"))?;
+            if self
+                .package_fences
+                .lock()
+                .map_err(|_| lock_poisoned("plugin package fences"))?
+                .get(id)
+                .copied()
+                != package_token
+            {
+                return Err(PluginLoaderError::RuntimeUnavailable(
+                    "plugin package mutation is active or requires recovery".into(),
+                ));
+            }
+            if package_token.is_some() {
+                self.ensure_no_retiring_worker(id)?;
+            }
             if self
                 .uncertain_startups
                 .lock()
@@ -853,6 +1112,9 @@ impl PluginManager {
                     error.into_inner()
                 }
             };
+            if recover_mutex(&self.package_fences, "plugin package fences").contains_key(id) {
+                return false;
+            }
             if recover_mutex(&self.uncertain_startups, "plugin uncertain startups").contains_key(id)
             {
                 return false;
@@ -936,6 +1198,10 @@ impl PluginManager {
         while !worker.is_finished() {
             if started.elapsed() >= deadline {
                 self.abandoned_workers.fetch_add(1, Ordering::Relaxed);
+                recover_mutex(&self.uncertain_startups, "plugin uncertain startups")
+                    .entry(id.to_owned())
+                    .or_default()
+                    .push(worker);
                 tracing::error!(
                     id = %id,
                     elapsed_ms = started.elapsed().as_millis() as u64,
@@ -988,6 +1254,13 @@ impl PluginManager {
             }
         };
         if self.starts_inflight.load(Ordering::Acquire) != 0 {
+            return false;
+        }
+        if self
+            .package_fences
+            .lock()
+            .map_or(true, |fences| !fences.is_empty())
+        {
             return false;
         }
         drop(lifecycle);
@@ -1084,6 +1357,13 @@ impl PluginManager {
     }
 
     pub fn running_generation(&self, id: &str) -> Option<u64> {
+        if self
+            .package_fences
+            .lock()
+            .map_or(true, |fences| fences.contains_key(id))
+        {
+            return None;
+        }
         recover_rwlock_read(&self.instances, "plugin instances")
             .get(id)
             .map(|instance| instance.token)
@@ -1092,6 +1372,12 @@ impl PluginManager {
     /// Fail closed if the precise host-owned worker has exited or its map or
     /// worker lock is poisoned. This is a snapshot, not an effects lease.
     pub fn is_live_generation(&self, id: &str, generation: u64) -> bool {
+        let Ok(fences) = self.package_fences.lock() else {
+            return false;
+        };
+        if fences.contains_key(id) {
+            return false;
+        }
         let Ok(instances) = self.instances.read() else {
             return false;
         };
@@ -1127,6 +1413,16 @@ impl PluginManager {
         snapshot_directory: std::path::PathBuf,
         settings: Value,
     ) -> Result<crate::PreparedIsolatedPlugin, PluginLoaderError> {
+        if self
+            .package_fences
+            .lock()
+            .map_err(|_| lock_poisoned("plugin package fences"))?
+            .contains_key(id)
+        {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin package mutation is active or requires recovery".into(),
+            ));
+        }
         let plugin = self
             .get(id)
             .ok_or_else(|| PluginLoaderError::NotFound(id.into()))?;
@@ -1184,56 +1480,73 @@ impl PluginManager {
         deadline: Instant,
         generation: Option<u64>,
     ) -> Result<Value, PluginLoaderError> {
-        let instance = self
-            .instances
-            .read()
-            .map_err(|_| lock_poisoned("plugin instances"))?
-            .get(id)
-            .cloned()
-            .ok_or_else(|| {
-                if generation.is_some() {
-                    PluginLoaderError::RuntimeUnavailable("plugin generation changed".into())
-                } else {
-                    PluginLoaderError::NotFound(id.to_owned())
-                }
-            })?;
-        if generation.is_some_and(|generation| generation != instance.token) {
-            return Err(PluginLoaderError::RuntimeUnavailable(
-                "plugin generation changed".into(),
-            ));
-        }
-        let admission = Arc::clone(&instance.admission)
-            .try_acquire_owned()
-            .map_err(|_| PluginLoaderError::Overloaded(id.to_owned()))?;
         let bytes = serde_json::to_vec(request)
             .map_err(|error| PluginLoaderError::Runtime(error.to_string()))?;
-        let now = Instant::now();
-        if now >= deadline {
+        if Instant::now() >= deadline {
             return Err(PluginLoaderError::Timeout(format!(
                 "plugin `{id}` call already expired"
             )));
         }
-        let is_process = instance.kind == PluginRuntimeKind::Process;
-        let deadline = if is_process && instance.cold.swap(false, Ordering::AcqRel) {
-            deadline.max(now + PROCESS_FIRST_CALL_GRACE)
-        } else {
-            deadline
-        };
-        let remaining = deadline - now;
-        let (respond, answer) = oneshot::channel();
-        instance
-            .tx
-            .send(WorkerMsg::Call(QueuedCall {
+        let (instance, is_process, remaining, answer, sent) = {
+            // Admission and enqueue are synchronous and ordered against package
+            // reservation; never hold this mutex across the asynchronous reply.
+            let fences = self
+                .package_fences
+                .lock()
+                .map_err(|_| lock_poisoned("plugin package fences"))?;
+            if fences.contains_key(id) {
+                return Err(PluginLoaderError::RuntimeUnavailable(
+                    "plugin package mutation is active or requires recovery".into(),
+                ));
+            }
+            let instance = self
+                .instances
+                .read()
+                .map_err(|_| lock_poisoned("plugin instances"))?
+                .get(id)
+                .cloned()
+                .ok_or_else(|| {
+                    if generation.is_some() {
+                        PluginLoaderError::RuntimeUnavailable("plugin generation changed".into())
+                    } else {
+                        PluginLoaderError::NotFound(id.to_owned())
+                    }
+                })?;
+            if generation.is_some_and(|generation| generation != instance.token) {
+                return Err(PluginLoaderError::RuntimeUnavailable(
+                    "plugin generation changed".into(),
+                ));
+            }
+            let admission = Arc::clone(&instance.admission)
+                .try_acquire_owned()
+                .map_err(|_| PluginLoaderError::Overloaded(id.to_owned()))?;
+            let now = Instant::now();
+            if now >= deadline {
+                return Err(PluginLoaderError::Timeout(format!(
+                    "plugin `{id}` call already expired"
+                )));
+            }
+            let is_process = instance.kind == PluginRuntimeKind::Process;
+            let deadline = if is_process && instance.cold.swap(false, Ordering::AcqRel) {
+                deadline.max(now + PROCESS_FIRST_CALL_GRACE)
+            } else {
+                deadline
+            };
+            let remaining = deadline - now;
+            let (respond, answer) = oneshot::channel();
+            let sent = instance.tx.send(WorkerMsg::Call(QueuedCall {
                 admission: Some(admission),
                 request: bytes,
                 timeout: remaining,
                 deadline,
                 respond,
-            }))
-            .map_err(|_| {
-                self.remove_failed_worker(id, instance.token);
-                PluginLoaderError::Runtime(format!("plugin `{id}` worker is gone"))
-            })?;
+            }));
+            (instance, is_process, remaining, answer, sent)
+        };
+        sent.map_err(|_| {
+            self.remove_failed_worker(id, instance.token);
+            PluginLoaderError::Runtime(format!("plugin `{id}` worker is gone"))
+        })?;
         // Async wait: no thread is spent here, unlike the old blocking
         // `recv_timeout` inside `spawn_blocking`. Timeout and worker-death
         // semantics are unchanged: a dropped oneshot sender means the

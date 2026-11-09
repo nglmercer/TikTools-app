@@ -646,13 +646,14 @@ impl AppCore {
         self.db
             .invalidate_plugin_package_source(&prepared.manifest.id)
             .map_err(tiktools_plugin_installer::InstallError::io)?;
+        let activation = plugin_packages::CoreActivation::new(self);
         let outcome = packages.installer.commit(
             &prepared,
             &CommitOptions {
                 consent: Consent::Implicit { replace_existing },
                 policy: None,
             },
-            &plugin_packages::CoreActivation(self),
+            &activation,
             &NoopReporter,
         );
         #[cfg(feature = "persistence")]
@@ -668,6 +669,7 @@ impl AppCore {
         }
         let outcome = outcome?;
         self.rebuild_processor_index();
+        activation.finish()?;
         Ok(outcome)
     }
 
@@ -701,11 +703,10 @@ impl AppCore {
             .db
             .invalidate_plugin_package_source(id)
             .map_err(InstallError::io)?;
-        let removal = packages.installer.uninstall(
-            id,
-            data.as_deref(),
-            &plugin_packages::CoreActivation(self),
-        );
+        let activation = plugin_packages::CoreActivation::new(self);
+        let removal = packages
+            .installer
+            .uninstall(id, data.as_deref(), &activation);
         #[cfg(feature = "persistence")]
         if removal.is_err() {
             if let Err(error) = self.db.invalidate_plugin_package_source(id) {
@@ -748,6 +749,7 @@ impl AppCore {
                 )));
             }
         }
+        activation.finish()?;
         Ok(())
     }
 

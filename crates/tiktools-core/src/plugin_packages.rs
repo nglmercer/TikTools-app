@@ -244,37 +244,83 @@ fn cloud_builtin(
     }
 }
 
-pub(crate) struct CoreActivation<'a>(pub(crate) &'a crate::AppCore);
+pub(crate) struct CoreActivation<'a> {
+    core: &'a crate::AppCore,
+    lease: std::sync::Mutex<Option<(String, tiktools_plugin_loader::PluginPackageLease)>>,
+}
+
+impl<'a> CoreActivation<'a> {
+    pub(crate) fn new(core: &'a crate::AppCore) -> Self {
+        Self {
+            core,
+            lease: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// Release only after the complete package operation and its durable fences.
+    pub(crate) fn finish(&self) -> Result<(), InstallError> {
+        let lease = self
+            .lease
+            .lock()
+            .map_err(|_| unavailable("package lease is poisoned"))?
+            .take();
+        if let Some((_, lease)) = lease {
+            lease.finish().map_err(InstallError::io)?;
+        }
+        Ok(())
+    }
+}
 
 impl ActivationHooks for CoreActivation<'_> {
     fn deactivate(&self, plugin_id: &str) -> Result<bool, String> {
-        self.0
+        let mut held = self
+            .lease
+            .lock()
+            .map_err(|_| "package lease is poisoned".to_owned())?;
+        if held.is_some() {
+            return Err("package lease already acquired".into());
+        }
+        let lease = self
+            .core
             .plugins
-            .stop_if_present(plugin_id)
-            .map_err(|error| error.to_string())
+            .begin_package_mutation(plugin_id)
+            .map_err(|error| error.to_string())?;
+        let result = lease.stop_if_present().map_err(|error| error.to_string());
+        *held = Some((plugin_id.to_owned(), lease));
+        result
     }
 
     fn activate(&self, plugin_id: &str, was_running: bool) -> Result<(), String> {
-        self.0
+        self.core
             .plugins
             .ensure_startup_known(plugin_id)
             .map_err(|error| error.to_string())?;
-        self.0.plugins.scan().map_err(|error| error.to_string())?;
-        self.0
+        self.core
+            .plugins
+            .scan()
+            .map_err(|error| error.to_string())?;
+        self.core
             .plugins
             .ensure_startup_known(plugin_id)
             .map_err(|error| error.to_string())?;
         if was_running {
-            if self.0.plugin_apply_quarantined(plugin_id) {
+            if self.core.plugin_apply_quarantined(plugin_id) {
                 return Err("Plugin application requires recovery before restart.".to_owned());
             }
             // A successful package operation must not report a runtime that
             // failed to restart as applied. The installer will restore the
             // previous package where possible and report the error.
-            self.0
-                .plugins
-                .start(plugin_id)
-                .map_err(|error| error.to_string())?;
+            let held = self
+                .lease
+                .lock()
+                .map_err(|_| "package lease is poisoned".to_owned())?;
+            let (id, lease) = held
+                .as_ref()
+                .ok_or_else(|| "package lease is missing".to_owned())?;
+            if id != plugin_id {
+                return Err("package lease identity mismatch".into());
+            }
+            lease.start().map_err(|error| error.to_string())?;
         }
         Ok(())
     }
@@ -332,6 +378,147 @@ mod tests {
         })
         .unwrap();
         output
+    }
+
+    #[cfg(feature = "persistence")]
+    #[tokio::test]
+    async fn real_package_replacement_fences_racing_runtime_start() {
+        use tiktools_plugin_api::{PluginManifest, PluginRuntimeKind};
+        use tiktools_plugin_installer::{
+            CommitOptions, Consent, NoopReporter, PackageOrigin, SignaturePolicy,
+        };
+        use tiktools_plugin_loader::{
+            PluginInstance, PluginLoaderError, PluginRoot, PluginRuntime, PluginSource,
+            RuntimeRegistry,
+        };
+        struct Runtime;
+        struct Instance;
+        impl PluginRuntime for Runtime {
+            fn kind(&self) -> PluginRuntimeKind {
+                PluginRuntimeKind::Process
+            }
+            fn load(
+                &self,
+                _: &PluginManifest,
+                _: &std::path::Path,
+            ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+                Ok(Box::new(Instance))
+            }
+        }
+        impl PluginInstance for Instance {
+            fn id(&self) -> &str {
+                "acme.package"
+            }
+            fn handle_message(&mut self, _: &[u8]) -> Result<Vec<u8>, PluginLoaderError> {
+                Ok(b"null".to_vec())
+            }
+            fn shutdown(&mut self) -> Result<(), PluginLoaderError> {
+                Ok(())
+            }
+        }
+        struct Pausing<'a> {
+            inner: CoreActivation<'a>,
+            entered: std::sync::mpsc::Sender<()>,
+            resume: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+        }
+        impl ActivationHooks for Pausing<'_> {
+            fn deactivate(&self, id: &str) -> Result<bool, String> {
+                let running = self.inner.deactivate(id)?;
+                self.entered.send(()).unwrap();
+                self.resume.lock().unwrap().recv().unwrap();
+                Ok(running)
+            }
+            fn activate(&self, id: &str, running: bool) -> Result<(), String> {
+                self.inner.activate(id, running)
+            }
+        }
+        let root = std::env::temp_dir().join(format!(
+            "plugin-package-race-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let paths = AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("absent"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root: root.clone(),
+        };
+        paths.ensure_directories().unwrap();
+        let mut core = AppCore::with_paths(
+            Arc::new(NoopEmitter),
+            Arc::new(NoopMediaHost),
+            paths.clone(),
+        );
+        core.install_plugin(package_fixture(&root, "1.0.0"), false)
+            .unwrap();
+        let mut runtimes = RuntimeRegistry::default();
+        runtimes.register(Arc::new(Runtime));
+        let manager = Arc::new(tiktools_plugin_loader::PluginManager::with_runtimes(
+            vec![PluginRoot {
+                path: paths.plugins.clone(),
+                source: PluginSource::User,
+            }],
+            runtimes,
+        ));
+        manager.scan().unwrap();
+        manager.start("acme.package").unwrap();
+        core.plugins = manager.clone();
+        let core = Arc::new(core);
+        let installer = core.plugin_packages().unwrap().installer.clone();
+        let prepared = installer
+            .prepare(
+                &package_fixture(&root, "2.0.0"),
+                PackageOrigin::File,
+                SignaturePolicy::AllowWithConsent,
+            )
+            .unwrap();
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let (resume_tx, resume_rx) = std::sync::mpsc::channel();
+        let worker_core = Arc::clone(&core);
+        let worker = std::thread::spawn(move || {
+            let hooks = Pausing {
+                inner: CoreActivation::new(&worker_core),
+                entered: entered_tx,
+                resume: std::sync::Mutex::new(resume_rx),
+            };
+            let result = installer.commit(
+                &prepared,
+                &CommitOptions {
+                    consent: Consent::Implicit {
+                        replace_existing: true,
+                    },
+                    policy: None,
+                },
+                &hooks,
+                &NoopReporter,
+            );
+            if result.is_ok() {
+                hooks.inner.finish().unwrap();
+            }
+            result
+        });
+        entered_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        assert!(manager.start("acme.package").is_err());
+        assert_eq!(
+            manager.get("acme.package").unwrap().manifest.version,
+            "1.0.0"
+        );
+        resume_tx.send(()).unwrap();
+        worker.join().unwrap().unwrap();
+        assert_eq!(
+            manager.get("acme.package").unwrap().manifest.version,
+            "2.0.0"
+        );
+        assert!(manager.is_running("acme.package"));
+        assert!(manager.start("acme.package").is_ok());
+        core.shutdown().await;
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[cfg(feature = "persistence")]
@@ -404,7 +591,7 @@ mod tests {
             core.plugins.start("acme.package"),
             Err(PluginLoaderError::StartupUncertain(_))
         ));
-        assert!(CoreActivation(&core)
+        assert!(CoreActivation::new(&core)
             .activate("acme.package", false)
             .is_err());
         assert!(core.install_plugin(&second, true).is_err());
@@ -438,13 +625,14 @@ mod tests {
         let core = Arc::new(AppCore::with_paths(
             Arc::new(NoopEmitter),
             Arc::new(NoopMediaHost),
-            paths,
+            paths.clone(),
         ));
         let first = package_fixture(&root, "1.0.0");
         let second = package_fixture(&root, "2.0.0");
         let third = package_fixture(&root, "3.0.0");
+        let database_path = core.db.paths().automation_database();
         let source = || {
-            rusqlite::Connection::open(core.db.paths().automation_database()).unwrap().query_row(
+            rusqlite::Connection::open(&database_path).unwrap().query_row(
                 "SELECT generation FROM plugin_sync_source_versions WHERE plugin_id='acme.package'", [],
                 |row| row.get::<_, i64>(0),
             ).unwrap()
@@ -496,8 +684,16 @@ mod tests {
         let db = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
         db.execute_batch("DROP TRIGGER fail_final_fence;").unwrap();
         drop(db);
+        assert!(core.uninstall_plugin("acme.package", false).is_err());
+        core.shutdown().await;
+        drop(core);
+        let core = Arc::new(AppCore::with_paths(
+            Arc::new(NoopEmitter),
+            Arc::new(NoopMediaHost),
+            paths,
+        ));
         core.uninstall_plugin("acme.package", false).unwrap();
-        assert_eq!(source(), 10);
+        assert_eq!(source(), 12);
         assert!(!core.db.paths().plugins.join("acme.package").exists());
         let db = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
         let count: i64 = db
@@ -538,16 +734,16 @@ mod tests {
         ));
         // A successful scan cannot make a missing running plugin start. The
         // installer must see that failure and retain its rollback path.
-        let error = CoreActivation(&core)
+        let error = CoreActivation::new(&core)
             .activate("missing.plugin", true)
             .unwrap_err();
         assert!(!error.is_empty());
         *core.plugin_state.apply_quarantine.write().unwrap() = None;
-        let error = CoreActivation(&core)
+        let error = CoreActivation::new(&core)
             .activate("missing.plugin", true)
             .unwrap_err();
         assert!(error.contains("requires recovery"));
-        assert!(CoreActivation(&core)
+        assert!(CoreActivation::new(&core)
             .activate("missing.plugin", false)
             .is_ok());
         core.shutdown().await;
