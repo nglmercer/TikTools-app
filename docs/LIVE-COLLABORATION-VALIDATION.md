@@ -193,6 +193,16 @@ the second retains its own access and cannot read the private workflow. This
 validates the gateway and host on one machine; physical two-PC, real TikTok
 LIVE and Desktop controller acceptance remain pending.
 
+A further local TLS test starts two separate native controller processes with
+independent principals, sessions, profile directories and fixture credential
+stores. Both receive the same workflow baseline; one disables it and the other
+observes revision 2. After the first session is revoked, its controller leaves
+the ready state while the second controller deletes the workflow at revision 3.
+The test checks that neither controller directory contains a host business
+database or plugin directory. Credentials use private temporary fixture files;
+this does not exercise the OS credential store, a real LIVE, separate hosts or
+two physical PCs.
+
 A second loopback TLS integration exercises the native controller and host
 together: a moderator proposes a disabled action and event, the Owner reviews
 and activates them, and the automation engine processes a synthetic chat
