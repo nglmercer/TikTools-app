@@ -1341,6 +1341,94 @@ async fn malformed_remote_drafts_do_not_reveal_whether_owner_or_foreign_payload_
 }
 
 #[tokio::test]
+async fn reusable_owner_grant_allows_disabled_edit_without_per_change_approval() {
+    use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new();
+    f.core.automation_create(AutomationKind::Action, json!({"id":"owned","name":"Owner","enabled":true,"typeId":"core.log","config":{"message":"before"}})).unwrap();
+    let mut policy = grant(&["action:owned"]);
+    policy.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: true,
+        allow_owner_source: false,
+    });
+    let mut no_owner_edits = policy.clone();
+    no_owner_edits
+        .automation_delegation
+        .as_mut()
+        .unwrap()
+        .allow_owner_edits = false;
+    let denied_author = f.pair(no_owner_edits);
+    let author = f.pair(policy);
+    let instance = f.instance();
+    let params = json!({"kind":"action","id":"owned","record":{"id":"owned","name":"Edited","enabled":false,"typeId":"core.log","config":{"message":"after"}}});
+    let denied = f
+        .remote(
+            &denied_author,
+            "automation.update",
+            params.clone(),
+            metadata(&instance, "without-owner-edit", "1"),
+        )
+        .await;
+    assert_eq!(denied.error.unwrap().code, "forbidden");
+    let mut unsupported = params.clone();
+    unsupported["record"]["typeId"] = "plugin.unapproved".into();
+    let rejected = f
+        .remote(
+            &author,
+            "automation.update",
+            unsupported,
+            metadata(&instance, "unsupported-owner-edit", "1"),
+        )
+        .await;
+    assert_eq!(rejected.error.unwrap().code, "forbidden");
+    f.core.automation_create(AutomationKind::Event, json!({"id":"dependent","name":"Dependent","enabled":true,"trigger":"tiktok.chat","actionIds":["owned"]})).unwrap();
+    let rejected = f
+        .remote(
+            &author,
+            "automation.update",
+            params.clone(),
+            metadata(&instance, "out-of-scope-owner-edit", "1"),
+        )
+        .await;
+    assert_eq!(rejected.error.unwrap().code, "forbidden");
+    f.core
+        .automation_delete(AutomationKind::Event, "dependent")
+        .unwrap();
+    let metadata = metadata(&instance, "disabled-owner-edit", "1");
+    let response = f
+        .remote(
+            &author,
+            "automation.update",
+            params.clone(),
+            metadata.clone(),
+        )
+        .await;
+    assert!(response.is_ok(), "{response:?}");
+    assert_eq!(
+        response.result,
+        Some(json!({"kind":"action","id":"owned","enabled":false,"pendingReview":true}))
+    );
+    assert_delegated(
+        &f.authority("action", "owned").await,
+        &author,
+        "action",
+        "owned",
+    );
+    let replay = f
+        .remote(&author, "automation.update", params, metadata)
+        .await;
+    assert_eq!(replay.result, response.result);
+    let saved = f
+        .core
+        .automation_get_versioned(AutomationKind::Action, "owned")
+        .unwrap();
+    assert_eq!(saved.value.unwrap()["enabled"], false);
+    assert_eq!(saved.resource_versions[0].revision, "2");
+    f.close().await;
+}
+
+#[tokio::test]
 async fn remote_owner_definition_edit_requires_explicit_reusable_permission() {
     use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
     let f = Fixture::new();

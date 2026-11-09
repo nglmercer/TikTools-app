@@ -24,7 +24,12 @@ An optional `allowOwnerEdits` policy flag defaults to false and is omitted from
 legacy-format grants. Focused core and API tests verify that an authorized
 remote update changes provenance to the editor, validates every affected event
 closure, rejects unscoped references, private filters and unsupported effects,
-and stops after revocation. A native controller test submits an active update
+and stops after revocation. The same grant now permits an Owner definition to
+be saved disabled: the API tests check denial without the grant, unsupported
+effects and out-of-scope dependents, as well as durable command recovery. The
+reusable path checks that the authoring grant is still the exact grant used to
+authorize the transaction before committing. A native controller test saves a
+disabled Owner edit and then submits an active update
 over local TLS. A separate default-deny source grant now allows the scoped Owner definition
 to be previewed over local TLS; the test checks grant narrowing and denies a
 different remote author’s source. The controller requires an explicit selection

@@ -57,6 +57,10 @@ impl AutomationMutation {
         matches!(self,Self::Create{record,..}|Self::Update{record,..} if record.get("enabled")==Some(&Value::Bool(false)))
     }
     #[cfg(feature = "persistence")]
+    pub(crate) fn is_remote_draft_update(&self) -> bool {
+        matches!(self, Self::Update { record, .. } if record.get("enabled") == Some(&Value::Bool(false)))
+    }
+    #[cfg(feature = "persistence")]
     pub(crate) fn authorize_remote(&self, auth: &Authorization) -> Result<Authenticated, Error> {
         if !self.is_remote_deactivation()
             && !self.is_remote_draft()
@@ -318,14 +322,32 @@ impl AppCore {
                         other => behavior_command_error(other, &command.request.command_id),
                     })?;
             }
-            let (result, fresh) =
-                if remote && (operation.is_remote_activation() || operation.is_reusable_write()) {
-                    self.db
-                        .execute_reusable_behavior_activation(&operation, &command, &service)
-                } else {
-                    self.db.execute_behavior_command(&operation, &command)
-                }
-                .map_err(|e| behavior_command_error(e, &command.request.command_id))?;
+            let owner_draft = if remote && operation.is_remote_draft_update() {
+                let (kind, id) = operation.target();
+                let permitted = command
+                    .authorization
+                    .as_ref()
+                    .and_then(|auth| auth.snapshot().ok())
+                    .and_then(|identity| identity.grant.automation_delegation)
+                    .is_some_and(|policy| policy.allow_owner_edits);
+                permitted
+                    && self.db.is_owner_behavior(kind, id).map_err(|error| {
+                        behavior_command_error(error, &command.request.command_id)
+                    })?
+            } else {
+                false
+            };
+            let (result, fresh) = if remote
+                && (operation.is_remote_activation()
+                    || operation.is_reusable_write()
+                    || owner_draft)
+            {
+                self.db
+                    .execute_reusable_behavior_activation(&operation, &command, &service)
+            } else {
+                self.db.execute_behavior_command(&operation, &command)
+            }
+            .map_err(|e| behavior_command_error(e, &command.request.command_id))?;
             if fresh {
                 // Commit + runtime index installation is one admission barrier;
                 // metadata replay never reinstalls a historical definition.

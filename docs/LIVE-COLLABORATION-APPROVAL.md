@@ -25,6 +25,9 @@ resource restrictions and effect-specific limits continue to apply. An optional
 `allowOwnerEdits` flag, absent and false on existing grants, lets that identity
 update scoped Owner definitions under the same policy. Updated definitions are
 attributed to the remote identity; its later revocation can stop their execution.
+The edit may be saved disabled, or submitted active when the same reusable
+policy permits it. A disabled save does not activate the definition; a later
+activation remains subject to the current grant and execution policy.
 For an action, every referencing Owner event must also be in scope and its full
 closure must pass policy before the edit commits. The separate
 `allowOwnerSource` flag additionally permits scoped source reads;

@@ -764,13 +764,12 @@ async fn native_controller_edits_owner_definition_under_explicit_reusable_grant(
     edited["enabled"] = false.into();
     edited["config"]["message"] = "moderator source".into();
     let saved = save(&c, "action", "update", "1", "0", &edited.to_string()).await;
-    let mut input = submit(
+    let input = submit(
         &c,
         "action",
         &inspected,
         saved["storeRevision"].as_str().unwrap(),
     );
-    input["active"] = true.into();
     let result = c
         .manage("controller.proposals.submit", input)
         .await
@@ -778,7 +777,7 @@ async fn native_controller_edits_owner_definition_under_explicit_reusable_grant(
     assert!(result["pending"].is_null());
     assert_eq!(
         result["recent"][0]["intent"]["operation"],
-        "update-action-active"
+        "update-action-draft"
     );
     let mut reread = params(&c);
     reread["kind"] = "action".into();
@@ -789,6 +788,33 @@ async fn native_controller_edits_owner_definition_under_explicit_reusable_grant(
         .unwrap();
     assert_eq!(changed["revision"], "2");
     assert_eq!(changed["record"]["config"]["message"], "moderator source");
+    assert_eq!(changed["record"]["enabled"], false);
+    let inspected = inspect(&c, "action").await;
+    let saved_again = save(
+        &c,
+        "action",
+        "update",
+        "2",
+        saved["storeRevision"].as_str().unwrap(),
+        &edited.to_string(),
+    )
+    .await;
+    let mut active = submit(
+        &c,
+        "action",
+        &inspected,
+        saved_again["storeRevision"].as_str().unwrap(),
+    );
+    active["active"] = true.into();
+    let active_result = c
+        .manage("controller.proposals.submit", active)
+        .await
+        .unwrap();
+    assert!(active_result["pending"].is_null());
+    assert_eq!(
+        active_result["recent"][0]["intent"]["operation"],
+        "update-action-active"
+    );
     let after = f
         .core
         .automation_get(AutomationKind::Action, "same")

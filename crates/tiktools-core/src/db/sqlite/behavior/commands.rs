@@ -2,6 +2,19 @@ use super::*;
 use crate::control::AutomationMutation;
 
 impl DatabaseManager {
+    /// Select the stricter reusable path for a disabled Owner edit. The
+    /// transaction itself rechecks provenance and authorization: this lookup
+    /// is only a routing hint and cannot grant permission.
+    pub(crate) fn is_owner_behavior(
+        &self,
+        kind: crate::control::AutomationKind,
+        id: &str,
+    ) -> Result<bool, DatabaseError> {
+        let db = self.open(&self.automation_path())?;
+        Ok(provenance::get(&db, kind.table(), id)?
+            .is_some_and(|p| matches!(p.authority, provenance::BehaviorAuthority::Owner)))
+    }
+
     pub(crate) fn execute_behavior_command(
         &self,
         operation: &AutomationMutation,
@@ -145,7 +158,10 @@ impl DatabaseManager {
         use crate::services::automation_manifest::{
             self as manifest, ManifestSubject, ManifestSubjects,
         };
-        if !operation.is_remote_activation() && !operation.is_reusable_write() {
+        if !operation.is_remote_activation()
+            && !operation.is_reusable_write()
+            && !operation.is_remote_draft_update()
+        {
             return Err(DatabaseError::CommandAuthorization(
                 crate::collaboration::Error::Forbidden,
             ));
@@ -223,7 +239,9 @@ impl DatabaseManager {
                     mode,
                 )?;
                 provenance::mark_delegated_new(&tx, kind.table(), id, &author)?;
-                toggle(&tx, kind.table(), id, true)?.ok_or(DatabaseError::NotFound)?;
+                if operation.is_reusable_write() {
+                    toggle(&tx, kind.table(), id, true)?.ok_or(DatabaseError::NotFound)?;
+                }
                 result
             }
             _ => {
@@ -281,6 +299,8 @@ impl DatabaseManager {
                     .map_err(DatabaseError::CommandAuthorization)?;
                 if current.principal_id != author.identity.principal_id
                     || current.session_id != command.session_id
+                    || current.grant_revision != author.identity.grant_revision
+                    || current.grant != author.identity.grant
                     || current.grant_revision != caller.grant_revision()
                     || current.grant != *caller.grant()
                 {
@@ -336,7 +356,9 @@ impl DatabaseManager {
                     })?;
                 }
                 let result = result.map(|_| {
-                    if operation.is_reusable_write() {
+                    if operation.is_remote_draft_update() {
+                        json!({"kind":kind,"id":id,"enabled":false,"pendingReview":true})
+                    } else if operation.is_reusable_write() {
                         json!({"kind":kind,"id":id,"enabled":true,"pendingReview":false})
                     } else {
                         json!({"kind":kind,"id":id,"enabled":true})
