@@ -66,17 +66,20 @@ Counts from a retired listener cannot overwrite a replacement listener's counts.
    Currently implemented remote capability groups are `live.read`,
    `workflows.read`, `commands.read`, `workflows.toggle` (disable only),
    `workflows.edit` (delete only), `points.read/adjust`, `automation.read`
-   (status summaries), `automation.toggle` (whole-event disable only) and
+   (status summaries), `automation.toggle` (action/event deactivation and
+   activation under the applicable reusable delegation) and
    `automation.edit` (whole-event deletion plus disabled author-only drafts through
-   API/SDK/CLI or the separate native proposal editor). All writes also require read access. Remote enable/activation
-   remains denied. Reviewer presets grant reads only; choose write permissions
+   API/SDK/CLI or the separate native proposal editor). The grant editor adds
+   the read and command-recovery capabilities needed by selected write permissions.
+   Reviewer presets grant reads only; choose write permissions
    explicitly. Other stored capabilities are marked as
    unavailable; selecting one does not enable an unsupported operation.
 2. Each resource kind can allow all IDs, only the entered exact IDs, or no IDs.
    An empty restricted list means no resources. IDs are one per line and may
    not contain wildcards or control characters. Automation IDs require the
-   family prefix `event:<id>` or `action:<id>`. Actions remain read-only in the
-   native status board; the native proposal editor and API/SDK/CLI may submit disabled action drafts under the
+   family prefix `event:<id>` or `action:<id>`. Permitted actions can be
+   disabled and eligible definitions activated from the native status board;
+   the native proposal editor and API/SDK/CLI may submit disabled action drafts under the
    authoring restrictions below. Bare old automation restrictions are rejected
    rather than broadened.
    A LIVE creator restriction prevents access to global automation state.

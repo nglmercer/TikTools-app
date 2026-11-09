@@ -25,8 +25,21 @@ describe('grant restrictions', () => {
     let grant: Grant = { ...viewerGrant(), capabilities: [] };
     const wrapper = mount(GrantEditor, { props: { modelValue: grant, 'onUpdate:modelValue': async (value: Grant) => { grant = value; await wrapper.setProps({ modelValue: value }); } }, global: { plugins: [i18n] } });
     try {
-      await wrapper.findAll('label').find((item) => item.text() === 'Pause or cancel competitions (includes read and command recovery)')!.find('input').setValue(true);
+      await wrapper.findAll('label').find((item) => item.text() === 'Manage competitions (includes read and command recovery)')!.find('input').setValue(true);
       expect(grant.capabilities).toEqual(expect.arrayContaining(['competitions.read','competitions.manage','commands.read']));
+      expect(parseGrant(grant)).toEqual(grant);
+    } finally { wrapper.unmount(); }
+  });
+  it('adds the read and recovery capabilities needed by permitted changes', async () => {
+    let grant: Grant = { ...viewerGrant(), capabilities: [] };
+    const wrapper = mount(GrantEditor, { props: { modelValue: grant, 'onUpdate:modelValue': async (value: Grant) => { grant = value; await wrapper.setProps({ modelValue: value }); } }, global: { plugins: [i18n] } });
+    const checkbox = (label: string) => wrapper.findAll('label').find((item) => item.text() === label)!.find('input');
+    try {
+      await checkbox('Enable or disable permitted automations (includes read and recovery)').setValue(true);
+      expect(grant.capabilities).toEqual(expect.arrayContaining(['automation.toggle', 'automation.read', 'commands.read']));
+      expect(checkbox('Read automation status').attributes('disabled')).toBeDefined();
+      await checkbox('Adjust points (requires read access)').setValue(true);
+      expect(grant.capabilities).toEqual(expect.arrayContaining(['points.adjust', 'points.read', 'commands.read']));
       expect(parseGrant(grant)).toEqual(grant);
     } finally { wrapper.unmount(); }
   });

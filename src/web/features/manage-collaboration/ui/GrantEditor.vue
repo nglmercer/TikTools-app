@@ -19,9 +19,17 @@ type DelegatedEffect = AutomationDelegation['effects'][number];
 const delegatedEffects: DelegatedEffect[] = ['log', 'delay', 'points', 'http', 'audio', 'emit', 'script'];
 const effectCapabilities: Partial<Record<DelegatedEffect, Capability[]>> = { points: ['points.read', 'points.adjust'], http: ['http.request'], audio: ['audio.play'], emit: ['events.emit'], script: ['scripts.execute', 'live.read'] };
 const requiredAutomation: Capability[] = ['automation.read', 'automation.edit', 'automation.toggle'];
+const writeDependencies: Partial<Record<Capability, Capability[]>> = {
+  'workflows.toggle': ['workflows.read', 'commands.read'],
+  'workflows.edit': ['workflows.read', 'commands.read'],
+  'automation.toggle': ['automation.read', 'commands.read'],
+  'automation.edit': ['automation.read', 'commands.read'],
+  'points.adjust': ['points.read', 'commands.read'],
+  'competitions.manage': ['competitions.read', 'commands.read'],
+};
 function requiredByDelegation(capability: Capability): boolean {
   const delegation = model.value.automationDelegation;
-  return model.value.capabilities.includes(capability) && ((model.value.capabilities.includes('competitions.manage') && ['competitions.read','commands.read'].includes(capability)) || (!!delegation && (requiredAutomation.includes(capability) || delegation.effects.some((effect) => effectCapabilities[effect]?.includes(capability)))));
+  return model.value.capabilities.includes(capability) && (model.value.capabilities.some((write) => writeDependencies[write]?.includes(capability)) || (!!delegation && (requiredAutomation.includes(capability) || delegation.effects.some((effect) => effectCapabilities[effect]?.includes(capability)))));
 }
 function setDelegatedEffect(effect: DelegatedEffect, enabled: boolean): void {
   const value = copy();
@@ -33,6 +41,7 @@ function setDelegatedEffect(effect: DelegatedEffect, enabled: boolean): void {
     const caps = new Set(value.capabilities);
     requiredAutomation.forEach((capability) => caps.add(capability));
     if (enabled) effectCapabilities[effect]?.forEach((capability) => caps.add(capability));
+    for (const capability of [...caps]) writeDependencies[capability]?.forEach((dependency) => caps.add(dependency));
     value.capabilities = [...caps];
   }
   model.value = value;
@@ -89,7 +98,7 @@ const copy = () => JSON.parse(JSON.stringify(model.value)) as Grant;
 function setCapability(capability: Capability, allowed: boolean): void {
   const value = copy(); const caps = new Set(value.capabilities);
   if (allowed) caps.add(capability); else caps.delete(capability);
-  if (capability === 'competitions.manage' && allowed) { caps.add('competitions.read'); caps.add('commands.read'); }
+  if (allowed) writeDependencies[capability]?.forEach((dependency) => caps.add(dependency));
   value.capabilities = [...caps]; model.value = value;
 }
 function setMode(kind: ResourceKind, mode: 'all' | 'selected' | 'none'): void {
@@ -149,6 +158,7 @@ function applyJson(): void {
     >
       {{ t(`collaboration.${labels[capability]}`) }}
     </BaseCheckbox>
+    <p>{{ t('collaboration.reusableGrantHint') }}</p>
     <label v-if="model.capabilities.includes('points.adjust')">
       {{ t('collaboration.pointsLimit') }}
       <input
