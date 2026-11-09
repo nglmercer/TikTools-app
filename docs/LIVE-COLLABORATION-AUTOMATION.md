@@ -10,7 +10,11 @@ dependencies in the Automations UI, with a host-native adoption intent journal.
 The isolated native controller now has a summary board,
 captured event confirmation and a preserving
 version-4 intent journal. A private native JSON proposal editor submits disabled
-author copies. Owner-only execution-manifest previews and persisted subject resolution are
+author copies. A local visual starter builds disabled log/delay actions and
+simple LIVE events without requiring JSON input; replacing the open source,
+saving the local copy and submitting it each require separate review. The
+starter does not fetch or edit the host's hidden definition, enable execution,
+or replace the advanced editor. Owner-only execution-manifest previews and persisted subject resolution are
 implemented. Private execution contexts now travel through event publication,
 queues, enrichment, actions, nested emits and remembered events. Manifest
 approval/activation/revocation and a closed log/delay/points/HTTP/audio execution
