@@ -141,6 +141,8 @@ export default {
     disabled: 'Cloud sync is off. Nothing leaves this device until you opt in.',
     toggle: 'Sync plugin selections',
     syncNow: 'Sync now',
+    checkV2: 'Check Cloud v2 compatibility',
+    v2: { syncDisabled: 'Enable Cloud sync to check compatibility.', signInRequired: 'Sign in to check compatibility.', backendNotSupported: 'This Cloud server does not support v2.', backendCompatible: 'The server supports v2. Desktop v2 synchronization is not available yet.', error: 'Cloud v2 compatibility could not be checked.' },
     pending: '{count} change(s) waiting to upload.',
     applicationDeferred: 'Cloud selections can be downloaded, but they are not applied to this device automatically. Reviewed application is not available yet. Local changes are not guaranteed to enter the upload queue.',
     deferredCount: '{count} Cloud selection record(s) are available without automatic application; some may already match this device.',

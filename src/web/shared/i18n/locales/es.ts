@@ -143,6 +143,8 @@ export default {
     disabled: 'La sincronización está desactivada. Nada sale de este dispositivo hasta que la actives.',
     toggle: 'Sincronizar selecciones de plugins',
     syncNow: 'Sincronizar ahora',
+    checkV2: 'Comprobar compatibilidad con Cloud v2',
+    v2: { syncDisabled: 'Activa la sincronización de Cloud para comprobar la compatibilidad.', signInRequired: 'Inicia sesión para comprobar la compatibilidad.', backendNotSupported: 'Este servidor Cloud no admite v2.', backendCompatible: 'El servidor admite v2. La sincronización v2 en esta aplicación aún no está disponible.', error: 'No se pudo comprobar la compatibilidad con Cloud v2.' },
     pending: '{count} cambio(s) pendientes de subir.',
     applicationDeferred: 'Las selecciones de Cloud pueden descargarse, pero no se aplican automáticamente en este dispositivo. La aplicación revisada aún no está disponible. No está garantizado que los cambios locales entren en la cola de subida.',
     deferredCount: 'Hay {count} registro(s) de selecciones de Cloud disponibles sin aplicación automática; algunos pueden coincidir ya con este dispositivo.',

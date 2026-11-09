@@ -47,6 +47,25 @@ function setup(accountStatus: AccountStatus, syncStatus: SyncStatus) {
 }
 
 describe('CloudSyncEditor', () => {
+  it('reports v2 server compatibility without enabling v2', async () => {
+    const { client, calls } = createFakeControlClient((method) => {
+      if (method === 'cloud.status') return account();
+      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.uncertain.list') return [];
+      if (method === 'sync.v2.discover') return { state: 'backendCompatible', desktopSyncAvailable: false };
+      throw new Error(`unexpected ${method}`);
+    });
+    const wrapper = mountWithPlugins(CloudSyncEditor, { global: { plugins: storePlugins(client) } });
+    await flushPromises();
+    expect(calls.some((call) => call.method === 'sync.v2.discover')).toBe(false);
+    await wrapper.findAll('button').find((item) => item.text() === 'Check Cloud v2 compatibility')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('The server supports v2. Desktop v2 synchronization is not available yet.');
+    expect(calls.filter((call) => call.method === 'sync.v2.discover')).toHaveLength(1);
+    expect(calls.some((call) => call.method === 'sync.enable' || call.method === 'sync.now')).toBe(false);
+    wrapper.unmount();
+  });
+
   it('renders nothing until the cloud account is signed in', async () => {
     const { wrapper } = setup(account({ state: 'signed-out' }), status());
     await flushPromises();

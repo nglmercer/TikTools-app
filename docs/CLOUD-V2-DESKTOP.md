@@ -343,7 +343,9 @@ separate compatibility audit and, if affected, a newly signed promotion.
 An explicit, read-only `sync.v2.discover` check validates the configured
 backend's advertised workspace contract without sending credentials. It is
 informational and always reports Desktop v2 synchronization as unavailable;
-it does not migrate, sync, or apply account data.
+it does not migrate, sync, or apply account data. Cloud Sync settings expose
+this as an on-demand compatibility check and clear the result when the account
+or sync context changes.
 
 No v2 product synchronization RPC/UI, account eligibility integration, single-engine cutover,
 collection-specific local application or durable local-application outcome

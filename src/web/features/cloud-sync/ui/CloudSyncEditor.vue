@@ -23,6 +23,10 @@ const recoveryBusy = ref(false);
 const recoveryError = ref('');
 const newerNeedsReview = ref(false);
 const deferredCount = ref<number | null>(null);
+type V2State = 'syncDisabled' | 'signInRequired' | 'backendNotSupported' | 'backendCompatible';
+const v2State = ref<V2State | null>(null);
+const v2Busy = ref(false);
+const v2Error = ref(false);
 let requestGeneration = 0;
 function validRecoveryValue(value: unknown): value is RecoveryValue {
   if (value == null || typeof value !== 'object') return false;
@@ -120,9 +124,28 @@ async function synchronize(): Promise<void> {
   }
 }
 
+async function checkV2(): Promise<void> {
+  if (v2Busy.value) return;
+  const generation = requestGeneration;
+  v2Busy.value = true; v2Error.value = false; v2State.value = null;
+  try {
+    const result = await client.call<unknown>('sync.v2.discover');
+    if (generation !== requestGeneration) return;
+    if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('Invalid compatibility response');
+    const value = result as Record<string, unknown>;
+    const states: V2State[] = ['syncDisabled', 'signInRequired', 'backendNotSupported', 'backendCompatible'];
+    if (typeof value['state'] !== 'string' || !states.includes(value['state'] as V2State) || value['desktopSyncAvailable'] !== false) throw new Error('Invalid compatibility response');
+    v2State.value = value['state'] as V2State;
+  } catch {
+    if (generation === requestGeneration) v2Error.value = true;
+  } finally {
+    if (generation === requestGeneration) v2Busy.value = false;
+  }
+}
+
 function clearReviews(): void {
   requestGeneration += 1; uncertain.value = []; review.value = null; recoveryError.value = ''; recoveryBusy.value = false; newerNeedsReview.value = false;
-  deferredCount.value = null;
+  deferredCount.value = null; v2State.value = null; v2Busy.value = false; v2Error.value = false;
 }
 watch(() => [account.status, account.working, account.loading, enabled.value], () => {
   clearReviews();
@@ -171,6 +194,9 @@ onMounted(() => {
       </BaseSwitch>
       <template v-if="status != null && enabled">
         <p>{{ t('sync.pending', { count: status.pending }) }}</p>
+        <BaseButton :disabled="v2Busy || sync.working" @click="checkV2">{{ t('sync.checkV2') }}</BaseButton>
+        <p v-if="v2State" role="status">{{ t(`sync.v2.${v2State}`) }}</p>
+        <p v-if="v2Error" role="alert">{{ t('sync.v2.error') }}</p>
         <BaseAlert tone="info" :title="t('sync.applicationDeferred')" />
         <p v-if="deferredCount !== null" role="status">{{ t('sync.deferredCount', { count: deferredCount }) }}</p>
         <BaseAlert
