@@ -530,3 +530,30 @@ fn catalog_query_validation_preserves_exact_generation_and_rejects_origin_overri
         );
     }
 }
+
+#[test]
+fn bounded_catalog_validation_has_closed_inputs_and_exact_generation_strings() {
+    for (method, value) in [
+        (
+            "registry.cloudCatalogSummaries",
+            serde_json::json!({"query":"acme","generation":"9007199254740993","cursor":"cursor","target":"linux"}),
+        ),
+        (
+            "registry.cloudCatalogVersions",
+            serde_json::json!({"id":"hotkeys","generation":"9007199254740993","cursor":"cursor","target":"linux"}),
+        ),
+    ] {
+        assert!(tiktools_client::validate_params(method, &value).is_ok());
+        let mut invalid = value.clone();
+        invalid["generation"] = serde_json::json!(9007199254740993_i64);
+        assert!(tiktools_client::validate_params(method, &invalid).is_err());
+        invalid = value;
+        invalid["origin"] = serde_json::json!("https://untrusted.example");
+        assert!(tiktools_client::validate_params(method, &invalid).is_err());
+    }
+    assert!(tiktools_client::validate_params(
+        "registry.cloudCatalogPaginationCapabilities",
+        &serde_json::json!({})
+    )
+    .is_ok());
+}

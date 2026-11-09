@@ -16,6 +16,7 @@ import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 import BaseSplitter from '@/shared/ui/splitter/BaseSplitter.vue';
+import CloudPluginCatalog from '@/widgets/cloud-plugin-catalog/ui/CloudPluginCatalog.vue';
 import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
 import type { PluginDetailsRequest, PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
 import PluginDetails from '@/widgets/plugin-details/ui/PluginDetails.vue';
@@ -23,7 +24,7 @@ import PluginJobsPanel from '@/widgets/plugin-jobs/ui/PluginJobsPanel.vue';
 import ProcessorsPanel from '@/widgets/plugin-processors/ui/ProcessorsPanel.vue';
 import RemotePluginDetails from '@/widgets/plugin-remote-details/ui/RemotePluginDetails.vue';
 
-type PluginsView = 'plugins' | 'processors';
+type PluginsView = 'plugins' | 'processors' | 'cloud';
 
 const { t } = useI18n();
 const plugins = usePluginControls();
@@ -108,6 +109,7 @@ watch(catalog, openCatalogTab);
 const views = computed(() => [
   { value: 'plugins' as const, label: t('plugins.views.plugins') },
   { value: 'processors' as const, label: t('plugins.views.processors') },
+  { value: 'cloud' as const, label: t('plugins.views.cloud') },
 ]);
 
 watch(selected, (next, previous) => {
@@ -282,10 +284,11 @@ watch([view, catalog, query, selected, detailsTab], persist);
       />
     </div>
     <ProcessorsPanel
-      v-else
+      v-else-if="view === 'processors'"
       v-model:query="processorQuery"
       :plugins="behavior.plugins"
     />
+    <CloudPluginCatalog v-else />
     <InstallPluginDialog />
   </div>
 </template>

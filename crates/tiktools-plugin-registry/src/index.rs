@@ -263,6 +263,9 @@ impl IndexWriter {
         version: &str,
         change: impl FnOnce(&mut Release),
     ) -> Result<(), RegistryError> {
+        if !tiktools_plugin_api::manifest::is_valid_plugin_id(id) {
+            return Err(RegistryError::document(id, "invalid plugin ID"));
+        }
         let path = shard_path(id);
         let mut document = self
             .read_json::<PackageDocument>(&path)?

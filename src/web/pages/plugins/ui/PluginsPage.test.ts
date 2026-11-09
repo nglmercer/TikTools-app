@@ -110,6 +110,22 @@ async function mountPage(
     if (method === 'plugins.packages.versions') return { id: 'deck', installed: '1.2.0', retained: [], available: [] };
     if (method === 'plugins.updates.list') return { updates: [], checkedAt: 0 };
     if (method === 'registry.search') return { entries: [remoteEntry], total: 1, page: 1, pages: 1 };
+    if (method === 'registry.cloudCatalogPaginationCapabilities') return {
+      schemaVersion: 1, summaryPath: '/api/v2/catalog/plugin-summaries',
+      versionPagePath: '/api/v2/catalog/plugins/{id}/version-pages', maxItems: 50,
+      maxBytes: 524288, versionOrder: 'ascii-version-target',
+    };
+    if (method === 'registry.cloudCatalogSummaries') return {
+      generation: '9007199254740993', nextCursor: null,
+      items: [{ id: 'cloud.test', metadataPath: '/metadata/cloud.test', latestStableVersion: null }],
+    };
+    if (method === 'registry.cloudCatalog') return {
+      generation: '9007199254740993', nextCursor: null,
+      items: [{ id: 'cloud.test', latestStableVersion: null, versions: [{
+        version: '1.0.0', target: 'any', size: '1', yanked: false,
+        keyRevoked: false, publisherApproved: false, advisory: null,
+      }] }],
+    };
     if (method === 'registry.package') return { registry: 'official', document: remoteDocument };
     if (method === 'plugins.packages.inspect') return preview;
     if (method === 'plugins.packages.install') {
@@ -152,6 +168,15 @@ function menuItem(label: string): HTMLElement {
 }
 
 describe('PluginsPage', () => {
+  it('opens Cloud catalog discovery without an installation request', async () => {
+    const { wrapper, calls } = await mountPage();
+    await buttonByText(wrapper, 'Cloud catalog').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('cloud.test');
+    expect(calls.find((call) => call.method === 'registry.cloudCatalogSummaries')?.params).toEqual({ query: '' });
+    expect(calls.some((call) => call.method === 'plugins.packages.install')).toBe(false);
+  });
+
   it('opens plugin details and returns to the catalog on narrow screens', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
     try {

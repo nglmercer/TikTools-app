@@ -250,6 +250,59 @@ fn client(
 fn shards_are_stable_and_padded() {
     assert_eq!(shard_path("acme.tts"), "index/ac/me/acme.tts.json");
     assert_eq!(shard_path("ab"), "index/ab/__/ab.json");
+    assert_eq!(shard_path("ab..foo"), "index/ab..foo.json");
+    assert_eq!(shard_path("a..b"), "index/a./.b/a..b.json");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn signed_registry_serves_canonical_parent_shard_without_changing_safe_paths() {
+    let directory = TempDir::new("canonical-shard");
+    let keys = keys();
+    let writer = IndexWriter::open(
+        directory.join("registry"),
+        "test",
+        Some(SigningKey::from_json(&keys.index.to_json()).unwrap()),
+    );
+    writer
+        .init(
+            &keys.root,
+            vec![
+                TrustedKey::new(keys.index.public_key(), KeyRole::Index),
+                TrustedKey::new(keys.publisher.public_key(), KeyRole::Publisher).publisher("ab"),
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+    let archive = package(
+        &directory,
+        "ab..foo",
+        "1.0.0",
+        serde_json::json!({"publisher":"ab"}),
+        Some(&keys.publisher),
+    );
+    writer.add(&archive, "stable", None).unwrap();
+    assert!(directory.join("registry/index/ab..foo.json").is_file());
+    assert!(directory.join("registry/index/ab..foo.json.sig").is_file());
+    let server = StaticServer::start(directory.join("registry")).await;
+    let client = client(&directory, &server.base, vec![keys.root.public_key()]);
+    assert!(client.refresh("test").await.unwrap().verified);
+    let (_, document) = client.package("ab..foo", None).await.unwrap();
+    assert_eq!(document.id, "ab..foo");
+    assert!(document.release("1.0.0").is_some());
+}
+
+#[tokio::test]
+async fn invalid_plugin_ids_are_rejected_before_registry_io() {
+    let directory = TempDir::new("invalid-plugin-id");
+    let writer = IndexWriter::open(directory.join("registry"), "test", None);
+    assert!(writer.yank("../../outside", "1.0.0", true).is_err());
+    assert!(!directory.join("registry").exists());
+    let client = client(&directory, "http://127.0.0.1:9", vec![]);
+    assert!(matches!(
+        client.package("../../outside", None).await,
+        Err(RegistryError::InvalidDocument { .. })
+    ));
 }
 
 #[test]

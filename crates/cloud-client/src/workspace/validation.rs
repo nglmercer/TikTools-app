@@ -26,8 +26,8 @@ fn document_digest(value: &Value) -> Result<String, SyncError> {
         .map(|byte| format!("{byte:02x}"))
         .collect())
 }
-// Catalog releases use the plugin manifest ID grammar, independently of the
-// stricter plugin-selection sync key grammar.
+// Catalog releases use the manifest ID grammar. V2 workspace keys also retain
+// previously accepted sync IDs for backward compatibility.
 pub(super) fn valid_catalog_id(value: &str) -> bool {
     let bytes = value.as_bytes();
     (2..=128).contains(&bytes.len())
@@ -311,12 +311,14 @@ impl Plugin {
                 .map(|index| chars.get(index).copied().unwrap_or('_'))
                 .collect::<String>()
         };
-        // URL parsers normalize a literal parent segment before requesting
-        // it. Do not accept metadata that could resolve outside index/.
-        if shard(2) == ".." {
-            return false;
-        }
-        if path != format!("index/{}/{}/{}.json", shard(0), shard(2), self.id) {
+        // Never accept a literal parent segment; use the canonical index
+        // location for the legacy shard whose second component is `..`.
+        let expected = if shard(2) == ".." {
+            format!("index/{}.json", self.id)
+        } else {
+            format!("index/{}/{}/{}.json", shard(0), shard(2), self.id)
+        };
+        if path != expected {
             return false;
         }
         let mut previous = None;

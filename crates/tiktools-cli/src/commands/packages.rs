@@ -7,8 +7,9 @@ use tiktools_control_api::modules::packages::{
     PackagePolicyParams, PackageRollbackParams, PackageSpecInput, PackageUpdateParams, PolicyPatch,
 };
 use tiktools_control_api::modules::registry::{
-    CloudCatalogQuery, RegistryAddInput, RegistryEnableParams, RegistryNameParams,
-    RegistryPackageParams, RegistryRefreshParams, RegistryUrlParams, SearchQuery,
+    CloudCatalogQuery, CloudCatalogSummariesQuery, CloudCatalogVersionsQuery, RegistryAddInput,
+    RegistryEnableParams, RegistryNameParams, RegistryPackageParams, RegistryRefreshParams,
+    RegistryUrlParams, SearchQuery,
 };
 
 use super::args::{flag_value, flag_values, one_arg, positional, split_first};
@@ -90,6 +91,19 @@ pub enum Command {
         generation: Option<String>,
         target: Option<String>,
     },
+    RegistryCloudSummaries {
+        query: Option<String>,
+        cursor: Option<String>,
+        generation: Option<String>,
+        target: Option<String>,
+    },
+    RegistryCloudVersions {
+        id: String,
+        cursor: Option<String>,
+        generation: Option<String>,
+        target: Option<String>,
+    },
+    RegistryCloudPaginationCapabilities,
     RegistryDefaults,
 }
 
@@ -208,7 +222,7 @@ fn policy(rest: &[String]) -> Result<Command, CommandError> {
 
 pub fn parse_registry(args: &[String]) -> Result<Command, CommandError> {
     let usage =
-        "registry <list|root|add|remove|enable|disable|refresh|package|cloud-catalog|defaults> ...";
+        "registry <list|root|add|remove|enable|disable|refresh|package|cloud-catalog|cloud-summaries|cloud-versions|cloud-pagination|defaults> ...";
     let (verb, rest) = split_first(args, usage)?;
     match verb {
         "list" => Ok(Command::RegistryList),
@@ -249,6 +263,9 @@ pub fn parse_registry(args: &[String]) -> Result<Command, CommandError> {
             generation: flag_value(rest, "--generation"),
             target: flag_value(rest, "--target"),
         }),
+        "cloud-summaries" => Ok(Command::RegistryCloudSummaries { query: flag_value(rest,"--query"), cursor: flag_value(rest,"--cursor"), generation: flag_value(rest,"--generation"), target: flag_value(rest,"--target") }),
+        "cloud-versions" => Ok(Command::RegistryCloudVersions { id: positional(rest,0,"registry cloud-versions <id> [--target name] [--generation value] [--cursor value]")?, cursor: flag_value(rest,"--cursor"), generation: flag_value(rest,"--generation"), target: flag_value(rest,"--target") }),
+        "cloud-pagination" => Ok(Command::RegistryCloudPaginationCapabilities),
         "defaults" => Ok(Command::RegistryDefaults),
         other => Err(format!("unknown registry verb `{other}`\n{usage}").into()),
     }
@@ -408,6 +425,41 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                     generation,
                     target,
                 })
+                .await?,
+        ),
+        Command::RegistryCloudSummaries {
+            query,
+            cursor,
+            generation,
+            target,
+        } => result_value(
+            client
+                .registry_cloud_catalog_summaries(CloudCatalogSummariesQuery {
+                    query,
+                    cursor,
+                    generation,
+                    target,
+                })
+                .await?,
+        ),
+        Command::RegistryCloudVersions {
+            id,
+            cursor,
+            generation,
+            target,
+        } => result_value(
+            client
+                .registry_cloud_catalog_versions(CloudCatalogVersionsQuery {
+                    id,
+                    cursor,
+                    generation,
+                    target,
+                })
+                .await?,
+        ),
+        Command::RegistryCloudPaginationCapabilities => result_value(
+            client
+                .registry_cloud_catalog_pagination_capabilities()
                 .await?,
         ),
         Command::RegistryDefaults => result_value(client.registry_defaults_get().await?),
@@ -578,6 +630,37 @@ mod cloud_catalog_tests {
                 assert_eq!(target.as_deref(), Some("linux"));
             }
             _ => panic!("expected cloud catalog command"),
+        }
+    }
+
+    #[test]
+    fn parses_bounded_version_cursor_without_losing_generation_precision() {
+        let args = [
+            "cloud-versions",
+            "hotkeys",
+            "--generation",
+            "9007199254740993",
+            "--cursor",
+            "opaque",
+            "--target",
+            "linux",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+        match parse_registry(&args).unwrap_or_else(|_| panic!("catalog command should parse")) {
+            Command::RegistryCloudVersions {
+                id,
+                generation,
+                cursor,
+                target,
+            } => {
+                assert_eq!(id, "hotkeys");
+                assert_eq!(generation.as_deref(), Some("9007199254740993"));
+                assert_eq!(cursor.as_deref(), Some("opaque"));
+                assert_eq!(target.as_deref(), Some("linux"));
+            }
+            _ => panic!("expected bounded catalog command"),
         }
     }
 }
