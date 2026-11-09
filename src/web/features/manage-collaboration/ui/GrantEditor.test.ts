@@ -35,6 +35,26 @@ describe('grant restrictions', () => {
       await textarea.setValue('first\nsecond\nfirst'); expect(grant.resources.workflow).toEqual(['first', 'second']);
     } finally { wrapper.unmount(); }
   });
+  it('sets and removes reusable authorization without widening existing resource rules', async () => {
+    let grant: Grant = { ...viewerGrant(), resources: { automation: ['event:allowed'] } };
+    const wrapper = mount(GrantEditor, { props: { modelValue: grant, 'onUpdate:modelValue': async (value: Grant) => { grant = value; await wrapper.setProps({ modelValue: value }); } }, global: { plugins: [i18n] } });
+    const checkbox = (label: string) => wrapper.findAll('label').find((item) => item.text() === label)!.find('input');
+    try {
+      expect(grant.automationDelegation).toBeUndefined();
+      await checkbox('Adjust points').setValue(true);
+      expect(grant.automationDelegation).toEqual({ effects: ['points'], allowDynamicTargets: false });
+      expect(grant.capabilities).toEqual(expect.arrayContaining(['automation.read', 'automation.edit', 'automation.toggle', 'points.adjust']));
+      expect(grant.resources.automation).toEqual(['event:allowed']);
+      expect(parseGrant(grant)).toEqual(grant);
+      expect(checkbox('Adjust points (requires read access)').attributes('disabled')).toBeDefined();
+      await checkbox('Allow supported dynamic targets within the granted limits').setValue(true);
+      expect(grant.automationDelegation?.allowDynamicTargets).toBe(true);
+      await checkbox('Adjust points').setValue(false);
+      expect(grant.automationDelegation).toBeUndefined();
+      expect(checkbox('Adjust points (requires read access)').attributes('disabled')).toBeUndefined();
+      expect(grant.resources.automation).toEqual(['event:allowed']);
+    } finally { wrapper.unmount(); }
+  });
   it('rejects unknown permissions, wildcards and hidden control characters', () => {
     for (const change of [{ capabilities: ['owner'] }, { resources: { workflow: ['*'] } }, { resources: { workflow: ['hidden\u0080'] } }]) {
       expect(() => parseGrant({ ...viewerGrant(), ...change })).toThrow('invalid_grant');

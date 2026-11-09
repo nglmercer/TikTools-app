@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { capabilities, resourceKinds, viewerGrant, type Capability, type EffectGrants, type Grant, type ResourceKind } from '@/entities/collaboration/api/types.ts';
+import { capabilities, resourceKinds, viewerGrant, type AutomationDelegation, type Capability, type EffectGrants, type Grant, type ResourceKind } from '@/entities/collaboration/api/types.ts';
 import { parseGrant, splitIds } from '@/entities/collaboration/lib/grants.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
@@ -15,6 +15,34 @@ const current = ['live.read', 'workflows.read', 'workflows.toggle', 'workflows.e
 const labels = { 'live.read': 'capLive', 'workflows.read': 'capWorkflow', 'workflows.toggle': 'capWorkflowDisable', 'workflows.edit': 'capWorkflowDelete', 'automation.read': 'capAutomation', 'automation.toggle': 'capEventDisable', 'automation.edit': 'capEventDelete', 'points.read': 'capPoints', 'points.adjust': 'capPointsAdjust', 'commands.read': 'capCommands' } as const;
 const effectCaps = ['http.request', 'audio.play', 'events.emit', 'scripts.execute'] as const;
 const effectLabels = { 'http.request': 'capHttp', 'audio.play': 'capAudio', 'events.emit': 'capEmit', 'scripts.execute': 'capScript' } as const;
+type DelegatedEffect = AutomationDelegation['effects'][number];
+const delegatedEffects: DelegatedEffect[] = ['log', 'delay', 'points', 'http', 'audio', 'emit', 'script'];
+const effectCapability: Partial<Record<DelegatedEffect, Capability>> = { points: 'points.adjust', http: 'http.request', audio: 'audio.play', emit: 'events.emit', script: 'scripts.execute' };
+const requiredAutomation: Capability[] = ['automation.read', 'automation.edit', 'automation.toggle'];
+function requiredByDelegation(capability: Capability): boolean {
+  const delegation = model.value.automationDelegation;
+  return !!delegation && (requiredAutomation.includes(capability) || delegation.effects.some((effect) => effectCapability[effect] === capability));
+}
+function setDelegatedEffect(effect: DelegatedEffect, enabled: boolean): void {
+  const value = copy();
+  const effects = new Set(value.automationDelegation?.effects ?? []);
+  if (enabled) effects.add(effect); else effects.delete(effect);
+  if (!effects.size) delete value.automationDelegation;
+  else {
+    value.automationDelegation = { effects: [...effects], allowDynamicTargets: value.automationDelegation?.allowDynamicTargets ?? false };
+    const caps = new Set(value.capabilities);
+    requiredAutomation.forEach((capability) => caps.add(capability));
+    const needed = effectCapability[effect];
+    if (enabled && needed) caps.add(needed);
+    value.capabilities = [...caps];
+  }
+  model.value = value;
+}
+function setDynamicTargets(enabled: boolean): void {
+  const value = copy();
+  if (value.automationDelegation) value.automationDelegation.allowDynamicTargets = enabled;
+  model.value = value;
+}
 const modes = ref<Partial<Record<ResourceKind, 'all' | 'selected' | 'none'>>>({});
 const jsonDraft = ref('');
 const jsonDirty = ref(false);
@@ -78,7 +106,7 @@ function applyJson(): void {
       v-for="capability in current"
       :key="capability"
       :model-value="model.capabilities.includes(capability)"
-      :disabled="disabled"
+      :disabled="disabled || requiredByDelegation(capability)"
       @update:model-value="setCapability(capability, $event)"
     >
       {{ t(`collaboration.${labels[capability]}`) }}
@@ -90,10 +118,30 @@ function applyJson(): void {
         v-for="capability in capabilities.filter((c) => !current.some((v) => v === c) && !effectCaps.some((v) => v === c))"
         :key="capability"
         :model-value="model.capabilities.includes(capability)"
-        :disabled="disabled"
+        :disabled="disabled || requiredByDelegation(capability)"
         @update:model-value="setCapability(capability, $event)"
       >
         {{ capability }}
+      </BaseCheckbox>
+    </details>
+    <details>
+      <summary>{{ t('collaboration.delegationTitle') }}</summary>
+      <p>{{ t('collaboration.delegationHint') }}</p>
+      <BaseCheckbox
+        v-for="effect in delegatedEffects"
+        :key="effect"
+        :model-value="model.automationDelegation?.effects.includes(effect) ?? false"
+        :disabled="disabled"
+        @update:model-value="setDelegatedEffect(effect, $event)"
+      >
+        {{ t(`collaboration.delegationEffects.${effect}`) }}
+      </BaseCheckbox>
+      <BaseCheckbox
+        :model-value="model.automationDelegation?.allowDynamicTargets ?? false"
+        :disabled="disabled || !model.automationDelegation"
+        @update:model-value="setDynamicTargets"
+      >
+        {{ t('collaboration.delegationDynamic') }}
       </BaseCheckbox>
     </details>
     <details>
@@ -102,7 +150,7 @@ function applyJson(): void {
         v-for="capability in effectCaps"
         :key="capability"
         :model-value="model.capabilities.includes(capability)"
-        :disabled="disabled"
+        :disabled="disabled || requiredByDelegation(capability)"
         @update:model-value="setCapability(capability, $event)"
       >
         {{ t(`collaboration.${effectLabels[capability]}`) }}

@@ -14,7 +14,7 @@ export interface HttpEffectGrant {
 }
 export interface AudioEffectGrant { fileRefs: string[]; output: 'host-default'; maxVolume: number; overlaps: ('allow' | 'restart' | 'drop')[] }
 export interface EffectGrants { http: HttpEffectGrant[]; audio: AudioEffectGrant[]; emitTopics: string[] }
-/** Stored future policy; current hosts do not yet enable delegated execution from it. */
+/** Reusable policy for supported saved automation; resource and effect limits still apply. */
 export interface AutomationDelegation { effects: ('log' | 'delay' | 'points' | 'http' | 'audio' | 'emit' | 'script')[]; allowDynamicTargets: boolean }
 export interface Grant {
   capabilities: Capability[];
