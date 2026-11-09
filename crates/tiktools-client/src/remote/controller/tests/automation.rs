@@ -841,3 +841,88 @@ async fn reusable_grant_activates_authored_action_and_event_through_native_contr
     controller.disconnect().await;
     f.finish().await;
 }
+
+#[tokio::test]
+async fn native_activation_receipt_recovers_original_id_without_reapplying() {
+    use secrecy::ExposeSecret;
+    use tiktools_collaboration::{AutomationDelegation, CommandRequest, DelegatedAutomationEffect};
+    use tiktools_core::control::{AutomationMutation, CommandCaller};
+    let f = Fixture::new().await;
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::LiveRead);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+    });
+    let credentials = f.pair(permitted).await;
+    let auth = f
+        .service
+        .authenticate_live(credentials.access.expose_secret(), false, false)
+        .unwrap();
+    f.core.automation_command(CommandCaller::Remote(auth), CommandRequest { command_id: uuid::Uuid::new_v4().to_string(), host_instance_id: f.service.instance_id().into(), expected_revision: "0".into() }, AutomationMutation::Create { kind: AutomationKind::Action, record: json!({"id":"same","name":"Log","enabled":false,"typeId":"core.log","config":{"message":"hello"}}) }).unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let profile = manager
+        .install("desk", &f.endpoint, credentials, ClientKind::Agent)
+        .await
+        .unwrap();
+    let original = Intent {
+        command_id: uuid::Uuid::new_v4().to_string(),
+        operation: Operation::EnableAction,
+        resource_id: "same".into(),
+        host_instance_id: f.service.instance_id().into(),
+        expected_revision: Some("1".into()),
+        delta: None,
+        currency_name: None,
+        proposal_revision: None,
+        created_at: profiles::commands::timestamp(),
+    };
+    let journal = Journal::open(manager.directory(), &profile).unwrap();
+    journal.begin(original.clone()).unwrap();
+    drop(journal);
+    let remote = manager.open("desk").await.unwrap();
+    let reply = remote
+        .call_value_with_meta(
+            "automation.enable",
+            json!({"kind":"action","id":"same"}),
+            Some(RequestMetadata {
+                command_id: Some(original.command_id.clone()),
+                host_instance_id: Some(original.host_instance_id.clone()),
+                expected_revision: original.expected_revision.clone(),
+            }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        reply.result,
+        json!({"kind":"action","id":"same","enabled":true})
+    );
+    remote.close();
+    drop(remote);
+    f.core
+        .automation_set_enabled(AutomationKind::Action, "same", false)
+        .unwrap();
+    let c = Controller::new(manager);
+    c.connect("desk").await.unwrap();
+    wait(&c, |s| {
+        !s.command_busy
+            && s.command_journal
+                .as_ref()
+                .is_some_and(|j| j.pending.is_none() && !j.recent.is_empty())
+    })
+    .await;
+    let history = c.status().command_journal.unwrap();
+    assert_eq!(history.recent[0].intent, original);
+    assert_eq!(history.recent[0].revision.as_deref(), Some("2"));
+    assert_eq!(history.recent[0].outcome, Outcome::Succeeded);
+    let after = f
+        .core
+        .automation_get_versioned(AutomationKind::Action, "same")
+        .unwrap();
+    assert_eq!(after.value.unwrap()["enabled"], false);
+    assert_eq!(after.resource_versions[0].revision, "3");
+    c.disconnect().await;
+    f.finish().await;
+}

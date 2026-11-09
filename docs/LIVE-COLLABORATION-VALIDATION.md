@@ -1,5 +1,14 @@
 # LIVE collaboration implementation evidence
 
+## Recovery of activation results
+
+Remote activation receipts now pass the same scoped result checks as the live
+response, including an exact event/action family match. A local TLS controller
+test records the original activation intent, discards its reply, changes the
+host state again, and recovers the original receipt without replaying or undoing
+the later change. A forged family in a retained result is rejected even when
+both families are visible to the principal.
+
 ## Explicit edits to Owner automations
 
 An optional `allowOwnerEdits` policy flag defaults to false and is omitted from

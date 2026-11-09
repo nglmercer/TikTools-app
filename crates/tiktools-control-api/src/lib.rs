@@ -539,13 +539,16 @@ impl ControlApi {
                             | "automation.delete"
                             | "automation.create"
                             | "automation.update"
+                            | "automation.enable"
                     ) || (matches!(method, "automation.disable" | "automation.delete")
                         && scope != "event")
                         || !result.get("result").is_some_and(|v| {
                             policy::automation_result_allowed(&grant, method, v)
                                 && v.get("id") == resource.get("id")
-                                && (!matches!(method, "automation.create" | "automation.update")
-                                    || v.get("kind").and_then(Value::as_str) == Some(scope))
+                                && (!matches!(
+                                    method,
+                                    "automation.create" | "automation.update" | "automation.enable"
+                                ) || v.get("kind").and_then(Value::as_str) == Some(scope))
                         })
                         || !result
                             .get("resourceVersions")

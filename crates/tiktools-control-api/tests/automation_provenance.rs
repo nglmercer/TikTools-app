@@ -209,7 +209,7 @@ fn assert_pending(response: &RpcResponse, kind: &str, id: &str, revision: &str) 
 async fn stored_reusable_policy_enables_saved_remote_definition() {
     use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
     let f = Fixture::new();
-    let mut author_grant = grant(&["action:draft", "action:active"]);
+    let mut author_grant = grant(&["action:draft", "action:active", "event:draft"]);
     author_grant.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
@@ -274,6 +274,30 @@ async fn stored_reusable_policy_enables_saved_remote_definition() {
         enable.result.unwrap(),
         json!({"kind":"action","id":"draft","enabled":true})
     );
+    let recovered = f
+        .remote(
+            &author,
+            "collaboration.commands.get",
+            json!({"commandId":"enable-draft"}),
+            Value::Null,
+        )
+        .await;
+    assert!(recovered.is_ok(), "{recovered:?}");
+    let outcome = recovered.result.unwrap();
+    assert_eq!(outcome["method"], "automation.enable");
+    assert_eq!(
+        outcome["result"],
+        json!({"kind":"action","id":"draft","enabled":true})
+    );
+    let RequestContext::Remote(session) = &author.context else {
+        panic!()
+    };
+    let mut forged = outcome.clone();
+    forged["result"]["kind"] = "event".into();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "collaboration.commands.get", &forged)
+        .is_err());
     assert_delegated(
         &f.authority("action", "draft").await,
         &author,
