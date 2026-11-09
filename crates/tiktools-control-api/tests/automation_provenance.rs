@@ -1427,6 +1427,35 @@ async fn shared_source_requires_explicit_scoped_grant_and_current_identity() {
         panic!()
     };
     assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_ok());
+    f.core.automation_update_versioned(
+        AutomationKind::Action, "owned",
+        json!({"id":"owned","name":"Updated","enabled":true,"typeId":"core.log","config":{"message":"updated-owner-value"}}),
+        Some("1"),
+    ).unwrap();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_err());
+    let body = f
+        .remote(
+            &author,
+            "automation.source.get",
+            request.clone(),
+            Value::Null,
+        )
+        .await
+        .result
+        .unwrap();
+    assert_eq!(body["revision"], "2");
+    assert_eq!(body["record"]["config"]["message"], "updated-owner-value");
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_ok());
+    assert!(f
         .core
         .automation_shared_source(
             AutomationKind::Action,
@@ -1463,6 +1492,33 @@ async fn shared_source_requires_explicit_scoped_grant_and_current_identity() {
             grant: author_grant.clone(),
         })
         .unwrap();
+    f.core
+        .automation_delete(AutomationKind::Action, "owned")
+        .unwrap();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_err());
+    f.core.automation_create(AutomationKind::Action, json!({"id":"owned","name":"Recreated","enabled":false,"typeId":"core.log","config":{"message":"new-owner-value"}})).unwrap();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_err());
+    let body = f
+        .remote(
+            &author,
+            "automation.source.get",
+            request.clone(),
+            Value::Null,
+        )
+        .await
+        .result
+        .unwrap();
+    assert_eq!(body["record"]["config"]["message"], "new-owner-value");
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_ok());
     let foreign = f.pair(grant(&["action:foreign"]));
     let created = f.remote(&foreign, "automation.create", json!({"kind":"action","record":{"id":"foreign","name":"Other","enabled":false,"typeId":"core.log","config":{"message":"foreign-sensitive"}}}), metadata(&f.instance(), "foreign-source", "0")).await;
     assert!(created.is_ok(), "{created:?}");

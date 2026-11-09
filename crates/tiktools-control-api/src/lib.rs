@@ -487,6 +487,28 @@ impl ControlApi {
         {
             return Err(context::forbidden());
         }
+        if method == "automation.source.get" {
+            let kind = result
+                .get("kind")
+                .and_then(Value::as_str)
+                .and_then(|s| s.parse::<tiktools_core::control::AutomationKind>().ok())
+                .ok_or_else(context::forbidden)?;
+            let id = result
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(context::forbidden)?;
+            let revision = result
+                .get("revision")
+                .and_then(Value::as_str)
+                .ok_or_else(context::forbidden)?;
+            if !self
+                .core
+                .automation_shared_source_current(kind, id, revision, &session.authorization()?)
+                .unwrap_or(false)
+            {
+                return Err(context::forbidden());
+            }
+        }
         if method == "collaboration.commands.get" {
             if result.get("principalId").and_then(Value::as_str) != Some(session.principal_id()) {
                 return Err(context::forbidden());

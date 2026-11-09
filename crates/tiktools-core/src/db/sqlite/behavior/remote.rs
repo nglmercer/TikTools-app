@@ -11,6 +11,25 @@ fn table(family: AutomationFamily) -> &'static str {
         AutomationFamily::Event => "behavior_events",
     }
 }
+fn source_grant_allows(grant: &Grant, family: AutomationFamily, id: &str) -> bool {
+    use crate::collaboration::Capability;
+    grant.validate().is_ok()
+        && grant.capabilities.contains(&Capability::AutomationRead)
+        && grant.capabilities.contains(&Capability::AutomationEdit)
+        && !grant.resources.contains_key(&ResourceKind::Live)
+        && grant.allows_automation(family, id)
+        && grant
+            .automation_delegation
+            .as_ref()
+            .is_some_and(|p| p.allow_owner_source && p.allow_owner_edits)
+}
+
+fn source_authority_allows(authority: &provenance::BehaviorAuthority, principal: &str) -> bool {
+    match authority {
+        provenance::BehaviorAuthority::Owner => true,
+        provenance::BehaviorAuthority::Delegated { principal_id, .. } => principal_id == principal,
+    }
+}
 fn select(family: AutomationFamily) -> String {
     format!(
         "SELECT CASE WHEN length(CAST(b.id AS BLOB))<=128 THEN b.id ELSE NULL END,
@@ -161,39 +180,19 @@ impl DatabaseManager {
         auth: &crate::collaboration::Authorization,
         budget: usize,
     ) -> Result<Versioned<Value>, DatabaseError> {
-        use crate::collaboration::Capability;
         let denied = || DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden);
         let identity = auth
             .snapshot()
             .map_err(DatabaseError::CommandAuthorization)?;
-        if identity.grant.validate().is_err()
-            || !identity
-                .grant
-                .capabilities
-                .contains(&Capability::AutomationRead)
-            || !identity
-                .grant
-                .capabilities
-                .contains(&Capability::AutomationEdit)
-            || identity.grant.resources.contains_key(&ResourceKind::Live)
-            || !identity.grant.allows_automation(family, id)
-            || !identity
-                .grant
-                .automation_delegation
-                .as_ref()
-                .is_some_and(|p| p.allow_owner_source && p.allow_owner_edits)
-        {
+        if !source_grant_allows(&identity.grant, family, id) {
             return Err(denied());
         }
         let table = table(family);
         let mut db = self.open(&self.automation_path())?;
         let tx = db.transaction()?;
         let provenance = provenance::get(&tx, table, id)?.ok_or_else(denied)?;
-        match &provenance.authority {
-            provenance::BehaviorAuthority::Owner => {}
-            provenance::BehaviorAuthority::Delegated { principal_id, .. }
-                if *principal_id == identity.principal_id => {}
-            _ => return Err(denied()),
+        if !source_authority_allows(&provenance.authority, &identity.principal_id) {
+            return Err(denied());
         }
         let (record, _, version) = review::record(&tx, table, id, &mut 0)?;
         let record = record.ok_or_else(denied)?;
@@ -214,5 +213,47 @@ impl DatabaseManager {
         }
         tx.commit()?;
         Ok(Versioned::new(value, vec![version]))
+    }
+
+    /// Revalidate a previously read source without loading its payload.
+    pub(crate) fn behavior_shared_source_current(
+        &self,
+        family: AutomationFamily,
+        id: &str,
+        revision: &str,
+        auth: &crate::collaboration::Authorization,
+    ) -> Result<bool, DatabaseError> {
+        let Some(revision) = revision
+            .parse::<i64>()
+            .ok()
+            .filter(|n| *n > 0 && n.to_string() == revision)
+        else {
+            return Ok(false);
+        };
+        let identity = auth
+            .snapshot()
+            .map_err(DatabaseError::CommandAuthorization)?;
+        if !source_grant_allows(&identity.grant, family, id) {
+            return Ok(false);
+        }
+        let table = table(family);
+        let mut db = self.open(&self.automation_path())?;
+        let tx = db.transaction()?;
+        let live: bool = tx.query_row(
+            &format!("SELECT EXISTS(SELECT 1 FROM {table} b JOIN control_resource_versions v ON v.kind='automation' AND v.scope=?1 AND v.resource_id=b.id AND v.deleted=0 WHERE b.id=?2 AND v.revision=?3)"),
+            params![family.scope(), id, revision], |row| row.get(0),
+        )?;
+        let allowed = live
+            && provenance::get(&tx, table, id)?
+                .is_some_and(|p| source_authority_allows(&p.authority, &identity.principal_id));
+        let latest = auth
+            .snapshot()
+            .map_err(DatabaseError::CommandAuthorization)?;
+        let unchanged = latest.principal_id == identity.principal_id
+            && latest.session_id == identity.session_id
+            && latest.grant_revision == identity.grant_revision
+            && latest.grant == identity.grant;
+        tx.commit()?;
+        Ok(allowed && unchanged)
     }
 }

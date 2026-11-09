@@ -372,6 +372,30 @@ pub(super) fn behavior_command_error(error: crate::db::DatabaseError, id: &str) 
 }
 
 impl AppCore {
+    /// Check that a shared source response still names the current authorized revision.
+    pub fn automation_shared_source_current(
+        &self,
+        kind: AutomationKind,
+        id: &str,
+        revision: &str,
+        auth: &Authorization,
+    ) -> Result<bool, OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            let id = clean_record_id(id, kind.label())?;
+            self.db
+                .behavior_shared_source_current(kind.family(), &id, revision, auth)
+                .map_err(|error| behavior_command_error(error, "source-read"))
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = (kind, id, revision, auth);
+            Err(OperationError::capability_unavailable(
+                "source sharing requires persistence",
+            ))
+        }
+    }
+
     /// Fetch only a definition explicitly shared with this authenticated identity.
     pub fn automation_shared_source(
         &self,

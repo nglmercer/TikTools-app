@@ -1,5 +1,14 @@
 # LIVE collaboration implementation evidence
 
+## Shared source response revalidation
+
+Before a shared automation definition is released, the API rechecks the current
+grant, trusted author, live record and exact revision without loading the source
+again. API coverage checks that an unchanged response remains authorized, while
+an update, deletion or deletion followed by recreation rejects the old response.
+This is an authorization check at response handling; it cannot prevent a change
+after the final check or replace two-PC and real LIVE acceptance.
+
 ## Recovery of activation results
 
 Remote activation receipts now pass the same scoped result checks as the live
