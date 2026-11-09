@@ -52,6 +52,98 @@ fn grant() -> tiktools_collaboration::Grant {
 }
 
 #[tokio::test]
+async fn two_native_controllers_share_scoped_points_and_recover_independently() {
+    let f = Fixture::new().await;
+    f.core.points_adjust("alice", 1.0).unwrap();
+    f.core.points_adjust("private-viewer", 99.0).unwrap();
+    let a_home = tempfile::tempdir().unwrap();
+    let b_home = tempfile::tempdir().unwrap();
+    let a_manager =
+        ProfileManager::new(a_home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let b_manager =
+        ProfileManager::new(b_home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let mut moderator_grant = grant();
+    moderator_grant
+        .resources
+        .insert(ResourceKind::Viewer, ["alice".into()].into());
+    let mut observer_grant = moderator_grant.clone();
+    observer_grant
+        .capabilities
+        .remove(&Capability::PointsAdjust);
+    let moderator = a_manager
+        .install(
+            "moderator",
+            &f.endpoint,
+            f.pair(moderator_grant).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let observer = b_manager
+        .install(
+            "observer",
+            &f.endpoint,
+            f.pair(observer_grant).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    assert_ne!(moderator.principal_id, observer.principal_id);
+    let a = Controller::new(a_manager);
+    let b = Controller::new(b_manager);
+    tokio::try_join!(a.connect("moderator"), b.connect("observer")).unwrap();
+    for controller in [&a, &b] {
+        let view = wait(controller, |v| {
+            v["rows"].as_array().is_some_and(|r| r.len() == 1)
+        })
+        .await;
+        assert_eq!(view["rows"][0]["viewer"]["uniqueId"], "alice");
+        assert!(!view.to_string().contains("private-viewer"));
+        controller
+            .select_points(&controller.status().epoch, Some("alice".into()))
+            .unwrap();
+        wait(controller, |v| v["selected"]["viewer"]["points"] == 1.0).await;
+    }
+    let command = |controller: &Controller, delta| PointsCommand {
+        connection_id: None,
+        epoch: controller.status().epoch,
+        unique_id: "alice".into(),
+        delta,
+        currency_name: "Points".into(),
+    };
+    a.points_command(command(&a, 3.0)).await.unwrap();
+    wait(&b, |v| v["selected"]["viewer"]["points"] == 4.0).await;
+    assert!(b.points_command(command(&b, 1.0)).await.is_err());
+    assert_eq!(f.core.points_viewer("alice").unwrap()["points"], 4.0);
+    let remote = b.shared.view.read().unwrap().remote.clone().unwrap();
+    let old_connection = remote.hello().connection_id.clone();
+    remote.close();
+    a.points_command(command(&a, 2.0)).await.unwrap();
+    wait(&b, |v| v["selected"]["viewer"]["points"] == 6.0).await;
+    assert_ne!(
+        b.status().hello.as_ref().unwrap().connection_id,
+        old_connection
+    );
+    assert!(b.status().command_journal.unwrap().recent.is_empty());
+    f.service
+        .revoke_session(&moderator.session_id, "local-owner")
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while a.status().phase == "ready" {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("revocation must close the moderator connection");
+    assert!(a.points_command(command(&a, 1.0)).await.is_err());
+    assert_eq!(f.core.points_viewer("alice").unwrap()["points"], 6.0);
+    assert_eq!(b.status().phase, "ready");
+    a.disconnect().await;
+    b.disconnect().await;
+    f.finish().await;
+}
+
+#[tokio::test]
 async fn native_points_view_coalesces_awards_preserves_lookup_on_resume_and_fences_old_confirmations(
 ) {
     let f = Fixture::new().await;
