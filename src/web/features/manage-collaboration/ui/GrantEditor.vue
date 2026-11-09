@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
 import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { capabilities, resourceKinds, viewerGrant, type Capability, type EffectGrants, type Grant, type ResourceKind } from '@/entities/collaboration/api/types.ts';
 import { parseGrant, splitIds } from '@/entities/collaboration/lib/grants.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseTextArea from '@/shared/ui/text-area/BaseTextArea.vue';
 import EffectGrantEditor from './EffectGrantEditor.vue';
 
@@ -74,7 +75,7 @@ function applyJson(): void {
         {{ t('collaboration.presetAgent') }}
       </BaseButton>
     </div>
-    <BaseCheckbox
+    <BaseSwitch
       v-for="capability in current"
       :key="capability"
       :model-value="model.capabilities.includes(capability)"
@@ -82,11 +83,10 @@ function applyJson(): void {
       @update:model-value="setCapability(capability, $event)"
     >
       {{ t(`collaboration.${labels[capability]}`) }}
-    </BaseCheckbox>
-    <details>
-      <summary>{{ t('collaboration.futurePermissions') }}</summary>
+    </BaseSwitch>
+    <SettingsDisclosure :title="t('collaboration.futurePermissions')">
       <p>{{ t('collaboration.futureHint') }}</p>
-      <BaseCheckbox
+      <BaseSwitch
         v-for="capability in capabilities.filter((c) => !current.some((v) => v === c) && !effectCaps.some((v) => v === c))"
         :key="capability"
         :model-value="model.capabilities.includes(capability)"
@@ -94,11 +94,10 @@ function applyJson(): void {
         @update:model-value="setCapability(capability, $event)"
       >
         {{ capability }}
-      </BaseCheckbox>
-    </details>
-    <details>
-      <summary>{{ t('collaboration.effectRules') }}</summary>
-      <BaseCheckbox
+      </BaseSwitch>
+    </SettingsDisclosure>
+    <SettingsDisclosure :title="t('collaboration.effectRules')">
+      <BaseSwitch
         v-for="capability in effectCaps"
         :key="capability"
         :model-value="model.capabilities.includes(capability)"
@@ -106,15 +105,14 @@ function applyJson(): void {
         @update:model-value="setCapability(capability, $event)"
       >
         {{ t(`collaboration.${effectLabels[capability]}`) }}
-      </BaseCheckbox>
+      </BaseSwitch>
       <EffectGrantEditor
         :model-value="model.effects"
         :disabled="disabled"
         @update:model-value="setEffects"
       />
-    </details>
-    <details>
-      <summary>{{ t('collaboration.scopes') }}</summary>
+    </SettingsDisclosure>
+    <SettingsDisclosure :title="t('collaboration.scopes')">
       <div
         v-for="kind in resourceKinds"
         :key="kind"
@@ -139,9 +137,8 @@ function applyJson(): void {
           {{ t('collaboration.automationScopeHint') }}
         </p>
       </div>
-    </details>
-    <details>
-      <summary>{{ t('collaboration.extraGrant') }}</summary>
+    </SettingsDisclosure>
+    <SettingsDisclosure :title="t('collaboration.extraGrant')">
       <BaseTextArea
         v-model="jsonDraft"
         :disabled="disabled"
@@ -163,8 +160,10 @@ function applyJson(): void {
       >
         {{ t('collaboration.invalidGrant') }}
       </p>
-    </details>
-    <details><summary>{{ t('collaboration.grantSummary') }}</summary><pre>{{ JSON.stringify(model, null, 2) }}</pre></details>
+    </SettingsDisclosure>
+    <SettingsDisclosure :title="t('collaboration.grantSummary')">
+      <pre>{{ JSON.stringify(model, null, 2) }}</pre>
+    </SettingsDisclosure>
   </div>
 </template>
 
@@ -174,5 +173,5 @@ function applyJson(): void {
 .grant-editor__scope { margin: var(--space-3) 0; }
 .grant-editor label { display: grid; gap: var(--space-2); }
 .grant-editor select { padding: var(--space-3); color: var(--color-text); background: var(--color-bg-field); border: 1px solid var(--color-border); }
-pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; } summary { cursor: pointer; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; }
 </style>

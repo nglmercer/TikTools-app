@@ -7,11 +7,11 @@ import { usePackagesStore } from '@/entities/plugin-package/model/packages-store
 import { formatDate } from '@/shared/lib/intl.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
 import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
-import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
+import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import BaseSpinBox from '@/shared/ui/spin-box/BaseSpinBox.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
@@ -187,12 +187,12 @@ onMounted(() => void packages.loadRegistries());
               class="plugin-sources__muted"
             >{{ t('packages.sources.refreshed', { date: formatDate(registry.refreshedAt * 1000, locale) }) }}</span>
           </div>
-          <BaseCheckbox
+          <BaseSwitch
             :model-value="registry.enabled"
             @update:model-value="(value: boolean) => packages.setRegistryEnabled(registry.name, value)"
           >
             {{ t('packages.sources.enabled') }}
-          </BaseCheckbox>
+          </BaseSwitch>
           <BaseButton
             size="sm"
             @click="packages.refreshRegistries(registry.name)"
@@ -209,13 +209,13 @@ onMounted(() => void packages.loadRegistries());
           </BaseButton>
         </li>
       </ul>
-      <BaseCheckbox
+      <BaseSwitch
         v-model="allowSideload"
         :disabled="!packages.defaults"
       >
         {{ t('packages.sources.allowSideload') }}
-      </BaseCheckbox>
-      <BaseDisclosure
+      </BaseSwitch>
+      <SettingsDisclosure
         v-model:open="addOpen"
         :title="t('packages.sources.add')"
       >
@@ -263,9 +263,9 @@ onMounted(() => void packages.loadRegistries());
           >
             {{ t('packages.sources.fetchKeys') }}
           </BaseButton>
-          <BaseCheckbox v-model="unverified">
+          <BaseSwitch v-model="unverified">
             {{ t('packages.sources.unverifiedOption') }}
-          </BaseCheckbox>
+          </BaseSwitch>
         </div>
         <div
           v-if="root && !unverified"
@@ -283,9 +283,9 @@ onMounted(() => void packages.loadRegistries());
               {{ key.keyId }} · {{ key.fingerprint }}
             </li>
           </ul>
-          <BaseCheckbox v-model="confirmed">
+          <BaseSwitch v-model="confirmed">
             {{ t('packages.sources.confirmFingerprints') }}
-          </BaseCheckbox>
+          </BaseSwitch>
         </div>
         <BaseButton
           variant="primary"
@@ -294,7 +294,7 @@ onMounted(() => void packages.loadRegistries());
         >
           {{ t('packages.sources.addButton') }}
         </BaseButton>
-      </BaseDisclosure>
+      </SettingsDisclosure>
     </BaseGroupBox>
   </div>
 </template>
@@ -317,6 +317,7 @@ onMounted(() => void packages.loadRegistries());
 
 .plugin-sources__registry {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-3);
@@ -372,6 +373,7 @@ onMounted(() => void packages.loadRegistries());
 
 .plugin-sources__actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
   margin: var(--space-3) 0;

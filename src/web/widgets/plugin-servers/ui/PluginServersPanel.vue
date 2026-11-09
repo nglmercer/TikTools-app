@@ -159,6 +159,8 @@ function toggle(id: string): void {
   transform: none;
 }
 
+.plugin-servers__item:nth-child(even) { background: var(--color-bg-panel-header); }
+
 .plugin-servers__head:hover {
   background: var(--color-bg-hover);
 }

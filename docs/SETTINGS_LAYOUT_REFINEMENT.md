@@ -1,32 +1,33 @@
-# Settings layout refinement
+# Settings and connections refinement
 
-Local follow-up to PR #62 (`6b325b47bee58b34e70212aeea5fec57ae06fe03`).
+Follow-up to PR #62, iterated after the user requested the earlier OBS-like connection layout and fewer settings categories.
 
-- Desktop retains the settings category index; mobile uses a labelled native selector with full category names and existing query routes.
-- General, account and update controls retain their existing contracts. Toggle rows stay aligned on small screens. Signed-out Cloud remains signed-out; no capabilities were invented.
-- Collaboration separates overview, devices/requests and network/security, retaining mounted drafts. Capability/revision warnings and pending request navigation remain visible. Existing confirmation, invitation permissions and secret controls are preserved.
-- Advanced groups sources/trust, runtime variables and session diagnostics with native disclosure controls. Legacy globals links open their section.
-- Connections prioritizes servers. Live-room exploration is a secondary disclosure; opening it does not start exploration. Plugin schema and authorization controls retain their existing handlers.
-- English and Spanish strings are included.
+## Current organization
 
-## Automation exclusion
+- **General:** language, application update preferences and a runtime-variables disclosure. The section no longer contains only a language selector.
+- **Plugins:** plugin update channel/policy/interval and installation sources/trust, including the existing consent requirements.
+- **Account & Cloud:** account/session, supported synchronization when signed in, and session diagnostics.
+- **Collaboration:** status, devices/requests, network/security. Warnings, permission review, confirmation dialogs and drafts remain owned by the original feature.
+- Legacy `updates`, `advanced` and `globals` links map to General, Plugins and expanded runtime variables respectively.
 
-AutomationsPage.vue and its test are restored exactly from origin/remake (b24ddbe at inspection), undoing their earlier PR #62 redesign. Route-scoped CSS preserves previous control density, panel wrapping and hint styling. Shared form accessibility associations and the pre-existing PR diagnostics launcher remain; this is not a claim that all global application chrome is pixel-identical to remake.
+Connections restores the earlier two-column LIVE/explorer workspace with gray panel headers, full-width server panel and alternating server rows. Narrow screens stack the panels. Exploration still requires the explicit Explore action.
+
+Visible checkboxes in the scoped settings features now use the existing native-backed BaseSwitch with role=switch and keyboard/disabled semantics. Connection schema forms opt into switches; the default schema control remains unchanged for automation editors. SettingsDisclosure replaces native details/summary in settings and collaboration, links button/region IDs, supports keyboard activation and retains mounted content and drafts. Permission review remains expanded initially.
+
+## Scope protection
+
+AutomationsPage.vue and its tests still match origin/remake. No automation feature file was edited in this iteration. Schema switches are opt-in only for PluginConnectionEditor and tested against the unchanged default. Native/backend contracts were not modified.
 
 ## Validation
 
-- Complete Vitest suite: 150 files, 856 tests passed, no unhandled errors.
-- vue-tsc --noEmit and ESLint src/web --max-warnings=0 passed.
-- Frontend production build passed.
-- Chromium at 1440x1000 and 390x844 against a real isolated native host: settings navigation, responsive toggles, collaboration draft retention without saving, warnings, requests, disclosure controls, no horizontal overflow/page errors. Restored mobile automation layout and chrome density checked.
-- No authenticated Cloud synchronization, remote controller connections, update installation, real plugin credential writes or native desktop platform testing was performed. The local host lacks remote-controller support and screenshots show that actual warning.
+- Full web suite: 152 files / 866 tests passed.
+- After the final disclosure typing adjustment: 3 affected files / 13 tests passed.
+- TypeScript, ESLint with zero warnings and frontend production build passed. Final spacing/width changes were rebuilt and checked in Chromium.
+- Real headless host and Chromium at 1440x1000 and 390x844: parallel desktop panels/mobile stacking, switch activation with Space, disclosure activation with Enter/Space, no native details or checkbox roles in Settings, draft retention after collapsing and switching collaboration views, no page errors or document overflow.
+- The unchanged native host was compiled from the preceding PR source using local-web. No mocked API responses were used for screenshots.
 
-Screenshots and browser evidence are in /tmp/settings-implementation. Library upload failed at hosted apps tools/list with HTTP 401; no library IDs were issued.
+See [current captures](ui/settings-obs/README.md). The earlier flat-ui and settings-current galleries are historical.
 
-## Integration status
+## Limitations
 
-Integrated origin/remake b24ddbe7c6dbf5c42b875c25f1c7cc5725e9f677 locally after the user's conflict-resolution request. Resolved the sole content conflict in PluginsPage.vue by retaining MasterDetailLayout/CollectionToolbar and the new CloudPluginCatalog import. Cloud view routing, persistence, translations, bounded catalog code and tests from remake are preserved. Native crates and the Cloud catalog widget match remake exactly, as do AutomationsPage.vue and its tests.
-
-Post-integration validation: 151 files / 863 Vitest tests passed, vue-tsc and ESLint passed, frontend production build passed. No additional browser/native integration tests were run for this import conflict; earlier screenshots and browser results above predate the catalog integration.
-
-No push, remote PR update, PR merge or deployment performed. GitHub PR #62 remains CONFLICTING until this local result is published to its branch. No unresolved files remain locally.
+The disposable host is signed out, has no installed plugins/server rows and does not support remote controllers. Those actual states appear in screenshots. No authenticated Cloud synchronization, installation, invitation creation, live connection, populated plugin credentials or native desktop accessibility certification is claimed. Server row styling and opt-in schema controls are covered by code/tests, not fabricated screenshot data.

@@ -6,6 +6,7 @@ import type { MediaSelection, OpenMediaPicker } from '../../../../shared/message
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseColorField from '@/shared/ui/color-field/BaseColorField.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseDateField from '@/shared/ui/date-field/BaseDateField.vue';
@@ -39,6 +40,7 @@ const props = defineProps<{
   controlId: string;
   invalid?: boolean;
   disabled?: boolean;
+  switches?: boolean;
   suggestions?: readonly SchemaSuggestion[];
   openMediaPicker?: OpenMediaPicker;
 }>();
@@ -99,7 +101,8 @@ function pickMedia(): void {
 </script>
 
 <template>
-  <BaseCheckbox
+  <component
+    :is="switches ? BaseSwitch : BaseCheckbox"
     v-if="field.kind === 'boolean'"
     :id="controlId"
     :model-value="value === true || value === 'true'"
@@ -107,7 +110,7 @@ function pickMedia(): void {
     @update:model-value="emit('update', $event)"
   >
     {{ field.label }}
-  </BaseCheckbox>
+  </component>
 
   <BaseSearchSelect
     v-else-if="field.kind === 'gift' || field.kind === 'search'"
@@ -200,13 +203,14 @@ function pickMedia(): void {
     class="schema-control__choices"
     role="group"
   >
-    <BaseCheckbox
+    <component
+      :is="switches ? BaseSwitch : BaseCheckbox"
       v-for="option in field.options"
       :key="option.value"
       :model-value="stringList(value).includes(option.value)"
       :disabled="disabled"
       @update:model-value="
-        (checked) =>
+        (checked: boolean) =>
           emit(
             'update',
             checked ? [...stringList(value), option.value] : stringList(value).filter((entry) => entry !== option.value),
@@ -214,7 +218,7 @@ function pickMedia(): void {
       "
     >
       {{ option.label }}
-    </BaseCheckbox>
+    </component>
   </span>
 
   <BaseTagsInput

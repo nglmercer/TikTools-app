@@ -16,22 +16,21 @@ import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
-import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
+import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
 import IconUser from '@/shared/ui/icon/icons/IconUser.vue';
 import BaseList from '@/shared/ui/list/BaseList.vue';
 
-type SettingsSection = 'general' | 'account' | 'collaboration' | 'updates' | 'advanced';
+type SettingsSection = 'general' | 'plugins' | 'account' | 'collaboration';
 
 const sections: ReadonlyArray<{ id: SettingsSection; icon: Component }> = [
   { id: 'general', icon: markRaw(IconGear) },
+  { id: 'plugins', icon: markRaw(IconPuzzle) },
   { id: 'account', icon: markRaw(IconUser) },
   { id: 'collaboration', icon: markRaw(IconUser) },
-  { id: 'updates', icon: markRaw(IconRefresh) },
-  { id: 'advanced', icon: markRaw(IconPuzzle) },
 ];
 
-/** Older deep links (`?section=globals|plugins`) now live under Advanced. */
-const legacySections: Record<string, SettingsSection> = { globals: 'advanced', plugins: 'advanced' };
+/** Preserve older links after regrouping options by their actual feature. */
+const legacySections: Record<string, SettingsSection> = { globals: 'general', updates: 'general', advanced: 'plugins' };
 
 const { t } = useI18n();
 const route = useRoute();
@@ -60,7 +59,7 @@ const locale = computed<Locale>({
         v-for="item in sections"
         :key="item.id"
         :value="item.id"
-      >{{ t(`settings.sections.${item.id}`) }}</option></select>
+      >{{ t(`settingsLayout.labels.${item.id}`) }}</option></select>
     </label>
     <BaseList
       v-model:selected="section"
@@ -71,15 +70,15 @@ const locale = computed<Locale>({
     >
       <template #default="{ item }">
         <component :is="item.icon" />
-        {{ t(`settings.sections.${item.id}`) }}
+        <span class="settings-page__nav-text">{{ t(`settingsLayout.labels.${item.id}`) }}<small>{{ t(`settingsLayout.nav.${item.id}`) }}</small></span>
       </template>
     </BaseList>
     <section
       class="settings-page__content"
-      :aria-label="t(`settings.sections.${section}`)"
+      :aria-label="t(`settingsLayout.labels.${section}`)"
     >
       <header class="settings-page__heading">
-        <h1>{{ t(`settings.sections.${section}`) }}</h1><p>{{ t(`settingsLayout.${section}`) }}</p>
+        <h1>{{ t(`settingsLayout.labels.${section}`) }}</h1><p>{{ t(`settingsLayout.${section}`) }}</p>
       </header>
       <template v-if="section === 'general'">
         <BaseGroupBox :title="t('settings.language.group')">
@@ -94,104 +93,66 @@ const locale = computed<Locale>({
             />
           </SettingsRow>
         </BaseGroupBox>
+        <AppUpdater />
+        <SettingsDisclosure
+          :title="t('settingsLayout.variables')"
+          :initially-open="route.query.section === 'globals'"
+        >
+          <p
+            class="settings-page__hint"
+            v-text="t('globals.hint', { token: '{{ globals.key }}' })"
+          />
+          <RuntimeGlobalsEditor />
+        </SettingsDisclosure>
+      </template>
+      <template v-else-if="section === 'plugins'">
+        <PluginSourcesEditor part="updates" />
+        <PluginSourcesEditor part="registries" />
       </template>
       <template v-else-if="section === 'account'">
         <CloudAccountEditor />
         <CloudSyncEditor />
+        <SettingsDisclosure :title="t('settingsLayout.diagnostics')">
+          <CloudAccountDiagnostics />
+        </SettingsDisclosure>
       </template>
       <template v-else-if="section === 'collaboration'">
         <CollaborationEditor />
-      </template>
-      <template v-else-if="section === 'updates'">
-        <AppUpdater />
-        <PluginSourcesEditor part="updates" />
-      </template>
-      <template v-else>
-        <details
-          class="settings-page__advanced"
-          open
-        >
-          <summary>{{ t('settingsLayout.sources') }}</summary><PluginSourcesEditor part="registries" />
-        </details>
-        <details
-          class="settings-page__advanced"
-          :open="route.query.section === 'globals'"
-        >
-          <summary>{{ t('settingsLayout.variables') }}</summary>
-          <BaseGroupBox
-            :title="t('globals.title')"
-            :description="t('globals.hint', { token: '{{ globals.key }}' })"
-          >
-            <RuntimeGlobalsEditor />
-          </BaseGroupBox>
-        </details>
-        <details class="settings-page__advanced">
-          <summary>{{ t('settingsLayout.diagnostics') }}</summary><CloudAccountDiagnostics />
-        </details>
       </template>
     </section>
   </div>
 </template>
 
 <style scoped>
-.settings-page {
-  display: flex;
-  flex: 1;
-  gap: var(--space-7);
-  min-width: 0;
-  min-height: 0;
-  padding: var(--space-6);
-}
-
-.settings-page__sections {
-  flex: none;
-  width: 200px;
-  border: var(--border-width) solid var(--color-border-subtle);
-}
-
-.settings-page__content {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-5);
-  min-width: 0;
-  max-width: 760px;
-  overflow-y: auto;
-}
-
-.settings-page__control {
-  max-width: 320px;
-}
-
-.settings-page__mobile-nav { display:none; }
-.settings-page__mobile-nav select { width:100%; min-height:var(--control-height-touch); padding:var(--space-4); color:var(--color-text); background:var(--color-bg-field); border:var(--border-width) solid var(--color-border); border-radius:var(--radius-md); }
-.settings-page__heading h1 { margin:0; font-size:20px; }
-.settings-page__heading p { margin:var(--space-4) 0 var(--space-6); color:var(--color-text-muted); line-height:var(--line-height-normal); }
-.settings-page__content > :deep(.base-group-box), .settings-page__advanced :deep(.base-group-box) { border:0; border-top:var(--border-width) solid var(--color-border); padding:var(--space-6) 0; background:transparent; }
-.settings-page__advanced { border-top:var(--border-width) solid var(--color-border); }
-.settings-page__advanced > summary { min-height:44px; padding:var(--space-5) 0; cursor:pointer; font-weight:var(--font-weight-semibold); }
-.settings-page__advanced :deep(.base-group-box__title) { font-size:var(--font-size-md); }
-.settings-page__advanced[open] { padding-bottom:var(--space-6); }
-.settings-page__content :deep(.settings-row__control) { max-width:100%; }
+.settings-page { display: flex; flex: 1; gap: var(--space-5); min-width: 0; min-height: 0; padding: var(--space-4); }
+.settings-page__sections { flex: none; width: 210px; align-self: flex-start; border: var(--border-width) solid var(--color-border-subtle); }
+.settings-page__sections :deep(.base-list__item) { height: auto; min-height: 58px; align-items: center; padding: var(--space-4); }
+.settings-page__nav-text { display: grid; gap: var(--space-1); }
+.settings-page__nav-text small { color: var(--color-text-muted); font-size: var(--font-size-sm); font-weight: normal; }
+.settings-page__sections :deep([aria-selected="true"]) small { color: inherit; }
+.settings-page__content { display: flex; flex: 1; flex-direction: column; gap: var(--space-5); min-width: 0; max-width: 960px; overflow-y: auto; padding: 0 var(--space-2) var(--space-5); }
+.settings-page__control { max-width: 320px; }
+.settings-page__content :deep(.settings-row:not(.settings-row--toggle)) { grid-template-columns: minmax(0, 1fr) minmax(180px, 240px); }
+.settings-page__content :deep(.settings-row__control > .base-combo-box), .settings-page__content :deep(.settings-row__control > .base-spin-box) { width: 100%; }
+.settings-page__content :deep(.settings-row--toggle .settings-row__control) { justify-content: flex-end; }
+.settings-page__content :deep(.base-spin-box) { min-width: 110px; }
+.settings-page__mobile-nav { display: none; }
+.settings-page__mobile-nav select { width: 100%; min-height: 44px; padding: var(--space-4); color: var(--color-text); background: var(--color-bg-field); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-sm); }
+.settings-page__heading { padding: var(--space-3) 0; }
+.settings-page__heading h1 { margin: 0; font-size: 18px; }
+.settings-page__heading p,.settings-page__hint { margin: var(--space-3) 0; color: var(--color-text-muted); line-height: var(--line-height-normal); }
+.settings-page__content :deep(.base-group-box) { margin: 0; border-radius: 0; background: var(--color-bg-panel); }
+.settings-page__content :deep(.settings-row__control) { max-width: 100%; }
+.settings-page__content :deep(.settings-disclosure .base-group-box) { border: 0; padding: 0; background: transparent; }
+.settings-page__content :deep(.base-switch) { min-height: 32px; }
 @media (width < 900px) {
-  .settings-page {
-    flex-direction: column;
-    padding: var(--space-3);
-    overflow-y: auto;
-  }
-
+  .settings-page { flex-direction: column; padding: var(--space-3); overflow-y: auto; }
   .settings-page__sections { display: none; }
   .settings-page__mobile-nav { display: grid; gap: var(--space-3); }
-
-  .settings-page__content {
-    flex: none;
-    width: 100%;
-    max-width: none;
-    overflow: visible;
-  }
-
-  .settings-page__control {
-    max-width: none;
-  }
+  .settings-page__content { flex: none; width: 100%; max-width: none; overflow: visible; padding: 0 0 var(--space-5); }
+  .settings-page__control { max-width: none; }
+  .settings-page__content :deep(.settings-row:not(.settings-row--toggle)) { grid-template-columns: minmax(0, 1fr); }
+  .settings-page__content :deep(.settings-row__control > .base-spin-box) { max-width: 160px; }
+  .settings-page__content :deep(.base-switch) { min-height: 44px; }
 }
 </style>

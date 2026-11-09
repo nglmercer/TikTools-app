@@ -65,3 +65,14 @@ describe('BaseSchemaForm', () => {
     expect(wrapper.text()).toContain('Enter a valid address.');
   });
 });
+
+
+describe('connection settings switches', () => {
+  it('opts into switches without changing the default automation controls', () => {
+    const schema = { type: 'object', properties: { enabled: { type: 'boolean', title: 'Enabled' } } };
+    const switched = mountWithPlugins(BaseSchemaForm, { props: { schema, modelValue: { enabled: true }, switches: true } });
+    expect(switched.get('input').attributes('role')).toBe('switch');
+    const unchanged = mountWithPlugins(BaseSchemaForm, { props: { schema, modelValue: { enabled: true } } });
+    expect(unchanged.get('input').attributes('role')).not.toBe('switch');
+  });
+});

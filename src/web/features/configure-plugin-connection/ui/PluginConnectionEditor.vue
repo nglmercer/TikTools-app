@@ -261,6 +261,7 @@ onMounted(() => {
       <BaseSchemaForm
         v-if="settings && !(supportsTokenImport && working)"
         v-model="formValues"
+        switches
         :schema="visibleSchema"
         :ui-hints="settings.uiHints"
         :field-options="fieldOptions"

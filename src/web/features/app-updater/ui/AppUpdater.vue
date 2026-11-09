@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { useAppUpdaterStore } from '../model/updater-store.ts';
 import type { UpdateChannel } from '../api/updater-types.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
@@ -76,7 +76,7 @@ function install(): void {
           :description="t('formsDesign.automaticChecksHint')"
           toggle
         >
-          <BaseCheckbox
+          <BaseSwitch
             id="app-update-automatic"
             :aria-label="t('appUpdater.automaticChecks')"
             :model-value="updater.preferences.automaticChecks"
@@ -90,7 +90,7 @@ function install(): void {
           :description="t('formsDesign.notificationsHint')"
           toggle
         >
-          <BaseCheckbox
+          <BaseSwitch
             id="app-update-notifications"
             :aria-label="t('appUpdater.notifications')"
             :model-value="updater.preferences.notifications"

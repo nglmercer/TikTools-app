@@ -13,6 +13,7 @@ defineProps<{
   suggestionsFor?: (key: string) => readonly SchemaSuggestion[];
   openMediaPicker?: OpenMediaPicker;
   disabled?: boolean;
+  switches?: boolean;
 }>();
 
 const emit = defineEmits<{ update: [field: SchemaFieldDescriptor, value: JsonValue] }>();
@@ -41,6 +42,7 @@ function controlId(formId: string, field: SchemaFieldDescriptor): string {
           :control-id="controlId(formId, field)"
           :invalid="Boolean(fieldErrors[field.key])"
           :disabled="disabled"
+          :switches="switches"
           :suggestions="suggestionsFor?.(field.key)"
           :open-media-picker="openMediaPicker"
           @update="(value) => emit('update', field, value)"
