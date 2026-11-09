@@ -2922,12 +2922,14 @@ struct MockInner {
     rebuild_requests: usize,
     page_size: Option<usize>,
     v2_put_requests: usize,
+    v2_put_status: Option<u16>,
 }
 
 struct MockSync {
     origin: String,
     task: tokio::task::JoinHandle<()>,
     held_write: Arc<HeldWrite>,
+    held_v2_write: Arc<HeldWrite>,
     held_export: Arc<HeldExport>,
     held_pull: Arc<HeldExport>,
     inner: Arc<Mutex<MockInner>>,
@@ -2974,13 +2976,16 @@ impl MockSync {
             rebuild_requests: 0,
             page_size: None,
             v2_put_requests: 0,
+            v2_put_status: None,
         }));
         let held_write = Arc::new(HeldWrite::default());
+        let held_v2_write = Arc::new(HeldWrite::default());
         let held_export = Arc::new(HeldExport::default());
         let held_pull = Arc::new(HeldExport::default());
         let task = tokio::spawn({
             let inner = inner.clone();
             let held_write = held_write.clone();
+            let held_v2_write = held_v2_write.clone();
             let held_export = held_export.clone();
             let held_pull = held_pull.clone();
             async move {
@@ -2990,6 +2995,7 @@ impl MockSync {
                     };
                     let inner = inner.clone();
                     let held_write = held_write.clone();
+                    let held_v2_write = held_v2_write.clone();
                     let held_export = held_export.clone();
                     let held_pull = held_pull.clone();
                     tokio::spawn(async move {
@@ -3051,6 +3057,17 @@ impl MockSync {
                                 held_write.release.notified().await;
                             }
                         }
+                        if method == "PUT"
+                            && path.starts_with("/api/v2/sync/collections/")
+                            && held_v2_write
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            // The complete response is ready but has not
+                            // reached the dispatcher yet.
+                            held_v2_write.committed.notify_one();
+                            held_v2_write.release.notified().await;
+                        }
                         let head = format!(
                             "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
                             payload.len()
@@ -3065,6 +3082,7 @@ impl MockSync {
             origin,
             task,
             held_write,
+            held_v2_write,
             held_export,
             held_pull,
             inner,
@@ -3182,7 +3200,19 @@ fn route(
         }
         ("PUT", path) if path.starts_with("/api/v2/sync/collections/") => {
             state.v2_put_requests += 1;
-            json(500, serde_json::json!({}))
+            match state.v2_put_status {
+                Some(200) => {
+                    let suffix = path.strip_prefix("/api/v2/sync/collections/").unwrap();
+                    let (collection, key) = suffix.split_once('/').unwrap();
+                    let value: serde_json::Value = serde_json::from_str(body).unwrap();
+                    json(
+                        200,
+                        serde_json::json!({"collection": collection, "key": key, "revision": 1, "deleted": false, "value": value}),
+                    )
+                }
+                Some(status) => json(status, serde_json::json!({})),
+                None => json(500, serde_json::json!({})),
+            }
         }
         ("GET", "/api/v1/native/sync/changes") => {
             state.pull_requests += 1;

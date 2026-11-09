@@ -357,6 +357,177 @@ struct BlockingUpload {
     entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
 }
+
+struct ExactUpload {
+    digest: String,
+    calls: std::sync::atomic::AtomicUsize,
+}
+
+impl crate::V2ProductUploadSource for ExactUpload {
+    fn with_fenced_upload(
+        &self,
+        decision: &crate::V2ProductDecision,
+        admit: &mut dyn FnMut() -> Result<(), crate::WorkspaceCoordError>,
+    ) -> Result<(), crate::WorkspaceCoordError> {
+        if decision.digest()? != self.digest {
+            return Err(cloud_client::WorkspaceStateError::StaleReview.into());
+        }
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        admit()
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconfirmed() {
+    use cloud_client::{WorkspaceKey, WorkspacePendingStatus};
+    use std::sync::atomic::Ordering;
+
+    // Both acknowledged and conflicted writes require the session that sent
+    // them. Control runs prove both mock responses can actually commit.
+    for status in [200, 409] {
+        for transition in ["logout", "replace", "unchanged"] {
+            let dir = TempDir::new("v2-product-http-auth");
+            let mock = MockSync::start("v2-http-user").await;
+            let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+            login(&auth, "first-session").await;
+            let session = auth.session().await.unwrap();
+            let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+            let lease = sync.protocol.try_cutover().unwrap();
+            lease
+                .prepare(&preview, &mock.origin, "v2-http-user", &[])
+                .unwrap();
+            let workspace = crate::WorkspaceCoordinator::open(
+                dir.join("a-sync"),
+                mock.origin.clone(),
+                "v2-http-user".into(),
+            )
+            .unwrap();
+            workspace
+                .bootstrap(&preview.selections(), preview.legacy())
+                .unwrap();
+            lease
+                .finish(&preview, &mock.origin, "v2-http-user")
+                .unwrap();
+            drop(lease);
+            sync.set_enabled(false).unwrap();
+            let consent = sync.review_v2_resume(&session, None).unwrap();
+            sync.confirm_v2_resume(&consent).unwrap();
+            let decision = crate::V2ProductDecision {
+                origin: mock.origin.clone(),
+                account_id: "v2-http-user".into(),
+                config_generation: sync.read_config().generation,
+                source_generation: 7,
+                plugin_id: "acme.plugin".into(),
+                selection: Some(PluginSelection {
+                    schema_version: 1,
+                    plugin_id: "acme.plugin".into(),
+                    version: "1.0.0".into(),
+                    enabled: true,
+                }),
+            };
+            let source = Source {
+                decision: decision.clone(),
+                fail_ack: Cell::new(false),
+                ack_attempts: Cell::new(0),
+            };
+            sync.stage_v2_product_decision(&source).unwrap();
+            let upload = Arc::new(ExactUpload {
+                digest: decision.digest().unwrap(),
+                calls: std::sync::atomic::AtomicUsize::new(0),
+            });
+            mock.inner.lock().unwrap().v2_put_status = Some(status);
+            mock.held_v2_write.armed.store(true, Ordering::SeqCst);
+            let worker = sync.clone();
+            let captured = session.clone();
+            let upload_for_worker = upload.clone();
+            let task =
+                tokio::spawn(
+                    async move { worker.sync_v2_product(captured, upload_for_worker).await },
+                );
+            tokio::time::timeout(
+                Duration::from_secs(3),
+                mock.held_v2_write.committed.notified(),
+            )
+            .await
+            .expect("dispatcher must send the request");
+            let key = WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
+            let prepared = workspace.snapshot().unwrap();
+            assert_eq!(
+                prepared
+                    .state
+                    .entry(&key)
+                    .unwrap()
+                    .pending
+                    .as_ref()
+                    .unwrap()
+                    .status,
+                WorkspacePendingStatus::Unconfirmed
+            );
+            assert_eq!(upload.calls.load(Ordering::SeqCst), 1);
+            assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
+            if transition != "unchanged" {
+                tokio::time::timeout(Duration::from_secs(2), auth.logout())
+                    .await
+                    .expect("in-flight HTTP must not block logout")
+                    .unwrap();
+                if transition == "replace" {
+                    login(&auth, "replacement-session").await;
+                    assert!(!Arc::ptr_eq(&session, &auth.session().await.unwrap()));
+                }
+            }
+            mock.held_v2_write.release.notify_one();
+            let outcome = tokio::time::timeout(Duration::from_secs(3), task)
+                .await
+                .expect("dispatcher must finish after response")
+                .unwrap();
+            let after = workspace.snapshot().unwrap();
+            if transition != "unchanged" {
+                assert!(matches!(
+                    outcome,
+                    Err(crate::WorkspaceCoordError::Ineligible)
+                ));
+                assert_eq!(after.generation, prepared.generation);
+                assert_eq!(after.state, prepared.state);
+                assert_eq!(
+                    after
+                        .state
+                        .entry(&key)
+                        .unwrap()
+                        .pending
+                        .as_ref()
+                        .unwrap()
+                        .status,
+                    WorkspacePendingStatus::Unconfirmed
+                );
+            } else {
+                let outcome = outcome.unwrap();
+                if status == 200 {
+                    assert_eq!(outcome.pushed, 1);
+                    assert!(after.state.entry(&key).unwrap().pending.is_none());
+                } else {
+                    assert_eq!(outcome.conflicts, vec![key.clone()]);
+                    assert_eq!(
+                        after
+                            .state
+                            .entry(&key)
+                            .unwrap()
+                            .pending
+                            .as_ref()
+                            .unwrap()
+                            .status,
+                        WorkspacePendingStatus::Conflict
+                    );
+                }
+            }
+            assert!(
+                sync.protocol.try_cutover().is_ok(),
+                "request must release protocol lease"
+            );
+            mock.stop();
+        }
+    }
+}
+
 impl crate::V2ProductUploadSource for BlockingUpload {
     fn with_fenced_upload(
         &self,
