@@ -319,6 +319,34 @@ impl AppCore {
         result
     }
 
+    /// Competition lifecycle events retain only the generation operators.
+    /// Each matched rule establishes its complete reusable approval before it
+    /// is allowed to claim a cooldown or execute an action.
+    #[cfg(feature = "persistence")]
+    pub(crate) async fn run_competition_automation_event(self: &Arc<Self>, event: AutomationEvent) {
+        let (payload, incoming) = event.into_parts();
+        if !incoming.is_competition() || incoming.is_approved() || incoming.check_current().is_err()
+        {
+            return;
+        }
+        let projected = crate::services::automation_approval_policy::project_event(&payload);
+        let mut matched = self.automation.matching_records_scoped(&projected);
+        matched.extend(
+            self.automation
+                .matching_reusable_candidates(&projected, true),
+        );
+        for record in matched {
+            if !self.automation.is_match_live(&record) {
+                continue;
+            }
+            let Ok(context) = self.record_execution_context(&record, &incoming).await else {
+                continue;
+            };
+            self.run_matched_records(vec![record], &projected, &context)
+                .await;
+        }
+    }
+
     pub(crate) async fn run_automation_event(self: &Arc<Self>, event: AutomationEvent) {
         let (event, incoming) = event.into_parts();
         if self.automation_dispatch_guard(&incoming).is_err() {

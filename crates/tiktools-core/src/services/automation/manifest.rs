@@ -442,7 +442,7 @@ pub(crate) fn build(
     review: &Versioned<Value>,
     subjects: ManifestSubjects<'_>,
 ) -> Result<ExecutionManifest, ManifestError> {
-    build_with_inherited_subjects(review, subjects, &[])
+    build_with_inherited_subjects(review, subjects, &[], false)
 }
 
 /// Trusted host callers may add inherited principals to the saved authors.
@@ -452,6 +452,7 @@ pub(super) fn build_with_inherited_subjects(
     review: &Versioned<Value>,
     subjects: ManifestSubjects<'_>,
     inherited: &[(String, String)],
+    native_competition_event: bool,
 ) -> Result<ExecutionManifest, ManifestError> {
     if !canonical_id(subjects.host_id, 256) {
         return Err(ManifestError::InvalidSubjects);
@@ -511,7 +512,29 @@ pub(super) fn build_with_inherited_subjects(
             Some(trigger) if canonical_id(trigger, 128) => {
                 // Arbitrary emitted/plugin trigger contracts need their own
                 // catalog and propagation policy, not an inferred owner grant.
-                if !trigger.starts_with("tiktok.") {
+                if native_competition_event
+                    && matches!(
+                        trigger,
+                        "competition.started"
+                            | "competition.resumed"
+                            | "competition.paused"
+                            | "competition.finished"
+                            | "competition.winner.selected"
+                            | "competition.action.completed"
+                            | "competition.action.failed"
+                    )
+                {
+                    if inherited.is_empty()
+                        || subjects.subjects.iter().any(|subject| {
+                            !subject
+                                .grant
+                                .capabilities
+                                .contains(&Capability::CompetitionsRead)
+                        })
+                    {
+                        reasons.insert(ManifestReason::MissingCapability);
+                    }
+                } else if !trigger.starts_with("tiktok.") {
                     if subjects.subjects.is_empty() {
                         reasons.insert(ManifestReason::PluginBindingUnavailable);
                     } else if !crate::collaboration::valid_emit_topic(trigger) {

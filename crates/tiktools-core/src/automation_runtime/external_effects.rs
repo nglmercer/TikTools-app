@@ -70,7 +70,7 @@ impl AppCore {
             check_current(identities, &mut || Ok(()))
         })?;
         let admit = |commit: &mut dyn FnMut() -> Result<(), String>| {
-            if context.is_competition_winner() {
+            if context.is_competition() {
                 context.with_competition_journal_admission(self, action, |identities| {
                     check_current(identities, commit)
                 })

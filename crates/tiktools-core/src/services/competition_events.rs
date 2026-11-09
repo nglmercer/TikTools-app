@@ -87,9 +87,23 @@ impl AppCore {
                 .ok()
             })();
             if let Some(context) = context {
-                self.queue_automation_event(crate::live_events::AutomationEvent::new(
-                    event, context,
-                ));
+                let Ok(slot) = Arc::clone(&self.automation_state.slots).try_acquire_owned() else {
+                    self.automation_state
+                        .rejected
+                        .fetch_add(1, Ordering::Relaxed);
+                    return;
+                };
+                self.automation_state
+                    .admitted
+                    .fetch_add(1, Ordering::Relaxed);
+                let core = Arc::clone(self);
+                tokio::spawn(async move {
+                    let _slot = slot;
+                    core.run_competition_automation_event(
+                        crate::live_events::AutomationEvent::new(event, context),
+                    )
+                    .await;
+                });
             }
         }
     }

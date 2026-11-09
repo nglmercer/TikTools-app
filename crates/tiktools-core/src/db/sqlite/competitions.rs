@@ -42,6 +42,9 @@ impl CompetitionExecutionAdmission<'_> {
     }
 }
 impl CompetitionExecutionFence {
+    pub(crate) fn competition_id(&self) -> &str {
+        &self.id
+    }
     pub(crate) fn host_id(&self) -> &str {
         &self.host_id
     }
@@ -983,11 +986,11 @@ impl DatabaseManager {
     /// already owns the automation SQLite writer until its commit callback.
     /// This reader must not start a transaction or retain a statement across
     /// `apply`, because the journal must be able to commit its writer.
-    pub(crate) fn with_competition_winner_journal_admission<R>(
+    pub(crate) fn with_competition_journal_admission<R>(
         &self,
         service: &std::sync::Arc<crate::collaboration::CollaborationService>,
         fence: &CompetitionExecutionFence,
-        claim: &ActionClaim,
+        claim: Option<&ActionClaim>,
         additional: &[(String, String)],
         apply: impl FnOnce(
             &[crate::collaboration::ExecutionIdentity],
@@ -996,7 +999,9 @@ impl DatabaseManager {
     ) -> Result<R, DatabaseError> {
         use crate::collaboration::{Capability, Error, ResourceKind};
         let denied = || DatabaseError::CommandAuthorization(Error::Forbidden);
-        if claim.competition_id != fence.id || claim.generation != fence.generation {
+        if claim.is_some_and(|claim| {
+            claim.competition_id != fence.id || claim.generation != fence.generation
+        }) {
             return Err(denied());
         }
         let generation = i64::try_from(fence.generation)
@@ -1074,11 +1079,13 @@ impl DatabaseManager {
                 {
                     return Err(denied());
                 }
-                validate_competition_winner_claim(&db, claim)?;
+                if let Some(claim) = claim {
+                    validate_competition_winner_claim(&db, claim)?;
+                }
                 let admission = CompetitionExecutionAdmission {
                     fence,
                     identities,
-                    winner: Some(claim),
+                    winner: claim,
                 };
                 apply(identities, &admission)
             })

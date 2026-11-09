@@ -343,10 +343,26 @@ async fn competition_activation_transaction_retains_operators_and_replays_origin
     let f = Fixture::new();
     f.core().ranking_create(serde_json::from_value(json!({"schemaVersion":1,"id":"rank","creatorId":"owner","roomId":"room","limit":10,"capacity":10,"sources":[{"source":"custom.score","metric":"value","weight":1,"enabled":true}]})).unwrap()).unwrap();
     f.core().competition_create(serde_json::from_value(json!({"schemaVersion":1,"id":"shared","name":"Shared","kind":"leaderboard_challenge","rankingId":"rank","options":[],"selectionMode":"highest_score","tiePolicy":"stable","durationMs":null,"voteLimit":1,"allowSwitch":false,"minimumParticipants":1})).unwrap()).unwrap();
+    let mut started_action = points("started-action", "alice", 1.0);
+    started_action["enabled"] = true.into();
+    f.core()
+        .automation_create(AutomationKind::Action, started_action)
+        .unwrap();
+    f.core().automation_create(AutomationKind::Event, json!({"id":"on-start","name":"On start","enabled":true,"trigger":"competition.started","actionIds":["started-action"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1})).unwrap();
     let mut permission = grant();
-    permission
-        .capabilities
-        .extend([Capability::CompetitionsRead, Capability::CompetitionsManage]);
+    permission.capabilities.extend([
+        Capability::CompetitionsRead,
+        Capability::CompetitionsManage,
+        Capability::AutomationToggle,
+    ]);
+    permission.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
     let first = f.pair(permission.clone());
     let second = f.pair(permission.clone());
     let first_id = first.snapshot().unwrap();
@@ -411,8 +427,15 @@ async fn competition_activation_transaction_retains_operators_and_replays_origin
             .automation_state
             .admitted
             .load(std::sync::atomic::Ordering::Relaxed),
-        admitted
+        admitted + 1
     );
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while f.points("alice") != 1.0 {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("delegated start action should execute");
     let first_fence = f
         .core()
         .db

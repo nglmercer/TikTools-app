@@ -304,7 +304,7 @@ impl ApprovalCandidate {
         self,
         identities: &[ExecutionIdentity],
     ) -> Result<RuntimeApprovalPermit, &'static str> {
-        self.authorize_with_inherited(identities, &[], None, None)
+        self.authorize_with_inherited(identities, &[], None, None, false)
     }
 
     /// Call inside the competition fence's current-subject transaction. The
@@ -325,7 +325,7 @@ impl ApprovalCandidate {
         {
             return Err("competition operator binding is unavailable");
         }
-        self.authorize_with_inherited(identities, &operators, Some(fence.clone()), None)
+        self.authorize_with_inherited(identities, &operators, Some(fence.clone()), None, false)
     }
 
     /// Inherit every prior author and operator for a chained saved rule.
@@ -333,9 +333,16 @@ impl ApprovalCandidate {
         self,
         admission: &crate::db::CompetitionExecutionAdmission<'_>,
         inherited: &[(String, String)],
+        native_competition_event: bool,
     ) -> Result<RuntimeApprovalPermit, &'static str> {
         if self.approval.is_some()
-            || admission.winner().is_none()
+            || native_competition_event
+                && admission.identities().iter().any(|identity| {
+                    !identity.grant().allows_resource(
+                        crate::collaboration::ResourceKind::Competition,
+                        admission.fence().competition_id(),
+                    )
+                })
             || admission
                 .fence()
                 .subjects()
@@ -353,6 +360,7 @@ impl ApprovalCandidate {
             inherited,
             Some(admission.fence().clone()),
             None,
+            native_competition_event,
         )
     }
 
@@ -403,6 +411,7 @@ impl ApprovalCandidate {
             &operators,
             Some(admission.fence().clone()),
             Some((claim.clone(), effective)),
+            false,
         )
     }
 
@@ -412,6 +421,7 @@ impl ApprovalCandidate {
         inherited: &[(String, String)],
         competition: Option<crate::db::CompetitionExecutionFence>,
         competition_winner: Option<(tiktools_competitions::ActionClaim, Value)>,
+        native_competition_event: bool,
     ) -> Result<RuntimeApprovalPermit, &'static str> {
         let host = identities
             .first()
@@ -441,6 +451,7 @@ impl ApprovalCandidate {
                 subjects: &subjects,
             },
             inherited,
+            native_competition_event,
         )
         .map_err(|_| "saved approval manifest is unavailable")?;
         if let Some(approval) = &self.approval {
@@ -488,6 +499,13 @@ impl RuntimeApprovalPermit {
             .definitions
             .iter()
             .any(|fence| fence.family == AutomationFamily::Action && fence.definition == *action)
+    }
+
+    pub(crate) fn authorizes_event(&self, event: &Value) -> bool {
+        self.candidate
+            .definitions
+            .iter()
+            .any(|fence| fence.family == AutomationFamily::Event && fence.definition == *event)
     }
 
     /// Extra subjects from a conjoined context are allowed; every subject

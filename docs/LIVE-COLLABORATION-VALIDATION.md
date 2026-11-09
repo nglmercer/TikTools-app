@@ -246,9 +246,10 @@ observers or competition-triggered automation. The native controller can
 start, resume, pause or cancel a visible competition under the same scoped grant;
 its version-8 command journal stores the generation and revision before sending
 and recovers an uncertain result using the original command ID. Remote start/resume retain every operator's current
-grants, and winner actions remain subject to those grants. Competition lifecycle
-events from delegated generations are presentation-only until scoped lifecycle
-automation dispatch is connected; complete release acceptance remains pending.
+grants, and winner actions remain subject to those grants. Delegated start,
+resume and finish events can trigger scoped automations when every retained
+operator and saved author permits the effects. Remote stop notifications remain
+presentation-only; complete release acceptance remains pending.
 For any of these RPCs, send `params: {id, expectedGeneration}` and
 `meta: {commandId, hostInstanceId, expectedRevision}` using the generation and
 revision from the scoped summary. The durable result identifies the

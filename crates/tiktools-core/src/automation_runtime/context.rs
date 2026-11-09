@@ -282,26 +282,21 @@ impl ExecutionContext {
         Err("delegated execution approval is unavailable".into())
     }
 
-    /// Revalidate the immutable winner, current operators and every saved
-    /// automation author at the effect boundary under one business writer.
+    /// Keep the competition generation, operators and saved authors locked
+    /// through admission, including the immutable winner when applicable.
     #[cfg(feature = "persistence")]
-    pub(crate) fn with_competition_action<R>(
+    fn with_competition_binding<R>(
         &self,
         core: &AppCore,
-        action: &serde_json::Value,
-        apply: impl FnOnce(&[crate::collaboration::ExecutionIdentity]) -> Result<R, String>,
+        apply: impl FnOnce(
+            &[crate::collaboration::ExecutionIdentity],
+            &crate::db::CompetitionExecutionAdmission<'_>,
+        ) -> Result<R, String>,
     ) -> Result<R, String> {
-        let (
-            Some(fence),
-            Some(claim),
-            Authority::Approved {
-                subjects,
-                permits,
-                owner_rules,
-            },
-        ) = (&self.competition, &self.competition_winner, &self.authority)
+        let (Some(fence), Authority::Approved { subjects, .. }) =
+            (&self.competition, &self.authority)
         else {
-            return Err("competition winner authority is unavailable".into());
+            return Err("competition authority is unavailable".into());
         };
         let additional = subjects
             .snapshot()
@@ -312,25 +307,55 @@ impl ExecutionContext {
         let service = core
             .collaboration()
             .map_err(|_| "collaboration is unavailable")?;
-        core.db
-            .with_competition_winner_admission(
-                &service,
-                fence,
-                claim,
-                &additional,
-                |_, identities, admission, _| {
-                    core.automation
-                        .with_current_competition_approvals(
-                            admission,
-                            permits,
-                            owner_rules,
-                            action,
-                            || apply(identities),
-                        )
-                        .map_err(crate::db::DatabaseError::Invalid)
-                },
+        if let Some(claim) = &self.competition_winner {
+            core.db
+                .with_competition_winner_admission(
+                    &service,
+                    fence,
+                    claim,
+                    &additional,
+                    |_, identities, admission, _| {
+                        apply(identities, admission).map_err(crate::db::DatabaseError::Invalid)
+                    },
+                )
+                .map_err(|error| error.to_string())
+        } else {
+            core.db
+                .with_competition_execution_fence_and_subjects(
+                    &service,
+                    fence,
+                    &additional,
+                    |_, identities, admission| {
+                        apply(identities, admission).map_err(crate::db::DatabaseError::Invalid)
+                    },
+                )
+                .map_err(|error| error.to_string())
+        }
+    }
+    #[cfg(feature = "persistence")]
+    pub(crate) fn with_competition_action<R>(
+        &self,
+        core: &AppCore,
+        action: &serde_json::Value,
+        apply: impl FnOnce(&[crate::collaboration::ExecutionIdentity]) -> Result<R, String>,
+    ) -> Result<R, String> {
+        let Authority::Approved {
+            permits,
+            owner_rules,
+            ..
+        } = &self.authority
+        else {
+            return Err("competition authority is unavailable".into());
+        };
+        self.with_competition_binding(core, |identities, admission| {
+            core.automation.with_current_competition_approvals(
+                admission,
+                permits,
+                owner_rules,
+                action,
+                || apply(identities),
             )
-            .map_err(|error| error.to_string())
+        })
     }
     /// Only invoked by the effect journal while its SQLite writer is held.
     #[cfg(feature = "persistence")]
@@ -342,15 +367,14 @@ impl ExecutionContext {
     ) -> Result<R, String> {
         let (
             Some(fence),
-            Some(claim),
             Authority::Approved {
                 subjects,
                 permits,
                 owner_rules,
             },
-        ) = (&self.competition, &self.competition_winner, &self.authority)
+        ) = (&self.competition, &self.authority)
         else {
-            return Err("competition winner authority is unavailable".into());
+            return Err("competition authority is unavailable".into());
         };
         let additional = subjects
             .snapshot()
@@ -362,10 +386,10 @@ impl ExecutionContext {
             .collaboration()
             .map_err(|_| "collaboration is unavailable")?;
         core.db
-            .with_competition_winner_journal_admission(
+            .with_competition_journal_admission(
                 &service,
                 fence,
-                claim,
+                self.competition_winner.as_ref(),
                 &additional,
                 |identities, admission| {
                     core.automation
@@ -391,7 +415,7 @@ impl ExecutionContext {
         action: &serde_json::Value,
         apply: impl FnOnce(&[crate::collaboration::ExecutionIdentity]) -> Result<R, String>,
     ) -> Result<R, String> {
-        if self.is_competition_winner() {
+        if self.is_competition() {
             self.with_competition_action(core, action, apply)
         } else {
             self.with_current_subjects(action, &core.automation, apply)
@@ -399,8 +423,8 @@ impl ExecutionContext {
     }
 
     #[cfg(feature = "persistence")]
-    pub(crate) fn is_competition_winner(&self) -> bool {
-        self.competition_winner.is_some()
+    pub(crate) fn is_competition(&self) -> bool {
+        self.competition.is_some()
     }
 
     /// Retain every inherited subject/definition fence during scoped event
@@ -422,32 +446,15 @@ impl ExecutionContext {
         else {
             return Err("delegated execution approval is unavailable".into());
         };
-        if let (Some(fence), Some(claim)) = (&self.competition, &self.competition_winner) {
-            let additional = subjects
-                .snapshot()
-                .map_err(|_| "saved execution subjects are unavailable")?
-                .iter()
-                .map(|id| (id.principal_id().to_owned(), id.session_id().to_owned()))
-                .collect::<Vec<_>>();
-            let service = core
-                .collaboration()
-                .map_err(|_| "collaboration is unavailable")?;
-            return core
-                .db
-                .with_competition_winner_admission(
-                    &service,
-                    fence,
-                    claim,
-                    &additional,
-                    |_, identities, admission, _| {
-                        core.automation
-                            .with_current_competition_chain(admission, permits, owner_rules, || {
-                                apply(identities)
-                            })
-                            .map_err(crate::db::DatabaseError::Invalid)
-                    },
+        if self.is_competition() {
+            return self.with_competition_binding(core, |identities, admission| {
+                core.automation.with_current_competition_chain(
+                    admission,
+                    permits,
+                    owner_rules,
+                    || apply(identities),
                 )
-                .map_err(|error| error.to_string());
+            });
         }
         subjects
             .with_current(|identities| {
@@ -581,7 +588,11 @@ impl AppCore {
     ) -> Result<ExecutionContext, &'static str> {
         #[cfg(feature = "persistence")]
         {
-            let context = if incoming.is_competition_winner() {
+            let context = if incoming.is_competition()
+                && matches!(&incoming.authority, Authority::Approved { permits, .. } if permits.iter().any(|permit| permit.authorizes_event(&record.definition)))
+            {
+                incoming.clone()
+            } else if incoming.is_competition() {
                 let candidate = self
                     .automation
                     .competition_rule_candidate(record)
@@ -649,15 +660,24 @@ impl AppCore {
         candidate: crate::services::ApprovalCandidate,
         incoming: &ExecutionContext,
     ) -> Result<ExecutionContext, &'static str> {
-        if candidate.requires_scoped_input() && !incoming.is_approved() {
+        if candidate.requires_scoped_input()
+            && !incoming.is_approved()
+            && !incoming.is_competition()
+        {
             return Err("this saved approval requires approved scoped input");
         }
+        let native_competition_event =
+            incoming.is_competition() && matches!(incoming.authority, Authority::Restricted(_));
         let inherited_competition = match (
             &incoming.competition,
             &incoming.competition_winner,
             &incoming.authority,
         ) {
-            (Some(fence), Some(claim), Authority::Approved { subjects, .. }) => {
+            (
+                Some(fence),
+                claim,
+                Authority::Approved { subjects, .. } | Authority::Restricted(subjects),
+            ) => {
                 let inherited = subjects
                     .snapshot()
                     .map_err(|_| "saved execution subjects are unavailable")?
@@ -690,20 +710,39 @@ impl AppCore {
                 let subjects = service
                     .execution_authorizations(&all)
                     .map_err(|_| "saved execution subjects are unavailable")?;
-                let permit = core
-                    .db
-                    .with_competition_winner_admission(
+                let permit = if let Some(claim) = claim {
+                    core.db.with_competition_winner_admission(
                         &service,
                         &fence,
                         &claim,
                         &all,
                         |_, _, admission, _| {
                             candidate
-                                .authorize_competition_chain(admission, &inherited)
+                                .authorize_competition_chain(
+                                    admission,
+                                    &inherited,
+                                    native_competition_event,
+                                )
                                 .map_err(|error| crate::db::DatabaseError::Invalid(error.into()))
                         },
                     )
-                    .map_err(|_| "competition chain authorization is unavailable")?;
+                } else {
+                    core.db.with_competition_execution_fence_and_subjects(
+                        &service,
+                        &fence,
+                        &all,
+                        |_, _, admission| {
+                            candidate
+                                .authorize_competition_chain(
+                                    admission,
+                                    &inherited,
+                                    native_competition_event,
+                                )
+                                .map_err(|error| crate::db::DatabaseError::Invalid(error.into()))
+                        },
+                    )
+                }
+                .map_err(|_| "competition chain authorization is unavailable")?;
                 (subjects, permit)
             } else {
                 let subjects = service
@@ -733,6 +772,11 @@ impl AppCore {
         })
         .await
         .map_err(|_| "execution approval resolution failed")??;
+        if incoming.is_competition() && matches!(incoming.authority, Authority::Restricted(_)) {
+            let mut context = incoming.clone();
+            context.authority = approved.authority;
+            return Ok(context);
+        }
         incoming.intersect(&approved)
     }
 
@@ -823,7 +867,7 @@ impl AppCore {
         {
             // A retained permit may already cover this exact saved action as
             // part of its pinned closure. Recheck the full chain before reuse.
-            if incoming.is_competition_winner() {
+            if incoming.is_competition() {
                 // The core effect guard validates the exact winner and permit
                 // under the business writer before any effect is admitted.
                 return Ok(incoming.clone());
