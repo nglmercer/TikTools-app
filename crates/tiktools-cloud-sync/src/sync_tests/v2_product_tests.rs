@@ -1,6 +1,70 @@
 use super::*;
 
 #[tokio::test]
+async fn v2_epoch_policy_setup_is_once_and_bound_to_current_consent() {
+    let dir = TempDir::new("v2-policy-setup");
+    let mock = MockSync::start("policy-setup-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "policy-setup").await;
+    let session = auth.session().await.unwrap();
+    let preview = marked_preview(&sync, &session);
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .prepare(&preview, &mock.origin, "policy-setup-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "policy-setup-user".into(),
+    )
+    .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
+    lease
+        .finish(&preview, &mock.origin, "policy-setup-user")
+        .unwrap();
+    drop(lease);
+    sync.set_enabled(false).unwrap();
+    let consent = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&consent).unwrap();
+    mock.inner.lock().unwrap().v2_epoch_required = None;
+    let mut context = crate::V2LocalEditContext {
+        origin: mock.origin.clone(),
+        account_id: "policy-setup-user".into(),
+        config_generation: sync.read_config().generation,
+    };
+    let expected = context.clone();
+    assert!(sync
+        .ensure_v2_write_epoch_policy(session.clone(), expected.clone())
+        .await
+        .is_err());
+    assert_eq!(mock.inner.lock().unwrap().v2_require_requests, 0);
+    mock.inner.lock().unwrap().v2_epoch_required = Some(false);
+    context.config_generation ^= 1;
+    assert!(sync
+        .ensure_v2_write_epoch_policy(session.clone(), context)
+        .await
+        .is_err());
+    assert_eq!(mock.inner.lock().unwrap().v2_require_requests, 0);
+    assert!(sync
+        .ensure_v2_write_epoch_policy(session.clone(), expected.clone())
+        .await
+        .unwrap());
+    assert!(!sync
+        .ensure_v2_write_epoch_policy(session.clone(), expected.clone())
+        .await
+        .unwrap());
+    assert_eq!(mock.inner.lock().unwrap().v2_require_requests, 1);
+    assert_eq!(mock.inner.lock().unwrap().v2_write_epoch, "8");
+    auth.logout().await.unwrap();
+    assert!(sync
+        .ensure_v2_write_epoch_policy(session, expected)
+        .await
+        .is_err());
+    assert_eq!(mock.inner.lock().unwrap().v2_require_requests, 1);
+    mock.stop();
+}
+
+#[tokio::test]
 async fn interrupted_completed_cutover_scopes_consent_without_reenabling_opt_out() {
     struct EmptySource;
     impl crate::CutoverSource for EmptySource {

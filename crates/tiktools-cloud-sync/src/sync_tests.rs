@@ -2936,6 +2936,7 @@ struct MockInner {
     v2_write_epoch: String,
     v2_epoch_required: Option<bool>,
     v2_epoch_status: Option<u16>,
+    v2_require_requests: usize,
     v2_received_epochs: Vec<Option<String>>,
     v2_record_get_requests: usize,
     v2_read_record: Option<serde_json::Value>,
@@ -2999,6 +3000,7 @@ impl MockSync {
             v2_write_epoch: "7".into(),
             v2_epoch_required: Some(true),
             v2_epoch_status: None,
+            v2_require_requests: 0,
             v2_received_epochs: Vec::new(),
             v2_record_get_requests: 0,
             v2_read_record: None,
@@ -3283,6 +3285,23 @@ fn route(
             };
             state.v2_write_epoch = next.to_string();
             json(200, serde_json::json!({"writeEpoch": state.v2_write_epoch}))
+        }
+        ("POST", "/api/v2/sync/require-write-epoch") => {
+            state.v2_require_requests += 1;
+            let Some(next) = state
+                .v2_write_epoch
+                .parse::<i64>()
+                .ok()
+                .and_then(|v| v.checked_add(1))
+            else {
+                return json(503, serde_json::json!({}));
+            };
+            state.v2_write_epoch = next.to_string();
+            state.v2_epoch_required = Some(true);
+            json(
+                200,
+                serde_json::json!({"writeEpoch": state.v2_write_epoch, "epochRequired": true}),
+            )
         }
         ("GET", path) if path.starts_with("/api/v2/sync/collections/") => {
             state.v2_record_get_requests += 1;

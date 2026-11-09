@@ -101,6 +101,74 @@ fn ready(snapshot: Option<WorkspaceStateSnapshot>) -> Result<u64, WorkspaceCoord
 }
 
 impl SyncCoordinator {
+    /// Enable the account-wide write fence after the user accepts v2 setup.
+    /// This is irreversible on the server and affects older v2 clients. It
+    /// does not migrate local data; an ambiguous response is retried by
+    /// checking the policy again rather than assuming it failed.
+    #[doc(hidden)]
+    pub async fn ensure_v2_write_epoch_policy(
+        &self,
+        session: Arc<Session>,
+        expected: V2LocalEditContext,
+    ) -> Result<bool, WorkspaceCoordError> {
+        let sync = self.clone();
+        crate::v2_product_outbox::run_product_worker(move |cancelled, deadline| async move {
+            let config = sync
+                .capture_v2_config_epoch(&session)
+                .ok_or(WorkspaceCoordError::Ineligible)?;
+            let origin = session.instance_origin();
+            let account = session.account_id();
+            if expected.origin != origin
+                || expected.account_id != account
+                || expected.config_generation != config.config.generation
+            {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+            let _protocol = sync.protocol.try_v2(&origin, account)?;
+            let marker = sync.protocol.try_v1()?;
+            marker.ensure_product_outbox(&origin, account)?;
+            let root = sync
+                .config_path
+                .parent()
+                .and_then(|path| path.parent())
+                .ok_or(WorkspaceCoordError::Ineligible)?;
+            let _source = crate::ProductEmissionFence::open(root.join("plugin-sync-emission"))?
+                .try_untracked_edit()?;
+            let eligible = || {
+                crate::v2_product_outbox::product_eligible(&cancelled, deadline, || {
+                    sync.is_v2_config_epoch_current(&config, &session)
+                        && sync.auth.is_current_session(&session)
+                })
+            };
+            if !eligible() {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+            let before = session.workspace_write_epoch().await?;
+            if !eligible() {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+            match before.epoch_required() {
+                Some(true) => return Ok(false),
+                Some(false) => {}
+                None => return Err(WorkspaceCoordError::Ineligible),
+            }
+            let guard = sync
+                .auth
+                .try_session_emission_permit(&session)
+                .map_err(|_| WorkspaceCoordError::Ineligible)?;
+            if !eligible() {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+            let after = session.workspace_require_write_epoch().await?;
+            drop(guard);
+            if !eligible() || after.epoch_required() != Some(true) || !after.is_after(&before)? {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+            Ok(true)
+        })
+        .await
+    }
+
     /// Admit a cached plugin record only if it is still the exact record
     /// observed after the server barrier. The caller remains responsible for
     /// fencing native plugin state and journaling any local runtime effect.
