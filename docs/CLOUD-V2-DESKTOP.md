@@ -103,14 +103,16 @@ local-application consent fence.
 CloudAuth now provides a private-gate synchronous callback for a future local
 commit bound to one exact session. Account transitions on the same manager or
 its clones wait asynchronously until that callback returns, and a transition
-already in progress refuses admission. This does not fence independent managers,
-other processes or consent changes; it is not yet connected to cutover.
+already in progress refuses admission. The internal cutover coordinator uses
+this callback together with protocol admission. It does not fence independent
+managers or other processes.
 
 An in-progress private preview reads a coherent SQLite snapshot including
 deleted source generations and compares it with catalog selections, the
 activation map, session and consent. It rejects partial catalog scans, package
-journals, any retained apply journal or finalization witness, and this account's
-unfinished outbox or conflict journal. This deliberately conservative check
+journals, any retained apply journal or finalization witness, unfinished
+outboxes or conflict journals from any account, and all sync receipts until
+they can be reconciled exactly with the reviewed v1 snapshot. This deliberately conservative check
 can block preview even for finalized applications until a safe witness review
 and retention policy exists. The later freshness check does not recheck v1
 state, and scan completeness does not fence filesystem changes after the scan.
@@ -126,9 +128,13 @@ preparation only from the exact original inputs and a new review. Bootstrap
 rejects a nonempty or otherwise noncanonical incomplete workspace without
 overwriting it; selection of v2 holds the workspace state lock through marker
 publication. Disabling sync remains possible in Preparing or V2 and preserves
-both stores. Re-enabling v2, cross-process source/package fencing, independent
-authentication managers and product wiring remain unfinished. The primitive
-is not a user-facing migration and does not authorize local application.
+both stores. A private native adapter now also holds cooperative invocation,
+package-store, SQLite and catalog fences for the reviewed commit; it cannot
+fence every root or noncooperating writer, and it may delay plugin operations
+while durable disk writes complete. Later local mutations are not yet routed to
+v2. Independent authentication managers and product wiring remain unfinished.
+The primitive is not a user-facing migration and does not authorize local
+application.
 
 The in-progress v1 uncertain-upload recovery must not be treated as a finished
 product flow. A plugin change can currently be applied locally before its
@@ -267,6 +273,20 @@ Loss of both files together cannot be distinguished from a new installation. Old
 binaries do not understand the new identity and may rewrite the setting using
 their old scheme, so deployment must prevent concurrent use or downgrade to
 those binaries before the new product path can be activated.
+
+An internal explicit review can renew consent for a completed v2 selection or
+an interrupted preparation, binding it to the exact session, origin, account,
+protocol marker and workspace generation. It creates a fresh scoped consent
+identity without sending data or changing either workspace. V2 networking must
+use the scoped v2 eligibility check; a legacy device-wide opt-in is not v2
+authorization. Versioned config rejects a missing scoped field, but restoring
+an entire old preference or removing both version and scope is indistinguishable
+from legacy state. Older binaries can ignore the scoped fields, so downgrade or
+concurrent old binaries must be prevented. Unix preference reads reject symlinks
+and nonregular files without blocking on FIFOs; the equivalent race protection
+on other platforms still needs verification. The active v1 local mutation path
+logs a staging error for damaged settings but does not yet present durable
+recovery in the UI.
 
 The read-only Cloud catalog uses typed summary and version-page RPCs against
 the configured origin, with generation and sizes as decimal strings. Bounded

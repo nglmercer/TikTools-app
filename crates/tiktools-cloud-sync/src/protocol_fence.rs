@@ -136,7 +136,7 @@ impl V1UncertainUpload {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProtocolRecord {
     format_version: u32,
@@ -144,6 +144,18 @@ struct ProtocolRecord {
     account_id: String,
     mode: ProtocolMode,
     candidate_sha256: String,
+}
+
+/// Opaque exact marker used only to revalidate a native consent review.
+#[allow(dead_code)] // Used by the not-yet-exposed native v2 consent review.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct ResumeProtocolRecord(ProtocolRecord);
+
+#[allow(dead_code)]
+impl ResumeProtocolRecord {
+    pub(crate) fn is_preparing(&self) -> bool {
+        self.0.mode == ProtocolMode::Preparing
+    }
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
@@ -677,6 +689,22 @@ impl V1Lease {
 }
 
 impl CutoverLease {
+    #[allow(dead_code)] // Used by the not-yet-exposed native v2 consent review.
+    pub(crate) fn resume_record(
+        &self,
+        origin: &str,
+        account: &str,
+    ) -> Result<ResumeProtocolRecord, ProtocolFenceError> {
+        let record = self
+            .fence
+            .read_record(origin, account)?
+            .ok_or(ProtocolFenceError::StaleCutover)?;
+        // A historical preparation does not bind all reviewed inputs.
+        if record.mode == ProtocolMode::Preparing && record.format_version != 2 {
+            return Err(ProtocolFenceError::StaleCutover);
+        }
+        Ok(ResumeProtocolRecord(record))
+    }
     /// Reconstruct an interrupted preparation for a new explicit review.
     /// The v1 inputs, installed selections and resulting candidate must hash
     /// to the original prepared marker; no migration state is changed.

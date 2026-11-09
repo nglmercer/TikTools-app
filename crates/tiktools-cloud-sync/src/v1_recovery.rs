@@ -78,6 +78,9 @@ impl SyncCoordinator {
             .session()
             .await
             .ok_or(SyncCoordError::NotSignedIn)?;
+        if !config.allows_session(&session) {
+            return Err(SyncCoordError::Disabled);
+        }
         let origin = session.instance_origin();
         let account = session.account_id();
         let gate = self.protocol.try_cutover()?;
@@ -115,7 +118,7 @@ impl SyncCoordinator {
             .session()
             .await
             .ok_or(SyncCoordError::NotSignedIn)?;
-        if !self.auth.is_current_session(&session) {
+        if !config.allows_session(&session) || !self.auth.is_current_session(&session) {
             return Err(SyncCoordError::StaleReview);
         }
         let origin = session.instance_origin();
@@ -182,6 +185,7 @@ impl SyncCoordinator {
         }
         let config = self.read_config();
         if !config.enabled
+            || !config.allows_session(&review.session)
             || config.generation != review.config_generation
             || !self.auth.is_current_session(&review.session)
         {

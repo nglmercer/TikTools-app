@@ -20,10 +20,8 @@ pub use workspace::{
 };
 mod cutover_preview;
 pub use cutover_preview::CutoverPreview;
-#[allow(dead_code)] // No product source/package fence exists yet.
 mod cutover_execution;
-#[cfg(test)]
-pub(crate) use cutover_execution::CutoverExecution;
+pub use cutover_execution::{CutoverExecution, CutoverSource, GuardedCutoverReview};
 mod protocol_fence;
 pub use protocol_fence::{
     CutoverLease, ProtocolFence, ProtocolFenceError, V1UncertainUpload, V2Lease,
@@ -39,6 +37,8 @@ pub use product_remote_apply::V1RemoteApplyReview;
 #[doc(hidden)]
 pub mod consent_generation;
 mod product_conflict;
+#[allow(dead_code)] // Native review is not exposed until product integration.
+mod v2_consent;
 pub use product_conflict::{
     V1KeepLocalAbandonReview, V1KeepLocalIntent, V1KeepLocalRecoveryReview,
     V1PreviousConsentRebaseReview, V1ProductConflictReview, V1SupersededRebaseReview,
@@ -154,9 +154,79 @@ impl SyncCoordError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 struct SyncConfig {
+    #[serde(
+        default = "legacy_config_version",
+        skip_serializing_if = "is_legacy_config_version"
+    )]
+    version: u8,
     enabled: bool,
     #[serde(default, with = "consent_generation")]
     generation: u128,
+    /// New v2 opt-ins are private to one origin/account. Legacy settings
+    /// omit this field and retain their existing device-wide semantics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    scope: Option<[u8; 32]>,
+}
+
+fn legacy_config_version() -> u8 {
+    1
+}
+fn is_legacy_config_version(version: &u8) -> bool {
+    *version == 1
+}
+
+fn read_regular_file(
+    path: &Path,
+    max: usize,
+) -> Result<(Vec<u8>, std::fs::Metadata), SyncCoordError> {
+    use std::io::Read;
+    let invalid = || SyncCoordError::Io("sync preference file is unreadable".into());
+    let before = std::fs::symlink_metadata(path).map_err(|_| invalid())?;
+    if !before.file_type().is_file() {
+        return Err(invalid());
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    let file = options.open(path).map_err(|_| invalid())?;
+    let opened = file.metadata().map_err(|_| invalid())?;
+    if !opened.file_type().is_file() || opened.len() > max as u64 {
+        return Err(invalid());
+    }
+    let mut bytes = Vec::new();
+    file.take(max as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| invalid())?;
+    if bytes.len() > max {
+        return Err(invalid());
+    }
+    Ok((bytes, opened))
+}
+
+fn consent_scope(origin: &str, account: &str) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let material = serde_json::to_vec(&("tiktools-v2-consent", origin, account))
+        .expect("serializing strings cannot fail");
+    Sha256::digest(material).into()
+}
+
+impl SyncConfig {
+    fn valid(&self) -> bool {
+        matches!((self.version, self.scope), (1, None) | (2, Some(_)))
+    }
+
+    fn allows(&self, origin: &str, account: &str) -> bool {
+        self.scope
+            .is_none_or(|scope| scope == consent_scope(origin, account))
+    }
+
+    fn allows_session(&self, session: &cloud_client::Session) -> bool {
+        self.allows(&session.instance_origin(), session.account_id())
+    }
 }
 
 /// Opaque opt-in snapshot bound to one coordinator and exact login session.
@@ -242,14 +312,16 @@ impl SyncCoordinator {
         if !metadata.file_type().is_file() || metadata.len() != CONSENT_MARKER.len() as u64 {
             return Err(SyncCoordError::Io("invalid sync consent marker".into()));
         }
+        let (bytes, opened) = read_regular_file(&path, CONSENT_MARKER.len())?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            if metadata.permissions().mode() & 0o077 != 0 {
+            if opened.permissions().mode() & 0o077 != 0 {
                 return Err(SyncCoordError::Io("invalid sync consent marker".into()));
             }
         }
-        let bytes = std::fs::read(path).map_err(|error| SyncCoordError::Io(error.to_string()))?;
+        #[cfg(not(unix))]
+        let _ = opened;
         if bytes != CONSENT_MARKER {
             return Err(SyncCoordError::Io("invalid sync consent marker".into()));
         }
@@ -288,13 +360,23 @@ impl SyncCoordinator {
         Ok(())
     }
 
+    /// Read only a bounded regular file. On Unix the open itself rejects
+    /// symlinks and is nonblocking, including if a FIFO replaces the file.
+    fn read_config_bytes(&self) -> Result<Vec<u8>, SyncCoordError> {
+        Ok(read_regular_file(&self.config_path, 4096)?.0)
+    }
+
     fn read_config(&self) -> SyncConfig {
-        let mut config = std::fs::read(&self.config_path)
+        let mut config = self
+            .read_config_bytes()
             .ok()
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .and_then(|bytes| serde_json::from_slice::<SyncConfig>(&bytes).ok())
+            .filter(SyncConfig::valid)
             .unwrap_or(SyncConfig {
+                version: 1,
                 enabled: false,
                 generation: 0,
+                scope: None,
             });
         // Files predating consent generations do not establish an identity.
         // Keep their state intact, but require explicit opt-in before sync.
@@ -331,7 +413,14 @@ impl SyncCoordinator {
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.read_config().enabled
+        let config = self.read_config();
+        config.enabled
+            && (config.scope.is_none()
+                || self
+                    .current_identity()
+                    .ok()
+                    .flatten()
+                    .is_some_and(|(origin, account)| config.allows(&origin, &account)))
     }
 
     /// Capture opt-in only for an exact current session. A later guarded commit
@@ -341,11 +430,12 @@ impl SyncCoordinator {
         session: &Arc<cloud_client::Session>,
     ) -> Option<SyncConfigEpoch> {
         let config = self.read_config();
-        (config.enabled && self.auth.is_current_session(session)).then(|| SyncConfigEpoch {
-            binding: self.recovery_binding.clone(),
-            session: session.clone(),
-            config,
-        })
+        (config.enabled && config.allows_session(session) && self.auth.is_current_session(session))
+            .then(|| SyncConfigEpoch {
+                binding: self.recovery_binding.clone(),
+                session: session.clone(),
+                config,
+            })
     }
 
     /// Compare only the captured inputs. Call within `CloudAuth::with_current_session`
@@ -358,7 +448,30 @@ impl SyncCoordinator {
         Arc::ptr_eq(&epoch.binding, &self.recovery_binding)
             && Arc::ptr_eq(&epoch.session, session)
             && epoch.config.enabled
+            && epoch.config.allows_session(session)
             && self.read_config() == epoch.config
+    }
+
+    /// Capture consent specifically bound to this v2 origin/account. Legacy
+    /// device-wide v1 opt-in is never enough to authorize v2 networking.
+    /// Callers must additionally hold and recheck the selected v2 protocol.
+    pub fn capture_v2_config_epoch(
+        &self,
+        session: &Arc<cloud_client::Session>,
+    ) -> Option<SyncConfigEpoch> {
+        self.capture_config_epoch(session)
+            .filter(|epoch| epoch.config.version == 2 && epoch.config.scope.is_some())
+    }
+
+    /// Call within the same current-session guard as `is_config_epoch_current`.
+    pub fn is_v2_config_epoch_current(
+        &self,
+        epoch: &SyncConfigEpoch,
+        session: &Arc<cloud_client::Session>,
+    ) -> bool {
+        epoch.config.version == 2
+            && epoch.config.scope.is_some()
+            && self.is_config_epoch_current(epoch, session)
     }
 
     /// Build an informational v2 migration candidate from the exact current
@@ -425,12 +538,21 @@ impl SyncCoordinator {
                 lease.ensure_v1(&origin, &account)?;
             }
         }
+        self.write_new_consent(enabled, self.read_config().generation, None)?;
+        drop(lease);
+        Ok(self.status_blocking())
+    }
+
+    /// The caller must hold exclusive protocol admission and any required
+    /// current-session fence. Every explicit decision gets a new identity.
+    fn write_new_consent(
+        &self,
+        enabled: bool,
+        previous: u128,
+        scope: Option<[u8; 32]>,
+    ) -> Result<(), SyncCoordError> {
         self.ensure_consent_marker()?;
-        // The previous file can be missing or corrupt. A counter restarted
-        // from zero could reauthorize an old receipt or review, so every
-        // explicit consent decision receives a fresh random identity. The
-        // high bit keeps it outside the range of legacy u64 generations.
-        let previous = self.read_config().generation;
+        // The high bit keeps new identities outside legacy u64 generations.
         let mut bytes = [0_u8; 16];
         getrandom::fill(&mut bytes)
             .map_err(|_| SyncCoordError::Io("cannot create sync consent identity".into()))?;
@@ -440,11 +562,11 @@ impl SyncCoordinator {
             return Err(SyncCoordError::Io("sync consent identity collision".into()));
         }
         self.write_config(&SyncConfig {
+            version: if scope.is_some() { 2 } else { 1 },
             enabled,
             generation,
-        })?;
-        drop(lease);
-        Ok(self.status_blocking())
+            scope,
+        })
     }
 
     fn status_blocking(&self) -> SyncStatus {
@@ -590,6 +712,10 @@ impl SyncCoordinator {
             }
             acquired.ok_or(ProtocolFenceError::Busy)?
         };
+        // The admission lease excludes cooperating consent changes. Read and
+        // durably initialize its marker before taking the account mutex; the
+        // product marker is still checked first inside the identity callback.
+        let config = self.read_staging_config();
         for attempt in 0..MAX_IDENTITY_LOCK_RETRIES {
             match self.auth.with_sync_identity(|identity| {
                 let Some((origin, account)) = identity else {
@@ -599,7 +725,11 @@ impl SyncCoordinator {
                 // identity, including disabled or damaged configuration. A
                 // false opt-out must not masquerade as successful staging.
                 lease.ensure_legacy_allowed(&origin, &account)?;
-                if !self.read_config().enabled {
+                let config = match &config {
+                    Ok(config) => *config,
+                    Err(error) => return Err(SyncCoordError::Io(error.to_string())),
+                };
+                if !config.enabled || !config.allows(&origin, &account) {
                     return Ok(false);
                 }
                 for _ in 0..MAX_STAGE_RETRIES {
@@ -973,7 +1103,7 @@ impl SyncCoordinator {
     ) -> Result<R, SyncCoordError> {
         self.auth
             .with_current_session(session, || {
-                if self.read_config() != config {
+                if self.read_config() != config || !config.allows_session(session) {
                     return Err(SyncCoordError::StaleReview);
                 }
                 operation()

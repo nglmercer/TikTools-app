@@ -5907,6 +5907,7 @@ dependencies = [
  "cloud-client",
  "fs2",
  "getrandom 0.4.3",
+ "libc",
  "reqwest 0.13.5",
  "schemars",
  "serde",

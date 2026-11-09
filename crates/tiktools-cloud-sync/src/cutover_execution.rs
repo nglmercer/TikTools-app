@@ -14,28 +14,40 @@ use crate::{
 };
 
 /// Opaque native review; UI input cannot reconstruct its identity or consent.
-pub(crate) struct GuardedCutoverReview {
+pub struct GuardedCutoverReview {
     session: Arc<Session>,
     consent: SyncConfigEpoch,
     preview: CutoverPreview,
 }
 
 impl GuardedCutoverReview {
-    pub(crate) fn preview(&self) -> &CutoverPreview {
+    pub fn preview(&self) -> &CutoverPreview {
         &self.preview
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CutoverExecution {
+pub enum CutoverExecution {
     Completed,
     AlreadyCompleted,
+}
+
+/// Trusted native adapter that takes its complete local-source fences before
+/// invoking the synchronous operation. Implementations must not release the
+/// fences until the operation returns, and must not await or perform network
+/// work under them. A failed adapter may report an unknown outcome if its
+/// operation ran before the failure; recovery must inspect durable state.
+pub trait CutoverSource {
+    fn with_guarded_source<T>(
+        &self,
+        operation: impl FnOnce(&[PluginSelection]) -> Result<T, SyncCoordError>,
+    ) -> Result<T, SyncCoordError>;
 }
 
 impl SyncCoordinator {
     /// Capture the exact live session and opt-in decision along with the
     /// informational preview. A separate product consent step is required.
-    pub(crate) fn guarded_cutover_review(
+    pub fn guarded_cutover_review(
         &self,
         session: &Arc<Session>,
         selections: &[PluginSelection],
@@ -75,6 +87,17 @@ impl SyncCoordinator {
             consent,
             preview,
         })
+    }
+
+    /// Execute only through a native source adapter. A product must still
+    /// obtain explicit user approval and fence every source/package writer;
+    /// this coordinator cannot verify the adapter's implementation.
+    pub fn execute_cutover_with_source<S: CutoverSource>(
+        &self,
+        review: &GuardedCutoverReview,
+        source: &S,
+    ) -> Result<CutoverExecution, SyncCoordError> {
+        source.with_guarded_source(|selections| self.execute_guarded_cutover(review, selections))
     }
 
     /// Commit reviewed migration under an exclusive cross-process protocol

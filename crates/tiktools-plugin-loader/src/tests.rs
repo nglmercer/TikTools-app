@@ -835,6 +835,32 @@ fn admission_catalog_rejects_poisoned_registry() {
 }
 
 #[test]
+fn guarded_cutover_catalog_keeps_registry_stable_until_callback_returns() {
+    let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let (finished_tx, finished_rx) = std::sync::mpsc::channel();
+    let mut worker = None;
+    manager
+        .with_complete_cutover_catalog(|_, plugins| {
+            assert_eq!(plugins.len(), 1);
+            let other = manager.clone();
+            worker = Some(std::thread::spawn(move || {
+                started_tx.send(()).unwrap();
+                let result = other.scan();
+                finished_tx.send(result.is_ok()).unwrap();
+            }));
+            started_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+            assert!(finished_rx
+                .recv_timeout(Duration::from_millis(100))
+                .is_err());
+        })
+        .unwrap();
+    assert!(finished_rx.recv_timeout(Duration::from_secs(3)).unwrap());
+    worker.unwrap().join().unwrap();
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn stop_recovers_from_a_poisoned_worker_lock() {
     let (manager, root) = scripted_manager(&["demo"], Arc::new(|_| Ok(b"null".to_vec())));
     manager.start("demo").unwrap();

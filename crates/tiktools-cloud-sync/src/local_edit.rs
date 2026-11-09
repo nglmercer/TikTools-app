@@ -17,6 +17,42 @@ pub struct V1LocalEditContext {
 }
 
 impl SyncCoordinator {
+    /// A missing or damaged preference after initialization is not opt-out.
+    /// Both staging paths use this strict reader before reporting no queue.
+    pub(crate) fn read_staging_config(&self) -> Result<SyncConfig, SyncCoordError> {
+        let config = match std::fs::symlink_metadata(&self.config_path) {
+            Ok(_) => {
+                let bytes = self.read_config_bytes()?;
+                self.ensure_consent_marker()?;
+                serde_json::from_slice::<SyncConfig>(&bytes)
+                    .map_err(|_| SyncCoordError::Io("invalid sync config".into()))?
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                if self.consent_marker_present()? {
+                    return Err(SyncCoordError::Io(
+                        "sync consent file is missing; review required".into(),
+                    ));
+                }
+                SyncConfig {
+                    version: 1,
+                    enabled: false,
+                    generation: 0,
+                    scope: None,
+                }
+            }
+            Err(_) => return Err(SyncCoordError::Io("sync config is unreadable".into())),
+        };
+        if !config.valid() {
+            return Err(SyncCoordError::Io("invalid sync config".into()));
+        }
+        if config.enabled && config.generation == 0 {
+            return Err(SyncCoordError::Io(
+                "legacy sync consent needs review".into(),
+            ));
+        }
+        Ok(config)
+    }
+
     /// Run a short, synchronous native package-journal transaction while the
     /// shared cross-process mutation admission is held. Package mutations are
     /// global to the host, so this boundary does not capture an account,
@@ -50,37 +86,7 @@ impl SyncCoordinator {
     ) -> Result<R, SyncCoordError> {
         let lease = self.protocol.try_v1()?;
         let _admission = lease.try_admission()?;
-        // Unlike status display, an unreadable config must not be interpreted
-        // as opt-out: doing so could silently omit an intended Cloud edit.
-        let config = match std::fs::read(&self.config_path) {
-            Ok(bytes) => {
-                // The file may belong to a legacy install written after this
-                // coordinator opened. Mark it before allowing any mutation.
-                self.ensure_consent_marker()?;
-                serde_json::from_slice::<SyncConfig>(&bytes)
-                    .map_err(|_| SyncCoordError::Io("invalid sync config".into()))?
-            }
-            Err(error) if error.kind() == ErrorKind::NotFound => {
-                if self.consent_marker_present()? {
-                    return Err(SyncCoordError::Io(
-                        "sync consent file is missing; review required".into(),
-                    ));
-                }
-                SyncConfig {
-                    enabled: false,
-                    generation: 0,
-                }
-            }
-            Err(_) => return Err(SyncCoordError::Io("sync config is unreadable".into())),
-        };
-        if config.enabled && config.generation == 0 {
-            // Unlike an actual opt-out, this file records an old opt-in
-            // without a durable consent identity. Do not silently stage the
-            // edit as local-only or reuse an unbound historical receipt.
-            return Err(SyncCoordError::Io(
-                "legacy sync consent needs review".into(),
-            ));
-        }
+        let config = self.read_staging_config()?;
         if !config.enabled {
             return Ok(operation(None));
         }
@@ -88,6 +94,9 @@ impl SyncCoordinator {
             .with_sync_identity(|identity| {
                 let context = match identity {
                     Some((origin, account_id)) => {
+                        if !config.allows(&origin, &account_id) {
+                            return Ok(operation(None));
+                        }
                         lease.ensure_v1(&origin, &account_id)?;
                         Some(V1LocalEditContext {
                             origin,

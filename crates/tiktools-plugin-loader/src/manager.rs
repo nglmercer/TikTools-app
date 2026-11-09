@@ -410,6 +410,31 @@ impl PluginManager {
         ))
     }
 
+    /// Hold the current complete catalog through a synchronous native
+    /// callback. The callback must not reenter the manager or do network I/O.
+    /// This protects only the in-process registry, not source files or other
+    /// processes. Slow filesystem work must run on a blocking thread.
+    pub fn with_complete_cutover_catalog<R>(
+        &self,
+        operation: impl FnOnce(u64, Vec<DiscoveredPlugin>) -> R,
+    ) -> Result<R, PluginLoaderError> {
+        let registry = self
+            .registry
+            .read()
+            .map_err(|_| lock_poisoned("plugin registry"))?;
+        if !registry.complete_for_cutover {
+            return Err(PluginLoaderError::InvalidDirectory(
+                "plugin inventory is incomplete".into(),
+            ));
+        }
+        let result = operation(
+            self.registry_revision(),
+            registry.entries.values().cloned().collect(),
+        );
+        drop(registry);
+        Ok(result)
+    }
+
     pub fn get(&self, id: &str) -> Option<DiscoveredPlugin> {
         recover_rwlock_read(&self.registry, "plugin registry")
             .entries

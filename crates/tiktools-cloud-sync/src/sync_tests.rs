@@ -2066,8 +2066,10 @@ async fn v1_changed_config_after_pull_prevents_later_dispatch() {
     // must still discard the response and avoid a later write.
     let config = sync.read_config();
     sync.write_config(&crate::SyncConfig {
+        version: config.version,
         enabled: false,
         generation: config.generation + 1,
+        scope: config.scope,
     })
     .unwrap();
     mock.held_pull.release.notify_one();
@@ -2111,6 +2113,194 @@ async fn v1_local_edit_and_epoch_bind_identity_and_consent() {
             .is_config_epoch_current(&epoch, &new_session))
         .unwrap());
     mock.stop();
+}
+
+#[tokio::test]
+async fn v2_resume_requires_fresh_review_exact_session_and_unchanged_workspace() {
+    for finish in [false, true] {
+        let dir = TempDir::new("v2-resume-consent");
+        let mock = MockSync::start("resume-user").await;
+        let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+        login(&auth, "resume-before").await;
+        sync.record_local_change("acme.plugin", "1.0.0", false)
+            .unwrap();
+        let session = auth.session().await.unwrap();
+        let original_epoch = sync.capture_config_epoch(&session).unwrap();
+        let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+        let lease = sync.protocol.try_cutover().unwrap();
+        lease
+            .prepare(&preview, &mock.origin, "resume-user", &[])
+            .unwrap();
+        let workspace = crate::WorkspaceCoordinator::open(
+            dir.join("a-sync"),
+            mock.origin.clone(),
+            "resume-user".into(),
+        )
+        .unwrap();
+        if finish {
+            workspace
+                .bootstrap(&preview.selections(), preview.legacy())
+                .unwrap();
+            lease.finish(&preview, &mock.origin, "resume-user").unwrap();
+        }
+        drop(lease);
+        sync.set_enabled(false).unwrap();
+        #[cfg(unix)]
+        if finish {
+            use std::os::unix::{ffi::OsStrExt, fs::symlink};
+            let backup = sync.config_path.with_extension("saved");
+            fs::rename(&sync.config_path, &backup).unwrap();
+            symlink(&backup, &sync.config_path).unwrap();
+            assert!(sync.review_v2_resume(&session, None).is_err());
+            assert!(!sync.is_enabled());
+            fs::remove_file(&sync.config_path).unwrap();
+            let fifo = std::ffi::CString::new(sync.config_path.as_os_str().as_bytes()).unwrap();
+            // SAFETY: the CString is NUL-terminated and references the private
+            // fixture path for the duration of the call.
+            assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+            let (done, result) = std::sync::mpsc::channel();
+            let worker_sync = sync.clone();
+            let worker_session = session.clone();
+            std::thread::spawn(move || {
+                let _ = done.send(worker_sync.review_v2_resume(&worker_session, None).is_err());
+            });
+            assert!(result
+                .recv_timeout(Duration::from_secs(2))
+                .expect("FIFO read must not block"));
+            assert!(sync.with_v1_local_edit(|_| ()).is_err());
+            fs::remove_file(&sync.config_path).unwrap();
+            fs::rename(&backup, &sync.config_path).unwrap();
+        }
+        if finish {
+            let store =
+                cloud_client::WorkspaceStore::open(dir.join("a-sync"), &mock.origin, "resume-user")
+                    .unwrap();
+            let original = store.load().unwrap().unwrap();
+            let mut incomplete = original.state.clone();
+            incomplete.bootstrap_complete = false;
+            let changed = store.save(Some(original.generation), &incomplete).unwrap();
+            assert!(sync.review_v2_resume(&session, None).is_err());
+            assert_eq!(store.load().unwrap().unwrap().state, incomplete);
+            store
+                .save(Some(changed.generation), &original.state)
+                .unwrap();
+        }
+        assert!(sync
+            .review_v2_resume(&session, if finish { Some(&[]) } else { None })
+            .is_err());
+        let inputs = (!finish).then_some(&[][..]);
+        let review = sync.review_v2_resume(&session, inputs).unwrap();
+        // A workspace change invalidates the exact review, even when the
+        // resulting data would be valid for a later, separately reviewed run.
+        if finish {
+            let key = cloud_client::WorkspaceKey::new("plugin-selections", "acme.other").unwrap();
+            let value = serde_json::to_value(PluginSelection {
+                schema_version: 1,
+                plugin_id: "acme.other".into(),
+                version: "1.0.0".into(),
+                enabled: true,
+            })
+            .unwrap();
+            workspace
+                .stage(key, cloud_client::WorkspaceEdit::Put(value))
+                .unwrap();
+        } else {
+            workspace
+                .bootstrap(&preview.selections(), preview.legacy())
+                .unwrap();
+        }
+        assert!(sync.confirm_v2_resume(&review).is_err());
+        assert!(!sync.is_enabled());
+        let review = sync.review_v2_resume(&session, inputs).unwrap();
+        let other = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+        assert!(other.confirm_v2_resume(&review).is_err());
+        let store =
+            cloud_client::WorkspaceStore::open(dir.join("a-sync"), &mock.origin, "resume-user")
+                .unwrap();
+        store
+            .try_with_locked_snapshot::<_, SyncCoordError>(|_| {
+                assert!(matches!(
+                    sync.confirm_v2_resume(&review),
+                    Err(SyncCoordError::Protocol(ProtocolFenceError::Busy))
+                ));
+                Ok(())
+            })
+            .unwrap()
+            .unwrap();
+        sync.set_enabled(false).unwrap();
+        assert!(sync.confirm_v2_resume(&review).is_err());
+        let review = sync.review_v2_resume(&session, inputs).unwrap();
+        auth.logout().await.unwrap();
+        login(&auth, "resume-after").await;
+        assert!(sync.confirm_v2_resume(&review).is_err());
+        let current = auth.session().await.unwrap();
+        let review = sync.review_v2_resume(&current, inputs).unwrap();
+        let before = workspace.snapshot().unwrap();
+        sync.confirm_v2_resume(&review).unwrap();
+        assert!(sync.is_enabled());
+        assert!(!sync.is_config_epoch_current(&original_epoch, &session));
+        let bytes = fs::read(&sync.config_path).unwrap();
+        let scoped: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(scoped["version"], 2);
+        let mut no_scope = scoped.clone();
+        no_scope.as_object_mut().unwrap().remove("scope");
+        let mut null_scope = scoped.clone();
+        null_scope["scope"] = serde_json::Value::Null;
+        let mut wrong_version = scoped.clone();
+        wrong_version["version"] = serde_json::json!(1);
+        let mut future_version = scoped.clone();
+        future_version["version"] = serde_json::json!(3);
+        for corrupted in [no_scope, null_scope, wrong_version, future_version] {
+            fs::write(&sync.config_path, serde_json::to_vec(&corrupted).unwrap()).unwrap();
+            assert!(!sync.is_enabled());
+            assert!(sync.capture_v2_config_epoch(&current).is_none());
+            assert!(sync.with_v1_local_edit(|_| ()).is_err());
+            assert!(sync
+                .record_local_change("acme.other", "1.0.0", true)
+                .is_err());
+        }
+        fs::write(&sync.config_path, bytes).unwrap();
+        let after = workspace.snapshot().unwrap();
+        assert_eq!(before.generation, after.generation);
+        assert_eq!(before.state, after.state);
+        assert!(sync.confirm_v2_resume(&review).is_err());
+        // The explicit v2 decision for A cannot turn on B's v1 or v2 sync.
+        assert!(sync.capture_v2_config_epoch(&current).is_some());
+        auth.logout().await.unwrap();
+        mock.inner.lock().unwrap().account_id = "other-user".into();
+        login(&auth, "resume-other").await;
+        let other_session = auth.session().await.unwrap();
+        assert!(!sync.is_enabled());
+        assert!(sync.capture_config_epoch(&other_session).is_none());
+        assert!(sync.capture_v2_config_epoch(&other_session).is_none());
+        assert!(!sync
+            .record_local_change("acme.other", "1.0.0", true)
+            .unwrap());
+        assert!(sync
+            .with_v1_local_edit(|context| context.is_none())
+            .unwrap());
+        assert!(sync.sync_now().await.is_err());
+        // A fresh legacy opt-in for B is not a v2 authorization for either
+        // account, including when the user later switches back to A.
+        sync.set_enabled(true).unwrap();
+        assert!(sync.capture_v2_config_epoch(&other_session).is_none());
+        auth.logout().await.unwrap();
+        mock.inner.lock().unwrap().account_id = "resume-user".into();
+        login(&auth, "resume-return").await;
+        assert!(sync.is_enabled());
+        let returned = auth.session().await.unwrap();
+        assert!(sync.capture_config_epoch(&returned).is_some());
+        assert!(sync.capture_v2_config_epoch(&returned).is_none());
+        sync.set_enabled(false).unwrap();
+        let renewed = sync.review_v2_resume(&returned, inputs).unwrap();
+        sync.confirm_v2_resume(&renewed).unwrap();
+        let scoped_epoch = sync.capture_v2_config_epoch(&returned).unwrap();
+        assert!(auth
+            .with_current_session(&returned, || sync
+                .is_v2_config_epoch_current(&scoped_epoch, &returned))
+            .unwrap());
+        mock.stop();
+    }
 }
 
 #[tokio::test]
@@ -2270,10 +2460,28 @@ async fn guarded_cutover_resumes_interrupted_durable_steps_and_retries_once() {
     ));
     let review = restarted.guarded_cutover_review(&session, &source).unwrap();
     let sync = restarted;
+    struct Source<'a> {
+        selections: &'a [PluginSelection],
+        calls: std::cell::Cell<usize>,
+    }
+    impl crate::CutoverSource for Source<'_> {
+        fn with_guarded_source<T>(
+            &self,
+            operation: impl FnOnce(&[PluginSelection]) -> Result<T, SyncCoordError>,
+        ) -> Result<T, SyncCoordError> {
+            self.calls.set(self.calls.get() + 1);
+            operation(self.selections)
+        }
+    }
+    let adapter = Source {
+        selections: &source,
+        calls: std::cell::Cell::new(0),
+    };
     assert_eq!(
-        sync.execute_guarded_cutover(&review, &source).unwrap(),
+        sync.execute_cutover_with_source(&review, &adapter).unwrap(),
         CutoverExecution::Completed
     );
+    assert_eq!(adapter.calls.get(), 1);
     assert_eq!(workspace.snapshot().unwrap().state, frozen.state);
     assert_eq!(
         sync.execute_guarded_cutover(&review, &source).unwrap(),

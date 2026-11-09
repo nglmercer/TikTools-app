@@ -6,7 +6,10 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use cloud_client::{PluginSelection, Session};
-use tiktools_cloud_sync::{CutoverPreview, SyncConfigEpoch};
+use tiktools_cloud_sync::{
+    CutoverExecution, CutoverPreview, CutoverSource, GuardedCutoverReview, SyncConfigEpoch,
+    SyncCoordError,
+};
 
 use crate::{control::OperationError, db::PluginCutoverSource, AppCore};
 
@@ -19,7 +22,7 @@ struct LocalSource {
 
 /// Native-only state: private account data is never serialized to a caller.
 pub(crate) struct NativeCutoverPreview {
-    preview: CutoverPreview,
+    review: GuardedCutoverReview,
     source: LocalSource,
     session: Arc<Session>,
     consent: SyncConfigEpoch,
@@ -27,6 +30,65 @@ pub(crate) struct NativeCutoverPreview {
 
 fn unavailable() -> OperationError {
     OperationError::unavailable("local plugin source is unavailable for Cloud migration review")
+}
+
+fn source_error() -> SyncCoordError {
+    SyncCoordError::Local("native plugin source is unavailable for Cloud migration".into())
+}
+
+fn local_source_from_catalog(
+    sqlite: PluginCutoverSource,
+    revision: u64,
+    plugins: Vec<tiktools_plugin_loader::DiscoveredPlugin>,
+    activation: &BTreeMap<String, crate::plugin_runtime::PluginActivation>,
+) -> Result<LocalSource, OperationError> {
+    let states = sqlite
+        .rows
+        .iter()
+        .map(|row| (row.id.as_str(), row.state))
+        .collect::<BTreeMap<_, _>>();
+    let mut selections = Vec::with_capacity(plugins.len());
+    let mut catalog = std::collections::BTreeSet::new();
+    for plugin in plugins {
+        let id = plugin.manifest.id;
+        if !catalog.insert(id.clone()) {
+            return Err(unavailable());
+        }
+        let (installed, enabled) = states
+            .get(id.as_str())
+            .copied()
+            .flatten()
+            .unwrap_or((true, true));
+        let runtime = activation
+            .get(&id)
+            .map(|state| (state.installed, state.enabled))
+            .unwrap_or((true, true));
+        if (installed, enabled) != runtime {
+            return Err(unavailable());
+        }
+        if installed {
+            selections.push(PluginSelection {
+                schema_version: 1,
+                plugin_id: id,
+                version: plugin.manifest.version,
+                enabled,
+            });
+        }
+    }
+    if activation
+        .iter()
+        .any(|(id, state)| state.installed && !catalog.contains(id))
+        || sqlite.rows.iter().any(|row| {
+            row.state.is_some_and(|(installed, _)| installed) && !catalog.contains(&row.id)
+        })
+    {
+        return Err(unavailable());
+    }
+    Ok(LocalSource {
+        sqlite,
+        catalog_revision: revision,
+        selections,
+    })
 }
 
 impl AppCore {
@@ -61,63 +123,17 @@ impl AppCore {
             .activation
             .read()
             .map_err(|_| unavailable())?;
-        let states = sqlite
-            .rows
-            .iter()
-            .map(|row| (row.id.as_str(), row.state))
-            .collect::<BTreeMap<_, _>>();
-        let mut selections = Vec::with_capacity(plugins.len());
-        let mut catalog = std::collections::BTreeSet::new();
-        for plugin in plugins {
-            let id = plugin.manifest.id;
-            if !catalog.insert(id.clone()) {
-                return Err(unavailable());
-            }
-            // Missing state follows the same installed/enabled defaults as the
-            // runtime catalog. A retained deleted row does not override them.
-            let (installed, enabled) = states
-                .get(id.as_str())
-                .copied()
-                .flatten()
-                .unwrap_or((true, true));
-            let (runtime_installed, runtime_enabled) = activation
-                .get(&id)
-                .map(|state| (state.installed, state.enabled))
-                .unwrap_or((true, true));
-            if (installed, enabled) != (runtime_installed, runtime_enabled) {
-                return Err(unavailable());
-            }
-            if installed {
-                selections.push(PluginSelection {
-                    schema_version: 1,
-                    plugin_id: id,
-                    version: plugin.manifest.version,
-                    enabled,
-                });
-            }
-        }
-        // Do not silently omit an installed plugin merely because its package
-        // cannot currently be discovered or its manifest cannot be read.
-        if activation
-            .iter()
-            .any(|(id, state)| state.installed && !catalog.contains(id))
-            || sqlite.rows.iter().any(|row| {
-                row.state.is_some_and(|(installed, _)| installed) && !catalog.contains(&row.id)
-            })
-            || self.plugins.registry_revision() != revision
+        let source = local_source_from_catalog(sqlite, revision, plugins, &activation)?;
+        if self.plugins.registry_revision() != revision
             || self
                 .db
                 .plugin_cutover_source(origin, account)
                 .map_err(|_| unavailable())?
-                != sqlite
+                != source.sqlite
         {
             return Err(unavailable());
         }
-        Ok(LocalSource {
-            sqlite,
-            catalog_revision: revision,
-            selections,
-        })
+        Ok(source)
     }
 
     pub(crate) fn preview_local_v2_cutover(
@@ -131,8 +147,8 @@ impl AppCore {
         let origin = session.instance_origin();
         let account = session.account_id();
         let source = self.cutover_local_source(&origin, account)?;
-        let preview = coordinator
-            .preview_v2_cutover(&session, &source.selections)
+        let review = coordinator
+            .guarded_cutover_review(&session, &source.selections)
             .map_err(|_| unavailable())?;
         if self.cutover_local_source(&origin, account)? != source {
             return Err(unavailable());
@@ -147,7 +163,7 @@ impl AppCore {
             })
             .map_err(|_| unavailable())??;
         Ok(NativeCutoverPreview {
-            preview,
+            review,
             source,
             session,
             consent,
@@ -157,7 +173,7 @@ impl AppCore {
 
 impl NativeCutoverPreview {
     pub(crate) fn preview(&self) -> &CutoverPreview {
-        &self.preview
+        self.review.preview()
     }
 
     /// Only checks local source, session and consent for an informational
@@ -180,6 +196,130 @@ impl NativeCutoverPreview {
             })
             .map_err(|_| unavailable())??;
         Ok(())
+    }
+}
+
+/// The calling host owns review and user approval. This adapter only guards
+/// cooperative local writes for the duration of the synchronous operation;
+/// it does not establish trust in arbitrary filesystem writers or implement
+/// v2 staging for later local mutations.
+struct NativeCutoverSource<'a> {
+    core: &'a AppCore,
+    expected: &'a LocalSource,
+    origin: &'a str,
+    account: &'a str,
+}
+
+#[cfg(feature = "plugin-install")]
+impl CutoverSource for NativeCutoverSource<'_> {
+    fn with_guarded_source<T>(
+        &self,
+        operation: impl FnOnce(&[PluginSelection]) -> Result<T, SyncCoordError>,
+    ) -> Result<T, SyncCoordError> {
+        // Global order: invocation -> cooperative package store -> SQLite ->
+        // catalog/activation -> protocol -> session. No network or await.
+        let runtime = self
+            .core
+            .try_plugin_sync_runtime_guard()
+            .map_err(|_| source_error())?;
+        let quarantine = self
+            .core
+            .plugin_state
+            .apply_quarantine
+            .read()
+            .map_err(|_| source_error())?;
+        if !quarantine
+            .as_ref()
+            .is_some_and(|blocked| blocked.is_empty())
+        {
+            return Err(source_error());
+        }
+        let packages = self.core.plugin_packages().map_err(|_| source_error())?;
+        let store = packages
+            .installer
+            .try_lock_store()
+            .map_err(|_| source_error())?;
+        if !store
+            .matches_roots(
+                &self.core.db.paths().plugins,
+                &self.core.db.paths().plugin_store(),
+            )
+            .map_err(|_| source_error())?
+        {
+            return Err(source_error());
+        }
+        let result = self
+            .core
+            .db
+            .with_locked_plugin_cutover_source::<_, crate::db::DatabaseError>(
+                self.origin,
+                self.account,
+                |sqlite| {
+                    let result =
+                        self.core
+                            .plugins
+                            .with_complete_cutover_catalog(|revision, plugins| {
+                                let activation = self
+                                    .core
+                                    .plugin_state
+                                    .activation
+                                    .read()
+                                    .map_err(|_| source_error())?;
+                                let source = local_source_from_catalog(
+                                    sqlite,
+                                    revision,
+                                    plugins,
+                                    &activation,
+                                )
+                                .map_err(|_| source_error())?;
+                                if &source != self.expected {
+                                    return Err(SyncCoordError::StaleReview);
+                                }
+                                let outcome = operation(&source.selections);
+                                drop(activation);
+                                outcome
+                            });
+                    Ok(result.unwrap_or_else(|_| Err(source_error())))
+                },
+            )
+            .map_err(|_| source_error())?;
+        drop(store);
+        drop(quarantine);
+        drop(runtime);
+        result
+    }
+}
+
+#[cfg(not(feature = "plugin-install"))]
+impl CutoverSource for NativeCutoverSource<'_> {
+    fn with_guarded_source<T>(
+        &self,
+        _operation: impl FnOnce(&[PluginSelection]) -> Result<T, SyncCoordError>,
+    ) -> Result<T, SyncCoordError> {
+        Err(source_error())
+    }
+}
+
+impl AppCore {
+    /// Private native wiring; invoke only on a blocking worker because it can
+    /// hold plugin and database fences during durable filesystem writes.
+    /// Product activation still needs a source fence for all roots/writers,
+    /// v2 staging and an explicit user review API.
+    pub(crate) fn execute_local_v2_cutover(
+        &self,
+        review: &NativeCutoverPreview,
+    ) -> Result<CutoverExecution, OperationError> {
+        let coordinator = self.sync.coordinator().map_err(|_| unavailable())?;
+        let origin = review.session.instance_origin();
+        let source = NativeCutoverSource {
+            core: self,
+            expected: &review.source,
+            origin: &origin,
+            account: review.session.account_id(),
+        };
+        coordinator
+            .execute_cutover_with_source(&review.review, &source)
+            .map_err(|_| unavailable())
     }
 }
 
@@ -248,6 +388,80 @@ mod tests {
             .set_plugin_state("missing.plugin", false, false)
             .unwrap();
         assert!(core.cutover_local_source(origin, "alice").is_ok());
+        drop(core);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[cfg(feature = "plugin-install")]
+    #[test]
+    fn guarded_source_holds_and_releases_runtime_package_and_sqlite_fences() {
+        let root = std::env::temp_dir().join(format!(
+            "plugin-cutover-fences-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let paths = AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("builtins"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root: root.clone(),
+        };
+        paths.ensure_directories().unwrap();
+        std::fs::create_dir_all(&paths.builtin_plugins).unwrap();
+        // This isolated fixture must never open an operator-provided store.
+        assert!(paths.plugin_store().starts_with(&root));
+        for file in [
+            paths.points_database(),
+            paths.automation_database(),
+            paths.analytics_database(),
+        ] {
+            drop(rusqlite::Connection::open(file).unwrap());
+        }
+        let plugin_dir = paths.plugins.join("demo");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        std::fs::write(plugin_dir.join("plugin.json"), r#"{"schemaVersion":3,"id":"demo","name":"Demo","version":"1.0.0","runtime":"declarative"}"#).unwrap();
+        let core = AppCore::with_paths(Arc::new(Emitter), Arc::new(NoopMediaHost), paths);
+        let origin = "https://cloud.example";
+        let expected = core.cutover_local_source(origin, "alice").unwrap();
+        let source = NativeCutoverSource {
+            core: &core,
+            expected: &expected,
+            origin,
+            account: "alice",
+        };
+        let other_db = rusqlite::Connection::open(core.db.automation_path()).unwrap();
+        other_db.busy_timeout(std::time::Duration::ZERO).unwrap();
+        let result: Result<(), SyncCoordError> = source.with_guarded_source(|selections| {
+            assert_eq!(selections.len(), 1);
+            assert!(core.try_plugin_sync_runtime_guard().is_err());
+            assert!(core.plugin_packages().unwrap().installer.try_lock_store().is_err());
+            let error = other_db.execute("INSERT INTO behavior_plugins(id,installed,enabled,updated_at) VALUES ('other',1,1,0)", []).unwrap_err();
+            assert!(matches!(error, rusqlite::Error::SqliteFailure(ref error, _) if matches!(error.code, rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked)));
+            Err(SyncCoordError::StaleReview)
+        });
+        assert!(matches!(result, Err(SyncCoordError::StaleReview)));
+        assert!(core.try_plugin_sync_runtime_guard().is_ok());
+        assert!(core
+            .plugin_packages()
+            .unwrap()
+            .installer
+            .try_lock_store()
+            .is_ok());
+        // Rewriting the same apparent installed/enabled value still changes
+        // source evidence and must invalidate the reviewed native source.
+        core.db.set_plugin_state("demo", true, true).unwrap();
+        let mut ran = false;
+        let stale = source.with_guarded_source(|_| {
+            ran = true;
+            Ok(())
+        });
+        assert!(matches!(stale, Err(SyncCoordError::StaleReview)));
+        assert!(!ran);
+        drop(other_db);
         drop(core);
         let _ = std::fs::remove_dir_all(root);
     }
