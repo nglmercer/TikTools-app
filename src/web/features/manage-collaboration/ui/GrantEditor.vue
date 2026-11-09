@@ -67,6 +67,12 @@ function setMode(kind: ResourceKind, mode: 'all' | 'selected' | 'none'): void {
   model.value = value;
 }
 function setIds(kind: ResourceKind, text: string): void { const value = copy(); value.resources[kind] = splitIds(text); model.value = value; }
+function setPointsLimit(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  const value = copy();
+  value.maxPointsDelta = input.validity.badInput ? 0 : input.value === '' ? null : Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : 0;
+  model.value = value;
+}
 function setEffects(effects: EffectGrants | undefined): void { const value = copy(); if (effects) value.effects = effects; else delete value.effects; model.value = value; }
 function preset(kind: 'viewer' | 'workflow' | 'agent'): void {
   const value = viewerGrant();
@@ -111,6 +117,18 @@ function applyJson(): void {
     >
       {{ t(`collaboration.${labels[capability]}`) }}
     </BaseCheckbox>
+    <label v-if="model.capabilities.includes('points.adjust')">
+      {{ t('collaboration.pointsLimit') }}
+      <input
+        type="number"
+        min="0"
+        step="any"
+        :value="model.maxPointsDelta ?? ''"
+        :disabled="disabled"
+        @input="setPointsLimit"
+      >
+      <span>{{ t('collaboration.pointsLimitHint') }}</span>
+    </label>
     <details>
       <summary>{{ t('collaboration.futurePermissions') }}</summary>
       <p>{{ t('collaboration.futureHint') }}</p>
@@ -221,6 +239,6 @@ function applyJson(): void {
 .grant-editor__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .grant-editor__scope { margin: var(--space-3) 0; }
 .grant-editor label { display: grid; gap: var(--space-2); }
-.grant-editor select { padding: var(--space-3); color: var(--color-text); background: var(--color-bg-field); border: 1px solid var(--color-border); }
+.grant-editor select, .grant-editor input { padding: var(--space-3); color: var(--color-text); background: var(--color-bg-field); border: 1px solid var(--color-border); }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; } summary { cursor: pointer; }
 </style>

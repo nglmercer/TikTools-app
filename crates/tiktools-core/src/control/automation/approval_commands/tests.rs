@@ -1343,3 +1343,64 @@ async fn reusable_grant_revocation_during_delay_stops_later_effects() {
         .iter()
         .any(|run| run["actionId"] == "reusable-award" && run["status"] == "ok"));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_event_intersects_grants_of_multiple_authors() {
+    let f = Fixture::new();
+    let mut permission = grant();
+    permission.capabilities.insert(Capability::AutomationToggle);
+    permission.max_points_delta = Some(5.0);
+    permission.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+    });
+    let action_author = f.pair(permission.clone());
+    let event_author = f.pair(permission.clone());
+    let action_identity = action_author.snapshot().unwrap();
+    let mut action = points("multi-author-points", "alice", 2.0);
+    action["enabled"] = true.into();
+    f.core()
+        .automation_command(
+            CommandCaller::Remote(action_author),
+            f.request("0"),
+            AutomationMutation::Create {
+                kind: AutomationKind::Action,
+                record: action,
+            },
+        )
+        .unwrap();
+    let mut rule = event("multi-author-event", &["multi-author-points"]);
+    rule["enabled"] = true.into();
+    f.core()
+        .automation_command(
+            CommandCaller::Remote(event_author),
+            f.request("0"),
+            AutomationMutation::Create {
+                kind: AutomationKind::Event,
+                record: rule,
+            },
+        )
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 2.0);
+    permission.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: action_identity.principal_id,
+            expected_revision: action_identity.grant_revision,
+            grant: permission,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "either author's grant removal must stop the combined rule"
+    );
+}

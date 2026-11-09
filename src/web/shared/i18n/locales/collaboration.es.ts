@@ -26,6 +26,7 @@ export default {
   editGrant: 'Editar permisos', grant: 'Permisos concedidos', revision: 'Revisión de permisos', grantChanged: 'Los permisos cambiaron en otra ventana. Se conservó tu borrador; abre la identidad más reciente antes de aplicarlo.',
   grantSave: 'Aplicar permisos', grantTitle: '¿Cambiar estos permisos?', grantMessage: 'Revisa los permisos exactos y las restricciones de recursos. Los controladores existentes se recuperarán con este nuevo acceso.',
   invalidGrant: 'Permisos no válidos. Usa permisos conocidos e IDs exactos; no se permiten comodines.',
+  pointsLimit: 'Máximo de puntos por ajuste', pointsLimitHint: 'Déjalo vacío para no establecer un máximo; de lo contrario, introduce un número positivo. También limita los ajustes directos.',
   delegationTitle: 'Autorización reutilizable de automatización',
   delegationHint: 'Elige los efectos que esta identidad podrá usar en automatizaciones guardadas compatibles. Al seleccionar un efecto también se activan los permisos necesarios. Siguen aplicándose las restricciones de recursos y efectos externos.',
   delegationDynamic: 'Permitir destinos dinámicos compatibles dentro de los límites concedidos',

@@ -55,6 +55,16 @@ describe('grant restrictions', () => {
       expect(grant.resources.automation).toEqual(['event:allowed']);
     } finally { wrapper.unmount(); }
   });
+  it('edits the points ceiling and rejects invalid limits before saving', async () => {
+    let grant: Grant = { ...viewerGrant(), capabilities: ['points.adjust'] };
+    const wrapper = mount(GrantEditor, { props: { modelValue: grant, 'onUpdate:modelValue': async (value: Grant) => { grant = value; await wrapper.setProps({ modelValue: value }); } }, global: { plugins: [i18n] } });
+    try {
+      const input = wrapper.find('input[type="number"]');
+      await input.setValue('5.5'); expect(parseGrant(grant).maxPointsDelta).toBe(5.5);
+      await input.setValue('0'); expect(() => parseGrant(grant)).toThrow('invalid_grant');
+      await input.setValue(''); expect(parseGrant(grant).maxPointsDelta).toBeNull();
+    } finally { wrapper.unmount(); }
+  });
   it('rejects unknown permissions, wildcards and hidden control characters', () => {
     for (const change of [{ capabilities: ['owner'] }, { resources: { workflow: ['*'] } }, { resources: { workflow: ['hidden\u0080'] } }]) {
       expect(() => parseGrant({ ...viewerGrant(), ...change })).toThrow('invalid_grant');

@@ -25,6 +25,7 @@ export default {
   editGrant: 'Edit permissions', grant: 'Granted permissions', revision: 'Grant revision', grantChanged: 'The grant changed elsewhere. Your draft was kept; reopen the latest identity before applying it.',
   grantSave: 'Apply permissions', grantTitle: 'Change these permissions?', grantMessage: 'Review the exact permissions and resource restrictions. Existing controllers will recover with this new grant.',
   invalidGrant: 'Invalid grant. Use known permissions and exact resource IDs; wildcards are not allowed.',
+  pointsLimit: 'Maximum points adjustment per action', pointsLimitHint: 'Leave empty for no maximum; otherwise enter a positive number. This also limits direct adjustments.',
   delegationTitle: 'Reusable automation authorization',
   delegationHint: 'Choose the effects this identity may use in supported saved automations. Selecting an effect also enables its required permissions. Existing resource and external effect restrictions still apply.',
   delegationDynamic: 'Allow supported dynamic targets within the granted limits',
