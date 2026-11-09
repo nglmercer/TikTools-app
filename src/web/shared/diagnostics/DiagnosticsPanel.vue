@@ -25,8 +25,12 @@ function onViewportChange(width: number): void {
     @update:open="!$event && navigation.close()"
     @viewport-change="onViewportChange"
   >
-    <template #default="{ minimized }">
-      <DiagnosticsLog v-if="open && !minimized" />
+    <template #default>
+      <DiagnosticsLog v-if="open" />
     </template>
   </BaseFloatingPanel>
 </template>
+
+<style scoped>
+.diagnostic-panel { box-shadow: none; border-radius: 0; }
+</style>
