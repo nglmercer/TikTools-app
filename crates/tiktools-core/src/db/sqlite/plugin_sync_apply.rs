@@ -273,17 +273,38 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         db.execute_batch("PRAGMA synchronous=FULL;")?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let prior: Option<String> = tx
+        let prior: Option<StoredRow> = tx
             .query_row(
-                "SELECT payload_json FROM plugin_sync_apply_intents WHERE intent_id=?1",
+                "SELECT plugin_id,phase,payload_json,committed_generation,runtime_epoch FROM plugin_sync_apply_intents WHERE intent_id=?1",
                 [&intent.intent_id],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?)),
             )
             .optional()?;
         if let Some(prior) = prior {
-            if prior != encoded {
+            if prior.2 != encoded {
                 return Err(DatabaseError::Invalid(
                     "plugin apply identity reused".into(),
+                ));
+            }
+            let stored = decode_stored(&intent.intent_id, prior)?;
+            if stored.intent != *intent {
+                return Err(DatabaseError::Invalid(
+                    "plugin apply identity reused".into(),
+                ));
+            }
+            let witness: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations f WHERE f.intent_id=?1)",
+                [&intent.intent_id], |row| row.get(0),
+            )?;
+            let witness_matches: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations f JOIN plugin_sync_apply_intents i ON f.intent_id=i.intent_id WHERE i.intent_id=?1 AND f.plugin_id=i.plugin_id AND f.payload_json=i.payload_json AND f.committed_generation=i.committed_generation AND f.runtime_epoch=i.runtime_epoch)",
+                [&intent.intent_id], |row| row.get(0),
+            )?;
+            if (stored.phase == PluginApplyPhase::Finalized && !witness_matches)
+                || (stored.phase != PluginApplyPhase::Finalized && witness)
+            {
+                return Err(DatabaseError::Invalid(
+                    "invalid plugin apply finalization witness".into(),
                 ));
             }
             // Even an idempotent retry must not report admission while a
@@ -293,6 +314,19 @@ impl DatabaseManager {
                 [&intent.plugin_id], |row| row.get(0),
             )?;
             return Ok(!blocked);
+        }
+        // Retain outcome identities until a bounded compaction protocol can
+        // preserve retry safety. Never let a new operation create history
+        // that startup cannot fully validate.
+        let retained: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM (SELECT 1 FROM plugin_sync_apply_intents LIMIT ?1)",
+            [super::plugin_apply_quarantine::MAX_RETAINED as i64],
+            |row| row.get(0),
+        )?;
+        if retained >= super::plugin_apply_quarantine::MAX_RETAINED as i64 {
+            return Err(DatabaseError::Invalid(
+                "plugin apply history capacity reached".into(),
+            ));
         }
         let eligible: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
@@ -495,9 +529,10 @@ impl DatabaseManager {
             Some(_) => return Ok(false),
             None => false,
         };
-        let db = self.open(&self.automation_path())?;
+        let mut db = self.open(&self.automation_path())?;
         db.execute_batch("PRAGMA synchronous=FULL;")?;
-        let changed = db.execute(
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let changed = tx.execute(
             "UPDATE plugin_sync_apply_intents SET phase='finalized' WHERE intent_id=?1 AND plugin_id=?2
              AND payload_json=?3 AND phase='applied' AND committed_generation=?4 AND runtime_epoch=?5
              AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
@@ -506,7 +541,22 @@ impl DatabaseManager {
                 AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL))",
             params![intent.intent_id,intent.plugin_id,encoded,generation,runtime_epoch,bool_int(enabled)],
         )?;
-        Ok(changed == 1)
+        if changed != 1 {
+            return Ok(false);
+        }
+        let witnessed = tx.execute(
+            "INSERT INTO plugin_sync_apply_finalizations(intent_id,plugin_id,payload_json,committed_generation,runtime_epoch)
+             SELECT intent_id,plugin_id,payload_json,committed_generation,runtime_epoch
+             FROM plugin_sync_apply_intents WHERE intent_id=?1 AND phase='finalized'",
+            [&intent.intent_id],
+        )?;
+        if witnessed != 1 {
+            return Err(DatabaseError::Invalid(
+                "plugin apply finalization witness missing".into(),
+            ));
+        }
+        tx.commit()?;
+        Ok(true)
     }
 
     /// Read retained evidence after a crash; it is never permission to replay.
@@ -667,6 +717,91 @@ mod tests {
             let db = self.db.open(&self.db.automation_path()).unwrap();
             db.query_row("SELECT s.generation,b.installed,b.enabled FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id WHERE s.plugin_id='acme.plugin'", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap()
         }
+    }
+
+    #[test]
+    fn finalization_witness_is_atomic_and_required_for_startup() {
+        let f = Fixture::new();
+        let intent = f.intent();
+        assert!(f.db.prepare_plugin_apply(&f.context, &intent).unwrap());
+        assert!(f
+            .db
+            .mark_plugin_apply_ready_after_native_reconciliation(&f.context, &intent)
+            .unwrap());
+        let generation =
+            f.db.commit_plugin_apply_state(&f.context, &intent, "1.0.0")
+                .unwrap()
+                .unwrap();
+        let epoch = "b".repeat(64);
+        assert!(f
+            .db
+            .confirm_plugin_apply_runtime(&f.context, &intent, generation, &epoch, "1.0.0", false)
+            .unwrap());
+        assert!(f
+            .db
+            .plugin_apply_quarantine()
+            .unwrap()
+            .contains("acme.plugin"));
+        let connection = f.db.open(&f.db.automation_path()).unwrap();
+        connection.execute_batch("CREATE TRIGGER ignore_apply_witness BEFORE INSERT ON plugin_sync_apply_finalizations BEGIN SELECT RAISE(IGNORE); END;").unwrap();
+        drop(connection);
+        assert!(f
+            .db
+            .finalize_plugin_apply_after_native_ack(&f.context, &intent, generation, &epoch)
+            .is_err());
+        assert_eq!(
+            f.db.plugin_apply_intent(&intent.intent_id)
+                .unwrap()
+                .unwrap()
+                .phase,
+            PluginApplyPhase::Applied
+        );
+        assert!(f
+            .db
+            .plugin_apply_quarantine()
+            .unwrap()
+            .contains("acme.plugin"));
+        let connection = f.db.open(&f.db.automation_path()).unwrap();
+        connection
+            .execute_batch("DROP TRIGGER ignore_apply_witness")
+            .unwrap();
+        drop(connection);
+        assert!(f
+            .db
+            .finalize_plugin_apply_after_native_ack(&f.context, &intent, generation, &epoch)
+            .unwrap());
+        assert!(f.db.plugin_apply_quarantine().unwrap().is_empty());
+        let connection = f.db.open(&f.db.automation_path()).unwrap();
+        connection
+            .execute(
+                "DELETE FROM plugin_sync_apply_finalizations WHERE intent_id=?1",
+                [&intent.intent_id],
+            )
+            .unwrap();
+        drop(connection);
+        assert!(f.db.plugin_apply_quarantine().is_err());
+    }
+
+    #[test]
+    fn admission_fails_closed_at_retained_history_limit_without_discarding_rows() {
+        let f = Fixture::new();
+        let connection = f.db.open(&f.db.automation_path()).unwrap();
+        connection.execute_batch("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<4096) INSERT INTO plugin_sync_apply_intents(intent_id,plugin_id,phase,payload_json) SELECT printf('%064x',x+100),'plugin.'||x,'finalized','{}' FROM n").unwrap();
+        drop(connection);
+        assert!(f.db.prepare_plugin_apply(&f.context, &f.intent()).is_err());
+        assert!(f.db.plugin_apply_quarantine().is_err());
+        let connection = f.db.open(&f.db.automation_path()).unwrap();
+        let count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM plugin_sync_apply_intents",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            count,
+            super::super::plugin_apply_quarantine::MAX_RETAINED as i64
+        );
     }
 
     #[test]

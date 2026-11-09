@@ -458,6 +458,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_plugin_sync_apply_active
 -- Discovery pages should not scan retained finalized history on every restart.
 CREATE INDEX IF NOT EXISTS idx_plugin_sync_apply_recovery
   ON plugin_sync_apply_intents(intent_id) WHERE phase != 'finalized';
+-- An independently retained witness lets startup reject a damaged phase or
+-- finalized row. It is written in the same transaction as finalization.
+CREATE TABLE IF NOT EXISTS plugin_sync_apply_finalizations (
+  intent_id TEXT PRIMARY KEY,
+  plugin_id TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  committed_generation INTEGER NOT NULL,
+  runtime_epoch TEXT NOT NULL
+);
 -- Metadata only: the owner's WebView/browser never owns a durable command ID
 -- or stores proposal source. One unresolved authority transfer spans clients.
 CREATE TABLE IF NOT EXISTS owner_automation_adoptions (

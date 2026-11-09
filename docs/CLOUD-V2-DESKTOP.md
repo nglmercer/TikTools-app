@@ -124,11 +124,17 @@ recovery UI, older-binary coordination and a bounded receipt-retention policy
 remain required before activation.
 
 An experimental runtime quarantine blocks known unfinished plugin applications
-after restart and rejects several activation and late-response paths. It is not
-an activation gate: an already dispatched effect cannot be recalled, quarantine
-is not propagated live to another process, and the bounded validation of
-finalized journal history remains unresolved. The product must continue to keep
-remote application disabled until these gaps and recovery are addressed.
+after restart and rejects several activation and late-response paths. Finalized
+records now have a separate witness written in the same SQLite transaction;
+startup validates retained records and witnesses, failing closed if evidence is
+missing, malformed or orphaned. Retention is capped at 4096 records; reaching
+the cap blocks new application until a safe compaction and recovery protocol is
+implemented. Finalized records made by earlier experimental builds have no
+witness and require explicit review and migration; they are not silently
+accepted or repaired. This is not an activation gate: an already dispatched
+effect cannot be recalled and quarantine is not propagated live to another
+process. The product must keep remote application disabled until these gaps and
+recovery are addressed.
 
 Account UI transitions now coordinate restore, login and cancellation, but a
 lost or timed-out login-begin response can leave a native attempt completing
