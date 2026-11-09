@@ -3,9 +3,41 @@ import { expect, test } from '@playwright/test';
 const binding = { origin: 'https://host.example', hostId: 'host', principalId: 'principal', sessionId: 'session' };
 const modulePath = '/features/controller/model/browser-command-journal.ts';
 
+test('missing journal blocks operations until explicit storage loss review', async ({ page, context }) => {
+  await context.route('**/__journal-test', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Journal fixture</title>' }));
+  await page.goto('/__journal-test');
+  const result = await page.evaluate(async ({ modulePath, binding }) => {
+    const journal = await import(/* @vite-ignore */ modulePath);
+    const fails = async (fn: () => Promise<unknown>) => { try { await fn(); return false; } catch { return true; } };
+    const absent = await fails(() => journal.withBrowserCommandJournal(binding, () => null));
+    const unacknowledged = await fails(() => journal.initializeBrowserCommandJournal(binding, false));
+    await journal.initializeBrowserCommandJournal(binding, true);
+    const intent = { commandId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', operation: 'disable', resourceId: 'workflow', hostInstanceId: 'instance', expectedRevision: '2', createdAt: 1 };
+    await journal.withBrowserCommandJournal(binding, (record: unknown) => journal.beginBrowserCommand(record, intent));
+    await journal.initializeBrowserCommandJournal(binding, true);
+    const retained = await journal.withBrowserCommandJournal(binding, (record: { pending: { commandId: string } }) => record.pending.commandId);
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open('tiktools-remote-command-journal-v1', 1);
+      request.onsuccess = () => {
+        const db = request.result; const tx = db.transaction('journals', 'readwrite');
+        tx.objectStore('journals').delete(JSON.stringify([binding.origin, binding.hostId, binding.principalId, binding.sessionId]));
+        tx.oncomplete = () => { db.close(); resolve(); }; tx.onabort = () => reject(new Error('fixture failed'));
+      };
+      request.onerror = () => reject(new Error('fixture failed'));
+    });
+    const lost = await fails(() => journal.withBrowserCommandJournal(binding, () => null));
+    return { absent, unacknowledged, retained, lost };
+  }, { modulePath, binding });
+  expect(result).toEqual({ absent: true, unacknowledged: true, retained: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', lost: true });
+});
+
 test('browser journal serializes tabs and retains uncertain commands across reload', async ({ page, context }) => {
   await context.route('**/__journal-test', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Journal fixture</title>' }));
   await page.goto('/__journal-test');
+  await page.evaluate(async ({ modulePath, binding }) => {
+    const journal = await import(/* @vite-ignore */ modulePath);
+    await journal.initializeBrowserCommandJournal(binding, true);
+  }, { modulePath, binding });
   const other = await context.newPage();
   await other.goto('/__journal-test');
   const make = (commandId: string) => ({ commandId, operation: 'disable', resourceId: 'workflow', hostInstanceId: 'instance', expectedRevision: '2', createdAt: 1 });
@@ -51,6 +83,7 @@ test('failed transactions roll back and malformed stored data fails closed', asy
   await page.goto('/__journal-test');
   const output = await page.evaluate(async ({ modulePath, binding }) => {
     const journal = await import(/* @vite-ignore */ modulePath);
+    await journal.initializeBrowserCommandJournal(binding, true);
     const intent = { commandId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', operation: 'disable', resourceId: 'workflow', hostInstanceId: 'instance', expectedRevision: '2', createdAt: 1 };
     let aborted = false;
     try {
@@ -91,6 +124,7 @@ test('recovery queries the original command without replay and persists only ver
     const hello = { ...binding, capabilities: ['commands.read', 'workflows.read'], resourceRestrictions: { workflow: ['workflow'] } };
     let active = true; let switchAfterRead = false;
     const transport = { currentHello: () => active ? hello : undefined, verifySession: async () => active };
+    await journal.initializeBrowserCommandJournal(binding, true);
     await journal.withBrowserCommandJournal(binding, (record: unknown) => journal.beginBrowserCommand(record, intent));
     const calls: string[] = [];
     let state = 'unknown';
@@ -138,6 +172,7 @@ test('workflow dispatch commits intent before sending and retains unknown outcom
       const binding = { origin: location.origin, hostId: 'host', principalId: 'principal', sessionId };
       const hello = { ...binding, hostInstanceId: 'instance', capabilities: ['commands.read', 'workflows.read', 'workflows.toggle'],
         resourceRestrictions: { workflow: ['workflow'] }, features: { workflowDisable: true } };
+      await journal.initializeBrowserCommandJournal(binding, true);
       let checks = 0; const calls: string[] = []; let intentWasPersisted = false;
       const transport = { currentHello: () => hello, verifySession: async () => ++checks !== (mode === 'stale' ? 2 : -1) };
       const remote = { call: async (method: string, params: { id: string }, options: { meta: { commandId: string }; onMetadata: (v: unknown) => void }) => {

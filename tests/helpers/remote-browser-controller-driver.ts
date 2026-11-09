@@ -44,6 +44,7 @@ try {
     try {
       const hello = await transport.connect();
       const binding = { origin: location.origin, hostId: hello.hostId, principalId: hello.principalId, sessionId: hello.sessionId };
+      await api.initializeBrowserCommandJournal(binding, true);
       const getRevision = async (id: string) => {
         let versions: Array<{ id: string; revision: string }> = [];
         await remote.call('workflows.get', { id }, { onMetadata: (meta: { resourceVersions: typeof versions }) => { versions = meta.resourceVersions; } });

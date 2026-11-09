@@ -20,6 +20,11 @@ reviewed-unknown result. A transaction checks the stored schema and atomically
 allows only one pending intent per origin/host/principal/session across tabs.
 It stores neither credentials nor workflow bodies. Chromium tests cover
 concurrent tabs, reload, aborted transactions and corrupt records.
+An absent record now fails closed for reads, dispatch and recovery. Creating it
+requires an explicit storage-loss acknowledgement, including for a new session
+because a new record cannot be distinguished from erased data. Initialization
+of an existing record preserves its pending command. The browser UI still needs
+to present this review and call initialization; this is not yet a user flow.
 
 The separate experimental recovery helper queries the original ID without
 replaying a mutation. It requires the current session, `commands.read` and
@@ -43,8 +48,8 @@ simulates a lost reply after receipt; it is not a process-crash test.
 These helpers are not wired to browser commands. A completed IndexedDB
 transaction is not proof against browser data clearing, eviction, device loss or
 every platform's power-loss behavior. Before enabling mutations, the controller
-still needs storage-loss detection and recovery policy, permission-filtered
-views, integration of selection/connection fences, explicit review and actual
+still needs a user-facing storage-loss review and recovery policy, permission-filtered
+views, integration of selection/connection fences, explicit command review and actual
 gateway crash/transport-loss tests. Browser actions remain
 disabled until that complete path is in place.
 

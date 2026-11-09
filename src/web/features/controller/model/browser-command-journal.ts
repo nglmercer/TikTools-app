@@ -51,7 +51,7 @@ function open(): Promise<IDBDatabase> {
 
 /** Each operation uses one strict read-write transaction, so two tabs cannot
  * both create a pending intent. The transaction must commit before dispatch. */
-export async function withBrowserCommandJournal<T>(binding: BrowserCommandBinding, change: (journal: BrowserCommandJournal) => T): Promise<T> {
+async function access<T>(binding: BrowserCommandBinding, allowCreate: boolean, change: (journal: BrowserCommandJournal) => T): Promise<T> {
   if (!validBinding(binding)) throw new Error('invalid command binding');
   const stable = { ...binding }; const database = await open();
   return new Promise((resolve, reject) => {
@@ -63,6 +63,7 @@ export async function withBrowserCommandJournal<T>(binding: BrowserCommandBindin
     const request = store.get(keyFor(stable));
     request.onsuccess = () => {
       try {
+        if (request.result === undefined && !allowCreate) throw new Error('command journal missing; review storage loss');
         const record = decode(request.result, stable);
         result = change(record);
         if (object(result) && typeof result['then'] === 'function') throw new Error('command journal callback must be synchronous');
@@ -74,6 +75,15 @@ export async function withBrowserCommandJournal<T>(binding: BrowserCommandBindin
     transaction.onabort = () => { database.close(); reject(failure ?? new Error('command journal unavailable')); };
     transaction.onerror = () => { /* abort handles the failure */ };
   });
+}
+export function withBrowserCommandJournal<T>(binding: BrowserCommandBinding, change: (journal: BrowserCommandJournal) => T): Promise<T> {
+  return access(binding, false, change);
+}
+/** Missing storage may contain a lost command. Explicit review is mandatory
+ * even for a new session, which cannot be distinguished from storage loss. */
+export function initializeBrowserCommandJournal(binding: BrowserCommandBinding, acknowledgeStorageLoss: boolean): Promise<void> {
+  if (acknowledgeStorageLoss !== true) return Promise.reject(new Error('storage loss review required'));
+  return access(binding, true, () => undefined);
 }
 export function beginBrowserCommand(journal: BrowserCommandJournal, intent: BrowserCommandIntent): void {
   if (!validIntent(intent)) throw new Error('invalid command intent');
