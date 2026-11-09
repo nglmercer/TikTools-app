@@ -48,6 +48,14 @@ runtime index and compares it with the database-derived manifest. An absent or
 different runtime view reports `runtime_view_changed`; this remains a point-in-
 time check and does not replace the final execution fence.
 
+The runtime now has an internal reusable-policy candidate constructor that
+captures saved definitions and dependencies and can create the existing scoped
+execution permit after checking current subjects and policies. The permit pins
+the runtime index, exact definition generations, grant revisions and session
+identity; tests exercise definition replacement, restoration and grant
+revocation. This constructor is not yet selected by event matching or remote
+activation, so it does not by itself enable delegated automations.
+
 Implement this as an explicit, revocable owner-managed delegation policy, not
 as an implicit consequence of `automation.edit` or a role name. Existing grants
 must retain their present meaning after upgrades. The policy must identify the

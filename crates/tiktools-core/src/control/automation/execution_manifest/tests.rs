@@ -399,6 +399,95 @@ fn reusable_preflight_requires_policy_from_every_delegated_author() {
 }
 
 #[test]
+fn reusable_runtime_candidate_pins_definition_and_current_subject_grant() {
+    let f = Fixture::new();
+    f.action("same");
+    let auth = author(f.core());
+    let identity = auth.snapshot().unwrap();
+    delegated(f.core(), &auth, "proposal");
+    let service = f.core().collaboration().unwrap();
+    let subjects = service
+        .execution_authorizations(&[(identity.principal_id.clone(), identity.session_id.clone())])
+        .unwrap();
+    let capture = || {
+        f.core()
+            .automation
+            .reusable_candidate(AutomationFamily::Event, "proposal")
+            .unwrap()
+    };
+    assert!(subjects
+        .with_current(|identities| capture().authorize(identities))
+        .unwrap()
+        .is_err());
+    let grant = Grant {
+        capabilities: [
+            Capability::AutomationRead,
+            Capability::AutomationEdit,
+            Capability::AutomationToggle,
+            Capability::LiveRead,
+        ]
+        .into(),
+        automation_delegation: Some(AutomationDelegation {
+            effects: [DelegatedAutomationEffect::Log].into(),
+            allow_dynamic_targets: false,
+        }),
+        ..Grant::default()
+    };
+    service
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id.clone(),
+            expected_revision: "1".into(),
+            grant,
+        })
+        .unwrap();
+    let permit = subjects
+        .with_current(|identities| capture().authorize(identities))
+        .unwrap()
+        .unwrap();
+    let action = f
+        .core()
+        .automation_get(AutomationKind::Action, "same")
+        .unwrap();
+    f.core()
+        .automation
+        .with_current_approvals(&[permit.clone()], &[], &action, || Ok(()))
+        .unwrap();
+    f.core().automation_update(AutomationKind::Action, "same", json!({"id":"same","name":"Changed","enabled":false,"typeId":"core.log","config":{"message":"changed"}})).unwrap();
+    assert!(f
+        .core()
+        .automation
+        .with_current_approvals(&[permit.clone()], &[], &action, || Ok(()))
+        .is_err());
+    f.core()
+        .automation_update(AutomationKind::Action, "same", action.clone())
+        .unwrap();
+    assert!(f
+        .core()
+        .automation
+        .with_current_approvals(&[permit], &[], &action, || Ok(()))
+        .is_err());
+    let fresh = subjects
+        .with_current(|identities| capture().authorize(identities))
+        .unwrap()
+        .unwrap();
+    service
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id.clone(),
+            expected_revision: "2".into(),
+            grant: Grant::viewer(),
+        })
+        .unwrap();
+    assert!(subjects
+        .with_current(|identities| fresh.check_subjects(identities))
+        .unwrap()
+        .is_err());
+    service
+        .revoke_session(&identity.session_id, "local-owner")
+        .unwrap();
+    assert!(subjects.snapshot().is_err());
+}
+
+#[test]
 fn manifest_reopens_from_provenance_and_session_storage_without_a_bearer_or_live_connection() {
     let mut f = Fixture::new();
     f.action("same");

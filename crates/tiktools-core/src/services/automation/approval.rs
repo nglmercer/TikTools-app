@@ -101,7 +101,7 @@ struct DefinitionFence {
 pub(crate) struct ApprovalCandidate {
     index_identity: std::sync::Arc<()>,
     approval_key: (String, String),
-    approval: crate::db::BehaviorApprovalSnapshot,
+    approval: Option<crate::db::BehaviorApprovalSnapshot>,
     review: Versioned<Value>,
     definitions: Vec<DefinitionFence>,
     catalog_epoch: u64,
@@ -119,8 +119,8 @@ impl ApprovalCandidate {
     }
 }
 
-/// No public constructor, Serialize or Deserialize: only an exact persisted
-/// approval, reconstructed manifest and current saved grants can create this.
+/// No public constructor, Serialize or Deserialize: only a trusted saved
+/// closure and current saved grants can create this.
 #[derive(Clone)]
 pub(crate) struct RuntimeApprovalPermit {
     candidate: ApprovalCandidate,
@@ -283,7 +283,7 @@ pub(super) fn candidate_for_primary(
     Some(ApprovalCandidate {
         index_identity: index.identity.clone(),
         approval_key: (approval.scope.clone(), approval.id.clone()),
-        approval: approval.clone(),
+        approval: Some(approval.clone()),
         review,
         definitions,
         catalog_epoch: index.catalog_epoch?,
@@ -324,13 +324,17 @@ impl ApprovalCandidate {
             },
         )
         .map_err(|_| "saved approval manifest is unavailable")?;
-        let policy = crate::services::automation_approval_policy::bindings(&manifest, identities)
-            .map_err(|_| "saved approval effect policy is unavailable")?;
-        let binding = json!({"manifest":manifest,"bindings":policy});
-        if self.approval.manifest_digest != manifest.manifest_digest
-            || self.approval.binding != binding
-        {
-            return Err("saved approval binding has changed");
+        if let Some(approval) = &self.approval {
+            let policy =
+                crate::services::automation_approval_policy::bindings(&manifest, identities)
+                    .map_err(|_| "saved approval effect policy is unavailable")?;
+            let binding = json!({"manifest":manifest,"bindings":policy});
+            if approval.manifest_digest != manifest.manifest_digest || approval.binding != binding {
+                return Err("saved approval binding has changed");
+            }
+        } else {
+            crate::services::automation_approval_policy::reusable_preflight(&manifest, identities)
+                .map_err(|_| "reusable delegation is unavailable")?;
         }
         let configuration_revisions = identities
             .iter()
@@ -391,6 +395,32 @@ impl RuntimeApprovalPermit {
 }
 
 impl AutomationService {
+    /// Capture only saved host-index state. This does not itself authorize a
+    /// run; authorize() resolves all subjects and checks reusable policies.
+    #[allow(dead_code)] // Runtime dispatch integration is a separate pending step.
+    pub(crate) fn reusable_candidate(
+        &self,
+        family: AutomationFamily,
+        id: &str,
+    ) -> Option<ApprovalCandidate> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        let primary = match family {
+            AutomationFamily::Action => index.actions.get(id),
+            AutomationFamily::Event => index.events.get(id),
+        }?;
+        let (review, definitions) = capture_review(&index, family, &primary.definition)?;
+        if manifest::required_subjects(&review).ok()?.is_empty() {
+            return None;
+        }
+        Some(ApprovalCandidate {
+            index_identity: index.identity.clone(),
+            approval_key: (family.scope().into(), id.into()),
+            approval: None,
+            review,
+            definitions,
+            catalog_epoch: index.catalog_epoch?,
+        })
+    }
     /// Check that a DB review describes the currently installed runtime
     /// closure. This comparison is advisory; it cannot authorize execution.
     pub(crate) fn reusable_preflight_current(
@@ -563,12 +593,13 @@ pub(super) fn candidate_current(index: &BehaviorIndex, candidate: &ApprovalCandi
     {
         return false;
     }
-    let approval = &candidate.approval;
-    if candidate.approval_key.0 != approval.scope
-        || candidate.approval_key.1 != approval.id
-        || index.approvals.get(&candidate.approval_key) != Some(approval)
-    {
-        return false;
+    if let Some(approval) = &candidate.approval {
+        if candidate.approval_key.0 != approval.scope
+            || candidate.approval_key.1 != approval.id
+            || index.approvals.get(&candidate.approval_key) != Some(approval)
+        {
+            return false;
+        }
     }
     candidate
         .definitions
