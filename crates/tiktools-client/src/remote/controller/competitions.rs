@@ -1,6 +1,14 @@
 //! Read-only, bounded competition status for an explicitly scoped controller.
 use super::*;
-use tiktools_control_api::modules::competitions::CompetitionSummaryPage;
+use tiktools_control_api::modules::competitions::{CompetitionSummary, CompetitionSummaryPage};
+
+pub(super) struct Observation {
+    pub epoch: String,
+    pub connection: String,
+    pub grant_revision: String,
+    pub host_instance: String,
+    pub rows: BTreeMap<String, CompetitionSummary>,
+}
 
 fn bound(
     view: &View,
@@ -125,8 +133,20 @@ impl Controller {
             return Err(protocol());
         }
         {
-            let view = self.shared.view.read().unwrap_or_else(|p| p.into_inner());
+            let mut view = self.shared.view.write().unwrap_or_else(|p| p.into_inner());
             bound(&view, epoch, connection, Some(&remote))?;
+            view.competition_observation = Some(Observation {
+                epoch: epoch.into(),
+                connection: connection.into(),
+                grant_revision: remote.hello().grant_revision.clone(),
+                host_instance: remote.hello().host_instance_id.clone(),
+                rows: page
+                    .competitions
+                    .iter()
+                    .cloned()
+                    .map(|row| (row.id.clone(), row))
+                    .collect(),
+            });
         }
         let mut result = serde_json::to_value(page).map_err(|_| protocol())?;
         let result = result.as_object_mut().ok_or_else(protocol)?;

@@ -13,7 +13,7 @@ use std::{
 
 const BYTES: u64 = 64 * 1024;
 const HISTORY: usize = 16;
-const VERSION: u32 = 6;
+const VERSION: u32 = 7;
 pub fn timestamp() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -60,6 +60,8 @@ pub enum Operation {
     UpdateEventActive,
     CreateActionActive,
     UpdateActionActive,
+    PauseCompetition,
+    CancelCompetition,
 }
 impl Operation {
     pub fn method(self) -> &'static str {
@@ -67,6 +69,8 @@ impl Operation {
             Self::Disable => "workflows.disable",
             Self::Delete => "workflows.delete",
             Self::AdjustPoints => "points.adjust",
+            Self::PauseCompetition => "competitions.pause",
+            Self::CancelCompetition => "competitions.cancel",
             Self::DisableEvent => "automation.disable",
             Self::EnableEvent | Self::EnableAction => "automation.enable",
             Self::DeleteEvent => "automation.delete",
@@ -85,6 +89,7 @@ impl Operation {
             Self::Disable => "workflowDisable",
             Self::Delete => "workflowDelete",
             Self::AdjustPoints => "pointsAdjust",
+            Self::PauseCompetition | Self::CancelCompetition => "competitionStop",
             Self::DisableEvent | Self::DeleteEvent => "automationEventDeactivate",
             Self::EnableEvent | Self::EnableAction => "automationReusableActivation",
             Self::CreateEventDraft
@@ -102,6 +107,9 @@ impl Operation {
             Self::Disable => tiktools_collaboration::Capability::WorkflowsToggle,
             Self::Delete => tiktools_collaboration::Capability::WorkflowsEdit,
             Self::AdjustPoints => tiktools_collaboration::Capability::PointsAdjust,
+            Self::PauseCompetition | Self::CancelCompetition => {
+                tiktools_collaboration::Capability::CompetitionsManage
+            }
             Self::DisableEvent | Self::EnableEvent | Self::EnableAction => {
                 tiktools_collaboration::Capability::AutomationToggle
             }
@@ -119,6 +127,9 @@ impl Operation {
     pub fn kind(self) -> tiktools_collaboration::ResourceKind {
         match self {
             Self::AdjustPoints => tiktools_collaboration::ResourceKind::Viewer,
+            Self::PauseCompetition | Self::CancelCompetition => {
+                tiktools_collaboration::ResourceKind::Competition
+            }
             Self::DisableEvent
             | Self::EnableEvent
             | Self::EnableAction
@@ -163,6 +174,9 @@ impl Operation {
             self,
             Self::DisableEvent | Self::DeleteEvent | Self::EnableEvent
         )
+    }
+    pub fn is_competition(self) -> bool {
+        matches!(self, Self::PauseCompetition | Self::CancelCompetition)
     }
     pub fn is_activation(self) -> bool {
         matches!(self, Self::EnableEvent | Self::EnableAction)
@@ -216,6 +230,7 @@ impl Operation {
             | Self::UpdateEventActive
             | Self::CreateActionActive
             | Self::UpdateActionActive => matches!(version, 6..=VERSION),
+            Self::PauseCompetition | Self::CancelCompetition => matches!(version, 7..=VERSION),
         }
     }
 }
@@ -234,10 +249,29 @@ pub struct Intent {
     pub currency_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proposal_revision: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_generation: Option<String>,
     pub created_at: i64,
 }
 impl Intent {
     pub fn validate(&self) -> Result<(), ClientError> {
+        if self.operation.is_competition() {
+            if self
+                .expected_generation
+                .as_deref()
+                .and_then(|s| tiktools_collaboration::stream_sequence(s).ok())
+                .is_none_or(|n| n > i64::MAX as u64)
+                || self
+                    .expected_revision
+                    .as_deref()
+                    .and_then(|s| tiktools_collaboration::stream_sequence(s).ok())
+                    .is_none_or(|n| n == 0 || n > i64::MAX as u64)
+            {
+                return Err(invalid());
+            }
+        } else if self.expected_generation.is_some() {
+            return Err(invalid());
+        }
         if self.operation.is_proposal() {
             if self
                 .proposal_revision

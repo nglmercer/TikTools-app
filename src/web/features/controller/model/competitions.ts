@@ -7,7 +7,7 @@ export interface CompetitionSummary {
   generation: string; deadlineMs: string | null; remainingMs: string | null;
   revision?: string;
 }
-interface Dependencies { status: Ref<ControllerStatus>; generation: () => number; stopped: () => boolean }
+interface Dependencies { status: Ref<ControllerStatus>; generation: () => number; stopped: () => boolean; blocked?: () => boolean; journalMatches?: () => boolean; send?: (method: string, params: Record<string, unknown>) => Promise<boolean> }
 interface Page { competitions: CompetitionSummary[]; nextAfter: string | null }
 const kinds = new Set(['poll', 'weighted_poll', 'leaderboard_challenge', 'team_battle', 'random_draw', 'weighted_draw', 'roulette']);
 const states = new Set(['draft', 'active', 'paused', 'finalizing', 'finished', 'cancelled', 'failed']);
@@ -54,7 +54,7 @@ function decode(value: unknown, s: ControllerStatus, after: string | null): Page
   return { competitions: rows, nextAfter: page['nextAfter'] as string | null };
 }
 
-/** Read-only live keyset pages; refresh never issues a competition command. */
+/** Live keyset pages; commands use the separate durable native coordinator. */
 export function createCompetitionModel(control: ControlClient, deps: Dependencies) {
   const rows = ref<CompetitionSummary[]>([]); const error = ref(''); const loading = ref(false);
   const pageIndex = ref(0); const allowed = computed(() => readable(deps.status.value));
@@ -91,6 +91,20 @@ export function createCompetitionModel(control: ControlClient, deps: Dependencie
     pageIndex.value -= 1; rows.value = []; nextAfter.value = null; nextPoll = 0;
     await refresh(deps.status.value, deps.generation());
   }
-  return { rows, error, loading, pageIndex, nextAfter, allowed, clear, refresh, next, previous };
+  function canStop(row: CompetitionSummary, operation: 'pause-competition' | 'cancel-competition'): boolean {
+    const s = deps.status.value; const h = s.hello;
+    return allowed.value && !loading.value && !deps.blocked?.() && deps.journalMatches?.() === true && !!deps.send &&
+      h?.features['competitionStop'] === true && h.features['competitionSummaryVersions'] === true &&
+      h.capabilities.includes('competitions.manage') && h.capabilities.includes('commands.read') &&
+      !!row.revision && rows.value.some((r) => r.id === row.id && r.revision === row.revision && r.generation === row.generation && r.lifecycle === row.lifecycle) &&
+      (operation === 'pause-competition' ? row.lifecycle === 'active' : ['draft','active','paused'].includes(row.lifecycle));
+  }
+  async function stopCompetition(row: CompetitionSummary, operation: 'pause-competition' | 'cancel-competition'): Promise<void> {
+    if (!canStop(row, operation)) return;
+    const s = deps.status.value; const h = s.hello!; const captured = binding(s);
+    const accepted = await deps.send!('controller.competition.command', { epoch:s.epoch, connectionId:h.connectionId, hostInstanceId:h.hostInstanceId, grantRevision:h.grantRevision, id:row.id, expectedRevision:row.revision, expectedGeneration:row.generation, operation });
+    if (accepted && !deps.stopped() && binding(deps.status.value) === captured) { nextPoll = 0; await refresh(deps.status.value, deps.generation()); }
+  }
+  return { rows, error, loading, pageIndex, nextAfter, allowed, clear, refresh, next, previous, canStop, stopCompetition };
 }
 export type CompetitionModel = ReturnType<typeof createCompetitionModel>;

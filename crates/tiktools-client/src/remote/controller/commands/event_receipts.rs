@@ -16,6 +16,7 @@ fn proposal_receipts_require_a_closed_disabled_body_exact_family_and_next_revisi
             delta: None,
             currency_name: None,
             proposal_revision: Some("7".into()),
+            expected_generation: None,
             created_at: 1,
         };
         let receipt = CommandReceipt {
@@ -85,6 +86,7 @@ fn event_receipts_require_the_exact_family_target_revision_and_closed_body() {
         delta: None,
         currency_name: None,
         proposal_revision: None,
+        expected_generation: None,
         created_at: 1,
     };
     let receipt = CommandReceipt {
@@ -172,6 +174,7 @@ fn activation_receipts_bind_family_id_and_next_revision() {
             delta: None,
             currency_name: None,
             proposal_revision: None,
+            expected_generation: None,
             created_at: 1,
         };
         let receipt = CommandReceipt {
@@ -222,6 +225,7 @@ fn active_authoring_receipts_require_active_state_and_matching_family() {
             delta: None,
             currency_name: None,
             proposal_revision: Some("1".into()),
+            expected_generation: None,
             created_at: 1,
         };
         let receipt = CommandReceipt {

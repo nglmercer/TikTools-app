@@ -11,8 +11,8 @@ import EffectGrantEditor from './EffectGrantEditor.vue';
 defineProps<{ disabled?: boolean }>();
 const model = defineModel<Grant>({ required: true });
 const { t } = useI18n();
-const current = ['live.read', 'workflows.read', 'workflows.toggle', 'workflows.edit', 'automation.read', 'automation.toggle', 'automation.edit', 'points.read', 'points.adjust', 'commands.read'] as const;
-const labels = { 'live.read': 'capLive', 'workflows.read': 'capWorkflow', 'workflows.toggle': 'capWorkflowDisable', 'workflows.edit': 'capWorkflowDelete', 'automation.read': 'capAutomation', 'automation.toggle': 'capEventDisable', 'automation.edit': 'capEventDelete', 'points.read': 'capPoints', 'points.adjust': 'capPointsAdjust', 'commands.read': 'capCommands' } as const;
+const current = ['live.read', 'workflows.read', 'workflows.toggle', 'workflows.edit', 'automation.read', 'automation.toggle', 'automation.edit', 'points.read', 'points.adjust', 'competitions.read', 'competitions.manage', 'commands.read'] as const;
+const labels = { 'live.read': 'capLive', 'workflows.read': 'capWorkflow', 'workflows.toggle': 'capWorkflowDisable', 'workflows.edit': 'capWorkflowDelete', 'automation.read': 'capAutomation', 'automation.toggle': 'capEventDisable', 'automation.edit': 'capEventDelete', 'points.read': 'capPoints', 'points.adjust': 'capPointsAdjust', 'competitions.read': 'capCompetitions', 'competitions.manage': 'capCompetitionStop', 'commands.read': 'capCommands' } as const;
 const effectCaps = ['http.request', 'audio.play', 'events.emit', 'scripts.execute'] as const;
 const effectLabels = { 'http.request': 'capHttp', 'audio.play': 'capAudio', 'events.emit': 'capEmit', 'scripts.execute': 'capScript' } as const;
 type DelegatedEffect = AutomationDelegation['effects'][number];
@@ -21,7 +21,7 @@ const effectCapabilities: Partial<Record<DelegatedEffect, Capability[]>> = { poi
 const requiredAutomation: Capability[] = ['automation.read', 'automation.edit', 'automation.toggle'];
 function requiredByDelegation(capability: Capability): boolean {
   const delegation = model.value.automationDelegation;
-  return !!delegation && model.value.capabilities.includes(capability) && (requiredAutomation.includes(capability) || delegation.effects.some((effect) => effectCapabilities[effect]?.includes(capability)));
+  return model.value.capabilities.includes(capability) && ((model.value.capabilities.includes('competitions.manage') && ['competitions.read','commands.read'].includes(capability)) || (!!delegation && (requiredAutomation.includes(capability) || delegation.effects.some((effect) => effectCapabilities[effect]?.includes(capability)))));
 }
 function setDelegatedEffect(effect: DelegatedEffect, enabled: boolean): void {
   const value = copy();
@@ -73,6 +73,7 @@ const copy = () => JSON.parse(JSON.stringify(model.value)) as Grant;
 function setCapability(capability: Capability, allowed: boolean): void {
   const value = copy(); const caps = new Set(value.capabilities);
   if (allowed) caps.add(capability); else caps.delete(capability);
+  if (capability === 'competitions.manage' && allowed) { caps.add('competitions.read'); caps.add('commands.read'); }
   value.capabilities = [...caps]; model.value = value;
 }
 function setMode(kind: ResourceKind, mode: 'all' | 'selected' | 'none'): void {

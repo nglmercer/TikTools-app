@@ -184,8 +184,11 @@ The host API supports remote `competitions.pause` and `competitions.cancel`
 under scoped read/manage grants, with expected generation, revision and durable
 command metadata. The result can be recovered by command ID. Remote stops
 publish local presentation updates without granting Owner authority to plugin
-observers or competition-triggered automation. Start/resume, controller UI,
-competition event streams and complete release acceptance remain pending.
+observers or competition-triggered automation. The native controller can pause
+or cancel a visible competition under the same scoped grant; its version-7
+command journal stores the generation and revision before sending and recovers
+an uncertain result using the original command ID. Start/resume, competition
+event streams and complete release acceptance remain pending.
 For either RPC, send `params: {id, expectedGeneration}` and
 `meta: {commandId, hostInstanceId, expectedRevision}` using the generation and
 revision from the scoped summary. The durable result identifies the
@@ -209,7 +212,7 @@ stream refreshes its identity and grant every five seconds. Its displayed
 grant can therefore lag a host-side change until the next successful refresh
 or disconnect; a rate-limited heartbeat is retried. The gateway continues to
 authorize each request and response. Remote pause/cancel are available through
-the control API; the controller UI does not yet submit them.
+the control API and the native controller.
 
 An isolated ControlApi fixture exercised pagination, projection, denial of
 mutations and LIVE-restricted grants, and response reauthorization after a

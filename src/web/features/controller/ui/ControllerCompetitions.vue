@@ -9,12 +9,14 @@ const text = computed(() => locale.value === 'es' ? {
   title: 'Competiciones', description: 'Estado de las competiciones autorizadas. Se actualiza periódicamente.',
   loading: 'Consultando competiciones…', error: 'No se pudo consultar el estado de las competiciones.',
   empty: 'No hay competiciones disponibles en esta página.', previous: 'Anterior', next: 'Siguiente', page: 'Página',
+  pause: 'Pausar', cancel: 'Cancelar competición',
   states: { draft:'Borrador', active:'Activa', paused:'Pausada', finalizing:'Finalizando', finished:'Finalizada', cancelled:'Cancelada', failed:'Fallida' } as Record<string, string>,
   kinds: { poll:'Encuesta', weighted_poll:'Encuesta ponderada', leaderboard_challenge:'Desafío de ranking', team_battle:'Batalla de equipos', random_draw:'Sorteo', weighted_draw:'Sorteo ponderado', roulette:'Ruleta' } as Record<string, string>,
 } : {
   title: 'Competitions', description: 'Status of permitted competitions. Refreshed periodically.',
   loading: 'Loading competitions…', error: 'Competition status is unavailable.',
   empty: 'No competitions are available on this page.', previous: 'Previous', next: 'Next', page: 'Page',
+  pause: 'Pause', cancel: 'Cancel competition',
   states: { draft:'Draft', active:'Active', paused:'Paused', finalizing:'Finalizing', finished:'Finished', cancelled:'Cancelled', failed:'Failed' } as Record<string, string>,
   kinds: { poll:'Poll', weighted_poll:'Weighted poll', leaderboard_challenge:'Leaderboard challenge', team_battle:'Team battle', random_draw:'Random draw', weighted_draw:'Weighted draw', roulette:'Roulette' } as Record<string, string>,
 });
@@ -32,6 +34,8 @@ const text = computed(() => locale.value === 'es' ? {
         <strong>{{ row.name }}</strong>
         <span>{{ text.kinds[row.kind] }}</span>
         <span>{{ text.states[row.lifecycle] }}</span>
+        <button v-if="model.canStop(row, 'pause-competition')" type="button" @click="model.stopCompetition(row, 'pause-competition')">{{ text.pause }}</button>
+        <button v-if="model.canStop(row, 'cancel-competition')" type="button" @click="model.stopCompetition(row, 'cancel-competition')">{{ text.cancel }}</button>
       </li>
     </ul>
     <nav :aria-label="text.title">

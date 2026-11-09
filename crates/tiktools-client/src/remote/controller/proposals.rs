@@ -465,6 +465,7 @@ pub(super) async fn mutate(shared: &Shared, p: Submit) -> Result<(), ClientError
         delta: None,
         currency_name: None,
         proposal_revision: Some(store.clone()),
+        expected_generation: None,
         created_at: profiles::commands::timestamp(),
     };
     let j = s.journal.clone();

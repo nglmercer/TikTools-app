@@ -141,7 +141,14 @@ impl AppCore {
                     &service,
                     self.aggregations.checkpoint_owner.as_deref(),
                 )
-                .map_err(|e| super::commands::command_error(e, &command.request.command_id))?;
+                .map_err(|e| match e {
+                    crate::db::DatabaseError::RevisionConflict(version) => OperationError {
+                        code: "revision_conflict",
+                        message: "competition changed; refresh its status".into(),
+                        data: Some(serde_json::json!({"resourceVersions":[version]})),
+                    },
+                    other => super::commands::command_error(other, &command.request.command_id),
+                })?;
             if fresh {
                 if let Some(data) = self.competition_context(id, generation) {
                     let event = match transition {

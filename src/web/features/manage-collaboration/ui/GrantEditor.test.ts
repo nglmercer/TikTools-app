@@ -21,6 +21,15 @@ describe('grant restrictions', () => {
       expect(grant.resources.workflow).toEqual([]);
     } finally { wrapper.unmount(); }
   });
+  it('adds competition read and command recovery with the stop permission', async () => {
+    let grant: Grant = { ...viewerGrant(), capabilities: [] };
+    const wrapper = mount(GrantEditor, { props: { modelValue: grant, 'onUpdate:modelValue': async (value: Grant) => { grant = value; await wrapper.setProps({ modelValue: value }); } }, global: { plugins: [i18n] } });
+    try {
+      await wrapper.findAll('label').find((item) => item.text() === 'Pause or cancel competitions (includes read and command recovery)')!.find('input').setValue(true);
+      expect(grant.capabilities).toEqual(expect.arrayContaining(['competitions.read','competitions.manage','commands.read']));
+      expect(parseGrant(grant)).toEqual(grant);
+    } finally { wrapper.unmount(); }
+  });
   it('keeps deny-all distinct from unrestricted and preserves action/setting scopes', async () => {
     let grant: Grant = { ...viewerGrant(), resources: { workflow: ['allowed'] }, actions: { plugin: ['speak'] }, settingsFields: { plugin: ['volume'] } };
     const wrapper = mount(GrantEditor, { props: { modelValue: grant, 'onUpdate:modelValue': async (value: Grant) => { grant = value; await wrapper.setProps({ modelValue: value }); } }, global: { plugins: [i18n] } });

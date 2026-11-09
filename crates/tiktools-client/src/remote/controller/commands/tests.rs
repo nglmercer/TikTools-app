@@ -65,6 +65,7 @@ fn prepared(profile: &profiles::RemoteProfile, instance: &str, root: &std::path:
         delta: None,
         currency_name: None,
         proposal_revision: None,
+        expected_generation: None,
         created_at: profiles::commands::timestamp(),
     };
     j.begin(intent.clone()).unwrap();
@@ -503,6 +504,7 @@ fn points_receipts_bind_the_exact_viewer_unit_and_effective_amount_without_a_fak
         delta: Some(2.0),
         currency_name: Some("Points".into()),
         proposal_revision: None,
+        expected_generation: None,
         created_at: 0,
     };
     let receipt = CommandReceipt {
@@ -727,6 +729,7 @@ async fn points_recovery_confirms_the_original_result_after_later_awards_and_uni
         delta: Some(4.0),
         currency_name: Some("Points".into()),
         proposal_revision: None,
+        expected_generation: None,
         created_at: profiles::commands::timestamp(),
     };
     {
@@ -1109,6 +1112,7 @@ fn receipt_validation_requires_the_exact_id_resource_and_revision_transition() {
         delta: None,
         currency_name: None,
         proposal_revision: None,
+        expected_generation: None,
         created_at: 0,
     };
     let mut receipt = CommandReceipt {

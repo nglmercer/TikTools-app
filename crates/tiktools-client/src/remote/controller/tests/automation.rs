@@ -366,6 +366,7 @@ fn prepare_event(
         delta: None,
         currency_name: None,
         proposal_revision: None,
+        expected_generation: None,
         created_at: profiles::commands::timestamp(),
     };
     journal.begin(intent.clone()).unwrap();
@@ -879,6 +880,7 @@ async fn native_activation_receipt_recovers_original_id_without_reapplying() {
         delta: None,
         currency_name: None,
         proposal_revision: None,
+        expected_generation: None,
         created_at: profiles::commands::timestamp(),
     };
     let journal = Journal::open(manager.directory(), &profile).unwrap();

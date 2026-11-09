@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tiktools_competitions::Transition;
 pub use tiktools_competitions::{
-    ActionExecution, ActionResolution, Definition, LifecycleState, ResultRecord,
+    ActionExecution, ActionResolution, Definition, Lifecycle, LifecycleState, ResultRecord,
 };
 pub use tiktools_core::control::{CompetitionSummary, CompetitionSummaryPage};
 use tiktools_core::AppCore;

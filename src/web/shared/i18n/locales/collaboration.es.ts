@@ -48,6 +48,7 @@ export default {
   presetViewer: 'Observador del LIVE', presetWorkflow: 'Revisor de workflows', presetAgent: 'Agente revisor', capLive: 'Leer estado del LIVE', capWorkflow: 'Leer workflows', capCommands: 'Leer resultados de comandos propios',
   capWorkflowDisable: 'Desactivar workflows (requiere lectura)', capWorkflowDelete: 'Eliminar workflows (requiere lectura)',
   capAutomation: 'Ver estado de automatizaciones', capEventDisable: 'Desactivar eventos completos (requiere lectura)', capEventDelete: 'Eliminar eventos y proponer borradores desactivados (requiere lectura)', capPoints: 'Ver puntos', capPointsAdjust: 'Ajustar puntos (requiere lectura)',
+  capCompetitions: 'Ver competiciones', capCompetitionStop: 'Pausar o cancelar competiciones (incluye lectura y recuperación)',
   automationIds: 'event:ID o action:ID, uno por línea', automationScopeHint: 'Usa event: o action: antes de cada ID. Solo se pueden desactivar o eliminar eventos completos remotamente. Las restricciones de creador impiden acceder a automatizaciones globales.',
   futurePermissions: 'Permisos adicionales', futureHint: 'El anfitrión permite consultar LIVE/workflows, desactivar o eliminar workflows, ajustar puntos, ver automatizaciones y desactivar o eliminar eventos completos. Los borradores remotos del autor deben estar desactivados; la API puede activar definiciones compatibles con una autorización reutilizable. Los permisos adicionales se conservan; las operaciones sin soporte se rechazan.',
 

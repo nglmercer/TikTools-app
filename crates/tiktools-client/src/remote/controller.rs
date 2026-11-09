@@ -22,7 +22,7 @@ mod live_status;
 mod points;
 mod proposals;
 pub use automations::AutomationRow;
-pub use commands::{AutomationCommand, PointsCommand, WorkflowCommand};
+pub use commands::{AutomationCommand, CompetitionCommand, PointsCommand, WorkflowCommand};
 use profiles::commands::Journal;
 pub use profiles::commands::Operation as CommandOperation;
 pub use profiles::commands::{
@@ -64,6 +64,7 @@ struct View {
     journal: Option<Arc<Journal>>,
     points: points::State,
     automation: automations::State,
+    competition_observation: Option<competitions::Observation>,
     proposal_inspection: Option<proposals::Inspection>,
 }
 fn journal_projection(v: &View) -> Option<JournalView> {
@@ -90,6 +91,16 @@ fn journal_projection(v: &View) -> Option<JournalView> {
             record.points_result = None;
         }
     }
+    journal.recent.retain(|record| {
+        !record.intent.operation.is_competition()
+            || hello.is_some_and(|h| {
+                h.capabilities.contains(&Capability::CompetitionsRead)
+                    && !h.resource_restrictions.contains_key(&ResourceKind::Live)
+                    && h.resource_restrictions
+                        .get(&ResourceKind::Competition)
+                        .is_none_or(|ids| ids.contains(&record.intent.resource_id))
+            })
+    });
     Some(journal)
 }
 struct Shared {
@@ -103,6 +114,17 @@ impl Shared {
             return;
         }
         apply(&mut v);
+        if v.competition_observation.as_ref().is_some_and(|o| {
+            v.status.phase != "ready"
+                || v.status.epoch != o.epoch
+                || v.status.hello.as_ref().is_none_or(|h| {
+                    h.connection_id != o.connection
+                        || h.grant_revision != o.grant_revision
+                        || h.host_instance_id != o.host_instance
+                })
+        }) {
+            v.competition_observation = None;
+        }
         let revision = v
             .status
             .view_revision
@@ -224,6 +246,7 @@ impl Controller {
                     journal: None,
                     points: points::State::default(),
                     automation: automations::State::default(),
+                    competition_observation: None,
                     proposal_inspection: None,
                 }),
             }),
@@ -264,6 +287,7 @@ impl Controller {
         v.rows.clear();
         v.points = points::State::default();
         v.automation = automations::State::default();
+        v.competition_observation = None;
         v.journal = None;
         v.status = ControllerStatus {
             drafts_supported: true,
@@ -466,6 +490,7 @@ impl Controller {
             "controller.workflow.command"=>self.workflow_command(parse(params)?).await,
             "controller.points.command"=>self.points_command(parse(params)?).await,
             "controller.automation.command"=>self.automation_command(parse(params)?).await,
+            "controller.competition.command"=>self.competition_command(parse(params)?).await,
             "controller.proposals.list"=>self.proposal_read(parse(params)?,true).await,
             "controller.proposals.get"=>self.proposal_read(parse(params)?,false).await,
             "controller.proposals.save"=>self.proposal_save(parse(params)?).await,

@@ -40,6 +40,23 @@ it('requires canonical revisions when the host advertises them', async () => {
   } finally { vi.useRealTimers(); }
 });
 
+it('sends only the visible revision and generation with a reusable grant', async () => {
+  const current = ref(status());
+  current.value.hello!.features['competitionSummaryVersions'] = true;
+  current.value.hello!.features['competitionStop'] = true;
+  current.value.hello!.capabilities.push('competitions.manage','commands.read');
+  const { client } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(current.value)) : page([{...row('alpha'),revision:'2'}]));
+  const send = vi.fn(async () => true);
+  const model = createCompetitionModel(client, { status:current, generation:() => 1, stopped:() => false, blocked:() => false, journalMatches:() => true, send });
+  await model.refresh(current.value, 1);
+  const shown = model.rows.value[0]!;
+  expect(model.canStop(shown, 'pause-competition')).toBe(true);
+  await model.stopCompetition(shown, 'pause-competition');
+  expect(send).toHaveBeenCalledExactlyOnceWith('controller.competition.command', expect.objectContaining({id:'alpha',expectedRevision:'2',expectedGeneration:'9007199254740993',operation:'pause-competition'}));
+  current.value.hello!.capabilities = ['competitions.read'];
+  expect(model.canStop(shown, 'cancel-competition')).toBe(false);
+});
+
 it('never displays delayed rows after scope change or a denied LIVE restriction', async () => {
   const current = ref(status()); let release!: (value: unknown) => void;
   const { client, calls } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(current.value)) :

@@ -433,6 +433,7 @@ async fn proposal_recovery_checks_original_outcome_after_owner_changes_without_r
         delta: None,
         currency_name: None,
         proposal_revision: Some("1".into()),
+        expected_generation: None,
         created_at: profiles::commands::timestamp(),
     };
     let (j, remote) = {

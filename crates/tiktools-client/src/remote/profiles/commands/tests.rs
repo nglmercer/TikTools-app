@@ -27,6 +27,7 @@ fn intent() -> Intent {
         delta: None,
         currency_name: None,
         proposal_revision: None,
+        expected_generation: None,
         created_at: timestamp(),
     }
 }

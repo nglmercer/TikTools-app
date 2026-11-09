@@ -19,7 +19,12 @@ async fn native_controller_reads_only_scoped_competition_status_and_recovers_aft
             "onUserWin":{"actionId":"private-action","inputs":{"secret":"do-not-send"}}})).unwrap()).unwrap();
     }
     let mut grant = Grant {
-        capabilities: [Capability::CompetitionsRead].into(),
+        capabilities: [
+            Capability::CompetitionsRead,
+            Capability::CompetitionsManage,
+            Capability::CommandsRead,
+        ]
+        .into(),
         resources: [(
             ResourceKind::Competition,
             ["alpha".into(), "charlie".into()].into(),
@@ -66,6 +71,18 @@ async fn native_controller_reads_only_scoped_competition_status_and_recovers_aft
     ] {
         assert!(!page.to_string().contains(secret));
     }
+    let command = json!({"epoch":initial.epoch,"connectionId":hello.connection_id,"hostInstanceId":hello.host_instance_id,"grantRevision":hello.grant_revision,"id":"alpha","expectedRevision":"1","expectedGeneration":"0","operation":"cancel-competition"});
+    let result = controller
+        .manage("controller.competition.command", command)
+        .await
+        .unwrap();
+    assert!(result["pending"].is_null());
+    assert_eq!(result["recent"][0]["outcome"], "succeeded");
+    assert_eq!(result["recent"][0]["intent"]["expectedGeneration"], "0");
+    assert_eq!(
+        f.core.competition_state("alpha").unwrap().lifecycle,
+        tiktools_control_api::modules::competitions::Lifecycle::Cancelled
+    );
     assert_eq!(
         controller
             .forward(
