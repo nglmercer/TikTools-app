@@ -28,6 +28,7 @@ pub(crate) struct CompetitionExecutionFence {
 pub(crate) struct CompetitionExecutionAdmission<'a> {
     fence: &'a CompetitionExecutionFence,
     identities: &'a [crate::collaboration::ExecutionIdentity],
+    winner: Option<&'a ActionClaim>,
 }
 impl CompetitionExecutionAdmission<'_> {
     pub(crate) fn fence(&self) -> &CompetitionExecutionFence {
@@ -35,6 +36,9 @@ impl CompetitionExecutionAdmission<'_> {
     }
     pub(crate) fn identities(&self) -> &[crate::collaboration::ExecutionIdentity] {
         self.identities
+    }
+    pub(crate) fn winner(&self) -> Option<&ActionClaim> {
+        self.winner
     }
 }
 impl CompetitionExecutionFence {
@@ -47,6 +51,62 @@ impl CompetitionExecutionFence {
             .map(|(principal, session, _, _)| (principal.clone(), session.clone()))
             .collect()
     }
+}
+
+/// Match the immutable outbox, selected winner and saved definition under the
+/// same business transaction used to admit a delegated winner action.
+pub(super) fn validate_competition_winner_claim(
+    tx: &rusqlite::Transaction<'_>,
+    claim: &ActionClaim,
+) -> Result<(), DatabaseError> {
+    let denied = || DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden);
+    let generation = i64::try_from(claim.generation)
+        .ok()
+        .filter(|g| *g > 0)
+        .ok_or_else(denied)?;
+    let row: Option<(String, String, String, String, String, i64, String, String)> = tx.query_row(
+        "SELECT d.definition_json,s.state_json,o.idempotency_key,o.action_id,o.action_json,r.created_at,r.ranking_id,r.result_json FROM competition_action_outbox o JOIN competition_definitions d ON d.id=o.competition_id JOIN competition_state s ON s.competition_id=o.competition_id JOIN competition_results r ON r.competition_id=o.competition_id AND r.generation=o.generation WHERE o.competition_id=?1 AND o.generation=?2 AND o.status='running'",
+        params![claim.competition_id, generation],
+        |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?,row.get(6)?,row.get(7)?)),
+    ).optional()?;
+    let (definition, state, key, action_id, action, created_at, ranking, result) =
+        row.ok_or_else(denied)?;
+    let definition: Definition = serde_json::from_str(&definition).map_err(|_| denied())?;
+    let state: LifecycleState = serde_json::from_str(&state).map_err(|_| denied())?;
+    let action: WinnerAction = serde_json::from_str(&action).map_err(|_| denied())?;
+    let result = decode_result(
+        &claim.competition_id,
+        generation,
+        &ranking,
+        created_at,
+        &result,
+    )
+    .map_err(|_| denied())?;
+    let expected_key = serde_json::to_string(&(
+        "competition-winner",
+        &claim.competition_id,
+        claim.generation,
+    ))?;
+    if definition.id != claim.competition_id
+        || definition.ranking_id != ranking
+        || definition.selection_mode != result.selection.mode
+        || definition.tie_policy != result.selection.tie_policy
+        || state.lifecycle != Lifecycle::Finished
+        || state.generation != claim.generation
+        || key != expected_key
+        || claim.idempotency_key != key
+        || action_id != action.action_id
+        || action != claim.action
+        || result
+            .selection
+            .winner
+            .as_deref()
+            .and_then(|winner| definition.winner_action(winner))
+            != Some(&action)
+    {
+        return Err(denied());
+    }
+    Ok(())
 }
 
 fn competition_execution_fence(
@@ -870,8 +930,48 @@ impl DatabaseManager {
                 apply(
                     tx,
                     identities,
-                    &CompetitionExecutionAdmission { fence, identities },
+                    &CompetitionExecutionAdmission {
+                        fence,
+                        identities,
+                        winner: None,
+                    },
                 )
+            },
+        )
+    }
+    /// Hold the competition, operator, author and immutable winner bindings
+    /// together while admitting the saved winner action.
+    #[allow(dead_code)]
+    pub(crate) fn with_competition_winner_admission<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        fence: &CompetitionExecutionFence,
+        claim: &ActionClaim,
+        additional: &[(String, String)],
+        apply: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            &[crate::collaboration::ExecutionIdentity],
+            &CompetitionExecutionAdmission<'_>,
+            &WinnerAction,
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
+        if claim.competition_id != fence.id || claim.generation != fence.generation {
+            return Err(DatabaseError::CommandAuthorization(
+                crate::collaboration::Error::Forbidden,
+            ));
+        }
+        self.with_competition_execution_fence_and_subjects(
+            service,
+            fence,
+            additional,
+            |tx, identities, admission| {
+                validate_competition_winner_claim(tx, claim)?;
+                let winner_admission = CompetitionExecutionAdmission {
+                    fence: admission.fence,
+                    identities,
+                    winner: Some(claim),
+                };
+                apply(tx, identities, &winner_admission, &claim.action)
             },
         )
     }

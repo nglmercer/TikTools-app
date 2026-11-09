@@ -130,6 +130,7 @@ pub(crate) struct RuntimeApprovalPermit {
     manifest: manifest::ExecutionManifest,
     configuration_revisions: BTreeMap<(String, String), String>,
     competition: Option<crate::db::CompetitionExecutionFence>,
+    competition_winner: Option<(tiktools_competitions::ActionClaim, Value)>,
 }
 
 /// Receiving approved scoped input never transfers Owner authority. This
@@ -303,7 +304,7 @@ impl ApprovalCandidate {
         self,
         identities: &[ExecutionIdentity],
     ) -> Result<RuntimeApprovalPermit, &'static str> {
-        self.authorize_with_inherited(identities, &[], None)
+        self.authorize_with_inherited(identities, &[], None, None)
     }
 
     /// Call inside the competition fence's current-subject transaction. The
@@ -324,7 +325,57 @@ impl ApprovalCandidate {
         {
             return Err("competition operator binding is unavailable");
         }
-        self.authorize_with_inherited(identities, &operators, Some(fence.clone()))
+        self.authorize_with_inherited(identities, &operators, Some(fence.clone()), None)
+    }
+
+    /// Classify the effective winner action, including the exact saved input
+    /// overrides, while the winner outbox and competition fence are held.
+    #[allow(dead_code)]
+    pub(crate) fn authorize_competition_winner(
+        self,
+        admission: &crate::db::CompetitionExecutionAdmission<'_>,
+    ) -> Result<RuntimeApprovalPermit, &'static str> {
+        let claim = admission
+            .winner()
+            .ok_or("competition winner binding is unavailable")?;
+        if self.approval.is_some()
+            || self.approval_key != ("action".into(), claim.action.action_id.clone())
+            || admission
+                .identities()
+                .iter()
+                .any(|identity| identity.host_id() != admission.fence().host_id())
+        {
+            return Err("competition winner binding is unavailable");
+        }
+        let mut effective = self
+            .review
+            .value
+            .get("record")
+            .cloned()
+            .ok_or("saved winner action is unavailable")?;
+        let inputs = match &claim.action.inputs {
+            Value::Null => serde_json::Map::new(),
+            Value::Object(inputs) => inputs.clone(),
+            _ => return Err("competition winner inputs are invalid"),
+        };
+        let config = effective
+            .as_object_mut()
+            .ok_or("saved winner action is invalid")?
+            .entry("config")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or("saved winner action is invalid")?;
+        config.extend(inputs);
+        let operators = admission.fence().subjects();
+        if operators.is_empty() {
+            return Err("competition operator binding is unavailable");
+        }
+        self.authorize_with_inherited(
+            admission.identities(),
+            &operators,
+            Some(admission.fence().clone()),
+            Some((claim.clone(), effective)),
+        )
     }
 
     fn authorize_with_inherited(
@@ -332,6 +383,7 @@ impl ApprovalCandidate {
         identities: &[ExecutionIdentity],
         inherited: &[(String, String)],
         competition: Option<crate::db::CompetitionExecutionFence>,
+        competition_winner: Option<(tiktools_competitions::ActionClaim, Value)>,
     ) -> Result<RuntimeApprovalPermit, &'static str> {
         let host = identities
             .first()
@@ -350,8 +402,12 @@ impl ApprovalCandidate {
                 grant: identity.grant(),
             })
             .collect();
+        let mut effective_review = self.review.clone();
+        if let Some((_, effective)) = &competition_winner {
+            effective_review.value["record"] = effective.clone();
+        }
         let manifest = manifest::build_with_inherited_subjects(
-            &self.review,
+            &effective_review,
             manifest::ManifestSubjects {
                 host_id: host,
                 subjects: &subjects,
@@ -388,6 +444,7 @@ impl ApprovalCandidate {
             manifest,
             configuration_revisions,
             competition,
+            competition_winner,
         };
         permit.check_subjects(identities)?;
         Ok(permit)
@@ -396,6 +453,9 @@ impl ApprovalCandidate {
 
 impl RuntimeApprovalPermit {
     pub(crate) fn authorizes_action(&self, action: &Value) -> bool {
+        if let Some((_, effective)) = &self.competition_winner {
+            return effective == action;
+        }
         self.candidate
             .definitions
             .iter()
@@ -604,9 +664,13 @@ impl AutomationService {
     ) -> Result<R, String> {
         let index = recover_rwlock_read(&self.index, "automation index");
         if !execution_chain_current(&index, permits, owner_rules, Some(admission.fence()))
-            || permits
-                .iter()
-                .any(|permit| permit.check_subjects(admission.identities()).is_err())
+            || permits.iter().any(|permit| {
+                permit.check_subjects(admission.identities()).is_err()
+                    || permit
+                        .competition_winner
+                        .as_ref()
+                        .is_some_and(|(claim, _)| admission.winner() != Some(claim))
+            })
             || !(permits
                 .iter()
                 .any(|permit| permit.authorizes_action(action))

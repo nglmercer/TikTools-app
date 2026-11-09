@@ -419,6 +419,14 @@ fn competition_result_is_immutable_across_retry_and_reopen() {
         .unwrap()
         .unwrap();
     assert_eq!(claim.action.action_id, "winner-action");
+    let mut connection = db.open(&db.automation_path()).unwrap();
+    let tx = connection.transaction().unwrap();
+    assert!(super::competitions::validate_competition_winner_claim(&tx, &claim).is_ok());
+    let mut forged = claim.clone();
+    forged.action.inputs = json!({"different": true});
+    assert!(super::competitions::validate_competition_winner_claim(&tx, &forged).is_err());
+    tx.rollback().unwrap();
+    drop(connection);
     let connection = db.open(&db.automation_path()).unwrap();
     connection.execute_batch("CREATE TRIGGER reject_action_diagnostic BEFORE INSERT ON competition_action_diagnostics BEGIN SELECT RAISE(ABORT, 'injected failure'); END;").unwrap();
     assert!(db
