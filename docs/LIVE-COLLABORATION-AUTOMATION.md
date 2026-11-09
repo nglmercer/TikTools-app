@@ -171,6 +171,16 @@ creator restriction. The panel polls every two seconds while connected and
 clears on selection, reconnection, permission or read failure. It does not
 start or stop a LIVE, and the status poll is not a real-time event feed.
 
+For unrestricted `live.read` grants, the controller also displays a bounded
+read-only activity feed from `ui.feed.backfill`. Native projection enforces the
+same host/session/grant fence as status, denies creator-restricted grants,
+preserves cursor precision with decimal strings, limits pages to 64 items and
+exposes only bounded text fields. The UI retains at most 100 rows and identifies
+missed history or host cursor reset; it polls rather than subscribing to a
+push stream. The host's bounded history may include an earlier LIVE session,
+and the list does not authorize moderation actions or establish physical
+two-PC acceptance.
+
 ## Implemented provenance and disabled authoring
 
 `behavior_provenance` is host-owned SQLite data, independent of editable action

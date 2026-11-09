@@ -159,6 +159,91 @@ async fn live_status_is_read_only_and_fenced_to_selected_connection() {
 }
 
 #[tokio::test]
+async fn live_feed_reads_host_activity_and_fences_session_and_creator_scope() {
+    let f = Fixture::new().await;
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(workflow_grant()).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let mut restricted = workflow_grant();
+    restricted
+        .resources
+        .insert(ResourceKind::Live, ["creator".into()].into());
+    manager
+        .install(
+            "restricted",
+            &f.endpoint,
+            f.pair(restricted).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    f.core.events.publish_domain(tiktools_core::events::DomainEvent::LiveUiEvent {
+        event: json!({"kind":"chat","author":"alice","nickname":"Alice","text":"hello","private":"secret"}),
+    });
+    f.core
+        .events
+        .publish_domain(tiktools_core::events::DomainEvent::LiveUiEvent {
+            event: json!({"kind":"gift","author":"bob","text":"gift"}),
+        });
+    let controller = Controller::new(manager);
+    controller.connect("desk").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    let status = controller.status();
+    let connection = status.hello.as_ref().unwrap().connection_id.clone();
+    let request = json!({"epoch":status.epoch,"connectionId":connection,"after":"0"});
+    let page = controller
+        .manage("controller.live.feed", request.clone())
+        .await
+        .unwrap();
+    assert_eq!(page["events"].as_array().unwrap().len(), 2);
+    assert_eq!(page["events"][0]["text"], "hello");
+    assert!(page["events"][0].get("private").is_none());
+    assert_eq!(page["nextCursor"], "2");
+    let tail = controller
+        .manage(
+            "controller.live.feed",
+            json!({"epoch":status.epoch,"connectionId":connection,"after":"2"}),
+        )
+        .await
+        .unwrap();
+    assert!(tail["events"].as_array().unwrap().is_empty());
+    assert_eq!(
+        controller
+            .manage(
+                "controller.live.feed",
+                json!({"epoch":status.epoch,"connectionId":connection,"after":"02"})
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "invalid_params"
+    );
+    controller.disconnect().await;
+    controller.connect("desk").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    assert!(controller
+        .manage("controller.live.feed", request)
+        .await
+        .is_err());
+    controller.disconnect().await;
+    controller.connect("restricted").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    let denied = controller.status();
+    assert_eq!(controller.manage("controller.live.feed", json!({"epoch":denied.epoch,"connectionId":denied.hello.unwrap().connection_id,"after":"0"})).await.unwrap_err().code, "forbidden");
+    controller.disconnect().await;
+    f.finish().await;
+}
+
+#[tokio::test]
 async fn forget_requires_confirmation_and_fences_active_and_replaced_profiles() {
     let f = Fixture::new().await;
     let home = tempfile::tempdir().unwrap();

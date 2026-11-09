@@ -7,6 +7,7 @@ import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import ControllerAutomations from './ControllerAutomations.vue';
 import ControllerProposals from './ControllerProposals.vue';
 import ControllerLiveStatus from './ControllerLiveStatus.vue';
+import ControllerLiveFeed from './ControllerLiveFeed.vue';
 import type { DraftSaveTarget } from '../model/drafts.ts';
 
 const control = useControlClient();
@@ -349,6 +350,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
       {{ labels.pending }} <code>{{ pending }}</code>
     </p>
     <ControllerLiveStatus :model="model.live" />
+    <ControllerLiveFeed :model="model.liveFeed" />
     <ControllerAutomations
       :model="model.automation"
       :epoch="status.epoch"

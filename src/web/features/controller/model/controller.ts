@@ -4,6 +4,7 @@ import { createDraftPersistence, type LocalDraft } from './drafts.ts';
 import { createAutomationModel } from './automations.ts';
 import { createProposalModel } from './proposals.ts';
 import { createLiveStatusModel } from './live.ts';
+import { createLiveFeedModel } from './live-feed.ts';
 
 export interface ControllerStatus {
   draftsSupported?: boolean;
@@ -90,6 +91,7 @@ export function createControllerModel(control: ControlClient) {
           const pairingFinished = status.value.phase === 'pairing' && current.phase === 'idle';
           status.value = current;
           void live.refresh(current, generation);
+          void liveFeed.refresh(current, generation);
           void proposals.refresh();
           if (pairingFinished) await inventory();
           if (current.hello) scope.value = JSON.stringify([current.origin, current.hello.hostId, current.hello.principalId, current.hello.sessionId]);
@@ -118,7 +120,7 @@ export function createControllerModel(control: ControlClient) {
         } catch (failure) {
           if (stopped) return;
           if (generation !== selection) { dirty = true; continue; }
-          rows.value = []; loaded.value = ''; live.clear();
+          rows.value = []; loaded.value = ''; live.clear(); liveFeed.clear();
           error.value = failure instanceof Error ? failure.message : 'Controller unavailable';
           // Next native change/heartbeat retries the read, never a mutation.
         }
@@ -151,7 +153,7 @@ export function createControllerModel(control: ControlClient) {
   }
   async function connect(profile: string): Promise<void> {
     const generation = ++selection;
-    draftStorage.reset(); automation.clear(); live.clear();
+    draftStorage.reset(); automation.clear(); live.clear(); liveFeed.clear();
     busy.value = true; rows.value = []; points.value = null; pointsLoaded.value = ''; loaded.value = ''; scope.value = ''; status.value = { ...idle(), phase: 'connecting', profile };
     try { await control.call('controller.connect', { profile }); if (generation === selection) await refresh(); }
     catch (failure) { if (generation === selection) { error.value = failure instanceof Error ? failure.message : 'Connection failed'; await refresh(); } }
@@ -159,7 +161,7 @@ export function createControllerModel(control: ControlClient) {
   }
   async function disconnect(): Promise<void> {
     selection += 1;
-    draftStorage.reset(); automation.clear(); live.clear();
+    draftStorage.reset(); automation.clear(); live.clear(); liveFeed.clear();
     busy.value = true; loaded.value = ''; rows.value = []; points.value = null; pointsLoaded.value = '';
     try { await control.call('controller.disconnect'); await refresh(); } finally { busy.value = false; }
   }
@@ -292,8 +294,9 @@ export function createControllerModel(control: ControlClient) {
   const automation = createAutomationModel(control, { status, generation: () => selection, stopped: () => stopped, retry: () => { dirty = true; }, blocked: () => commandBlocked.value, journalMatches, send: commandCall });
   const proposals = createProposalModel(control, { status, blocked: () => commandBlocked.value, journalMatches, send: commandCall });
   const live = createLiveStatusModel(control, { status, generation: () => selection, stopped: () => stopped });
-  function stop(): void { proposals.stop(); automation.clear(); live.clear(); stopped = true; if (timer) clearInterval(timer); unsubscribe?.(); control.detach(); rows.value = []; points.value = null; pointsLoaded.value = ''; draftStorage.stop(); status.value = idle(); loaded.value = ''; scope.value = ''; drafts.clear(); }
-  return { proposals, automation, live, status, profiles, rows, points, pointsError, pointsAllowed, selectPoints, pointsCanAdjust, preparePoints, pointsIsCurrent, adjustPoints, error, busy, ready, commandSending, commandBlocked, canChange, canResolve, canReview, prepareForget, profileForgetCurrent, forgetProfile,
+  const liveFeed = createLiveFeedModel(control, { status, generation: () => selection, stopped: () => stopped });
+  function stop(): void { proposals.stop(); automation.clear(); live.clear(); liveFeed.clear(); stopped = true; if (timer) clearInterval(timer); unsubscribe?.(); control.detach(); rows.value = []; points.value = null; pointsLoaded.value = ''; draftStorage.stop(); status.value = idle(); loaded.value = ''; scope.value = ''; drafts.clear(); }
+  return { proposals, automation, live, liveFeed, status, profiles, rows, points, pointsError, pointsAllowed, selectPoints, pointsCanAdjust, preparePoints, pointsIsCurrent, adjustPoints, error, busy, ready, commandSending, commandBlocked, canChange, canResolve, canReview, prepareForget, profileForgetCurrent, forgetProfile,
     prepareCommand, commandIsCurrent, changeWorkflow, resolveCommand, prepareReview, reviewIsCurrent, reviewUnknown,
     inventory, refresh, start, stop, connect, disconnect, draft, draftIds, editRetainedDraft, edit, discard, rebaseDraft, draftStorage };
 }

@@ -460,6 +460,7 @@ impl Controller {
             "controller.points"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,points_revision:String}let p:P=parse(params)?;self.points(&p.epoch,&p.points_revision)},
             "controller.points.select"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,unique_id:Option<String>}let p:P=parse(params)?;self.select_points(&p.epoch,p.unique_id)},
             "controller.live.status"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,connection_id:String}let p:P=parse(params)?;self.live_status(&p.epoch,&p.connection_id).await},
+            "controller.live.feed"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,connection_id:String,after:String}let p:P=parse(params)?;self.live_feed(&p.epoch,&p.connection_id,&p.after).await},
             "controller.workflow.command"=>self.workflow_command(parse(params)?).await,
             "controller.points.command"=>self.points_command(parse(params)?).await,
             "controller.automation.command"=>self.automation_command(parse(params)?).await,
