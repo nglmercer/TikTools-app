@@ -274,16 +274,7 @@ function connect(): void {
         <RouterView />
       </main>
     </div>
-    <button
-      v-if="route.path !== '/debug'"
-      class="diagnostic-launcher"
-      @click="diagnosticNavigation.open()"
-    >
-      {{ t('diagnostics.title') }}<span
-        v-if="unread"
-        aria-live="polite"
-      > · {{ unread }}</span>
-    </button>
+
     <DiagnosticsPanel />
     <AppStatusBar
       :status="status"
@@ -295,12 +286,24 @@ function connect(): void {
       @connect="connect"
       @disconnect="connection.handleDisconnect()"
       @reconnect="connection.handleReconnect()"
-    />
+    >
+      <button
+        v-if="route.path !== '/debug'"
+        class="diagnostic-launcher"
+        @click="diagnosticNavigation.open()"
+      >
+        {{ t('diagnostics.title') }}<span
+          v-if="unread"
+          aria-live="polite"
+        > · {{ unread }}</span>
+      </button>
+    </AppStatusBar>
   </div>
 </template>
 
 <style scoped>
-.diagnostic-launcher { position:fixed; right:16px; bottom:48px; z-index:90; padding:8px 12px; border-radius:20px; color:var(--color-text); background:var(--color-bg-secondary, #20242d); border:1px solid var(--color-border); cursor:pointer; }
+.diagnostic-launcher { flex:none; min-height:var(--control-height-md); padding:var(--space-2) var(--space-5); border-radius:var(--radius-md); color:var(--color-text); background:var(--color-bg-panel); border:var(--border-width) solid var(--color-border); cursor:pointer; }
+.diagnostic-launcher:focus-visible { outline:2px solid var(--color-border-focus); outline-offset:2px; }
 .app-layout {
   display: flex;
   flex-direction: column;
@@ -400,14 +403,13 @@ function connect(): void {
 }
 
 @media (width < 900px) {
-  .diagnostic-launcher { position:fixed; right:16px; bottom:48px; z-index:90; padding:8px 12px; border-radius:20px; color:var(--color-text); background:var(--color-bg-secondary, #20242d); border:1px solid var(--color-border); cursor:pointer; }
-.app-layout {
+  .app-layout {
     height: 100dvh;
   }
 
   .app-layout__navigation {
     position: fixed;
-    inset: 30px auto 0 0;
+    inset: var(--chrome-height) auto 0 0;
     z-index: 50;
     width: min(280px, 84vw);
     height: auto;

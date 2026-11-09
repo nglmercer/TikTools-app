@@ -1,22 +1,23 @@
 <script setup lang="ts">
-/** `group` labels a composite control (e.g. a segmented picker) instead of wrapping a single input. */
-defineProps<{ label: string; group?: boolean }>();
+import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
+/** Compatibility wrapper while ranking fields adopt the shared field contract. */
+defineProps<{ label: string; group?: boolean; hint?: string; error?: string }>();
 </script>
-
 <template>
-  <component
-    :is="group ? 'div' : 'label'"
-    class="form-field"
-    :role="group ? 'group' : undefined"
-    :aria-label="group ? label : undefined"
+  <BaseFormRow
+    class="ranking-form-field"
+    :label="label"
+    :group="group"
+    :hint="hint"
+    :error="error"
+    stacked
   >
-    <span class="form-field__label">{{ label }}</span>
     <slot />
-  </component>
+  </BaseFormRow>
 </template>
-
 <style scoped>
-.form-field { display: grid; gap: var(--space-1); flex: 1; min-width: 140px; }
-.form-field__label { font-size: 12px; color: var(--color-text-muted); }
-:slotted(input), :slotted(select) { box-sizing: border-box; width: 100%; min-height: 32px; padding: 4px 8px; color: var(--color-text); background: var(--color-bg-control); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.ranking-form-field { flex: 1; min-width: min(140px, 100%); }
+:deep(input), :deep(select) { box-sizing: border-box; width: 100%; min-height: var(--control-height-lg); padding: var(--space-2) var(--space-4); color: var(--color-text); background: var(--color-bg-field); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-sm); font: inherit; }
+:deep(input:focus-visible), :deep(select:focus-visible) { outline: 2px solid var(--color-border-focus); outline-offset: 1px; }
+@media (any-pointer: coarse) { :deep(input), :deep(select) { min-height: 44px; } }
 </style>

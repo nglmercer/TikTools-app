@@ -2,6 +2,11 @@
 import { computed, inject, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { diagnosticLog, diagnosticView, formatDiagnostics } from './log.ts';
+import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
+import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
+import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
+import CollectionToolbar from '@/shared/ui/collection-toolbar/CollectionToolbar.vue';
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
 const client = inject(controlClientKey, null);
 const { t } = useI18n();
@@ -15,7 +20,15 @@ const fallback = ref('');
 const sources = ['live', 'monitor', 'discovery', 'plugins', 'account', 'sync', 'updates', 'transport'] as const;
 const filtered = computed(() => entries.value.filter(e => (!source.value || e.source === source.value) && (!entityId.value || e.entityId === entityId.value) && (!level.value || e.level === level.value) && (!search.value || `${e.message} ${e.details} ${e.code}`.toLowerCase().includes(search.value.toLowerCase()))));
 const selected = computed(() => entries.value.find(e => e.id === selectedId.value));
-const visible = computed(() => filtered.value.slice(-limit.value).toReversed());
+const sourceOptions = computed(() => [{ value: '', label: t('diagnostics.allSources') }, ...sources.map(value => ({ value, label: t(`diagnostics.sources.${value}`) }))]);
+const levelOptions = computed(() => [{ value: '', label: t('diagnostics.allLevels') }, ...(['info', 'warning', 'error'] as const).map(value => ({ value, label: t(`diagnostics.${value}`) }))]);
+const visible = computed(() => {
+  const recent = filtered.value.slice(-limit.value).toReversed();
+  const active = selected.value;
+  return active && filtered.value.includes(active) && !recent.some(entry => entry.id === active.id) ? [active, ...recent] : recent;
+});
+function setSource(value: string | undefined): void { source.value = value ?? ''; entityId.value = ''; selectedId.value = ''; }
+
 async function copy(text: string): Promise<void> {
   try { await navigator.clipboard.writeText(text); notice.value = t('diagnostics.copied'); fallback.value = ''; }
   catch { fallback.value = text; notice.value = t('diagnostics.copyFailed'); }
@@ -32,7 +45,7 @@ async function exportText(): Promise<void> {
     notice.value = t('diagnostics.exported');
   } catch { notice.value = t('diagnostics.exportFailed'); fallback.value = content; }
 }
-watch(() => [source.value, entityId.value, diagnosticView.request.value], () => { search.value = ''; level.value = ''; limit.value = 100; });
+watch(() => diagnosticView.request.value, () => { search.value = ''; level.value = ''; limit.value = 100; });
 watch(entries, () => { diagnosticLog.markRead(); fallback.value = ''; });
 function reset(): void { source.value = ''; entityId.value = ''; level.value = ''; search.value = ''; selectedId.value = ''; }
 </script>
@@ -44,63 +57,64 @@ function reset(): void { source.value = ''; entityId.value = ''; level.value = '
     <p class="logs__muted">
       {{ t('diagnostics.session') }}
     </p>
-    <div class="logs__tools">
-      <input
-        v-model="search"
-        type="search"
-        :placeholder="t('diagnostics.search')"
-        :aria-label="t('diagnostics.search')"
-      >
-      <select
-        v-model="source"
+    <CollectionToolbar :label="t('diagnostics.search')">
+      <template #search>
+        <BaseTextField
+          v-model="search"
+          type="search"
+          :placeholder="t('diagnostics.search')"
+          :aria-label="t('diagnostics.search')"
+        />
+      </template>
+      <BaseComboBox
+        :model-value="source"
+        :options="sourceOptions"
         :aria-label="t('diagnostics.allSources')"
-      >
-        <option value="">
-          {{ t('diagnostics.allSources') }}
-        </option><option
-          v-for="item in sources"
-          :key="item"
-          :value="item"
-        >
-          {{ t(`diagnostics.sources.${item}`) }}
-        </option>
-      </select>
-      <select
-        v-model="level"
+        @update:model-value="setSource"
+      />
+      <BaseComboBox
+        :model-value="level"
+        :options="levelOptions"
         :aria-label="t('diagnostics.allLevels')"
-      >
-        <option value="">
-          {{ t('diagnostics.allLevels') }}
-        </option><option
-          v-for="item in (['info', 'warning', 'error'] as const)"
-          :key="item"
-          :value="item"
+        @update:model-value="level = $event ?? ''"
+      />
+      <template #actions>
+        <BaseButton
+          variant="ghost"
+          @click="reset"
         >
-          {{ t(`diagnostics.${item}`) }}
-        </option>
-      </select>
-      <button @click="reset">
-        {{ t('diagnostics.resetFilters') }}
-      </button>
-    </div>
+          {{ t('diagnostics.resetFilters') }}
+        </BaseButton>
+      </template>
+    </CollectionToolbar>
     <p v-if="entityId">
       {{ t('diagnostics.filterEntity', { entity: entityId }) }}
     </p>
-    <div class="logs__tools">
-      <button @click="copy(formatDiagnostics(entries))">
+    <div
+      class="logs__tools"
+      role="group"
+      :aria-label="t('diagnostics.title')"
+    >
+      <BaseButton @click="copy(formatDiagnostics(entries))">
         {{ t('diagnostics.copyAll') }}
-      </button>
-      <button @click="copy(formatDiagnostics(filtered))">
+      </BaseButton>
+      <BaseButton @click="copy(formatDiagnostics(filtered))">
         {{ t('diagnostics.copyFiltered') }}
-      </button>
-      <button @click="exportText">
+      </BaseButton>
+      <BaseButton @click="exportText">
         {{ t('diagnostics.export') }}
-      </button>
-      <button @click="diagnosticLog.clear(); notice = t('diagnostics.cleared')">
+      </BaseButton>
+      <BaseButton
+        variant="ghost"
+        @click="diagnosticLog.clear(); notice = t('diagnostics.cleared')"
+      >
         {{ t('diagnostics.clear') }}
-      </button>
+      </BaseButton>
     </div>
-    <p role="status">
+    <p
+      v-show="notice"
+      role="status"
+    >
       {{ notice }}
     </p>
     <textarea
@@ -119,16 +133,6 @@ function reset(): void { source.value = ''; entityId.value = ''; level.value = '
     <p v-if="selectedId && !selected">
       {{ t('diagnostics.missing') }}
     </p>
-    <article
-      v-if="selected"
-      class="logs__selected"
-    >
-      <small>{{ selected.code }} · {{ new Date(selected.lastSeenAt).toLocaleString() }}</small><br>
-      <strong>{{ selected.message }}</strong><pre>{{ selected.details }}</pre>
-      <button @click="copy(formatDiagnostics([selected]))">
-        {{ t('diagnostics.copyEntry') }}
-      </button>
-    </article>
     <p v-if="!filtered.length">
       {{ t('diagnostics.empty') }}
     </p>
@@ -136,39 +140,61 @@ function reset(): void { source.value = ''; entityId.value = ''; level.value = '
       <li
         v-for="entry in visible"
         :key="entry.id"
+        :class="{ 'logs__row--selected': selectedId === entry.id }"
       >
         <button
           class="logs__entry"
-          :aria-pressed="selectedId === entry.id"
-          @click="selectedId = entry.id"
+          :aria-expanded="selectedId === entry.id"
+          :aria-controls="`details-${entry.id}`"
+          @click="selectedId = selectedId === entry.id ? '' : entry.id"
         >
-          <small>{{ new Date(entry.lastSeenAt).toLocaleTimeString() }} · {{ t(`diagnostics.${entry.level}`) }} · {{ t(`diagnostics.sources.${entry.source}`) }}{{ entry.entityId ? ` / ${entry.entityId}` : '' }}</small>
-          <span>{{ entry.message }}</span><small v-if="entry.repeatCount > 1">{{ t('diagnostics.repeated', { count: entry.repeatCount }) }}</small>
+          <span class="logs__metadata"><time :datetime="new Date(entry.lastSeenAt).toISOString()">{{ new Date(entry.lastSeenAt).toLocaleTimeString() }}</time><BaseStatus
+            :label="t(`diagnostics.${entry.level}`)"
+            :tone="entry.level"
+          /><span>{{ t(`diagnostics.sources.${entry.source}`) }}{{ entry.entityId ? ` / ${entry.entityId}` : '' }}</span></span>
+          <span class="logs__message">{{ entry.message }}</span>
+          <small v-if="entry.repeatCount > 1">{{ t('diagnostics.repeated', { count: entry.repeatCount }) }}</small>
         </button>
+        <div
+          v-show="selectedId === entry.id"
+          :id="`details-${entry.id}`"
+          class="logs__selected"
+        >
+          <small>{{ entry.code }} · {{ new Date(entry.firstSeenAt).toLocaleString() }}</small>
+          <small v-if="entry.repeatCount > 1">{{ t('diagnostics.last') }}: {{ new Date(entry.lastSeenAt).toLocaleString() }}</small>
+          <pre v-if="entry.details">{{ entry.details }}</pre>
+          <BaseButton
+            size="sm"
+            @click="copy(formatDiagnostics([entry]))"
+          >
+            {{ t('diagnostics.copyEntry') }}
+          </BaseButton>
+        </div>
       </li>
     </ol>
-    <button
+    <BaseButton
       v-if="filtered.length > limit"
       @click="limit += 100"
     >
       +100
-    </button>
+    </BaseButton>
   </section>
 </template>
 <style scoped>
-.logs { padding: 16px; overflow: auto; min-height: 0; color: var(--color-text); }
-.logs__tools { display:flex; gap:8px; flex-wrap:wrap; }
-.logs button,.logs input,.logs select,.logs textarea { font:inherit; color:inherit; background:var(--color-bg-secondary, #20242d); border:1px solid var(--color-border, #454955); border-radius:6px; padding:8px; min-height:36px; }
-.logs input { flex:1; min-width:140px; }
-.logs textarea { width:100%; min-height:120px; }
-.logs__muted,.logs small { color:var(--color-text-muted); }
-.logs__list { list-style:none; padding:0; }
-.logs__list li { margin-top:8px; }
-.logs__entry { display:flex; flex-direction:column; text-align:left; width:100%; gap:6px; overflow-wrap:anywhere; }
-.logs__entry[aria-pressed=true],.logs__selected { border:1px solid var(--color-border-focus, #8378fa); }
-.logs__selected { padding:12px; border-radius:8px; overflow-wrap:anywhere; }
-.logs pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; }
-.logs button { cursor:pointer; }
-.logs :focus-visible { outline:2px solid #a69bff; outline-offset:2px; }
-@media (pointer:coarse) { .logs button,.logs select { min-height:44px; } }
+.logs { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-5); overflow: auto; min-height: 0; color: var(--color-text); font-size: var(--font-size-md); }
+.logs p { margin: 0; }
+.logs__tools { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.logs__muted,.logs small,.logs__metadata { color: var(--color-text-muted); }
+.logs__list { list-style: none; padding: 0; margin: 0; border-top: var(--border-width) solid var(--color-border-subtle); }
+.logs__list li { border-bottom: var(--border-width) solid var(--color-border-subtle); }
+.logs__entry { display: flex; flex-direction: column; text-align: left; width: 100%; gap: var(--space-2); padding: var(--space-4); border: 0; background: transparent; color: inherit; font: inherit; overflow-wrap: anywhere; cursor: pointer; }
+.logs__entry:hover { background: var(--color-bg-hover); }
+.logs__entry:focus-visible { outline: var(--border-width) solid var(--color-border-focus); outline-offset: calc(-1 * var(--border-width)); }
+.logs__row--selected { border-left: var(--border-width) solid var(--color-border-selected); background: var(--color-bg-app); }
+.logs__metadata { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); font-size: var(--font-size-sm); }
+.logs__message { white-space: pre-wrap; overflow-wrap: anywhere; }
+.logs__selected { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); padding: 0 var(--space-4) var(--space-4); overflow-wrap: anywhere; }
+.logs pre { max-width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: var(--font-size-sm) var(--font-family-mono); }
+.logs textarea { box-sizing: border-box; width: 100%; min-height: 120px; padding: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text); background: var(--color-bg-field); font: var(--font-size-sm) var(--font-family-mono); }
+.logs textarea:focus-visible { outline: var(--border-width) solid var(--color-border-focus); }
 </style>

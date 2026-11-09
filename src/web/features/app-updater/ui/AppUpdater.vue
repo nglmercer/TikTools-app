@@ -7,8 +7,7 @@ import type { UpdateChannel } from '../api/updater-types.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
-import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
-import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
+import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 
 const { t, locale } = useI18n();
@@ -57,8 +56,8 @@ function install(): void {
           {{ t('appUpdater.lastChecked', { when: checked }) }}
         </p>
       </div>
-      <BaseFormGrid>
-        <BaseFormRow
+      <div class="app-updater__settings">
+        <SettingsRow
           for="app-update-channel"
           :label="t('appUpdater.channel')"
         >
@@ -70,28 +69,34 @@ function install(): void {
             :disabled="busy || !updater.preferencesLoaded"
             @update:model-value="setChannel"
           />
-        </BaseFormRow>
-        <BaseFormRow
+        </SettingsRow>
+        <SettingsRow
           for="app-update-automatic"
-          :label="t('appUpdater.options')"
+          :label="t('appUpdater.automaticChecks')"
+          :description="t('formsDesign.automaticChecksHint')"
         >
           <BaseCheckbox
             id="app-update-automatic"
+            :aria-label="t('appUpdater.automaticChecks')"
             :model-value="updater.preferences.automaticChecks"
             :disabled="!updater.preferencesLoaded"
             @update:model-value="updater.setPreference('automaticChecks', $event)"
-          >
-            {{ t('appUpdater.automaticChecks') }}
-          </BaseCheckbox>
+          />
+        </SettingsRow>
+        <SettingsRow
+          for="app-update-notifications"
+          :label="t('appUpdater.notifications')"
+          :description="t('formsDesign.notificationsHint')"
+        >
           <BaseCheckbox
+            id="app-update-notifications"
+            :aria-label="t('appUpdater.notifications')"
             :model-value="updater.preferences.notifications"
             :disabled="!updater.preferencesLoaded"
             @update:model-value="updater.setPreference('notifications', $event)"
-          >
-            {{ t('appUpdater.notifications') }}
-          </BaseCheckbox>
-        </BaseFormRow>
-      </BaseFormGrid>
+          />
+        </SettingsRow>
+      </div>
       <div class="app-updater__actions">
         <BaseButton
           :disabled="busy || !updater.preferencesLoaded || !status?.checkSupported"

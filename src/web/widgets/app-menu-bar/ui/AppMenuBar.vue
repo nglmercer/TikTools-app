@@ -107,7 +107,7 @@ function onSelect(action: MenuAction): void {
   flex: none;
   align-items: center;
   gap: var(--space-4);
-  height: 30px;
+  height: var(--chrome-height);
   padding: 0 var(--space-2);
   border-bottom: var(--border-width) solid var(--color-border-subtle);
   background: var(--color-bg-panel);

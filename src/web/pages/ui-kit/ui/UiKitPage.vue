@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiKitPatterns from './UiKitPatterns.vue';
 import { ref } from 'vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
@@ -82,6 +83,7 @@ const visible = ref(true);
 
 <template>
   <div class="ui-kit">
+    <UiKitPatterns class="ui-kit__panel--wide" />
     <UiKitWorkspace class="ui-kit__panel--wide" />
     <section class="ui-kit__panel">
       <header class="ui-kit__header">
@@ -298,7 +300,7 @@ const visible = ref(true);
 <style scoped>
 .ui-kit {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));
   gap: var(--space-4);
   align-content: start;
   align-items: start;

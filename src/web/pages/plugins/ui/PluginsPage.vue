@@ -15,7 +15,8 @@ import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
-import BaseSplitter from '@/shared/ui/splitter/BaseSplitter.vue';
+import MasterDetailLayout from '@/shared/ui/layout/MasterDetailLayout.vue';
+import CollectionToolbar from '@/shared/ui/collection-toolbar/CollectionToolbar.vue';
 import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
 import type { PluginDetailsRequest, PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
 import PluginDetails from '@/widgets/plugin-details/ui/PluginDetails.vue';
@@ -42,7 +43,7 @@ const mobileDetailsOpen = ref(false);
 
 function openPlugin(id: string): void {
   selected.value = id;
-  if (isNarrow.value) mobileDetailsOpen.value = true;
+  mobileDetailsOpen.value = true;
 }
 
 /** Handed to the details panel, which owns the uninstall dialog and test result. */
@@ -137,7 +138,10 @@ watch([view, catalog, query, selected, detailsTab], persist);
 
 <template>
   <div class="plugins-page">
-    <header class="plugins-page__toolbar">
+    <CollectionToolbar
+      class="plugins-page__toolbar"
+      :label="t('plugins.title')"
+    >
       <BaseSegmented
         v-model="view"
         :options="views"
@@ -154,7 +158,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
         </template>
         {{ t('plugins.install.package') }}
       </BaseButton>
-    </header>
+    </CollectionToolbar>
 
     <p
       v-if="plugins.behaviorError.value"
@@ -170,15 +174,18 @@ watch([view, catalog, query, selected, detailsTab], persist);
     />
     <PluginJobsPanel />
 
-    <BaseSplitter
-      v-if="view === 'plugins' && !isNarrow"
+    <MasterDetailLayout
+      v-if="view === 'plugins'"
       v-model:size="catalogWidth"
       class="plugins-page__workspace"
-      :orientation="isNarrow ? 'vertical' : 'horizontal'"
-      :min="isNarrow ? 200 : 240"
+      :narrow="isNarrow"
+      :detail-open="mobileDetailsOpen && Boolean(selectedPlugin || selectedRemote)"
+      :back-label="t('common.back')"
+      :min="240"
       :max="520"
+      @back="mobileDetailsOpen = false"
     >
-      <template #start>
+      <template #master>
         <PluginCatalog
           v-model:tab="catalog"
           v-model:query="query"
@@ -202,7 +209,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
           @command="runCommand"
         />
       </template>
-      <template #end>
+      <template #detail>
         <PluginDetails
           v-if="selectedPlugin"
           :key="selectedPlugin.descriptor.id"
@@ -229,58 +236,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
           </BaseEmptyState>
         </div>
       </template>
-    </BaseSplitter>
-    <div
-      v-else-if="view === 'plugins'"
-      class="plugins-page__mobile"
-    >
-      <template v-if="mobileDetailsOpen && (selectedPlugin || selectedRemote)">
-        <BaseButton
-          class="plugins-page__back"
-          @click="mobileDetailsOpen = false"
-        >
-          ← {{ t('common.back') }}
-        </BaseButton>
-        <PluginDetails
-          v-if="selectedPlugin"
-          :key="selectedPlugin.descriptor.id"
-          v-model:tab="detailsTab"
-          v-model:request="detailsRequest"
-          :plugin="selectedPlugin"
-          :actions="behavior.actions"
-          :action-types="behavior.actionTypes"
-        />
-        <RemotePluginDetails
-          v-else-if="selectedRemote"
-          :key="selected ?? ''"
-          :registry="selectedRemote.registry"
-          :plugin-id="selectedRemote.id"
-        />
-      </template>
-      <PluginCatalog
-        v-else
-        v-model:tab="catalog"
-        v-model:query="query"
-        v-model:remote-query="packages.searchQuery"
-        v-model:selected="selected"
-        :plugins="behavior.plugins"
-        :action-types="behavior.actionTypes"
-        :remote="remoteEntries"
-        :updates="updateEntries"
-        :searching="packages.searching"
-        :search-error="packages.searchError"
-        :checking-updates="packages.checkingUpdates"
-        :marketplace-available="marketplaceAvailable"
-        @install-package="plugins.installPackage()"
-        @install-spec="plugins.installSpec"
-        @search="search"
-        @check-updates="packages.checkUpdates()"
-        @update="(id, version) => packages.updatePlugin(id, version)"
-        @update-all="packages.updateAll()"
-        @open="openPlugin"
-        @command="runCommand"
-      />
-    </div>
+    </MasterDetailLayout>
     <ProcessorsPanel
       v-else
       v-model:query="processorQuery"
@@ -338,24 +294,6 @@ watch([view, catalog, query, selected, detailsTab], persist);
   flex: 1;
 }
 
-.plugins-page__mobile {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-height: 0;
-}
-
-.plugins-page__back {
-  align-self: flex-start;
-  flex: none;
-}
-
-.plugins-page__mobile > :deep(.plugin-details) {
-  flex: 1;
-  min-height: 0;
-}
-
 .plugins-page__placeholder {
   display: flex;
   flex: 1;
@@ -379,9 +317,6 @@ watch([view, catalog, query, selected, detailsTab], persist);
     display: none;
   }
 
-  .plugins-page__workspace {
-    flex: none;
-    min-height: 0;
-  }
+  .plugins-page__workspace { min-height: 360px; }
 }
 </style>

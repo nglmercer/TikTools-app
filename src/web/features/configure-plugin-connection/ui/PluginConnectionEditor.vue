@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
 import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -165,21 +166,22 @@ onMounted(() => {
     @focusout="onFocusout"
   >
     <header class="connection-editor__status">
-      <span
-        class="connection-editor__dot"
-        :class="`connection-editor__dot--${tone}`"
-      />
-      <span
+      <BaseStatus
         v-if="summary && connection?.ok"
-        class="connection-editor__url"
-      >{{ t('plugins.connection.connectedTo', { url }) }}</span>
+        :label="t('plugins.connection.connectedTo', { url })"
+        :tone="tone === 'ok' ? 'success' : 'neutral'"
+      />
       <DiagnosticStatusAction
-        v-else-if="connection && !connection.ok"
+        v-else-if="tone === 'error'"
         :label="statusText"
         source="plugins"
         :entity-id="pluginId"
       />
-      <span v-else>{{ statusText }}</span>
+      <BaseStatus
+        v-else
+        :label="statusText"
+        :tone="tone === 'ok' ? 'success' : 'neutral'"
+      />
       <span
         v-if="saveState !== 'idle'"
         class="connection-editor__save"
@@ -385,30 +387,10 @@ onMounted(() => {
 
 .connection-editor__status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   font-weight: var(--font-weight-semibold);
-}
-
-.connection-editor__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-text-subtle);
-}
-
-.connection-editor__dot--ok {
-  background: var(--color-success);
-}
-
-.connection-editor__dot--error {
-  background: var(--color-danger);
-}
-
-.connection-editor__url {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .connection-editor__save {

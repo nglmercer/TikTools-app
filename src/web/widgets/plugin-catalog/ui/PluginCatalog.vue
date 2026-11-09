@@ -8,6 +8,7 @@ import PluginStateBadge from '@/entities/plugin/ui/PluginStateBadge.vue';
 import type { SearchEntry, UpdateInfo } from '@/entities/plugin-package/api/package-types.ts';
 import { remoteSelection } from '@/entities/plugin-package/lib/package-format.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
+import CollectionToolbar from '@/shared/ui/collection-toolbar/CollectionToolbar.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
@@ -123,7 +124,10 @@ function submitSpec(): void {
     flush
   >
     <div class="plugin-catalog__body">
-      <div class="plugin-catalog__filters">
+      <CollectionToolbar
+        class="plugin-catalog__filters"
+        :label="t('plugins.catalog.search')"
+      >
         <BaseSegmented
           v-model="tab"
           class="plugin-catalog__tabs"
@@ -220,7 +224,7 @@ function submitSpec(): void {
             {{ t('plugins.catalog.updateAll') }}
           </BaseButton>
         </div>
-      </div>
+      </CollectionToolbar>
       <!-- No `disabled` binding: it would be read before the right-clicked
            row is selected. Rows without commands get an empty (hidden) menu. -->
       <BaseContextMenu
@@ -349,6 +353,8 @@ function submitSpec(): void {
   padding: var(--space-3);
   border-bottom: var(--border-width) solid var(--color-border-subtle);
 }
+
+.plugin-catalog__filters :deep(.collection-toolbar__filters) { flex-direction:column; align-items:stretch; width:100%; }
 
 .plugin-catalog__tabs {
   align-self: stretch;

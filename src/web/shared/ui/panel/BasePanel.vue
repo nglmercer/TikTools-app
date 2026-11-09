@@ -5,6 +5,7 @@ defineProps<{
   title: string;
   subtitle?: string;
   flush?: boolean;
+  headerLayout?: 'auto' | 'inline' | 'stacked';
 }>();
 
 const titleId = useId();
@@ -13,6 +14,7 @@ const titleId = useId();
 <template>
   <section
     class="base-panel"
+    :class="`base-panel--${headerLayout ?? 'auto'}`"
     :aria-labelledby="titleId"
   >
     <header class="base-panel__header">
@@ -26,7 +28,10 @@ const titleId = useId();
         v-if="subtitle"
         class="base-panel__subtitle"
       >{{ subtitle }}</span>
-      <span class="base-panel__actions">
+      <span
+        v-if="$slots.actions"
+        class="base-panel__actions"
+      >
         <slot name="actions" />
       </span>
     </header>
@@ -63,7 +68,7 @@ const titleId = useId();
   flex: none;
   align-items: center;
   gap: var(--space-4);
-  min-height: 32px;
+  min-height: var(--control-height-lg);
   padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4);
   background: var(--color-bg-panel-header);
 }
@@ -72,7 +77,7 @@ const titleId = useId();
   margin: 0;
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .base-panel__subtitle {
@@ -108,5 +113,14 @@ const titleId = useId();
   gap: var(--space-1);
   padding: var(--space-2);
   border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.base-panel--auto .base-panel__header { flex-wrap: wrap; }
+.base-panel--stacked .base-panel__header { flex-wrap: wrap; }
+.base-panel--stacked .base-panel__actions { flex-basis: 100%; margin-left: 0; }
+.base-panel__actions { min-width: 0; flex-wrap: wrap; }
+@media (width < 600px) {
+  .base-panel--auto .base-panel__actions { flex-basis: 100%; margin-left: 0; }
+  .base-panel--auto .base-panel__subtitle { white-space: normal; }
 }
 </style>

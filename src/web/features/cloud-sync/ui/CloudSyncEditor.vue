@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
+import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
+import SyncStatusSummary from './SyncStatusSummary.vue';
+import SyncConflictReview from './SyncConflictReview.vue';
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
@@ -21,11 +24,6 @@ const enabled = computed({
   set: (value: boolean) => {
     void sync.setEnabled(value);
   },
-});
-const lastSynced = computed(() => {
-  const at = sync.status?.lastSyncedAt;
-  if (at == null) return null;
-  return new Date(at * 1000).toLocaleString();
 });
 
 onMounted(() => {
@@ -51,53 +49,35 @@ onMounted(() => {
         :label="t('diagnostics.syncFailed')"
         source="sync"
       />
-      <BaseSwitch
-        v-model="enabled"
-        :disabled="sync.working || status == null"
+      <SettingsRow
+        for="cloud-sync-enabled"
+        :label="t('sync.toggle')"
+        :description="t('formsDesign.syncDescription')"
       >
-        {{ t('sync.toggle') }}
-      </BaseSwitch>
-      <template v-if="status != null && enabled">
-        <p>{{ t('sync.pending', { count: status.pending }) }}</p>
-        <p v-if="lastSynced != null">
-          {{ t('sync.lastSynced', { when: lastSynced }) }}
-        </p>
-        <BaseAlert
-          v-if="conflicts.length > 0"
-          tone="warning"
-          :title="t('sync.conflicts', { count: conflicts.length })"
+        <BaseSwitch
+          id="cloud-sync-enabled"
+          v-model="enabled"
+          :aria-label="t('sync.toggle')"
+          :disabled="sync.working || status == null"
         />
-        <ul v-if="conflicts.length > 0">
-          <li
-            v-for="key in conflicts"
-            :key="key"
+      </SettingsRow>
+      <template v-if="status != null">
+        <SyncStatusSummary :status="status" />
+        <template v-if="enabled">
+          <SyncConflictReview
+            :conflicts="conflicts"
+            :working="sync.working"
+            @resolve="sync.resolve"
+          />
+          <BaseButton
+            variant="primary"
+            :disabled="sync.working"
+            @click="sync.syncNow()"
           >
-            {{ key }}
-            <BaseButton
-              :disabled="sync.working"
-              @click="sync.resolve(key, true)"
-            >
-              {{ t('sync.keepMine') }}
-            </BaseButton>
-            <BaseButton
-              :disabled="sync.working"
-              @click="sync.resolve(key, false)"
-            >
-              {{ t('sync.useCloud') }}
-            </BaseButton>
-          </li>
-        </ul>
-        <BaseButton
-          variant="primary"
-          :disabled="sync.working"
-          @click="sync.syncNow()"
-        >
-          {{ t('sync.syncNow') }}
-        </BaseButton>
+            {{ t('sync.syncNow') }}
+          </BaseButton>
+        </template>
       </template>
-      <p v-else-if="status != null">
-        {{ t('sync.disabled') }}
-      </p>
     </template>
   </BaseGroupBox>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
 import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed, type ComputedRef } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -25,10 +26,6 @@ const servers: ComputedRef<ServerEntry[]> = computed(() =>
   serverEntries(plugins.behavior.value.plugins, plugins.connections.value, (plugin) => localizedText(plugin.descriptor.name)),
 );
 
-function tone(connection: PluginConnectionState | undefined): 'ok' | 'error' | 'unknown' {
-  if (!connection) return 'unknown';
-  return connection.ok ? 'ok' : 'error';
-}
 
 function statusText(connection: PluginConnectionState | undefined): string {
   if (!connection) return t('connections.servers.notConfigured');
@@ -91,11 +88,11 @@ function toggle(id: string): void {
             source="plugins"
             :entity-id="server.id"
           />
-          <span
+          <BaseStatus
             v-else
-            class="plugin-servers__status"
-            :class="`plugin-servers__status--${tone(server.connection)}`"
-          >{{ statusText(server.connection) }}</span>
+            :label="statusText(server.connection)"
+            :tone="server.connection?.ok ? 'success' : 'neutral'"
+          />
         </div>
         <div
           v-show="expanded[server.id]"
@@ -128,7 +125,8 @@ function toggle(id: string): void {
 </template>
 
 <style scoped>
-.plugin-servers__toggle { display:flex; align-items:center; gap:8px; flex:1; border:0; background:transparent; color:inherit; font:inherit; text-align:left; min-height:44px; cursor:pointer; }
+.plugin-servers__toggle { display: flex; align-items: center; gap: var(--space-4); flex: 1; min-width: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; min-height: var(--control-height-lg); cursor: pointer; }
+.plugin-servers__toggle:focus-visible { outline: var(--border-width) solid var(--color-border-focus); }
 .plugin-servers {
   margin: 0;
   padding: 0;
@@ -145,7 +143,9 @@ function toggle(id: string): void {
   justify-content: flex-start;
   gap: var(--space-4);
   width: 100%;
-  height: var(--control-height-lg);
+  min-height: var(--control-height-lg);
+  flex-wrap: wrap;
+  box-sizing: border-box;
   padding: 0 var(--space-4);
   border: 0;
   border-radius: 0;
@@ -155,7 +155,6 @@ function toggle(id: string): void {
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-regular);
   text-align: left;
-  cursor: pointer;
   outline: none;
   transform: none;
 }
@@ -164,34 +163,12 @@ function toggle(id: string): void {
   background: var(--color-bg-hover);
 }
 
-.plugin-servers__head:focus-visible {
-  box-shadow: inset var(--focus-ring);
-}
-
-.plugin-servers__name {
-  flex: 1;
-}
-
-.plugin-servers__status {
-  max-width: 50%;
-  overflow: hidden;
-  color: var(--color-text-subtle);
-  font-size: var(--font-size-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.plugin-servers__status--ok {
-  color: var(--color-success);
-}
-
-.plugin-servers__status--error {
-  color: var(--color-danger-hover);
-}
+.plugin-servers__name { flex: 1; overflow-wrap: anywhere; }
 
 .plugin-servers__body {
   padding: var(--space-4);
   border-top: var(--border-width) solid var(--color-border-subtle);
   background: var(--color-bg-app);
 }
+@media (width < 700px) { .plugin-servers__head { align-items: flex-start; flex-direction: column; padding: var(--space-3) var(--space-4); gap: var(--space-1); } .plugin-servers__toggle { width: 100%; } }
 </style>

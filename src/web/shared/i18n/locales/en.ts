@@ -1,3 +1,5 @@
+import formsDesign from './forms-design.en.ts';
+import designKit from './design-kit.en.ts';
 import diagnostics from './diagnostics.en.ts';
 import libraryRecovery from './library-recovery.en.ts';
 import collaboration from './collaboration.en.ts';
@@ -5,6 +7,8 @@ import automationProposal from './automation-proposal.en.ts';
 import automationApproval from './automation-approval.en.ts';
 import definitionRecovery from './definition-recovery.en.ts';
 export default {
+  formsDesign,
+  designKit,
   diagnostics,
   collaboration,
   automationProposal,

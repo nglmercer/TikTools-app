@@ -12,8 +12,7 @@ import LanguageSelect from '@/features/change-language/ui/LanguageSelect.vue';
 import RuntimeGlobalsEditor from '@/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
 import PluginSourcesEditor from '@/features/manage-plugin-sources/ui/PluginSourcesEditor.vue';
 import type { Locale } from '@/shared/i18n/i18n.ts';
-import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
-import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
+import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
@@ -73,18 +72,16 @@ const locale = computed<Locale>({
     >
       <template v-if="section === 'general'">
         <BaseGroupBox :title="t('settings.language.group')">
-          <BaseFormGrid>
-            <BaseFormRow
-              for="settings-language"
-              :label="t('settings.language.label')"
-            >
-              <LanguageSelect
-                id="settings-language"
-                v-model="locale"
-                class="settings-page__control"
-              />
-            </BaseFormRow>
-          </BaseFormGrid>
+          <SettingsRow
+            for="settings-language"
+            :label="t('settings.language.label')"
+          >
+            <LanguageSelect
+              id="settings-language"
+              v-model="locale"
+              class="settings-page__control"
+            />
+          </SettingsRow>
         </BaseGroupBox>
       </template>
       <template v-else-if="section === 'account'">
