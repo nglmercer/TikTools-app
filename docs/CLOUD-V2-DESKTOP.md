@@ -73,6 +73,16 @@ cutover preview captures and rechecks the legacy snapshot, session and consent;
 it does not itself activate v2 and covers plugin selections only. It builds
 the candidate outside the admission and identity locks and rejects changed
 inputs afterward. The caller still needs a local-source fence. There is no
+product cutover yet. New preparation markers bind the complete reviewed v1
+snapshot and its generation, installed selections, identity and resulting
+entries, including v1 records that do not become staged entries. A completed
+older v2 marker remains readable, but an older interrupted preparation cannot
+prove those inputs and is refused pending a reviewed recovery procedure.
+Do not remove or rewrite such a marker as an automatic repair.
+Protocol, product-outbox and uncertain-upload markers are size-checked before
+publication against their respective reader limits; an oversized marker fails
+before it can disable v1 or permit a network upload.
+There is no
 product preview RPC/UI: Cloud account and consent changes are not yet
 broadcast to other windows with ordered invalidation, so a displayed preview
 could otherwise expose stale account data. Account and consent transitions now
@@ -124,6 +134,11 @@ does not prove process health, worker-generation continuity, or fence implicit
 starts and late plugin results. The bridge is not used by product operations;
 package mutations, tombstones, conflict resolution, runtime reconciliation and
 explicit migration still need their full boundaries before activation.
+The regular plugin invoker now binds a call to the generation returned by its
+start and rejects a response if that worker has already been replaced or
+removed. This check is instantaneous: it cannot prevent a later stop, recall
+effects already performed inside a plugin, or fence host effects after the
+response. Implicit starts racing with disable remain unresolved.
 The product v1 path now retains downloaded selections in the account snapshot
 without applying them to local plugins. `sync.now` reports deferred records,
 and both conflict choices fail without changing the retained conflict; Settings

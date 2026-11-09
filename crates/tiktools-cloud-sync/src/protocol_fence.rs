@@ -20,6 +20,17 @@ use thiserror::Error;
 
 use crate::CutoverPreview;
 
+const MAX_PROTOCOL_MARKER_BYTES: usize = 4096;
+const MAX_UNCERTAIN_MARKER_BYTES: usize = 8192;
+
+fn marker_bytes<T: Serialize>(record: &T, max: usize) -> Result<Vec<u8>, ProtocolFenceError> {
+    let bytes = serde_json::to_vec(record).map_err(|_| StoreError::InvalidState)?;
+    if bytes.len() > max {
+        return Err(StoreError::InvalidState.into());
+    }
+    Ok(bytes)
+}
+
 #[derive(Debug, Error)]
 pub enum ProtocolFenceError {
     #[error("another sync or cutover operation is active")]
@@ -161,7 +172,9 @@ fn identity_hash(origin: &str, account: &str) -> Result<String, ProtocolFenceErr
 }
 
 fn candidate_hash(preview: &CutoverPreview) -> Result<String, ProtocolFenceError> {
-    let bytes = serde_json::to_vec(preview.entries()).map_err(|_| StoreError::InvalidState)?;
+    let bytes = preview
+        .review_material()
+        .map_err(|_| StoreError::InvalidState)?;
     Ok(Sha256::digest(bytes)
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -364,8 +377,10 @@ impl ProtocolFence {
             return Ok(false);
         }
         let mut data = Vec::new();
-        File::open(path)?.take(4097).read_to_end(&mut data)?;
-        if data.len() > 4096 {
+        File::open(path)?
+            .take((MAX_PROTOCOL_MARKER_BYTES + 1) as u64)
+            .read_to_end(&mut data)?;
+        if data.len() > MAX_PROTOCOL_MARKER_BYTES {
             return Err(StoreError::InvalidState.into());
         }
         let record: ProductOutboxRecord =
@@ -393,13 +408,15 @@ impl ProtocolFence {
             return Ok(None);
         }
         let mut data = Vec::new();
-        File::open(path)?.take(4097).read_to_end(&mut data)?;
-        if data.len() > 4096 {
+        File::open(path)?
+            .take((MAX_PROTOCOL_MARKER_BYTES + 1) as u64)
+            .read_to_end(&mut data)?;
+        if data.len() > MAX_PROTOCOL_MARKER_BYTES {
             return Err(StoreError::InvalidState.into());
         }
         let record: ProtocolRecord =
             serde_json::from_slice(&data).map_err(|_| StoreError::InvalidState)?;
-        if record.format_version != 1
+        if !matches!(record.format_version, 1 | 2)
             || record.origin != origin
             || record.account_id != account
             || record.candidate_sha256.len() != 64
@@ -416,8 +433,9 @@ impl ProtocolFence {
     fn write_record(&self, record: &ProtocolRecord) -> Result<(), ProtocolFenceError> {
         let target = self.record_path(&record.origin, &record.account_id)?;
         checked_file(&target)?;
+        let bytes = marker_bytes(record, MAX_PROTOCOL_MARKER_BYTES)?;
         let mut temp = tempfile::NamedTempFile::new_in(&self.dir)?;
-        serde_json::to_writer(&mut temp, record).map_err(|_| StoreError::InvalidState)?;
+        temp.write_all(&bytes)?;
         temp.flush()?;
         temp.as_file().sync_all()?;
         temp.persist(target).map_err(|error| error.error)?;
@@ -446,7 +464,8 @@ impl ProtocolFence {
         destination: PathBuf,
         original: &V1UncertainUpload,
     ) -> Result<UncertainUpload, ProtocolFenceError> {
-        serde_json::to_writer(&mut temporary, original).map_err(|_| StoreError::InvalidState)?;
+        let bytes = marker_bytes(original, MAX_UNCERTAIN_MARKER_BYTES)?;
+        temporary.write_all(&bytes)?;
         temporary.flush()?;
         temporary.as_file().sync_all()?;
         // Never replace any earlier uncertain marker, even in the unlikely
@@ -481,8 +500,10 @@ impl ProtocolFence {
         let mut records = Vec::with_capacity(paths.len());
         for path in paths {
             let mut data = Vec::new();
-            File::open(&path)?.take(8193).read_to_end(&mut data)?;
-            if data.len() > 8192 {
+            File::open(&path)?
+                .take((MAX_UNCERTAIN_MARKER_BYTES + 1) as u64)
+                .read_to_end(&mut data)?;
+            if data.len() > MAX_UNCERTAIN_MARKER_BYTES {
                 return Err(StoreError::InvalidState.into());
             }
             let value: V1UncertainUpload =
@@ -686,8 +707,9 @@ impl CutoverLease {
             origin: origin.to_owned(),
             account_id: account.to_owned(),
         };
+        let bytes = marker_bytes(&record, MAX_PROTOCOL_MARKER_BYTES)?;
         let mut temp = tempfile::NamedTempFile::new_in(&self.fence.dir)?;
-        serde_json::to_writer(&mut temp, &record).map_err(|_| StoreError::InvalidState)?;
+        temp.write_all(&bytes)?;
         temp.flush()?;
         temp.as_file().sync_all()?;
         temp.persist_noclobber(target)
@@ -788,7 +810,8 @@ impl CutoverLease {
             .map_err(|_| ProtocolFenceError::StaleCutover)?;
         let candidate_sha256 = candidate_hash(preview)?;
         if let Some(existing) = self.fence.read_record(origin, account)? {
-            if existing.mode != ProtocolMode::Preparing
+            if existing.format_version != 2
+                || existing.mode != ProtocolMode::Preparing
                 || existing.candidate_sha256 != candidate_sha256
             {
                 return Err(ProtocolFenceError::StaleCutover);
@@ -796,7 +819,7 @@ impl CutoverLease {
             return Ok(());
         }
         self.fence.write_record(&ProtocolRecord {
-            format_version: 1,
+            format_version: 2,
             origin: origin.into(),
             account_id: account.into(),
             mode: ProtocolMode::Preparing,
@@ -816,7 +839,8 @@ impl CutoverLease {
             .fence
             .read_record(origin, account)?
             .ok_or(ProtocolFenceError::StaleCutover)?;
-        if record.mode != ProtocolMode::Preparing
+        if record.format_version != 2
+            || record.mode != ProtocolMode::Preparing
             || record.candidate_sha256 != candidate_hash(preview)?
         {
             return Err(ProtocolFenceError::StaleCutover);
@@ -996,6 +1020,151 @@ mod tests {
             Err(ProtocolFenceError::NotV1)
         ));
         assert_eq!(fs::read(dir.join("sync-state.json")).unwrap(), old_bytes);
+    }
+
+    #[test]
+    fn prepared_cutover_binds_full_legacy_snapshot_across_restart() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("private");
+        let fence = ProtocolFence::open(&dir).unwrap();
+        let store = StateStore::open(&dir).unwrap();
+        let legacy = store
+            .save(None, &SyncState::new(ORIGIN.into(), ACCOUNT.into()))
+            .unwrap();
+        let reviewed =
+            CutoverPreview::new(ORIGIN.into(), ACCOUNT.into(), &[], Some(&legacy)).unwrap();
+        let cutover = fence.try_cutover().unwrap();
+        cutover.prepare(&reviewed, ORIGIN, ACCOUNT, &[]).unwrap();
+        drop(cutover);
+
+        // A writer outside the protocol changes only the legacy cursor; there
+        // are still no staged entries, so a digest of entries alone collides.
+        let mut changed = legacy.state.clone();
+        changed.cursor = 1;
+        let changed = store.save(Some(legacy.generation), &changed).unwrap();
+        let fresh =
+            CutoverPreview::new(ORIGIN.into(), ACCOUNT.into(), &[], Some(&changed)).unwrap();
+        assert_eq!(reviewed.entries(), fresh.entries());
+        let cutover = ProtocolFence::open(&dir).unwrap().try_cutover().unwrap();
+        assert!(matches!(
+            cutover.prepare(&fresh, ORIGIN, ACCOUNT, &[]),
+            Err(ProtocolFenceError::StaleCutover)
+        ));
+        assert!(matches!(
+            cutover.prepare(&reviewed, ORIGIN, ACCOUNT, &[]),
+            Err(ProtocolFenceError::StaleCutover)
+        ));
+        drop(cutover);
+
+        // Returning the bytes to their old values still has a new source
+        // generation and cannot revive the original review.
+        let restored = store.save(Some(changed.generation), &legacy.state).unwrap();
+        let restored_preview =
+            CutoverPreview::new(ORIGIN.into(), ACCOUNT.into(), &[], Some(&restored)).unwrap();
+        let cutover = ProtocolFence::open(&dir).unwrap().try_cutover().unwrap();
+        assert!(matches!(
+            cutover.prepare(&restored_preview, ORIGIN, ACCOUNT, &[]),
+            Err(ProtocolFenceError::StaleCutover)
+        ));
+        assert!(matches!(
+            cutover.finish(&restored_preview, ORIGIN, ACCOUNT),
+            Err(ProtocolFenceError::StaleCutover)
+        ));
+    }
+
+    #[test]
+    fn legacy_preparation_is_refused_but_completed_v2_remains_readable() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("private");
+        let fence = ProtocolFence::open(&dir).unwrap();
+        let preview = CutoverPreview::new(ORIGIN.into(), ACCOUNT.into(), &[], None).unwrap();
+        let legacy_digest = Sha256::digest(serde_json::to_vec(preview.entries()).unwrap())
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        let mut record = ProtocolRecord {
+            format_version: 1,
+            origin: ORIGIN.into(),
+            account_id: ACCOUNT.into(),
+            mode: ProtocolMode::Preparing,
+            candidate_sha256: legacy_digest,
+        };
+        fence.write_record(&record).unwrap();
+        let cutover = fence.try_cutover().unwrap();
+        assert!(matches!(
+            cutover.prepare(&preview, ORIGIN, ACCOUNT, &[]),
+            Err(ProtocolFenceError::StaleCutover)
+        ));
+        assert!(matches!(
+            cutover.finish(&preview, ORIGIN, ACCOUNT),
+            Err(ProtocolFenceError::StaleCutover)
+        ));
+        drop(cutover);
+
+        // Existing completed protocol selection must not silently revert to v1.
+        record.mode = ProtocolMode::V2;
+        fence.write_record(&record).unwrap();
+        assert!(fence.try_v2(ORIGIN, ACCOUNT).is_ok());
+        let v1 = fence.try_v1().unwrap();
+        assert!(matches!(
+            v1.ensure_v1(ORIGIN, ACCOUNT),
+            Err(ProtocolFenceError::NotV1)
+        ));
+    }
+
+    #[test]
+    fn oversized_cutover_and_outbox_markers_do_not_disable_v1() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("private");
+        let fence = ProtocolFence::open(&dir).unwrap();
+        let origin = format!("https://{}.example", "a".repeat(5000));
+        // A syntactically valid origin may still exceed a marker's byte cap.
+        let preview = CutoverPreview::new(origin.clone(), ACCOUNT.into(), &[], None).unwrap();
+        let cutover = fence.try_cutover().unwrap();
+        assert!(matches!(
+            cutover.prepare(&preview, &origin, ACCOUNT, &[]),
+            Err(ProtocolFenceError::Store(StoreError::InvalidState))
+        ));
+        assert!(!fence.record_path(&origin, ACCOUNT).unwrap().exists());
+        assert!(matches!(
+            cutover.require_product_outbox(&origin, ACCOUNT),
+            Err(ProtocolFenceError::Store(StoreError::InvalidState))
+        ));
+        assert!(!fence
+            .product_outbox_path(&origin, ACCOUNT)
+            .unwrap()
+            .exists());
+        drop(cutover);
+        let v1 = fence.try_v1().unwrap();
+        assert!(v1.ensure_v1(&origin, ACCOUNT).is_ok());
+        assert!(v1.ensure_legacy_allowed(&origin, ACCOUNT).is_ok());
+    }
+
+    #[test]
+    fn oversized_uncertain_marker_fails_before_publication() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("private");
+        let fence = ProtocolFence::open(&dir).unwrap();
+        let origin = format!("https://{}.example", "a".repeat(9000));
+        let mut state = SyncState::new(origin.clone(), ACCOUNT.into());
+        state
+            .stage("acme.plugin".into(), cloud_client::Edit::Delete)
+            .unwrap();
+        let snapshot = StateSnapshot {
+            generation: 1,
+            state,
+        };
+        let v1 = fence.try_v1().unwrap();
+        assert!(matches!(
+            v1.prepare_upload(&snapshot, "acme.plugin"),
+            Err(ProtocolFenceError::Store(StoreError::InvalidState))
+        ));
+        assert_eq!(fence.uncertain_count(&origin, ACCOUNT).unwrap(), 0);
+        assert!(fence
+            .uncertain_records(&origin, ACCOUNT)
+            .unwrap()
+            .is_empty());
+        assert!(v1.ensure_v1(&origin, ACCOUNT).is_ok());
     }
 
     #[test]

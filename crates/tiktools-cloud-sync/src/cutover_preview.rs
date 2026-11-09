@@ -65,6 +65,22 @@ impl CutoverPreview {
         &self.candidate.entries
     }
 
+    /// Canonical, versioned review material. A prepared migration must bind
+    /// the entire source snapshot, including records that do not become v2
+    /// entries, not merely the resulting staged edits.
+    pub(crate) fn review_material(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(&(
+            "tiktools-v1-v2-cutover-review-v2",
+            &self.origin,
+            &self.account_id,
+            &self.selections,
+            self.legacy
+                .as_ref()
+                .map(|snapshot| (snapshot.generation, &snapshot.state)),
+            &self.candidate.entries,
+        ))
+    }
+
     /// Legacy keys that have neither a current local selection nor a pending
     /// v1 edit in this candidate. The old records remain in v1; callers must
     /// report them, not imply that they were migrated or intentionally deleted.
