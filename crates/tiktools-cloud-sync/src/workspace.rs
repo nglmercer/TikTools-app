@@ -627,17 +627,43 @@ impl WorkspaceCoordinator {
                 continue;
             }
             if pending.base_revision.is_none() && matches!(pending.edit, WorkspaceEdit::Delete) {
-                // A GET returning absent is not a write barrier: an older
-                // request may still create the record after that read. Keep
-                // product tombstones queued until an authenticated barrier
-                // and durable application recovery are wired end to end.
-                if product.is_some() {
-                    return Err(WorkspaceCoordError::Ineligible);
-                }
                 let generation = pending.local_generation;
                 attempts += 1;
                 check_eligibility(eligibility, session)?;
-                let read = session.workspace_read_for_resolution(&key).await?;
+                let read = if let Some(product) = product {
+                    // An absence read alone cannot fence an older in-flight
+                    // creation. First require server epoch enforcement and
+                    // advance it while the exact session and source lease hold.
+                    let before = session.workspace_write_epoch().await?;
+                    check_eligibility(eligibility, session)?;
+                    if before.epoch_required() != Some(true) {
+                        return Err(WorkspaceCoordError::Ineligible);
+                    }
+                    let source_guard = product.source.acquire_emission_guard()?;
+                    let eligible = eligibility.ok_or(WorkspaceCoordError::Ineligible)?;
+                    let admit_session = eligible
+                        .emission
+                        .as_ref()
+                        .ok_or(WorkspaceCoordError::Ineligible)?;
+                    let session_guard = admit_session()?;
+                    if !eligible
+                        .emission_current
+                        .as_ref()
+                        .ok_or(WorkspaceCoordError::Ineligible)?()
+                    {
+                        return Err(WorkspaceCoordError::Ineligible);
+                    }
+                    let barrier = session.workspace_write_barrier().await?;
+                    if !barrier.is_after(&before)? {
+                        return Err(WorkspaceCoordError::Ineligible);
+                    }
+                    let read = session.workspace_read_for_resolution(&key).await?;
+                    drop(session_guard);
+                    drop(source_guard);
+                    read
+                } else {
+                    session.workspace_read_for_resolution(&key).await?
+                };
                 check_eligibility(eligibility, session)?;
                 let complete = |proof: Option<&WorkspaceProductProof>| {
                     let change = |state: &mut WorkspaceState| {

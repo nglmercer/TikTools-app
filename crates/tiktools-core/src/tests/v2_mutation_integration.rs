@@ -1145,8 +1145,7 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         .unwrap();
     assert!(admitted);
 
-    // Logical removal is reserved atomically but cannot be staged until a
-    // durable package/filesystem provenance contract is implemented.
+    // Logical removal can be staged only with the package and runtime fence.
     core.plugin_set_installed("acme.hotkeys", false).unwrap();
     let removed = core
         .db
@@ -1158,13 +1157,6 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         removed.runtime_epoch.as_deref(),
         Some(core.sync.runtime_epoch().unwrap())
     );
-    let before_removal = workspace.snapshot().unwrap();
-    assert!(coordinator.stage_v2_product_decision(&source).is_err());
-    assert_eq!(workspace.snapshot().unwrap().state, before_removal.state);
-    assert_eq!(
-        core.db.next_plugin_sync_intent(origin, account).unwrap(),
-        Some(removed.clone())
-    );
     let removed_decision = V2ProductDecision {
         origin: origin.into(),
         account_id: account.into(),
@@ -1174,13 +1166,40 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         selection: None,
     };
     admitted = false;
-    assert!(source
-        .with_fenced_upload(&removed_decision, &mut || {
-            admitted = true;
-            Ok(())
-        })
-        .is_err());
-    assert!(!admitted);
+    #[cfg(feature = "plugin-install")]
+    {
+        coordinator.stage_v2_product_decision(&source).unwrap();
+        assert_staged_decision(&workspace, &removed_decision);
+        assert!(core
+            .db
+            .next_plugin_sync_intent(origin, account)
+            .unwrap()
+            .is_none());
+        source
+            .with_fenced_upload(&removed_decision, &mut || {
+                admitted = true;
+                Ok(())
+            })
+            .unwrap();
+        assert!(admitted);
+    }
+    #[cfg(not(feature = "plugin-install"))]
+    {
+        let before_removal = workspace.snapshot().unwrap();
+        assert!(coordinator.stage_v2_product_decision(&source).is_err());
+        assert_eq!(workspace.snapshot().unwrap().state, before_removal.state);
+        assert_eq!(
+            core.db.next_plugin_sync_intent(origin, account).unwrap(),
+            Some(removed.clone())
+        );
+        assert!(source
+            .with_fenced_upload(&removed_decision, &mut || {
+                admitted = true;
+                Ok(())
+            })
+            .is_err());
+        assert!(!admitted);
+    }
     core.plugin_set_enabled_with_product_intent("acme.hotkeys", true)
         .unwrap();
     let restored = core
@@ -1193,6 +1212,9 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         source_generation: restored.generation as u64,
         ..enabled_decision
     };
+    assert!(source
+        .with_fenced_upload(&removed_decision, &mut || Ok(()))
+        .is_err());
 
     // Deliberately stop the fake worker without changing SQLite source or
     // host activation, modelling a worker lost after confirmation. The

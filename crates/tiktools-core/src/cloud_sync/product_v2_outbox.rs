@@ -412,13 +412,18 @@ impl V2ProductSource for SqliteV2ProductSource<'_> {
         {
             return Err(unavailable());
         }
-        let (version, enabled) = match (&entry.version, entry.enabled) {
+        let selection = match (&entry.version, entry.enabled) {
             (Some(version), Some(enabled))
                 if runtime.matches_selection(&entry.plugin_id, version, enabled) =>
             {
-                (version.clone(), enabled)
+                Some(PluginSelection {
+                    schema_version: 1,
+                    plugin_id: entry.plugin_id.clone(),
+                    version: version.clone(),
+                    enabled,
+                })
             }
-            // A tombstone requires separate package/filesystem reconciliation.
+            (None, None) => None,
             _ => return Err(unavailable()),
         };
         let decision = V2ProductDecision {
@@ -427,12 +432,7 @@ impl V2ProductSource for SqliteV2ProductSource<'_> {
             config_generation: entry.config_generation,
             source_generation: entry.generation as u64,
             plugin_id: entry.plugin_id.clone(),
-            selection: Some(PluginSelection {
-                schema_version: 1,
-                plugin_id: entry.plugin_id.clone(),
-                version,
-                enabled,
-            }),
+            selection,
         };
         // Older entries cannot prove whether they came from a reviewed
         // reconciliation or a direct edit. Never guess their remote base.
@@ -441,16 +441,25 @@ impl V2ProductSource for SqliteV2ProductSource<'_> {
             Some(base) => Some(base),
             None => return Err(unavailable()),
         };
-        let result = stage(&decision, base)?;
-        if !self
-            .core
-            .db
-            .acknowledge_plugin_sync_intent(&entry, epoch)
-            .map_err(|_| unavailable())?
-        {
-            return Err(unavailable());
+        let stage_and_ack = || {
+            let result = stage(&decision, base)?;
+            if !self
+                .core
+                .db
+                .acknowledge_plugin_sync_intent(&entry, epoch)
+                .map_err(|_| unavailable())?
+            {
+                return Err(unavailable());
+            }
+            Ok(result)
+        };
+        if decision.selection.is_none() {
+            runtime
+                .with_removal(&entry.plugin_id, stage_and_ack)
+                .ok_or_else(unavailable)?
+        } else {
+            stage_and_ack()
         }
-        Ok(result)
     }
 }
 
@@ -504,36 +513,47 @@ impl V2ProductUploadSource for SqliteV2ProductSource<'_> {
         if decision.origin != self.origin || decision.account_id != self.account {
             return Err(stale());
         }
-        let selection = decision.selection.as_ref().ok_or_else(stale)?;
-        if selection.plugin_id != decision.plugin_id {
-            return Err(stale());
-        }
         let runtime = self
             .core
             .try_plugin_sync_runtime_guard()
             .map_err(|_| stale())?;
-        if !runtime.matches_selection(&decision.plugin_id, &selection.version, selection.enabled) {
-            return Err(stale());
+        let mut admit_source = |enabled| {
+            self.core
+                .db
+                .with_current_v2_upload_source::<_, crate::db::DatabaseError>(
+                    &decision.plugin_id,
+                    decision.source_generation,
+                    enabled,
+                    || {
+                        if self
+                            .core
+                            .shutdown_started
+                            .load(std::sync::atomic::Ordering::Acquire)
+                        {
+                            Ok(Err(WorkspaceCoordError::Ineligible))
+                        } else {
+                            Ok(admit())
+                        }
+                    },
+                )
+                .map_err(|_| stale())?
+        };
+        match decision.selection.as_ref() {
+            Some(selection)
+                if selection.plugin_id == decision.plugin_id
+                    && runtime.matches_selection(
+                        &decision.plugin_id,
+                        &selection.version,
+                        selection.enabled,
+                    ) =>
+            {
+                admit_source(Some(selection.enabled))
+            }
+            None => runtime
+                .with_removal(&decision.plugin_id, || admit_source(None))
+                .ok_or_else(stale)?,
+            _ => Err(stale()),
         }
-        self.core
-            .db
-            .with_current_v2_upload_source::<_, crate::db::DatabaseError>(
-                &decision.plugin_id,
-                decision.source_generation,
-                selection.enabled,
-                || {
-                    if self
-                        .core
-                        .shutdown_started
-                        .load(std::sync::atomic::Ordering::Acquire)
-                    {
-                        Ok(Err(WorkspaceCoordError::Ineligible))
-                    } else {
-                        Ok(admit())
-                    }
-                },
-            )
-            .map_err(|_| stale())?
     }
 }
 

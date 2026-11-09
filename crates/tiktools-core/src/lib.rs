@@ -710,6 +710,8 @@ impl AppCore {
             .then(|| plugin_packages::plugin_data_dir(self.db.paths(), id))
             .flatten();
         #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        let package_sync = plugin_packages::capture_package_sync_account(self);
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
         let source_generation = plugin_packages::reserve_package_sync_source(self, id)?;
         #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
         let source_generation = self
@@ -763,6 +765,10 @@ impl AppCore {
             }
         }
         activation.finish()?;
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        if let Some(generation) = source_generation.checked_add(1) {
+            plugin_packages::confirm_package_removal_source(self, package_sync, id, generation);
+        }
         Ok(())
     }
 

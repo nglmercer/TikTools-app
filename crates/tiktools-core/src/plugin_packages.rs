@@ -463,6 +463,52 @@ pub(crate) fn confirm_package_sync_source(
     }
 }
 
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+pub(crate) fn confirm_package_removal_source(
+    core: &crate::AppCore,
+    capture: Option<PackageSyncAccount>,
+    id: &str,
+    generation: i64,
+) {
+    let result = (|| -> Option<bool> {
+        let capture = capture?;
+        let epoch = core.sync.runtime_epoch().ok()?;
+        let sync = core.sync.coordinator().ok()?;
+        crate::control::with_fenced_plugin_removal(core, id, || {
+            sync.with_product_local_edit(|current| {
+                if !core.cloud.auth().is_current_session(&capture.session)
+                    || current
+                        != tiktools_cloud_sync::ProductLocalEditContext::V2(Some(
+                            capture.context.clone(),
+                        ))
+                {
+                    return None;
+                }
+                core.db
+                    .confirm_package_sync_candidate(
+                        id,
+                        generation,
+                        true,
+                        &crate::db::LocalPluginSyncIntent {
+                            origin: &capture.context.origin,
+                            account_id: &capture.context.account_id,
+                            config_generation: capture.context.config_generation,
+                            version: None,
+                        },
+                        epoch,
+                    )
+                    .ok()
+            })
+            .ok()
+            .flatten()
+        })
+        .flatten()
+    })();
+    if result != Some(true) {
+        tracing::debug!(plugin = %id, "package removal marker retained for reconciliation");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -901,6 +947,20 @@ mod tests {
         ));
         core.uninstall_plugin("acme.package", false).unwrap();
         assert_eq!(source(), 12);
+        #[cfg(feature = "cloud-auth")]
+        {
+            let _invocation = core.plugin_state.invocation_gate.lock().unwrap();
+            assert_eq!(
+                crate::control::with_fenced_plugin_removal(&core, "acme.package", || true),
+                None
+            );
+            std::fs::create_dir_all(&core.db.paths().builtin_plugins).unwrap();
+            core.plugins.scan().unwrap();
+            assert_eq!(
+                crate::control::with_fenced_plugin_removal(&core, "acme.package", || true),
+                Some(true)
+            );
+        }
         #[cfg(feature = "cloud-auth")]
         {
             let connection = rusqlite::Connection::open(&database_path).unwrap();

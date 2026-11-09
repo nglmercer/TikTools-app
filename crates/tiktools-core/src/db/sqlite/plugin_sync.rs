@@ -78,10 +78,14 @@ impl DatabaseManager {
         intent: &LocalPluginSyncIntent<'_>,
         runtime_epoch: &str,
     ) -> Result<bool, DatabaseError> {
-        let version = intent
+        if intent
             .version
-            .filter(|version| valid_text(version, 128))
-            .ok_or_else(|| DatabaseError::Invalid("invalid package sync version".into()))?;
+            .is_some_and(|version| !valid_text(version, 128))
+        {
+            return Err(DatabaseError::Invalid(
+                "invalid package sync version".into(),
+            ));
+        }
         if !valid_text(id, 128)
             || !valid_text(intent.origin, 2048)
             || !valid_text(intent.account_id, 1024)
@@ -100,8 +104,8 @@ impl DatabaseManager {
             return Ok(false);
         }
         let generation = advance_plugin_source(&tx, id)?;
-        tx.execute("INSERT INTO behavior_plugins(id,installed,enabled,updated_at) VALUES (?1,1,?2,?3) ON CONFLICT(id) DO UPDATE SET installed=1,enabled=excluded.enabled,updated_at=excluded.updated_at", params![id, bool_int(enabled), now()])?;
-        tx.execute("INSERT INTO plugin_sync_outbox(origin,account_id,plugin_id,generation,config_generation,version,enabled,runtime_epoch,reviewed_base) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,'direct')", params![intent.origin, intent.account_id, id, generation, intent.config_generation.to_string(), version, bool_int(enabled), runtime_epoch])?;
+        tx.execute("INSERT INTO behavior_plugins(id,installed,enabled,updated_at) VALUES (?1,?2,?3,?4) ON CONFLICT(id) DO UPDATE SET installed=excluded.installed,enabled=excluded.enabled,updated_at=excluded.updated_at", params![id, bool_int(intent.version.is_some()), bool_int(enabled), now()])?;
+        tx.execute("INSERT INTO plugin_sync_outbox(origin,account_id,plugin_id,generation,config_generation,version,enabled,runtime_epoch,reviewed_base) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,'direct')", params![intent.origin, intent.account_id, id, generation, intent.config_generation.to_string(), intent.version, intent.version.map(|_| bool_int(enabled)), runtime_epoch])?;
         if tx.execute(
             "DELETE FROM plugin_sync_untracked_local WHERE plugin_id=?1 AND generation=?2",
             params![id, marker_generation],
@@ -120,9 +124,10 @@ impl DatabaseManager {
         &self,
         plugin_id: &str,
         generation: u64,
-        enabled: bool,
+        enabled: impl Into<Option<bool>>,
         operation: impl FnOnce() -> Result<R, E>,
     ) -> Result<R, E> {
+        let enabled = enabled.into();
         let generation = i64::try_from(generation)
             .ok()
             .filter(|v| *v > 0)
@@ -137,13 +142,13 @@ impl DatabaseManager {
             .map_err(E::from)?;
         let valid: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
-             WHERE s.plugin_id=?1 AND s.generation=?2 AND b.installed=1 AND b.enabled=?3
+             WHERE s.plugin_id=?1 AND s.generation=?2 AND b.installed=CASE WHEN ?3 IS NULL THEN 0 ELSE 1 END AND (?3 IS NULL OR b.enabled=?3)
              AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
              AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL)
              AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_intents a WHERE a.plugin_id=s.plugin_id)
              AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations f WHERE f.plugin_id=s.plugin_id)
              AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=s.plugin_id))",
-            params![plugin_id, generation, bool_int(enabled)], |row| row.get(0),
+            params![plugin_id, generation, enabled.map(bool_int)], |row| row.get(0),
         ).map_err(DatabaseError::from).map_err(E::from)?;
         if !valid {
             return Err(E::from(DatabaseError::Invalid(

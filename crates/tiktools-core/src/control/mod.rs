@@ -76,6 +76,12 @@ mod media;
 mod plugin_packages;
 mod plugin_settings;
 mod plugins;
+#[cfg(all(
+    feature = "cloud-auth",
+    feature = "persistence",
+    feature = "plugin-install"
+))]
+pub(crate) use plugins::with_fenced_plugin_removal;
 #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
 pub(crate) use plugins::PluginSyncRuntimeGuard;
 mod points;

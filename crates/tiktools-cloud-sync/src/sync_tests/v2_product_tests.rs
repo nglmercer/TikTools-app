@@ -1243,7 +1243,7 @@ async fn logout_during_epoch_read_does_not_prepare_or_emit() {
 }
 
 #[tokio::test(flavor = "current_thread")]
-async fn product_absent_delete_remains_queued_without_a_server_barrier() {
+async fn product_absent_delete_requires_and_uses_server_barrier() {
     let dir = TempDir::new("v2-product-delete-barrier");
     let mock = MockSync::start("delete-user").await;
     let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
@@ -1285,9 +1285,10 @@ async fn product_absent_delete_remains_queued_without_a_server_barrier() {
         digest: decision.digest().unwrap(),
         calls: std::sync::atomic::AtomicUsize::new(0),
     });
+    mock.inner.lock().unwrap().v2_epoch_required = Some(false);
     let before = workspace.snapshot().unwrap();
     assert!(matches!(
-        sync.sync_v2_product(session, upload.clone()).await,
+        sync.sync_v2_product(session.clone(), upload.clone()).await,
         Err(crate::WorkspaceCoordError::Ineligible)
     ));
     let after = workspace.snapshot().unwrap();
@@ -1299,6 +1300,48 @@ async fn product_absent_delete_remains_queued_without_a_server_barrier() {
     assert_eq!(mock.inner.lock().unwrap().v2_record_get_requests, 0);
     assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 0);
     assert_eq!(upload.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    mock.inner.lock().unwrap().v2_epoch_required = Some(true);
+    let result = sync
+        .sync_v2_product(session.clone(), upload.clone())
+        .await
+        .unwrap();
+    assert_eq!(result.absent_deletes, 1);
+    assert!(workspace.snapshot().unwrap().state.entry(&key).is_none());
+    assert_eq!(mock.inner.lock().unwrap().v2_record_get_requests, 1);
+    assert_eq!(mock.inner.lock().unwrap().v2_write_epoch, "8");
+    assert_eq!(upload.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    let newer = crate::V2ProductDecision {
+        source_generation: 2,
+        ..decision
+    };
+    sync.stage_v2_product_decision(&Source {
+        decision: newer.clone(),
+        fail_ack: Cell::new(false),
+        ack_attempts: Cell::new(0),
+    })
+    .unwrap();
+    mock.inner.lock().unwrap().v2_read_record = Some(serde_json::json!({
+        "collection": "plugin-selections", "key": "acme.plugin", "revision": 1,
+        "deleted": false, "value": {"schemaVersion": 1, "pluginId": "acme.plugin", "version": "1.0.0", "enabled": true}
+    }));
+    let newer_upload = Arc::new(ExactUpload {
+        fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
+        digest: newer.digest().unwrap(),
+        calls: std::sync::atomic::AtomicUsize::new(0),
+    });
+    sync.sync_v2_product(session, newer_upload).await.unwrap();
+    let after = workspace.snapshot().unwrap();
+    assert_eq!(
+        after
+            .state
+            .entry(&key)
+            .unwrap()
+            .pending
+            .as_ref()
+            .unwrap()
+            .status,
+        WorkspacePendingStatus::Conflict
+    );
     mock.stop();
 }
 

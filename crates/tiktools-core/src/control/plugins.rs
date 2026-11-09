@@ -45,8 +45,65 @@ pub(crate) struct PluginSyncRuntimeGuard<'a> {
     _invocation: std::sync::MutexGuard<'a, ()>,
 }
 
+/// Caller holds the plugin invocation gate throughout the callback.
+#[cfg(all(
+    feature = "cloud-auth",
+    feature = "persistence",
+    feature = "plugin-install"
+))]
+pub(crate) fn with_fenced_plugin_removal<T>(
+    core: &AppCore,
+    id: &str,
+    operation: impl FnOnce() -> T,
+) -> Option<T> {
+    let quarantine = core.plugin_state.apply_quarantine.read().ok()?;
+    if quarantine.as_ref()?.contains(id) {
+        return None;
+    }
+    let packages = core.plugin_packages().ok()?;
+    let store = packages.installer.try_lock_store().ok()?;
+    if !store
+        .matches_roots(&core.db.paths().plugins, &core.db.paths().plugin_store())
+        .ok()?
+    {
+        return None;
+    }
+    let (_, plugins) = core.plugins.list_complete_for_cutover().ok()?;
+    let present = plugins.iter().any(|plugin| plugin.manifest.id == id);
+    let activation = core.plugin_state.activation.read().ok()?.get(id).copied();
+    if activation.is_some_and(|state| state.installed) {
+        return None;
+    }
+    if activation.is_none()
+        && (present
+            || store.inspect_verified(id).ok()?
+                != tiktools_plugin_installer::InstalledPackageEvidence::Absent)
+    {
+        return None;
+    }
+    if core.plugins.observe_worker(id).ok()?
+        != tiktools_plugin_loader::PluginWorkerObservation::Stopped
+    {
+        return None;
+    }
+    Some(operation())
+}
+
 #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
 impl PluginSyncRuntimeGuard<'_> {
+    /// Hold the cooperative package store while admitting an observed local
+    /// removal. Missing inventory, uncertain workers or a replacement plugin
+    /// cannot be interpreted as an absent source.
+    #[cfg(feature = "plugin-install")]
+    pub(crate) fn with_removal<T>(&self, id: &str, operation: impl FnOnce() -> T) -> Option<T> {
+        with_fenced_plugin_removal(self.core, id, operation)
+    }
+
+    #[cfg(not(feature = "plugin-install"))]
+    pub(crate) fn with_removal<T>(&self, _id: &str, _operation: impl FnOnce() -> T) -> Option<T> {
+        None
+    }
+
     pub(crate) fn matches_selection(&self, id: &str, version: &str, enabled: bool) -> bool {
         let Ok(quarantine) = self.core.plugin_state.apply_quarantine.read() else {
             return false;
