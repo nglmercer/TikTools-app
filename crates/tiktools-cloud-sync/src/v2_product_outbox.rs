@@ -286,6 +286,11 @@ impl SyncCoordinator {
         let publish_session = session.clone();
         let publish_epoch = epoch.clone();
         let publish_cancelled = cancelled.clone();
+        let emission_auth = self.auth.clone();
+        let emission_session = session.clone();
+        let emission_check_auth = self.auth.clone();
+        let emission_check_session = session.clone();
+        let emission_cancelled = cancelled.clone();
         crate::WorkspaceEligibility::new(session.clone(), move || {
             product_eligible(&cancelled, deadline, || {
                 check_sync.is_v2_config_epoch_current(&epoch, &check_session)
@@ -316,6 +321,19 @@ impl SyncCoordinator {
                 })
                 .map_err(|_| crate::WorkspaceCoordError::Ineligible)?
         })
+        .with_emission_guard(
+            move || {
+                emission_auth
+                    .try_session_emission_permit(&emission_session)
+                    .map(|permit| Box::new(permit) as Box<dyn Send>)
+                    .map_err(|_| crate::WorkspaceCoordError::Ineligible)
+            },
+            move || {
+                product_eligible(&emission_cancelled, deadline, || {
+                    emission_check_auth.is_current_session(&emission_check_session)
+                })
+            },
+        )
     }
 
     /// Stage one durable source decision, with the source fence outermost and

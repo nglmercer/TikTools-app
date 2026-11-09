@@ -567,6 +567,7 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
             "unchanged",
             "cancel",
             "cancel_before_commit",
+            "cancel_with_logout",
         ] {
             let dir = TempDir::new("v2-product-http-auth");
             let mock = MockSync::start("v2-http-user").await;
@@ -688,7 +689,30 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                 upload.fence.try_untracked_edit(),
                 Err(crate::ProtocolFenceError::Busy)
             ));
-            if transition == "cancel" || transition == "cancel_before_commit" {
+            // An account transition starting after emission admission must
+            // wait for the request future, without blocking account reads.
+            let logout = if matches!(transition, "logout" | "replace" | "cancel_with_logout") {
+                let logout_auth = auth.clone();
+                let logout = tokio::spawn(async move { logout_auth.logout().await });
+                tokio::time::timeout(Duration::from_secs(3), async {
+                    while auth.try_session_snapshot().is_ok() {
+                        tokio::task::yield_now().await;
+                    }
+                })
+                .await
+                .expect("logout must reach transition admission");
+                assert!(!logout.is_finished());
+                tokio::time::timeout(Duration::from_secs(1), auth.status())
+                    .await
+                    .expect("account mutex must remain available");
+                Some(logout)
+            } else {
+                None
+            };
+            if matches!(
+                transition,
+                "cancel" | "cancel_before_commit" | "cancel_with_logout"
+            ) {
                 task.abort();
                 assert!(task.await.err().unwrap().is_cancelled());
                 tokio::time::timeout(Duration::from_secs(3), async {
@@ -705,6 +729,13 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                 let after = workspace.snapshot().unwrap();
                 assert_eq!(after.generation, prepared.generation);
                 assert_eq!(after.state, prepared.state);
+                if let Some(logout) = logout {
+                    tokio::time::timeout(Duration::from_secs(3), logout)
+                        .await
+                        .expect("cancellation must release session admission")
+                        .unwrap()
+                        .unwrap();
+                }
                 if transition == "cancel_before_commit" {
                     // The client is gone and the local lease is free, but
                     // an already received request can still execute later.
@@ -727,21 +758,22 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                 }
                 continue;
             }
-            if transition != "unchanged" {
-                tokio::time::timeout(Duration::from_secs(2), auth.logout())
+            mock.held_v2_write.release.notify_one();
+            let outcome = tokio::time::timeout(Duration::from_secs(3), task)
+                .await
+                .expect("dispatcher must finish after response")
+                .unwrap();
+            if let Some(logout) = logout {
+                tokio::time::timeout(Duration::from_secs(3), logout)
                     .await
-                    .expect("in-flight HTTP must not block logout")
+                    .expect("finished HTTP must release session admission")
+                    .unwrap()
                     .unwrap();
                 if transition == "replace" {
                     login(&auth, "replacement-session").await;
                     assert!(!Arc::ptr_eq(&session, &auth.session().await.unwrap()));
                 }
             }
-            mock.held_v2_write.release.notify_one();
-            let outcome = tokio::time::timeout(Duration::from_secs(3), task)
-                .await
-                .expect("dispatcher must finish after response")
-                .unwrap();
             let after = workspace.snapshot().unwrap();
             assert!(upload.fence.try_untracked_edit().is_ok());
             if transition != "unchanged" {
@@ -802,6 +834,132 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
             mock.stop();
         }
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn logout_after_session_admission_before_final_check_prevents_send() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let dir = TempDir::new("v2-product-emission-session");
+    let mock = MockSync::start("emission-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "emission-session").await;
+    let session = auth.session().await.unwrap();
+    let preview = marked_preview(&sync, &session);
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .prepare(&preview, &mock.origin, "emission-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "emission-user".into(),
+    )
+    .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
+    lease
+        .finish(&preview, &mock.origin, "emission-user")
+        .unwrap();
+    drop(lease);
+    sync.set_enabled(false).unwrap();
+    let consent = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&consent).unwrap();
+    let decision = crate::V2ProductDecision {
+        origin: mock.origin.clone(),
+        account_id: "emission-user".into(),
+        config_generation: sync.read_config().generation,
+        source_generation: 7,
+        plugin_id: "acme.plugin".into(),
+        selection: Some(PluginSelection {
+            schema_version: 1,
+            plugin_id: "acme.plugin".into(),
+            version: "1.0.0".into(),
+            enabled: true,
+        }),
+    };
+    sync.stage_v2_product_decision(&Source {
+        decision: decision.clone(),
+        fail_ack: Cell::new(false),
+        ack_attempts: Cell::new(0),
+    })
+    .unwrap();
+    let source = Arc::new(ExactUpload {
+        fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
+        digest: decision.digest().unwrap(),
+        calls: AtomicUsize::new(0),
+    });
+    let source_check = source.clone();
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let entered = Mutex::new(Some(entered_tx));
+    let release = Mutex::new(release_rx);
+    let worker_sync = sync.clone();
+    let worker_session = session.clone();
+    let origin = mock.origin.clone();
+    let workspace_dir = dir.join("a-sync");
+    let task = tokio::spawn(async move {
+        crate::v2_product_outbox::run_product_worker(move |cancelled, deadline| async move {
+            let epoch = worker_sync
+                .capture_v2_config_epoch(&worker_session)
+                .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+            let _protocol = worker_sync.protocol.try_v2(&origin, "emission-user")?;
+            let eligibility = worker_sync
+                .v2_product_eligibility(worker_session.clone(), epoch.clone(), cancelled, deadline)
+                .with_test_emission_pause(move || {
+                    entered.lock().unwrap().take().unwrap().send(()).unwrap();
+                    release
+                        .lock()
+                        .unwrap()
+                        .recv_timeout(Duration::from_secs(4))
+                        .unwrap();
+                });
+            let worker_workspace =
+                crate::WorkspaceCoordinator::open(workspace_dir, origin, "emission-user".into())?;
+            worker_workspace
+                .sync_product_guarded(
+                    &worker_session,
+                    &eligibility,
+                    &crate::workspace::ProductUploadAdmission {
+                        source: source.as_ref(),
+                        config_generation: epoch.config.generation,
+                    },
+                )
+                .await
+        })
+        .await
+    });
+    tokio::time::timeout(Duration::from_secs(3), entered_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    let logout_auth = auth.clone();
+    let logout = tokio::spawn(async move { logout_auth.logout().await });
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("logout must start while emission permit is held");
+    assert!(!logout.is_finished());
+    release_tx.send(()).unwrap();
+    assert!(matches!(
+        task.await.unwrap(),
+        Err(crate::WorkspaceCoordError::Ineligible)
+    ));
+    tokio::time::timeout(Duration::from_secs(3), logout)
+        .await
+        .expect("failed final check must release session permit")
+        .unwrap()
+        .unwrap();
+    assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 0);
+    let key = WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
+    let state = workspace.snapshot().unwrap().state;
+    let pending = state.entry(&key).unwrap().pending.as_ref().unwrap();
+    assert_eq!(pending.status, WorkspacePendingStatus::Unconfirmed);
+    assert_eq!(pending.write_epoch.as_ref().unwrap().decimal(), "7");
+    assert_eq!(source_check.calls.load(Ordering::SeqCst), 1);
+    mock.stop();
 }
 
 #[tokio::test(flavor = "current_thread")]

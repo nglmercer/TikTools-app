@@ -461,6 +461,115 @@ async fn session_permit_defers_logout_without_holding_account_mutex() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn owned_session_emission_permit_fences_transitions_and_releases_on_cancellation() {
+    let dir = TempDir::new("owned-session-emission");
+    let mock = MockCloud::start("permit-account").await;
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let begun = auth.begin_login().await.unwrap();
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "emission-first").await;
+    waiter.await.unwrap().unwrap();
+    let first = auth.session().await.unwrap();
+
+    // A pending login transition wins against new admissions even before it
+    // acquires the exclusive gate. Cancelling it does not disturb the lease.
+    let lease = auth.clone().try_session_emission_permit(&first).unwrap();
+    let login_auth = auth.clone();
+    let login = tokio::spawn(async move { login_auth.begin_login().await });
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!login.is_finished());
+    assert!(auth.try_session_emission_permit(&first).is_err());
+    assert_eq!(auth.status().await.state, AccountState::SignedIn);
+    login.abort();
+    assert!(login.await.unwrap_err().is_cancelled());
+    assert!(auth.try_session_emission_permit(&first).is_ok());
+    drop(lease);
+
+    // The permit is Send and survives an await without retaining the account
+    // mutex. Cancelling its task releases it and lets a queued logout finish.
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+    let worker_auth = auth.clone();
+    let worker_session = first.clone();
+    let worker = tokio::spawn(async move {
+        let _permit = worker_auth
+            .try_session_emission_permit(&worker_session)
+            .unwrap();
+        ready_tx.send(()).unwrap();
+        std::future::pending::<()>().await;
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(3), ready_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    let logout_auth = auth.clone();
+    let logout = tokio::spawn(async move { logout_auth.logout().await });
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!logout.is_finished());
+    assert!(auth.try_session_emission_permit(&first).is_err());
+    assert_eq!(
+        tokio::time::timeout(std::time::Duration::from_secs(1), auth.status())
+            .await
+            .unwrap()
+            .state,
+        AccountState::SignedIn
+    );
+    worker.abort();
+    assert!(worker.await.unwrap_err().is_cancelled());
+    assert_eq!(
+        tokio::time::timeout(std::time::Duration::from_secs(3), logout)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap()
+            .state,
+        AccountState::SignedOut
+    );
+    assert!(auth.try_session_emission_permit(&first).is_err());
+
+    let begun = auth.begin_login().await.unwrap();
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "emission-second").await;
+    waiter.await.unwrap().unwrap();
+    let second = auth.session().await.unwrap();
+    assert_eq!(first.account_id(), second.account_id());
+    assert!(auth.try_session_emission_permit(&first).is_err());
+    assert!(auth.try_session_emission_permit(&second).is_ok());
+
+    // A deadline owned by the caller drops the permit, so a transition is
+    // not held forever after the operation's allowed duration.
+    let bounded = tokio::time::timeout(std::time::Duration::from_millis(50), async {
+        let _permit = auth.try_session_emission_permit(&second).unwrap();
+        std::future::pending::<()>().await;
+    });
+    assert!(bounded.await.is_err());
+    assert_eq!(
+        tokio::time::timeout(std::time::Duration::from_secs(3), auth.logout())
+            .await
+            .unwrap()
+            .unwrap()
+            .state,
+        AccountState::SignedOut
+    );
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn identity_is_unavailable_during_pending_and_completing_login() {
     let dir = TempDir::new("identity-login-transition");
     let mock = MockCloud::start("user-transition").await;

@@ -16,7 +16,7 @@ use std::{
 use cloud_client::{LoginAttempt, LoginResult, Session, SyncError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::sync::{oneshot, Mutex, RwLock};
+use tokio::sync::{oneshot, Mutex, OwnedRwLockReadGuard, RwLock};
 
 use crate::resolve_cloud_origin;
 
@@ -247,6 +247,15 @@ pub struct CloudAuth {
     sidecar: PathBuf,
     transitions: Arc<AtomicUsize>,
     context_observer: Option<Arc<dyn Fn() + Send + Sync>>,
+}
+
+/// A read admission for one captured live session, held across an async
+/// operation. The session and the gate remain alive until the permit drops.
+/// This is not an HTTP cancellation or server-side completion guarantee.
+#[must_use = "dropping the permit ends the session admission"]
+pub struct SessionEmissionPermit {
+    _gate: OwnedRwLockReadGuard<()>,
+    _session: Arc<Session>,
 }
 
 /// Optional advisory notifications around identity transitions. The observer
@@ -1003,6 +1012,40 @@ impl CloudAuth {
             return Err(SessionBusy);
         }
         Ok(operation())
+    }
+
+    /// Attempt a nonblocking admission for an asynchronous operation using
+    /// this exact live session. The returned owned permit keeps this manager's
+    /// identity gate shared until it is dropped; an account transition that
+    /// starts after admission waits for it, while an earlier transition or a
+    /// contended lock fails closed. Account ID equality is insufficient:
+    /// replacing a session for the same account invalidates the old capture.
+    ///
+    /// Unlike the bounded synchronous callback above, the caller can hold
+    /// this permit across `await`. The caller must enforce its own deadline,
+    /// release it on cancellation, and must not wait for a transition of this
+    /// manager while holding it. A later transition may make other eligibility
+    /// checks fail while it waits. No account mutex is held by the permit.
+    /// This coordinates only this manager and its clones, not another manager
+    /// or process. Dropping it after cancellation does not prevent a server
+    /// from committing a request already received; recovery needs its own
+    /// server-side fence. This primitive is not itself permission to sync.
+    pub fn try_session_emission_permit(
+        &self,
+        captured: &Arc<Session>,
+    ) -> Result<SessionEmissionPermit, SessionBusy> {
+        let gate = self
+            .identity_gate
+            .clone()
+            .try_read_owned()
+            .map_err(|_| SessionBusy)?;
+        if !self.is_current_session(captured) {
+            return Err(SessionBusy);
+        }
+        Ok(SessionEmissionPermit {
+            _gate: gate,
+            _session: captured.clone(),
+        })
     }
 
     /// Last signed-in `(origin, account_id)` from the nonsecret sidecar, if

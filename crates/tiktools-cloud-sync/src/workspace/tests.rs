@@ -791,7 +791,8 @@ async fn product_uncertain_keep_local_requires_fresh_review_source_and_publicati
                     return Err(WorkspaceCoordError::Ineligible);
                 }
                 publish()
-            });
+            })
+            .with_test_emission_guard();
     let source = ProductUploadFixture {
         generation: AtomicU64::new(7),
         consent: 42,
@@ -1069,7 +1070,8 @@ async fn product_response_publication_requires_captured_session_and_consent() {
                     return Err(WorkspaceCoordError::Ineligible);
                 }
                 publish()
-            });
+            })
+            .with_test_emission_guard();
             let source = ProductUploadFixture {
                 generation: AtomicU64::new(7),
                 consent: 42,

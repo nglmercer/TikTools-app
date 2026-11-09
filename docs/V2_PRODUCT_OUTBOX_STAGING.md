@@ -23,7 +23,7 @@ The experimental dispatcher accepts only queued plugin selections with an exact 
 
 The dispatcher runs local disk and source checks on a blocking worker rather than a Tokio executor thread. Its caller's cancellation is propagated to that worker, and its complete operation, including waiting for capacity, has a 60-second deadline. The caller receives a timeout even if native I/O remains blocked; checks after a blocked source returns reject cancelled or expired work before a new request. Cancellation or timeout before response publication leaves the durable result `Unconfirmed` for review. An atomic rename already admitted before cancellation can finish afterward, so the caller must inspect the retained state instead of assuming the timeout kept the result unconfirmed. While awaiting HTTP, cancellation or the deadline releases the workspace and protocol leases. Native filesystem or SQLite calls cannot be forcibly interrupted: if one never returns, its worker and any leases it holds remain alive until the operation actually returns. A process-wide limit of four workers retains each permit until the worker really exits, bounding accumulation; saturation fails with a timeout. Product integration must surface this state and account for the remaining in-flight work.
 
-Before enabling product integration, all local plugin mutations and package operations must participate in the source admission/outbox protocol; restart reconciliation and tombstones need explicit review; and account, consent, protocol and cancellation must be fenced through actual request emission. The current shared protocol lease spans HTTP and can make opt-out return busy; a session can also change between the last eligibility observation and request emission. The runtime observation is momentary and does not fence independent processes, direct filesystem writers or every autonomous plugin start. A staged value alone is not upload authority. Changes made while opted out require a separate reviewed reconciliation; they must not silently inherit a prior account's consent.
+Before enabling product integration, all local plugin mutations and package operations must participate in the source admission/outbox protocol; restart reconciliation and tombstones need explicit review. The shared protocol lease spans HTTP and can make opt-out return busy. The exact-session emission permit described below serializes account transitions for one CloudAuth manager, but not independently constructed managers or other processes. The runtime observation is momentary and does not fence independent processes, direct filesystem writers or every autonomous plugin start. A staged value alone is not upload authority. Changes made while opted out require a separate reviewed reconciliation; they must not silently inherit a prior account's consent.
 
 The generic workspace coordinator holds a shared protocol lease for the whole
 operation, including its HTTP request and state publication. It refuses
@@ -35,9 +35,9 @@ cooperative restriction covers already-migrated partitions without rewriting
 them and prevents a concurrent cooperative cutover from overtaking a generic
 operation. It does not fence older binaries or callers that directly mutate
 the lower-level workspace store, and the separate product marker can be
-removed by noncooperating filesystem access. A durable mode inside the
-workspace format and safe handling of older processes remain necessary before
-product activation.
+removed by noncooperating filesystem access. The version-3 workspace mode
+described below additionally protects a successfully migrated workspace;
+safe handling of older processes remains necessary before product activation.
 
 Installing a new product outbox marker now refuses any existing generic v2
 pending or staged-next edit while holding the exclusive protocol lease and
@@ -45,14 +45,14 @@ both workspace locks. This avoids trapping a cancelled write's durable
 `Unconfirmed` state behind the product-only path. It is not proof of remote
 quiescence: a previous generic review may already have cleared an uncertain
 request while its server handler remained in flight. Both protocol and product
-markers can also be deleted by noncooperating software; if both are absent,
-this cooperative classification cannot infer product ownership from the
-workspace. A durable workspace mode and a server-backed write barrier remain
-requirements for product integration.
+markers can also be deleted by noncooperating software; before migration,
+an older workspace with no product receipts is indistinguishable from generic
+state when both markers have been lost. A server-backed write barrier remains
+necessary for product recovery.
 
-For product dispatch, pull state, push acknowledgements and conflict results are prepared and fsynced under the workspace CAS lock before acquiring an exact-session permit. With the cooperative v2 protocol lease still held to exclude consent changes, the permit covers only the final atomic rename; logout that wins before that permit prevents publication. A push whose response cannot be recorded under the captured session remains `Unconfirmed`, even if the server processed it, and requires explicit review. The account mutex is not held during preparation or rename. A rename syscall that does not return can still delay logout while the identity permit is held; directory fsync follows after the permit is released. These guarantees do not fence noncooperative filesystem writers and do not close the request-emission window described above.
+For product dispatch, pull state, push acknowledgements and conflict results are prepared and fsynced under the workspace CAS lock before acquiring an exact-session publication permit. With the cooperative v2 protocol lease still held to exclude consent changes, that permit covers only the final atomic rename; logout that wins before it prevents publication. A push whose response cannot be recorded under the captured session remains `Unconfirmed`, even if the server processed it, and requires explicit review. The account mutex is not held during preparation or rename. A rename syscall that does not return can still delay logout while the identity permit is held; directory fsync follows after the permit is released. These guarantees do not fence noncooperative filesystem writers.
 
-A local HTTP integration test holds both successful and conflicting responses while the real CloudAuth manager logs out or replaces its session. In all four transitions the persisted request remains unconfirmed; control cases with the original session record the acknowledgement or conflict. This does not establish the full product workflow or physical two-device acceptance.
+A local HTTP integration test holds successful and conflicting responses while the real CloudAuth manager requests logout or session replacement. The transition waits for the admitted HTTP future, and the persisted request remains unconfirmed if the transition began before publication; control cases with the original session record the acknowledgement or conflict. Cancellation releases the local admission but cannot cancel a server commit already in progress. This does not establish the full product workflow or physical two-device acceptance.
 
 An internal workspace recovery primitive now supports an explicit keep-local
 rebase after an uncertain write or conflict. The comparison is obtained from
@@ -148,10 +148,20 @@ tombstones without a known base are retained rather than cleared from an
 absence GET, which cannot establish quiescence. These paths remain private.
 
 The mode reported by a backend does not protect against older backend
-instances that do not enforce it. Session and consent are rechecked after the
-epoch GET and before request emission, but the last check is not atomic with
-the actual HTTP send. The source/runtime admission is also released after
-preparing the request and can change before or during HTTP. Neither the durable
-epoch nor server policy closes those windows. Product activation still
-requires homogeneous backend rollout, end-to-end emission/source fencing,
-fresh authenticated barrier recovery, and durable local application.
+instances that do not enforce it. The dispatcher checks consent before
+acquiring an owned permit for the exact captured session, then checks the
+session, cancellation and deadline without filesystem I/O. It holds that
+permit through the local PUT/DELETE future and releases it before publishing
+the result. A transition that begins after admission waits; one already in
+progress prevents admission or the final check. This applies only to the
+same CloudAuth manager and its clones, and the account mutex is not held.
+Cancellation or timeout drops the future and permit when its worker can poll;
+an unyielding poll or blocked native operation can delay release past the
+deadline, so logout is not guaranteed to finish within 60 seconds. Dropping
+the permit does not prevent an already received server request from committing.
+
+The source/runtime admission is still released after preparing the request
+and can change before or during HTTP. Neither the durable epoch nor server
+policy closes that window. Product activation still requires homogeneous
+backend rollout, source fencing, fresh authenticated barrier recovery, and
+durable local application.

@@ -54,10 +54,13 @@ pub struct WorkspaceEligibility {
     session: Arc<Session>,
     current: Arc<dyn Fn() -> bool + Send + Sync>,
     publication: Option<Arc<PublicationGuard>>,
+    emission: Option<Arc<EmissionGuard>>,
+    emission_current: Option<Arc<dyn Fn() -> bool + Send + Sync>>,
 }
 type PublicationGuard = dyn Fn(&mut dyn FnMut() -> Result<(), WorkspaceCoordError>) -> Result<(), WorkspaceCoordError>
     + Send
     + Sync;
+type EmissionGuard = dyn Fn() -> Result<Box<dyn Send>, WorkspaceCoordError> + Send + Sync;
 impl WorkspaceEligibility {
     pub fn new(session: Arc<Session>, current: impl Fn() -> bool + Send + Sync + 'static) -> Self {
         Self {
@@ -65,6 +68,8 @@ impl WorkspaceEligibility {
             session,
             current: Arc::new(current),
             publication: None,
+            emission: None,
+            emission_current: None,
         }
     }
 
@@ -80,6 +85,19 @@ impl WorkspaceEligibility {
             + 'static,
     ) -> Self {
         self.publication = Some(Arc::new(guard));
+        self
+    }
+
+    /// Product-only session admission held through the local HTTP future.
+    /// Cancellation can still leave work running on the server; the durable
+    /// request and backend barrier remain necessary for recovery.
+    pub(crate) fn with_emission_guard(
+        mut self,
+        guard: impl Fn() -> Result<Box<dyn Send>, WorkspaceCoordError> + Send + Sync + 'static,
+        current: impl Fn() -> bool + Send + Sync + 'static,
+    ) -> Self {
+        self.emission = Some(Arc::new(guard));
+        self.emission_current = Some(Arc::new(current));
         self
     }
     pub fn check(&self) -> Result<(), WorkspaceCoordError> {
@@ -107,6 +125,28 @@ impl WorkspaceEligibility {
     #[cfg(test)]
     fn with_test_publication_guard(self) -> Self {
         self.with_publication_guard(|publish| publish())
+            .with_test_emission_guard()
+    }
+
+    #[cfg(test)]
+    fn with_test_emission_guard(self) -> Self {
+        self.with_emission_guard(|| Ok(Box::new(())), || true)
+    }
+
+    /// Pause only in tests after the real session permit is acquired and
+    /// before the nonblocking transition check.
+    #[cfg(test)]
+    pub(crate) fn with_test_emission_pause(
+        mut self,
+        pause: impl Fn() + Send + Sync + 'static,
+    ) -> Self {
+        let guard = self.emission.take().expect("test requires emission guard");
+        self.emission = Some(Arc::new(move || {
+            let permit = guard()?;
+            pause();
+            Ok(permit)
+        }));
+        self
     }
 }
 fn check_eligibility(
@@ -410,7 +450,10 @@ impl WorkspaceCoordinator {
         eligibility: &WorkspaceEligibility,
         admission: &ProductUploadAdmission<'_>,
     ) -> Result<WorkspaceOutcome, WorkspaceCoordError> {
-        if eligibility.publication.is_none() {
+        if eligibility.publication.is_none()
+            || eligibility.emission.is_none()
+            || eligibility.emission_current.is_none()
+        {
             return Err(WorkspaceCoordError::Ineligible);
         }
         self.sync_inner(session, Some(eligibility), Some(admission))
@@ -645,9 +688,33 @@ impl WorkspaceCoordinator {
             let emission_guard = product
                 .map(|product| product.source.acquire_emission_guard())
                 .transpose()?;
-            // If eligibility changed after prepare, keep the durable ticket
-            // unconfirmed; never dispatch or infer an outcome.
+            // Configuration reads may block. Do them before taking the
+            // account's owned session permit. The v2 protocol lease held by
+            // the product caller excludes cooperating consent changes.
             check_eligibility(eligibility, session)?;
+            // Admit the exact captured CloudAuth session before the last
+            // eligibility check. A later account transition waits for the
+            // request future to finish or be dropped; its account mutex is
+            // never held over network I/O. The lease does not prevent a
+            // cancelled request already received by the server from committing.
+            let session_guard = if product.is_some() {
+                let guard = eligibility
+                    .and_then(|eligibility| eligibility.emission.as_ref())
+                    .ok_or(WorkspaceCoordError::Ineligible)?;
+                Some(guard()?)
+            } else {
+                None
+            };
+            // This final check must not perform filesystem I/O while logout
+            // waits for session_guard. It uses only nonblocking identity and
+            // cancellation/deadline checks supplied by the product caller.
+            if product.is_some()
+                && !eligibility
+                    .and_then(|eligibility| eligibility.emission_current.as_ref())
+                    .ok_or(WorkspaceCoordError::Ineligible)?()
+            {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
             let response = match (ticket.edit(), product.is_some()) {
                 (WorkspaceEdit::Put(value), true) => {
                     session
@@ -698,6 +765,9 @@ impl WorkspaceCoordinator {
                         .await
                 }
             };
+            // Drop before rechecking or publishing: a queued logout owns the
+            // next transition, and reacquiring its gate here could deadlock.
+            drop(session_guard);
             drop(emission_guard);
             // The response belongs to the captured product session and
             // consent. If either changed while it was in flight, keep the
