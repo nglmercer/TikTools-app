@@ -115,6 +115,44 @@ impl SyncCoordinator {
         })
     }
 
+    /// Reconstruct an informational review from the current v1 snapshot and
+    /// compare its complete frozen inputs, including marked outbox receipts.
+    /// This is not an execution fence: writers may change state after return.
+    pub fn verify_guarded_cutover_review(
+        &self,
+        review: &GuardedCutoverReview,
+        selections: &[PluginSelection],
+        receipts: &[crate::V1CutoverReceipt],
+    ) -> Result<(), SyncCoordError> {
+        let fresh = if review.preview.is_marked() {
+            self.guarded_marked_cutover_review(&review.session, selections, receipts)?
+        } else {
+            if !receipts.is_empty() {
+                return Err(SyncCoordError::StaleReview);
+            }
+            self.guarded_cutover_review(&review.session, selections)?
+        };
+        let original = review
+            .preview
+            .review_material()
+            .map_err(|_| SyncCoordError::StaleReview)?;
+        let current = fresh
+            .preview
+            .review_material()
+            .map_err(|_| SyncCoordError::StaleReview)?;
+        if original != current {
+            return Err(SyncCoordError::StaleReview);
+        }
+        self.auth
+            .with_current_session_permit(&review.session, || {
+                if !self.is_config_epoch_current(&review.consent, &review.session) {
+                    return Err(SyncCoordError::StaleReview);
+                }
+                Ok(())
+            })
+            .map_err(|_| SyncCoordError::StaleReview)?
+    }
+
     /// Execute only through a native source adapter. A product must still
     /// obtain explicit user approval and fence every source/package writer;
     /// this coordinator cannot verify the adapter's implementation.

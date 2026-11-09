@@ -187,13 +187,23 @@ impl NativeCutoverPreview {
         self.review.preview()
     }
 
-    /// Only checks local source, session and consent for an informational
-    /// preview. It does not recheck v1 state or authorize cutover; mutations
-    /// can race after this method returns.
+    /// Rechecks local source, v1 snapshot, receipts, session and consent for
+    /// an informational preview. Mutations can still race after this returns;
+    /// only the separately fenced cutover can authorize a migration.
     pub(crate) fn check_local_fresh(&self, core: &AppCore) -> Result<(), OperationError> {
         let coordinator = core.sync.coordinator().map_err(|_| unavailable())?;
         let origin = self.session.instance_origin();
         let account = self.session.account_id();
+        if core.cutover_local_source(&origin, account)? != self.source {
+            return Err(unavailable());
+        }
+        coordinator
+            .verify_guarded_cutover_review(
+                &self.review,
+                &self.source.selections,
+                &self.source.sqlite.receipts,
+            )
+            .map_err(|_| unavailable())?;
         if core.cutover_local_source(&origin, account)? != self.source {
             return Err(unavailable());
         }

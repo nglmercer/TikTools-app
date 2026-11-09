@@ -118,8 +118,9 @@ the v1 snapshot under protocol admission. Changed or malformed evidence,
 unmatched pending edits, future generations and current foreign-account
 receipts fail closed; historical receipts do not authorize a migration. This deliberately conservative check
 can block preview even for finalized applications until a safe witness review
-and retention policy exists. The later freshness check does not recheck v1
-state, and scan completeness does not fence filesystem changes after the scan.
+and retention policy exists. The later freshness check reconstructs and compares
+the full v1 review and receipts, then checks the local source again. It is still
+an advisory check: scan completeness does not fence filesystem changes after the scan.
 Even an absent optional configured root blocks this private preview until its
 inventory can be accounted for.
 Other processes, worker health and a final local-source fence still need

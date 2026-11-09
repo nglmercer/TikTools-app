@@ -3616,6 +3616,16 @@ async fn v2_cutover_preview_is_read_only_and_requires_the_exact_current_session(
             .state,
         before.state
     );
+    let guarded = sync.guarded_cutover_review(&session, &selections).unwrap();
+    assert!(sync
+        .verify_guarded_cutover_review(&guarded, &selections, &[])
+        .is_ok());
+    sync.record_local_change("other.plugin", "1.0.0", true)
+        .unwrap();
+    assert!(matches!(
+        sync.verify_guarded_cutover_review(&guarded, &selections, &[]),
+        Err(SyncCoordError::StaleReview)
+    ));
     sync.set_enabled(false).unwrap();
     assert!(matches!(
         sync.preview_v2_cutover(&session, &selections),
