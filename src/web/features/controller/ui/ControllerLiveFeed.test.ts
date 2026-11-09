@@ -87,3 +87,25 @@ it('lets a restricted moderator switch between allowed creator histories', async
     expect(wrapper.text()).not.toContain('alice activity');
   } finally { wrapper.unmount(); }
 });
+
+it('keeps creator selection available when one creator feed fails', async () => {
+  i18n.global.locale.value = 'en';
+  const status = ref<ControllerStatus>({ epoch:'1', viewRevision:'1', phase:'ready', profile:'desk', origin:'https://host.example', errorCode:null,
+    hello:{ connectionId:'connection', grantRevision:'1', hostId:'host', hostInstanceId:'instance', principalId:'moderator', sessionId:'device', capabilities:['live.read'], features:{ creatorFeed:true }, resourceRestrictions:{ live:['alice', 'bob'] } } });
+  const { client } = createFakeControlClient((method, params) => {
+    if (method === 'controller.status') return JSON.parse(JSON.stringify(status.value));
+    if (params?.['creatorId'] === 'alice') throw new Error('feed unavailable');
+    return { epoch:'1', connectionId:'connection', creatorId:'bob', streamId:'b'.repeat(32), oldestCursor:'1', latestCursor:'1', nextCursor:'1', gap:false, truncated:false,
+      events:[{ cursor:'1', kind:'chat', author:'viewer', authorLookupId:null, nickname:null, text:'bob activity' }] };
+  });
+  const model = createLiveFeedModel(client, { status, generation:() => 1, stopped:() => false });
+  const wrapper = mount(ControllerLiveFeed, { props:{ model }, global:{ plugins:[i18n] } });
+  try {
+    await model.refresh(status.value, 1); await wrapper.vm.$nextTick();
+    expect(wrapper.get('[role="alert"]').text()).toContain('unavailable');
+    await wrapper.get('select').setValue('bob');
+    await model.refresh(status.value, 1); await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain('bob activity');
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  } finally { wrapper.unmount(); }
+});

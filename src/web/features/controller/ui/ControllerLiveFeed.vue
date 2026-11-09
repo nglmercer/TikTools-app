@@ -38,14 +38,14 @@ watch(() => props.model.scopeRevision.value, () => { selectedKind.value = 'all';
   <section v-if="model.allowed.value" class="live-feed" :aria-label="text.title">
     <h2>{{ text.title }}</h2>
     <p v-if="model.error.value" role="alert">{{ text.unavailable }}</p>
-    <template v-else>
-      <p v-if="model.gap.value" role="status">{{ text.gap }}</p>
-      <div class="filters">
-        <label v-if="model.creatorOptions.value.length">{{ text.creator }}
-          <select :value="model.selectedCreator.value ?? ''" @change="model.selectCreator(($event.target as HTMLSelectElement).value)">
-            <option v-for="creator in model.creatorOptions.value" :key="creator" :value="creator">{{ creator }}</option>
-          </select>
-        </label>
+    <p v-else-if="model.gap.value" role="status">{{ text.gap }}</p>
+    <div class="filters">
+      <label v-if="model.creatorOptions.value.length">{{ text.creator }}
+        <select :value="model.selectedCreator.value ?? ''" @change="model.selectCreator(($event.target as HTMLSelectElement).value)">
+          <option v-for="creator in model.creatorOptions.value" :key="creator" :value="creator">{{ creator }}</option>
+        </select>
+      </label>
+      <template v-if="!model.error.value">
         <label>{{ text.kind }}
           <select v-model="selectedKind">
             <option value="all">{{ text.all }}</option>
@@ -55,7 +55,9 @@ watch(() => props.model.scopeRevision.value, () => { selectedKind.value = 'all';
         <label>{{ text.search }}
           <input v-model="query" type="search" maxlength="128" autocomplete="off">
         </label>
-      </div>
+      </template>
+    </div>
+    <template v-if="!model.error.value">
       <p v-if="model.events.value.length === 0">{{ text.empty }}</p>
       <p v-else-if="visibleEvents.length === 0">{{ text.noMatches }}</p>
       <ol v-else role="log" :aria-label="text.title">
