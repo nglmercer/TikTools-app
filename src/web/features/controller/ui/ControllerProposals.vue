@@ -2,9 +2,10 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ProposalModel, ProposalConfirmation } from '../model/proposals.ts';
+import type { AutomationModel } from '../model/automations.ts';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import ControllerProposalBuilder from './ControllerProposalBuilder.vue';
-const props = defineProps<{ model: ProposalModel }>();
+const props = defineProps<{ model: ProposalModel; automation?: AutomationModel }>();
 const { locale } = useI18n();
 const family = ref<'action' | 'event'>('action'); const targetId = ref('');
 const dialog = ref<ProposalConfirmation | null>(null);
@@ -99,7 +100,7 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
     <template v-if="model.editable.value">
       <h3>{{ model.kind.value === 'action' ? labels.action : labels.event }} · {{ model.id.value }}</h3>
       <p>{{ labels.mode }}: {{ model.mode.value === 'create' ? labels.create : labels.update }} · {{ labels.base }} {{ model.baseRevision.value }}</p>
-      <ControllerProposalBuilder :model="model" />
+      <ControllerProposalBuilder :model="model" :automation="automation" />
       <div class="actions">
         <button
           :disabled="model.busy.value"

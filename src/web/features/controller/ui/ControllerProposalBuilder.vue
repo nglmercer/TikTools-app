@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, unref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ProposalConfirmation, ProposalModel } from '../model/proposals.ts';
+import type { AutomationModel, AutomationRow } from '../model/automations.ts';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 
-const props = defineProps<{ model: ProposalModel }>();
+const props = defineProps<{ model: ProposalModel; automation?: AutomationModel }>();
 const { locale } = useI18n();
 const labels = computed(() => locale.value === 'es' ? {
   title: 'Crear una propuesta con campos', note: 'Genera un borrador inactivo. Antes de enviarlo tendrás que guardarlo y revisar el estado del anfitrión.',
@@ -13,6 +14,9 @@ const labels = computed(() => locale.value === 'es' ? {
   trigger: 'Cuándo ocurre', chat: 'Mensaje en el chat', gift: 'Regalo', like: 'Me gusta', follow: 'Seguir', share: 'Compartir', join: 'Ingreso',
   contains: 'El mensaje contiene (opcional)', actionId: 'ID de acción (opcional)', cooldown: 'Espera entre ejecuciones (ms)',
   actionNote: 'El anfitrión verificará el acceso a la acción. Sin una acción vinculada, el evento no hará nada.',
+  availableActions: 'Acciones visibles en el anfitrión', actionSearch: 'Buscar acción visible', noActions: 'No hay acciones visibles que coincidan.',
+  actionLimit: 'Se muestran las primeras 50 coincidencias. Busca por nombre o ID para encontrar otras.', selectAction: 'Usar ID',
+  actionDisabled: 'inactiva', actionEnabled: 'activa', actionStatusNote: 'La lista es una instantánea. El anfitrión comprobará las referencias y el propietario revisará la definición antes de activarla.',
   generate: 'Preparar borrador', invalid: 'Completa los campos válidos antes de preparar el borrador.',
   confirm: '¿Reemplazar el texto abierto?', warning: 'Se reemplazará el texto abierto por el borrador mostrado. No se guardará ni enviará todavía. Copia antes cualquier contenido que desees conservar.',
   apply: 'Usar este borrador', changed: 'La propuesta, los campos o el acceso cambiaron. Vuelve a revisar el borrador.', preview: 'Borrador nuevo',
@@ -23,6 +27,9 @@ const labels = computed(() => locale.value === 'es' ? {
   trigger: 'When it happens', chat: 'Chat message', gift: 'Gift', like: 'Like', follow: 'Follow', share: 'Share', join: 'Join',
   contains: 'Message contains (optional)', actionId: 'Action ID (optional)', cooldown: 'Delay between runs (ms)',
   actionNote: 'The host checks access to the action. Without a linked action, the event will do nothing.',
+  availableActions: 'Actions visible on the host', actionSearch: 'Search visible actions', noActions: 'No visible actions match.',
+  actionLimit: 'Showing the first 50 matches. Search by name or ID to find others.', selectAction: 'Use ID',
+  actionDisabled: 'disabled', actionEnabled: 'enabled', actionStatusNote: 'This list is a snapshot. The host checks references and the owner reviews the definition before activation.',
   generate: 'Prepare draft', invalid: 'Complete the valid fields before preparing the draft.',
   confirm: 'Replace the open text?', warning: 'The open text will be replaced by the draft shown. It will not be saved or sent yet. Copy anything you want to keep first.',
   apply: 'Use this draft', changed: 'The proposal, fields, or access changed. Review the draft again.', preview: 'New draft',
@@ -37,6 +44,7 @@ const delta = ref('');
 const trigger = ref<'tiktok.chat' | 'tiktok.gift' | 'tiktok.like' | 'tiktok.follow' | 'tiktok.share' | 'tiktok.join'>('tiktok.chat');
 const contains = ref('');
 const actionId = ref('');
+const actionSearch = ref('');
 const cooldown = ref('0');
 const encoder = new TextEncoder();
 const triggers = new Set(['tiktok.chat', 'tiktok.gift', 'tiktok.like', 'tiktok.follow', 'tiktok.share', 'tiktok.join']);
@@ -53,6 +61,18 @@ const pointsChange = (value: string): number | null => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed !== 0 && Math.abs(parsed) <= 1_000_000_000 ? parsed : null;
 };
+const actionsReady = computed(() => props.automation ? unref(props.automation.ready) : false);
+const matchingActions = computed(() => {
+  if (!props.automation || !actionsReady.value) return [];
+  const search = actionSearch.value.trim().toLocaleLowerCase();
+  return unref(props.automation.rows).filter((row) => row.summary.kind === 'action' &&
+    (!search || row.summary.id.toLocaleLowerCase().includes(search) || row.summary.name.toLocaleLowerCase().includes(search)));
+});
+function useAction(row: AutomationRow): void {
+  if (!actionsReady.value || props.model.busy.value || !props.model.editable.value) return;
+  if (!matchingActions.value.some((current) => current.version.id === row.version.id && current.version.revision === row.version.revision)) return;
+  actionId.value = row.summary.id;
+}
 const draft = computed<string | null>(() => {
   const id = props.model.id.value;
   if (!props.model.editable.value || !canonicalId(id) || !name.value.trim() || encoder.encode(name.value).length > 256) return null;
@@ -98,7 +118,7 @@ function apply(): void {
 }
 // Source and form state are both private to the current connection/selection.
 watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.id.value], () => {
-  capture.value = null; name.value = ''; message.value = ''; actionId.value = ''; contains.value = ''; viewer.value = ''; delta.value = '';
+  capture.value = null; name.value = ''; message.value = ''; actionId.value = ''; actionSearch.value = ''; contains.value = ''; viewer.value = ''; delta.value = '';
   actionType.value = 'core.log'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0';
 }, { flush: 'sync' });
 </script>
@@ -125,6 +145,19 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
         <label>{{ labels.cooldown }}<input v-model="cooldown" type="number" min="0" max="86400000" step="1" :disabled="model.busy.value"></label>
       </template>
     </div>
+    <section v-if="model.kind.value === 'event' && actionsReady" :aria-label="labels.availableActions" class="available-actions">
+      <h4>{{ labels.availableActions }}</h4>
+      <p>{{ labels.actionStatusNote }}</p>
+      <label>{{ labels.actionSearch }}<input v-model="actionSearch" type="search" maxlength="128" autocomplete="off" :disabled="model.busy.value"></label>
+      <p v-if="!matchingActions.length">{{ labels.noActions }}</p>
+      <ul v-else>
+        <li v-for="row in matchingActions.slice(0, 50)" :key="row.summary.id">
+          <span>{{ row.summary.name }} · {{ row.summary.id }} · {{ row.summary.enabled ? labels.actionEnabled : labels.actionDisabled }}</span>
+          <button type="button" :disabled="model.busy.value || !model.editable.value" @click="useAction(row)">{{ labels.selectAction }}</button>
+        </li>
+      </ul>
+      <p v-if="matchingActions.length > 50">{{ labels.actionLimit }}</p>
+    </section>
     <p v-if="model.kind.value === 'event'">{{ labels.actionNote }}</p>
     <p v-if="model.kind.value === 'action' && actionType === 'core.points'">{{ labels.pointsNote }}</p>
     <p v-if="draft === null" role="status">{{ labels.invalid }}</p>
@@ -144,4 +177,6 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
 label { display: flex; flex-direction: column; gap: 6px; flex: 1 1 180px; min-width: 0; }
 input, select, button { padding: 8px; color: inherit; background: var(--color-bg-panel); border: 1px solid var(--color-border-subtle); border-radius: 6px; }
 button:disabled { opacity: .5; } pre { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.available-actions { margin-top:12px; } .available-actions ul { max-height:14rem; overflow:auto; padding-left:1.5rem; }
+.available-actions li { margin:6px 0; overflow-wrap:anywhere; } .available-actions li button { margin-left:8px; }
 </style>

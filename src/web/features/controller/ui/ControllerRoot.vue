@@ -375,7 +375,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
       :epoch="status.epoch"
       :busy="busy || commandSending"
     />
-    <ControllerProposals :model="model.proposals" />
+    <ControllerProposals :model="model.proposals" :automation="model.automation" />
     <section
       v-if="ready && pointsAllowed"
       ref="pointsSection"

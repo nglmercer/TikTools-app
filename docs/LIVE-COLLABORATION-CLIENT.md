@@ -138,6 +138,12 @@ adjusts points. Submission and owner approval remain separate, and current
 host permissions and effect limits still govern execution. Dynamic viewer
 targets are not offered by this builder.
 
+When preparing a disabled event, the builder can search the current permitted
+host action summaries and copy an action ID into the local draft. It renders at
+most 50 matches and permits manual IDs for actions not in the visible snapshot.
+The list is informational: host access and dependencies can change, and the
+owner still reviews the saved source before a separate activation.
+
 The LIVE activity panel can filter its bounded, locally displayed
 entries by kind and search author, nickname or text. Filters do not query the
 host or extend its retained history, and are cleared when the connection or
