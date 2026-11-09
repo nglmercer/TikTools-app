@@ -127,6 +127,16 @@ worker changes, including subscriber startup after a package job, legacy v1
 emitters, and noncooperating processes are not yet fully fenced; product
 activation still requires those paths to participate and be verified together.
 
+A private SQLite primitive can inspect one marker and atomically transfer a
+still-matching installed source revision into an account outbox candidate
+without runtime confirmation. A changed source, competing account outbox or v1
+receipt, unresolved package/apply/rebase journal, tombstone, or failed commit
+leaves the marker in place. The transaction alone does not authorize upload:
+the future caller must hold the emission, exact identity/consent and runtime
+fences, verify the installed artifact and version, and establish a server
+barrier for older in-flight writes before transferring any marker. There is no
+product or UI call to this primitive, and no automatic reconciliation.
+
 Dropping a local HTTP future does not cancel work already received by the
 server: the server can commit that request after the lease is released, after
 a local edit, or even after a subsequent authenticated GET. Such a GET is

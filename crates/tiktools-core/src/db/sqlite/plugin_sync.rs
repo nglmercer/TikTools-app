@@ -35,6 +35,16 @@ pub(crate) struct PluginSyncOutboxEntry {
     pub enabled: Option<bool>,
 }
 
+/// Exact local-only source observation. It carries no Cloud authorization;
+/// callers must bind it to explicit consent, package identity and runtime.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct UntrackedPluginReview {
+    pub plugin_id: String,
+    pub generation: i64,
+    pub installed: bool,
+    pub enabled: bool,
+}
+
 fn valid_text(value: &str, maximum: usize) -> bool {
     !value.is_empty() && value.len() <= maximum && !value.chars().any(char::is_control)
 }
@@ -131,6 +141,107 @@ impl DatabaseManager {
             [],
             |row| row.get(0),
         )?)
+    }
+
+    /// Read one local marker without inferring an account or consent. A stale
+    /// marker is rejected rather than silently attributed to a newer source.
+    #[allow(dead_code)]
+    pub(crate) fn review_untracked_plugin(
+        &self,
+        id: &str,
+    ) -> Result<Option<UntrackedPluginReview>, DatabaseError> {
+        if !valid_text(id, 128) {
+            return Err(DatabaseError::Invalid("invalid plugin sync source".into()));
+        }
+        let db = self.open(&self.automation_path())?;
+        let row: Option<(i64, i64, i64, i64)> = db.query_row(
+            "SELECT u.generation, s.generation, b.installed, b.enabled FROM plugin_sync_untracked_local u JOIN plugin_sync_source_versions s ON s.plugin_id=u.plugin_id JOIN behavior_plugins b ON b.id=u.plugin_id WHERE u.plugin_id=?1",
+            [id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        ).optional()?;
+        match row {
+            Some((marker, current, installed, enabled))
+                if marker > 0
+                    && marker == current
+                    && matches!(installed, 0 | 1)
+                    && matches!(enabled, 0 | 1) =>
+            {
+                Ok(Some(UntrackedPluginReview {
+                    plugin_id: id.into(),
+                    generation: marker,
+                    installed: installed == 1,
+                    enabled: enabled == 1,
+                }))
+            }
+            Some(_) => Err(DatabaseError::Invalid(
+                "untracked plugin source needs review".into(),
+            )),
+            None => {
+                let exists: bool = db.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM plugin_sync_untracked_local WHERE plugin_id=?1)",
+                    [id],
+                    |r| r.get(0),
+                )?;
+                if exists {
+                    Err(DatabaseError::Invalid(
+                        "untracked plugin source needs review".into(),
+                    ))
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+
+    /// Atomically transfer one explicitly reviewed marker into an unconfirmed
+    /// account outbox entry. Caller must hold the exclusive emission lease,
+    /// exact identity/consent and runtime/package fences, and verify `version`
+    /// against the reviewed installed artifact. Tombstones require separate
+    /// package reconciliation and are deliberately rejected here.
+    #[allow(dead_code)]
+    pub(crate) fn reconcile_untracked_plugin(
+        &self,
+        review: &UntrackedPluginReview,
+        intent: &LocalPluginSyncIntent<'_>,
+    ) -> Result<(), DatabaseError> {
+        let version = intent
+            .version
+            .filter(|v| valid_text(v, 128))
+            .ok_or_else(|| DatabaseError::Invalid("reviewed installed version required".into()))?;
+        if !review.installed
+            || review.generation <= 0
+            || intent.config_generation == 0
+            || !valid_text(&review.plugin_id, 128)
+            || !valid_text(intent.origin, 2048)
+            || !valid_text(intent.account_id, 1024)
+        {
+            return Err(DatabaseError::Invalid(
+                "invalid untracked plugin review".into(),
+            ));
+        }
+        let mut db = self.open(&self.automation_path())?;
+        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let valid: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u JOIN plugin_sync_source_versions s ON s.plugin_id=u.plugin_id JOIN behavior_plugins b ON b.id=u.plugin_id WHERE u.plugin_id=?1 AND u.generation=?2 AND s.generation=?2 AND b.installed=1 AND b.enabled=?3 AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=u.plugin_id) AND NOT EXISTS(SELECT 1 FROM plugin_sync_receipts q WHERE q.plugin_id=u.plugin_id) AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=u.plugin_id OR p.plugin_id IS NULL) AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_intents a WHERE a.plugin_id=u.plugin_id) AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations f WHERE f.plugin_id=u.plugin_id) AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=u.plugin_id))",
+            params![review.plugin_id, review.generation, bool_int(review.enabled)], |r| r.get(0),
+        )?;
+        if !valid {
+            return Err(DatabaseError::Invalid(
+                "untracked plugin review is stale or blocked".into(),
+            ));
+        }
+        tx.execute("INSERT INTO plugin_sync_outbox(origin,account_id,plugin_id,generation,config_generation,version,enabled,runtime_epoch) VALUES (?1,?2,?3,?4,?5,?6,?7,NULL)", params![intent.origin, intent.account_id, review.plugin_id, review.generation, intent.config_generation.to_string(), version, bool_int(review.enabled)])?;
+        if tx.execute(
+            "DELETE FROM plugin_sync_untracked_local WHERE plugin_id=?1 AND generation=?2",
+            params![review.plugin_id, review.generation],
+        )? != 1
+        {
+            return Err(DatabaseError::Invalid(
+                "untracked plugin review changed".into(),
+            ));
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     fn set_plugin_state_with_sync_intent_inner(
@@ -566,6 +677,100 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.root);
         }
+    }
+
+    #[test]
+    fn reviewed_untracked_transfer_is_atomic_and_rejects_stale_source() {
+        let f = Fixture::new();
+        f.db.set_plugin_state_with_untracked_sync("hotkeys", true, false)
+            .unwrap();
+        let old = f.db.review_untracked_plugin("hotkeys").unwrap().unwrap();
+        f.db.set_plugin_state_with_untracked_sync("hotkeys", true, true)
+            .unwrap();
+        assert!(f
+            .db
+            .reconcile_untracked_plugin(&old, &f.intent("alice"))
+            .is_err());
+        assert!(f.db.has_untracked_plugin_sync().unwrap());
+        assert!(f
+            .db
+            .next_plugin_sync_intent("https://cloud.example", "alice")
+            .unwrap()
+            .is_none());
+        let review = f.db.review_untracked_plugin("hotkeys").unwrap().unwrap();
+        assert_ne!(review.generation, old.generation);
+        assert!(review.enabled);
+        let db = f.db.open(&f.db.automation_path()).unwrap();
+        db.execute_batch("CREATE TRIGGER reject_marker_delete BEFORE DELETE ON plugin_sync_untracked_local BEGIN SELECT RAISE(ABORT, 'injected'); END;").unwrap();
+        assert!(f
+            .db
+            .reconcile_untracked_plugin(&review, &f.intent("alice"))
+            .is_err());
+        assert!(f.db.has_untracked_plugin_sync().unwrap());
+        assert!(f
+            .db
+            .next_plugin_sync_intent("https://cloud.example", "alice")
+            .unwrap()
+            .is_none());
+        db.execute_batch("DROP TRIGGER reject_marker_delete")
+            .unwrap();
+        f.db.reconcile_untracked_plugin(&review, &f.intent("alice"))
+            .unwrap();
+        assert!(!f.db.has_untracked_plugin_sync().unwrap());
+        let outbox =
+            f.db.next_plugin_sync_intent("https://cloud.example", "alice")
+                .unwrap()
+                .unwrap();
+        assert_eq!(outbox.generation, review.generation);
+        assert_eq!(outbox.source_generation, review.generation);
+        assert_eq!(outbox.enabled, Some(true));
+        assert_eq!(outbox.runtime_epoch, None);
+        assert!(f
+            .db
+            .reconcile_untracked_plugin(&review, &f.intent("alice"))
+            .is_err());
+    }
+
+    #[test]
+    fn reviewed_untracked_transfer_preserves_other_accounts_and_tombstones() {
+        let f = Fixture::new();
+        f.db.set_plugin_state_with_sync_intent("hotkeys", true, false, Some(f.intent("bob")))
+            .unwrap();
+        f.db.set_plugin_state_with_untracked_sync("hotkeys", true, true)
+            .unwrap();
+        let review = f.db.review_untracked_plugin("hotkeys").unwrap().unwrap();
+        assert!(f
+            .db
+            .reconcile_untracked_plugin(&review, &f.intent("alice"))
+            .is_err());
+        assert!(f.db.has_untracked_plugin_sync().unwrap());
+        assert!(f
+            .db
+            .next_plugin_sync_intent("https://cloud.example", "bob")
+            .unwrap()
+            .is_some());
+        f.db.set_plugin_state_with_untracked_sync("removed", false, false)
+            .unwrap();
+        let removed = f.db.review_untracked_plugin("removed").unwrap().unwrap();
+        assert!(!removed.installed);
+        assert!(f
+            .db
+            .reconcile_untracked_plugin(&removed, &f.intent("alice"))
+            .is_err());
+        assert!(f.db.review_untracked_plugin("removed").unwrap().is_some());
+        f.db.set_plugin_state_with_untracked_sync("legacy", true, false)
+            .unwrap();
+        let legacy = f.db.review_untracked_plugin("legacy").unwrap().unwrap();
+        let db = f.db.open(&f.db.automation_path()).unwrap();
+        db.execute("INSERT INTO plugin_sync_receipts(origin,account_id,plugin_id,generation,config_generation,runtime_epoch,pending_json) VALUES (?1,?2,?3,?4,?5,?6,?7)", params!["https://cloud.example", "bob", "legacy", legacy.generation, "7", "a".repeat(64), "{}"] ).unwrap();
+        assert!(f
+            .db
+            .reconcile_untracked_plugin(&legacy, &f.intent("alice"))
+            .is_err());
+        assert_eq!(
+            f.db.review_untracked_plugin("legacy").unwrap(),
+            Some(legacy)
+        );
     }
 
     #[test]
