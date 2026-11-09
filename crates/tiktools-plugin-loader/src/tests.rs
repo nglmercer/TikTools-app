@@ -912,6 +912,116 @@ async fn repeated_restart_rejects_stale_generations_without_retiring_the_new_wor
     fs::remove_dir_all(root).unwrap();
 }
 
+#[tokio::test]
+async fn stopped_generation_reports_unavailable_without_changing_generic_not_found() {
+    let handler: Handler = Arc::new(|_| Ok(b"null".to_vec()));
+    let (manager, root) = scripted_manager(&["demo"], handler);
+    let generation = manager.start_generation("demo").unwrap();
+    manager.stop("demo").unwrap();
+    assert!(matches!(
+        manager
+            .call_with_generation(
+                "demo",
+                &serde_json::Value::Null,
+                Duration::from_secs(1),
+                generation
+            )
+            .await,
+        Err(PluginLoaderError::RuntimeUnavailable(_))
+    ));
+    assert!(matches!(
+        manager
+            .call_with_timeout("demo", &serde_json::Value::Null, Duration::from_secs(1))
+            .await,
+        Err(PluginLoaderError::NotFound(_))
+    ));
+    assert!(!manager.is_running("demo"));
+    let _ = fs::remove_dir_all(root);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn generation_bound_call_discards_response_after_stop_and_restart() {
+    let root = temp_root();
+    write_plugin_with_runtime(&root, "demo", &in_process_test_kind().to_string());
+    let gate = Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let entered_tx = Arc::new(std::sync::Mutex::new(Some(entered_tx)));
+    let handler: Handler = {
+        let gate = Arc::clone(&gate);
+        Arc::new(move |_| {
+            if let Some(entered) = entered_tx.lock().unwrap().take() {
+                let _ = entered.send(());
+                let (lock, changed) = &*gate;
+                let mut released = lock.lock().unwrap();
+                while !*released {
+                    released = changed.wait(released).unwrap();
+                }
+            }
+            Ok(br#"{"old":true}"#.to_vec())
+        })
+    };
+    let mut runtimes = RuntimeRegistry::default();
+    runtimes.register(Arc::new(ScriptedRuntime {
+        kind: in_process_test_kind(),
+        handler,
+    }));
+    let manager = Arc::new(PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    ));
+    manager.scan().unwrap();
+    manager.set_stop_deadline_for_test(Duration::from_millis(50));
+    let generation = manager.start_generation("demo").unwrap();
+    assert_eq!(manager.start_generation("demo").unwrap(), generation);
+    let pending = {
+        let manager = Arc::clone(&manager);
+        tokio::spawn(async move {
+            manager
+                .call_with_generation(
+                    "demo",
+                    &serde_json::Value::Null,
+                    Duration::from_secs(5),
+                    generation,
+                )
+                .await
+        })
+    };
+    entered_rx.await.unwrap();
+    let stopped = {
+        let manager = Arc::clone(&manager);
+        tokio::task::spawn_blocking(move || manager.stop("demo"))
+            .await
+            .unwrap()
+    };
+    assert!(stopped.is_err(), "the blocked old worker must time out");
+    let replacement = manager.start_generation("demo").unwrap();
+    assert_ne!(generation, replacement);
+    {
+        let (lock, changed) = &*gate;
+        *lock.lock().unwrap() = true;
+        changed.notify_all();
+    }
+    assert!(matches!(
+        pending.await.unwrap(),
+        Err(PluginLoaderError::RuntimeUnavailable(_))
+    ));
+    assert_eq!(manager.running_generation("demo"), Some(replacement));
+    assert!(manager
+        .call_with_generation(
+            "demo",
+            &serde_json::Value::Null,
+            Duration::from_secs(1),
+            replacement
+        )
+        .await
+        .is_ok());
+    manager.stop("demo").unwrap();
+    let _ = fs::remove_dir_all(root);
+}
+
 // ---------------------------------------------------------------------------
 // Phase 3: plugin worker lifecycle & isolation.
 // ---------------------------------------------------------------------------

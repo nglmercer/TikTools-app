@@ -59,10 +59,12 @@ impl PluginInvoker {
         request: &Value,
         timeout: Duration,
     ) -> Result<Value, InvokeError> {
-        if let Err(error) = self.plugins.start(plugin_id) {
-            return Err(InvokeError::Unavailable(error.to_string()));
-        }
-        self.call_started(plugin_id, request, timeout).await
+        let generation = self
+            .plugins
+            .start_generation(plugin_id)
+            .map_err(|error| InvokeError::Unavailable(error.to_string()))?;
+        self.call_started(plugin_id, request, timeout, generation)
+            .await
     }
 
     /// Invokes an already-running plugin without implicitly starting it.
@@ -97,17 +99,18 @@ impl PluginInvoker {
         plugin_id: &str,
         request: &Value,
         timeout: Duration,
+        generation: u64,
     ) -> Result<Value, InvokeError> {
-        let effective = self.plugins.claim_cold_start_grace(plugin_id, timeout);
         // The loader call is async end to end (Tokio queue plus oneshot
         // response), so awaiting it directly spends no thread: the old
         // `spawn_blocking` wrapper and the extra Tokio-side timeout race
         // are gone, and the loader's own deadline is the single budget.
         self.plugins
-            .call_with_timeout(plugin_id, request, effective)
+            .call_with_generation(plugin_id, request, timeout, generation)
             .await
             .map_err(|error| match error {
                 PluginLoaderError::Timeout(_) => InvokeError::Timeout,
+                PluginLoaderError::RuntimeUnavailable(reason) => InvokeError::Unavailable(reason),
                 PluginLoaderError::Overloaded(reason) => {
                     InvokeError::Unavailable(format!("call queue full: {reason}"))
                 }

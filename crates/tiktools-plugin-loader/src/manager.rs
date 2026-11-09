@@ -435,6 +435,13 @@ impl PluginManager {
     }
 
     pub fn start(&self, id: &str) -> Result<(), PluginLoaderError> {
+        self.start_generation(id).map(|_| ())
+    }
+
+    /// Starts or reuses a worker and returns its identity while lifecycle is
+    /// still locked. A subsequent call can bind to that exact worker instead
+    /// of accidentally crossing a concurrent stop/restart.
+    pub fn start_generation(&self, id: &str) -> Result<u64, PluginLoaderError> {
         let _lifecycle = self
             .lifecycle
             .lock()
@@ -452,7 +459,7 @@ impl PluginManager {
             .cloned();
         if let Some(existing) = existing {
             if !existing.worker_finished() {
-                return Ok(());
+                return Ok(existing.token);
             }
             tracing::warn!(
                 id = %id,
@@ -561,7 +568,7 @@ impl PluginManager {
             elapsed_ms = start_started.elapsed().as_millis() as u64,
             "plugin started"
         );
-        Ok(())
+        Ok(token)
     }
 
     pub fn stop(&self, id: &str) -> Result<(), PluginLoaderError> {
@@ -873,7 +880,13 @@ impl PluginManager {
             .map_err(|_| lock_poisoned("plugin instances"))?
             .get(id)
             .cloned()
-            .ok_or_else(|| PluginLoaderError::NotFound(id.to_owned()))?;
+            .ok_or_else(|| {
+                if generation.is_some() {
+                    PluginLoaderError::RuntimeUnavailable("plugin generation changed".into())
+                } else {
+                    PluginLoaderError::NotFound(id.to_owned())
+                }
+            })?;
         if generation.is_some_and(|generation| generation != instance.token) {
             return Err(PluginLoaderError::RuntimeUnavailable(
                 "plugin generation changed".into(),
@@ -938,6 +951,23 @@ impl PluginManager {
                 return Err(error);
             }
         };
+        // A stopped/replaced worker may still complete an in-flight call.
+        // Do not surface its result to a generation-bound caller. This is an
+        // instantaneous check, not a lease covering later host side effects.
+        if let Some(expected) = generation {
+            let instances = self
+                .instances
+                .read()
+                .map_err(|_| lock_poisoned("plugin instances"))?;
+            if !instances
+                .get(id)
+                .is_some_and(|current| current.token == expected)
+            {
+                return Err(PluginLoaderError::RuntimeUnavailable(
+                    "plugin generation changed".into(),
+                ));
+            }
+        }
         match serde_json::from_slice(&response) {
             Ok(response) => Ok(response),
             Err(error) => {
