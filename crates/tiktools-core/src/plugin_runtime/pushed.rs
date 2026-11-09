@@ -16,6 +16,14 @@ impl AppCore {
         emitted: tiktools_plugin_loader::EmittedEvent,
     ) {
         let plugin_id = emitted.plugin_id.clone();
+        // A queued event belongs to one worker, not merely to its plugin ID.
+        // Do not attribute an old worker's events to a replacement instance.
+        if !self
+            .plugins
+            .is_live_generation(&plugin_id, emitted.generation)
+        {
+            return;
+        }
         let Some(plugin) = self.plugins.get(&plugin_id) else {
             // Unknown or rescanned-away plugin: stale in-flight emit.
             return;
@@ -51,6 +59,12 @@ impl AppCore {
         ) else {
             return;
         };
+        if !self
+            .plugins
+            .is_live_generation(&plugin_id, emitted.generation)
+        {
+            return;
+        }
         self.publish_automation_event(event).await;
         self.record_plugin_success(&plugin_id);
     }

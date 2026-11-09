@@ -102,8 +102,170 @@ pub trait PluginRuntime: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct EmittedEvent {
     pub plugin_id: String,
+    /// The host-assigned worker generation that emitted this event.
+    pub generation: u64,
     pub event_type: String,
     pub data: serde_json::Value,
+}
+
+/// A host-bound event sender. Startup events are held until the manager has
+/// registered this generation; failed startup closes and discards the buffer.
+#[derive(Clone)]
+pub struct PluginEventSender {
+    inner: std::sync::Arc<std::sync::Mutex<EventSenderState>>,
+}
+
+enum EventPhase {
+    Starting(Vec<EmittedEvent>),
+    Live,
+    Closed,
+}
+
+struct EventSenderState {
+    plugin_id: String,
+    generation: u64,
+    tx: tokio::sync::broadcast::Sender<EmittedEvent>,
+    phase: EventPhase,
+}
+
+impl PluginEventSender {
+    pub(crate) fn starting(
+        tx: tokio::sync::broadcast::Sender<EmittedEvent>,
+        plugin_id: String,
+        generation: u64,
+    ) -> Self {
+        Self {
+            inner: std::sync::Arc::new(std::sync::Mutex::new(EventSenderState {
+                plugin_id,
+                generation,
+                tx,
+                phase: EventPhase::Starting(Vec::new()),
+            })),
+        }
+    }
+
+    pub(crate) fn live(
+        tx: tokio::sync::broadcast::Sender<EmittedEvent>,
+        plugin_id: String,
+        generation: u64,
+    ) -> Self {
+        let sender = Self::starting(tx, plugin_id, generation);
+        let _ = sender.activate_with(|| {});
+        sender
+    }
+
+    /// The host overrides identity/generation, so plugins cannot assign their
+    /// own producer identity. Errors, including buffer overflow, are explicit.
+    pub fn emit(
+        &self,
+        event_type: impl Into<String>,
+        data: serde_json::Value,
+    ) -> Result<usize, String> {
+        self.emit_many(vec![(event_type.into(), data)])
+    }
+
+    /// Emit a batch without supplying host-owned identity fields. A batch
+    /// admitted to the startup buffer is accepted or rejected as a whole.
+    pub fn emit_many(&self, events: Vec<(String, serde_json::Value)>) -> Result<usize, String> {
+        self.send_many(
+            events
+                .into_iter()
+                .map(|(event_type, data)| EmittedEvent {
+                    plugin_id: String::new(),
+                    generation: 0,
+                    event_type,
+                    data,
+                })
+                .collect(),
+        )
+    }
+
+    pub fn send(&self, event: EmittedEvent) -> Result<usize, String> {
+        self.send_many(vec![event])
+    }
+
+    /// Check and reserve an entire startup batch under one lock.
+    pub fn send_many(&self, mut events: Vec<EmittedEvent>) -> Result<usize, String> {
+        if events.len() > 64 {
+            return Err("plugin event batch exceeds 64 events".into());
+        }
+        if events.is_empty() {
+            return Ok(0);
+        }
+        for event in &events {
+            if serde_json::to_vec(&(&event.event_type, &event.data))
+                .map_or(true, |v| v.len() > 64 * 1024)
+            {
+                return Err("plugin event exceeds 64 KiB".into());
+            }
+        }
+        let mut state = self
+            .inner
+            .lock()
+            .map_err(|_| "plugin event sender is unavailable".to_owned())?;
+        if state.tx.receiver_count() == 0 {
+            return Err("plugin event bus unavailable".into());
+        }
+        for event in &mut events {
+            event.plugin_id = state.plugin_id.clone();
+            event.generation = state.generation;
+        }
+        let count = events.len();
+        match &mut state.phase {
+            EventPhase::Starting(buffer) => {
+                if count > 64 - buffer.len() {
+                    return Err("plugin startup event buffer is full".into());
+                }
+                buffer.extend(events);
+                Ok(count)
+            }
+            EventPhase::Live => {
+                for event in events {
+                    state
+                        .tx
+                        .send(event)
+                        .map_err(|_| "plugin event bus unavailable".to_owned())?;
+                }
+                Ok(count)
+            }
+            EventPhase::Closed => Err("plugin startup was cancelled".into()),
+        }
+    }
+
+    pub(crate) fn activate_with(&self, before: impl FnOnce()) -> Result<(), String> {
+        let mut state = self
+            .inner
+            .lock()
+            .map_err(|_| "plugin event sender is unavailable".to_owned())?;
+        if !matches!(state.phase, EventPhase::Starting(_)) {
+            return Err("plugin startup was cancelled".into());
+        }
+        before();
+        let EventPhase::Starting(buffer) = std::mem::replace(&mut state.phase, EventPhase::Live)
+        else {
+            unreachable!();
+        };
+        for event in buffer {
+            if state.tx.send(event).is_err() {
+                tracing::warn!(plugin = %state.plugin_id, "startup event could not be delivered; event subscribers left");
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn close_if_starting(&self) {
+        if let Ok(mut state) = self.inner.lock() {
+            if matches!(state.phase, EventPhase::Starting(_)) {
+                state.phase = EventPhase::Closed;
+            }
+        }
+    }
+
+    pub(crate) fn close(&self) {
+        if let Ok(mut state) = self.inner.lock() {
+            state.phase = EventPhase::Closed;
+        }
+    }
 }
 
 /// Manager-owned resources a runtime-owned worker needs at spawn. Today
@@ -111,7 +273,8 @@ pub struct EmittedEvent {
 /// spawn their own worker thread receive it here instead of allocating
 /// per-plugin channels the manager could never drain.
 pub struct WorkerContext {
-    emit_tx: tokio::sync::broadcast::Sender<EmittedEvent>,
+    emit_tx: PluginEventSender,
+    generation: u64,
     /// Startup-handshake bound the runtime must honour before reporting a
     /// load failure. Owned by the manager so one stuck plugin cannot freeze
     /// every other start/stop for longer than this.
@@ -122,23 +285,41 @@ impl WorkerContext {
     pub(crate) fn new(
         emit_tx: tokio::sync::broadcast::Sender<EmittedEvent>,
         start_deadline: std::time::Duration,
+        plugin_id: String,
+        generation: u64,
     ) -> Self {
         Self {
-            emit_tx,
+            emit_tx: PluginEventSender::starting(emit_tx, plugin_id, generation),
             start_deadline,
+            generation,
         }
     }
 
     /// Clone the push-bus sender for guest-emitted events. `send` is
     /// synchronous and never blocks, so owner threads use it directly.
-    pub fn emit_sender(&self) -> tokio::sync::broadcast::Sender<EmittedEvent> {
+    pub fn emit_sender(&self) -> PluginEventSender {
         self.emit_tx.clone()
+    }
+
+    /// Identity to attach to every event produced by this worker.
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    pub(crate) fn activate_events(&self, before: impl FnOnce()) -> Result<(), String> {
+        self.emit_tx.activate_with(before)
     }
 
     /// How long a runtime may take to report a finished load (`onLoad`,
     /// native addon init) before the manager treats it as a failed start.
     pub fn start_deadline(&self) -> std::time::Duration {
         self.start_deadline
+    }
+}
+
+impl Drop for WorkerContext {
+    fn drop(&mut self) {
+        self.emit_tx.close_if_starting();
     }
 }
 

@@ -507,6 +507,18 @@ impl PluginManager {
     /// still locked. A subsequent call can bind to that exact worker instead
     /// of accidentally crossing a concurrent stop/restart.
     pub fn start_generation(&self, id: &str) -> Result<u64, PluginLoaderError> {
+        self.start_generation_before_events(id, || {})
+    }
+
+    /// Runs a short host activation callback after a successful start and
+    /// before startup events are released. It also runs when an existing
+    /// worker is reused. The callback must not reenter the manager or wait.
+    /// Host invocation admission must be acquired before calling this method.
+    pub fn start_generation_before_events(
+        &self,
+        id: &str,
+        before_events: impl FnOnce(),
+    ) -> Result<u64, PluginLoaderError> {
         let _lifecycle = self
             .lifecycle
             .lock()
@@ -524,6 +536,7 @@ impl PluginManager {
             .cloned();
         if let Some(existing) = existing {
             if !existing.worker_finished() {
+                before_events();
                 return Ok(existing.token);
             }
             tracing::warn!(
@@ -567,7 +580,12 @@ impl PluginManager {
         // Runtimes with an owned worker (napi-vm) serve the call queue on
         // their own thread, bypassing the generic worker: one thread per
         // plugin instead of two, with identical queue/deadline semantics.
-        let worker_ctx = WorkerContext::new(self.emit_bus.clone(), self.deadlines().start);
+        let worker_ctx = WorkerContext::new(
+            self.emit_bus.clone(),
+            self.deadlines().start,
+            id.to_owned(),
+            token,
+        );
         let (tx, worker) = if let Some(owned) =
             runtime.spawn_worker(&plugin.manifest, &plugin.directory, &worker_ctx)
         {
@@ -617,6 +635,7 @@ impl PluginManager {
             id.to_owned(),
             Arc::new(RunningInstance {
                 token,
+                events: worker_ctx.emit_sender(),
                 artifact_fingerprint,
                 kind: plugin.manifest.runtime,
                 cold: AtomicBool::new(true),
@@ -628,6 +647,12 @@ impl PluginManager {
             }),
         );
         self.set_running(id, true);
+        if let Err(error) = worker_ctx.activate_events(before_events) {
+            if let Some(instance) = self.retire_generation_locked(id, token) {
+                self.retire_instance(id, token, instance);
+            }
+            return Err(PluginLoaderError::RuntimeUnavailable(error));
+        }
         tracing::info!(
             id = %id,
             elapsed_ms = start_started.elapsed().as_millis() as u64,
@@ -649,6 +674,7 @@ impl PluginManager {
                 // lifecycle lock is still held: a start of the same id
                 // cannot slip in between the removal and the shutdown
                 // request, so two generations never coexist for one id.
+                instance.events.close();
                 instance.admission.close();
                 let _ = instance.tx.send(WorkerMsg::Shutdown);
             }
@@ -674,6 +700,7 @@ impl PluginManager {
             let stopping = self.note_stopping(id);
             let removed = self.remove_instance(id);
             if let Some(instance) = removed.as_ref() {
+                instance.events.close();
                 instance.admission.close();
                 let _ = instance.tx.send(WorkerMsg::Shutdown);
             }
@@ -860,6 +887,24 @@ impl PluginManager {
         recover_rwlock_read(&self.instances, "plugin instances")
             .get(id)
             .map(|instance| instance.token)
+    }
+
+    /// Fail closed if the precise host-owned worker has exited or its map or
+    /// worker lock is poisoned. This is a snapshot, not an effects lease.
+    pub fn is_live_generation(&self, id: &str, generation: u64) -> bool {
+        let Ok(instances) = self.instances.read() else {
+            return false;
+        };
+        let Some(instance) = instances
+            .get(id)
+            .filter(|instance| instance.token == generation)
+        else {
+            return false;
+        };
+        let Ok(worker) = instance.worker.lock() else {
+            return false;
+        };
+        worker.as_ref().is_some_and(|handle| !handle.is_finished())
     }
 
     /// Exact package identity captured before this runtime generation loaded.
@@ -1096,6 +1141,7 @@ impl PluginManager {
             }
         };
         if let Some(instance) = removed.as_ref() {
+            instance.events.close();
             instance.admission.close();
             let _ = instance.tx.send(WorkerMsg::Shutdown);
         }

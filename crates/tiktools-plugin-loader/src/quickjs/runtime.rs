@@ -33,8 +33,8 @@ use super::{
 };
 use crate::{
     worker::{QueuedCall, WorkerMsg},
-    EmittedEvent, ManagedWorker, PluginInstance, PluginLoaderError, PluginRuntime, PluginSource,
-    WorkerContext,
+    ManagedWorker, PluginEventSender, PluginInstance, PluginLoaderError, PluginRuntime,
+    PluginSource, WorkerContext,
 };
 
 /// Cross-thread wake callback: native callbacks, async completions and
@@ -65,8 +65,9 @@ impl PluginRuntime for QuickJsPluginRuntime {
         let (tx, worker) = spawn_owner(
             manifest,
             directory,
-            orphan_tx,
+            PluginEventSender::live(orphan_tx, manifest.id.clone(), 0),
             crate::manager::PLUGIN_START_DEADLINE,
+            0,
         )?;
         Ok(Box::new(NapiVmPluginInstance {
             id: manifest.id.clone(),
@@ -84,7 +85,13 @@ impl PluginRuntime for QuickJsPluginRuntime {
         if let Err(error) = check_manifest(manifest) {
             return Some(Err(error));
         }
-        match spawn_owner(manifest, directory, ctx.emit_sender(), ctx.start_deadline()) {
+        match spawn_owner(
+            manifest,
+            directory,
+            ctx.emit_sender(),
+            ctx.start_deadline(),
+            ctx.generation(),
+        ) {
             Ok((tx, worker)) => Some(Ok(ManagedWorker::new(tx, worker))),
             Err(error) => Some(Err(error)),
         }
@@ -234,7 +241,8 @@ fn guest_context(manifest: &PluginManifest) -> serde_json::Value {
 /// guest import still requires core's per-event validation on delivery.
 fn events_push_for(
     manifest: &PluginManifest,
-    emit_tx: broadcast::Sender<EmittedEvent>,
+    emit_tx: PluginEventSender,
+    generation: u64,
 ) -> Option<Arc<EventsPush>> {
     if !manifest
         .capabilities
@@ -245,6 +253,7 @@ fn events_push_for(
     }
     Some(Arc::new(EventsPush {
         plugin_id: manifest.id.clone(),
+        generation,
         declared: declared_event_types(manifest)
             .into_iter()
             .collect::<HashSet<_>>(),
@@ -260,8 +269,9 @@ fn events_push_for(
 fn spawn_owner(
     manifest: &PluginManifest,
     directory: &Path,
-    emit_tx: broadcast::Sender<EmittedEvent>,
+    emit_tx: PluginEventSender,
     start_deadline: std::time::Duration,
+    generation: u64,
 ) -> Result<
     (
         mpsc::UnboundedSender<WorkerMsg>,
@@ -276,7 +286,7 @@ fn spawn_owner(
     let entry = manifest.entry.clone();
     let native_addons = manifest.native_addons.clone();
     let directory = directory.to_owned();
-    let events = events_push_for(manifest, emit_tx);
+    let events = events_push_for(manifest, emit_tx, generation);
     let (tx, rx) = mpsc::unbounded_channel();
     let (ready_tx, ready_rx) = std_mpsc::channel();
     let thread_id = id.clone();
@@ -745,7 +755,12 @@ mod tests {
         let bytes = std::fs::read(dir.join("plugin.json")).unwrap();
         let manifest = PluginManifest::from_json_str(std::str::from_utf8(&bytes).unwrap()).unwrap();
         let (emit_tx, _emit_rx) = broadcast::channel(8);
-        let ctx = WorkerContext::new(emit_tx, std::time::Duration::from_secs(15));
+        let ctx = WorkerContext::new(
+            emit_tx,
+            std::time::Duration::from_secs(15),
+            manifest.id.clone(),
+            1,
+        );
         let owned = QuickJsPluginRuntime
             .spawn_worker(&manifest, &dir, &ctx)
             .expect("napi-vm provides an owned worker")

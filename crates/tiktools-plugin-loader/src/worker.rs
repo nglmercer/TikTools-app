@@ -51,6 +51,7 @@ pub(crate) enum WorkerMsg {
 /// through `blocking_recv`, which needs no runtime context.
 pub(crate) struct RunningInstance {
     pub(crate) token: u64,
+    pub(crate) events: crate::PluginEventSender,
     pub(crate) artifact_fingerprint: Option<String>,
     pub(crate) kind: PluginRuntimeKind,
     pub(crate) cold: AtomicBool,

@@ -145,6 +145,9 @@ impl AppCore {
         {
             return;
         }
+        // The event receiver must exist before onLoad can emit. The spawned
+        // consumer below drains events buffered while subscribers start.
+        let mut emit_rx = self.plugins.subscribe_emitted_events();
         self.start_enabled_event_subscribers();
         self.spawn_plugin_event_observer(runtime);
         #[cfg(feature = "plugin-install")]
@@ -169,7 +172,6 @@ impl AppCore {
         *recover_mutex(&self.plugin_state.poll_task, "plugin poll task") = Some(task);
         // Subscribe before spawning so the first push cannot race startup.
         // One independently owned receiver; no polling future can starve it.
-        let mut emit_rx = self.plugins.subscribe_emitted_events();
         let core = Arc::clone(self);
         let shutdown = self.plugin_state.observer_shutdown.clone();
         let task = runtime.spawn(async move {
@@ -205,9 +207,7 @@ mod isolation_tests {
     struct SlowRuntime {
         polling: Arc<AtomicBool>,
         release: Arc<AtomicBool>,
-        sender: Arc<
-            Mutex<Option<tokio::sync::broadcast::Sender<tiktools_plugin_loader::EmittedEvent>>>,
-        >,
+        sender: Arc<Mutex<Option<tiktools_plugin_loader::PluginEventSender>>>,
     }
     struct SlowInstance {
         polling: Arc<AtomicBool>,
@@ -311,6 +311,7 @@ mod isolation_tests {
             .unwrap()
             .send(tiktools_plugin_loader::EmittedEvent {
                 plugin_id: "isolation".into(),
+                generation: core.plugins.running_generation("isolation").unwrap(),
                 event_type: "isolation.tick".into(),
                 data: json!({"value": 1}),
             })

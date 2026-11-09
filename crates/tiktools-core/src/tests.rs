@@ -1355,6 +1355,42 @@ struct FakeRuntime {
     state: Arc<FakePluginState>,
 }
 
+/// Exercises the manager's buffered onLoad sender using the ordinary fake
+/// plugin worker and real Core startup/enable paths.
+struct StartupPushRuntime {
+    state: Arc<FakePluginState>,
+}
+
+impl PluginRuntime for StartupPushRuntime {
+    fn kind(&self) -> tiktools_plugin_api::PluginRuntimeKind {
+        tiktools_plugin_api::PluginRuntimeKind::Process
+    }
+    fn load(
+        &self,
+        manifest: &tiktools_plugin_api::PluginManifest,
+        directory: &std::path::Path,
+    ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+        FakeRuntime {
+            state: Arc::clone(&self.state),
+        }
+        .load(manifest, directory)
+    }
+    fn spawn_worker(
+        &self,
+        _manifest: &tiktools_plugin_api::PluginManifest,
+        _: &std::path::Path,
+        ctx: &tiktools_plugin_loader::WorkerContext,
+    ) -> Option<Result<tiktools_plugin_loader::ManagedWorker, PluginLoaderError>> {
+        if let Err(error) = ctx
+            .emit_sender()
+            .emit("hotkey.pressed", fake_press("k", "ctrl"))
+        {
+            return Some(Err(PluginLoaderError::Runtime(error)));
+        }
+        None
+    }
+}
+
 impl PluginRuntime for FakeRuntime {
     fn kind(&self) -> PluginRuntimeKind {
         PluginRuntimeKind::Process
@@ -1810,6 +1846,7 @@ async fn pushed_events_publish_without_polling() {
     let mut domain = core.events.subscribe_domain();
     core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
         plugin_id: "hotkeys".to_owned(),
+        generation: core.plugins.running_generation("hotkeys").unwrap(),
         event_type: "hotkey.pressed".to_owned(),
         data: fake_press("k", "ctrl"),
     })
@@ -1825,6 +1862,86 @@ async fn pushed_events_publish_without_polling() {
 }
 
 #[tokio::test]
+async fn pushed_events_from_stopped_generation_are_not_delivered_after_restart() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
+    let old = core.plugins.start_generation("hotkeys").unwrap();
+    core.plugins.stop("hotkeys").unwrap();
+    let current = core.plugins.start_generation("hotkeys").unwrap();
+    assert_ne!(old, current);
+    let mut domain = core.events.subscribe_domain();
+    let event = |generation| tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "hotkeys".to_owned(),
+        generation,
+        event_type: "hotkey.pressed".to_owned(),
+        data: fake_press("k", "ctrl"),
+    };
+    core.handle_pushed_event(event(old)).await;
+    assert!(domain.try_recv().is_err());
+    core.handle_pushed_event(event(current)).await;
+    assert!(matches!(
+        domain.try_recv(),
+        Ok(crate::events::DomainEvent::PluginEvent { .. })
+    ));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn startup_push_reaches_core_on_service_start_and_reenable() {
+    let state = Arc::new(FakePluginState::default());
+    let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
+    let mut runtimes = RuntimeRegistry::new();
+    runtimes.register(Arc::new(StartupPushRuntime {
+        state: Arc::clone(&state),
+    }));
+    let manager = PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    );
+    manager.scan().unwrap();
+    Arc::get_mut(&mut core).unwrap().plugins = Arc::new(manager);
+    let mut domain = core.events.subscribe_domain();
+    core.spawn_plugin_event_poll(&tokio::runtime::Handle::current());
+    async fn next_push(domain: &mut crate::events::DomainSubscription) {
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if matches!(domain.recv().await.unwrap(), crate::events::DomainEvent::PluginEvent { ref plugin_id, .. } if plugin_id == "hotkeys") {
+                    break;
+                }
+            }
+        }).await.expect("startup event must reach Core");
+    }
+    next_push(&mut domain).await;
+    let disabled = Arc::clone(&core);
+    tokio::task::spawn_blocking(move || disabled.plugin_set_enabled("hotkeys", false))
+        .await
+        .unwrap()
+        .unwrap();
+    state.fail_next_load.store(true, AtomicOrdering::SeqCst);
+    let failing = Arc::clone(&core);
+    assert!(
+        tokio::task::spawn_blocking(move || failing.plugin_set_enabled("hotkeys", true))
+            .await
+            .unwrap()
+            .is_err()
+    );
+    assert!(!core.plugin_ready("hotkeys"));
+    assert!(!core.plugins.is_running("hotkeys"));
+    let enabled = Arc::clone(&core);
+    tokio::task::spawn_blocking(move || enabled.plugin_set_enabled("hotkeys", true))
+        .await
+        .unwrap()
+        .unwrap();
+    next_push(&mut domain).await;
+    assert!(core.plugin_ready("hotkeys"));
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn pushed_events_reject_undeclared_types_and_unknown_plugins() {
     let state = Arc::new(FakePluginState::default());
     let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
@@ -1833,6 +1950,7 @@ async fn pushed_events_reject_undeclared_types_and_unknown_plugins() {
     // Undeclared type: dropped and counted, never published.
     core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
         plugin_id: "hotkeys".to_owned(),
+        generation: core.plugins.running_generation("hotkeys").unwrap(),
         event_type: "nope.undeclared".to_owned(),
         data: fake_press("k", ""),
     })
@@ -1840,6 +1958,7 @@ async fn pushed_events_reject_undeclared_types_and_unknown_plugins() {
     // Unknown plugin: stale in-flight emit, dropped silently.
     core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
         plugin_id: "ghost".to_owned(),
+        generation: 1,
         event_type: "hotkey.pressed".to_owned(),
         data: fake_press("k", ""),
     })

@@ -30,7 +30,7 @@ pub use quickjs::{
     native_addons_allowed, QuickJsPluginRuntime, QuickJsPluginRuntime as NapiVmPluginRuntime,
 };
 pub use types::{
-    DiscoveredPlugin, EmittedEvent, ManagedWorker, PluginInstance, PluginLoaderError, PluginRoot,
-    PluginRuntime, PluginSource, WorkerContext,
+    DiscoveredPlugin, EmittedEvent, ManagedWorker, PluginEventSender, PluginInstance,
+    PluginLoaderError, PluginRoot, PluginRuntime, PluginSource, WorkerContext,
 };
 pub use wasm::WasmPluginRuntime;

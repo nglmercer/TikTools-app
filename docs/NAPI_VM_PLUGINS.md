@@ -12,6 +12,37 @@
 > unsupported (no libuv), as before. Text below
 > that names "napi-vm's VM" or interpreter means this QuickJS runtime.
 
+## Rust runtime API migration
+
+The Rust extension API for custom `PluginRuntime` implementations has changed.
+`WorkerContext::emit_sender()` now returns `PluginEventSender` instead of a
+Tokio broadcast sender, and `EmittedEvent` includes a host-owned `generation`.
+Recompile and update external Rust runtimes. Prefer the sender's `emit` and
+`emit_many` methods so callers need not construct identity fields:
+
+```rust
+let sender = context.emit_sender();
+sender.emit("example.changed", serde_json::json!({ "value": 1 }))?;
+```
+
+The sender binds the plugin ID and worker generation itself; the host rechecks
+the generation and normal event grants before delivery. During startup it
+holds at most 64 events, each bounded to 64 KiB; a batch that would overflow
+is rejected as a whole. Events are released after startup succeeds and host
+activation is ready. Failed startup discards the buffer, and stopped workers'
+events are rejected. An unavailable event subscriber or an overflow is reported
+as an error to the producer. Broadcast delivery remains lossy under subscriber
+lag or disconnect; it is not a durable queue. In particular, a startup burst
+can overrun the 256-event broadcast while the host is starting subscribers;
+the host reports a lag gap, but cannot reconstruct the lost events. An event
+released while enabling a plugin can also be handled before the processor
+index and automation snapshot have been refreshed. Thus startup buffering does
+not guarantee onLoad delivery or execution against the final host configuration.
+Generation checks are snapshots, not a lease over subsequent automation or
+external effects, and stopping a worker cannot undo effects already performed
+by native or external code. The separate implicit-start/disable race and the
+global lifecycle lock held during runtime loading are still unresolved.
+
 
 TypeScript-first plugins compiled to JavaScript ahead of time and executed
 through `napi_vm::RustPluginHost` — napi-vm's pure-Rust interpreter. There is

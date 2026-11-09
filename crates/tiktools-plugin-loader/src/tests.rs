@@ -169,6 +169,63 @@ fn scan_preserves_the_authoritative_running_instance_state() {
     let _ = fs::remove_dir_all(root);
 }
 
+#[test]
+fn quickjs_onload_events_are_published_only_after_successful_start() {
+    let root = temp_root();
+    for (id, fail) in [("startup-good", false), ("startup-bad", true)] {
+        let dir = root.join(id);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("plugin.json"), format!(r#"{{"schemaVersion":3,"id":"{id}","name":"test","version":"1.0.0","runtime":"napi-vm","entry":"index.js","capabilities":["events.publish"],"eventTypes":[{{"type":"push.tick","title":{{"default":"Tick"}}}}],"apiVersion":1}}"#)).unwrap();
+        let failure = if fail {
+            "throw new Error('onLoad failure');"
+        } else {
+            ""
+        };
+        fs::write(dir.join("index.js"), format!(r#"import {{ emit }} from 'tiktools:events';
+            export default {{ onLoad() {{ emit({{type:'push.tick',data:{{id:'{id}'}}}}); {failure} }},
+            call() {{ return {{logs:[],intents:[],events:[]}}; }}, onUnload() {{}} }};"#)).unwrap();
+    }
+    let manager = PluginManager::new(vec![PluginRoot {
+        path: root.clone(),
+        source: PluginSource::Development,
+    }]);
+    manager.scan().unwrap();
+    let mut events = manager.subscribe_emitted_events();
+    let mut called = 0;
+    let generation = manager
+        .start_generation_before_events("startup-good", || {
+            assert!(
+                events.try_recv().is_err(),
+                "startup events must wait for host activation"
+            );
+            called += 1;
+        })
+        .unwrap();
+    let event = events.try_recv().unwrap();
+    assert_eq!(event.plugin_id, "startup-good");
+    assert_eq!(event.generation, generation);
+    assert_eq!(event.data, serde_json::json!({"id":"startup-good"}));
+    assert!(manager.is_live_generation("startup-good", generation));
+    let reused = manager
+        .start_generation_before_events("startup-good", || called += 1)
+        .unwrap();
+    assert_eq!(reused, generation);
+    assert_eq!(
+        called, 2,
+        "reusing a live worker still applies host activation"
+    );
+    assert!(manager
+        .start_generation_before_events("startup-bad", || panic!("failed start must not activate"))
+        .is_err());
+    assert!(
+        events.try_recv().is_err(),
+        "failed startup must discard its buffer"
+    );
+    assert!(!manager.is_running("startup-bad"));
+    manager.stop("startup-good").unwrap();
+    let _ = fs::remove_dir_all(root);
+}
+
 #[tokio::test]
 async fn declarative_plugins_start_without_an_entry_and_reject_calls() {
     let root = temp_root();

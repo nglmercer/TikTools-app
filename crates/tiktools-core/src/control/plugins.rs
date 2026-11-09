@@ -526,11 +526,13 @@ impl AppCore {
         // A failed or interrupted start/stop keeps the committed candidate
         // unconfirmed; it must be reconciled rather than uploaded or replayed.
         if enabled {
-            self.plugins.start(&id)?;
+            self.plugins.start_generation_before_events(&id, || {
+                self.set_plugin_activation(&id, true, true);
+            })?;
         } else {
             self.plugins.stop(&id)?;
+            self.set_plugin_activation(&id, true, false);
         }
-        self.set_plugin_activation(&id, true, enabled);
         let confirmation = match runtime_epoch {
             Some(epoch) => confirm_local_plugin_mutation(&self.db, &reservation, epoch),
             None => Ok(()),
@@ -765,12 +767,17 @@ impl AppCore {
             .set_plugin_state(id, true, enabled)
             .map_err(|error| OperationError::internal(error.to_string()))?;
         let result = if enabled {
-            self.plugins.start(id)
+            self.plugins
+                .start_generation_before_events(id, || {
+                    self.set_plugin_activation(id, true, true);
+                })
+                .map(|_| ())
         } else {
-            self.plugins.stop(id)
+            self.plugins.stop(id).map(|()| {
+                self.set_plugin_activation(id, true, false);
+            })
         };
         result?;
-        self.set_plugin_activation(id, true, enabled);
         drop(_invocation);
         self.rebuild_processor_index();
         self.refresh_automation_snapshot();
