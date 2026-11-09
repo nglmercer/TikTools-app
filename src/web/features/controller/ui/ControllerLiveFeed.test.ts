@@ -12,7 +12,7 @@ it('renders untrusted activity as text and clears it on revocation', async () =>
   const status = ref<ControllerStatus>({ epoch:'1', viewRevision:'1', phase:'ready', profile:'desk', origin:'https://host.example', errorCode:null,
     hello:{ connectionId:'connection', grantRevision:'1', hostId:'host', hostInstanceId:'instance', principalId:'moderator', sessionId:'device', capabilities:['live.read'], features:{} } });
   const reply = { epoch:'1', connectionId:'connection', oldestCursor:'1', latestCursor:'5', nextCursor:'5', gap:true, truncated:false,
-    events:['chat', 'gift', 'like', 'member', 'social'].map((kind, i) => ({ cursor:String(i + 1), kind, author:'alice', nickname:null, text:i === 0 ? '<script>unsafe</script>' : 'activity' })) };
+    events:['chat', 'gift', 'like', 'member', 'social'].map((kind, i) => ({ cursor:String(i + 1), kind, author:'alice', authorLookupId:'alice', nickname:null, text:i === 0 ? '<script>unsafe</script>' : 'activity' })) };
   const { client } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(status.value)) : { ...reply, connectionId: status.value.hello!.connectionId });
   const model = createLiveFeedModel(client, { status, generation:() => 1, stopped:() => false });
   const wrapper = mount(ControllerLiveFeed, { props:{ model }, global:{ plugins:[i18n] } });
@@ -42,5 +42,23 @@ it('renders untrusted activity as text and clears it on revocation', async () =>
     expect(wrapper.text()).not.toContain('unsafe');
     status.value.hello!.capabilities = ['live.read']; await wrapper.vm.$nextTick();
     expect((wrapper.find('input').element as HTMLInputElement).value).toBe('');
+  } finally { wrapper.unmount(); }
+});
+
+it('offers a points lookup only for permitted feed entries', async () => {
+  i18n.global.locale.value = 'en';
+  const status = ref<ControllerStatus>({ epoch:'1', viewRevision:'1', phase:'ready', profile:'desk', origin:'https://host.example', errorCode:null,
+    hello:{ connectionId:'connection', grantRevision:'1', hostId:'host', hostInstanceId:'instance', principalId:'moderator', sessionId:'device', capabilities:['live.read'], features:{} } });
+  const events = ['alice', 'bob'].map((author, i) => ({ cursor:String(i + 1), kind:'chat', author, authorLookupId:author, nickname:null, text:'hello' }));
+  const reply = { epoch:'1', connectionId:'connection', oldestCursor:'1', latestCursor:'2', nextCursor:'2', gap:false, truncated:false, events };
+  const { client } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(status.value)) : reply);
+  const model = createLiveFeedModel(client, { status, generation:() => 1, stopped:() => false });
+  const wrapper = mount(ControllerLiveFeed, { props:{ model, canLookupPoints: (event) => event.author === 'alice' }, global:{ plugins:[i18n] } });
+  try {
+    await model.refresh(status.value, 1); await wrapper.vm.$nextTick();
+    expect(wrapper.findAll('button').map((button) => button.text())).toEqual(['Look up points for @alice']);
+    await wrapper.get('button').trigger('click');
+    expect(wrapper.emitted('lookupPoints')).toEqual([[events[0]]]);
+    expect(model.events.value).toEqual(events);
   } finally { wrapper.unmount(); }
 });

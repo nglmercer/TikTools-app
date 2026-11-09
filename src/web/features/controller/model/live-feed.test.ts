@@ -8,7 +8,7 @@ function status(): ControllerStatus {
   return { epoch:'1', viewRevision:'1', phase:'ready', profile:'desk', origin:'https://host.example', errorCode:null,
     hello:{ connectionId:'connection-1', grantRevision:'1', hostId:'host', hostInstanceId:'instance', principalId:'moderator', sessionId:'device', capabilities:['live.read'], features:{} } };
 }
-const row = (cursor: string) => ({ cursor, kind:'chat', author:'alice', nickname:null, text:`message ${cursor}` });
+const row = (cursor: string) => ({ cursor, kind:'chat', author:'alice', authorLookupId:'alice', nickname:null, text:`message ${cursor}` });
 const page = (events: ReturnType<typeof row>[], nextCursor: string, latestCursor = nextCursor, gap = false, truncated = false) =>
   ({ epoch:'1', connectionId:'connection-1', oldestCursor:events[0]?.cursor ?? '0', latestCursor, nextCursor, gap, truncated, events });
 
@@ -72,4 +72,14 @@ it('limits retained rows and refuses malformed or overflowing cursor pages', asy
     vi.advanceTimersByTime(2000); await model.refresh(current.value, 1);
     expect(model.events.value).toEqual([]); expect(model.error.value).toBe('LIVE feed unavailable');
   } finally { vi.useRealTimers(); }
+});
+
+it('rejects a points lookup identity that does not exactly match the projected author', async () => {
+  const current = ref(status());
+  const forged = { ...row('1'), authorLookupId:'other' };
+  const { client } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(current.value)) : page([forged], '1'));
+  const model = createLiveFeedModel(client, { status:current, generation:() => 1, stopped:() => false });
+  await model.refresh(current.value, 1);
+  expect(model.events.value).toEqual([]);
+  expect(model.error.value).toBe('LIVE feed unavailable');
 });

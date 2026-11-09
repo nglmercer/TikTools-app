@@ -40,6 +40,20 @@ fn bounded_text(value: &str, maximum: usize) -> String {
         .collect()
 }
 
+/// A display label can be sanitized or truncated and `viewer` is also the
+/// host's fallback for a missing ID. Never turn either into a points target.
+fn lookup_author_id(original: &str, displayed: &str) -> Option<String> {
+    (original == displayed
+        && !original.is_empty()
+        && original != "viewer"
+        && original.len() <= 128
+        && original.trim() == original
+        && !original.starts_with('@')
+        && !original.contains('*')
+        && !original.chars().any(char::is_control))
+    .then(|| original.to_owned())
+}
+
 fn project_feed(page: FeedPage, after: u64) -> Result<Value, ClientError> {
     if page.depth > 512
         || page.events.len() > FEED_LIMIT
@@ -85,8 +99,10 @@ fn project_feed(page: FeedPage, after: u64) -> Result<Value, ClientError> {
             Some(Value::String(value)) => Some(bounded_text(value, 128)),
             _ => return Err(protocol()),
         };
+        let displayed_author = bounded_text(author, 128);
+        let author_lookup_id = lookup_author_id(author, &displayed_author);
         events.push(json!({"cursor":entry.cursor.to_string(),"kind":kind,
-            "author":bounded_text(author, 128),"nickname":nickname,"text":bounded_text(text, 2048)}));
+            "author":displayed_author,"authorLookupId":author_lookup_id,"nickname":nickname,"text":bounded_text(text, 2048)}));
     }
     if (after > page.latest_cursor && (!page.gap || !events.is_empty()))
         || (after < page.latest_cursor && events.is_empty())
@@ -270,8 +286,32 @@ mod feed_tests {
         let result = project_feed(page, 9007199254740992).unwrap();
         assert_eq!(result["nextCursor"], "9007199254740994");
         assert_eq!(result["events"][0]["author"].as_str().unwrap().len(), 128);
+        assert_eq!(result["events"][0]["authorLookupId"], Value::Null);
         assert_eq!(result["events"][0]["text"], "helloworld");
         assert!(result["events"][0].get("secret").is_none());
+    }
+
+    #[test]
+    fn feed_lookup_author_requires_an_exact_unambiguous_id() {
+        for (author, expected) in [
+            ("alice", Some("alice")),
+            ("viewer", None),
+            ("@alice", None),
+            (" alice", None),
+            ("ali\0ce", None),
+            ("a*b", None),
+        ] {
+            let page: FeedPage = serde_json::from_value(json!({"oldestCursor":1,"latestCursor":1,
+                "depth":1,"gap":false,"truncated":false,"events":[
+                    {"cursor":1,"event":{"kind":"chat","author":author,"text":"hello"}}]}))
+            .unwrap();
+            assert_eq!(
+                project_feed(page, 0).unwrap()["events"][0]["authorLookupId"],
+                json!(expected)
+            );
+        }
+        let long = "é".repeat(65);
+        assert_eq!(lookup_author_id(&long, &long), None);
     }
 
     #[test]

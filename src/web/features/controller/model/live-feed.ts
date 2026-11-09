@@ -2,7 +2,7 @@ import { computed, ref, type Ref } from 'vue';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import type { ControllerStatus } from './controller.ts';
 
-export interface LiveFeedEvent { cursor: string; kind: string; author: string; nickname: string | null; text: string }
+export interface LiveFeedEvent { cursor: string; kind: string; author: string; authorLookupId: string | null; nickname: string | null; text: string }
 interface Dependencies { status: Ref<ControllerStatus>; generation: () => number; stopped: () => boolean }
 interface Page { nextCursor: string; latestCursor: string; gap: boolean; truncated: boolean; events: LiveFeedEvent[] }
 const kinds = new Set(['chat', 'gift', 'like', 'member', 'social']);
@@ -25,15 +25,18 @@ function decode(value: unknown, status: ControllerStatus, after: string): Page {
   const events: LiveFeedEvent[] = p['events'].map((value: unknown) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid LIVE event');
     const e = value as Record<string, unknown>;
-    if (Object.keys(e).length !== 5 || Object.keys(e).some((key) => !['cursor','kind','author','nickname','text'].includes(key)) ||
+    if (Object.keys(e).length !== 6 || Object.keys(e).some((key) => !['cursor','kind','author','authorLookupId','nickname','text'].includes(key)) ||
       !cursor(e['cursor']) || BigInt(e['cursor']) <= previous || BigInt(e['cursor']) > BigInt(p['latestCursor'] as string) ||
       (first && after === '0' && e['cursor'] !== p['oldestCursor']) ||
       ((!first || (after !== '0' && !p['gap'])) && BigInt(e['cursor']) !== previous + 1n) ||
       typeof e['kind'] !== 'string' || !kinds.has(e['kind']) || typeof e['author'] !== 'string' || [...e['author']].length > 128 ||
+      !(e['authorLookupId'] === null || (typeof e['authorLookupId'] === 'string' && e['authorLookupId'] === e['author'] &&
+        e['authorLookupId'] !== 'viewer' && e['authorLookupId'].length > 0 && e['authorLookupId'].trim() === e['authorLookupId'] &&
+        !e['authorLookupId'].startsWith('@') && !/[\p{Cc}*]/u.test(e['authorLookupId']) && new TextEncoder().encode(e['authorLookupId']).length <= 128)) ||
       !(e['nickname'] === null || (typeof e['nickname'] === 'string' && [...e['nickname']].length <= 128)) ||
       typeof e['text'] !== 'string' || [...e['text']].length > 2048) throw new Error('Invalid LIVE event');
     previous = BigInt(e['cursor']); first = false;
-    return { cursor: e['cursor'], kind: e['kind'], author: e['author'], nickname: e['nickname'] as string | null, text: e['text'] };
+    return { cursor: e['cursor'], kind: e['kind'], author: e['author'], authorLookupId: e['authorLookupId'] as string | null, nickname: e['nickname'] as string | null, text: e['text'] };
   });
   const restarted = BigInt(after) > BigInt(p['latestCursor']);
   if ((restarted ? (!p['gap'] || events.length !== 0 || p['nextCursor'] !== '0') : BigInt(p['nextCursor']) !== previous) ||

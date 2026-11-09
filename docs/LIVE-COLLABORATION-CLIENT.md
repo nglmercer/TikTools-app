@@ -134,7 +134,15 @@ is cleared on submission; pending approval survives page reload in the native
 engine. The LIVE activity panel can filter its bounded, locally displayed
 entries by kind and search author, nickname or text. Filters do not query the
 host or extend its retained history, and are cleared when the connection or
-grant changes or LIVE access is lost.
+grant changes or LIVE access is lost. With points access, the moderator may
+look up an activity author's points directly from that entry. The shortcut is
+read-only, requires the viewer grant, displays the exact lookup ID, and clears
+any previous adjustment amount when the selected viewer changes. It is offered
+only if the native projection retained the complete author ID unchanged and
+the value is not the ambiguous `viewer` fallback. An unavailable or ambiguous
+ID must be looked up manually. The shortcut does not verify a provider identity
+or authorize an adjustment; adjusting points still requires a separate review
+and confirmation.
 A saved profile can be forgotten after explicitly confirming removal
 of its local credentials, drafts and command history. The selected profile
 must first be disconnected, and a pending or actively used command journal

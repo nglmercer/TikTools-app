@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { createControllerModel, type CommandTarget, type PointsTarget, type PendingCommand, type ProfileForgetTarget, type RemoteProfile, type ReviewTarget, type WorkflowOperation } from '../model/controller.ts';
@@ -8,6 +8,7 @@ import ControllerAutomations from './ControllerAutomations.vue';
 import ControllerProposals from './ControllerProposals.vue';
 import ControllerLiveStatus from './ControllerLiveStatus.vue';
 import ControllerLiveFeed from './ControllerLiveFeed.vue';
+import type { LiveFeedEvent } from '../model/live-feed.ts';
 import type { DraftSaveTarget } from '../model/drafts.ts';
 
 const control = useControlClient();
@@ -55,6 +56,21 @@ const pts = computed(() => locale.value === 'es' ? {
   create:'This ID has no points record. The adjustment will create one.', result:'Current balance', selected:'Selected viewer', clear:'Back to top viewers',
 });
 const pointSearch = ref(''); const pointAmount = ref<string | number>('');
+const pointsSection = ref<HTMLElement | null>(null);
+function canLookupFeedViewer(event: LiveFeedEvent): boolean {
+  const id = event.authorLookupId;
+  const viewers = status.value.hello?.resourceRestrictions?.['viewer'];
+  return !!id && ready.value && pointsAllowed.value && !busy.value && model.liveFeed.allowed.value &&
+    (!viewers || viewers.includes(id)) && model.liveFeed.events.value.some((item) => item.cursor === event.cursor && item.authorLookupId === id);
+}
+function lookupFeedViewer(event: LiveFeedEvent): void {
+  const id = event.authorLookupId;
+  if (!id || !canLookupFeedViewer(event)) return;
+  pointSearch.value = id; pointAmount.value = '';
+  void model.selectPoints(id);
+  void nextTick(() => { pointsSection.value?.focus(); pointsSection.value?.scrollIntoView?.({ block: 'start' }); });
+}
+watch(() => points.value?.selectedId ?? null, () => { pointAmount.value = ''; });
 const dft = computed(() => locale.value === 'es' ? {
   limit:'Máximo guardado: 256 KiB de texto por borrador.',
   save:'Guardar borrador en esta PC',title:'¿Guardar este texto en esta PC?',consent:'Se guardará el texto completo, incluidos los valores sensibles que contenga, en el perfil privado de este controlador. No se envía al anfitrión. Confirma solo si deseas conservarlo al cerrar la app.',
@@ -108,7 +124,10 @@ async function confirmCommand(): Promise<void> {
   const item=confirmation.value;if(!item||!confirmationCurrent.value)return;confirmation.value=null;
   if(item.kind==='draft')await model.draftStorage.save(item.target);else if(item.kind==='points') {if(await model.adjustPoints(item.target))pointAmount.value='';}else if(item.kind==='mutation')await model.changeWorkflow(item.target);else if(item.kind==='forget')await model.forgetProfile(item.target);else await model.reviewUnknown(item.target);
 }
-watch(()=>status.value.epoch,()=>{confirmation.value=null;pointSearch.value='';pointAmount.value='';});
+watch(() => JSON.stringify([status.value.epoch, status.value.origin, status.value.hello?.connectionId,
+  status.value.hello?.hostId, status.value.hello?.hostInstanceId, status.value.hello?.principalId,
+  status.value.hello?.sessionId, status.value.hello?.grantRevision, status.value.hello?.capabilities,
+  status.value.hello?.resourceRestrictions]), () => { confirmation.value=null; pointSearch.value=''; pointAmount.value=''; });
 const selected = ref('');
 const row = computed(() => rows.value.find((r) => r.version.id === selected.value));
 const retainedDrafts = computed(() => model.draftIds().filter((id) => !rows.value.some((r) => r.version.id === id)));
@@ -350,7 +369,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
       {{ labels.pending }} <code>{{ pending }}</code>
     </p>
     <ControllerLiveStatus :model="model.live" />
-    <ControllerLiveFeed :model="model.liveFeed" />
+    <ControllerLiveFeed :model="model.liveFeed" :can-lookup-points="canLookupFeedViewer" :show-ambiguous-viewer="ready && pointsAllowed" @lookup-points="lookupFeedViewer" />
     <ControllerAutomations
       :model="model.automation"
       :epoch="status.epoch"
@@ -359,8 +378,10 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
     <ControllerProposals :model="model.proposals" />
     <section
       v-if="ready && pointsAllowed"
+      ref="pointsSection"
       class="controller__panel controller__points"
       :aria-label="pts.title"
+      tabindex="-1"
     >
       <h2>{{ pts.title }}</h2>
       <p
