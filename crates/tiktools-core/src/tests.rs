@@ -2133,11 +2133,69 @@ async fn enabled_event_subscriber_starts_with_host_runtime() {
     let state = Arc::new(FakePluginState::default());
     let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
     core.spawn_plugin_event_poll(&tokio::runtime::Handle::current());
-
-    assert!(core.plugins.is_running("hotkeys"));
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while !core.plugins.is_running("hotkeys") {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
     assert!(!core.update_shutdown_safe());
     core.shutdown().await;
     assert!(core.update_shutdown_safe());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn shutdown_on_single_thread_does_not_wait_for_blocked_plugin_onload() {
+    let state = Arc::new(FakePluginState::default());
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    *state.on_load.lock().unwrap() = Some(Box::new(move || {
+        let _ = entered_tx.send(());
+        let _ = release_rx.recv_timeout(std::time::Duration::from_secs(10));
+    }));
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.spawn_plugin_event_poll(&tokio::runtime::Handle::current());
+    tokio::time::timeout(std::time::Duration::from_secs(3), entered_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), core.shutdown())
+        .await
+        .expect("blocked onLoad must not block single-threaded shutdown");
+    assert!(
+        !core.update_shutdown_safe(),
+        "unresolved startup cannot authorize an update"
+    );
+    assert!(
+        core.plugins.start("hotkeys").is_err(),
+        "shutdown must permanently close startup admission"
+    );
+    release_tx.send(()).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while !core.plugins.stop_all_checked() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("released worker must be reaped");
+    assert!(
+        !core.update_shutdown_safe(),
+        "earlier unsafe shutdown is never retroactively approved"
+    );
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn failed_poll_task_prevents_update_handoff() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(state);
+    *core.plugin_state.poll_task.lock().unwrap() = Some(tokio::spawn(async {
+        panic!("injected poll task failure");
+    }));
+    core.shutdown().await;
+    assert!(!core.update_shutdown_safe());
     let _ = std::fs::remove_dir_all(root);
 }
 

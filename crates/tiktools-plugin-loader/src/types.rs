@@ -34,6 +34,8 @@ pub enum PluginLoaderError {
     InvalidDirectory(String),
     #[error("plugin runtime is unavailable: {0}")]
     RuntimeUnavailable(String),
+    #[error("plugin startup outcome is unknown: {0}")]
+    StartupUncertain(String),
     #[error("plugin runtime failed: {0}")]
     Runtime(String),
     #[error("plugin `{0}` was not discovered")]
@@ -279,7 +281,11 @@ pub struct WorkerContext {
     /// load failure. Owned by the manager so one stuck plugin cannot freeze
     /// every other start/stop for longer than this.
     start_deadline: std::time::Duration,
+    retain_uncertain_start: Option<StartupUncertainHandler>,
 }
+
+pub(crate) type StartupUncertainHandler =
+    std::sync::Arc<dyn Fn(std::thread::JoinHandle<Result<(), PluginLoaderError>>) + Send + Sync>;
 
 impl WorkerContext {
     pub(crate) fn new(
@@ -287,11 +293,13 @@ impl WorkerContext {
         start_deadline: std::time::Duration,
         plugin_id: String,
         generation: u64,
+        retain_uncertain_start: Option<StartupUncertainHandler>,
     ) -> Self {
         Self {
             emit_tx: PluginEventSender::starting(emit_tx, plugin_id, generation),
             start_deadline,
             generation,
+            retain_uncertain_start,
         }
     }
 
@@ -304,6 +312,10 @@ impl WorkerContext {
     /// Identity to attach to every event produced by this worker.
     pub fn generation(&self) -> u64 {
         self.generation
+    }
+
+    pub(crate) fn uncertain_start_handler(&self) -> Option<StartupUncertainHandler> {
+        self.retain_uncertain_start.clone()
     }
 
     pub(crate) fn activate_events(&self, before: impl FnOnce()) -> Result<(), String> {

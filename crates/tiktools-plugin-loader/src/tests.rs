@@ -939,6 +939,13 @@ async fn one_broken_plugin_does_not_block_sibling_shutdown() {
     manager.start("doomed").unwrap();
     manager.start("flaky").unwrap();
     manager.start("healthy").unwrap();
+    let answer = manager
+        .call("healthy", &serde_json::json!({"type": "poll"}))
+        .await;
+    assert!(
+        answer.is_ok(),
+        "healthy sibling should answer, got {answer:?}"
+    );
     // The panicking worker and the failing shutdown are logged, and every
     // instance — including the healthy sibling — is still removed.
     assert!(
@@ -948,15 +955,11 @@ async fn one_broken_plugin_does_not_block_sibling_shutdown() {
     assert!(!manager.is_running("doomed"));
     assert!(!manager.is_running("flaky"));
     assert!(!manager.is_running("healthy"));
-    // The healthy sibling restarts and answers afterwards.
-    manager.start("healthy").unwrap();
-    let answer = manager
-        .call("healthy", &serde_json::json!({"type": "poll"}))
-        .await;
-    assert!(
-        answer.is_ok(),
-        "healthy sibling should answer, got {answer:?}"
-    );
+    // Checked shutdown is terminal even when another worker failed.
+    assert!(matches!(
+        manager.start("healthy"),
+        Err(PluginLoaderError::RuntimeUnavailable(_))
+    ));
     manager.stop_all();
     let _ = fs::remove_dir_all(root);
 }
@@ -1192,6 +1195,78 @@ impl ShutdownGate {
     }
 }
 
+#[test]
+fn shutdown_check_fails_fast_while_plugin_load_is_in_progress() {
+    struct BlockingRuntime {
+        gate: Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
+        entered: std::sync::mpsc::SyncSender<()>,
+    }
+    impl PluginRuntime for BlockingRuntime {
+        fn kind(&self) -> PluginRuntimeKind {
+            in_process_test_kind()
+        }
+        fn load(
+            &self,
+            manifest: &PluginManifest,
+            _: &Path,
+        ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+            self.entered.send(()).unwrap();
+            let (lock, changed) = &*self.gate;
+            let mut released = lock.lock().unwrap();
+            while !*released {
+                released = changed.wait(released).unwrap();
+            }
+            Ok(Box::new(TestInstance {
+                id: manifest.id.clone(),
+            }))
+        }
+    }
+    let root = temp_root();
+    write_plugin_with_runtime(&root, "loading", &in_process_test_kind().to_string());
+    let gate = Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+    let (entered, ready) = std::sync::mpsc::sync_channel(0);
+    let mut runtimes = RuntimeRegistry::default();
+    runtimes.register(Arc::new(BlockingRuntime {
+        gate: Arc::clone(&gate),
+        entered,
+    }));
+    let manager = Arc::new(PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    ));
+    manager.scan().unwrap();
+    let starting = {
+        let manager = Arc::clone(&manager);
+        std::thread::spawn(move || manager.start("loading"))
+    };
+    ready.recv_timeout(Duration::from_secs(2)).unwrap();
+    let began = Instant::now();
+    assert!(!manager.stop_all_checked());
+    assert!(began.elapsed() < Duration::from_millis(250));
+    {
+        let (lock, changed) = &*gate;
+        *lock.lock().unwrap() = true;
+        changed.notify_all();
+    }
+    assert!(matches!(
+        starting.join().unwrap(),
+        Err(PluginLoaderError::RuntimeUnavailable(_))
+    ));
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !manager.stop_all_checked() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(manager.stop_all_checked());
+    assert!(matches!(
+        manager.start("loading"),
+        Err(PluginLoaderError::RuntimeUnavailable(_))
+    ));
+    let _ = fs::remove_dir_all(root);
+}
+
 struct WedgedShutdownRuntime {
     gate: ShutdownGate,
 }
@@ -1271,11 +1346,20 @@ fn worker_observation_does_not_treat_an_inflight_stop_as_stopped() {
     }
     let removed = !manager.is_running("wedged");
     let observation = manager.observe_worker("wedged");
+    assert!(
+        !manager.stop_all_checked(),
+        "in-flight teardown cannot authorize an update"
+    );
     gate.release();
     let result = stopped.join().unwrap();
     assert!(removed);
     assert_eq!(observation.unwrap(), PluginWorkerObservation::Uncertain);
     result.unwrap();
+    assert!(manager.stop_all_checked());
+    assert!(matches!(
+        manager.start("wedged"),
+        Err(PluginLoaderError::RuntimeUnavailable(_))
+    ));
     assert_eq!(
         manager.observe_worker("wedged").unwrap(),
         PluginWorkerObservation::Stopped
@@ -1498,6 +1582,9 @@ async fn napi_vm_startup_handshake_is_bounded_by_the_manager_deadline() {
         &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/napi-vm-hang"),
         &staged,
     );
+    let sibling = root.join("healthy-sibling");
+    fs::create_dir_all(&sibling).unwrap();
+    fs::write(sibling.join("plugin.json"), r#"{"schemaVersion":3,"id":"healthy-sibling","name":"Healthy","version":"1.0.0","runtime":"declarative"}"#).unwrap();
     let manager = PluginManager::new(vec![PluginRoot {
         path: root.clone(),
         source: PluginSource::Development,
@@ -1509,7 +1596,7 @@ async fn napi_vm_startup_handshake_is_bounded_by_the_manager_deadline() {
     let result = manager.start("tiktools.napi-vm-hang");
     let elapsed = started.elapsed();
     match result {
-        Err(PluginLoaderError::Runtime(message)) => assert!(
+        Err(PluginLoaderError::StartupUncertain(message)) => assert!(
             message.contains("did not finish loading within"),
             "the failure must name the missed startup deadline, got {message}"
         ),
@@ -1522,8 +1609,47 @@ async fn napi_vm_startup_handshake_is_bounded_by_the_manager_deadline() {
         "the start must give up at its deadline (took {elapsed:?})"
     );
     assert!(!manager.is_running("tiktools.napi-vm-hang"));
-    // The detached VM thread finishes its bounded load window on its own and
-    // exits when the ready send fails; nothing else to join here.
+    assert_eq!(
+        manager.uncertain_startup_worker_count_for_test("tiktools.napi-vm-hang"),
+        1
+    );
+    assert_eq!(
+        manager.observe_worker("tiktools.napi-vm-hang").unwrap(),
+        PluginWorkerObservation::Uncertain
+    );
+    assert!(matches!(
+        manager.ensure_startup_known("tiktools.napi-vm-hang"),
+        Err(PluginLoaderError::StartupUncertain(_))
+    ));
+    assert!(matches!(
+        manager.start("tiktools.napi-vm-hang"),
+        Err(PluginLoaderError::StartupUncertain(_))
+    ));
+    assert!(matches!(
+        manager.stop_if_present("tiktools.napi-vm-hang"),
+        Err(PluginLoaderError::StartupUncertain(_))
+    ));
+    // One unresolved plugin does not prevent an unrelated healthy startup.
+    manager.start("healthy-sibling").unwrap();
+    assert!(manager.stop_if_present("healthy-sibling").unwrap());
+    assert!(!manager.stop_all_checked());
+    // Once the bounded fixture actually exits, reaping releases the handle
+    // but does not assert that its earlier external effects are known.
+    let deadline = Instant::now() + Duration::from_secs(4);
+    while manager.uncertain_startup_worker_count_for_test("tiktools.napi-vm-hang") != 0
+        && Instant::now() < deadline
+    {
+        std::thread::sleep(Duration::from_millis(20));
+        assert!(!manager.stop_all_checked());
+    }
+    assert_eq!(
+        manager.uncertain_startup_worker_count_for_test("tiktools.napi-vm-hang"),
+        0
+    );
+    assert!(matches!(
+        manager.ensure_startup_known("tiktools.napi-vm-hang"),
+        Err(PluginLoaderError::StartupUncertain(_))
+    ));
     let _ = fs::remove_dir_all(root);
 }
 

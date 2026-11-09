@@ -32,6 +32,7 @@ use super::{
     modules::NativeAliases,
 };
 use crate::{
+    types::StartupUncertainHandler,
     worker::{QueuedCall, WorkerMsg},
     ManagedWorker, PluginEventSender, PluginInstance, PluginLoaderError, PluginRuntime,
     PluginSource, WorkerContext,
@@ -68,6 +69,7 @@ impl PluginRuntime for QuickJsPluginRuntime {
             PluginEventSender::live(orphan_tx, manifest.id.clone(), 0),
             crate::manager::PLUGIN_START_DEADLINE,
             0,
+            None,
         )?;
         Ok(Box::new(NapiVmPluginInstance {
             id: manifest.id.clone(),
@@ -91,6 +93,7 @@ impl PluginRuntime for QuickJsPluginRuntime {
             ctx.emit_sender(),
             ctx.start_deadline(),
             ctx.generation(),
+            ctx.uncertain_start_handler(),
         ) {
             Ok((tx, worker)) => Some(Ok(ManagedWorker::new(tx, worker))),
             Err(error) => Some(Err(error)),
@@ -272,6 +275,7 @@ fn spawn_owner(
     emit_tx: PluginEventSender,
     start_deadline: std::time::Duration,
     generation: u64,
+    retain_uncertain_start: Option<StartupUncertainHandler>,
 ) -> Result<
     (
         mpsc::UnboundedSender<WorkerMsg>,
@@ -317,9 +321,8 @@ fn spawn_owner(
     // failure, never a half-alive instance. The wait is bounded: a guest
     // wedged in `onLoad` (or a native addon hanging during load) must fail
     // the start instead of freezing every other plugin's lifecycle behind
-    // the manager's lifecycle lock. A timeout asks the thread to unload
-    // itself and then drops its handle (detach) — reported explicitly, so
-    // the abandonment is on record rather than silent.
+    // the manager's lifecycle lock. A timeout asks the worker to unload and
+    // retains its handle for an explicit unknown-outcome recovery.
     match ready_rx.recv_timeout(start_deadline) {
         Ok(result) => result?,
         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
@@ -327,9 +330,12 @@ fn spawn_owner(
             tracing::error!(
                 id = %id,
                 deadline_ms = start_deadline.as_millis() as u64,
-                "napi-vm startup missed its deadline; detaching the worker thread (outcome unknown)"
+                "napi-vm startup missed its deadline; worker outcome is unknown"
             );
-            return Err(PluginLoaderError::Runtime(format!(
+            if let Some(retain) = retain_uncertain_start {
+                retain(worker);
+            }
+            return Err(PluginLoaderError::StartupUncertain(format!(
                 "napi-vm plugin `{id}` did not finish loading within {}ms",
                 start_deadline.as_millis()
             )));
@@ -760,6 +766,7 @@ mod tests {
             std::time::Duration::from_secs(15),
             manifest.id.clone(),
             1,
+            None,
         );
         let owned = QuickJsPluginRuntime
             .spawn_worker(&manifest, &dir, &ctx)

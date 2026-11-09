@@ -59,9 +59,16 @@ impl PluginInvoker {
         request: &Value,
         timeout: Duration,
     ) -> Result<Value, InvokeError> {
-        let generation = self
-            .plugins
-            .start_generation(plugin_id)
+        // Runtime initialization can execute native guest code. Keep it off
+        // Tokio workers; cancellation cannot stop that code, so manager
+        // shutdown retains its admission fence and reports an unsafe update.
+        let plugins = Arc::clone(&self.plugins);
+        let id = plugin_id.to_owned();
+        let generation = tokio::task::spawn_blocking(move || plugins.start_generation(&id))
+            .await
+            .map_err(|error| {
+                InvokeError::Unavailable(format!("plugin startup task failed: {error}"))
+            })?
             .map_err(|error| InvokeError::Unavailable(error.to_string()))?;
         self.call_started(plugin_id, request, timeout, generation)
             .await

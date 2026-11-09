@@ -773,6 +773,7 @@ impl AppCore {
                 finished.await;
             }
         }
+        self.plugins.close_start_admission();
         self.automation_write_settled.notify_waiters();
         #[cfg(feature = "persistence")]
         {
@@ -803,8 +804,21 @@ impl AppCore {
         self.publish_disconnected_event().await;
         self.live.disconnect().await;
         let task = recover_mutex(&self.plugin_state.poll_task, "plugin poll task").take();
-        if let Some(task) = task {
-            let _ = task.await;
+        if let Some(mut task) = task {
+            match tokio::time::timeout(std::time::Duration::from_secs(2), &mut task).await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
+                    tracing::error!(%error, "plugin poll task failed; application update is unsafe");
+                }
+                Err(_) => {
+                    task.abort();
+                    self.shutdown_update_safe.store(false, Ordering::Release);
+                    tracing::error!(
+                        "plugin poll did not stop within two seconds; application update is unsafe"
+                    );
+                }
+            }
         }
         let push_task = recover_mutex(&self.plugin_state.push_task, "plugin push task").take();
         if let Some(task) = push_task {

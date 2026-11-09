@@ -248,18 +248,22 @@ pub(crate) struct CoreActivation<'a>(pub(crate) &'a crate::AppCore);
 
 impl ActivationHooks for CoreActivation<'_> {
     fn deactivate(&self, plugin_id: &str) -> Result<bool, String> {
-        let running = self.0.plugins.is_running(plugin_id);
-        if running {
-            self.0
-                .plugins
-                .stop(plugin_id)
-                .map_err(|error| error.to_string())?;
-        }
-        Ok(running)
+        self.0
+            .plugins
+            .stop_if_present(plugin_id)
+            .map_err(|error| error.to_string())
     }
 
     fn activate(&self, plugin_id: &str, was_running: bool) -> Result<(), String> {
+        self.0
+            .plugins
+            .ensure_startup_known(plugin_id)
+            .map_err(|error| error.to_string())?;
         self.0.plugins.scan().map_err(|error| error.to_string())?;
+        self.0
+            .plugins
+            .ensure_startup_known(plugin_id)
+            .map_err(|error| error.to_string())?;
         if was_running {
             if self.0.plugin_apply_quarantined(plugin_id) {
                 return Err("Plugin application requires recovery before restart.".to_owned());
@@ -328,6 +332,88 @@ mod tests {
         })
         .unwrap();
         output
+    }
+
+    #[cfg(feature = "persistence")]
+    #[tokio::test]
+    async fn uncertain_startup_refuses_real_reinstall_and_uninstall() {
+        use tiktools_plugin_api::{PluginManifest, PluginRuntimeKind};
+        use tiktools_plugin_loader::{
+            ManagedWorker, PluginInstance, PluginLoaderError, PluginRoot, PluginRuntime,
+            PluginSource, RuntimeRegistry, WorkerContext,
+        };
+        struct UnknownRuntime;
+        impl PluginRuntime for UnknownRuntime {
+            fn kind(&self) -> PluginRuntimeKind {
+                PluginRuntimeKind::Process
+            }
+            fn load(
+                &self,
+                _: &PluginManifest,
+                _: &std::path::Path,
+            ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+                unreachable!()
+            }
+            fn spawn_worker(
+                &self,
+                _: &PluginManifest,
+                _: &std::path::Path,
+                _: &WorkerContext,
+            ) -> Option<Result<ManagedWorker, PluginLoaderError>> {
+                Some(Err(PluginLoaderError::StartupUncertain("fixture".into())))
+            }
+        }
+        let root = std::env::temp_dir().join(format!(
+            "plugin-unknown-package-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let paths = AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("absent"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root: root.clone(),
+        };
+        paths.ensure_directories().unwrap();
+        let mut core = AppCore::with_paths(
+            Arc::new(NoopEmitter),
+            Arc::new(NoopMediaHost),
+            paths.clone(),
+        );
+        let first = package_fixture(&root, "1.0.0");
+        let second = package_fixture(&root, "2.0.0");
+        core.install_plugin(&first, false).unwrap();
+        let manifest = paths.plugins.join("acme.package/plugin.json");
+        let before = std::fs::read(&manifest).unwrap();
+        let mut runtimes = RuntimeRegistry::default();
+        runtimes.register(Arc::new(UnknownRuntime));
+        let manager = tiktools_plugin_loader::PluginManager::with_runtimes(
+            vec![PluginRoot {
+                path: paths.plugins.clone(),
+                source: PluginSource::User,
+            }],
+            runtimes,
+        );
+        manager.scan().unwrap();
+        core.plugins = Arc::new(manager);
+        assert!(matches!(
+            core.plugins.start("acme.package"),
+            Err(PluginLoaderError::StartupUncertain(_))
+        ));
+        assert!(CoreActivation(&core)
+            .activate("acme.package", false)
+            .is_err());
+        assert!(core.install_plugin(&second, true).is_err());
+        assert_eq!(std::fs::read(&manifest).unwrap(), before);
+        assert!(core.uninstall_plugin("acme.package", false).is_err());
+        assert_eq!(std::fs::read(&manifest).unwrap(), before);
+        let core = Arc::new(core);
+        core.shutdown().await;
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[cfg(feature = "persistence")]

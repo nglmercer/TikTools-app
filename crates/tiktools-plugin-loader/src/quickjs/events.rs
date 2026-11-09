@@ -241,7 +241,7 @@ mod tests {
     fn dropped_start_context_closes_buffer_and_late_sender() {
         let (tx, mut rx) = broadcast::channel(8);
         let context =
-            crate::WorkerContext::new(tx, std::time::Duration::from_secs(1), "p".into(), 4);
+            crate::WorkerContext::new(tx, std::time::Duration::from_secs(1), "p".into(), 4, None);
         let sender = context.emit_sender();
         let event = || EmittedEvent {
             plugin_id: "forged".into(),

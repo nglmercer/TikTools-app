@@ -148,7 +148,6 @@ impl AppCore {
         // The event receiver must exist before onLoad can emit. The spawned
         // consumer below drains events buffered while subscribers start.
         let mut emit_rx = self.plugins.subscribe_emitted_events();
-        self.start_enabled_event_subscribers();
         self.spawn_plugin_event_observer(runtime);
         #[cfg(feature = "plugin-install")]
         {
@@ -159,6 +158,17 @@ impl AppCore {
         let shutdown = Arc::clone(&self.plugin_state.poll_shutdown);
         tracing::info!("plugin event poll started");
         let task = runtime.spawn(async move {
+            let startup_core = Arc::clone(&core);
+            let startup =
+                tokio::task::spawn_blocking(move || startup_core.start_enabled_event_subscribers());
+            tokio::select! {
+                biased;
+                _ = shutdown.notified() => return,
+                result = startup => if let Err(error) = result {
+                    core.shutdown_update_safe.store(false, Ordering::Release);
+                    tracing::warn!(%error, "plugin subscriber startup task failed");
+                },
+            }
             let mut ticker = tokio::time::interval(PLUGIN_POLL_INTERVAL);
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {

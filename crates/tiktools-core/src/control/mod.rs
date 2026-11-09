@@ -243,6 +243,7 @@ impl From<tiktools_plugin_loader::PluginLoaderError> for OperationError {
                 Self::capability_unavailable(error.to_string())
             }
             tiktools_plugin_loader::PluginLoaderError::RuntimeUnavailable(_)
+            | tiktools_plugin_loader::PluginLoaderError::StartupUncertain(_)
             | tiktools_plugin_loader::PluginLoaderError::Overloaded(_) => {
                 Self::unavailable(error.to_string())
             }

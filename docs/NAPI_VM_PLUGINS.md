@@ -17,7 +17,8 @@
 The Rust extension API for custom `PluginRuntime` implementations has changed.
 `WorkerContext::emit_sender()` now returns `PluginEventSender` instead of a
 Tokio broadcast sender, and `EmittedEvent` includes a host-owned `generation`.
-Recompile and update external Rust runtimes. Prefer the sender's `emit` and
+`PluginLoaderError` also has a `StartupUncertain` variant; exhaustive Rust
+matches must handle it. Recompile and update external Rust runtimes. Prefer the sender's `emit` and
 `emit_many` methods so callers need not construct identity fields:
 
 ```rust
@@ -42,6 +43,35 @@ Generation checks are snapshots, not a lease over subsequent automation or
 external effects, and stopping a worker cannot undo effects already performed
 by native or external code. The separate implicit-start/disable race and the
 global lifecycle lock held during runtime loading are still unresolved.
+
+If a managed QuickJS startup exceeds its deadline, the manager retains the
+worker's join handle and marks that plugin's startup outcome unknown. It
+rejects another start, refuses to report a successful stop or clean shutdown,
+and blocks package replacement or removal through the host installer. Other
+plugins can still start, up to a manager-wide limit of 16 unresolved startup
+identities. Completed threads are joined opportunistically, but a thread exit
+does not prove that its external effects were harmless, so it does not clear
+the unknown outcome. This safeguard is in memory for one manager lifetime; it
+does not survive process restart, classify errors other than this timeout, or
+reconcile child processes and external systems. Explicit recovery remains
+unimplemented.
+
+`PluginManager::stop_all_checked` now permanently closes start admission for
+that manager before checking shutdown; `stop_all` remains a nonterminal
+best-effort snapshot. Create a new manager to start plugins after checked
+shutdown. Core closes admission at the beginning of shutdown and does not wait
+indefinitely for an `onLoad` running on a blocking thread. A running load,
+teardown, unresolved worker, or timed-out poll makes update handoff unsafe;
+shutdown does not terminate arbitrary native code or undo its effects.
+The background subscriber and poll start paths use blocking workers; some
+explicit control/IPC paths still invoke synchronous plugin lifecycle methods
+and can block their caller during a long load. They need the same treatment
+before claiming that every single-threaded host can always schedule shutdown.
+Those paths include the `plugins.enable`, `plugins.disable`, `plugins.start`
+and `plugins.stop` control RPCs, plus the `SetPluginInstall`,
+`SetPluginEnabled`, `InstallPluginPackage` and `UninstallPluginPackage` IPC
+messages. The RPC package install/uninstall handlers already use blocking
+workers; their IPC counterparts still need that boundary.
 
 ### Pending: bounded startup delivery and lifecycle admission
 

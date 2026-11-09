@@ -49,6 +49,9 @@ pub(crate) const PLUGIN_START_DEADLINE: Duration = Duration::from_secs(15);
 /// a plugin failing in a tight loop cannot grow the list without bound.
 const MAX_RETIRED_WORKERS: usize = 32;
 
+/// Bound the number of unresolved startup threads a manager can retain.
+const MAX_UNCERTAIN_STARTUPS: usize = 16;
+
 /// Poll interval while a bounded join waits for a worker to finish. The
 /// worker's own exit is the primary signal; this only bounds how long a
 /// missed wakeup delays the joiner.
@@ -93,6 +96,14 @@ pub enum PluginWorkerObservation {
 struct StoppingGuard<'a> {
     manager: &'a PluginManager,
     id: String,
+}
+
+struct StartingGuard<'a>(&'a AtomicU64);
+
+impl Drop for StartingGuard<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 impl Drop for StoppingGuard<'_> {
@@ -181,6 +192,13 @@ pub struct PluginManager {
     runtimes: RuntimeRegistry,
     instances: RwLock<BTreeMap<String, Arc<RunningInstance>>>,
     lifecycle: Mutex<()>,
+    /// Sticky per-manager unknown outcomes, including the owned thread handles.
+    /// A completed thread alone cannot prove what its external effects were.
+    uncertain_startups:
+        Arc<Mutex<BTreeMap<String, Vec<thread::JoinHandle<Result<(), PluginLoaderError>>>>>>,
+    starts_inflight: AtomicU64,
+    /// Once checked shutdown begins, no later start can be admitted.
+    shutdown_admission_closed: AtomicBool,
     next_token: AtomicU64,
     emit_bus: broadcast::Sender<EmittedEvent>,
     /// Bumped on every registry/instance mutation (scan, start, stop,
@@ -221,6 +239,9 @@ impl PluginManager {
             runtimes,
             instances: RwLock::new(BTreeMap::new()),
             lifecycle: Mutex::new(()),
+            uncertain_startups: Arc::new(Mutex::new(BTreeMap::new())),
+            starts_inflight: AtomicU64::new(0),
+            shutdown_admission_closed: AtomicBool::new(false),
             next_token: AtomicU64::new(1),
             emit_bus: broadcast::channel(EMIT_BUS_CAPACITY).0,
             registry_revision: AtomicU64::new(1),
@@ -265,6 +286,7 @@ impl PluginManager {
             .lifecycle
             .lock()
             .map_err(|_| lock_poisoned("plugin lifecycle"))?;
+        self.reap_uncertain_startups();
         {
             let mut registry = self
                 .registry
@@ -459,6 +481,21 @@ impl PluginManager {
         recover_rwlock_read(&self.instances, "plugin instances").contains_key(id)
     }
 
+    /// Reject activation or package changes while a prior startup outcome is
+    /// unknown in this manager, including when there is no mapped worker.
+    pub fn ensure_startup_known(&self, id: &str) -> Result<(), PluginLoaderError> {
+        let uncertain = self
+            .uncertain_startups
+            .lock()
+            .map_err(|_| lock_poisoned("plugin uncertain startups"))?;
+        if uncertain.contains_key(id) {
+            return Err(PluginLoaderError::StartupUncertain(format!(
+                "plugin `{id}` requires startup recovery"
+            )));
+        }
+        Ok(())
+    }
+
     /// A conservative instantaneous observation of host-owned workers.
     /// It does not prove the health of a child process, fence other hosts,
     /// or prevent a worker from exiting after the observation.
@@ -472,6 +509,14 @@ impl PluginManager {
                 return Err(lock_poisoned("plugin lifecycle"))
             }
         };
+        if self
+            .uncertain_startups
+            .lock()
+            .map_err(|_| lock_poisoned("plugin uncertain startups"))?
+            .contains_key(id)
+        {
+            return Ok(PluginWorkerObservation::Uncertain);
+        }
         let stopping = self
             .stopping
             .lock()
@@ -544,10 +589,32 @@ impl PluginManager {
         id: &str,
         before_events: impl FnOnce(),
     ) -> Result<u64, PluginLoaderError> {
+        if self.shutdown_admission_closed.load(Ordering::Acquire) {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin manager is shutting down".into(),
+            ));
+        }
         let _lifecycle = self
             .lifecycle
             .lock()
             .map_err(|_| lock_poisoned("plugin lifecycle"))?;
+        if self.shutdown_admission_closed.load(Ordering::Acquire) {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin manager is shutting down".into(),
+            ));
+        }
+        self.reap_uncertain_startups();
+        {
+            let uncertain = self
+                .uncertain_startups
+                .lock()
+                .map_err(|_| lock_poisoned("plugin uncertain startups"))?;
+            if uncertain.contains_key(id) {
+                return Err(PluginLoaderError::StartupUncertain(format!(
+                    "plugin `{id}` requires startup recovery"
+                )));
+            }
+        }
         // A worker that died without a caller observing it still holds its
         // map entry; `contains_key` alone would report it running forever
         // and refuse to restart it. Only a live generation short-circuits
@@ -572,6 +639,17 @@ impl PluginManager {
             if let Some(instance) = self.retire_generation_locked(id, existing.token) {
                 self.retire_instance(id, existing.token, instance);
             }
+        }
+        if self
+            .uncertain_startups
+            .lock()
+            .map_err(|_| lock_poisoned("plugin uncertain startups"))?
+            .len()
+            >= MAX_UNCERTAIN_STARTUPS
+        {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "too many unresolved plugin startups".into(),
+            ));
         }
         let plugin = self
             .get(id)
@@ -601,15 +679,26 @@ impl PluginManager {
             "plugin starting"
         );
         let token = self.next_token.fetch_add(1, Ordering::AcqRel);
+        self.starts_inflight.fetch_add(1, Ordering::AcqRel);
+        let _starting = StartingGuard(&self.starts_inflight);
         let artifact_fingerprint = crate::plugin_artifact_fingerprint(&plugin).ok();
         // Runtimes with an owned worker (napi-vm) serve the call queue on
         // their own thread, bypassing the generic worker: one thread per
         // plugin instead of two, with identical queue/deadline semantics.
+        let uncertain = Arc::clone(&self.uncertain_startups);
+        let uncertain_id = id.to_owned();
+        let retain = Arc::new(move |worker| {
+            recover_mutex(&uncertain, "plugin uncertain startups")
+                .entry(uncertain_id.clone())
+                .or_default()
+                .push(worker);
+        });
         let worker_ctx = WorkerContext::new(
             self.emit_bus.clone(),
             self.deadlines().start,
             id.to_owned(),
             token,
+            Some(retain),
         );
         let (tx, worker) = if let Some(owned) =
             runtime.spawn_worker(&plugin.manifest, &plugin.directory, &worker_ctx)
@@ -617,6 +706,11 @@ impl PluginManager {
             match owned {
                 Ok(owned) => owned.into_parts(),
                 Err(error) => {
+                    if matches!(error, PluginLoaderError::StartupUncertain(_)) {
+                        recover_mutex(&self.uncertain_startups, "plugin uncertain startups")
+                            .entry(id.to_owned())
+                            .or_default();
+                    }
                     tracing::warn!(
                         id = %id,
                         runtime = %plugin.manifest.runtime,
@@ -631,6 +725,11 @@ impl PluginManager {
             let instance = match runtime.load(&plugin.manifest, &plugin.directory) {
                 Ok(instance) => instance,
                 Err(error) => {
+                    if matches!(error, PluginLoaderError::StartupUncertain(_)) {
+                        recover_mutex(&self.uncertain_startups, "plugin uncertain startups")
+                            .entry(id.to_owned())
+                            .or_default();
+                    }
                     tracing::warn!(
                         id = %id,
                         runtime = %plugin.manifest.runtime,
@@ -656,21 +755,28 @@ impl PluginManager {
         });
         // The worker thread is already spawned here, so a poisoned map
         // recovers instead of failing midway through the mutation.
-        recover_rwlock_write(&self.instances, "plugin instances").insert(
-            id.to_owned(),
-            Arc::new(RunningInstance {
-                token,
-                events: worker_ctx.emit_sender(),
-                artifact_fingerprint,
-                kind: plugin.manifest.runtime,
-                cold: AtomicBool::new(true),
-                tx,
-                admission: Arc::new(tokio::sync::Semaphore::new(
-                    crate::worker::PLUGIN_CALL_CAPACITY,
-                )),
-                worker: Mutex::new(Some(worker)),
-            }),
-        );
+        let instance = Arc::new(RunningInstance {
+            token,
+            events: worker_ctx.emit_sender(),
+            artifact_fingerprint,
+            kind: plugin.manifest.runtime,
+            cold: AtomicBool::new(true),
+            tx,
+            admission: Arc::new(tokio::sync::Semaphore::new(
+                crate::worker::PLUGIN_CALL_CAPACITY,
+            )),
+            worker: Mutex::new(Some(worker)),
+        });
+        if self.shutdown_admission_closed.load(Ordering::Acquire) {
+            instance.events.close();
+            instance.admission.close();
+            let _ = instance.tx.send(WorkerMsg::Shutdown);
+            self.retire_instance(id, token, instance);
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin manager is shutting down".into(),
+            ));
+        }
+        recover_rwlock_write(&self.instances, "plugin instances").insert(id.to_owned(), instance);
         self.set_running(id, true);
         if let Err(error) = worker_ctx.activate_events(before_events) {
             if let Some(instance) = self.retire_generation_locked(id, token) {
@@ -687,11 +793,27 @@ impl PluginManager {
     }
 
     pub fn stop(&self, id: &str) -> Result<(), PluginLoaderError> {
+        self.stop_if_present(id).map(|_| ())
+    }
+
+    /// Atomically determine whether a worker was running and stop it. An
+    /// unresolved startup must never be reported as a successful absence.
+    pub fn stop_if_present(&self, id: &str) -> Result<bool, PluginLoaderError> {
         let (instance, stopping) = {
             let _lifecycle = self
                 .lifecycle
                 .lock()
                 .map_err(|_| lock_poisoned("plugin lifecycle"))?;
+            if self
+                .uncertain_startups
+                .lock()
+                .map_err(|_| lock_poisoned("plugin uncertain startups"))?
+                .contains_key(id)
+            {
+                return Err(PluginLoaderError::StartupUncertain(format!(
+                    "plugin `{id}` requires startup recovery"
+                )));
+            }
             let stopping = self.note_stopping(id);
             let removed = self.remove_instance(id);
             if let Some(instance) = removed.as_ref() {
@@ -709,9 +831,10 @@ impl PluginManager {
             self.set_running(id, false);
             (removed, stopping)
         };
+        let was_running = instance.is_some();
         let result = self.finish_stop(id, instance);
         drop(stopping);
-        result
+        result.map(|()| was_running)
     }
 
     /// Best-effort stop used only by shutdown paths. Unlike [`Self::stop`],
@@ -721,7 +844,19 @@ impl PluginManager {
     /// removed with its running state cleared.
     fn stop_for_shutdown(&self, id: &str) -> bool {
         let (instance, stopping) = {
-            let _lifecycle = recover_mutex(&self.lifecycle, "plugin lifecycle");
+            let _lifecycle = match self.lifecycle.try_lock() {
+                Ok(guard) => guard,
+                Err(std::sync::TryLockError::WouldBlock) => return false,
+                Err(std::sync::TryLockError::Poisoned(error)) => {
+                    tracing::warn!("recovering poisoned plugin lifecycle during shutdown");
+                    self.lifecycle.clear_poison();
+                    error.into_inner()
+                }
+            };
+            if recover_mutex(&self.uncertain_startups, "plugin uncertain startups").contains_key(id)
+            {
+                return false;
+            }
             let stopping = self.note_stopping(id);
             let removed = self.remove_instance(id);
             if let Some(instance) = removed.as_ref() {
@@ -821,12 +956,41 @@ impl PluginManager {
     }
 
     pub fn stop_all(&self) {
-        let _ = self.stop_all_checked();
+        let _ = self.stop_all_snapshot();
     }
 
-    /// Shut down all plugins and report whether every worker actually stopped.
-    /// Used by the application updater to avoid replacing a running install.
+    /// Permanently close start admission and report whether all workers and
+    /// in-flight stops finished. A false result remains unsafe for updating.
     pub fn stop_all_checked(&self) -> bool {
+        self.close_start_admission();
+        self.stop_all_snapshot()
+    }
+
+    /// Close admission immediately at host shutdown, before awaiting other
+    /// tasks. It remains closed for this manager's lifetime.
+    pub fn close_start_admission(&self) {
+        self.shutdown_admission_closed
+            .store(true, Ordering::Release);
+    }
+
+    /// Nonterminal best-effort snapshot used by `stop_all` callers.
+    fn stop_all_snapshot(&self) -> bool {
+        // A start holds lifecycle while its outcome is unresolved. Do not
+        // report a clean shutdown merely because its worker is not in the
+        // instance map yet; avoid blocking indefinitely on native loading.
+        let lifecycle = match self.lifecycle.try_lock() {
+            Ok(guard) => guard,
+            Err(std::sync::TryLockError::WouldBlock) => return false,
+            Err(std::sync::TryLockError::Poisoned(error)) => {
+                tracing::warn!("recovering poisoned plugin lifecycle during shutdown");
+                self.lifecycle.clear_poison();
+                error.into_inner()
+            }
+        };
+        if self.starts_inflight.load(Ordering::Acquire) != 0 {
+            return false;
+        }
+        drop(lifecycle);
         let ids: Vec<String> = recover_rwlock_read(&self.instances, "plugin instances")
             .keys()
             .cloned()
@@ -838,7 +1002,18 @@ impl PluginManager {
         // Shutdown is the last structured chance to join retired workers
         // before the manager itself is dropped.
         self.reap_retired();
-        stopped && self.retired_worker_count() == 0 && self.abandoned_worker_count() == 0
+        self.reap_uncertain_startups();
+        let uncertain = self
+            .uncertain_startups
+            .lock()
+            .map_or(true, |starts| !starts.is_empty());
+        let stopping = self.stopping.lock().map_or(true, |stops| !stops.is_empty());
+        stopped
+            && !uncertain
+            && !stopping
+            && self.starts_inflight.load(Ordering::Acquire) == 0
+            && self.retired_worker_count() == 0
+            && self.abandoned_worker_count() == 0
     }
 
     pub async fn call(&self, id: &str, request: &Value) -> Result<Value, PluginLoaderError> {
@@ -1254,6 +1429,48 @@ impl PluginManager {
                 ),
             }
         }
+    }
+
+    /// Join completed unknown startup threads without clearing their sticky
+    /// outcome: a thread exit alone cannot undo or classify external effects.
+    fn reap_uncertain_startups(&self) {
+        let finished = {
+            let Ok(mut startups) = self.uncertain_startups.lock() else {
+                return;
+            };
+            let mut finished = Vec::new();
+            for (id, workers) in startups.iter_mut() {
+                let mut pending = Vec::new();
+                for worker in workers.drain(..) {
+                    if worker.is_finished() {
+                        finished.push((id.clone(), worker));
+                    } else {
+                        pending.push(worker);
+                    }
+                }
+                *workers = pending;
+            }
+            finished
+        };
+        for (id, worker) in finished {
+            match worker.join() {
+                Ok(Ok(())) => {
+                    tracing::info!(plugin = %id, "uncertain startup worker exited; recovery remains required")
+                }
+                Ok(Err(error)) => {
+                    tracing::warn!(plugin = %id, %error, "uncertain startup worker exited with an error")
+                }
+                Err(_) => tracing::warn!(plugin = %id, "uncertain startup worker panicked"),
+            }
+        }
+    }
+
+    /// Workers still awaiting an opportunistic reap (diagnostics).
+    #[cfg(test)]
+    pub(crate) fn uncertain_startup_worker_count_for_test(&self, id: &str) -> usize {
+        recover_mutex(&self.uncertain_startups, "plugin uncertain startups")
+            .get(id)
+            .map_or(0, Vec::len)
     }
 
     /// Workers still awaiting an opportunistic reap (diagnostics).
