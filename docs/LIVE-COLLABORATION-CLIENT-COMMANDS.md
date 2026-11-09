@@ -21,11 +21,18 @@ allows only one pending intent per origin/host/principal/session across tabs.
 It stores neither credentials nor workflow bodies. Chromium tests cover
 concurrent tabs, reload, aborted transactions and corrupt records.
 
-This storage primitive is not wired to browser commands. A completed IndexedDB
+The separate experimental recovery helper queries the original ID without
+replaying a mutation. It requires the current session, `commands.read` and
+workflow-read scope, and accepts success only when principal, method, host
+instance, command, resource, result and revision match the saved intent.
+Unknown or failed outcomes stay pending. Chromium tests use a simulated remote
+response and exercise a session change during the query.
+
+Neither helper is wired to browser commands. A completed IndexedDB
 transaction is not proof against browser data clearing, eviction, device loss or
 every platform's power-loss behavior. Before enabling mutations, the controller
 still needs storage-loss detection and recovery policy, permission-filtered
-views, identity and connection fences, verified host receipts/outcome queries,
+views, dispatch identity and connection fences, verified immediate receipts,
 explicit review and end-to-end crash/lost-reply tests. Browser actions remain
 disabled until that complete path is in place.
 

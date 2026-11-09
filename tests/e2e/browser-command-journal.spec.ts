@@ -74,3 +74,51 @@ test('failed transactions roll back and malformed stored data fails closed', asy
   }, { modulePath, binding });
   expect(output).toEqual({ aborted: true, pending: null, asyncRejected: true, corrupted: true });
 });
+
+test('recovery queries the original command without replay and persists only verified success', async ({ page, context, baseURL }) => {
+  await context.route('https://host.example/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/__journal-test') await route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Journal fixture</title>' });
+    else await route.fulfill({ response: await context.request.get(new URL(path, baseURL).href) });
+  });
+  await page.goto('https://host.example/__journal-test');
+  const result = await page.evaluate(async ({ modulePath }) => {
+    const journal = await import(/* @vite-ignore */ modulePath);
+    const recoveryPath = '/features/controller/model/browser-command-recovery.ts';
+    const recovery = await import(/* @vite-ignore */ recoveryPath);
+    const binding = { origin: location.origin, hostId: 'host', principalId: 'principal', sessionId: 'session' };
+    const intent = { commandId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', operation: 'disable', resourceId: 'workflow', hostInstanceId: 'instance', expectedRevision: '2', createdAt: 1 };
+    const hello = { ...binding, capabilities: ['commands.read', 'workflows.read'], resourceRestrictions: { workflow: ['workflow'] } };
+    let active = true; let switchAfterRead = false;
+    const transport = { currentHello: () => active ? hello : undefined, verifySession: async () => active };
+    await journal.withBrowserCommandJournal(binding, (record: unknown) => journal.beginBrowserCommand(record, intent));
+    const calls: string[] = [];
+    let state = 'unknown';
+    const remote = { call: async (method: string) => {
+      calls.push(method);
+      if (switchAfterRead) active = false;
+      return { principalId: 'principal', hostInstanceId: 'instance', method: 'workflows.disable',
+        command: { commandId: intent.commandId, state, committedAt: 1, resource: { kind: 'workflow', id: 'workflow', scope: 'host' } },
+        resourceVersions: [{ kind: 'workflow', id: 'workflow', scope: 'host', revision: '3' }], result: { id: 'workflow', enabled: false } };
+    } };
+    const pending = await recovery.recoverBrowserWorkflowCommand(remote, transport, hello, binding, intent.commandId);
+    const before = await journal.withBrowserCommandJournal(binding, (record: { pending: unknown }) => structuredClone(record.pending));
+    state = 'succeeded';
+    switchAfterRead = true;
+    let switched = false;
+    try { await recovery.recoverBrowserWorkflowCommand(remote, transport, hello, binding, intent.commandId); } catch { switched = true; }
+    const afterSwitch = await journal.withBrowserCommandJournal(binding, (record: { pending: unknown }) => structuredClone(record.pending));
+    active = true; switchAfterRead = false;
+    const resolved = await recovery.recoverBrowserWorkflowCommand(remote, transport, hello, binding, intent.commandId);
+    const after = await journal.withBrowserCommandJournal(binding, (record: unknown) => structuredClone(record));
+    return { pending, before, switched, afterSwitch, resolved, after, calls };
+  }, { modulePath });
+  expect(result.pending).toBe('pending');
+  expect(result.before.commandId).toBe('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  expect(result.switched).toBe(true);
+  expect(result.afterSwitch.commandId).toBe(result.before.commandId);
+  expect(result.resolved).toBe('resolved');
+  expect(result.after.pending).toBeNull();
+  expect(result.after.recent[0].revision).toBe('3');
+  expect(result.calls).toEqual(['collaboration.commands.get', 'collaboration.commands.get', 'collaboration.commands.get']);
+});
