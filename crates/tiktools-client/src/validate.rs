@@ -137,6 +137,11 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
                 .map(|_| ())
                 .map_err(invalid)
         }
+        "ui.feed.creator" => {
+            tiktools_control_api::modules::ui::CreatorFeedParams::deserialize(params)
+                .map(|_| ())
+                .map_err(invalid)
+        }
         "analytics.summary" => AnalyticsSummaryParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),

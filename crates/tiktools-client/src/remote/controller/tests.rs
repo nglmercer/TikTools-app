@@ -177,23 +177,22 @@ async fn live_feed_reads_host_activity_and_fences_session_and_creator_scope() {
     restricted
         .resources
         .insert(ResourceKind::Live, ["creator".into()].into());
+    let restricted_credentials = f.pair(restricted).await;
+    let restricted_principal = restricted_credentials.principal_id().to_string();
     manager
         .install(
             "restricted",
             &f.endpoint,
-            f.pair(restricted).await,
+            restricted_credentials,
             ClientKind::Agent,
         )
         .await
         .unwrap();
-    f.core.events.publish_domain(tiktools_core::events::DomainEvent::LiveUiEvent {
-        event: json!({"kind":"chat","author":"alice","nickname":"Alice","text":"hello","private":"secret"}),
-    });
-    f.core
-        .events
-        .publish_domain(tiktools_core::events::DomainEvent::LiveUiEvent {
-            event: json!({"kind":"gift","author":"bob","text":"gift"}),
-        });
+    f.core.events.publish_live_event_from_creator(json!({"creatorId":"creator","kind":"chat","author":"alice","nickname":"Alice","text":"hello","private":"secret"}), Some("creator"));
+    f.core.events.publish_live_event_from_creator(
+        json!({"creatorId":"other","kind":"gift","author":"bob","text":"gift"}),
+        Some("other"),
+    );
     let controller = Controller::new(manager);
     controller.connect("desk").await.unwrap();
     wait(&controller, |s| s.phase == "ready").await;
@@ -238,8 +237,61 @@ async fn live_feed_reads_host_activity_and_fences_session_and_creator_scope() {
     controller.connect("restricted").await.unwrap();
     wait(&controller, |s| s.phase == "ready").await;
     let denied = controller.status();
-    assert_eq!(controller.manage("controller.live.feed", json!({"epoch":denied.epoch,"connectionId":denied.hello.unwrap().connection_id,"after":"0"})).await.unwrap_err().code, "forbidden");
+    let restricted_connection = denied.hello.unwrap().connection_id;
+    assert_eq!(
+        controller
+            .manage(
+                "controller.live.feed",
+                json!({"epoch":denied.epoch,"connectionId":restricted_connection,"after":"0"})
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "forbidden"
+    );
+    let scoped_request = json!({"epoch":denied.epoch,"connectionId":restricted_connection,"creatorId":"creator","streamId":null,"after":"0"});
+    let scoped = controller
+        .manage("controller.live.feed", scoped_request.clone())
+        .await
+        .unwrap();
+    assert_eq!(scoped["creatorId"], "creator");
+    assert_eq!(scoped["events"].as_array().unwrap().len(), 1);
+    assert_eq!(scoped["events"][0]["text"], "hello");
+    assert_eq!(scoped["events"][0]["cursor"], "1");
+    assert_eq!(scoped["latestCursor"], "1");
+    assert!(!scoped.to_string().contains("bob"));
+    assert_eq!(controller.manage("controller.live.feed", json!({"epoch":denied.epoch,"connectionId":restricted_connection,"creatorId":"other","streamId":null,"after":"0"})).await.unwrap_err().code, "forbidden");
+    let mut changed = workflow_grant();
+    changed
+        .resources
+        .insert(ResourceKind::Live, ["other".into()].into());
+    f.service
+        .set_grant(tiktools_collaboration::GrantSet {
+            principal_id: restricted_principal,
+            expected_revision: "1".into(),
+            grant: changed,
+        })
+        .unwrap();
+    wait(&controller, |s| {
+        s.phase == "ready" && s.hello.as_ref().is_some_and(|h| h.grant_revision == "2")
+    })
+    .await;
+    assert!(controller
+        .manage("controller.live.feed", scoped_request.clone())
+        .await
+        .is_err());
+    let switched = controller.status();
+    let switched_connection = switched.hello.unwrap().connection_id;
+    assert_eq!(controller.manage("controller.live.feed", json!({"epoch":switched.epoch,"connectionId":switched_connection,"creatorId":"creator","streamId":null,"after":"0"})).await.unwrap_err().code, "forbidden");
+    let other = controller.manage("controller.live.feed", json!({"epoch":switched.epoch,"connectionId":switched_connection,"creatorId":"other","streamId":null,"after":"0"})).await.unwrap();
+    assert_eq!(other["events"][0]["text"], "gift");
+    assert_eq!(other["events"][0]["cursor"], "1");
+    assert!(!other.to_string().contains("hello"));
     controller.disconnect().await;
+    assert!(controller
+        .manage("controller.live.feed", scoped_request)
+        .await
+        .is_err());
     f.finish().await;
 }
 

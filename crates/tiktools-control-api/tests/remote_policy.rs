@@ -155,6 +155,7 @@ fn every_unclassified_registry_method_is_denied_and_only_completed_mutations_are
             "live.status"
                 | "live.monitor.status"
                 | "ui.feed.backfill"
+                | "ui.feed.creator"
                 | "rpc.discover"
                 | "rpc.schema"
                 | "collaboration.hello"

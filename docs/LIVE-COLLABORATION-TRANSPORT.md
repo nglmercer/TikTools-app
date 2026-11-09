@@ -39,7 +39,7 @@ host startup, reconfiguration and shutdown integration.
 
 Current remote RPC allowlist: `collaboration.hello`, `collaboration.me`,
 `rpc.discover`, `rpc.schema`, `live.status`, `live.monitor.status` and
-`ui.feed.backfill`, plus `collaboration.commands.get` for the caller's
+`ui.feed.backfill` and `ui.feed.creator`, plus `collaboration.commands.get` for the caller's
 historical results under `commands.read` and the corresponding workflow/points/automation
 read and resource checks. `workflows.list`/`get` are now scoped remote reads, and
 `collaboration.subscribe`/`snapshot`/`resume` implement workflow recovery.
@@ -50,8 +50,22 @@ See [remote workflow commands](LIVE-COLLABORATION-CLIENT.md#remote-workflow-comm
 The native desktop exposes confirmed controls for those same operations with a
 [profile-bound durable journal](LIVE-COLLABORATION-CLIENT-COMMANDS.md).
 Capability and resource checks can further restrict this allowlist.
-`ui.feed.backfill` is currently unavailable to grants restricted to specific
-LIVE creators because the shared history projection has not yet been scoped.
+`ui.feed.backfill` remains unavailable to creator-restricted grants because
+its cursors cover the shared history. `ui.feed.creator` instead checks the
+specific creator against the current grant and returns a closed, bounded
+projection with a creator-local cursor and a random stream generation. The
+host rechecks permission immediately before sending the response. Scoped
+history is indexed only when the trusted LIVE ingress generation matches the
+captured host connection context; merely adding `creatorId` to JSON or
+delivering an unstamped event cannot assign it to a scoped feed. Each creator
+retains up to 64 sanitized events independently, so traffic from another
+creator cannot evict those rows. At most 64 creator streams are retained;
+eviction on creating a further stream can reveal that retention was lost, but
+does not identify other creators or their event counts. A changed stream,
+creator-local eviction or restart reports a gap. The history is not complete
+LIVE storage. If a secure stream identifier cannot be generated, scoped
+history reports unavailable until host restart; it never silently presents a
+partial feed as empty. The ordinary local feed remains available.
 Provider diagnostics in `live.monitor.status.lastError` are replaced with a
 generic failure message remotely. Local owner diagnostics remain available.
 

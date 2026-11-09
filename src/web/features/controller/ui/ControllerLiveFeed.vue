@@ -10,6 +10,7 @@ const text = computed(() => locale.value === 'es' ? {
   title: 'Actividad del LIVE', empty: 'Todavía no hay actividad disponible.', gap: 'Se perdió parte de la actividad; la lista puede estar incompleta.',
   unavailable: 'No se pudo consultar la actividad del LIVE.', polling: 'Se consulta cada dos segundos y puede incluir actividad anterior.',
   kind: 'Tipo de actividad', all: 'Toda la actividad', search: 'Buscar en actividad visible', noMatches: 'Ninguna actividad visible coincide con los filtros.',
+  creator: 'Creador autorizado',
   points: (id: string) => `Consultar puntos de @${id}`,
   ambiguousViewer: 'No se puede confirmar el ID del autor; búscalo manualmente.',
   kinds: { chat: 'Chat', gift: 'Regalo', like: 'Me gusta', member: 'Ingreso', social: 'Social' } as Record<string, string>,
@@ -17,6 +18,7 @@ const text = computed(() => locale.value === 'es' ? {
   title: 'LIVE activity', empty: 'No activity is available yet.', gap: 'Some activity was missed; this list may be incomplete.',
   unavailable: 'LIVE activity is unavailable.', polling: 'Checked every two seconds; earlier activity may be included.',
   kind: 'Activity type', all: 'All activity', search: 'Search visible activity', noMatches: 'No visible activity matches these filters.',
+  creator: 'Allowed creator',
   points: (id: string) => `Look up points for @${id}`,
   ambiguousViewer: 'The author ID cannot be confirmed; look it up manually.',
   kinds: { chat: 'Chat', gift: 'Gift', like: 'Like', member: 'Join', social: 'Social' } as Record<string, string>,
@@ -39,6 +41,11 @@ watch(() => props.model.scopeRevision.value, () => { selectedKind.value = 'all';
     <template v-else>
       <p v-if="model.gap.value" role="status">{{ text.gap }}</p>
       <div class="filters">
+        <label v-if="model.creatorOptions.value.length">{{ text.creator }}
+          <select :value="model.selectedCreator.value ?? ''" @change="model.selectCreator(($event.target as HTMLSelectElement).value)">
+            <option v-for="creator in model.creatorOptions.value" :key="creator" :value="creator">{{ creator }}</option>
+          </select>
+        </label>
         <label>{{ text.kind }}
           <select v-model="selectedKind">
             <option value="all">{{ text.all }}</option>

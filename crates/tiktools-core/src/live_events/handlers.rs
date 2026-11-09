@@ -195,6 +195,15 @@ impl AppCore {
         self: &Arc<Self>,
         event: NativeLiveEvent,
     ) -> Option<LiveEffect> {
+        self.prepare_live_event_with_generation(event, None)
+    }
+
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) fn prepare_live_event_with_generation(
+        self: &Arc<Self>,
+        event: NativeLiveEvent,
+        generation: Option<u64>,
+    ) -> Option<LiveEffect> {
         if self.live_dedup.check_duplicate(&event) {
             return None;
         }
@@ -463,8 +472,16 @@ impl AppCore {
                 }
             }
             tracing::debug!(method = event.method(), msg_id = %event.msg_id(), correlation_id = %correlation, "publishing LIVE UI event");
-            self.events
-                .publish_domain(crate::events::DomainEvent::LiveUiEvent { event: ui });
+            // Scoped history uses the captured host context, never the
+            // mutable JSON payload or a second connection-context read.
+            let creator = generation
+                .and_then(|generation| {
+                    context
+                        .as_ref()
+                        .filter(|c| c.connection_id == format!("connection-{generation}"))
+                })
+                .map(|c| c.unique_id.as_str());
+            self.events.publish_live_event_from_creator(ui, creator);
             if let (tiktools_tiktok::events::CanonicalLiveEvent::Like(like), Some(context)) =
                 (&event.base, context.as_ref())
             {

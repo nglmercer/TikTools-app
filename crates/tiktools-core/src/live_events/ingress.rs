@@ -639,7 +639,9 @@ async fn run_ingress_dispatch(
         }
         let started = now_millis();
         if let ClientEvent::Event(event) = item.event {
-            if let Some(effect) = core.prepare_live_event(event) {
+            if let Some(effect) =
+                core.prepare_live_event_with_generation(event, Some(item.generation))
+            {
                 core.route_live_competition_command(&effect).await;
                 core.route_live_competition_score(&effect).await;
                 // Reserve synchronously: storage can never hold ingress hostage.

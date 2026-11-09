@@ -32,6 +32,115 @@ struct FeedEntry {
     event: Value,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreatorFeedPage {
+    creator_id: String,
+    stream_id: Option<String>,
+    oldest_cursor: String,
+    latest_cursor: String,
+    next_cursor: String,
+    gap: bool,
+    truncated: bool,
+    events: Vec<CreatorFeedEvent>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreatorFeedEvent {
+    cursor: String,
+    kind: String,
+    author: String,
+    author_lookup_id: Option<String>,
+    nickname: Option<String>,
+    text: String,
+}
+
+fn cursor(value: &str) -> Result<u64, ClientError> {
+    value
+        .parse::<u64>()
+        .ok()
+        .filter(|n| n.to_string() == value)
+        .ok_or_else(protocol)
+}
+fn valid_stream(id: &str) -> bool {
+    id.len() == 32
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+fn project_creator_feed(
+    page: CreatorFeedPage,
+    creator: &str,
+    requested_stream: Option<&str>,
+    after: u64,
+) -> Result<Value, ClientError> {
+    let oldest = cursor(&page.oldest_cursor)?;
+    let latest = cursor(&page.latest_cursor)?;
+    let next = cursor(&page.next_cursor)?;
+    if page.creator_id != creator
+        || page.events.len() > FEED_LIMIT
+        || page
+            .stream_id
+            .as_deref()
+            .is_some_and(|id| !valid_stream(id))
+        || (page.stream_id.is_none()
+            && (oldest != 0 || latest != 0 || next != 0 || !page.events.is_empty()))
+        || (oldest > latest)
+        || (page.truncated != (next < latest))
+    {
+        return Err(protocol());
+    }
+    let reset = requested_stream.is_some() && requested_stream != page.stream_id.as_deref()
+        || after > latest;
+    if reset && !page.gap {
+        return Err(protocol());
+    }
+    let mut previous = if reset { 0 } else { after };
+    let mut events = Vec::with_capacity(page.events.len());
+    for entry in page.events {
+        let sequence = cursor(&entry.cursor)?;
+        if sequence <= previous
+            || sequence > latest
+            || sequence < oldest
+            || (events.is_empty() && previous == 0 && sequence != oldest)
+            || (events.is_empty() && previous == 0 && oldest > 1 && !page.gap)
+            || (!events.is_empty() && previous.checked_add(1) != Some(sequence))
+            || (events.is_empty()
+                && previous != 0
+                && !page.gap
+                && previous.checked_add(1) != Some(sequence))
+            || !matches!(
+                entry.kind.as_str(),
+                "chat" | "gift" | "like" | "member" | "social"
+            )
+            || entry.author.chars().count() > 64
+            || entry.text.chars().count() > 128
+            || entry
+                .nickname
+                .as_ref()
+                .is_some_and(|n| n.chars().count() > 64)
+            || entry
+                .author_lookup_id
+                .as_ref()
+                .is_some_and(|id| lookup_author_id(id, &entry.author).as_deref() != Some(id))
+        {
+            return Err(protocol());
+        }
+        previous = sequence;
+        events.push(json!({"cursor":entry.cursor,"kind":entry.kind,"author":entry.author,"authorLookupId":entry.author_lookup_id,"nickname":entry.nickname,"text":entry.text}));
+    }
+    if !events.is_empty() && next != previous
+        || events.is_empty() && next != previous && !(page.gap && oldest == 0 && next == latest)
+    {
+        return Err(protocol());
+    }
+    Ok(
+        json!({"creatorId":page.creator_id,"streamId":page.stream_id,"oldestCursor":page.oldest_cursor,"latestCursor":page.latest_cursor,"nextCursor":page.next_cursor,"gap":page.gap,"truncated":page.truncated,"events":events}),
+    )
+}
+
 fn bounded_text(value: &str, maximum: usize) -> String {
     value
         .chars()
@@ -179,6 +288,8 @@ impl Controller {
         epoch: &str,
         connection: &str,
         after: &str,
+        creator: Option<&str>,
+        stream: Option<&str>,
     ) -> Result<Value, ClientError> {
         let cursor = after
             .parse::<u64>()
@@ -189,10 +300,11 @@ impl Controller {
         let remote = {
             let view = self.shared.view.read().unwrap_or_else(|p| p.into_inner());
             let remote = bound(&view, epoch, connection, None)?;
-            if remote
-                .hello()
-                .resource_restrictions
-                .contains_key(&ResourceKind::Live)
+            if creator.is_none()
+                && remote
+                    .hello()
+                    .resource_restrictions
+                    .contains_key(&ResourceKind::Live)
             {
                 return Err(fail(
                     "forbidden",
@@ -201,6 +313,59 @@ impl Controller {
             }
             remote
         };
+        if let Some(creator) = creator {
+            if remote.hello().features.get("creatorFeed") != Some(&true) {
+                return Err(fail(
+                    "unsupported",
+                    "host does not support creator-scoped LIVE feed",
+                ));
+            }
+            let allowed = |remote: &RemoteClient| {
+                remote
+                    .hello()
+                    .resource_restrictions
+                    .get(&ResourceKind::Live)
+                    .is_none_or(|ids| ids.contains(creator))
+            };
+            if creator.is_empty()
+                || creator.len() > 256
+                || creator.trim() != creator
+                || creator.chars().any(char::is_control)
+                || stream.is_some_and(|id| !valid_stream(id))
+                || stream.is_none() && cursor != 0
+                || !allowed(&remote)
+            {
+                return Err(fail(
+                    "forbidden",
+                    "LIVE feed is not available for this grant",
+                ));
+            }
+            let response = remote
+                .call_value_with_meta(
+                    "ui.feed.creator",
+                    json!({"creatorId":creator,"streamId":stream,"after":after,"limit":FEED_LIMIT}),
+                    None,
+                )
+                .await?;
+            let page: CreatorFeedPage =
+                serde_json::from_value(response.result).map_err(|_| protocol())?;
+            let result = project_creator_feed(page, creator, stream, cursor)?;
+            let view = self.shared.view.read().unwrap_or_else(|p| p.into_inner());
+            let current = bound(&view, epoch, connection, Some(&remote))?;
+            if !allowed(&current) {
+                return Err(fail(
+                    "forbidden",
+                    "LIVE feed is not available for this grant",
+                ));
+            }
+            let mut result = result.as_object().cloned().ok_or_else(protocol)?;
+            result.insert("epoch".into(), json!(epoch));
+            result.insert("connectionId".into(), json!(connection));
+            return Ok(Value::Object(result));
+        }
+        if stream.is_some() {
+            return Err(fail("invalid_params", "unexpected feed stream"));
+        }
         let response = remote
             .call_value_with_meta(
                 "ui.feed.backfill",

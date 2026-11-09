@@ -210,6 +210,7 @@ pub fn register(router: &mut ControlRouter) {
                     ("workflowDelete".into(), cfg!(feature = "persistence")),
                     ("pointsAdjust".into(), cfg!(feature = "persistence")),
                     ("pointsProjection".into(), cfg!(feature = "persistence")),
+                    ("creatorFeed".into(), true),
                     ("automationSummary".into(), cfg!(feature = "persistence")),
                     ("automationDrafts".into(), cfg!(feature = "persistence")),
                     (

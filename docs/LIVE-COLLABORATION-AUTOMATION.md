@@ -176,8 +176,10 @@ clears on selection, reconnection, permission or read failure. It does not
 start or stop a LIVE, and the status poll is not a real-time event feed.
 
 For unrestricted `live.read` grants, the controller also displays a bounded
-read-only activity feed from `ui.feed.backfill`. Native projection enforces the
-same host/session/grant fence as status, denies creator-restricted grants,
+read-only activity feed from `ui.feed.backfill`. Creator-restricted grants
+instead select among their allowed creators and use `ui.feed.creator`, whose
+random stream identity and cursor are independent for each creator. Native
+projection enforces the same host/session/grant fence as status,
 preserves cursor precision with decimal strings, limits pages to 64 items and
 exposes only bounded text fields. The UI retains at most 100 rows and identifies
 missed history or host cursor reset; it polls rather than subscribing to a

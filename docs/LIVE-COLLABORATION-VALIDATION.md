@@ -37,6 +37,36 @@ The v3 policy adds bounded scripts and exact-topic scoped emits with inherited
 authority through downstream rules. Broader remote activation, delegated plugin
 execution, HTTP response emission and full product acceptance remain pending.
 
+## Creator-scoped LIVE feed
+
+The new `ui.feed.creator` read checks the authenticated `live.read` grant for
+the requested creator and reauthorizes the response before transport. Scoped
+history receives creator identity from stamped LIVE ingress only when its
+generation matches the captured host connection context. A generic event's
+JSON cannot assign its creator. Each retained creator has an independent random
+stream identity and sequence, a 64-entry sanitized ring and explicit gap on
+reset or eviction; a random-source failure makes scoped history unavailable.
+The at-most-64-stream bound can expose that a stream was evicted, but does not
+identify other creators or expose their activity counts. The desktop selects
+among the current grant's creators and clears old rows on a scope or connection
+change; it polls every two seconds and retains at most 100 displayed rows.
+
+The gap flag does not cover events shed by LIVE ingress before feed publication.
+A future loss signal should associate a sticky loss generation with the
+trusted connection generation and its verified creator, expose it only in that
+creator's authorized stream, and avoid revealing global drop counts or other
+creators' activity. Saturation and reconnect races need dedicated tests before
+such a signal can be relied on.
+
+Executed evidence: three EventBus cases cover creator isolation, independent
+retention, forged JSON and entropy failure; a protobuf TikTok fixture covers
+matching, stale and absent host connection context. An actual local TLS
+controller fixture verifies two creators, a disallowed read, grant change and
+stale connection rejection. Twelve focused frontend model/component cases
+cover selection, stale in-flight pages, cursor resets and rendering; Vue type
+checking also passed. These use local fixtures and do not prove a real TikTok
+LIVE, two physical PCs, sustained-load behavior, or durable feed replay.
+
 ## Remote heartbeat cancellation
 
 Socket heartbeat reauthentication now stops waiting when the gateway shuts down

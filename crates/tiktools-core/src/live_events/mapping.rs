@@ -499,7 +499,7 @@ mod regression_tests {
         *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {
             unique_id: "fixture-creator".into(),
             room_id: "fixture-room".into(),
-            connection_id: "fixture-connection".into(),
+            connection_id: "connection-7".into(),
         });
         let mut receiver = core.events.subscribe_projection();
         let events = tiktools_tiktok::events::decode_batch(
@@ -508,16 +508,60 @@ mod regression_tests {
         )
         .unwrap();
         assert_eq!(events.len(), 1);
-        core.handle_live_event(events.into_iter().next().unwrap())
-            .await;
+        let mut gift = events.into_iter().next().unwrap();
+        let effect = core
+            .prepare_live_event_with_generation(gift.clone(), Some(7))
+            .unwrap();
+        core.route_live_competition_command(&effect).await;
+        core.route_live_competition_score(&effect).await;
+        core.apply_live_effect(effect).await;
+        let scoped = core
+            .events
+            .creator_feed("fixture-creator", None, 0, 64, 2048)
+            .unwrap();
+        assert_eq!(scoped.events.len(), 1);
+        assert_eq!(scoped.events[0].kind, "gift");
+        assert!(core
+            .events
+            .creator_feed("other-creator", None, 0, 64, 2048)
+            .unwrap()
+            .events
+            .is_empty());
+        // A context from a later generation must never attribute an older
+        // stamped event to that later creator, even if the ID matches.
+        *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {
+            unique_id: "fixture-creator".into(),
+            room_id: "new-room".into(),
+            connection_id: "connection-8".into(),
+        });
+        gift.metadata.msg_id += 1;
+        assert!(core
+            .prepare_live_event_with_generation(gift.clone(), Some(7))
+            .is_some());
+        // Missing context also remains available only to the unscoped feed.
+        *recover_rwlock_write(&core.connection_context, "test context") = None;
+        gift.metadata.msg_id += 1;
+        assert!(core
+            .prepare_live_event_with_generation(gift, Some(7))
+            .is_some());
+        assert_eq!(core.events.feed_backfill(0, 64).events.len(), 3);
+        assert_eq!(
+            core.events
+                .creator_feed("fixture-creator", scoped.stream_id.as_deref(), 1, 64, 2048)
+                .unwrap()
+                .events
+                .len(),
+            0
+        );
         let mut gift_ui = false;
         let mut original = false;
         while let Ok(event) = receiver.try_recv() {
             match event {
                 crate::events::DomainEvent::LiveUiEvent { event } => {
                     assert_eq!(event["kind"], "gift");
-                    assert_eq!(event["msgId"], "9007199254740994");
-                    gift_ui = true;
+                    if event["msgId"] == "9007199254740994" {
+                        gift_ui = true;
+                    }
                 }
                 crate::events::DomainEvent::LiveEvent { event_type, .. }
                     if event_type == "tiktok.gift" =>

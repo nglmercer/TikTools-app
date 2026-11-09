@@ -146,7 +146,12 @@ impl ControlApi {
         modules::rpc::register(router, std::sync::Arc::clone(&registry));
         // Side-effect metadata never grants authority. Each supported method
         // needs explicit policy; unlisted methods stay denied.
-        for name in ["live.status", "live.monitor.status", "ui.feed.backfill"] {
+        for name in [
+            "live.status",
+            "live.monitor.status",
+            "ui.feed.backfill",
+            "ui.feed.creator",
+        ] {
             router.set_remote_policy(
                 name,
                 policy::RemotePolicy::Capability(RemoteCapability::LiveRead),
@@ -304,6 +309,16 @@ impl ControlApi {
     ) -> Result<(), ApiError> {
         self.authorize_remote(session, method)?;
         let grant = session.grant()?;
+        if method == "ui.feed.creator"
+            && !result
+                .get("creatorId")
+                .and_then(Value::as_str)
+                .is_some_and(|id| {
+                    grant.allows_resource(tiktools_core::collaboration::ResourceKind::Live, id)
+                })
+        {
+            return Err(context::forbidden());
+        }
         if matches!(
             method,
             "points.adjust" | "points.viewer.get" | "points.leaderboard" | "points.view"

@@ -305,6 +305,35 @@ pub struct FeedEntry {
     pub event: Value,
 }
 
+/// A creator-local projection. Neither cursors nor the stream identity reveal
+/// the sequence or volume of other creators' activity.
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatorFeedPage {
+    pub creator_id: String,
+    pub stream_id: Option<String>,
+    pub oldest_cursor: String,
+    pub latest_cursor: String,
+    pub next_cursor: String,
+    pub gap: bool,
+    pub truncated: bool,
+    pub events: Vec<CreatorFeedEvent>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatorFeedEvent {
+    pub cursor: String,
+    pub kind: String,
+    pub author: String,
+    pub author_lookup_id: Option<String>,
+    pub nickname: Option<String>,
+    pub text: String,
+}
+
+#[derive(Debug)]
+pub struct CreatorFeedUnavailable;
+
 #[derive(Clone)]
 struct PublishedEvent {
     event: Arc<DomainEvent>,
@@ -313,7 +342,110 @@ struct PublishedEvent {
     observer_allowed: bool,
 }
 
-type FeedHistory = Arc<Mutex<std::collections::VecDeque<(u64, Arc<DomainEvent>)>>>;
+struct FeedHistoryEntry {
+    cursor: u64,
+    event: Arc<DomainEvent>,
+}
+struct CreatorFeedStream {
+    id: String,
+    next: u64,
+    last_global: u64,
+    events: std::collections::VecDeque<CreatorFeedEvent>,
+}
+#[derive(Default)]
+struct FeedHistoryState {
+    entries: std::collections::VecDeque<FeedHistoryEntry>,
+    creators: std::collections::BTreeMap<String, CreatorFeedStream>,
+    scoped_unavailable: bool,
+}
+type FeedHistory = Arc<Mutex<FeedHistoryState>>;
+
+impl FeedHistoryState {
+    fn creator_stream<F>(
+        &mut self,
+        creator: &str,
+        sequence: u64,
+        fill: F,
+    ) -> Option<&mut CreatorFeedStream>
+    where
+        F: FnOnce(&mut [u8; 16]) -> bool,
+    {
+        if self.scoped_unavailable {
+            return None;
+        }
+        if !self.creators.contains_key(creator) {
+            let mut random = [0u8; 16];
+            if !fill(&mut random) {
+                self.scoped_unavailable = true;
+                return None;
+            }
+            if self.creators.len() >= 64 {
+                if let Some(oldest) = self
+                    .creators
+                    .iter()
+                    .min_by_key(|(_, stream)| stream.last_global)
+                    .map(|(id, _)| id.clone())
+                {
+                    self.creators.remove(&oldest);
+                }
+            }
+            let id = random.iter().map(|byte| format!("{byte:02x}")).collect();
+            self.creators.insert(
+                creator.to_owned(),
+                CreatorFeedStream {
+                    id,
+                    next: 0,
+                    last_global: sequence,
+                    events: std::collections::VecDeque::new(),
+                },
+            );
+        }
+        self.creators.get_mut(creator)
+    }
+}
+
+pub fn valid_creator_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 256 && id.trim() == id && !id.chars().any(char::is_control)
+}
+
+fn project_creator_event(cursor: u64, value: &Value) -> Option<CreatorFeedEvent> {
+    let kind = value.get("kind")?.as_str()?;
+    if !matches!(kind, "chat" | "gift" | "like" | "member" | "social") {
+        return None;
+    }
+    let clean = |value: &str, max| {
+        value
+            .chars()
+            .filter(|c| !c.is_control() || matches!(c, '\n' | '\t'))
+            .take(max)
+            .collect::<String>()
+    };
+    let original_author = value.get("author")?.as_str()?;
+    let author = clean(original_author, 64);
+    let author_lookup_id = (original_author == author
+        && !author.is_empty()
+        && author != "viewer"
+        && author.len() <= 128
+        && author.trim() == author
+        && !author.starts_with('@')
+        && !author.contains('*')
+        && !author.chars().any(char::is_control))
+    .then(|| author.clone());
+    let text = clean(value.get("text")?.as_str()?, 128);
+    let nickname = match value.get("nickname") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(value)) => Some(clean(value, 64)),
+        _ => return None,
+    };
+    Some(CreatorFeedEvent {
+        cursor: cursor.to_string(),
+        kind: kind.to_owned(),
+        author,
+        author_lookup_id,
+        nickname,
+        text,
+    })
+}
 
 #[derive(Clone)]
 pub struct EventBus {
@@ -341,7 +473,7 @@ impl EventBus {
             plugin_lossy,
             ui_sequence: Arc::new(Mutex::new(0)),
             history_subscribers: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
-            feed_history: Arc::new(Mutex::new(std::collections::VecDeque::new())),
+            feed_history: Arc::new(Mutex::new(FeedHistoryState::default())),
         }
     }
 
@@ -349,17 +481,23 @@ impl EventBus {
     /// `broadcast::send`, this never blocks and never fails for a slow
     /// subscriber: laggards skip on their own cursor only.
     pub fn publish_domain(&self, event: DomainEvent) {
-        self.publish(event, true);
+        self.publish(event, true, None);
+    }
+
+    /// Trusted LIVE ingestion binds the creator out of band. JSON fields
+    /// cannot place a generic event into a creator-scoped feed.
+    pub fn publish_live_event_from_creator(&self, event: Value, creator: Option<&str>) {
+        self.publish(DomainEvent::LiveUiEvent { event }, true, creator);
     }
 
     /// Preserve state/history/UI delivery without invoking arbitrary plugin
     /// observers from an approved restricted effect. These events never enter
     /// the plugin rings, so bursts cannot manufacture executable gap events.
     pub(crate) fn publish_presentation_domain(&self, event: DomainEvent) {
-        self.publish(event, false);
+        self.publish(event, false, None);
     }
 
-    fn publish(&self, mut event: DomainEvent, observer_allowed: bool) {
+    fn publish(&self, mut event: DomainEvent, observer_allowed: bool, creator: Option<&str>) {
         if matches!(event, DomainEvent::LiveUiEvent { .. }) {
             // Serialize sequence assignment with publication, so concurrent
             // producers cannot reverse feed sequence order. No wire changes.
@@ -379,9 +517,38 @@ impl EventBus {
                     .feed_history
                     .lock()
                     .unwrap_or_else(|error| error.into_inner());
-                history.push_back((*sequence, Arc::clone(&event)));
-                while history.len() > 512 {
-                    history.pop_front();
+                let creator = match event.as_ref() {
+                    DomainEvent::LiveUiEvent { event }
+                        if project_creator_event(0, event).is_some() =>
+                    {
+                        creator.filter(|id| valid_creator_id(id))
+                    }
+                    _ => None,
+                };
+                let scoped = creator.and_then(|creator| {
+                    let stream = history.creator_stream(creator, *sequence, |bytes| {
+                        getrandom::fill(bytes).is_ok()
+                    })?;
+                    stream.next = stream.next.checked_add(1)?;
+                    stream.last_global = *sequence;
+                    let DomainEvent::LiveUiEvent { event } = event.as_ref() else {
+                        return None;
+                    };
+                    stream
+                        .events
+                        .push_back(project_creator_event(stream.next, event)?);
+                    while stream.events.len() > 64 {
+                        stream.events.pop_front();
+                    }
+                    Some(())
+                });
+                let _ = scoped;
+                history.entries.push_back(FeedHistoryEntry {
+                    cursor: *sequence,
+                    event: Arc::clone(&event),
+                });
+                while history.entries.len() > 512 {
+                    history.entries.pop_front();
                 }
             }
             self.send(
@@ -425,16 +592,25 @@ impl EventBus {
             .feed_history
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        let oldest = history.front().map(|entry| entry.0).unwrap_or(0);
-        let latest = history.back().map(|entry| entry.0).unwrap_or(0);
+        let oldest = history
+            .entries
+            .front()
+            .map(|entry| entry.cursor)
+            .unwrap_or(0);
+        let latest = history
+            .entries
+            .back()
+            .map(|entry| entry.cursor)
+            .unwrap_or(0);
         let events: Vec<FeedEntry> = history
+            .entries
             .iter()
-            .filter(|entry| entry.0 > after)
+            .filter(|entry| entry.cursor > after)
             .take(limit.clamp(1, 512))
-            .filter_map(|(cursor, event)| {
-                if let DomainEvent::LiveUiEvent { event } = event.as_ref() {
+            .filter_map(|entry| {
+                if let DomainEvent::LiveUiEvent { event } = entry.event.as_ref() {
                     Some(FeedEntry {
-                        cursor: *cursor,
+                        cursor: entry.cursor,
                         event: event.clone(),
                     })
                 } else {
@@ -451,11 +627,76 @@ impl EventBus {
         FeedBackfill {
             oldest_cursor: oldest,
             latest_cursor: latest,
-            depth: history.len(),
+            depth: history.entries.len(),
             gap,
             truncated: last < latest,
             events,
         }
+    }
+
+    /// Creator-local, bounded history. `stream` identifies an in-memory
+    /// generation; a changed or evicted stream resets the cursor with a gap.
+    /// The output deliberately excludes raw event JSON and global feed IDs.
+    pub fn creator_feed(
+        &self,
+        creator: &str,
+        stream: Option<&str>,
+        after: u64,
+        limit: usize,
+        byte_limit: usize,
+    ) -> Result<CreatorFeedPage, CreatorFeedUnavailable> {
+        let history = self.feed_history.lock().unwrap_or_else(|e| e.into_inner());
+        if history.scoped_unavailable {
+            return Err(CreatorFeedUnavailable);
+        }
+        let current = history.creators.get(creator);
+        let stream_id = current.map(|s| s.id.clone());
+        let changed = stream.is_some() && stream_id.as_deref() != stream;
+        let latest = current.map_or(0, |s| s.next);
+        let reset = changed || after > latest;
+        let after = if reset { 0 } else { after };
+        let oldest = current
+            .and_then(|s| s.events.front())
+            .and_then(|e| e.cursor.parse().ok())
+            .unwrap_or(0);
+        let mut events = Vec::new();
+        let mut used = 0usize;
+        for item in current.into_iter().flat_map(|s| s.events.iter()) {
+            if item
+                .cursor
+                .parse::<u64>()
+                .map_or(true, |cursor| cursor <= after)
+            {
+                continue;
+            }
+            let size = serde_json::to_vec(&item).map_or(usize::MAX, |v| v.len());
+            if events.len() >= limit.clamp(1, 64)
+                || used.saturating_add(size) > byte_limit.saturating_sub(512)
+            {
+                break;
+            }
+            used += size;
+            events.push(item.clone());
+        }
+        let exhausted = oldest == 0 && after < latest;
+        let last = events
+            .last()
+            .and_then(|e| e.cursor.parse().ok())
+            .unwrap_or(if exhausted { latest } else { after });
+        Ok(CreatorFeedPage {
+            creator_id: creator.to_owned(),
+            stream_id,
+            oldest_cursor: oldest.to_string(),
+            latest_cursor: latest.to_string(),
+            next_cursor: last.to_string(),
+            gap: reset
+                || exhausted
+                || (oldest > 0
+                    && ((after == 0 && oldest > 1)
+                        || (after > 0 && oldest > after.saturating_add(1)))),
+            truncated: last < latest,
+            events,
+        })
     }
 
     /// Whether a presentation subscriber can receive lossy snapshots.
@@ -1188,6 +1429,113 @@ mod history_interest_tests {
 #[cfg(test)]
 mod feed_history_tests {
     use super::*;
+    fn publish_creator(bus: &EventBus, creator: &str, text: &str) {
+        bus.publish_live_event_from_creator(serde_json::json!({"creatorId":creator,"kind":"chat","author":"viewer1","text":text,"roomId":"private-room","msgId":"private-msg"}), Some(creator));
+    }
+
+    #[test]
+    fn creator_feed_keeps_independent_sequences_and_projects_only_allowed_content() {
+        let bus = EventBus::new(2);
+        bus.publish_domain(DomainEvent::LiveUiEvent { event: serde_json::json!({"creatorId":"alice","kind":"chat","author":"spoof","text":"untrusted"}) });
+        assert!(bus
+            .creator_feed("alice", None, 0, 64, 2048)
+            .unwrap()
+            .events
+            .is_empty());
+        publish_creator(&bus, "alice", "alice one");
+        publish_creator(&bus, "bob", "bob secret");
+        publish_creator(&bus, "bob", "bob another");
+        publish_creator(&bus, "alice", "alice two");
+        let alice = bus.creator_feed("alice", None, 0, 64, 2048).unwrap();
+        let bob = bus.creator_feed("bob", None, 0, 64, 2048).unwrap();
+        assert_eq!(
+            alice
+                .events
+                .iter()
+                .map(|e| e.cursor.as_str())
+                .collect::<Vec<_>>(),
+            ["1", "2"]
+        );
+        assert_eq!(
+            bob.events
+                .iter()
+                .map(|e| e.cursor.as_str())
+                .collect::<Vec<_>>(),
+            ["1", "2"]
+        );
+        assert_ne!(alice.stream_id, bob.stream_id);
+        let encoded = serde_json::to_string(&alice).unwrap();
+        assert!(
+            !encoded.contains("bob")
+                && !encoded.contains("private-room")
+                && !encoded.contains("private-msg")
+                && !encoded.contains("feedCursor")
+        );
+        publish_creator(&bus, "bob", "bob still private");
+        let tail = bus
+            .creator_feed("alice", alice.stream_id.as_deref(), 2, 64, 2048)
+            .unwrap();
+        assert_eq!(tail.latest_cursor, "2");
+        assert!(tail.events.is_empty() && !tail.gap && !tail.truncated);
+        let page = bus
+            .creator_feed("alice", alice.stream_id.as_deref(), 0, 1, 2048)
+            .unwrap();
+        assert_eq!(page.next_cursor, "1");
+        assert!(page.truncated);
+        let next = bus
+            .creator_feed("alice", alice.stream_id.as_deref(), 1, 1, 2048)
+            .unwrap();
+        assert_eq!(next.events[0].text, "alice two");
+        assert!(!next.truncated);
+    }
+
+    #[test]
+    fn creator_feed_reports_eviction_and_changed_stream_without_leaking_other_history() {
+        let bus = EventBus::new(2);
+        publish_creator(&bus, "alice", "old");
+        let previous = bus.creator_feed("alice", None, 0, 64, 2048).unwrap();
+        for n in 0..512 {
+            publish_creator(&bus, "bob", &format!("secret {n}"));
+        }
+        let retained = bus
+            .creator_feed("alice", previous.stream_id.as_deref(), 0, 64, 2048)
+            .unwrap();
+        assert!(!retained.gap && !retained.truncated);
+        assert_eq!(retained.events[0].text, "old");
+        for n in 0..64 {
+            publish_creator(&bus, "alice", &format!("own {n}"));
+        }
+        let expired = bus
+            .creator_feed("alice", previous.stream_id.as_deref(), 0, 64, 2048)
+            .unwrap();
+        assert!(expired.gap);
+        assert_eq!(expired.oldest_cursor, "2");
+        for n in 0..65 {
+            publish_creator(&bus, &format!("creator-{n}"), "other");
+        }
+        publish_creator(&bus, "alice", "new");
+        let recovered = bus
+            .creator_feed("alice", previous.stream_id.as_deref(), 1, 64, 2048)
+            .unwrap();
+        assert!(recovered.gap);
+        assert_ne!(recovered.stream_id, previous.stream_id);
+        assert_eq!(recovered.next_cursor, "1");
+        assert_eq!(recovered.events.len(), 1);
+        assert_eq!(recovered.events[0].text, "new");
+    }
+
+    #[test]
+    fn creator_feed_entropy_failure_is_explicit_and_does_not_disable_local_history() {
+        let bus = EventBus::new(2);
+        {
+            let mut history = bus.feed_history.lock().unwrap();
+            assert!(history.creator_stream("alice", 1, |_| false).is_none());
+        }
+        publish_creator(&bus, "alice", "still in local history");
+        assert!(bus.creator_feed("alice", None, 0, 64, 2048).is_err());
+        assert_eq!(bus.feed_backfill(0, 64).events.len(), 1);
+    }
+
     #[test]
     fn bounded_recovery_is_ordered_and_reports_eviction_and_restart() {
         let bus = EventBus::new(2);
