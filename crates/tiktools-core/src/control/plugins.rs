@@ -610,6 +610,17 @@ fn is_confined_ui_entry(entry: &str) -> bool {
 }
 
 impl AppCore {
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    fn try_plugin_source_lease(
+        &self,
+    ) -> Result<tiktools_cloud_sync::ProductEmissionLease, OperationError> {
+        tiktools_cloud_sync::ProductEmissionFence::open(
+            self.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| OperationError::unavailable("sync emission fence unavailable"))?
+        .try_untracked_edit()
+        .map_err(|_| OperationError::unavailable("sync emission is in progress"))
+    }
     /// Obtain before protocol admission. The returned guard must be released
     /// before any network request. Only cooperative callers sharing this core
     /// are fenced; filesystem writers and other processes remain separate.
@@ -866,6 +877,8 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
+        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        let _source_lease = self.try_plugin_source_lease()?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
         if self.plugin_apply_quarantined(&id) {
@@ -1073,6 +1086,8 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
+        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        let _source_lease = self.try_plugin_source_lease()?;
         if self.plugin_apply_quarantined(id) {
             return Err(OperationError::unavailable(
                 "plugin application needs recovery",
@@ -1173,12 +1188,7 @@ impl AppCore {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
         #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
-        let _source_lease = tiktools_cloud_sync::ProductEmissionFence::open(
-            self.db.paths().data.join("plugin-sync-emission"),
-        )
-        .map_err(|_| OperationError::unavailable("sync emission fence unavailable"))?
-        .try_untracked_edit()
-        .map_err(|_| OperationError::unavailable("sync emission is in progress"))?;
+        let _source_lease = self.try_plugin_source_lease()?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
         if self.plugin_apply_quarantined(&id) {
@@ -1199,12 +1209,7 @@ impl AppCore {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
         #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
-        let _source_lease = tiktools_cloud_sync::ProductEmissionFence::open(
-            self.db.paths().data.join("plugin-sync-emission"),
-        )
-        .map_err(|_| OperationError::unavailable("sync emission fence unavailable"))?
-        .try_untracked_edit()
-        .map_err(|_| OperationError::unavailable("sync emission is in progress"))?;
+        let _source_lease = self.try_plugin_source_lease()?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
         self.plugins.stop(&id)?;

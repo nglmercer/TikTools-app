@@ -108,10 +108,13 @@ Public explicit plugin start and stop also hold the same exclusive lease while
 changing the runtime; a cooperating emission makes them return busy without
 starting or stopping the plugin. The fence is independent of Cloud account and
 consent state, but an unavailable local fence also makes these calls fail.
-Public enable/install state changes, package writers, automatic worker changes,
-legacy v1 emitters, and noncooperating processes are not yet fully fenced;
-product activation still requires those paths to participate and be verified
-together.
+Public enable/disable and installed-state changes also take that lease around
+their SQLite and runtime mutations. They still use legacy staging and do not
+atomically create the product outbox or untracked marker, so the lease alone
+does not make them safe for v2 product activation. Package writers, automatic
+worker changes, legacy v1 emitters, and noncooperating processes are not yet
+fully fenced; product activation still requires those paths to participate and
+be verified together.
 
 Dropping a local HTTP future does not cancel work already received by the
 server: the server can commit that request after the lease is released, after
