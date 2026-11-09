@@ -563,6 +563,13 @@ impl WorkspaceCoordinator {
                 self.update(|state| Ok(state.prepare_push(&key)?))?
             };
             attempts += 1;
+            // Take the cross-process product fence after durable prepare and
+            // before emission. A denied fence leaves this ticket Unconfirmed.
+            // The product worker imposes a deadline and cancellation drops
+            // the lease; the durable ticket retains any uncertain outcome.
+            let emission_guard = product
+                .map(|product| product.source.acquire_emission_guard())
+                .transpose()?;
             // If eligibility changed after prepare, keep the durable ticket
             // unconfirmed; never dispatch or infer an outcome.
             check_eligibility(eligibility, session)?;
@@ -589,6 +596,7 @@ impl WorkspaceCoordinator {
                         .await
                 }
             };
+            drop(emission_guard);
             // The response belongs to the captured product session and
             // consent. If either changed while it was in flight, keep the
             // durable ticket unconfirmed for an explicit later review.

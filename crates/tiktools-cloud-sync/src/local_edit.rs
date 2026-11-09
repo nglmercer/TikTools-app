@@ -20,6 +20,16 @@ pub struct V1LocalEditContext {
 /// alias keeps callers explicit about which protocol admitted the edit.
 pub type V2LocalEditContext = V1LocalEditContext;
 
+/// Protocol chosen for one local product mutation while the shared mutation
+/// admission is held. Legacy callers retain the v1 staging path; v2 edits
+/// reserve their source and outbox entry together in the callback.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProductLocalEditContext {
+    Legacy,
+    OptedOut,
+    V2(Option<V2LocalEditContext>),
+}
+
 impl SyncCoordinator {
     /// A missing or damaged preference after initialization is not opt-out.
     /// Both staging paths use this strict reader before reporting no queue.
@@ -163,6 +173,47 @@ impl SyncCoordinator {
             })
             .map_err(|_| SyncCoordError::Protocol(ProtocolFenceError::Busy))?
     }
+
+    /// Choose v1 or v2 under the same cooperative admission that protects
+    /// the source transaction. Never decide from an earlier configuration
+    /// snapshot: a cutover or opt-out could otherwise overtake the writer.
+    /// Damaged consent is an error: it cannot be mistaken for an opt-out.
+    pub fn with_product_local_edit<R>(
+        &self,
+        operation: impl FnOnce(ProductLocalEditContext) -> R,
+    ) -> Result<R, SyncCoordError> {
+        let lease = self.protocol.try_v1()?;
+        let _admission = lease.try_admission()?;
+        let config = self.read_staging_config()?;
+        if !config.enabled {
+            return Ok(operation(ProductLocalEditContext::OptedOut));
+        }
+        if config.version == 1 {
+            return Ok(operation(ProductLocalEditContext::Legacy));
+        }
+        if config.version != 2 || config.scope.is_none() {
+            return Err(SyncCoordError::StaleReview);
+        }
+        self.auth
+            .with_sync_identity_permit(|identity| {
+                let context = match identity {
+                    Some((origin, account_id)) if config.allows(&origin, &account_id) => {
+                        lease.ensure_product_outbox(&origin, &account_id)?;
+                        let _v2 = self.protocol.try_v2(&origin, &account_id)?;
+                        return Ok(operation(ProductLocalEditContext::V2(Some(
+                            V2LocalEditContext {
+                                origin,
+                                account_id,
+                                config_generation: config.generation,
+                            },
+                        ))));
+                    }
+                    _ => None,
+                };
+                Ok(operation(ProductLocalEditContext::V2(context)))
+            })
+            .map_err(|_| SyncCoordError::Protocol(ProtocolFenceError::Busy))?
+    }
 }
 
 #[cfg(test)]
@@ -217,9 +268,13 @@ mod tests {
         std::fs::remove_file(&sync.config_path).unwrap();
         let called = Cell::new(false);
         assert!(sync.with_v1_local_edit(|_| called.set(true)).is_err());
+        assert!(sync.with_product_local_edit(|_| called.set(true)).is_err());
         assert!(!called.get());
         let restarted = SyncCoordinator::new(sync.auth.clone(), dir.path().join("sync")).unwrap();
         assert!(restarted.with_v1_local_edit(|_| called.set(true)).is_err());
+        assert!(restarted
+            .with_product_local_edit(|_| called.set(true))
+            .is_err());
         assert!(!called.get());
         // An explicit decision recreates the preference and resumes editing.
         restarted.set_enabled(false).unwrap();
@@ -264,6 +319,7 @@ mod tests {
         std::fs::remove_file(config).unwrap();
         let called = Cell::new(false);
         assert!(sync.with_v1_local_edit(|_| called.set(true)).is_err());
+        assert!(sync.with_product_local_edit(|_| called.set(true)).is_err());
         assert!(!called.get());
     }
 
@@ -273,6 +329,7 @@ mod tests {
         std::fs::write(sync.consent_marker_path(), b"bad").unwrap();
         let called = Cell::new(false);
         assert!(sync.with_v1_local_edit(|_| called.set(true)).is_err());
+        assert!(sync.with_product_local_edit(|_| called.set(true)).is_err());
         assert!(sync.set_enabled(true).is_err());
         assert!(!called.get());
         assert!(!sync.config_path.exists());

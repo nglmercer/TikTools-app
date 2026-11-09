@@ -191,6 +191,10 @@ async fn v2_local_edit_requires_reviewed_protocol_and_scoped_product_marker() {
         // A legacy device-wide opt-in never authorizes a v2 candidate.
         assert!(sync.with_v2_local_edit(|_| invoked.set(true)).is_err());
         assert!(!invoked.get());
+        assert!(matches!(
+            sync.with_product_local_edit(|selection| selection).unwrap(),
+            crate::ProductLocalEditContext::Legacy
+        ));
 
         let source = ResumeSource {
             selections: vec![],
@@ -233,6 +237,13 @@ async fn v2_local_edit_requires_reviewed_protocol_and_scoped_product_marker() {
                 ));
             })
             .unwrap();
+            sync.with_product_local_edit(|selection| {
+                assert!(matches!(selection, crate::ProductLocalEditContext::V2(Some(context)) if context.config_generation == expected_generation));
+                assert!(matches!(
+                    peer.with_package_journal_admission(|| ()),
+                    Err(SyncCoordError::Protocol(crate::ProtocolFenceError::Busy))
+                ));
+            }).unwrap();
             // A missing marker fails before the local transaction; corrupt or
             // deleted migration evidence is never treated as consent.
             let marker = std::fs::read_dir(dir.join("a-sync"))
@@ -248,6 +259,7 @@ async fn v2_local_edit_requires_reviewed_protocol_and_scoped_product_marker() {
             std::fs::write(marker, b"invalid").unwrap();
         }
         assert!(sync.with_v2_local_edit(|_| invoked.set(true)).is_err());
+        assert!(sync.with_product_local_edit(|_| invoked.set(true)).is_err());
         assert!(!invoked.get());
         // Opt-out preserves local operation without staging an account-bound
         // candidate, even when its previous product marker is damaged.
@@ -255,6 +267,10 @@ async fn v2_local_edit_requires_reviewed_protocol_and_scoped_product_marker() {
         assert!(sync
             .with_v2_local_edit(|context| context.is_none())
             .unwrap());
+        assert!(matches!(
+            sync.with_product_local_edit(|v| v).unwrap(),
+            crate::ProductLocalEditContext::OptedOut
+        ));
         mock.stop();
     }
 }
@@ -502,11 +518,18 @@ struct BlockingUpload {
 }
 
 struct ExactUpload {
+    fence: crate::ProductEmissionFence,
     digest: String,
     calls: std::sync::atomic::AtomicUsize,
 }
 
 impl crate::V2ProductUploadSource for ExactUpload {
+    fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, crate::WorkspaceCoordError> {
+        self.fence
+            .try_emission()
+            .map(|lease| Box::new(lease) as Box<dyn Send>)
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)
+    }
     fn with_fenced_upload(
         &self,
         decision: &crate::V2ProductDecision,
@@ -528,7 +551,7 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
     // Both acknowledged and conflicted writes require the session that sent
     // them. Control runs prove both mock responses can actually commit.
     for status in [200, 409] {
-        for transition in ["logout", "replace", "unchanged"] {
+        for transition in ["logout", "replace", "unchanged", "cancel"] {
             let dir = TempDir::new("v2-product-http-auth");
             let mock = MockSync::start("v2-http-user").await;
             let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
@@ -575,6 +598,7 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
             };
             sync.stage_v2_product_decision(&source).unwrap();
             let upload = Arc::new(ExactUpload {
+                fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
                 digest: decision.digest().unwrap(),
                 calls: std::sync::atomic::AtomicUsize::new(0),
             });
@@ -608,6 +632,31 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
             );
             assert_eq!(upload.calls.load(Ordering::SeqCst), 1);
             assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
+            assert!(matches!(
+                upload.fence.try_untracked_edit(),
+                Err(crate::ProtocolFenceError::Busy)
+            ));
+            if transition == "cancel" {
+                task.abort();
+                assert!(task.await.err().unwrap().is_cancelled());
+                tokio::time::timeout(Duration::from_secs(3), async {
+                    loop {
+                        if let Ok(lease) = upload.fence.try_untracked_edit() {
+                            drop(lease);
+                            break;
+                        }
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                    }
+                })
+                .await
+                .expect("cancellation must release the emission lease");
+                let after = workspace.snapshot().unwrap();
+                assert_eq!(after.generation, prepared.generation);
+                assert_eq!(after.state, prepared.state);
+                assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
+                mock.held_v2_write.release.notify_one();
+                continue;
+            }
             if transition != "unchanged" {
                 tokio::time::timeout(Duration::from_secs(2), auth.logout())
                     .await
@@ -624,6 +673,7 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                 .expect("dispatcher must finish after response")
                 .unwrap();
             let after = workspace.snapshot().unwrap();
+            assert!(upload.fence.try_untracked_edit().is_ok());
             if transition != "unchanged" {
                 assert!(matches!(
                     outcome,
@@ -672,6 +722,9 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
 }
 
 impl crate::V2ProductUploadSource for BlockingUpload {
+    fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, crate::WorkspaceCoordError> {
+        Ok(Box::new(()))
+    }
     fn with_fenced_upload(
         &self,
         _decision: &crate::V2ProductDecision,

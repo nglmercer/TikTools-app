@@ -13,6 +13,7 @@ use serde::Serialize;
 #[derive(Debug)]
 struct ReservedLocalPluginMutation {
     candidate: Option<crate::db::PluginSyncOutboxEntry>,
+    legacy_staging: bool,
 }
 
 #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
@@ -20,6 +21,7 @@ struct ReservedLocalPluginMutation {
 enum LocalMutationProtocol {
     V1,
     V2,
+    Selected,
 }
 
 /// Holds the invocation boundary before the coordinator's short admission
@@ -129,35 +131,68 @@ fn reserve_local_plugin_mutation_prepared_for<T>(
     protocol: LocalMutationProtocol,
     prepare: impl FnOnce(bool) -> Result<T, OperationError>,
 ) -> Result<(ReservedLocalPluginMutation, T), OperationError> {
-    let operation = |context: Option<tiktools_cloud_sync::V1LocalEditContext>| {
-        let prepared = prepare(context.is_some())?;
-        let intent = context
-            .as_ref()
-            .map(|context| crate::db::LocalPluginSyncIntent {
-                origin: &context.origin,
-                account_id: &context.account_id,
-                config_generation: context.config_generation,
-                version: installed.then_some(version),
-            });
-        let generation = db
-            .set_plugin_state_with_sync_intent(id, installed, enabled, intent)
+    let operation =
+        |context: Option<tiktools_cloud_sync::V1LocalEditContext>, legacy_staging, untracked| {
+            let prepared = prepare(context.is_some())?;
+            let intent = context
+                .as_ref()
+                .map(|context| crate::db::LocalPluginSyncIntent {
+                    origin: &context.origin,
+                    account_id: &context.account_id,
+                    config_generation: context.config_generation,
+                    version: installed.then_some(version),
+                });
+            let generation = if untracked {
+                let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+                    db.paths().data.join("plugin-sync-emission"),
+                )
+                .map_err(|_| OperationError::unavailable("sync emission fence unavailable"))?;
+                let _lease = fence
+                    .try_untracked_edit()
+                    .map_err(|_| OperationError::unavailable("sync emission is in progress"))?;
+                db.set_plugin_state_with_untracked_sync(id, installed, enabled)
+            } else {
+                db.set_plugin_state_with_sync_intent(id, installed, enabled, intent)
+            }
             .map_err(|error| OperationError::internal(error.to_string()))?;
-        let candidate = context.map(|context| crate::db::PluginSyncOutboxEntry {
-            origin: context.origin,
-            account_id: context.account_id,
-            plugin_id: id.to_owned(),
-            generation,
-            source_generation: generation,
-            config_generation: context.config_generation,
-            runtime_epoch: None,
-            version: installed.then(|| version.to_owned()),
-            enabled: installed.then_some(enabled),
-        });
-        Ok((ReservedLocalPluginMutation { candidate }, prepared))
-    };
+            let candidate = context.map(|context| crate::db::PluginSyncOutboxEntry {
+                origin: context.origin,
+                account_id: context.account_id,
+                plugin_id: id.to_owned(),
+                generation,
+                source_generation: generation,
+                config_generation: context.config_generation,
+                runtime_epoch: None,
+                version: installed.then(|| version.to_owned()),
+                enabled: installed.then_some(enabled),
+            });
+            Ok((
+                ReservedLocalPluginMutation {
+                    candidate,
+                    legacy_staging,
+                },
+                prepared,
+            ))
+        };
     match protocol {
-        LocalMutationProtocol::V1 => sync.with_v1_local_edit(operation),
-        LocalMutationProtocol::V2 => sync.with_v2_local_edit(operation),
+        LocalMutationProtocol::V1 => {
+            sync.with_v1_local_edit(|context| operation(context, false, false))
+        }
+        LocalMutationProtocol::V2 => {
+            sync.with_v2_local_edit(|context| operation(context, false, false))
+        }
+        LocalMutationProtocol::Selected => sync.with_product_local_edit(|selected| {
+            use tiktools_cloud_sync::ProductLocalEditContext;
+            match selected {
+                ProductLocalEditContext::Legacy => operation(None, true, false),
+                ProductLocalEditContext::OptedOut | ProductLocalEditContext::V2(None) => {
+                    operation(None, false, true)
+                }
+                ProductLocalEditContext::V2(Some(context)) => {
+                    operation(Some(context), false, false)
+                }
+            }
+        }),
     }
     .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))?
 }
@@ -565,10 +600,8 @@ impl AppCore {
         })
     }
 
-    /// Candidate product path for a local enable/disable. It is intentionally
-    /// not selected by `plugin_set_enabled` yet: package mutations, restart
-    /// reconciliation, outbox draining and the legacy-writer fence must be
-    /// switched together. The invocation gate spans the source transaction,
+    /// Native local enable/disable with an account-bound durable intent.
+    /// The invocation gate spans the source transaction,
     /// runtime effect and confirmation, while the coordinator holds its
     /// shorter admission/identity lease only for the SQLite transaction.
     #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
@@ -658,10 +691,17 @@ impl AppCore {
         self.rebuild_processor_index();
         self.refresh_automation_snapshot();
         self.events.publish_domain(if enabled {
-            DomainEvent::PluginStarted { plugin_id: id }
+            DomainEvent::PluginStarted {
+                plugin_id: id.clone(),
+            }
         } else {
-            DomainEvent::PluginStopped { plugin_id: id }
+            DomainEvent::PluginStopped {
+                plugin_id: id.clone(),
+            }
         });
+        if reservation.legacy_staging {
+            self.stage_selection(&id, &plugin.manifest.version, enabled);
+        }
         confirmation
     }
 
@@ -832,6 +872,89 @@ impl AppCore {
         Ok(())
     }
 
+    /// Select the current protocol and reserve the source while holding the
+    /// same short admission used by cutover. Runtime failure or an uncertain
+    /// worker leaves the intent durable but unconfirmed for later review.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)] // Product selection remains fenced until every writer participates.
+    pub(crate) fn plugin_set_installed_with_product_intent(
+        &self,
+        id: &str,
+        installed: bool,
+    ) -> Result<(), OperationError> {
+        let invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
+        let plugin = self.require_discovered(id)?;
+        let id = plugin.manifest.id.clone();
+        if self.plugin_apply_quarantined(&id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
+        let sync = self
+            .sync
+            .coordinator()
+            .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))?;
+        let (reservation, runtime_epoch) = reserve_local_plugin_mutation_prepared_for(
+            sync,
+            &self.db,
+            &id,
+            &plugin.manifest.version,
+            installed,
+            true,
+            LocalMutationProtocol::Selected,
+            |has_candidate| {
+                if has_candidate {
+                    self.sync.runtime_epoch().map(Some).map_err(|_| {
+                        OperationError::unavailable("plugin runtime identity is unavailable")
+                    })
+                } else {
+                    Ok(None)
+                }
+            },
+        )?;
+        if !installed {
+            self.plugins.stop(&id)?;
+        }
+        self.set_plugin_activation(&id, installed, true);
+        let expected = if installed {
+            tiktools_plugin_loader::PluginWorkerObservation::WorkerPresent
+        } else {
+            tiktools_plugin_loader::PluginWorkerObservation::Stopped
+        };
+        let confirmation = match runtime_epoch {
+            Some(epoch)
+                if self
+                    .plugins
+                    .observe_worker(&id)
+                    .is_ok_and(|actual| actual == expected) =>
+            {
+                confirm_local_plugin_mutation(&self.db, &reservation, epoch)
+            }
+            Some(_) => {
+                tracing::warn!(plugin = %id, "local plugin sync intent needs runtime reconciliation");
+                Ok(())
+            }
+            None => Ok(()),
+        };
+        drop(invocation);
+        if installed {
+            self.start_enabled_event_subscribers();
+        }
+        self.rebuild_processor_index();
+        self.refresh_automation_snapshot();
+        if reservation.legacy_staging {
+            if installed {
+                self.stage_selection(&id, &plugin.manifest.version, true);
+            } else {
+                self.stage_removal(&id);
+            }
+        }
+        confirmation
+    }
+
     pub fn plugin_set_enabled(&self, id: &str, enabled: bool) -> Result<(), OperationError> {
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
@@ -840,6 +963,75 @@ impl AppCore {
         self.set_enabled_impl(&id, enabled, false)?;
         #[cfg(feature = "cloud-auth")]
         self.stage_selection(&id, &version, enabled);
+        Ok(())
+    }
+
+    /// Product-selector prototype. Not reachable from product operations
+    /// until network emission and local-only fallback share a durable fence.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn plugin_set_enabled_with_product_intent(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<(), OperationError> {
+        self.plugin_set_enabled_with_durable_intent_for(
+            id,
+            enabled,
+            LocalMutationProtocol::Selected,
+        )
+    }
+
+    /// Prototype for local operation when Cloud admission cannot be opened.
+    /// The marker and local source commit atomically while excluding a
+    /// cooperating product emission. No Cloud identity is inferred here.
+    /// This remains private until every product emitter uses this fence and
+    /// a user-facing reconciliation flow exists.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn plugin_set_enabled_with_untracked_intent(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<(), OperationError> {
+        let invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
+        let plugin = self.require_discovered(id)?;
+        let id = plugin.manifest.id;
+        if self.plugin_apply_quarantined(&id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
+        let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+            self.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| OperationError::unavailable("sync emission fence unavailable"))?;
+        let lease = fence
+            .try_untracked_edit()
+            .map_err(|_| OperationError::unavailable("sync emission is in progress"))?;
+        self.db
+            .set_plugin_state_with_untracked_sync(&id, true, enabled)
+            .map_err(|error| OperationError::internal(error.to_string()))?;
+        drop(lease);
+        if enabled {
+            self.plugins.start_generation_before_events(&id, || {
+                self.set_plugin_activation(&id, true, true);
+            })?;
+        } else {
+            self.plugins.stop(&id)?;
+            self.set_plugin_activation(&id, true, false);
+        }
+        drop(invocation);
+        self.rebuild_processor_index();
+        self.refresh_automation_snapshot();
+        self.events.publish_domain(if enabled {
+            DomainEvent::PluginStarted { plugin_id: id }
+        } else {
+            DomainEvent::PluginStopped { plugin_id: id }
+        });
         Ok(())
     }
 

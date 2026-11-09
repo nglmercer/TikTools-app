@@ -383,6 +383,12 @@ CREATE TABLE IF NOT EXISTS plugin_sync_source_versions (
   plugin_id TEXT PRIMARY KEY,
   generation INTEGER NOT NULL CHECK(generation > 0)
 );
+-- A local mutation made without Cloud admission remains reviewable across
+-- restarts. No identity or consent may be inferred from this marker.
+CREATE TABLE IF NOT EXISTS plugin_sync_untracked_local (
+  plugin_id TEXT PRIMARY KEY,
+  generation INTEGER NOT NULL CHECK(generation > 0)
+);
 -- Native-only package operation fence, global across accounts. An unfinished
 -- mutation must survive process death until filesystem/runtime reconciliation.
 CREATE TABLE IF NOT EXISTS plugin_package_mutation_intents (

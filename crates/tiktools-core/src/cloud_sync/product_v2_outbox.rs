@@ -85,6 +85,25 @@ impl V2ProductSource for SqliteV2ProductSource<'_> {
 }
 
 impl V2ProductUploadSource for SqliteV2ProductSource<'_> {
+    fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
+        let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+            self.core.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| WorkspaceCoordError::Ineligible)?;
+        let lease = fence
+            .try_emission()
+            .map_err(|_| WorkspaceCoordError::Ineligible)?;
+        if self
+            .core
+            .db
+            .has_untracked_plugin_sync()
+            .map_err(|_| WorkspaceCoordError::Ineligible)?
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        Ok(Box::new(lease))
+    }
+
     fn with_fenced_upload(
         &self,
         decision: &V2ProductDecision,
@@ -137,6 +156,10 @@ impl OwnedSqliteV2UploadSource {
 }
 
 impl V2ProductUploadSource for OwnedSqliteV2UploadSource {
+    fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
+        SqliteV2ProductSource::new(&self.core, &self.origin, &self.account).acquire_emission_guard()
+    }
+
     fn with_fenced_upload(
         &self,
         decision: &V2ProductDecision,

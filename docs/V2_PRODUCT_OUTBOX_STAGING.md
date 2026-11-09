@@ -44,3 +44,38 @@ An eventual adapter must hold the appropriate v2 protocol lease, use the
 session/consent publication guard, run blocking filesystem and source checks
 on a bounded worker, propagate cancellation and give the review a limited
 lifetime. Direct calls to these primitives do not supply those guarantees.
+
+An experimental, still private offline fallback atomically records an
+untracked-local marker together with the SQLite plugin state. A cooperating
+v2 product emitter takes a shared cross-process file lease, checks that marker,
+and retains the lease while the local HTTP future is pending. The fallback takes the
+exclusive lease without waiting; if a request is held it reports busy and
+makes no change. Cancellation or the 60-second deadline drops an asynchronous
+HTTP request and its lease, while the prepared request remains unconfirmed.
+As described above, native calls that never return cannot be forcibly stopped.
+The marker survives restart and subsequent local edits; there is no automatic
+clear or product review flow yet. The public plugin writers still follow their
+existing paths, and legacy v1 sync and other potential emitters do not yet
+participate in this fence. It therefore must not be treated as a complete
+safety guarantee or used to enable the fallback in product. Before activation,
+all emitters and all local writers must share the same cross-process admission,
+including already in-flight requests, and a durable reviewed reconciliation
+must safely clear the marker. Older or otherwise noncooperating processes are
+outside the advisory lease guarantee.
+
+The private product selector also records this marker for edits while opted
+out or without a matching v2 identity, using the exclusive lease across the
+SQLite transaction. Its legacy v1 branch still relies on v1 staging and must
+be reconciled before v2 cutover. Neither selector nor fallback is enabled in
+the product, and other existing writers do not yet record the marker.
+
+Dropping a local HTTP future does not cancel work already received by the
+server: the server can commit that request after the lease is released, after
+a local edit, or even after a subsequent authenticated GET. Such a GET is
+not a quiescence barrier. Before enabling review, clearing the marker or
+publishing a rebase, recovery needs a server-backed barrier or a verified
+protocol that rules out any later commit of the older request; the current
+private keep-local primitive does not supply that guarantee by itself.
+The prepared request is persisted as unconfirmed before the emission lease and
+marker check. Therefore a busy lease or an existing marker can require review
+even when no request was sent. This is conservative and may reduce availability.

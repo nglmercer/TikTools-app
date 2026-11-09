@@ -182,6 +182,14 @@ impl V2ProductDecision {
 /// Trusted native source. It must recheck the exact decision under the
 /// runtime/source fence and call `admit` once, without holding it over HTTP.
 pub trait V2ProductUploadSource: Send + Sync {
+    /// Acquire the native product emission fence and verify that no
+    /// untracked local changes require review. The returned lease is held
+    /// only for this bounded request and must be owned/Send. Implementations
+    /// that have not integrated the fence fail closed by default.
+    fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, crate::WorkspaceCoordError> {
+        Err(crate::WorkspaceCoordError::Ineligible)
+    }
+
     fn with_fenced_upload(
         &self,
         decision: &V2ProductDecision,

@@ -15,9 +15,10 @@ use tiktools_plugin_package::Sha256Digest;
 fn assert_staged_decision(workspace: &WorkspaceCoordinator, decision: &V2ProductDecision) {
     let state = workspace.snapshot().unwrap().state;
     let key = WorkspaceKey::new("plugin-selections", &decision.plugin_id).unwrap();
-    let expected_edit = WorkspaceEdit::Put(
-        serde_json::to_value(decision.selection.as_ref().expect("selection")).unwrap(),
-    );
+    let expected_edit = match decision.selection.as_ref() {
+        Some(selection) => WorkspaceEdit::Put(serde_json::to_value(selection).unwrap()),
+        None => WorkspaceEdit::Delete,
+    };
     let pending = state.entry(&key).unwrap().pending.as_ref().unwrap();
     assert_eq!(pending.status, WorkspacePendingStatus::Queued);
     assert_eq!(pending.edit, expected_edit);
@@ -104,7 +105,7 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
     let source =
         crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&core, origin, account);
 
-    core.plugin_set_enabled_with_v2_durable_intent("acme.hotkeys", false)
+    core.plugin_set_enabled_with_product_intent("acme.hotkeys", false)
         .unwrap();
     let disabled = core
         .db
@@ -145,7 +146,7 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
     // staged over the already retained workspace decision.
     runtime.fail_next_load.store(true, AtomicOrdering::SeqCst);
     assert!(core
-        .plugin_set_enabled_with_v2_durable_intent("acme.hotkeys", true)
+        .plugin_set_enabled_with_product_intent("acme.hotkeys", true)
         .is_err());
     let failed = core
         .db
@@ -157,7 +158,7 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
     assert!(coordinator.stage_v2_product_decision(&source).is_err());
     assert_eq!(workspace.snapshot().unwrap().state, before_failure.state);
 
-    core.plugin_set_enabled_with_v2_durable_intent("acme.hotkeys", true)
+    core.plugin_set_enabled_with_product_intent("acme.hotkeys", true)
         .unwrap();
     let enabled = core
         .db
@@ -193,6 +194,56 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         .unwrap();
     assert!(admitted);
 
+    // Logical removal is reserved atomically but cannot be staged until a
+    // durable package/filesystem provenance contract is implemented.
+    core.plugin_set_installed_with_product_intent("acme.hotkeys", false)
+        .unwrap();
+    let removed = core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .unwrap();
+    assert_eq!((removed.version.as_ref(), removed.enabled), (None, None));
+    assert_eq!(
+        removed.runtime_epoch.as_deref(),
+        Some(core.sync.runtime_epoch().unwrap())
+    );
+    let before_removal = workspace.snapshot().unwrap();
+    assert!(coordinator.stage_v2_product_decision(&source).is_err());
+    assert_eq!(workspace.snapshot().unwrap().state, before_removal.state);
+    assert_eq!(
+        core.db.next_plugin_sync_intent(origin, account).unwrap(),
+        Some(removed.clone())
+    );
+    let removed_decision = V2ProductDecision {
+        origin: origin.into(),
+        account_id: account.into(),
+        config_generation: 42,
+        source_generation: removed.generation as u64,
+        plugin_id: "acme.hotkeys".into(),
+        selection: None,
+    };
+    admitted = false;
+    assert!(source
+        .with_fenced_upload(&removed_decision, &mut || {
+            admitted = true;
+            Ok(())
+        })
+        .is_err());
+    assert!(!admitted);
+    core.plugin_set_enabled_with_product_intent("acme.hotkeys", true)
+        .unwrap();
+    let restored = core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .unwrap();
+    coordinator.stage_v2_product_decision(&source).unwrap();
+    let enabled_decision = V2ProductDecision {
+        source_generation: restored.generation as u64,
+        ..enabled_decision
+    };
+
     // Deliberately stop the fake worker without changing SQLite source or
     // host activation, modelling a worker lost after confirmation. The
     // source-generation check must still pass independently while runtime
@@ -201,7 +252,7 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
     core.db
         .with_current_v2_upload_source::<_, crate::db::DatabaseError>(
             "acme.hotkeys",
-            enabled.generation as u64,
+            enabled_decision.source_generation,
             true,
             || Ok(()),
         )
@@ -225,7 +276,7 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
     assert!(admitted);
 
     // Opting out prevents staging an already confirmed source candidate.
-    core.plugin_set_enabled_with_v2_durable_intent("acme.hotkeys", false)
+    core.plugin_set_enabled_with_product_intent("acme.hotkeys", false)
         .unwrap();
     let pending_before_opt_out = core
         .db
@@ -249,8 +300,19 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
 
     // Further local-only work still succeeds and advances the source;
     // neither the old SQLite candidate nor the prior staged edit is current.
-    core.plugin_set_enabled_with_v2_durable_intent("acme.hotkeys", true)
+    let fence =
+        tiktools_cloud_sync::ProductEmissionFence::open(paths.data.join("plugin-sync-emission"))
+            .unwrap();
+    let request = fence.try_emission().unwrap();
+    assert!(core
+        .plugin_set_enabled_with_product_intent("acme.hotkeys", true)
+        .is_err());
+    assert!(!core.db.has_untracked_plugin_sync().unwrap());
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    drop(request);
+    core.plugin_set_enabled_with_product_intent("acme.hotkeys", true)
         .unwrap();
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
     let stale = core
         .db
         .next_plugin_sync_intent(origin, account)
@@ -267,6 +329,46 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         })
         .is_err());
     assert!(!admitted);
+
+    // A cooperating in-flight request excludes the offline fallback without
+    // waiting; SQLite and the runtime remain untouched on Busy.
+    let request = fence.try_emission().unwrap();
+    assert!(core
+        .plugin_set_enabled_with_untracked_intent("acme.hotkeys", false)
+        .is_err());
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    assert!(core.plugins.get("acme.hotkeys").unwrap().running);
+    drop(request);
+
+    // A failed marker insert rolls the whole SQLite transaction back before
+    // any runtime change; the previous outbox candidate is preserved.
+    let conn = rusqlite::Connection::open(paths.automation_database()).unwrap();
+    conn.execute_batch("CREATE TRIGGER fail_untracked BEFORE INSERT ON plugin_sync_untracked_local BEGIN SELECT RAISE(ABORT, 'injected'); END;").unwrap();
+    assert!(core
+        .plugin_set_enabled_with_untracked_intent("acme.hotkeys", false)
+        .is_err());
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    assert!(core.plugins.get("acme.hotkeys").unwrap().running);
+    assert_eq!(
+        core.db
+            .next_plugin_sync_intent(origin, account)
+            .unwrap()
+            .unwrap(),
+        stale
+    );
+    conn.execute_batch("DROP TRIGGER fail_untracked").unwrap();
+
+    core.plugin_set_enabled_with_untracked_intent("acme.hotkeys", false)
+        .unwrap();
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    assert!(source.acquire_emission_guard().is_err());
+    let reopened = crate::db::DatabaseManager::new(paths.clone());
+    assert!(reopened.has_untracked_plugin_sync().unwrap());
+    core.plugin_set_enabled_with_product_intent("acme.hotkeys", true)
+        .unwrap();
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    assert!(source.acquire_emission_guard().is_err());
     drop(source);
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);

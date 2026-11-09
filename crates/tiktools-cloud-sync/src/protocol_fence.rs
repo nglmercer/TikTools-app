@@ -73,6 +73,19 @@ pub struct CutoverLease {
 pub struct V2Lease {
     _file: File,
 }
+
+/// Cross-process boundary between a product network emission and a local
+/// edit that cannot be attributed to Cloud. This directory is independent
+/// of the optional Cloud coordinator state directory.
+#[derive(Clone)]
+pub struct ProductEmissionFence {
+    fence: ProtocolFence,
+}
+
+/// Owns the advisory file lock until the request completes or is cancelled.
+pub struct ProductEmissionLease {
+    _file: File,
+}
 pub(crate) struct V1NetworkLease {
     _file: File,
 }
@@ -101,9 +114,46 @@ unlock_on_drop!(
     V1Lease,
     CutoverLease,
     V2Lease,
+    ProductEmissionLease,
     V1NetworkLease,
     V1AdmissionLease
 );
+
+impl ProductEmissionFence {
+    pub fn open(dir: impl AsRef<Path>) -> Result<Self, ProtocolFenceError> {
+        Ok(Self {
+            fence: ProtocolFence::open(dir)?,
+        })
+    }
+
+    /// Hold while one admitted request may be in flight. Callers must record
+    /// an uncertain durable ticket before taking this lease and dispatching.
+    pub fn try_emission(&self) -> Result<ProductEmissionLease, ProtocolFenceError> {
+        self.try_lock(false)
+    }
+
+    /// Hold while atomically marking and committing an untracked local edit.
+    /// A busy lock is reported immediately, never waited on synchronously.
+    pub fn try_untracked_edit(&self) -> Result<ProductEmissionLease, ProtocolFenceError> {
+        self.try_lock(true)
+    }
+
+    fn try_lock(&self, exclusive: bool) -> Result<ProductEmissionLease, ProtocolFenceError> {
+        let file = self.fence.lock_file_named("product-emission.lock")?;
+        let result = if exclusive {
+            FileExt::try_lock_exclusive(&file)
+        } else {
+            FileExt::try_lock_shared(&file)
+        };
+        match result {
+            Ok(()) => Ok(ProductEmissionLease { _file: file }),
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                Err(ProtocolFenceError::Busy)
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+}
 
 pub(crate) struct UncertainUpload {
     path: PathBuf,
@@ -1499,6 +1549,60 @@ mod tests {
             std::thread::sleep(Duration::from_millis(10));
         }
         assert!(dir.join("child-exit").exists());
+    }
+
+    #[test]
+    fn child_product_emission_lease() {
+        let Some(dir) = std::env::var_os("TIKTOOLS_PRODUCT_EMISSION_CHILD_DIR") else {
+            return;
+        };
+        let dir = PathBuf::from(dir);
+        let fence = ProductEmissionFence::open(&dir).unwrap();
+        let _lease = fence.try_emission().unwrap();
+        fs::write(dir.join("emission-child-ready"), b"ready").unwrap();
+        let until = Instant::now() + Duration::from_secs(20);
+        while !dir.join("emission-child-exit").exists() && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(dir.join("emission-child-exit").exists());
+    }
+
+    #[test]
+    fn product_emission_and_untracked_mutation_exclude_each_other_across_processes() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("product-fence");
+        let fence = ProductEmissionFence::open(&dir).unwrap();
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "protocol_fence::tests::child_product_emission_lease",
+            ])
+            .env("TIKTOOLS_PRODUCT_EMISSION_CHILD_DIR", &dir)
+            .spawn()
+            .unwrap();
+        let until = Instant::now() + Duration::from_secs(10);
+        while !dir.join("emission-child-ready").exists() && Instant::now() < until {
+            assert!(child.try_wait().unwrap().is_none());
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if !dir.join("emission-child-ready").exists() {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("child did not hold product emission lease");
+        }
+        assert!(matches!(
+            fence.try_untracked_edit(),
+            Err(ProtocolFenceError::Busy)
+        ));
+        fs::write(dir.join("emission-child-exit"), b"done").unwrap();
+        assert!(child.wait().unwrap().success());
+        let mutation = fence.try_untracked_edit().unwrap();
+        assert!(matches!(
+            fence.try_emission(),
+            Err(ProtocolFenceError::Busy)
+        ));
+        drop(mutation);
+        assert!(fence.try_emission().is_ok());
     }
 
     #[cfg(unix)]

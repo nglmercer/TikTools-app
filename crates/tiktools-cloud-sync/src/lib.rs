@@ -26,12 +26,13 @@ mod cutover_execution;
 pub use cutover_execution::{CutoverExecution, CutoverSource, GuardedCutoverReview};
 mod protocol_fence;
 pub use protocol_fence::{
-    CutoverLease, ProtocolFence, ProtocolFenceError, V1UncertainUpload, V2Lease,
+    CutoverLease, ProductEmissionFence, ProductEmissionLease, ProtocolFence, ProtocolFenceError,
+    V1UncertainUpload, V2Lease,
 };
 mod v1_recovery;
 pub use v1_recovery::{V1RecoveryChoice, V1RecoveryOutcome, V1UncertainReview};
 mod local_edit;
-pub use local_edit::{V1LocalEditContext, V2LocalEditContext};
+pub use local_edit::{ProductLocalEditContext, V1LocalEditContext, V2LocalEditContext};
 mod v2_product_outbox;
 pub use v2_product_outbox::{V2ProductDecision, V2ProductSource, V2ProductUploadSource};
 mod product_outbox;

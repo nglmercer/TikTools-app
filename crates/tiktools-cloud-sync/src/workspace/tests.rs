@@ -377,6 +377,10 @@ async fn product_recovery_rebases_only_latest_staged_decision_without_replaying(
         enabled: AtomicBool,
     }
     impl crate::V2ProductUploadSource for Source {
+        fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
+            Ok(Box::new(()))
+        }
+
         fn with_fenced_upload(
             &self,
             decision: &crate::V2ProductDecision,
@@ -665,6 +669,10 @@ async fn product_uncertain_keep_local_requires_fresh_review_source_and_publicati
     assert_eq!(server.remote.lock().unwrap().writes(), 2);
 }
 impl crate::V2ProductUploadSource for ProductUploadFixture {
+    fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
+        Ok(Box::new(()))
+    }
+
     fn with_fenced_upload(
         &self,
         decision: &crate::V2ProductDecision,
@@ -1028,6 +1036,10 @@ async fn cancelled_while_last_eligibility_check_is_blocked_does_not_send() {
     );
 }
 impl crate::V2ProductUploadSource for BlockingProductSource {
+    fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
+        Ok(Box::new(()))
+    }
+
     fn with_fenced_upload(
         &self,
         _decision: &crate::V2ProductDecision,
