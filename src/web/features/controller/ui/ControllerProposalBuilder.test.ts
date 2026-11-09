@@ -83,6 +83,52 @@ it('builds and reloads a bounded internal-event action without sending it', asyn
   } finally { f.wrapper.unmount(); f.model.stop(); }
 });
 
+it('prepares and reloads a bounded HTTP action without issuing a request', async () => {
+  const f = await setup('action');
+  try {
+    await f.wrapper.findAll('input')[0]!.setValue('Webhook');
+    await f.wrapper.findAll('select')[0]!.setValue('core.fetch');
+    const inputs = f.wrapper.findAll('input');
+    await inputs[1]!.setValue('https://hooks.example/live');
+    await inputs[2]!.setValue('3000');
+    await inputs[3]!.setValue('1024');
+    const textareas = f.wrapper.findAll('textarea');
+    await textareas[0]!.setValue('{"content-type":"application/json"}');
+    await textareas[1]!.setValue('{"comment":"{{event.data.comment}}"}');
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toMatchObject({typeId:'core.fetch', enabled:false, config:{url:'https://hooks.example/live', method:'POST', headers:{'content-type':'application/json'}, body:'{"comment":"{{event.data.comment}}"}', timeoutMs:3000, maxResponseBytes:1024, allowPrivateNetwork:false}});
+    await f.button('Load fields from open text').trigger('click');
+    expect((f.wrapper.findAll('input')[1]!.element as HTMLInputElement).value).toBe('https://hooks.example/live');
+    await f.wrapper.findAll('input')[1]!.setValue('http://127.0.0.1/hook');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    await f.wrapper.findAll('input')[4]!.setValue(true);
+    expect(f.button('Prepare draft').attributes('disabled')).toBeUndefined();
+    await f.wrapper.findAll('textarea')[0]!.setValue('{"X-Bad":42}');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    expect(f.calls.map((call) => call.method)).toEqual(['controller.proposals.list']);
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('preserves extra HTTP settings and refuses unsupported response emission', async () => {
+  const f = await setup('action');
+  try {
+    const record = {id:'author.example', name:'Webhook', enabled:false, typeId:'core.fetch', schemaVersion:2, custom:'keep', config:{url:'https://hooks.example/live',method:'GET',headers:{},body:null,timeoutMs:5000,maxResponseBytes:128,allowPrivateNetwork:false,custom:'keep'}};
+    f.model.edit(JSON.stringify(record));
+    await f.button('Load fields from open text').trigger('click');
+    await f.wrapper.findAll('input')[2]!.setValue('6000');
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toMatchObject({custom:'keep',config:{custom:'keep',timeoutMs:6000}});
+    const unsupported = JSON.stringify({...record, config:{...record.config,emitResponseAs:'private.response'}});
+    f.model.edit(unsupported);
+    await f.button('Load fields from open text').trigger('click');
+    expect(f.wrapper.text()).toContain('These fields cannot be loaded');
+    expect(f.model.text.value).toBe(unsupported);
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
 it('builds and reloads an internal-event trigger with a literal topic', async () => {
   const f = await setup('event');
   try {

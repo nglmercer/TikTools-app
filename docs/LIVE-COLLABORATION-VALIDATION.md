@@ -50,6 +50,13 @@ API integration creates an active chat-to-emit-to-custom-event chain under a
 single reusable grant and rejects an ungranted topic. This proves admission and
 storage, not a physical LIVE or delivery of an actual TikTok event.
 
+The field editor also prepares compatible `core.fetch` actions with URL, method,
+string headers, body, timeout, response ceiling and private-network selection.
+It does not issue a request while editing; unsupported response-emission
+configurations remain in the JSON editor. The host still enforces each granted
+destination and effect limit at execution. A reusable-grant runtime test sends
+one request to a local fixture and checks that revocation prevents another.
+
 Core runtime tests now execute that kind of chain through an internal event to a
 points adjustment. A two-author fixture checks that removing either author's
 topic grant stops the relevant chain and restoring the child author's grant

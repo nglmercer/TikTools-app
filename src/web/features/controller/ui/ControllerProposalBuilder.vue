@@ -11,6 +11,7 @@ const labels = computed(() => locale.value === 'es' ? {
   title: 'Crear una propuesta con campos', note: 'Genera un borrador inactivo. Antes de enviarlo tendrás que guardarlo y revisar el estado del anfitrión.',
   name: 'Nombre', actionType: 'Tipo de acción', log: 'Registrar un mensaje', delay: 'Esperar', points: 'Ajustar puntos de un espectador', message: 'Mensaje', milliseconds: 'Milisegundos',
   emit: 'Emitir evento interno', topic: 'Nombre exacto del evento', emitData: 'Datos del evento (objeto JSON)', emitHint: 'Usa hasta 64 letras minúsculas, números, puntos, guiones o guiones bajos. El anfitrión debe permitir el nombre exacto y, para campos públicos del directo, la lectura de LIVE.', custom: 'Evento interno', customHint: 'Este evento solo recibe eventos internos autorizados; no se inicia desde TikTok directamente. Usa un nombre exacto en minúsculas.',
+  fetch: 'Enviar solicitud HTTP', fetchUrl: 'URL de destino', fetchMethod: 'Método', fetchHeaders: 'Cabeceras (objeto JSON de texto)', fetchBody: 'Cuerpo de la solicitud', fetchTimeout: 'Tiempo límite (ms)', fetchResponse: 'Límite de respuesta (bytes)', fetchPrivate: 'Permitir red privada', fetchHint: 'El anfitrión debe autorizar el destino, método, cabeceras, cuerpo y límites. Las respuestas no se comparten como eventos.',
   viewer: 'ID exacto del espectador', delta: 'Cambio de puntos', pointsNote: 'Usa un ID literal, sin @ ni variables. El anfitrión comprueba los permisos y límites concedidos para ese espectador; este borrador no ajusta puntos.',
   viewerTarget: 'Espectador que recibe el ajuste', specificViewer: 'Un espectador concreto', triggeringViewer: 'Quien origine el evento',
   dynamicPointsNote: 'El ID se tomará de cada evento. El evento debe contener un espectador y sus permisos se comprobarán en cada ejecución. La autorización debe permitir destinos dinámicos; este borrador no ajusta puntos.',
@@ -28,13 +29,14 @@ const labels = computed(() => locale.value === 'es' ? {
   actionLimit: 'Se muestran las primeras 50 coincidencias. Busca por nombre o ID para encontrar otras.', selectAction: 'Usar ID',
   actionDisabled: 'inactiva', actionEnabled: 'activa', actionStatusNote: 'La lista es una instantánea. El anfitrión comprobará las referencias y los permisos al activar la definición.',
   generate: 'Preparar borrador', invalid: 'Completa los campos válidos antes de preparar el borrador.',
-  loadFields: 'Cargar campos del texto abierto', loadFieldsHint: 'Carga acciones de registro, espera, puntos o eventos internos y eventos compatibles. Conserva los demás campos; al cambiar el tipo de acción, se reemplaza su configuración.', loadFieldsError: 'No se pueden cargar estos campos. Revisa el JSON o edítalo directamente.', staleFields: 'El texto abierto cambió. Vuelve a cargar los campos antes de preparar el borrador.',
+  loadFields: 'Cargar campos del texto abierto', loadFieldsHint: 'Carga acciones de registro, espera, puntos, HTTP o eventos internos y eventos compatibles. Conserva los demás campos; al cambiar el tipo de acción, se reemplaza su configuración.', loadFieldsError: 'No se pueden cargar estos campos. Revisa el JSON o edítalo directamente.', staleFields: 'El texto abierto cambió. Vuelve a cargar los campos antes de preparar el borrador.',
   confirm: '¿Reemplazar el texto abierto?', warning: 'Se reemplazará el texto abierto por el borrador mostrado. No se guardará ni enviará todavía. Copia antes cualquier contenido que desees conservar.',
   apply: 'Usar este borrador', changed: 'La propuesta, los campos o el acceso cambiaron. Vuelve a revisar el borrador.', preview: 'Borrador nuevo',
 } : {
   title: 'Create a proposal with fields', note: 'Generate a disabled draft. Before sending, save it and inspect the host status.',
   name: 'Name', actionType: 'Action type', log: 'Log a message', delay: 'Wait', points: 'Adjust a viewer’s points', message: 'Message', milliseconds: 'Milliseconds',
   emit: 'Emit an internal event', topic: 'Exact event name', emitData: 'Event data (JSON object)', emitHint: 'Use up to 64 lowercase letters, digits, dots, hyphens or underscores. The host must allow the exact name and, for public LIVE fields, LIVE read access.', custom: 'Internal event', customHint: 'This event only receives authorized internal events; TikTok does not start it directly. Use an exact lowercase name.',
+  fetch: 'Send an HTTP request', fetchUrl: 'Destination URL', fetchMethod: 'Method', fetchHeaders: 'Headers (JSON object of strings)', fetchBody: 'Request body', fetchTimeout: 'Timeout (ms)', fetchResponse: 'Response limit (bytes)', fetchPrivate: 'Allow private network', fetchHint: 'The host must authorize the destination, method, headers, body and limits. Responses are not emitted as events.',
   viewer: 'Exact viewer ID', delta: 'Points change', pointsNote: 'Use a literal ID without @ or variables. The host checks the granted permissions and limits for that viewer; this draft does not adjust points.',
   viewerTarget: 'Viewer receiving the adjustment', specificViewer: 'A specific viewer', triggeringViewer: 'Viewer who triggers the event',
   dynamicPointsNote: 'The ID comes from each event. The event must contain a viewer, and permissions are checked on every execution. The authorization must allow dynamic targets; this draft does not adjust points.',
@@ -52,13 +54,13 @@ const labels = computed(() => locale.value === 'es' ? {
   actionLimit: 'Showing the first 50 matches. Search by name or ID to find others.', selectAction: 'Use ID',
   actionDisabled: 'disabled', actionEnabled: 'enabled', actionStatusNote: 'This list is a snapshot. The host checks references and permissions when activating the definition.',
   generate: 'Prepare draft', invalid: 'Complete the valid fields before preparing the draft.',
-  loadFields: 'Load fields from open text', loadFieldsHint: 'Loads supported log, delay, points, emit and event definitions. Other fields are preserved; changing the action type replaces its configuration.', loadFieldsError: 'These fields cannot be loaded. Check the JSON or edit it directly.', staleFields: 'The open text changed. Reload the fields before preparing the draft.',
+  loadFields: 'Load fields from open text', loadFieldsHint: 'Loads supported log, delay, points, HTTP, emit and event definitions. Other fields are preserved; changing the action type replaces its configuration.', loadFieldsError: 'These fields cannot be loaded. Check the JSON or edit it directly.', staleFields: 'The open text changed. Reload the fields before preparing the draft.',
   confirm: 'Replace the open text?', warning: 'The open text will be replaced by the draft shown. It will not be saved or sent yet. Copy anything you want to keep first.',
   apply: 'Use this draft', changed: 'The proposal, fields, or access changed. Review the draft again.', preview: 'New draft',
 });
 
 const name = ref('');
-const actionType = ref<'core.log' | 'core.delay' | 'core.points' | 'core.emit'>('core.log');
+const actionType = ref<'core.log' | 'core.delay' | 'core.points' | 'core.emit' | 'core.fetch'>('core.log');
 const message = ref('');
 const milliseconds = ref('1000');
 const viewer = ref('');
@@ -66,6 +68,8 @@ const viewerTarget = ref<'specific' | 'event'>('specific');
 const delta = ref('');
 const trigger = ref<'tiktok.chat' | 'tiktok.gift' | 'tiktok.like' | 'tiktok.follow' | 'tiktok.share' | 'tiktok.join' | 'custom'>('tiktok.chat');
 const emitTopic = ref(''); const emitData = ref('{}'); const customTopic = ref('');
+const fetchUrl = ref(''); const fetchMethod = ref<'GET' | 'POST' | 'PUT' | 'DELETE'>('POST');
+const fetchHeaders = ref('{}'); const fetchBody = ref(''); const fetchTimeout = ref('5000'); const fetchResponse = ref('2097152'); const fetchPrivate = ref(false);
 const contains = ref('');
 const giftContains = ref('');
 const actionId = ref('');
@@ -92,6 +96,19 @@ function boundedEmitData(value: unknown): value is Record<string, unknown> {
     }
   }
   try { return encoder.encode(JSON.stringify(value)).length <= 64 * 1024; } catch { return false; }
+}
+function httpHeaders(text: string): Record<string, string> | null {
+  if (encoder.encode(text).length > 64 * 1024) return null;
+  let parsed: unknown; try { parsed = JSON.parse(text); } catch { return null; }
+  if (!object(parsed) || Object.keys(parsed).length > 64 || !Object.entries(parsed).every(([key, value]) => !!key && !/[^!#$%&'*+.^_`|~0-9a-z-]/.test(key) && typeof value === 'string' && encoder.encode(value).length <= 8192)) return null;
+  return parsed as Record<string, string>;
+}
+function validHttpUrl(text: string, allowPrivate: boolean): boolean {
+  if (!text || text.trim() !== text || encoder.encode(text).length > 8192) return false;
+  try {
+    const url = new URL(text);
+    return (url.protocol === 'https:' || (url.protocol === 'http:' && allowPrivate)) && !!url.hostname && !url.username && !url.password && !url.hash;
+  } catch { return false; }
 }
 const integer = (value: string, max: number): number | null => {
   if (!/^(0|[1-9]\d*)$/.test(value)) return null;
@@ -156,6 +173,12 @@ function loadFields(): void {
       viewer.value = viewerTarget.value === 'specific' ? config['uniqueId'] : ''; delta.value = String(config['delta']);
     } else if (type === 'core.emit' && typeof config['type'] === 'string' && validTopic(config['type']) && boundedEmitData(config['data'] ?? {})) {
       actionType.value = type; emitTopic.value = config['type']; emitData.value = JSON.stringify(config['data'] ?? {}, null, 2);
+    } else if (type === 'core.fetch') {
+      const url = config['url']; const method = config['method'] ?? 'POST'; const headers = config['headers'] ?? {}; const body = config['body'] ?? '';
+      const timeout = config['timeoutMs'] ?? 5000; const response = config['maxResponseBytes'] ?? 2_097_152; const allowPrivate = config['allowPrivateNetwork'] ?? false;
+      if (typeof url !== 'string' || typeof allowPrivate !== 'boolean' || !validHttpUrl(url, allowPrivate) || typeof method !== 'string' || !['GET','POST','PUT','DELETE'].includes(method) || !object(headers) || !Object.values(headers).every((value) => typeof value === 'string') || !httpHeaders(JSON.stringify(headers)) || typeof body !== 'string' || encoder.encode(body).length > 256 * 1024 || typeof timeout !== 'number' || integer(String(timeout), 120_000) === null || timeout < 100 || typeof response !== 'number' || integer(String(response), 2_097_152) === null || response < 1 || (config['emitResponseAs'] !== undefined && config['emitResponseAs'] !== '')) return;
+      actionType.value = type; fetchUrl.value = url; fetchMethod.value = method as typeof fetchMethod.value; fetchHeaders.value = JSON.stringify(headers, null, 2);
+      fetchBody.value = body; fetchTimeout.value = String(timeout); fetchResponse.value = String(response); fetchPrivate.value = allowPrivate;
     } else return;
   } else {
     if (record['schemaVersion'] !== undefined && record['schemaVersion'] !== 1) return;
@@ -199,6 +222,11 @@ const draft = computed<string | null>(() => {
       if (!boundedEmitData(data)) return null;
       return JSON.stringify({ ...source, id, name: name.value, enabled: false, typeId: 'core.emit', config: { ...(source['typeId'] === 'core.emit' && object(source['config']) ? source['config'] : {}), type: emitTopic.value, data }, schemaVersion: 2 }, null, 2);
     }
+    if (actionType.value === 'core.fetch') {
+      const headers = httpHeaders(fetchHeaders.value); const timeoutMs = integer(fetchTimeout.value, 120_000); const maxResponseBytes = integer(fetchResponse.value, 2_097_152);
+      if (!validHttpUrl(fetchUrl.value, fetchPrivate.value) || !['GET','POST','PUT','DELETE'].includes(fetchMethod.value) || !headers || timeoutMs === null || timeoutMs < 100 || maxResponseBytes === null || maxResponseBytes < 1 || encoder.encode(fetchBody.value).length > 256 * 1024) return null;
+      return JSON.stringify({ ...source, id, name: name.value, enabled: false, typeId: 'core.fetch', config: { ...(source['typeId'] === 'core.fetch' && object(source['config']) ? source['config'] : {}), url: fetchUrl.value, method: fetchMethod.value, headers, body: fetchBody.value || null, timeoutMs, maxResponseBytes, allowPrivateNetwork: fetchPrivate.value }, schemaVersion: 2 }, null, 2);
+    }
     return null;
   }
   const wait = integer(cooldown.value, 86_400_000);
@@ -234,7 +262,7 @@ function apply(): void {
 // Source and form state are both private to the current connection/selection.
 watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.id.value], () => {
   capture.value = null; loadedSource.value = null; loadError.value = false; name.value = ''; message.value = ''; actionId.value = ''; selectedActionIds.value = []; actionSearch.value = ''; contains.value = ''; giftContains.value = ''; viewer.value = ''; delta.value = '';
-  actionType.value = 'core.log'; viewerTarget.value = 'specific'; runMode.value = 'all'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0'; cooldownScope.value = 'global'; emitTopic.value = ''; emitData.value = '{}'; customTopic.value = '';
+  actionType.value = 'core.log'; viewerTarget.value = 'specific'; runMode.value = 'all'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0'; cooldownScope.value = 'global'; emitTopic.value = ''; emitData.value = '{}'; customTopic.value = ''; fetchUrl.value = ''; fetchMethod.value = 'POST'; fetchHeaders.value = '{}'; fetchBody.value = ''; fetchTimeout.value = '5000'; fetchResponse.value = '2097152'; fetchPrivate.value = false;
 }, { flush: 'sync' });
 </script>
 
@@ -249,12 +277,21 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
     <div class="fields">
       <label>{{ labels.name }}<input v-model="name" maxlength="256" :disabled="model.busy.value"></label>
       <template v-if="model.kind.value === 'action'">
-        <label>{{ labels.actionType }}<select v-model="actionType" :disabled="model.busy.value"><option value="core.log">{{ labels.log }}</option><option value="core.delay">{{ labels.delay }}</option><option value="core.points">{{ labels.points }}</option><option value="core.emit">{{ labels.emit }}</option></select></label>
+        <label>{{ labels.actionType }}<select v-model="actionType" :disabled="model.busy.value"><option value="core.log">{{ labels.log }}</option><option value="core.delay">{{ labels.delay }}</option><option value="core.points">{{ labels.points }}</option><option value="core.emit">{{ labels.emit }}</option><option value="core.fetch">{{ labels.fetch }}</option></select></label>
         <label v-if="actionType === 'core.log'">{{ labels.message }}<input v-model="message" maxlength="8192" :disabled="model.busy.value"></label>
         <label v-else-if="actionType === 'core.delay'">{{ labels.milliseconds }}<input v-model="milliseconds" type="number" min="0" max="60000" step="1" :disabled="model.busy.value"></label>
         <template v-else-if="actionType === 'core.emit'">
           <label>{{ labels.topic }}<input v-model="emitTopic" maxlength="64" spellcheck="false" :disabled="model.busy.value"></label>
           <label>{{ labels.emitData }}<textarea v-model="emitData" rows="4" spellcheck="false" :disabled="model.busy.value" /></label>
+        </template>
+        <template v-else-if="actionType === 'core.fetch'">
+          <label>{{ labels.fetchUrl }}<input v-model="fetchUrl" maxlength="8192" spellcheck="false" autocomplete="off" :disabled="model.busy.value"></label>
+          <label>{{ labels.fetchMethod }}<select v-model="fetchMethod" :disabled="model.busy.value"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select></label>
+          <label>{{ labels.fetchHeaders }}<textarea v-model="fetchHeaders" rows="4" spellcheck="false" autocomplete="off" :disabled="model.busy.value" /></label>
+          <label>{{ labels.fetchBody }}<textarea v-model="fetchBody" rows="4" spellcheck="false" autocomplete="off" :disabled="model.busy.value" /></label>
+          <label>{{ labels.fetchTimeout }}<input v-model="fetchTimeout" type="number" min="100" max="120000" step="1" :disabled="model.busy.value"></label>
+          <label>{{ labels.fetchResponse }}<input v-model="fetchResponse" type="number" min="1" max="2097152" step="1" :disabled="model.busy.value"></label>
+          <label><input v-model="fetchPrivate" type="checkbox" :disabled="model.busy.value">{{ labels.fetchPrivate }}</label>
         </template>
         <template v-else>
           <label>{{ labels.viewerTarget }}<select v-model="viewerTarget" :disabled="model.busy.value"><option value="specific">{{ labels.specificViewer }}</option><option value="event">{{ labels.triggeringViewer }}</option></select></label>
@@ -305,6 +342,7 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
     <p v-if="model.kind.value === 'event' && trigger === 'tiktok.gift'">{{ labels.giftHint }}</p>
     <p v-if="model.kind.value === 'event' && trigger === 'custom'">{{ labels.customHint }}</p>
     <p v-if="model.kind.value === 'action' && actionType === 'core.emit'">{{ labels.emitHint }}</p>
+    <p v-if="model.kind.value === 'action' && actionType === 'core.fetch'">{{ labels.fetchHint }}</p>
     <p v-if="model.kind.value === 'event' && cooldown !== '0'">{{ labels.cooldownNote }}</p>
     <p v-if="model.kind.value === 'action' && actionType === 'core.points'">{{ viewerTarget === 'event' ? labels.dynamicPointsNote : labels.pointsNote }}</p>
     <p v-if="draft === null" role="status">{{ labels.invalid }}</p>
