@@ -16,6 +16,12 @@ and collaboration lock through commit. Unrelated grant revisions can advance
 without invalidating the stored identity; a missing, expired or revoked grant
 denies admission. This primitive is not wired to remote start/resume or to the
 external-effect dispatcher and is not itself an effect authorization.
+The internal start/resume transaction now records the lifecycle, retained
+operator identities, command receipt and invalidation together. Resuming
+rechecks all earlier operators as well as the new caller; a retained receipt
+can be recovered without executing the transition again. This remains private
+until the competition event and winner-action paths can propagate delegated
+authority to every effect.
 
 The host now reserves competition creation, definition and lifecycle changes in
 the coordination outbox. The competition stream supplies scoped summary

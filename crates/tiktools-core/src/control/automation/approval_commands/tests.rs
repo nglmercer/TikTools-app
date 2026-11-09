@@ -197,6 +197,165 @@ fn grant() -> Grant {
 }
 
 #[test]
+fn competition_activation_transaction_retains_operators_and_replays_original_command() {
+    use crate::db::{CommandTransaction, CompetitionActivation};
+    use tiktools_competitions::Transition;
+    let f = Fixture::new();
+    f.core().ranking_create(serde_json::from_value(json!({"schemaVersion":1,"id":"rank","creatorId":"owner","roomId":"room","limit":10,"capacity":10,"sources":[{"source":"custom.score","metric":"value","weight":1,"enabled":true}]})).unwrap()).unwrap();
+    f.core().competition_create(serde_json::from_value(json!({"schemaVersion":1,"id":"shared","name":"Shared","kind":"leaderboard_challenge","rankingId":"rank","options":[],"selectionMode":"highest_score","tiePolicy":"stable","durationMs":null,"voteLimit":1,"allowSwitch":false,"minimumParticipants":1})).unwrap()).unwrap();
+    let mut permission = grant();
+    permission
+        .capabilities
+        .extend([Capability::CompetitionsRead, Capability::CompetitionsManage]);
+    let first = f.pair(permission.clone());
+    let second = f.pair(permission.clone());
+    let first_id = first.snapshot().unwrap();
+    let second_id = second.snapshot().unwrap();
+    let service = f.core().collaboration().unwrap();
+    let command = |auth: &Authorization, expected: &str| {
+        let identity = auth.snapshot().unwrap();
+        CommandTransaction {
+            principal_id: identity.principal_id,
+            session_id: identity.session_id,
+            authorization: Some(auth.clone()),
+            request: f.request(expected),
+            current_instance_id: service.instance_id().into(),
+            max_ids_per_principal: 100,
+        }
+    };
+    let start = command(&first, "1");
+    let (started, fresh) = f
+        .core()
+        .db
+        .execute_competition_activation(
+            "shared",
+            0,
+            CompetitionActivation::Start,
+            &start,
+            &service,
+            "host-owner",
+        )
+        .unwrap();
+    assert!(fresh);
+    assert_eq!(started.value["generation"], "1");
+    let (replayed, fresh) = f
+        .core()
+        .db
+        .execute_competition_activation(
+            "shared",
+            0,
+            CompetitionActivation::Start,
+            &start,
+            &service,
+            "host-owner",
+        )
+        .unwrap();
+    assert!(!fresh);
+    assert_eq!(replayed.value, started.value);
+    f.core()
+        .db
+        .transition_competition_owned(
+            "shared",
+            Transition::Pause,
+            crate::now_millis(),
+            Some("host-owner"),
+        )
+        .unwrap();
+    let revision = f
+        .core()
+        .db
+        .competition_state_revision("shared")
+        .unwrap()
+        .unwrap()
+        .1
+        .to_string();
+    let resume = command(&second, &revision);
+    let mut revoked = permission.clone();
+    revoked.capabilities.remove(&Capability::CompetitionsManage);
+    service
+        .set_grant(GrantSet {
+            principal_id: first_id.principal_id.clone(),
+            expected_revision: first_id.grant_revision.clone(),
+            grant: revoked.clone(),
+        })
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .execute_competition_activation(
+            "shared",
+            1,
+            CompetitionActivation::Resume,
+            &resume,
+            &service,
+            "host-owner"
+        )
+        .is_err());
+    assert_eq!(
+        f.core().competition_state("shared").unwrap().lifecycle,
+        tiktools_competitions::Lifecycle::Paused
+    );
+    service
+        .set_grant(GrantSet {
+            principal_id: first_id.principal_id.clone(),
+            expected_revision: "2".into(),
+            grant: permission,
+        })
+        .unwrap();
+    let (resumed, fresh) = f
+        .core()
+        .db
+        .execute_competition_activation(
+            "shared",
+            1,
+            CompetitionActivation::Resume,
+            &resume,
+            &service,
+            "host-owner",
+        )
+        .unwrap();
+    assert!(fresh);
+    assert_eq!(resumed.value["lifecycle"], "active");
+    assert_eq!(
+        f.core()
+            .db
+            .with_competition_delegation(&service, "shared", 1, |_, subjects| Ok(subjects.len()))
+            .unwrap(),
+        2
+    );
+    service
+        .set_grant(GrantSet {
+            principal_id: first_id.principal_id,
+            expected_revision: "3".into(),
+            grant: revoked,
+        })
+        .unwrap();
+    let (again, fresh) = f
+        .core()
+        .db
+        .execute_competition_activation(
+            "shared",
+            1,
+            CompetitionActivation::Resume,
+            &resume,
+            &service,
+            "host-owner",
+        )
+        .unwrap();
+    assert!(!fresh);
+    assert_eq!(again.value, resumed.value);
+    assert!(f
+        .core()
+        .db
+        .with_competition_delegation(&service, "shared", 1, |_, _| Ok(()))
+        .is_err());
+    assert_eq!(
+        second.snapshot().unwrap().principal_id,
+        second_id.principal_id
+    );
+}
+
+#[test]
 fn competition_generation_rechecks_all_saved_operators_and_current_scope() {
     let f = Fixture::new();
     let mut allowed = grant();

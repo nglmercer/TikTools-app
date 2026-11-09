@@ -19,6 +19,8 @@ mod effects;
 pub(crate) use delivery::{DeliveryToken, PendingDelivery};
 mod competitions;
 pub(crate) use commands::{CommandDatabase, CommandTransaction};
+#[cfg(test)]
+pub(crate) use competitions::CompetitionActivation;
 mod gift_accounting;
 pub(crate) use competitions::{
     ActionClaimOutcome, GiftInput, GiftOutcome, ScoredInput, ScoredOutcome,

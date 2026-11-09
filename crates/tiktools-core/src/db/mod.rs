@@ -15,6 +15,8 @@ pub(crate) use analytics::writer::{AnalyticsWrite, AnalyticsWriter};
 pub(crate) use sqlite::validate_owner_approval_input;
 #[cfg(feature = "persistence")]
 pub(crate) use sqlite::validate_owner_definition_input;
+#[cfg(all(feature = "persistence", test))]
+pub(crate) use sqlite::CompetitionActivation;
 #[cfg(feature = "persistence")]
 pub use sqlite::DatabaseError;
 #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
