@@ -111,6 +111,43 @@ it('prepares and reloads a bounded HTTP action without issuing a request', async
   } finally { f.wrapper.unmount(); f.model.stop(); }
 });
 
+it('prepares host audio with explicit volume and overlap without playing it', async () => {
+  const f = await setup('action');
+  try {
+    await f.wrapper.findAll('input')[0]!.setValue('Alert sound');
+    await f.wrapper.findAll('select')[0]!.setValue('audio.play');
+    expect(f.wrapper.text()).toContain('path is on the host PC');
+    await f.wrapper.findAll('input')[1]!.setValue('/media/alert.wav');
+    await f.wrapper.findAll('input')[2]!.setValue('0.5');
+    await f.wrapper.findAll('select')[1]!.setValue('drop');
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toMatchObject({typeId:'audio.play',enabled:false,config:{fileRef:'/media/alert.wav',volume:0.5,overlap:'drop'}});
+    await f.button('Load fields from open text').trigger('click');
+    await f.wrapper.findAll('input')[1]!.setValue('{{globals.secret}}');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    await f.wrapper.findAll('input')[1]!.setValue('/media/alert.wav');
+    await f.wrapper.findAll('input')[2]!.setValue('2');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    expect(f.send).not.toHaveBeenCalled();
+    expect(f.calls.map((call) => call.method)).toEqual(['controller.proposals.list']);
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('replaces stale file metadata only when the host audio path changes', async () => {
+  const f = await setup('action');
+  try {
+    f.model.edit(JSON.stringify({id:'author.example',name:'Sound',enabled:false,typeId:'core.audio.play',schemaVersion:2,config:{fileRef:{path:'/media/old.wav',name:'old.wav',sizeBytes:12},volume:0.5,overlap:'allow',custom:'keep'}}));
+    await f.button('Load fields from open text').trigger('click');
+    await f.button('Prepare draft').trigger('click'); await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value).config.fileRef).toEqual({path:'/media/old.wav',name:'old.wav',sizeBytes:12});
+    await f.wrapper.findAll('input')[1]!.setValue('/media/new.wav');
+    await f.button('Prepare draft').trigger('click'); await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toMatchObject({typeId:'core.audio.play',config:{fileRef:{path:'/media/new.wav'},custom:'keep'}});
+    expect(JSON.parse(f.model.text.value).config.fileRef).toEqual({path:'/media/new.wav'});
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
 it('preserves extra HTTP settings and refuses unsupported response emission', async () => {
   const f = await setup('action');
   try {

@@ -57,6 +57,13 @@ configurations remain in the JSON editor. The host still enforces each granted
 destination and effect limit at execution. A reusable-grant runtime test sends
 one request to a local fixture and checks that revocation prevents another.
 
+For `audio.play`, the controller editor takes a path on the host, volume and
+overlap policy without trying to browse or play a file on the controller PC.
+It preserves unchanged file-reference metadata and replaces it when the path
+changes. A host runtime fixture verifies one authorized playback through a mock
+media sink and that removing the file grant prevents a later playback; this does
+not verify a physical audio device or two PCs.
+
 Core runtime tests now execute that kind of chain through an internal event to a
 points adjustment. A two-author fixture checks that removing either author's
 topic grant stops the relevant chain and restoring the child author's grant

@@ -100,6 +100,91 @@ async fn approved_audio_uses_resolved_path_and_never_replays_a_retained_root() {
         .contains("alert.wav"));
     f.assert_delegated(AutomationKind::Action, "audio");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_audio_plays_on_host_and_stops_when_file_grant_is_removed() {
+    let mut f = Fixture::new();
+    let calls = Arc::new(AtomicUsize::new(0));
+    drop(f.core.take());
+    f.core = Some(Arc::new(AppCore::with_paths(
+        Arc::new(Emitter),
+        Arc::new(AudioHost(calls.clone())),
+        f.paths.clone(),
+    )));
+    let path = f.paths.data.join("alert.wav");
+    std::fs::write(&path, b"host audio fixture").unwrap();
+    let canonical = path.canonicalize().unwrap().to_str().unwrap().to_owned();
+    let mut allowed = grant();
+    allowed
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::AudioPlay]);
+    allowed.effects.audio.push(AudioEffectGrant {
+        file_refs: [canonical].into(),
+        output: "host-default".into(),
+        max_volume: 0.5,
+        overlaps: ["drop".into()].into(),
+    });
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Audio].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+    });
+    let auth = f.pair(allowed.clone());
+    let identity = auth.snapshot().unwrap();
+    for (kind, record) in [
+        (
+            AutomationKind::Action,
+            json!({"id":"sound","name":"Sound","enabled":true,"typeId":"audio.play","schemaVersion":2,"config":{"fileRef":"alert.wav","volume":0.5,"overlap":"drop"}}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"rule","name":"Chat","enabled":true,"trigger":"tiktok.chat","actionIds":["sound"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1}),
+        ),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let receipts = f.core().automation_effect_history(None, 10).unwrap();
+    assert_eq!(receipts.items.len(), 1);
+    assert_eq!(receipts.items[0].state, EffectState::Succeeded);
+    allowed.effects.audio.clear();
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: allowed,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "revocation must prevent another playback"
+    );
+    assert_eq!(
+        f.core()
+            .automation_effect_history(None, 10)
+            .unwrap()
+            .items
+            .len(),
+        1
+    );
+    f.core().shutdown().await;
+}
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn approved_audio_still_rejects_out_of_scope_files_and_unavailable_output() {
     let f = Fixture::new();
