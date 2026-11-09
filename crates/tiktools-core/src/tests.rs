@@ -3682,3 +3682,68 @@ async fn unusable_cloud_sync_directory_degrades_instead_of_panicking() {
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[test]
+fn v2_sqlite_source_requires_current_runtime_and_acknowledges_only_after_staging() {
+    use crate::db::LocalPluginSyncIntent;
+    use tiktools_cloud_sync::{SyncCoordError, V2ProductSource};
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(state, &["hotkeys"]);
+    let origin = "https://cloud.example";
+    let account = "alice";
+    let version = core.plugins.get("hotkeys").unwrap().manifest.version;
+    core.db
+        .set_plugin_state_with_sync_intent(
+            "hotkeys",
+            true,
+            false,
+            Some(LocalPluginSyncIntent {
+                origin,
+                account_id: account,
+                config_generation: 42,
+                version: Some(&version),
+            }),
+        )
+        .unwrap();
+    core.set_plugin_activation("hotkeys", true, false);
+    let entry = core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .unwrap();
+    let epoch = core.sync.runtime_epoch().unwrap();
+    assert!(core.db.confirm_plugin_sync_runtime(&entry, epoch).unwrap());
+    let source =
+        crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&core, origin, account);
+    let failure: Result<(), _> =
+        source.with_fenced_decision(|_| Err(SyncCoordError::Local("failed workspace save".into())));
+    assert!(failure.is_err());
+    assert!(core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .is_some());
+    core.set_plugin_activation("hotkeys", true, true);
+    assert!(source.with_fenced_decision(|_| Ok(())).is_err());
+    assert!(core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .is_some());
+    core.set_plugin_activation("hotkeys", true, false);
+    source
+        .with_fenced_decision(|decision| {
+            assert_eq!(decision.plugin_id, "hotkeys");
+            assert_eq!(decision.source_generation, entry.generation as u64);
+            assert!(!decision.selection.as_ref().unwrap().enabled);
+            Ok(())
+        })
+        .unwrap();
+    assert!(core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .is_none());
+    let _ = std::fs::remove_dir_all(root);
+}

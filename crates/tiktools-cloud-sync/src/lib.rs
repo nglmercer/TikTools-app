@@ -20,6 +20,8 @@ pub use workspace::{
 };
 mod cutover_preview;
 pub use cutover_preview::CutoverPreview;
+mod cutover_receipt;
+pub use cutover_receipt::V1CutoverReceipt;
 mod cutover_execution;
 pub use cutover_execution::{CutoverExecution, CutoverSource, GuardedCutoverReview};
 mod protocol_fence;
@@ -30,6 +32,8 @@ mod v1_recovery;
 pub use v1_recovery::{V1RecoveryChoice, V1RecoveryOutcome, V1UncertainReview};
 mod local_edit;
 pub use local_edit::V1LocalEditContext;
+mod v2_product_outbox;
+pub use v2_product_outbox::{V2ProductDecision, V2ProductSource};
 mod product_outbox;
 pub use product_outbox::{V1ConflictSourceProof, V1OutboxCandidate, V1ProductOutbox};
 mod product_remote_apply;
@@ -492,6 +496,16 @@ impl SyncCoordinator {
         selections: &[PluginSelection],
         after_snapshot: impl FnOnce(),
     ) -> Result<CutoverPreview, SyncCoordError> {
+        self.preview_v2_cutover_inner(session, selections, None, after_snapshot)
+    }
+
+    fn preview_v2_cutover_inner(
+        &self,
+        session: &Arc<cloud_client::Session>,
+        selections: &[PluginSelection],
+        receipts: Option<&[V1CutoverReceipt]>,
+        after_snapshot: impl FnOnce(),
+    ) -> Result<CutoverPreview, SyncCoordError> {
         let epoch = self
             .capture_config_epoch(session)
             .ok_or(SyncCoordError::StaleReview)?;
@@ -503,10 +517,10 @@ impl SyncCoordinator {
             lease.ensure_v1(&origin, &account)?;
             // These durable journals can contain work not represented by the
             // v1 snapshot and prevent a complete migration candidate.
-            lease.ensure_legacy_allowed(&origin, &account)?;
+            lease.ensure_outbox_mode(&origin, &account, receipts.is_some())?;
             lease.ensure_no_uncertain(&origin, &account)?;
             self.auth
-                .with_current_session(session, || {
+                .with_current_session_permit(session, || {
                     if !self.is_config_epoch_current(&epoch, session) {
                         return Err(SyncCoordError::StaleReview);
                     }
@@ -518,9 +532,19 @@ impl SyncCoordinator {
         after_snapshot();
         // Validation can be expensive for large candidates. Do not block
         // logout, local admission, or protocol cutover while it runs.
-        let preview =
-            CutoverPreview::new(origin.clone(), account.clone(), selections, legacy.as_ref())
-                .map_err(|error| SyncCoordError::Local(error.to_string()))?;
+        let preview = match receipts {
+            None => {
+                CutoverPreview::new(origin.clone(), account.clone(), selections, legacy.as_ref())
+            }
+            Some(receipts) => CutoverPreview::new_marked(
+                origin.clone(),
+                account.clone(),
+                selections,
+                legacy.as_ref(),
+                receipts,
+            ),
+        }
+        .map_err(|error| SyncCoordError::Local(error.to_string()))?;
         let current = snapshot()?;
         preview
             .verify_inputs(&origin, &account, selections, current.as_ref())

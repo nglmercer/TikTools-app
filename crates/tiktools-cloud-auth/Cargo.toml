@@ -25,8 +25,12 @@ secrecy = "0.10"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tempfile = "3"
 tokio = { workspace = true }
 url.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util"] }

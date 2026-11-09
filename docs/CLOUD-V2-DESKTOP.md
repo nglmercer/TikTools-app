@@ -111,8 +111,12 @@ An in-progress private preview reads a coherent SQLite snapshot including
 deleted source generations and compares it with catalog selections, the
 activation map, session and consent. It rejects partial catalog scans, package
 journals, any retained apply journal or finalization witness, unfinished
-outboxes or conflict journals from any account, and all sync receipts until
-they can be reconciled exactly with the reviewed v1 snapshot. This deliberately conservative check
+outboxes or conflict journals from any account. For a marked
+product outbox, the private adapter now captures current, identity-bound
+receipts with the SQLite source and compares their complete evidence against
+the v1 snapshot under protocol admission. Changed or malformed evidence,
+unmatched pending edits, future generations and current foreign-account
+receipts fail closed; historical receipts do not authorize a migration. This deliberately conservative check
 can block preview even for finalized applications until a safe witness review
 and retention policy exists. The later freshness check does not recheck v1
 state, and scan completeness does not fence filesystem changes after the scan.
@@ -135,6 +139,21 @@ while durable disk writes complete. Later local mutations are not yet routed to
 v2. Independent authentication managers and product wiring remain unfinished.
 The primitive is not a user-facing migration and does not authorize local
 application.
+
+The marked cutover remains an internal experiment, not a product migration.
+Its review binds the receipt evidence, source selections, v1 snapshot and
+resulting v2 candidate to the preparation marker, and restart requires the
+same evidence and a fresh review. Settled deletes are retained as reviewable
+tombstones. Every imported pending selection is marked as a conflict, so it
+cannot be sent automatically while runtime continuity is unproven. The
+product-outbox marker must remain valid before preparation, during recovery
+and after selection of v2; its loss or corruption blocks these paths. The
+receipts' historical consent is evidence only: later v2 networking requires
+current, account-scoped consent. Remaining work includes proving source
+provenance for legacy/local-only changes, fencing all relevant runtime and
+package mutations, independent processes and authentication managers, and
+integrating reviewed conflict handling and product controls. Older binaries
+do not participate in these cooperative fences.
 
 The in-progress v1 uncertain-upload recovery must not be treated as a finished
 product flow. A plugin change can currently be applied locally before its

@@ -599,3 +599,63 @@ fn jsonb_normalized_ack_feed_rebuild_and_resolution_preserve_exact_decimal_value
     s.acknowledge(&ticket, row(normalized)).unwrap();
     assert!(s.entry(&target).unwrap().pending.is_none());
 }
+
+#[test]
+fn product_decision_receipt_survives_restart_and_snapshot_rebuild_without_restage() {
+    let mut s = state();
+    s.mark_bootstrap_complete();
+    let target = key("acme.plugin");
+    let edit = WorkspaceEdit::Put(selection("acme.plugin", true));
+    let digest = "a".repeat(64);
+    let (generation, staged) = s
+        .stage_product_decision(target.clone(), edit.clone(), 7, &digest)
+        .unwrap();
+    assert!(staged);
+    let mut s: WorkspaceState = serde_json::from_slice(&serde_json::to_vec(&s).unwrap()).unwrap();
+    s.validate().unwrap();
+    let before = s.clone();
+    assert_eq!(
+        s.stage_product_decision(target.clone(), edit.clone(), 7, &digest)
+            .unwrap(),
+        (generation, false)
+    );
+    assert_eq!(s, before);
+    assert!(s
+        .stage_product_decision(target.clone(), edit.clone(), 6, &digest)
+        .is_err());
+    assert!(s
+        .stage_product_decision(target.clone(), edit.clone(), 7, &"b".repeat(64))
+        .is_err());
+    assert!(s
+        .stage_product_decision(target.clone(), WorkspaceEdit::Delete, 7, &digest)
+        .is_err());
+    assert_eq!(s, before);
+    s.require_rebuild();
+    s.install_rebuild(WorkspaceSnapshot {
+        schema_version: 2,
+        records: vec![],
+        cursor: 0,
+    })
+    .unwrap();
+    let after_rebuild = s.clone();
+    assert_eq!(
+        s.stage_product_decision(target.clone(), edit.clone(), 7, &digest)
+            .unwrap(),
+        (generation, false)
+    );
+    assert_eq!(s, after_rebuild);
+    let ticket = s.prepare_push(&target).unwrap();
+    s.acknowledge(&ticket, record("acme.plugin", 1, true)).unwrap();
+    assert!(s.pending_keys().is_empty());
+    let after_delivery = s.clone();
+    assert_eq!(
+        s.stage_product_decision(target.clone(), edit.clone(), 7, &digest)
+            .unwrap(),
+        (generation, false)
+    );
+    assert_eq!(s, after_delivery);
+    let (_, staged) = s
+        .stage_product_decision(target, edit, 8, &"b".repeat(64))
+        .unwrap();
+    assert!(staged);
+}

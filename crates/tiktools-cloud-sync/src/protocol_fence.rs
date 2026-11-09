@@ -353,11 +353,14 @@ impl ProtocolFence {
             Err(error) => return Err(error.into()),
         }
         let lease = V2Lease { _file: file };
-        if !self
+        let record = self
             .read_record(origin, account)?
-            .is_some_and(|record| record.mode == ProtocolMode::V2)
-        {
+            .ok_or(ProtocolFenceError::StaleCutover)?;
+        if record.mode != ProtocolMode::V2 {
             return Err(ProtocolFenceError::StaleCutover);
+        }
+        if record.format_version == 3 && !self.product_outbox_required(origin, account)? {
+            return Err(ProtocolFenceError::ProductOutboxNotEnabled);
         }
         Ok(lease)
     }
@@ -428,7 +431,7 @@ impl ProtocolFence {
         }
         let record: ProtocolRecord =
             serde_json::from_slice(&data).map_err(|_| StoreError::InvalidState)?;
-        if !matches!(record.format_version, 1 | 2)
+        if !matches!(record.format_version, 1 | 2 | 3)
             || record.origin != origin
             || record.account_id != account
             || record.candidate_sha256.len() != 64
@@ -700,21 +703,25 @@ impl CutoverLease {
             .read_record(origin, account)?
             .ok_or(ProtocolFenceError::StaleCutover)?;
         // A historical preparation does not bind all reviewed inputs.
-        if record.mode == ProtocolMode::Preparing && record.format_version != 2 {
+        if record.mode == ProtocolMode::Preparing && !matches!(record.format_version, 2 | 3) {
             return Err(ProtocolFenceError::StaleCutover);
+        }
+        if record.format_version == 3 && !self.fence.product_outbox_required(origin, account)? {
+            return Err(ProtocolFenceError::ProductOutboxNotEnabled);
         }
         Ok(ResumeProtocolRecord(record))
     }
     /// Reconstruct an interrupted preparation for a new explicit review.
     /// The v1 inputs, installed selections and resulting candidate must hash
     /// to the original prepared marker; no migration state is changed.
-    pub(crate) fn preview_preparing(
+    pub(crate) fn preview_preparing_with_receipts(
         &self,
         origin: &str,
         account: &str,
         selections: &[PluginSelection],
+        receipts: Option<&[crate::V1CutoverReceipt]>,
     ) -> Result<CutoverPreview, ProtocolFenceError> {
-        self.ensure_legacy_allowed(origin, account)?;
+        self.ensure_reviewed_mode(origin, account, receipts.is_some())?;
         if self.uncertain_uploads(origin, account)? != 0 {
             return Err(ProtocolFenceError::UncertainV1);
         }
@@ -722,13 +729,23 @@ impl CutoverLease {
             .fence
             .read_record(origin, account)?
             .ok_or(ProtocolFenceError::StaleCutover)?;
-        if record.format_version != 2 || record.mode != ProtocolMode::Preparing {
+        if record.format_version != if receipts.is_some() { 3 } else { 2 }
+            || record.mode != ProtocolMode::Preparing
+        {
             return Err(ProtocolFenceError::StaleCutover);
         }
         let legacy = self.fence.legacy_store(origin, account)?.0.load()?;
-        let preview =
-            CutoverPreview::new(origin.into(), account.into(), selections, legacy.as_ref())
-                .map_err(|_| ProtocolFenceError::StaleCutover)?;
+        let preview = match receipts {
+            Some(receipts) => CutoverPreview::new_marked(
+                origin.into(),
+                account.into(),
+                selections,
+                legacy.as_ref(),
+                receipts,
+            ),
+            None => CutoverPreview::new(origin.into(), account.into(), selections, legacy.as_ref()),
+        }
+        .map_err(|_| ProtocolFenceError::StaleCutover)?;
         if record.candidate_sha256 != candidate_hash(&preview)? {
             return Err(ProtocolFenceError::StaleCutover);
         }
@@ -750,7 +767,10 @@ impl CutoverLease {
         if record.mode != ProtocolMode::V2 {
             return Ok(false);
         }
-        if record.format_version != 2 || record.candidate_sha256 != candidate_hash(preview)? {
+        self.ensure_reviewed_mode(origin, account, preview.is_marked())?;
+        if record.format_version != if preview.is_marked() { 3 } else { 2 }
+            || record.candidate_sha256 != candidate_hash(preview)?
+        {
             return Err(ProtocolFenceError::StaleCutover);
         }
         Ok(true)
@@ -762,6 +782,20 @@ impl CutoverLease {
         account: &str,
     ) -> Result<(), ProtocolFenceError> {
         self.fence.ensure_legacy_allowed(origin, account)
+    }
+
+    fn ensure_reviewed_mode(
+        &self,
+        origin: &str,
+        account: &str,
+        marked: bool,
+    ) -> Result<(), ProtocolFenceError> {
+        let actual = self.fence.product_outbox_required(origin, account)?;
+        match (marked, actual) {
+            (true, false) => Err(ProtocolFenceError::ProductOutboxNotEnabled),
+            (false, true) => Err(ProtocolFenceError::ProductOutboxRequired),
+            _ => Ok(()),
+        }
     }
 
     /// Persist the requirement before product mutations start writing an
@@ -879,7 +913,7 @@ impl CutoverLease {
         account: &str,
         selections: &[PluginSelection],
     ) -> Result<(), ProtocolFenceError> {
-        self.ensure_legacy_allowed(origin, account)?;
+        self.ensure_reviewed_mode(origin, account, preview.is_marked())?;
         if self.uncertain_uploads(origin, account)? != 0 {
             return Err(ProtocolFenceError::UncertainV1);
         }
@@ -889,7 +923,7 @@ impl CutoverLease {
             .map_err(|_| ProtocolFenceError::StaleCutover)?;
         let candidate_sha256 = candidate_hash(preview)?;
         if let Some(existing) = self.fence.read_record(origin, account)? {
-            if existing.format_version != 2
+            if existing.format_version != if preview.is_marked() { 3 } else { 2 }
                 || existing.mode != ProtocolMode::Preparing
                 || existing.candidate_sha256 != candidate_sha256
             {
@@ -898,7 +932,7 @@ impl CutoverLease {
             return Ok(());
         }
         self.fence.write_record(&ProtocolRecord {
-            format_version: 2,
+            format_version: if preview.is_marked() { 3 } else { 2 },
             origin: origin.into(),
             account_id: account.into(),
             mode: ProtocolMode::Preparing,
@@ -928,7 +962,8 @@ impl CutoverLease {
             .fence
             .read_record(origin, account)?
             .ok_or(ProtocolFenceError::StaleCutover)?;
-        if record.format_version != 2
+        self.ensure_reviewed_mode(origin, account, preview.is_marked())?;
+        if record.format_version != if preview.is_marked() { 3 } else { 2 }
             || record.mode != ProtocolMode::Preparing
             || record.candidate_sha256 != candidate_hash(preview)?
         {
@@ -1112,6 +1147,49 @@ mod tests {
             Err(ProtocolFenceError::NotV1)
         ));
         assert_eq!(fs::read(dir.join("sync-state.json")).unwrap(), old_bytes);
+    }
+
+    #[test]
+    fn completed_marked_cutover_requires_intact_product_marker() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("private");
+        let fence = ProtocolFence::open(&dir).unwrap();
+        let preview =
+            CutoverPreview::new_marked(ORIGIN.into(), ACCOUNT.into(), &[], None, &[]).unwrap();
+        let cutover = fence.try_cutover().unwrap();
+        cutover.require_product_outbox(ORIGIN, ACCOUNT).unwrap();
+        cutover.prepare(&preview, ORIGIN, ACCOUNT, &[]).unwrap();
+        let workspace =
+            crate::WorkspaceCoordinator::open(&dir, ORIGIN.into(), ACCOUNT.into()).unwrap();
+        workspace.bootstrap_reviewed(&preview).unwrap();
+        cutover.finish(&preview, ORIGIN, ACCOUNT).unwrap();
+        drop(cutover);
+        assert!(fence.try_v2(ORIGIN, ACCOUNT).is_ok());
+        let path = fence.product_outbox_path(ORIGIN, ACCOUNT).unwrap();
+        let original = fs::read(&path).unwrap();
+        fs::remove_file(&path).unwrap();
+        assert!(matches!(
+            fence.try_v2(ORIGIN, ACCOUNT),
+            Err(ProtocolFenceError::ProductOutboxNotEnabled)
+        ));
+        let cutover = fence.try_cutover().unwrap();
+        assert!(matches!(
+            cutover.resume_record(ORIGIN, ACCOUNT),
+            Err(ProtocolFenceError::ProductOutboxNotEnabled)
+        ));
+        drop(cutover);
+        fs::write(&path, b"corrupt").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        assert!(fence.try_v2(ORIGIN, ACCOUNT).is_err());
+        let cutover = fence.try_cutover().unwrap();
+        assert!(cutover.resume_record(ORIGIN, ACCOUNT).is_err());
+        drop(cutover);
+        fs::write(&path, original).unwrap();
+        assert!(fence.try_v2(ORIGIN, ACCOUNT).is_ok());
     }
 
     #[test]

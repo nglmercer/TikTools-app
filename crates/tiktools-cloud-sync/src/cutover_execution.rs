@@ -40,7 +40,10 @@ pub enum CutoverExecution {
 pub trait CutoverSource {
     fn with_guarded_source<T>(
         &self,
-        operation: impl FnOnce(&[PluginSelection]) -> Result<T, SyncCoordError>,
+        operation: impl FnOnce(
+            &[PluginSelection],
+            &[crate::V1CutoverReceipt],
+        ) -> Result<T, SyncCoordError>,
     ) -> Result<T, SyncCoordError>;
 }
 
@@ -52,10 +55,32 @@ impl SyncCoordinator {
         session: &Arc<Session>,
         selections: &[PluginSelection],
     ) -> Result<GuardedCutoverReview, SyncCoordError> {
+        self.guarded_cutover_review_inner(session, selections, None)
+    }
+
+    /// Review a previously migrated product outbox. Receipt metadata is
+    /// frozen into the review; its original consent is retained as evidence,
+    /// not reused to authorize a new upload. All migrated edits require a
+    /// fresh v2 conflict decision after this local cutover.
+    pub fn guarded_marked_cutover_review(
+        &self,
+        session: &Arc<Session>,
+        selections: &[PluginSelection],
+        receipts: &[crate::V1CutoverReceipt],
+    ) -> Result<GuardedCutoverReview, SyncCoordError> {
+        self.guarded_cutover_review_inner(session, selections, Some(receipts))
+    }
+
+    fn guarded_cutover_review_inner(
+        &self,
+        session: &Arc<Session>,
+        selections: &[PluginSelection],
+        receipts: Option<&[crate::V1CutoverReceipt]>,
+    ) -> Result<GuardedCutoverReview, SyncCoordError> {
         let consent = self
             .capture_config_epoch(session)
             .ok_or(SyncCoordError::StaleReview)?;
-        let preview = match self.preview_v2_cutover(session, selections) {
+        let preview = match self.preview_v2_cutover_inner(session, selections, receipts, || {}) {
             Ok(preview) => preview,
             Err(SyncCoordError::Protocol(crate::ProtocolFenceError::NotV1)) => {
                 let lease = self.protocol.try_cutover()?;
@@ -64,10 +89,11 @@ impl SyncCoordinator {
                         if !self.is_config_epoch_current(&consent, session) {
                             return Err(SyncCoordError::StaleReview);
                         }
-                        Ok(lease.preview_preparing(
+                        Ok(lease.preview_preparing_with_receipts(
                             &session.instance_origin(),
                             session.account_id(),
                             selections,
+                            receipts,
                         )?)
                     })
                     .map_err(|_| SyncCoordError::StaleReview)??
@@ -97,7 +123,12 @@ impl SyncCoordinator {
         review: &GuardedCutoverReview,
         source: &S,
     ) -> Result<CutoverExecution, SyncCoordError> {
-        source.with_guarded_source(|selections| self.execute_guarded_cutover(review, selections))
+        source.with_guarded_source(|selections, receipts| {
+            if review.preview.receipts().unwrap_or_default() != receipts {
+                return Err(SyncCoordError::StaleReview);
+            }
+            self.execute_guarded_cutover(review, selections)
+        })
     }
 
     /// Commit reviewed migration under an exclusive cross-process protocol
@@ -160,7 +191,7 @@ impl SyncCoordinator {
                 }
                 lease.prepare(&review.preview, &origin, account, selections)?;
                 after_prepare()?;
-                match workspace.bootstrap(&review.preview.selections(), review.preview.legacy()) {
+                match workspace.bootstrap_reviewed(&review.preview) {
                     Ok(()) | Err(WorkspaceCoordError::AlreadyBootstrapped) => {}
                     Err(error) => return Err(SyncCoordError::Local(error.to_string())),
                 }

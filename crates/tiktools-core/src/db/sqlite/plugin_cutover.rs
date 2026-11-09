@@ -2,9 +2,7 @@
 //!
 //! This records SQLite state, not the filesystem or running workers. Callers
 //! must also fence package/runtime mutations and the account/consent epoch.
-#[cfg(test)]
-use rusqlite::params;
-use rusqlite::TransactionBehavior;
+use rusqlite::{params, TransactionBehavior};
 
 use super::{DatabaseError, DatabaseManager};
 
@@ -22,6 +20,7 @@ pub(crate) struct PluginCutoverRow {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PluginCutoverSource {
     pub rows: Vec<PluginCutoverRow>,
+    pub receipts: Vec<tiktools_cloud_sync::V1CutoverReceipt>,
 }
 
 impl DatabaseManager {
@@ -70,15 +69,11 @@ impl DatabaseManager {
 
 fn read_source(
     db: &rusqlite::Connection,
-    _origin: &str,
-    _account: &str,
+    origin: &str,
+    account: &str,
 ) -> Result<PluginCutoverSource, DatabaseError> {
-    // Plugin state is device-global. A receipt cannot be safely imported
-    // until its full pending intent, consent and runtime evidence are bound
-    // to the reviewed v1 state under the same protocol lease.
-    // A future reconciliation must compare identity, source generation,
-    // pending/base/conflict, consent and runtime, then preserve or explicitly
-    // resolve historical receipts; it must not silently delete them.
+    // Plugin state is device-global. Current receipts must be bound to the
+    // exact account, source and v1 review under the same protocol lease.
     // Legacy/local-only edits lack durable provenance; this check alone does
     // not establish that the remaining state is safe to expose to a user.
     let unresolved: bool = db.query_row(
@@ -86,8 +81,7 @@ fn read_source(
                OR EXISTS(SELECT 1 FROM plugin_sync_apply_intents)
                OR EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations)
                OR EXISTS(SELECT 1 FROM plugin_sync_outbox)
-               OR EXISTS(SELECT 1 FROM plugin_sync_rebase_intents)
-               OR EXISTS(SELECT 1 FROM plugin_sync_receipts)",
+               OR EXISTS(SELECT 1 FROM plugin_sync_rebase_intents)",
         [],
         |row| row.get(0),
     )?;
@@ -96,6 +90,79 @@ fn read_source(
             "unfinished plugin operation needs review before Cloud migration".into(),
         ));
     }
+    let receipts = {
+        let mut statement = db.prepare(
+            "SELECT CASE WHEN length(CAST(r.origin AS BLOB))<=2048 THEN r.origin END,
+                    CASE WHEN length(CAST(r.account_id AS BLOB))<=256 THEN r.account_id END,
+                    CASE WHEN length(CAST(r.plugin_id AS BLOB))<=128 THEN r.plugin_id END,
+                    r.generation,s.generation,
+                    CASE WHEN length(CAST(r.config_generation AS BLOB))<=39 THEN r.config_generation END,
+                    CASE WHEN length(CAST(r.runtime_epoch AS BLOB))=64 THEN r.runtime_epoch END,
+                    CASE WHEN length(CAST(r.pending_json AS BLOB))<=16384 THEN r.pending_json END,
+                    b.installed,b.enabled
+             FROM plugin_sync_receipts r
+             LEFT JOIN plugin_sync_source_versions s ON s.plugin_id=r.plugin_id
+             LEFT JOIN behavior_plugins b ON b.id=r.plugin_id
+             ORDER BY r.plugin_id COLLATE BINARY,r.origin COLLATE BINARY,r.account_id COLLATE BINARY LIMIT ?1",
+        )?;
+        let mut query = statement.query([(MAX_SOURCE_ROWS + 1) as i64])?;
+        let mut count = 0usize;
+        let mut result = Vec::new();
+        while let Some(row) = query.next()? {
+            count += 1;
+            if count > MAX_SOURCE_ROWS {
+                return Err(DatabaseError::Invalid("too many sync receipts".into()));
+            }
+            let receipt_origin: String = row.get(0)?;
+            let receipt_account: String = row.get(1)?;
+            let key: String = row.get(2)?;
+            let generation: i64 = row.get(3)?;
+            let source_generation: Option<i64> = row.get(4)?;
+            if generation <= 0
+                || source_generation.is_none_or(|source| source <= 0 || generation > source)
+            {
+                return Err(DatabaseError::Invalid("invalid sync receipt source".into()));
+            }
+            if Some(generation) != source_generation {
+                continue;
+            }
+            if receipt_origin != origin || receipt_account != account {
+                return Err(DatabaseError::Invalid(
+                    "plugin source needs account review".into(),
+                ));
+            }
+            let config: String = row.get(5)?;
+            let epoch: String = row.get(6)?;
+            let encoded: String = row.get(7)?;
+            let installed: Option<i64> = row.get(8)?;
+            let enabled: Option<i64> = row.get(9)?;
+            let consent = config
+                .parse::<u128>()
+                .ok()
+                .filter(|value| *value != 0 && value.to_string() == config)
+                .ok_or_else(|| DatabaseError::Invalid("invalid sync receipt consent".into()))?;
+            let pending: tiktools_cloud_sync::V1Pending = serde_json::from_str(&encoded)
+                .map_err(|_| DatabaseError::Invalid("invalid sync receipt".into()))?;
+            let source_matches = match &pending.edit {
+                tiktools_cloud_sync::V1Edit::Put(value) => {
+                    installed == Some(1) && enabled == Some(if value.enabled { 1 } else { 0 })
+                }
+                tiktools_cloud_sync::V1Edit::Delete => {
+                    matches!((installed, enabled), (None, None) | (Some(0), Some(0..=1)))
+                }
+            };
+            if !source_matches {
+                return Err(DatabaseError::Invalid("sync receipt source changed".into()));
+            }
+            result.push(
+                tiktools_cloud_sync::V1CutoverReceipt::new(
+                    key, generation, consent, epoch, pending,
+                )
+                .ok_or_else(|| DatabaseError::Invalid("invalid sync receipt".into()))?,
+            );
+        }
+        result
+    };
     let rows = {
         let mut statement = db.prepare(
                 "SELECT id,installed,enabled,generation FROM (
@@ -138,7 +205,7 @@ fn read_source(
         }
         result
     };
-    Ok(PluginCutoverSource { rows })
+    Ok(PluginCutoverSource { rows, receipts })
 }
 
 #[cfg(test)]
@@ -259,18 +326,31 @@ mod tests {
             [&encoded],
         )
         .unwrap();
-        // Even a valid own receipt is unresolved until compared against the
-        // exact v1 pending edit and consent under one protocol lease.
-        assert!(db.plugin_cutover_source(origin, "bob").is_err());
+        // A valid own current receipt becomes frozen native evidence; the
+        // coordinator must still compare it to the exact reviewed v1 state.
+        assert_eq!(
+            db.plugin_cutover_source(origin, "bob")
+                .unwrap()
+                .receipts
+                .len(),
+            1
+        );
         assert!(db.plugin_cutover_source(origin, "alice").is_err());
         db.set_plugin_state("acme.plugin", true, true).unwrap();
-        assert!(db.plugin_cutover_source(origin, "alice").is_err());
+        assert!(db
+            .plugin_cutover_source(origin, "alice")
+            .unwrap()
+            .receipts
+            .is_empty());
         // Future generations and invalid consent cannot authorize anything.
         conn.execute(
             "UPDATE plugin_sync_receipts SET generation=99,config_generation='0'",
             [],
         )
         .unwrap();
+        assert!(db.plugin_cutover_source(origin, "bob").is_err());
+        conn.execute("UPDATE plugin_sync_receipts SET generation=2", [])
+            .unwrap();
         assert!(db.plugin_cutover_source(origin, "bob").is_err());
         let retained: String = conn
             .query_row("SELECT pending_json FROM plugin_sync_receipts", [], |row| {

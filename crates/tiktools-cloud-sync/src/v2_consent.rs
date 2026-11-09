@@ -9,7 +9,10 @@ use cloud_client::{
     PluginSelection, Session, WorkspaceState, WorkspaceStateSnapshot, WorkspaceStore,
 };
 
-use crate::{protocol_fence::ResumeProtocolRecord, SyncConfig, SyncCoordError, SyncCoordinator};
+use crate::{
+    protocol_fence::ResumeProtocolRecord, CutoverSource, SyncConfig, SyncCoordError,
+    SyncCoordinator, V1CutoverReceipt,
+};
 
 /// An exact, private review of a disabled preference, account and workspace.
 pub(crate) struct V2ResumeReview {
@@ -18,6 +21,7 @@ pub(crate) struct V2ResumeReview {
     config: SyncConfig,
     record: ResumeProtocolRecord,
     selections: Option<Vec<PluginSelection>>,
+    marked_receipts: Option<Vec<V1CutoverReceipt>>,
     workspace: Option<WorkspaceStateSnapshot>,
 }
 
@@ -53,6 +57,26 @@ impl SyncCoordinator {
         session: &Arc<Session>,
         selections: Option<&[PluginSelection]>,
     ) -> Result<V2ResumeReview, SyncCoordError> {
+        self.review_v2_resume_inner(session, selections, None)
+    }
+
+    /// Review an interrupted marked cutover against its frozen receipt set.
+    /// Confirmation additionally requires a fresh guarded native source.
+    pub(crate) fn review_marked_v2_resume(
+        &self,
+        session: &Arc<Session>,
+        selections: &[PluginSelection],
+        receipts: &[V1CutoverReceipt],
+    ) -> Result<V2ResumeReview, SyncCoordError> {
+        self.review_v2_resume_inner(session, Some(selections), Some(receipts))
+    }
+
+    fn review_v2_resume_inner(
+        &self,
+        session: &Arc<Session>,
+        selections: Option<&[PluginSelection]>,
+        receipts: Option<&[V1CutoverReceipt]>,
+    ) -> Result<V2ResumeReview, SyncCoordError> {
         let lease = self.protocol.try_cutover()?;
         self.auth
             .with_current_session_permit(session, || {
@@ -60,13 +84,14 @@ impl SyncCoordinator {
                 let origin = session.instance_origin();
                 let account = session.account_id();
                 let record = lease.resume_record(&origin, account)?;
-                let preview = match (record.is_preparing(), selections) {
-                    (true, Some(selections)) => {
-                        Some(lease.preview_preparing(&origin, account, selections)?)
-                    }
-                    (false, None) => None,
-                    _ => return Err(SyncCoordError::StaleReview),
-                };
+                let preview =
+                    match (record.is_preparing(), selections) {
+                        (true, Some(selections)) => Some(lease.preview_preparing_with_receipts(
+                            &origin, account, selections, receipts,
+                        )?),
+                        (false, None) if receipts.is_none() => None,
+                        _ => return Err(SyncCoordError::StaleReview),
+                    };
                 let root = self
                     .config_path
                     .parent()
@@ -98,7 +123,13 @@ impl SyncCoordinator {
                     session: session.clone(),
                     config,
                     record,
-                    selections: selections.map(|items| items.to_vec()),
+                    selections: match (&preview, receipts) {
+                        (Some(preview), Some(_)) => Some(preview.selections()),
+                        _ => selections.map(|items| items.to_vec()),
+                    },
+                    marked_receipts: preview
+                        .as_ref()
+                        .and_then(|p| p.receipts().map(|items| items.to_vec())),
                     workspace,
                 })
             })
@@ -108,6 +139,40 @@ impl SyncCoordinator {
     /// Confirm a fresh opt-in without changing the selected protocol or any
     /// pending data. Rechecks every reviewed input under the same locks.
     pub(crate) fn confirm_v2_resume(&self, review: &V2ResumeReview) -> Result<(), SyncCoordError> {
+        if review.marked_receipts.is_some() {
+            return Err(SyncCoordError::StaleReview);
+        }
+        self.confirm_v2_resume_inner(review)
+    }
+
+    /// Confirm marked Preparing only under a trusted source fence; a receipt
+    /// or selection changed after review must not authorize a new consent.
+    pub(crate) fn confirm_marked_v2_resume_with_source<S: CutoverSource>(
+        &self,
+        review: &V2ResumeReview,
+        source: &S,
+    ) -> Result<(), SyncCoordError> {
+        let expected_receipts = review
+            .marked_receipts
+            .as_ref()
+            .ok_or(SyncCoordError::StaleReview)?;
+        let expected_selections = review
+            .selections
+            .as_ref()
+            .ok_or(SyncCoordError::StaleReview)?;
+        source.with_guarded_source(|selections, receipts| {
+            let mut selections = selections.to_vec();
+            selections.sort_by(|a, b| a.plugin_id.cmp(&b.plugin_id));
+            let mut receipts = receipts.to_vec();
+            receipts.sort_by(|a, b| a.key().cmp(b.key()));
+            if &selections != expected_selections || &receipts != expected_receipts {
+                return Err(SyncCoordError::StaleReview);
+            }
+            self.confirm_v2_resume_inner(review)
+        })
+    }
+
+    fn confirm_v2_resume_inner(&self, review: &V2ResumeReview) -> Result<(), SyncCoordError> {
         if !Arc::ptr_eq(&self.recovery_binding, &review.binding) {
             return Err(SyncCoordError::StaleReview);
         }
@@ -123,7 +188,12 @@ impl SyncCoordinator {
                     return Err(SyncCoordError::StaleReview);
                 }
                 if let Some(selections) = &review.selections {
-                    lease.preview_preparing(&origin, account, selections)?;
+                    lease.preview_preparing_with_receipts(
+                        &origin,
+                        account,
+                        selections,
+                        review.marked_receipts.as_deref(),
+                    )?;
                 }
                 let root = self
                     .config_path

@@ -16,6 +16,9 @@ mod product_apply;
 mod product_cutover;
 #[cfg(feature = "persistence")]
 pub(crate) mod product_outbox;
+#[cfg(feature = "persistence")]
+#[allow(dead_code)] // Native staging bridge is not yet selected by the product.
+pub(crate) mod product_v2_outbox;
 
 pub(crate) struct CloudSync {
     /// `Err` carries the startup failure (for example an unusable or

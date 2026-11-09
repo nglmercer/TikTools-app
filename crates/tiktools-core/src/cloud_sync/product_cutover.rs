@@ -147,9 +147,20 @@ impl AppCore {
         let origin = session.instance_origin();
         let account = session.account_id();
         let source = self.cutover_local_source(&origin, account)?;
-        let review = coordinator
-            .guarded_cutover_review(&session, &source.selections)
-            .map_err(|_| unavailable())?;
+        let review = match coordinator.guarded_cutover_review(&session, &source.selections) {
+            Ok(review) if source.sqlite.receipts.is_empty() => review,
+            Ok(_) => return Err(unavailable()),
+            Err(SyncCoordError::Protocol(
+                tiktools_cloud_sync::ProtocolFenceError::ProductOutboxRequired,
+            )) => coordinator
+                .guarded_marked_cutover_review(
+                    &session,
+                    &source.selections,
+                    &source.sqlite.receipts,
+                )
+                .map_err(|_| unavailable())?,
+            Err(_) => return Err(unavailable()),
+        };
         if self.cutover_local_source(&origin, account)? != source {
             return Err(unavailable());
         }
@@ -214,7 +225,10 @@ struct NativeCutoverSource<'a> {
 impl CutoverSource for NativeCutoverSource<'_> {
     fn with_guarded_source<T>(
         &self,
-        operation: impl FnOnce(&[PluginSelection]) -> Result<T, SyncCoordError>,
+        operation: impl FnOnce(
+            &[PluginSelection],
+            &[tiktools_cloud_sync::V1CutoverReceipt],
+        ) -> Result<T, SyncCoordError>,
     ) -> Result<T, SyncCoordError> {
         // Global order: invocation -> cooperative package store -> SQLite ->
         // catalog/activation -> protocol -> session. No network or await.
@@ -275,7 +289,8 @@ impl CutoverSource for NativeCutoverSource<'_> {
                                 if &source != self.expected {
                                     return Err(SyncCoordError::StaleReview);
                                 }
-                                let outcome = operation(&source.selections);
+                                let outcome =
+                                    operation(&source.selections, &source.sqlite.receipts);
                                 drop(activation);
                                 outcome
                             });
@@ -294,7 +309,10 @@ impl CutoverSource for NativeCutoverSource<'_> {
 impl CutoverSource for NativeCutoverSource<'_> {
     fn with_guarded_source<T>(
         &self,
-        _operation: impl FnOnce(&[PluginSelection]) -> Result<T, SyncCoordError>,
+        _operation: impl FnOnce(
+            &[PluginSelection],
+            &[tiktools_cloud_sync::V1CutoverReceipt],
+        ) -> Result<T, SyncCoordError>,
     ) -> Result<T, SyncCoordError> {
         Err(source_error())
     }
@@ -423,7 +441,7 @@ mod tests {
         }
         let plugin_dir = paths.plugins.join("demo");
         std::fs::create_dir_all(&plugin_dir).unwrap();
-        std::fs::write(plugin_dir.join("plugin.json"), r#"{"schemaVersion":3,"id":"demo","name":"Demo","version":"1.0.0","runtime":"declarative"}"#).unwrap();
+        std::fs::write(plugin_dir.join("plugin.json"), r#"{"schemaVersion":3,"id":"acme.demo","name":"Demo","version":"1.0.0","runtime":"declarative"}"#).unwrap();
         let core = AppCore::with_paths(Arc::new(Emitter), Arc::new(NoopMediaHost), paths);
         let origin = "https://cloud.example";
         let expected = core.cutover_local_source(origin, "alice").unwrap();
@@ -435,8 +453,9 @@ mod tests {
         };
         let other_db = rusqlite::Connection::open(core.db.automation_path()).unwrap();
         other_db.busy_timeout(std::time::Duration::ZERO).unwrap();
-        let result: Result<(), SyncCoordError> = source.with_guarded_source(|selections| {
+        let result: Result<(), SyncCoordError> = source.with_guarded_source(|selections, receipts| {
             assert_eq!(selections.len(), 1);
+            assert!(receipts.is_empty());
             assert!(core.try_plugin_sync_runtime_guard().is_err());
             assert!(core.plugin_packages().unwrap().installer.try_lock_store().is_err());
             let error = other_db.execute("INSERT INTO behavior_plugins(id,installed,enabled,updated_at) VALUES ('other',1,1,0)", []).unwrap_err();
@@ -453,14 +472,50 @@ mod tests {
             .is_ok());
         // Rewriting the same apparent installed/enabled value still changes
         // source evidence and must invalidate the reviewed native source.
-        core.db.set_plugin_state("demo", true, true).unwrap();
+        core.db.set_plugin_state("acme.demo", true, true).unwrap();
         let mut ran = false;
-        let stale = source.with_guarded_source(|_| {
+        let stale = source.with_guarded_source(|_, _| {
             ran = true;
             Ok(())
         });
         assert!(matches!(stale, Err(SyncCoordError::StaleReview)));
         assert!(!ran);
+        let pending = tiktools_cloud_sync::V1Pending {
+            base_revision: None,
+            edit: tiktools_cloud_sync::V1Edit::Put(PluginSelection {
+                schema_version: 1,
+                plugin_id: "acme.demo".into(),
+                version: "1.0.0".into(),
+                enabled: true,
+            }),
+            conflict: false,
+        };
+        other_db.execute("INSERT INTO plugin_sync_receipts(origin,account_id,plugin_id,generation,config_generation,runtime_epoch,pending_json) VALUES (?1,'alice','acme.demo',1,'7',?2,?3)", rusqlite::params![origin, "a".repeat(64), serde_json::to_string(&pending).unwrap()]).unwrap();
+        let reviewed = core.cutover_local_source(origin, "alice").unwrap();
+        assert_eq!(reviewed.sqlite.receipts.len(), 1);
+        let marked = NativeCutoverSource {
+            core: &core,
+            expected: &reviewed,
+            origin,
+            account: "alice",
+        };
+        marked
+            .with_guarded_source(|_, receipts| {
+                assert_eq!(receipts.len(), 1);
+                assert_eq!(receipts[0].pending(), &pending);
+                Ok(())
+            })
+            .unwrap();
+        let mut replaced = pending.clone();
+        replaced.base_revision = Some(4);
+        other_db.execute("UPDATE plugin_sync_receipts SET pending_json=?1 WHERE origin=?2 AND account_id='alice' AND plugin_id='acme.demo'", rusqlite::params![serde_json::to_string(&replaced).unwrap(),origin]).unwrap();
+        let mut invoked = false;
+        let stale = marked.with_guarded_source(|_, _| {
+            invoked = true;
+            Ok(())
+        });
+        assert!(matches!(stale, Err(SyncCoordError::StaleReview)));
+        assert!(!invoked);
         drop(other_db);
         drop(core);
         let _ = std::fs::remove_dir_all(root);

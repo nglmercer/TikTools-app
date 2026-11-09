@@ -1,6 +1,7 @@
 //! Coordinator tests against a mock Cloud speaking the real sync protocol.
 
 mod remote_apply_tests;
+mod v2_product_tests;
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -2467,10 +2468,13 @@ async fn guarded_cutover_resumes_interrupted_durable_steps_and_retries_once() {
     impl crate::CutoverSource for Source<'_> {
         fn with_guarded_source<T>(
             &self,
-            operation: impl FnOnce(&[PluginSelection]) -> Result<T, SyncCoordError>,
+            operation: impl FnOnce(
+                &[PluginSelection],
+                &[crate::V1CutoverReceipt],
+            ) -> Result<T, SyncCoordError>,
         ) -> Result<T, SyncCoordError> {
             self.calls.set(self.calls.get() + 1);
-            operation(self.selections)
+            operation(self.selections, &[])
         }
     }
     let adapter = Source {
@@ -2495,6 +2499,181 @@ async fn guarded_cutover_resumes_interrupted_durable_steps_and_retries_once() {
         .unwrap();
     assert_eq!(legacy_before.generation, legacy_after.generation);
     assert_eq!(legacy_before.state, legacy_after.state);
+    assert!(mock.inner.lock().unwrap().records.is_empty());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn marked_cutover_binds_receipts_and_resumes_as_conflicts_after_restart() {
+    use crate::{CutoverExecution, CutoverSource, V1CutoverReceipt};
+    let dir = TempDir::new("marked-cutover-receipts");
+    let mock = MockSync::start("cutover-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "marked-cutover").await;
+    sync.record_local_change("acme.plugin", "1.0.0", false)
+        .unwrap();
+    let session = auth.session().await.unwrap();
+    let legacy = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "cutover-user")
+        .unwrap()
+        .unwrap();
+    let pending = legacy.state.entries["acme.plugin"].pending.clone().unwrap();
+    let receipt = V1CutoverReceipt::new(
+        "acme.plugin".into(),
+        1,
+        sync.read_config().generation,
+        "a".repeat(64),
+        pending,
+    )
+    .unwrap();
+    let source = vec![PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.0.0".into(),
+        enabled: false,
+    }];
+    assert!(sync
+        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .is_err());
+    let marker = sync.protocol.try_cutover().unwrap();
+    marker
+        .require_product_outbox(&mock.origin, "cutover-user")
+        .unwrap();
+    drop(marker);
+    assert!(sync.guarded_cutover_review(&session, &source).is_err());
+    assert!(sync
+        .guarded_marked_cutover_review(&session, &source, &[])
+        .is_err());
+    let review = sync
+        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .unwrap();
+    assert_eq!(
+        review.preview().entries()[0]
+            .pending
+            .as_ref()
+            .unwrap()
+            .status,
+        cloud_client::WorkspacePendingStatus::Conflict
+    );
+    let marker_path = fs::read_dir(dir.join("a-sync"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("v1-product-outbox-")
+        })
+        .unwrap();
+    let marker_bytes = fs::read(&marker_path).unwrap();
+    let marker_permissions = fs::metadata(&marker_path).unwrap().permissions();
+    fs::remove_file(&marker_path).unwrap();
+    assert!(sync.execute_guarded_cutover(&review, &source).is_err());
+    sync.protocol
+        .try_v1()
+        .unwrap()
+        .ensure_v1(&mock.origin, "cutover-user")
+        .unwrap();
+    fs::write(&marker_path, &marker_bytes).unwrap();
+    fs::set_permissions(&marker_path, marker_permissions.clone()).unwrap();
+    assert!(sync
+        .execute_guarded_cutover_with_hooks(
+            &review,
+            &source,
+            || Err(SyncCoordError::Local("crash after prepare".into())),
+            || Ok(())
+        )
+        .is_err());
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    fs::remove_file(&marker_path).unwrap();
+    assert!(restarted
+        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .is_err());
+    fs::write(&marker_path, &marker_bytes).unwrap();
+    fs::set_permissions(&marker_path, marker_permissions).unwrap();
+    let mut different = receipt.pending().clone();
+    different.base_revision = Some(42);
+    let changed = V1CutoverReceipt::new(
+        "acme.plugin".into(),
+        1,
+        sync.read_config().generation,
+        "a".repeat(64),
+        different,
+    )
+    .unwrap();
+    assert!(restarted
+        .guarded_marked_cutover_review(&session, &source, &[changed])
+        .is_err());
+    // Identical edits must not let a changed source generation or runtime
+    // witness masquerade as the review persisted before the interruption.
+    for (generation, runtime) in [(2, "a"), (1, "b")] {
+        let altered = V1CutoverReceipt::new(
+            "acme.plugin".into(),
+            generation,
+            sync.read_config().generation,
+            runtime.repeat(64),
+            receipt.pending().clone(),
+        )
+        .unwrap();
+        assert!(restarted
+            .guarded_marked_cutover_review(&session, &source, &[altered])
+            .is_err());
+    }
+    let review = restarted
+        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .unwrap();
+    struct Source<'a> {
+        selections: &'a [PluginSelection],
+        receipts: &'a [V1CutoverReceipt],
+    }
+    impl CutoverSource for Source<'_> {
+        fn with_guarded_source<T>(
+            &self,
+            operation: impl FnOnce(&[PluginSelection], &[V1CutoverReceipt]) -> Result<T, SyncCoordError>,
+        ) -> Result<T, SyncCoordError> {
+            operation(self.selections, self.receipts)
+        }
+    }
+    let none = Source {
+        selections: &source,
+        receipts: &[],
+    };
+    assert!(matches!(
+        restarted.execute_cutover_with_source(&review, &none),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let receipts = [receipt];
+    let checked = Source {
+        selections: &source,
+        receipts: &receipts,
+    };
+    assert_eq!(
+        restarted
+            .execute_cutover_with_source(&review, &checked)
+            .unwrap(),
+        CutoverExecution::Completed
+    );
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "cutover-user".into(),
+    )
+    .unwrap();
+    let mut state = workspace.snapshot().unwrap().state;
+    let key = cloud_client::WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
+    assert_eq!(
+        state.entry(&key).unwrap().pending.as_ref().unwrap().status,
+        cloud_client::WorkspacePendingStatus::Conflict
+    );
+    assert!(state.prepare_push(&key).is_err());
+    let after = restarted
+        .protocol
+        .legacy_snapshot(&mock.origin, "cutover-user")
+        .unwrap()
+        .unwrap();
+    assert_eq!(legacy.generation, after.generation);
+    assert_eq!(legacy.state, after.state);
     assert!(mock.inner.lock().unwrap().records.is_empty());
     mock.stop();
 }

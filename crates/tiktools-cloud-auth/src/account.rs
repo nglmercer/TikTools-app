@@ -5,7 +5,7 @@ pub use crate::store::{MemoryTokenStore, TokenStore, TokenStoreError};
 
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -24,6 +24,68 @@ use crate::resolve_cloud_origin;
 pub const LOGIN_TIMEOUT: Duration = Duration::from_secs(180);
 const RESERVATION_TTL: Duration = Duration::from_secs(300);
 const MAX_LOGIN_RESERVATIONS: usize = 128;
+const MAX_ACCOUNT_SIDECAR_BYTES: u64 = 64 * 1024;
+
+fn read_account_sidecar(path: &Path) -> std::io::Result<Vec<u8>> {
+    use std::io::{Error, ErrorKind, Read};
+    let invalid = || {
+        Error::new(
+            ErrorKind::InvalidData,
+            "account sidecar is not a bounded regular file",
+        )
+    };
+    if !std::fs::symlink_metadata(path)?.file_type().is_file() {
+        return Err(invalid());
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    let file = options.open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.file_type().is_file() || metadata.len() > MAX_ACCOUNT_SIDECAR_BYTES {
+        return Err(invalid());
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_ACCOUNT_SIDECAR_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_ACCOUNT_SIDECAR_BYTES {
+        return Err(invalid());
+    }
+    Ok(bytes)
+}
+
+// Publish via an exclusive, unpredictable sibling and sync it before
+// replacing the sidecar. The callback permits failure testing before rename.
+fn write_account_sidecar(
+    path: &Path,
+    bytes: &[u8],
+    before_publish: impl FnOnce() -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    use std::io::{Error, ErrorKind, Write};
+    if bytes.len() as u64 > MAX_ACCOUNT_SIDECAR_BYTES {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "account sidecar is too large",
+        ));
+    }
+    let parent = path
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    std::fs::create_dir_all(parent)?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    temporary.write_all(bytes)?;
+    temporary.as_file().sync_all()?;
+    before_publish()?;
+    temporary.persist(path).map_err(|error| error.error)?;
+    #[cfg(unix)]
+    std::fs::File::open(parent)?.sync_all()?;
+    Ok(())
+}
 
 /// Nonsecret sidecar remembering which account was signed in. The token
 /// itself stays in the credential store; this file only lets restore find
@@ -252,6 +314,149 @@ pub struct SessionBusy;
 #[cfg(test)]
 mod session_snapshot_tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn sidecar_publish_ignores_old_fixed_temp_symlink_and_preserves_old_file_on_failure() {
+        use std::os::unix::fs::symlink;
+        let dir = std::env::temp_dir().join(format!(
+            "tiktools-auth-publish-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        let path = dir.join("account.json");
+        let victim = dir.join("victim");
+        std::fs::write(&path, b"old sidecar").unwrap();
+        std::fs::write(&victim, b"untouched").unwrap();
+        symlink(&victim, path.with_extension("json.tmp")).unwrap();
+        assert!(
+            write_account_sidecar(&path, b"new sidecar", || Err(std::io::Error::other(
+                "injected failure"
+            )))
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), b"old sidecar");
+        assert_eq!(std::fs::read(&victim).unwrap(), b"untouched");
+        write_account_sidecar(&path, b"new sidecar", || Ok(())).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"new sidecar");
+        assert_eq!(std::fs::read(&victim).unwrap(), b"untouched");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn unsafe_or_oversized_sidecar_cannot_block_offline_identity_or_logout() {
+        use std::os::unix::{ffi::OsStrExt, fs::symlink};
+        let dir = std::env::temp_dir().join(format!(
+            "tiktools-auth-sidecar-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        let path = dir.join("account.json");
+        let target = dir.join("target.json");
+        std::fs::write(
+            &target,
+            br#"{"origin":"http://127.0.0.1:8471","account_id":"alice"}"#,
+        )
+        .unwrap();
+        let auth = CloudAuth::new(
+            Some("http://127.0.0.1:8471".into()),
+            path.clone(),
+            Arc::new(MemoryTokenStore::new()),
+        );
+        symlink(&target, &path).unwrap();
+        assert!(auth.try_sync_identity().unwrap().is_none());
+        std::fs::remove_file(&path).unwrap();
+        std::fs::write(&path, vec![b'x'; MAX_ACCOUNT_SIDECAR_BYTES as usize + 1]).unwrap();
+        assert!(auth.try_sync_identity().unwrap().is_none());
+        std::fs::remove_file(&path).unwrap();
+        let cpath = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(cpath.as_ptr(), 0o600) }, 0);
+        let worker_auth = auth.clone();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let identity = worker_auth.with_sync_identity_permit(|identity| identity);
+            let _ = done_tx.send(identity);
+        });
+        assert!(done_rx
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap()
+            .unwrap()
+            .is_none());
+        tokio::time::timeout(Duration::from_secs(2), auth.logout())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!path.exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn remembered_identity_permit_releases_mutex_and_fences_logout() {
+        let path = std::env::temp_dir().join(format!(
+            "tiktools-auth-identity-permit-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(
+            &path,
+            br#"{"origin":"http://127.0.0.1:8471","account_id":"alice"}"#,
+        )
+        .unwrap();
+        let auth = CloudAuth::new(
+            Some("http://127.0.0.1:8471".into()),
+            path.clone(),
+            Arc::new(MemoryTokenStore::new()),
+        );
+        let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let worker_auth = auth.clone();
+        let worker = std::thread::spawn(move || {
+            worker_auth
+                .with_sync_identity_permit(|identity| {
+                    assert_eq!(
+                        identity,
+                        Some(("http://127.0.0.1:8471".into(), "alice".into()))
+                    );
+                    assert!(
+                        worker_auth.inner.try_lock().is_ok(),
+                        "account mutex held during callback"
+                    );
+                    assert!(worker_auth.identity_gate.try_write().is_err());
+                    entered_tx.send(()).unwrap();
+                    release_rx.recv().unwrap();
+                })
+                .unwrap();
+        });
+        entered_rx.await.unwrap();
+        let logout_auth = auth.clone();
+        let mut logout = tokio::spawn(async move { logout_auth.logout().await });
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), &mut logout)
+                .await
+                .is_err()
+        );
+        assert!(auth.with_sync_identity_permit(|_| ()).is_err());
+        release_tx.send(()).unwrap();
+        worker.join().unwrap();
+        logout.await.unwrap().unwrap();
+        assert!(matches!(
+            auth.with_sync_identity_permit(|identity| identity),
+            Ok(None)
+        ));
+        let _ = std::fs::remove_file(path);
+    }
 
     #[tokio::test]
     async fn contended_account_is_distinct_from_signed_out() {
@@ -526,18 +731,52 @@ mod session_snapshot_tests {
 }
 
 impl CloudAuth {
-    fn sync_identity_locked(&self, inner: &Inner) -> Option<(String, String)> {
-        let configured = normalized_origin(inner.origin.as_deref()?)?;
-        if let Some(session) = &inner.session {
-            return (session.instance_origin() == configured)
-                .then(|| (configured, session.account_id().to_owned()));
+    // Caller holds the identity read gate. Snapshot account state briefly,
+    // read a remembered sidecar without the account mutex, then revalidate.
+    fn try_sync_identity_guarded(&self) -> Result<Option<(String, String)>, SessionBusy> {
+        if self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
         }
-        if !inner.offline_identity_allowed {
-            return None;
+        let inner = self.inner.try_lock().map_err(|_| SessionBusy)?;
+        if login_waiting(&inner) || self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
         }
-        let (origin, account) = self.last_identity()?;
-        (normalized_origin(&origin).as_deref() == Some(configured.as_str()))
-            .then_some((configured, account))
+        let origin = inner.origin.clone();
+        let session = inner.session.clone();
+        let offline_allowed = inner.offline_identity_allowed;
+        let epoch = inner.epoch;
+        drop(inner);
+        let identity = origin
+            .as_deref()
+            .and_then(normalized_origin)
+            .and_then(|configured| {
+                if let Some(session) = &session {
+                    return (session.instance_origin() == configured)
+                        .then(|| (configured, session.account_id().to_owned()));
+                }
+                if !offline_allowed {
+                    return None;
+                }
+                let (saved_origin, account) = self.last_identity()?;
+                (normalized_origin(&saved_origin).as_deref() == Some(configured.as_str()))
+                    .then_some((configured, account))
+            });
+        let inner = self.inner.try_lock().map_err(|_| SessionBusy)?;
+        let same_session = match (&session, &inner.session) {
+            (None, None) => true,
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        };
+        if inner.epoch != epoch
+            || inner.origin != origin
+            || inner.offline_identity_allowed != offline_allowed
+            || !same_session
+            || login_waiting(&inner)
+            || self.transitions.load(Ordering::SeqCst) != 0
+        {
+            return Err(SessionBusy);
+        }
+        Ok(identity)
     }
     /// Build from an explicit origin and a token store. `None` disables
     /// login and reports unconfigured.
@@ -678,18 +917,8 @@ impl CloudAuth {
     /// Capture a live or remembered identity without treating a running login,
     /// restore or logout as a signed-out offline state.
     pub fn try_sync_identity(&self) -> Result<Option<(String, String)>, SessionBusy> {
-        if self.transitions.load(Ordering::SeqCst) != 0 {
-            return Err(SessionBusy);
-        }
-        let inner = self.inner.try_lock().map_err(|_| SessionBusy)?;
-        if login_waiting(&inner) {
-            return Err(SessionBusy);
-        }
-        let identity = self.sync_identity_locked(&inner);
-        if self.transitions.load(Ordering::SeqCst) != 0 {
-            return Err(SessionBusy);
-        }
-        Ok(identity)
+        let _gate = self.identity_gate.try_read().map_err(|_| SessionBusy)?;
+        self.try_sync_identity_guarded()
     }
 
     /// Run a bounded synchronous local operation while the account identity
@@ -698,17 +927,29 @@ impl CloudAuth {
         &self,
         operation: impl FnOnce(Option<(String, String)>) -> R,
     ) -> Result<R, SessionBusy> {
-        if self.transitions.load(Ordering::SeqCst) != 0 {
-            return Err(SessionBusy);
-        }
+        let _gate = self.identity_gate.try_read().map_err(|_| SessionBusy)?;
+        let identity = self.try_sync_identity_guarded()?;
         let inner = self.inner.try_lock().map_err(|_| SessionBusy)?;
         if login_waiting(&inner) || self.transitions.load(Ordering::SeqCst) != 0 {
             return Err(SessionBusy);
         }
-        let identity = self.sync_identity_locked(&inner);
-        if self.transitions.load(Ordering::SeqCst) != 0 {
-            return Err(SessionBusy);
-        }
+        let result = operation(identity);
+        drop(inner);
+        Ok(result)
+    }
+
+    /// Hold a nonblocking identity permit while a synchronous native commit
+    /// uses a live or remembered account. The account mutex is released
+    /// before the callback; login, restore and logout wait on the identity
+    /// gate. The callback must not await, do network I/O or synchronously
+    /// wait for an account transition. Run disk work on a blocking thread.
+    /// This protects only this manager and its clones, not other processes.
+    pub fn with_sync_identity_permit<R>(
+        &self,
+        operation: impl FnOnce(Option<(String, String)>) -> R,
+    ) -> Result<R, SessionBusy> {
+        let _gate = self.identity_gate.try_read().map_err(|_| SessionBusy)?;
+        let identity = self.try_sync_identity_guarded()?;
         Ok(operation(identity))
     }
 
@@ -781,7 +1022,7 @@ impl CloudAuth {
     /// any. Needs no live session, so offline staging can target the right
     /// identity; the sync engine still re-validates on use.
     pub fn last_identity(&self) -> Option<(String, String)> {
-        std::fs::read(&self.sidecar)
+        read_account_sidecar(&self.sidecar)
             .ok()
             .and_then(|bytes| serde_json::from_slice::<AccountSidecar>(&bytes).ok())
             .map(|sidecar| (sidecar.origin, sidecar.account_id))
@@ -1049,7 +1290,7 @@ impl CloudAuth {
 
     async fn restore_inner(&self) -> Result<AccountStatus, AuthError> {
         let sidecar: AccountSidecar = {
-            let Ok(bytes) = std::fs::read(&self.sidecar) else {
+            let Ok(bytes) = read_account_sidecar(&self.sidecar) else {
                 // Nothing to restore is a normal signed-out start, distinct
                 // from a disabled Cloud.
                 return Err(if self.inner.lock().await.origin.is_some() {
@@ -1145,7 +1386,7 @@ impl CloudAuth {
             inner.last_error = None;
             (inner.origin.clone(), session)
         };
-        let sidecar = std::fs::read(&self.sidecar)
+        let sidecar = read_account_sidecar(&self.sidecar)
             .ok()
             .and_then(|bytes| serde_json::from_slice::<AccountSidecar>(&bytes).ok());
         let remembered = sidecar.filter(|v| {
@@ -1266,14 +1507,9 @@ impl CloudAuth {
         if inner.epoch != epoch || inner.session.is_some() {
             return Err(AuthError::Cancelled);
         }
-        if let Some(parent) = self.sidecar.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let temporary = self.sidecar.with_extension("json.tmp");
         if serde_json::to_vec(&sidecar)
             .ok()
-            .and_then(|bytes| std::fs::write(&temporary, bytes).ok())
-            .and_then(|()| std::fs::rename(&temporary, &self.sidecar).ok())
+            .and_then(|bytes| write_account_sidecar(&self.sidecar, &bytes, || Ok(())).ok())
             .is_none()
         {
             return Err(AuthError::Failed(

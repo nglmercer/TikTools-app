@@ -131,6 +131,19 @@ pub struct WorkspaceState {
     pub bootstrap_complete: bool,
     pub next_local_generation: u64,
     pub entries: Vec<WorkspaceEntry>,
+    /// Private local product-source receipts; never uploaded to Cloud.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    product_receipts: Vec<WorkspaceProductReceipt>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceProductReceipt {
+    target: WorkspaceKey,
+    source_generation: u64,
+    decision_digest: String,
+    edit: WorkspaceEdit,
+    workspace_generation: u64,
 }
 
 /// Non-deserializable proof of exactly the request durably prepared for HTTP.
@@ -208,6 +221,7 @@ impl WorkspaceState {
             bootstrap_complete: false,
             next_local_generation: 1,
             entries: Vec::new(),
+            product_receipts: Vec::new(),
         })
     }
     pub fn validate(&self) -> Result<()> {
@@ -219,6 +233,34 @@ impl WorkspaceState {
         }
         if self.entries.len() > MAX_ENTRIES {
             return Err(WorkspaceStateError::TooLarge);
+        }
+        if self.product_receipts.len() > MAX_ENTRIES {
+            return Err(WorkspaceStateError::TooLarge);
+        }
+        let mut receipt_previous = None;
+        let mut receipt_bytes = 0usize;
+        for receipt in &self.product_receipts {
+            if !receipt.target.valid()
+                || receipt_previous.is_some_and(|key| key >= &receipt.target)
+                || receipt.source_generation == 0
+                || receipt.workspace_generation == 0
+                || receipt.workspace_generation >= self.next_local_generation
+                || receipt.decision_digest.len() != 64
+                || !receipt
+                    .decision_digest
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                || !receipt.edit.valid(&receipt.target)
+            {
+                return Err(WorkspaceStateError::Invalid);
+            }
+            receipt_previous = Some(&receipt.target);
+            receipt_bytes = receipt_bytes
+                .checked_add(receipt.edit.bytes()?)
+                .ok_or(WorkspaceStateError::TooLarge)?;
+            if receipt_bytes > VALUE_BYTES {
+                return Err(WorkspaceStateError::TooLarge);
+            }
         }
         let mut previous = None;
         let mut totals = [0usize; 4];
@@ -317,6 +359,62 @@ impl WorkspaceState {
     }
     /// Stage is transactional in memory; callers durably save before claiming
     /// an edit was staged. A prepared original request is never overwritten.
+    /// Atomically record an already durable product decision and its receipt.
+    /// The source must fence its identity and generation until this state is
+    /// saved. Repeating the exact decision is a no-op even if its pending
+    /// write has since been sent or resolved. A stale or ambiguous decision
+    /// requires explicit recovery, never automatic replay.
+    pub fn stage_product_decision(
+        &mut self,
+        key: WorkspaceKey,
+        edit: WorkspaceEdit,
+        source_generation: u64,
+        decision_digest: &str,
+    ) -> Result<(u64, bool)> {
+        if !self.bootstrap_complete
+            || !key.valid()
+            || !edit.valid(&key)
+            || source_generation == 0
+            || decision_digest.len() != 64
+            || !decision_digest
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(WorkspaceStateError::Invalid);
+        }
+        let position = self
+            .product_receipts
+            .binary_search_by(|receipt| receipt.target.cmp(&key));
+        if let Ok(index) = position {
+            let receipt = &self.product_receipts[index];
+            if source_generation <= receipt.source_generation {
+                if source_generation == receipt.source_generation
+                    && decision_digest == receipt.decision_digest
+                    && edit == receipt.edit
+                {
+                    return Ok((receipt.workspace_generation, false));
+                }
+                return Err(WorkspaceStateError::Invalid);
+            }
+        }
+        let mut candidate = self.clone();
+        let generation = candidate.stage(key.clone(), edit.clone())?;
+        let receipt = WorkspaceProductReceipt {
+            target: key,
+            source_generation,
+            decision_digest: decision_digest.to_owned(),
+            edit,
+            workspace_generation: generation,
+        };
+        match position {
+            Ok(index) => candidate.product_receipts[index] = receipt,
+            Err(index) => candidate.product_receipts.insert(index, receipt),
+        }
+        candidate.validate()?;
+        *self = candidate;
+        Ok((generation, true))
+    }
+
     pub fn stage(&mut self, key: WorkspaceKey, edit: WorkspaceEdit) -> Result<u64> {
         if !edit.valid(&key) {
             return Err(WorkspaceStateError::Invalid);
@@ -545,6 +643,7 @@ impl WorkspaceState {
         candidate.cursor = snapshot.cursor;
         candidate.bootstrap_complete = self.bootstrap_complete;
         candidate.next_local_generation = self.next_local_generation;
+        candidate.product_receipts = self.product_receipts.clone();
         for record in snapshot.records {
             candidate.apply_record(record)?;
         }

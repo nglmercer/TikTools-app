@@ -168,6 +168,23 @@ impl WorkspaceCoordinator {
         selections: &[PluginSelection],
         legacy: Option<&SyncState>,
     ) -> Result<(), WorkspaceCoordError> {
+        self.bootstrap_inner(selections, legacy, None)
+    }
+
+    /// Construct exactly the reviewed candidate in one atomic state save.
+    pub(crate) fn bootstrap_reviewed(
+        &self,
+        preview: &crate::CutoverPreview,
+    ) -> Result<(), WorkspaceCoordError> {
+        self.bootstrap_inner(&preview.selections(), preview.legacy(), Some(preview))
+    }
+
+    fn bootstrap_inner(
+        &self,
+        selections: &[PluginSelection],
+        legacy: Option<&SyncState>,
+        preview: Option<&crate::CutoverPreview>,
+    ) -> Result<(), WorkspaceCoordError> {
         let _operation = self
             .store
             .try_operation_lock()?
@@ -194,7 +211,13 @@ impl WorkspaceCoordinator {
             if let Some(legacy) = legacy {
                 state.import_v1_pending(legacy)?;
             }
+            if let Some(preview) = preview {
+                preview.apply_review_policy(state)?;
+            }
             state.mark_bootstrap_complete();
+            if preview.is_some_and(|preview| !preview.matches_bootstrap(state)) {
+                return Err(WorkspaceStateError::StaleReview.into());
+            }
             Ok(())
         })
     }
@@ -210,6 +233,43 @@ impl WorkspaceCoordinator {
             }
             Ok(state.stage(key.clone(), edit.clone())?)
         })
+    }
+    /// Save a fenced durable source decision and its replay receipt in the
+    /// same workspace transaction. The caller owns identity, consent and
+    /// source fencing and must not interpret this as permission to dispatch.
+    pub(crate) fn stage_product_decision(
+        &self,
+        key: WorkspaceKey,
+        edit: WorkspaceEdit,
+        source_generation: u64,
+        decision_digest: &str,
+    ) -> Result<(u64, bool), WorkspaceCoordError> {
+        let _operation = self
+            .store
+            .try_operation_lock()?
+            .ok_or(WorkspaceCoordError::Busy)?;
+        for _ in 0..MAX_LOCAL_RETRIES {
+            let mut snapshot = self.snapshot()?;
+            if !snapshot.state.bootstrap_complete {
+                return Err(WorkspaceCoordError::BootstrapRequired);
+            }
+            let result = snapshot.state.stage_product_decision(
+                key.clone(),
+                edit.clone(),
+                source_generation,
+                decision_digest,
+            )?;
+            if !result.1 {
+                return Ok(result);
+            }
+            let expected = (snapshot.generation != 0).then_some(snapshot.generation);
+            match self.store.save(expected, &snapshot.state) {
+                Ok(_) => return Ok(result),
+                Err(StoreError::ConcurrentChange) => continue,
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Err(StoreError::ConcurrentChange.into())
     }
     /// Fetch and conditionally upload. Prepared uncertainty is saved before
     /// HTTP. Unconfirmed/conflicted requests are never automatically resent.
