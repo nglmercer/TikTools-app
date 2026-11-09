@@ -21,12 +21,12 @@ const event = (n: string) => ({ topic: 'workflow.changed', subscriptionId: 'sub'
 function fixture(read: (options?: ControlCallOptions) => unknown = (options) => {
   options?.onMetadata?.({ resourceVersions: [version('2')] });
   return { id: 'welcome', name: 'Updated', enabled: false };
-}) {
+}, negotiated: RemoteBrowserHello = initial) {
   let active: RemoteBrowserHello | undefined;
   const events = new Set<(event: unknown) => void>();
   const losses = new Set<(reason: string) => void>();
   const transport = {
-    connect: async () => { active = { ...initial }; return active; },
+    connect: async () => { active = { ...negotiated }; return active; },
     currentHello: () => active,
     verifySession: async () => active !== undefined,
     disconnect: () => { if (active) { active = undefined; for (const fn of losses) fn('lost'); } },
@@ -37,6 +37,7 @@ function fixture(read: (options?: ControlCallOptions) => unknown = (options) => 
     if (method === 'collaboration.subscribe') return { subscriptionId: 'sub', hostInstanceId: 'instance', grantRevision: '3', domains: ['workflows'] };
     if (method === 'collaboration.snapshot') return { subscriptionId: 'sub', snapshotId: 'snapshot', hostInstanceId: 'instance', grantRevision: '3', throughSequence: '0', domains: ['workflows'], workflows: [{ id: 'welcome', name: 'Original', enabled: true }], resourceVersions: [version('1')], nextPageToken: null };
     if (method === 'workflows.get') return read(options);
+    if (method === 'live.status') return { connected: true, uniqueId: 'creator', roomId: 'room', connectionId: 'live-connection', native: true };
     throw new Error(`Unexpected network method: ${method}`);
   });
   const client = createBrowserControllerClient(remote, transport, 'https://host.test');
@@ -52,7 +53,7 @@ const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve()
 test('exposes the authorized workflow baseline, fences pages and denies unsupported commands', async () => {
   const f = fixture(); const status = await connected(f);
   expect(status.phase).toBe('ready');
-  expect(status.hello.capabilities).toEqual(['workflows.read']);
+  expect(status.hello.capabilities).toEqual(['workflows.read', 'live.read']);
   expect(status.hello.features['workflowDisable']).toBe(false);
   const page = await f.client.call<{ rows: Array<{ graph: { name: string } }>; next: number | null }>('controller.workflows', { epoch: status.epoch, viewRevision: status.viewRevision, offset: 0 });
   expect(page.rows[0]?.graph.name).toBe('Original'); expect(page.next).toBeNull();
@@ -118,6 +119,28 @@ test('a changed browser session blocks publication of a fetched update', async (
   f.client.detach();
 });
 
+test('LIVE-only observers connect without a workflow subscription and receive a scoped status', async () => {
+  const f = fixture(undefined, { ...initial, capabilities: ['live.read'], subscriptionDomains: [], resourceRestrictions: { live: ['creator'] } });
+  const status = await connected(f);
+  const result = await f.client.call('controller.live.status', { epoch: status.epoch, connectionId: 'connection' });
+  expect(result).toEqual({ epoch: status.epoch, connectionId: 'connection', connected: true, uniqueId: 'creator', native: true });
+  expect(f.calls.map((call) => call.method)).toEqual(['live.status']);
+  await expect(f.client.call('controller.live.status', { epoch: status.epoch, connectionId: 'stale' })).rejects.toMatchObject({ code: 'stale_view' });
+  f.client.detach();
+});
+
+test('LIVE status rejects an unauthorized creator and a replaced browser session', async () => {
+  const restricted = fixture(undefined, { ...initial, capabilities: ['live.read'], resourceRestrictions: { live: ['other'] } });
+  const status = await connected(restricted);
+  await expect(restricted.client.call('controller.live.status', { epoch: status.epoch, connectionId: 'connection' })).rejects.toMatchObject({ code: 'forbidden' });
+  restricted.client.detach();
+  const changed = fixture(undefined, { ...initial, capabilities: ['live.read'], resourceRestrictions: {} });
+  const current = await connected(changed);
+  changed.transport.verifySession = async () => false;
+  await expect(changed.client.call('controller.live.status', { epoch: current.epoch, connectionId: 'connection' })).rejects.toMatchObject({ code: 'stale_view' });
+  changed.client.detach();
+});
+
 test('browser controller screen displays the scoped view and clears it on disconnect', async () => {
   i18n.global.locale.value = 'en';
   const f = fixture();
@@ -125,7 +148,7 @@ test('browser controller screen displays the scoped view and clears it on discon
   try {
     await flushPromises();
     expect(wrapper.text()).toContain('Original');
-    expect(wrapper.text()).toContain('The web view currently supports workflow reads only.');
+    expect(wrapper.text()).toContain('The web view supports workflow and LIVE status reads according to your permissions.');
     expect(wrapper.text()).not.toContain('Saved profiles');
     expect(wrapper.text()).not.toContain('Connect to another PC');
     expect(wrapper.text()).not.toContain('Disable workflow');

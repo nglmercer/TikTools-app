@@ -503,7 +503,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
     >
       <h2>{{ labels.workflows }}</h2>
       <p>
-        {{ props.browserMode ? (locale === 'es' ? 'La vista web solo permite consultar workflows por ahora.' : 'The web view currently supports workflow reads only.') : labels.readOnly }}
+        {{ props.browserMode ? (locale === 'es' ? 'La vista web permite consultar workflows y el estado del LIVE según tus permisos.' : 'The web view supports workflow and LIVE status reads according to your permissions.') : labels.readOnly }}
       </p>
       <p v-if="!rows.length">
         {{ labels.empty }}

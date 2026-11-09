@@ -12,7 +12,7 @@ const binding = (s: ControllerStatus) => JSON.stringify([s.epoch, s.profile, s.o
   s.hello?.hostId, s.hello?.hostInstanceId, s.hello?.principalId, s.hello?.sessionId,
   s.hello?.grantRevision, s.hello?.capabilities, s.hello?.resourceRestrictions]);
 const readable = (s: ControllerStatus) => s.phase === 'ready' && !!s.hello?.connectionId &&
-  s.hello.capabilities.includes('live.read') && (s.hello.resourceRestrictions?.['live'] === undefined ||
+  s.hello.capabilities.includes('live.read') && s.hello.features['liveFeedSupported'] !== false && (s.hello.resourceRestrictions?.['live'] === undefined ||
     (s.hello.features['creatorFeed'] === true && s.hello.resourceRestrictions['live'].length > 0));
 
 function decode(value: unknown, status: ControllerStatus, after: string, creator: string | null, previousStream: string | null): Page {

@@ -6,7 +6,8 @@ With `dist/web` built and the opt-in `browser-app` feature enabled, the ignored
 `browser_controller_pairs_reads_live_updates_and_clears_on_revocation` gateway
 test ran against real Chromium and a local TLS gateway. It paired an approved
 browser, loaded the embedded controller, observed a host workflow update,
-paired a replacement in another tab, checked that the original view cleared,
+paired a LIVE-only replacement in another tab, checked that the original view
+cleared, observed the disconnected LIVE status without a workflow subscription,
 and checked that revocation cleared the replacement view. The gateway credential
 test also exercises authenticated app/asset delivery, source-map exclusion and
 revocation. Type checking, lint and 31 focused browser tests passed. This is a

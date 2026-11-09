@@ -42,10 +42,12 @@ try {
   await page.getByRole('button', { name: /Host updated/ }).waitFor({ state: 'hidden', timeout: 20_000 });
   mark('cookie-cleared');
   await replacement.locator('#open-app').click();
-  await replacement.getByRole('button', { name: /Host updated/ }).waitFor({ timeout: 20_000 });
+  const liveStatus = replacement.getByRole('region', { name: /Host LIVE|LIVE del anfitrión/ });
+  await liveStatus.getByText(/Not connected to LIVE|Sin conexión al LIVE/).waitFor({ timeout: 20_000 });
+  if (await replacement.getByRole('button', { name: /Host updated/ }).count()) throw new Error('LIVE-only observer received workflow');
   if (leaked) throw new Error('invitation secret appeared in a request');
   mark('replacement-ready');
-  await replacement.getByRole('button', { name: /Host updated/ }).waitFor({ state: 'hidden', timeout: 20_000 });
+  await liveStatus.waitFor({ state: 'hidden', timeout: 20_000 });
   mark('cleared');
 } catch (error) {
   const description = error instanceof Error ? error.message : 'browser fixture failed';

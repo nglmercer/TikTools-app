@@ -1902,13 +1902,16 @@ async fn browser_controller_pairs_reads_live_updates_and_clears_on_revocation() 
     };
     let invitation = fixture
         .service
-        .create_invitation(InviteCreate {
-            grant: grant.clone(),
-        })
+        .create_invitation(InviteCreate { grant })
         .unwrap();
     let replacement = fixture
         .service
-        .create_invitation(InviteCreate { grant })
+        .create_invitation(InviteCreate {
+            grant: Grant {
+                capabilities: [tiktools_collaboration::Capability::LiveRead].into(),
+                ..Grant::default()
+            },
+        })
         .unwrap();
     let signals = tempfile::tempdir().unwrap();
     let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -40,10 +40,11 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
       hostId: hello.hostId, hostInstanceId: hello.hostInstanceId, connectionId: hello.connectionId,
       principalId: hello.principalId, sessionId: hello.sessionId, grantRevision: hello.grantRevision,
       // Advertise only domains that this browser bridge actually implements.
-      capabilities: hello.capabilities.includes('workflows.read') ? ['workflows.read'] : [],
-      features: { subscriptions: true, workflowDisable: false, workflowDelete: false, workflowSave: false, workflowEnable: false },
-      resourceRestrictions: Object.prototype.hasOwnProperty.call(hello.resourceRestrictions, 'workflow')
-        ? { workflow: [...hello.resourceRestrictions['workflow']!] } : {},
+      capabilities: hello.capabilities.filter((capability) => capability === 'workflows.read' || capability === 'live.read'),
+      features: { subscriptions: true, workflowDisable: false, workflowDelete: false, workflowSave: false, workflowEnable: false, liveFeedSupported: false },
+      resourceRestrictions: Object.fromEntries(['workflow', 'live'].filter((kind) =>
+        Object.prototype.hasOwnProperty.call(hello!.resourceRestrictions, kind))
+        .map((kind) => [kind, [...hello!.resourceRestrictions[kind]!]])),
       limits: { requestsPerSecond: hello.requestsPerSecond, requestBurst: hello.requestBurst },
     } : null,
   });
@@ -113,16 +114,19 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
     try {
       const negotiated = await transport.connect();
       if (!attached || generation !== epoch) throw fail('cancelled', 'Browser connection was replaced');
-      const stream = createBrowserWorkflowRecovery(remote, transport, negotiated, () => {
-        if (generation !== epoch || recovery !== stream) return;
-        if (phase === 'ready' && !stream.isReady()) { invalidate('resync_required', 'failed'); transport.disconnect(); }
-        else void pump();
-      });
-      recovery = stream;
-      await stream.start();
+      let stream: ReturnType<typeof createBrowserWorkflowRecovery> | undefined;
+      if (negotiated.capabilities.includes('workflows.read')) {
+        stream = createBrowserWorkflowRecovery(remote, transport, negotiated, () => {
+          if (generation !== epoch || recovery !== stream || !stream) return;
+          if (phase === 'ready' && !stream.isReady()) { invalidate('resync_required', 'failed'); transport.disconnect(); }
+          else void pump();
+        });
+        recovery = stream;
+        await stream.start();
+      }
       if (!await transport.verifySession()) throw fail('transport', 'Browser session changed');
       if (!attached || generation !== epoch || transport.currentHello() !== negotiated || recovery !== stream) throw fail('cancelled', 'Browser connection was replaced');
-      const baseline = stream.baseline();
+      const baseline = stream ? stream.baseline() : [];
       if (!baseline) throw fail('resync_required', 'Workflow baseline unavailable');
       rows = baseline.sort((a, b) => a.version.id < b.version.id ? -1 : a.version.id > b.version.id ? 1 : 0);
       hello = negotiated; phase = 'ready'; viewRevision += 1; notify(); void pump();
@@ -155,6 +159,22 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
         await connect(); return { ok: true } as T;
       }
       if (method === 'controller.disconnect') { invalidate('transport', 'idle'); transport.disconnect(); return { ok: true } as T; }
+      if (method === 'controller.live.status') {
+        const expected = hello; const generation = epoch;
+        if (!expected || !matches(generation, expected) || !expected.capabilities.includes('live.read') ||
+            params['epoch'] !== String(epoch) || params['connectionId'] !== expected.connectionId) throw fail('stale_view', 'LIVE view changed');
+        const value = await remote.call<unknown>('live.status', {});
+        const optional = (item: unknown): boolean => item === null || (typeof item === 'string' && item.length > 0 &&
+          encoder.encode(item).length <= 256 && !/\p{Cc}/u.test(item));
+        if (!object(value) || Object.keys(value).length !== 5 ||
+            !['connected', 'uniqueId', 'roomId', 'connectionId', 'native'].every((key) => Object.hasOwn(value, key)) ||
+            typeof value['connected'] !== 'boolean' || typeof value['native'] !== 'boolean' ||
+            !optional(value['uniqueId']) || !optional(value['roomId']) || !optional(value['connectionId'])) throw fail('protocol', 'Invalid LIVE status');
+        const allowed = expected.resourceRestrictions['live'];
+        if (allowed !== undefined && (typeof value['uniqueId'] !== 'string' || !allowed.includes(value['uniqueId']))) throw fail('forbidden', 'LIVE creator is not permitted');
+        if (!await transport.verifySession() || !matches(generation, expected)) throw fail('stale_view', 'LIVE view changed');
+        return { epoch: String(generation), connectionId: expected.connectionId, connected: value['connected'], uniqueId: value['uniqueId'], native: value['native'] } as T;
+      }
       if (method === 'controller.workflows') {
         if (phase !== 'ready' || params['epoch'] !== String(epoch) || params['viewRevision'] !== String(viewRevision)) throw fail('stale_view', 'Workflow view changed');
         const offset = params['offset'];
