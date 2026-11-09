@@ -578,7 +578,7 @@ impl AutomationService {
         apply: impl FnOnce() -> Result<R, String>,
     ) -> Result<R, String> {
         let index = recover_rwlock_read(&self.index, "automation index");
-        if !execution_chain_current(&index, permits, owner_rules)
+        if !execution_chain_current(&index, permits, owner_rules, None)
             || !(permits
                 .iter()
                 .any(|permit| permit.authorizes_action(action))
@@ -591,6 +591,34 @@ impl AutomationService {
         apply()
     }
 
+    /// The admission proof is available only while the matching competition
+    /// transaction and every current subject are locked by the database.
+    #[allow(dead_code)]
+    pub(crate) fn with_current_competition_approvals<R>(
+        &self,
+        admission: &crate::db::CompetitionExecutionAdmission<'_>,
+        permits: &[RuntimeApprovalPermit],
+        owner_rules: &[RuntimeOwnerRuleFence],
+        action: &Value,
+        apply: impl FnOnce() -> Result<R, String>,
+    ) -> Result<R, String> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !execution_chain_current(&index, permits, owner_rules, Some(admission.fence()))
+            || permits
+                .iter()
+                .any(|permit| permit.check_subjects(admission.identities()).is_err())
+            || !(permits
+                .iter()
+                .any(|permit| permit.authorizes_action(action))
+                || owner_rules
+                    .iter()
+                    .any(|rule| rule.authorizes_action(action)))
+        {
+            return Err("saved competition approval definition binding has changed".into());
+        }
+        apply()
+    }
+
     pub(crate) fn with_current_execution_chain<R>(
         &self,
         permits: &[RuntimeApprovalPermit],
@@ -598,7 +626,7 @@ impl AutomationService {
         apply: impl FnOnce() -> Result<R, String>,
     ) -> Result<R, String> {
         let index = recover_rwlock_read(&self.index, "automation index");
-        if !execution_chain_current(&index, permits, owner_rules) {
+        if !execution_chain_current(&index, permits, owner_rules, None) {
             return Err("inherited saved execution binding has changed".into());
         }
         apply()
@@ -609,11 +637,20 @@ fn execution_chain_current(
     index: &BehaviorIndex,
     permits: &[RuntimeApprovalPermit],
     owner_rules: &[RuntimeOwnerRuleFence],
+    competition: Option<&crate::db::CompetitionExecutionFence>,
 ) -> bool {
     !permits.is_empty()
-        // Competition permits need a generation fence held through the sink.
-        // Until that path is connected they cannot use the generic executor.
-        && permits.iter().all(|permit| permit.competition.is_none() && permit_current(index, permit))
+        && permits.iter().all(|permit| {
+            permit
+                .competition
+                .as_ref()
+                .is_none_or(|fence| Some(fence) == competition)
+                && permit_current(index, permit)
+        })
+        && (competition.is_none()
+            || permits
+                .iter()
+                .any(|permit| permit.competition.as_ref() == competition))
         && owner_rules.iter().all(|rule| {
             std::sync::Arc::ptr_eq(&index.identity, &rule.index_identity)
                 && index.authority_available

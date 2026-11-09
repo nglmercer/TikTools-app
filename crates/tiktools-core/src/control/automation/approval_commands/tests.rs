@@ -290,6 +290,29 @@ fn competition_winner_candidate_requires_every_inherited_operator_grant() {
         .with_current(|ids| permit.check_subjects(ids))
         .unwrap()
         .is_ok());
+    let author = f.pair(allowed.clone()).snapshot().unwrap();
+    let extra = [(author.principal_id.clone(), author.session_id.clone())];
+    f.core()
+        .db
+        .with_competition_execution_fence_and_subjects(
+            &service,
+            &fence,
+            &extra,
+            |_, identities, admission| {
+                assert_eq!(identities.len(), 3);
+                f.core()
+                    .automation
+                    .with_current_competition_approvals(
+                        admission,
+                        &[permit.clone()],
+                        &[],
+                        &saved,
+                        || Ok(()),
+                    )
+                    .map_err(crate::db::DatabaseError::Invalid)
+            },
+        )
+        .unwrap();
     allowed.automation_delegation = None;
     service
         .set_grant(GrantSet {
@@ -298,6 +321,11 @@ fn competition_winner_candidate_requires_every_inherited_operator_grant() {
             grant: allowed,
         })
         .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence_and_subjects(&service, &fence, &extra, |_, _, _| Ok(()))
+        .is_err());
     assert!(subjects
         .with_current(|ids| permit.check_subjects(ids))
         .unwrap()

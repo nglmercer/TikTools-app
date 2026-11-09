@@ -18,8 +18,6 @@ pub(crate) use sqlite::validate_owner_definition_input;
 #[cfg(all(feature = "persistence", test))]
 pub(crate) use sqlite::CompetitionActivation;
 #[cfg(feature = "persistence")]
-pub(crate) use sqlite::CompetitionExecutionFence;
-#[cfg(feature = "persistence")]
 pub use sqlite::DatabaseError;
 #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
 pub(crate) use sqlite::PluginCutoverSource;
@@ -34,6 +32,8 @@ pub(crate) use sqlite::{
 pub(crate) use sqlite::{BehaviorAuthority, BehaviorRuntimeAuthority, BehaviorSave};
 #[cfg(feature = "persistence")]
 pub(crate) use sqlite::{CommandDatabase, CommandTransaction};
+#[cfg(feature = "persistence")]
+pub(crate) use sqlite::{CompetitionExecutionAdmission, CompetitionExecutionFence};
 #[cfg(feature = "persistence")]
 pub(crate) use sqlite::{DeliveryToken, PendingDelivery};
 #[cfg(all(feature = "persistence", feature = "cloud-auth"))]

@@ -22,10 +22,10 @@ pub(crate) use commands::{CommandDatabase, CommandTransaction};
 #[cfg(test)]
 pub(crate) use competitions::CompetitionActivation;
 mod gift_accounting;
-pub(crate) use competitions::CompetitionExecutionFence;
 pub(crate) use competitions::{
     ActionClaimOutcome, GiftInput, GiftOutcome, ScoredInput, ScoredOutcome,
 };
+pub(crate) use competitions::{CompetitionExecutionAdmission, CompetitionExecutionFence};
 mod meta;
 mod owner_adoption;
 mod owner_approval;

@@ -23,6 +23,20 @@ pub(crate) struct CompetitionExecutionFence {
     host_id: String,
     subjects: Vec<(String, String, String, String)>,
 }
+/// Proof that the competition transaction and current subject locks are held.
+/// It cannot outlive the synchronous admission callback.
+pub(crate) struct CompetitionExecutionAdmission<'a> {
+    fence: &'a CompetitionExecutionFence,
+    identities: &'a [crate::collaboration::ExecutionIdentity],
+}
+impl CompetitionExecutionAdmission<'_> {
+    pub(crate) fn fence(&self) -> &CompetitionExecutionFence {
+        self.fence
+    }
+    pub(crate) fn identities(&self) -> &[crate::collaboration::ExecutionIdentity] {
+        self.identities
+    }
+}
 impl CompetitionExecutionFence {
     pub(crate) fn host_id(&self) -> &str {
         &self.host_id
@@ -674,6 +688,29 @@ impl DatabaseManager {
             &[crate::collaboration::ExecutionIdentity],
         ) -> Result<R, DatabaseError>,
     ) -> Result<R, DatabaseError> {
+        self.with_competition_delegation_and_subjects(
+            service,
+            id,
+            generation,
+            &[],
+            |tx, identities, _| apply(tx, identities),
+        )
+    }
+
+    /// Additional subjects must come from trusted saved automation definitions.
+    /// All identities are kept current together until the transaction commits.
+    fn with_competition_delegation_and_subjects<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        id: &str,
+        generation: u64,
+        additional: &[(String, String)],
+        apply: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            &[crate::collaboration::ExecutionIdentity],
+            usize,
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
         use crate::collaboration::{Capability, Error, ResourceKind};
         let denied = || DatabaseError::CommandAuthorization(Error::Forbidden);
         let generation = i64::try_from(generation)
@@ -711,16 +748,21 @@ impl DatabaseManager {
         {
             return Err(denied());
         }
-        let subjects = entries
+        let mut subjects = entries
             .iter()
             .map(|(principal, session, _)| (principal.clone(), session.clone()))
             .collect::<Vec<_>>();
+        for subject in additional {
+            if !subjects.contains(subject) {
+                subjects.push(subject.clone());
+            }
+        }
         let authorization = service
             .execution_authorizations(&subjects)
             .map_err(DatabaseError::CommandAuthorization)?;
         let result = authorization
             .with_current(|identities| {
-                if identities.len() != entries.len()
+                if identities.len() != subjects.len()
                     || identities.iter().zip(&entries).any(
                         |(identity, (principal, session, revision))| {
                             let current = identity.grant_revision().parse::<i64>().ok();
@@ -746,7 +788,7 @@ impl DatabaseManager {
                 {
                     return Err(denied());
                 }
-                let result = apply(&tx, identities)?;
+                let result = apply(&tx, identities, entries.len())?;
                 for identity in identities {
                     identity
                         .check_deadline()
@@ -793,6 +835,45 @@ impl DatabaseManager {
             }
             apply(tx, identities)
         })
+    }
+    /// Admit saved automation authors together with competition operators.
+    /// The additional subjects must be obtained from a trusted saved candidate.
+    #[allow(dead_code)]
+    pub(crate) fn with_competition_execution_fence_and_subjects<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        fence: &CompetitionExecutionFence,
+        additional: &[(String, String)],
+        apply: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            &[crate::collaboration::ExecutionIdentity],
+            &CompetitionExecutionAdmission<'_>,
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
+        self.with_competition_delegation_and_subjects(
+            service,
+            &fence.id,
+            fence.generation,
+            additional,
+            |tx, identities, operator_count| {
+                if competition_execution_fence(
+                    tx,
+                    &fence.id,
+                    fence.generation,
+                    &identities[..operator_count],
+                )? != *fence
+                {
+                    return Err(DatabaseError::CommandAuthorization(
+                        crate::collaboration::Error::Forbidden,
+                    ));
+                }
+                apply(
+                    tx,
+                    identities,
+                    &CompetitionExecutionAdmission { fence, identities },
+                )
+            },
+        )
     }
     /// Atomically consume a clean shutdown checkpoint and mark this run open.
     /// Missing checkpoints (including older schemas) fail closed.
