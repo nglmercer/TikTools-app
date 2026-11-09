@@ -473,6 +473,11 @@ impl AppCore {
             })?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
+        if self.plugin_apply_quarantined(&id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
         #[cfg(feature = "cloud-auth")]
         let version = plugin.manifest.version.clone();
         #[cfg(feature = "persistence")]
@@ -521,6 +526,11 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
+        if self.plugin_apply_quarantined(id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
         if only_installed {
             // Check the installed state under the same gate as the mutation:
             // a concurrent uninstall must never be undone by a remote value.
@@ -613,6 +623,11 @@ impl AppCore {
             })?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
+        if self.plugin_apply_quarantined(&id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
         self.plugins.start(&id)?;
         drop(_invocation);
         self.events

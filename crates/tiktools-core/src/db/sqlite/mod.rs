@@ -29,6 +29,7 @@ mod owner_approval;
 pub(crate) use owner_approval::validate_owner_approval_input;
 mod owner_definition;
 mod owner_library;
+mod plugin_apply_quarantine;
 pub(crate) use owner_definition::validate_owner_definition_input;
 #[allow(dead_code)] // Storage only, not yet wired to product package operations.
 mod plugin_package_guard;

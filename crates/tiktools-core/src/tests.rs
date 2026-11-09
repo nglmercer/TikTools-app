@@ -1341,6 +1341,7 @@ struct FakePluginState {
     poll_batches: Mutex<VecDeque<Vec<Value>>>,
     poll_batches_by_id: Mutex<std::collections::HashMap<String, VecDeque<Vec<Value>>>>,
     poll_gates: Mutex<std::collections::HashMap<String, Arc<AtomicBool>>>,
+    poll_waiting: AtomicBool,
     actions: Mutex<Vec<Value>>,
     event_calls: Mutex<Vec<Value>>,
     event_delay_ms: AtomicU64,
@@ -1396,6 +1397,7 @@ impl PluginInstance for FakeInstance {
                     .get(&self.id)
                     .cloned();
                 if let Some(gate) = gate {
+                    self.state.poll_waiting.store(true, AtomicOrdering::SeqCst);
                     // Rendezvous for ordering tests: block until the test
                     // opens the gate (a fail-safe timeout keeps a forgotten
                     // gate from hanging the suite).
@@ -1664,6 +1666,59 @@ async fn fake_hotkey_poll_reaches_domain_automation_and_runs() {
     assert_eq!(actions.len(), 1);
     assert_eq!(actions[0]["action"]["typeId"], "hotkey.bind");
     assert!(actions[0]["action"]["config"]["shortcuts"].is_array());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[tokio::test]
+async fn poll_response_arriving_after_quarantine_is_discarded() {
+    let state = Arc::new(FakePluginState::default());
+    state
+        .poll_batches
+        .lock()
+        .unwrap()
+        .push_back(vec![fake_press("k", "")]);
+    let gate = Arc::new(AtomicBool::new(false));
+    state
+        .poll_gates
+        .lock()
+        .unwrap()
+        .insert("hotkeys".to_owned(), Arc::clone(&gate));
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
+    let mut domain = core.events.subscribe_domain();
+    let poll = tokio::spawn({
+        let core = Arc::clone(&core);
+        async move { core.poll_plugin_events().await }
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !state.poll_waiting.load(AtomicOrdering::SeqCst) {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("poll must reach the plugin before quarantine");
+    let quarantine = tokio::task::spawn_blocking({
+        let core = Arc::clone(&core);
+        move || {
+            let _guard = core.plugin_state.invocation_gate.lock().unwrap();
+            core.quarantine_plugin_apply_before_commit("hotkeys")
+        }
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !core.plugin_apply_quarantined("hotkeys") {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("quarantine must become visible while poll is blocked");
+    gate.store(true, AtomicOrdering::SeqCst);
+    assert!(quarantine.await.unwrap());
+    poll.await.unwrap();
+    while let Ok(event) = domain.try_recv() {
+        assert!(
+            !matches!(event, crate::events::DomainEvent::PluginEvent { ref plugin_id, .. } if plugin_id == "hotkeys")
+        );
+    }
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -2861,6 +2916,101 @@ async fn cloud_sync_checks_installed_state_inside_invocation_gate() {
     assert_eq!(runtime.loads.load(AtomicOrdering::SeqCst), 0);
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[tokio::test]
+async fn plugin_apply_uncertain_runtime_is_quarantined_after_host_restart() {
+    use crate::db::{PluginApplyIntent, PluginApplyReason};
+    use tiktools_cloud_sync::{PluginSelection, V1Record};
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.plugin"]);
+    let paths = core.db.paths().clone();
+    core.db.set_plugin_state("acme.plugin", true, true).unwrap();
+    let intent_id = "a".repeat(64);
+    let intent = PluginApplyIntent {
+        intent_id: intent_id.clone(),
+        origin: "https://cloud.example".into(),
+        account_id: "alice".into(),
+        config_generation: 1,
+        plugin_id: "acme.plugin".into(),
+        source_generation: 1,
+        installed_version: "1.0.0".into(),
+        expected_enabled: false,
+        reviewed_pending: None,
+        base_record: None,
+        remote: Some(V1Record {
+            collection: "plugin-selections".into(),
+            key: "acme.plugin".into(),
+            revision: 1,
+            deleted: false,
+            value: Some(PluginSelection {
+                schema_version: 1,
+                plugin_id: "acme.plugin".into(),
+                version: "1.0.0".into(),
+                enabled: true,
+            }),
+        }),
+        reason: PluginApplyReason::Pulled,
+    };
+    let db = rusqlite::Connection::open(paths.automation_database()).unwrap();
+    db.execute("INSERT INTO plugin_sync_apply_intents(intent_id,plugin_id,phase,payload_json,committed_generation) VALUES(?1,'acme.plugin','runtime_pending',?2,2)", rusqlite::params![intent_id, serde_json::to_string(&intent).unwrap()]).unwrap();
+    drop(db);
+    core.shutdown().await;
+    drop(core);
+
+    let (manager, manager_root) =
+        fake_hotkey_manager(Arc::clone(&runtime), &["acme.plugin", "other"]);
+    let mut restarted = AppCore::with_paths(
+        Arc::new(RecordingEmitter::default()),
+        Arc::new(NoopMediaHost),
+        paths.clone(),
+    );
+    restarted.plugins = Arc::new(manager);
+    let restarted = Arc::new(restarted);
+    assert!(restarted.plugin_apply_quarantined("acme.plugin"));
+    assert!(!restarted.plugin_ready("acme.plugin"));
+    assert!(restarted.plugin_ready("other"));
+    assert!(restarted.plugin_start("acme.plugin").is_err());
+    assert!(restarted.plugin_set_enabled("acme.plugin", true).is_err());
+    assert!(restarted.plugin_set_installed("acme.plugin", true).is_err());
+    assert_eq!(runtime.loads.load(AtomicOrdering::SeqCst), 0);
+    let snapshot = restarted.db.load_behavior_snapshot().unwrap();
+    let saved = snapshot["plugins"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["id"] == "acme.plugin")
+        .unwrap();
+    assert_eq!(saved["enabled"], true);
+    restarted.shutdown().await;
+    drop(restarted);
+
+    // A malformed active row makes the source of uncertainty unknowable:
+    // reopening must fail closed for every plugin, including one with no row.
+    let db = rusqlite::Connection::open(paths.automation_database()).unwrap();
+    db.execute(
+        "UPDATE plugin_sync_apply_intents SET phase='ready' WHERE plugin_id='acme.plugin'",
+        [],
+    )
+    .unwrap();
+    drop(db);
+    let (manager, corrupt_manager_root) =
+        fake_hotkey_manager(Arc::clone(&runtime), &["acme.plugin", "other"]);
+    let mut corrupt = AppCore::with_paths(
+        Arc::new(RecordingEmitter::default()),
+        Arc::new(NoopMediaHost),
+        paths,
+    );
+    corrupt.plugins = Arc::new(manager);
+    let corrupt = Arc::new(corrupt);
+    assert!(corrupt.plugin_apply_quarantined("other"));
+    assert!(!corrupt.plugin_ready("other"));
+    assert!(corrupt.plugin_start("other").is_err());
+    corrupt.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+    let _ = std::fs::remove_dir_all(manager_root);
+    let _ = std::fs::remove_dir_all(corrupt_manager_root);
 }
 
 #[cfg(all(feature = "cloud-auth", unix))]

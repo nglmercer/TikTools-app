@@ -411,6 +411,16 @@ impl AppCore {
         #[cfg(not(feature = "persistence"))]
         let plugin_activation: BTreeMap<String, crate::plugin_runtime::PluginActivation> =
             BTreeMap::new();
+        #[cfg(feature = "persistence")]
+        let plugin_apply_quarantine = match db.plugin_apply_quarantine() {
+            Ok(ids) => Some(ids),
+            Err(error) => {
+                tracing::warn!(%error, "plugin apply recovery is unavailable; plugin execution is blocked");
+                None
+            }
+        };
+        #[cfg(not(feature = "persistence"))]
+        let plugin_apply_quarantine = Some(Default::default());
         #[cfg(feature = "http")]
         let (http_client, http_client_error) = match tiktools_plugin_sdk::http::client_builder()
             .and_then(|builder| {
@@ -512,6 +522,7 @@ impl AppCore {
             option_sources: OptionSourceService::new(),
             plugin_state: PluginRuntimeState {
                 activation: RwLock::new(plugin_activation),
+                apply_quarantine: RwLock::new(plugin_apply_quarantine),
                 ..Default::default()
             },
             processor_state: ProcessorRuntimeState::default(),

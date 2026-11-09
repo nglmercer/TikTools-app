@@ -102,6 +102,11 @@ impl AppCore {
         response: Result<serde_json::Value, String>,
         source: &serde_json::Value,
     ) {
+        // Discard responses received after quarantine, including errors: an
+        // old instance must not publish events or mutate its health state.
+        if self.plugin_apply_quarantined(&plugin_id) {
+            return;
+        }
         let response = match response {
             Ok(response) => response,
             Err(error) => {
@@ -162,6 +167,9 @@ impl AppCore {
             );
         }
         for (event_type, data) in parsed.events {
+            if self.plugin_apply_quarantined(&plugin_id) {
+                return;
+            }
             tracing::debug!(
                 plugin = %plugin_id,
                 event_type = %event_type,

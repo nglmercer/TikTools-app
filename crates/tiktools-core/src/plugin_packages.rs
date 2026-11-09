@@ -261,6 +261,9 @@ impl ActivationHooks for CoreActivation<'_> {
     fn activate(&self, plugin_id: &str, was_running: bool) -> Result<(), String> {
         self.0.plugins.scan().map_err(|error| error.to_string())?;
         if was_running {
+            if self.0.plugin_apply_quarantined(plugin_id) {
+                return Err("Plugin application requires recovery before restart.".to_owned());
+            }
             // A successful package operation must not report a runtime that
             // failed to restart as applied. The installer will restore the
             // previous package where possible and report the error.
@@ -453,6 +456,11 @@ mod tests {
             .activate("missing.plugin", true)
             .unwrap_err();
         assert!(!error.is_empty());
+        *core.plugin_state.apply_quarantine.write().unwrap() = None;
+        let error = CoreActivation(&core)
+            .activate("missing.plugin", true)
+            .unwrap_err();
+        assert!(error.contains("requires recovery"));
         assert!(CoreActivation(&core)
             .activate("missing.plugin", false)
             .is_ok());

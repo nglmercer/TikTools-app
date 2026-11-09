@@ -175,9 +175,12 @@ fn payload(intent: &PluginApplyIntent) -> Result<String, DatabaseError> {
     Ok(serialized)
 }
 
-type StoredRow = (String, String, String, Option<i64>, Option<String>);
+pub(super) type StoredRow = (String, String, String, Option<i64>, Option<String>);
 
-fn decode_stored(id: &str, row: StoredRow) -> Result<StoredPluginApplyIntent, DatabaseError> {
+pub(super) fn decode_stored(
+    id: &str,
+    row: StoredRow,
+) -> Result<StoredPluginApplyIntent, DatabaseError> {
     let (plugin_id, phase, encoded, generation, epoch) = row;
     if !valid_token(id) || encoded.len() > 16 * 1024 {
         return Err(DatabaseError::Invalid("invalid plugin apply intent".into()));

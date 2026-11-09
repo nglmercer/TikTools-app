@@ -117,6 +117,12 @@ impl AppCore {
                 crate::plugin_invoker::InvokeError::Unavailable(reason)
                 | crate::plugin_invoker::InvokeError::Plugin(reason) => reason,
             })?;
+        // A response can arrive after recovery quarantined its plugin. Do
+        // not accept its returned intents in that case. This check alone does
+        // not serialize later effects with a concurrent quarantine transition.
+        if self.plugin_apply_quarantined(&plugin.manifest.id) {
+            return Err("Plugin application requires recovery.".to_owned());
+        }
         self.execution_context_guard(context)?;
         self.events
             .publish_domain(crate::events::DomainEvent::PluginProgress {

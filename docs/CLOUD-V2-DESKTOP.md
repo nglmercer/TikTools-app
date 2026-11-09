@@ -116,10 +116,24 @@ are still required before activating this path.
 An internal package journal and short cross-process admission callback now
 preserve uncertain operations and prevent replay. Sync outbox and local-apply
 storage reject a plugin with an active package journal. A private orchestrator
-can reserve that journal before a filesystem effect, but the real installer
-does not call it yet: trusted artifact/runtime reconciliation, recovery UI,
-cross-process package locking and the bounded receipt-retention policy remain
-required before activation.
+can reserve that journal before a filesystem effect. The installer now offers
+a cooperative cross-process store lease and retains the exact reviewed archive
+in a private temporary snapshot until installation completes. Product package
+operations do not yet use the journal: trusted artifact/runtime reconciliation,
+recovery UI, older-binary coordination and a bounded receipt-retention policy
+remain required before activation.
+
+An experimental runtime quarantine blocks known unfinished plugin applications
+after restart and rejects several activation and late-response paths. It is not
+an activation gate: an already dispatched effect cannot be recalled, quarantine
+is not propagated live to another process, and the bounded validation of
+finalized journal history remains unresolved. The product must continue to keep
+remote application disabled until these gaps and recovery are addressed.
+
+Account UI transitions now coordinate restore, login and cancellation, but a
+lost or timed-out login-begin response can leave a native attempt completing
+after the UI has checked status. Reliable cancellation of that uncertain begin
+still needs native operation correlation or equivalent protocol support.
 Legacy conflict resolution must also share the outbox admission boundary: a
 conflict based on an older staged value cannot be rebased or discarded while
 a newer local candidate awaits confirmation or delivery. A keep-local decision

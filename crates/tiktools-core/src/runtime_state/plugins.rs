@@ -5,7 +5,64 @@ use crate::plugin_runtime::PluginActivation;
 use crate::*;
 
 impl AppCore {
+    /// Pending remote application may have persisted a desired value before
+    /// its runtime outcome was known. Never infer permission to run from it.
+    pub(crate) fn plugin_apply_quarantined(&self, id: &str) -> bool {
+        recover_rwlock_read(
+            &self.plugin_state.apply_quarantine,
+            "plugin apply quarantine",
+        )
+        .as_ref()
+        .is_none_or(|blocked| blocked.contains(id))
+    }
+
+    /// Future remote-apply integration must call this while holding the
+    /// invocation gate *before* persisting a runtime-pending transition.
+    /// The durable journal takes over on restart. This does not fence other
+    /// processes; product activation also requires shared admission.
+    #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+    #[allow(dead_code)]
+    pub(crate) fn quarantine_plugin_apply_before_commit(&self, id: &str) -> bool {
+        let mut guard = recover_rwlock_write(
+            &self.plugin_state.apply_quarantine,
+            "plugin apply quarantine",
+        );
+        let Some(blocked) = guard.as_mut() else {
+            return false;
+        };
+        blocked.insert(id.to_owned());
+        drop(guard);
+        self.plugin_state
+            .activation_revision
+            .fetch_add(1, Ordering::AcqRel);
+        self.rebuild_processor_index();
+        true
+    }
+
+    /// Re-read durable recovery state under the invocation gate after native
+    /// reconciliation. Failed reads block all plugin execution instead of
+    /// clearing evidence. Never call concurrently with an in-flight apply.
+    #[cfg(feature = "persistence")]
+    #[allow(dead_code)]
+    pub(crate) fn refresh_plugin_apply_quarantine_locked(
+        &self,
+    ) -> Result<(), crate::db::DatabaseError> {
+        let loaded = self.db.plugin_apply_quarantine();
+        *recover_rwlock_write(
+            &self.plugin_state.apply_quarantine,
+            "plugin apply quarantine",
+        ) = loaded.as_ref().ok().cloned();
+        self.plugin_state
+            .activation_revision
+            .fetch_add(1, Ordering::AcqRel);
+        self.rebuild_processor_index();
+        loaded.map(|_| ())
+    }
+
     pub(crate) fn plugin_ready(&self, id: &str) -> bool {
+        if self.plugin_apply_quarantined(id) {
+            return false;
+        }
         let Some(plugin) = self.plugins.get(id) else {
             return false;
         };

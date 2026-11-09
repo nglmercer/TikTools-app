@@ -96,7 +96,7 @@ impl AppCore {
             return Ok(envelope);
         }
         let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&self.plugins));
-        let outcomes = execute_processors(
+        let mut outcomes = execute_processors(
             &invoker,
             &self.processor_state.health,
             &self.processor_state.metrics,
@@ -106,6 +106,10 @@ impl AppCore {
             event,
         )
         .await;
+        // Do not merge a result returned by an instance quarantined while
+        // its async call was pending. Full admission still requires a fence
+        // spanning all effects and the quarantine transition.
+        outcomes.retain(|(_, plugin_id, _, _)| !self.plugin_apply_quarantined(plugin_id));
         if self.is_shutdown() {
             return Err("host is shutting down");
         }
