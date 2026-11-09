@@ -64,6 +64,16 @@ changes. A host runtime fixture verifies one authorized playback through a mock
 media sink and that removing the file grant prevents a later playback; this does
 not verify a physical audio device or two PCs.
 
+The controller can also prepare and reload bounded `core.code` source. Editing
+does not run the source, and a changed connection/grant clears the form. A core
+test creates an active script and chat rule under one reusable grant, verifies a
+bounded execution with projected public input, and checks that removing the
+delegation stops later runs. Other returned effects remain separately scoped.
+The grant editor enables points-read when selecting delegated points and
+LIVE-read when selecting delegated scripts, because those are required by the
+runtime policy. It discloses those additions, keeps dynamic targets separate,
+and permits a missing read capability to be added to an older grant.
+
 Core runtime tests now execute that kind of chain through an internal event to a
 points adjustment. A two-author fixture checks that removing either author's
 topic grant stops the relevant chain and restoring the child author's grant

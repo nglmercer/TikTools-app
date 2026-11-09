@@ -134,6 +134,30 @@ it('prepares host audio with explicit volume and overlap without playing it', as
   } finally { f.wrapper.unmount(); f.model.stop(); }
 });
 
+it('prepares and reloads bounded code without running it on the controller', async () => {
+  const f = await setup('action');
+  try {
+    await f.wrapper.findAll('input')[0]!.setValue('Script');
+    await f.wrapper.findAll('select')[0]!.setValue('core.code');
+    expect(f.wrapper.text()).toContain('no direct file, network or private-global access');
+    const code = 'return {log:[event.user.uniqueId]};';
+    await f.wrapper.get('textarea').setValue(code);
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toMatchObject({typeId:'core.code',enabled:false,config:{source:code}});
+    await f.button('Load fields from open text').trigger('click');
+    expect((f.wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe(code);
+    await f.wrapper.get('textarea').setValue('é'.repeat(65_537));
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    expect(f.send).not.toHaveBeenCalled();
+    expect(f.calls.map((call) => call.method)).toEqual(['controller.proposals.list']);
+    f.status.value.hello!.grantRevision = '2';
+    await flushPromises();
+    expect(f.wrapper.find('textarea').exists()).toBe(false);
+    expect(f.model.text.value).toBe('');
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
 it('replaces stale file metadata only when the host audio path changes', async () => {
   const f = await setup('action');
   try {

@@ -17,11 +17,11 @@ const effectCaps = ['http.request', 'audio.play', 'events.emit', 'scripts.execut
 const effectLabels = { 'http.request': 'capHttp', 'audio.play': 'capAudio', 'events.emit': 'capEmit', 'scripts.execute': 'capScript' } as const;
 type DelegatedEffect = AutomationDelegation['effects'][number];
 const delegatedEffects: DelegatedEffect[] = ['log', 'delay', 'points', 'http', 'audio', 'emit', 'script'];
-const effectCapability: Partial<Record<DelegatedEffect, Capability>> = { points: 'points.adjust', http: 'http.request', audio: 'audio.play', emit: 'events.emit', script: 'scripts.execute' };
+const effectCapabilities: Partial<Record<DelegatedEffect, Capability[]>> = { points: ['points.read', 'points.adjust'], http: ['http.request'], audio: ['audio.play'], emit: ['events.emit'], script: ['scripts.execute', 'live.read'] };
 const requiredAutomation: Capability[] = ['automation.read', 'automation.edit', 'automation.toggle'];
 function requiredByDelegation(capability: Capability): boolean {
   const delegation = model.value.automationDelegation;
-  return !!delegation && (requiredAutomation.includes(capability) || delegation.effects.some((effect) => effectCapability[effect] === capability));
+  return !!delegation && model.value.capabilities.includes(capability) && (requiredAutomation.includes(capability) || delegation.effects.some((effect) => effectCapabilities[effect]?.includes(capability)));
 }
 function setDelegatedEffect(effect: DelegatedEffect, enabled: boolean): void {
   const value = copy();
@@ -32,8 +32,7 @@ function setDelegatedEffect(effect: DelegatedEffect, enabled: boolean): void {
     value.automationDelegation = { ...value.automationDelegation, effects: [...effects], allowDynamicTargets: value.automationDelegation?.allowDynamicTargets ?? false };
     const caps = new Set(value.capabilities);
     requiredAutomation.forEach((capability) => caps.add(capability));
-    const needed = effectCapability[effect];
-    if (enabled && needed) caps.add(needed);
+    if (enabled) effectCapabilities[effect]?.forEach((capability) => caps.add(capability));
     value.capabilities = [...caps];
   }
   model.value = value;
@@ -161,6 +160,7 @@ function applyJson(): void {
     <details>
       <summary>{{ t('collaboration.delegationTitle') }}</summary>
       <p>{{ t('collaboration.delegationHint') }}</p>
+      <p>{{ t('collaboration.delegationReadHint') }}</p>
       <BaseCheckbox
         v-for="effect in delegatedEffects"
         :key="effect"

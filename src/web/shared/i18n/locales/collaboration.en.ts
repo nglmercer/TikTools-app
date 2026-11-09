@@ -28,6 +28,7 @@ export default {
   pointsLimit: 'Maximum points adjustment per action', pointsLimitHint: 'Leave empty for no maximum; otherwise enter a positive number. This also limits direct adjustments.',
   delegationTitle: 'Reusable automation authorization',
   delegationHint: 'Choose the effects this identity may use in supported saved automations. Selecting an effect also enables its required permissions. Existing resource and external effect restrictions still apply.',
+  delegationReadHint: 'Points include permission to read points; scripts include permission to read LIVE data. Dynamic targets remain a separate choice.',
   delegationOwnerEdits: 'Allow edits to existing owner automations within this scope',
   delegationOwnerEditsHint: 'Edited definitions become attributed to this identity and follow its active grant. Their execution stops if that grant is revoked.',
   delegationOwnerSource: 'Allow this identity to read owner automation source',

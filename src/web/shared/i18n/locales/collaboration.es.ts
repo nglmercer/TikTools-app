@@ -29,6 +29,7 @@ export default {
   pointsLimit: 'Máximo de puntos por ajuste', pointsLimitHint: 'Déjalo vacío para no establecer un máximo; de lo contrario, introduce un número positivo. También limita los ajustes directos.',
   delegationTitle: 'Autorización reutilizable de automatización',
   delegationHint: 'Elige los efectos que esta identidad podrá usar en automatizaciones guardadas compatibles. Al seleccionar un efecto también se activan los permisos necesarios. Siguen aplicándose las restricciones de recursos y efectos externos.',
+  delegationReadHint: 'Puntos incluye permiso para leer puntos; scripts incluye permiso para leer datos del LIVE. Los destinos dinámicos se eligen por separado.',
   delegationOwnerEdits: 'Permitir cambios en automatizaciones existentes del propietario dentro de este alcance',
   delegationOwnerEditsHint: 'Las definiciones editadas quedarán atribuidas a esta identidad y dependerán de su permiso vigente. Su ejecución se detendrá si se revoca el permiso.',
   delegationOwnerSource: 'Permitir que esta identidad lea las definiciones del propietario',

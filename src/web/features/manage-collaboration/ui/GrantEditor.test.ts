@@ -43,16 +43,41 @@ describe('grant restrictions', () => {
       expect(grant.automationDelegation).toBeUndefined();
       await checkbox('Adjust points').setValue(true);
       expect(grant.automationDelegation).toEqual({ effects: ['points'], allowDynamicTargets: false });
-      expect(grant.capabilities).toEqual(expect.arrayContaining(['automation.read', 'automation.edit', 'automation.toggle', 'points.adjust']));
+      expect(grant.capabilities).toEqual(expect.arrayContaining(['automation.read', 'automation.edit', 'automation.toggle', 'points.read', 'points.adjust']));
       expect(grant.resources.automation).toEqual(['event:allowed']);
       expect(parseGrant(grant)).toEqual(grant);
       expect(checkbox('Adjust points (requires read access)').attributes('disabled')).toBeDefined();
+      expect(checkbox('Read points').attributes('disabled')).toBeDefined();
       await checkbox('Allow supported dynamic targets within the granted limits').setValue(true);
       expect(grant.automationDelegation?.allowDynamicTargets).toBe(true);
       await checkbox('Adjust points').setValue(false);
       expect(grant.automationDelegation).toBeUndefined();
       expect(checkbox('Adjust points (requires read access)').attributes('disabled')).toBeUndefined();
       expect(grant.resources.automation).toEqual(['event:allowed']);
+    } finally { wrapper.unmount(); }
+  });
+  it('adds and retains LIVE read while reusable script execution is selected', async () => {
+    let grant: Grant = { ...viewerGrant(), capabilities: [] };
+    const wrapper = mount(GrantEditor, { props: { modelValue: grant, 'onUpdate:modelValue': async (value: Grant) => { grant = value; await wrapper.setProps({ modelValue: value }); } }, global: { plugins: [i18n] } });
+    const checkbox = (label: string) => wrapper.findAll('label').find((item) => item.text() === label)!.find('input');
+    try {
+      await checkbox('Run scripts').setValue(true);
+      expect(grant.capabilities).toEqual(expect.arrayContaining(['live.read', 'scripts.execute', 'automation.read', 'automation.edit', 'automation.toggle']));
+      expect(grant.automationDelegation?.allowDynamicTargets).toBe(false);
+      expect(checkbox('Read LIVE status').attributes('disabled')).toBeDefined();
+      await checkbox('Run scripts').setValue(false);
+      expect(checkbox('Read LIVE status').attributes('disabled')).toBeUndefined();
+    } finally { wrapper.unmount(); }
+  });
+  it('allows adding a missing execution capability in an existing grant', async () => {
+    let grant: Grant = { ...viewerGrant(), capabilities:['automation.read','automation.edit','automation.toggle','scripts.execute'], automationDelegation:{effects:['script'],allowDynamicTargets:true} };
+    const wrapper = mount(GrantEditor, { props: { modelValue: grant, 'onUpdate:modelValue': async (value: Grant) => { grant = value; await wrapper.setProps({ modelValue: value }); } }, global: { plugins: [i18n] } });
+    try {
+      const read = wrapper.findAll('label').find((item) => item.text() === 'Read LIVE status')!.find('input');
+      expect(read.attributes('disabled')).toBeUndefined();
+      await read.setValue(true);
+      expect(grant.capabilities).toContain('live.read');
+      expect(read.attributes('disabled')).toBeDefined();
     } finally { wrapper.unmount(); }
   });
   it('requires an explicit choice to allow changes to owner definitions', async () => {
