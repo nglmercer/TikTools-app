@@ -257,6 +257,25 @@ fn reusable_preflight_uses_current_saved_grant_and_does_not_activate() {
         json!({"eligible":true,"reason":null,"executionAuthorized":false})
     );
     assert!(!allowed.value.to_string().contains(SECRET));
+    f.core()
+        .automation
+        .replace_snapshot(&json!({"actions":[],"events":[]}));
+    let stale = f
+        .core()
+        .automation_delegation_preflight(AutomationKind::Event, "proposal")
+        .unwrap();
+    assert_eq!(
+        stale.value,
+        json!({"eligible":false,"reason":"runtime_view_changed","executionAuthorized":false})
+    );
+    f.core().refresh_automation_snapshot();
+    assert_eq!(
+        f.core()
+            .automation_delegation_preflight(AutomationKind::Event, "proposal")
+            .unwrap()
+            .value["eligible"],
+        true
+    );
     assert_eq!(
         f.core()
             .automation_get(AutomationKind::Event, "proposal")

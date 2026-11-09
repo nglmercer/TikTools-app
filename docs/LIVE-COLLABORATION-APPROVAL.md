@@ -43,6 +43,10 @@ restrictions and the existing closed effect classifier. It returns an advisory
 definitions nor creates a runtime permit, and its snapshot cannot authorize a
 later dispatch. Remote callers cannot invoke it. Final admission, automatic
 activation, effect-time rechecks and the user-facing policy editor remain open.
+The preflight also rebuilds the complete closure from the currently installed
+runtime index and compares it with the database-derived manifest. An absent or
+different runtime view reports `runtime_view_changed`; this remains a point-in-
+time check and does not replace the final execution fence.
 
 Implement this as an explicit, revocable owner-managed delegation policy, not
 as an implicit consequence of `automation.edit` or a role name. Existing grants

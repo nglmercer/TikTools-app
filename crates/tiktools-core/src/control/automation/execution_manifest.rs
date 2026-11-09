@@ -45,7 +45,17 @@ impl AppCore {
             let result = crate::services::automation_approval_policy::reusable_preflight(
                 &candidate,
                 &identities,
-            );
+            )
+            .and_then(|()| {
+                if self
+                    .automation
+                    .reusable_preflight_current(&candidate, &identities)
+                {
+                    Ok(())
+                } else {
+                    Err("runtime_view_changed")
+                }
+            });
             Ok(review.map(|_| match result {
                 Ok(()) => serde_json::json!({"eligible": true, "reason": null, "executionAuthorized":false}),
                 Err(reason) => serde_json::json!({"eligible": false, "reason": reason, "executionAuthorized":false}),

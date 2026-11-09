@@ -208,19 +208,15 @@ fn fence_current(index: &BehaviorIndex, fence: &DefinitionFence) -> bool {
     }
 }
 
-pub(super) fn candidate_for_primary(
+fn capture_review(
     index: &BehaviorIndex,
     family: AutomationFamily,
     primary: &Value,
-) -> Option<ApprovalCandidate> {
+) -> Option<(Versioned<Value>, Vec<DefinitionFence>)> {
     if !index.authority_available {
         return None;
     }
     let id = primary.get("id")?.as_str()?;
-    let approval = index.approvals.get(&(family.scope().into(), id.into()))?;
-    if approval.policy_version != manifest::POLICY_VERSION {
-        return None;
-    }
     let primary_fence = capture(index, family, id)?;
     // An inline/manual body with the same ID never inherits a saved approval.
     if primary_fence.definition != *primary {
@@ -261,6 +257,20 @@ pub(super) fn candidate_for_primary(
     );
     // Validate closure shape and size before resolving any retained subjects.
     manifest::required_subjects(&review).ok()?;
+    Some((review, definitions))
+}
+
+pub(super) fn candidate_for_primary(
+    index: &BehaviorIndex,
+    family: AutomationFamily,
+    primary: &Value,
+) -> Option<ApprovalCandidate> {
+    let id = primary.get("id")?.as_str()?;
+    let approval = index.approvals.get(&(family.scope().into(), id.into()))?;
+    if approval.policy_version != manifest::POLICY_VERSION {
+        return None;
+    }
+    let (review, definitions) = capture_review(index, family, primary)?;
     let bound_definitions = manifest::definition_bindings(&review).ok()?;
     let stored = approval.binding.get("manifest")?;
     if stored.get("policyVersion")?.as_u64()? != manifest::POLICY_VERSION as u64
@@ -381,6 +391,46 @@ impl RuntimeApprovalPermit {
 }
 
 impl AutomationService {
+    /// Check that a DB review describes the currently installed runtime
+    /// closure. This comparison is advisory; it cannot authorize execution.
+    pub(crate) fn reusable_preflight_current(
+        &self,
+        expected: &manifest::ExecutionManifest,
+        identities: &[ExecutionIdentity],
+    ) -> bool {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !index.authority_available || index.catalog_epoch.is_none() {
+            return false;
+        }
+        let family = expected.primary.kind;
+        let primary = match family {
+            AutomationFamily::Action => index.actions.get(&expected.primary.id),
+            AutomationFamily::Event => index.events.get(&expected.primary.id),
+        };
+        let Some((review, _)) =
+            primary.and_then(|record| capture_review(&index, family, &record.definition))
+        else {
+            return false;
+        };
+        let subjects: Vec<_> = identities
+            .iter()
+            .map(|identity| manifest::ManifestSubject {
+                principal_id: identity.principal_id(),
+                session_id: identity.session_id(),
+                grant_revision: identity.grant_revision(),
+                configuration_revision: identity.configuration_revision(),
+                grant: identity.grant(),
+            })
+            .collect();
+        manifest::build(
+            &review,
+            manifest::ManifestSubjects {
+                host_id: &expected.host_id,
+                subjects: &subjects,
+            },
+        )
+        .is_ok_and(|actual| actual == *expected)
+    }
     pub(crate) fn owner_rule_fence(&self, record: &MatchedRecord) -> Option<RuntimeOwnerRuleFence> {
         let index = recover_rwlock_read(&self.index, "automation index");
         if !index.authority_available
