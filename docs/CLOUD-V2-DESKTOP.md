@@ -136,12 +136,11 @@ publication. Disabling sync remains possible in Preparing or V2 and preserves
 both stores. A private native adapter now also holds cooperative invocation,
 package-store, SQLite and catalog fences for the reviewed commit; it cannot
 fence every root or noncooperating writer, and it may delay plugin operations
-while durable disk writes complete. The public plugin enable/disable operation now selects the current protocol
-under admission and persists a v2 candidate with its local state when a v2
-product identity is eligible. If admission fails before a source write, it
-falls back to a local, untracked edit for later reconciliation. The v2 drain,
-installed-state and package writers, independent authentication managers and
-remaining product wiring are not yet connected.
+while durable disk writes complete. The public plugin enable/disable and installed-state operations now select the
+current protocol under admission and persist a v2 candidate with their local
+state when a v2 product identity is eligible. If admission fails before a source write, it
+falls back to a local, untracked edit for later reconciliation. The v2 drain, package filesystem writers, independent authentication managers
+and remaining product wiring are not yet connected.
 The primitive is not a user-facing migration and does not authorize local
 application.
 
@@ -175,7 +174,7 @@ generation and identity/consent-bound outbox candidate together; this storage
 primitive is not yet connected to product mutations or coordinator delivery.
 The v1 outbox adapter joins that reservation to the local runtime change and
 confirms only the same source generation after success, but is not selected by
-v1 product operations. The public enable/disable path uses selected-protocol
+v1 product operations. The public enable/disable and installed-state paths use selected-protocol
 admission for eligible v2 identities and falls back to an untracked local edit
 when admission fails before a source write. Runtime failure/restart recovery,
 package mutations, fenced outbox draining and legacy-writer coordination still

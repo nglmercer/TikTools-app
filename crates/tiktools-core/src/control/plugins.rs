@@ -888,6 +888,27 @@ impl AppCore {
     }
 
     pub fn plugin_set_installed(&self, id: &str, installed: bool) -> Result<(), OperationError> {
+        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        {
+            let attempted = std::cell::Cell::new(false);
+            return match self.plugin_set_installed_with_product_intent_for(
+                id,
+                installed,
+                Some(&attempted),
+            ) {
+                Err(_) if !attempted.get() => self.plugin_set_installed_untracked(id, installed),
+                result => result,
+            };
+        }
+        #[cfg(not(all(feature = "cloud-auth", feature = "persistence")))]
+        self.plugin_set_installed_untracked(id, installed)
+    }
+
+    fn plugin_set_installed_untracked(
+        &self,
+        id: &str,
+        installed: bool,
+    ) -> Result<(), OperationError> {
         let _invocation =
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
@@ -936,11 +957,21 @@ impl AppCore {
     /// same short admission used by cutover. Runtime failure or an uncertain
     /// worker leaves the intent durable but unconfirmed for later review.
     #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
-    #[allow(dead_code)] // Product selection remains fenced until every writer participates.
+    #[allow(dead_code)]
     pub(crate) fn plugin_set_installed_with_product_intent(
         &self,
         id: &str,
         installed: bool,
+    ) -> Result<(), OperationError> {
+        self.plugin_set_installed_with_product_intent_for(id, installed, None)
+    }
+
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    fn plugin_set_installed_with_product_intent_for(
+        &self,
+        id: &str,
+        installed: bool,
+        source_attempted: Option<&std::cell::Cell<bool>>,
     ) -> Result<(), OperationError> {
         let invocation =
             self.plugin_state.invocation_gate.lock().map_err(|_| {
@@ -966,6 +997,9 @@ impl AppCore {
             true,
             LocalMutationProtocol::Selected,
             |has_candidate| {
+                if let Some(source_attempted) = source_attempted {
+                    source_attempted.set(true);
+                }
                 if has_candidate {
                     self.sync.runtime_epoch().map(Some).map_err(|_| {
                         OperationError::unavailable("plugin runtime identity is unavailable")

@@ -1057,8 +1057,7 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
 
     // Logical removal is reserved atomically but cannot be staged until a
     // durable package/filesystem provenance contract is implemented.
-    core.plugin_set_installed_with_product_intent("acme.hotkeys", false)
-        .unwrap();
+    core.plugin_set_installed("acme.hotkeys", false).unwrap();
     let removed = core
         .db
         .next_plugin_sync_intent(origin, account)
@@ -1243,6 +1242,9 @@ async fn public_plugin_toggle_stays_local_when_cloud_admission_is_damaged() {
     std::fs::remove_file(core.db.paths().data.join("cloud-sync/cloud-sync.json")).unwrap();
     core.plugin_set_enabled("acme.hotkeys", true).unwrap();
     assert!(core.plugins.get("acme.hotkeys").unwrap().running);
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    core.plugin_set_installed("acme.hotkeys", false).unwrap();
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
     assert!(core.db.has_untracked_plugin_sync().unwrap());
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
