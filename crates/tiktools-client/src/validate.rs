@@ -484,6 +484,7 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         | "sync.uncertain.list"
         | "sync.v2.discover"
         | "sync.v2.selected"
+        | "sync.v2.preview"
         | "sync.v2.now" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.resolve" => validate::<SyncResolveParams>(params),

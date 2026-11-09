@@ -31,6 +31,11 @@ offers the matching explicit sync pass. For v2 it shows cache, pending and
 conflict counts. Server capability discovery remains a separate explicit
 check. Settings does not offer migration or automatic local application;
 v1 remains the default product path.
+The local-Owner migration preview reports only counts of installed selections,
+candidate pending edits, conflicts and v1-only records. It rechecks the native
+source, legacy snapshot, session and consent before returning. It is an
+informational snapshot, not a cutover authorization: the application cannot
+yet execute migration, and later changes require a fresh preview.
 
 The reviewed sibling RemakeBackend commit is `cb37900`, including canonical
 registry shards and bounded v2 capability discovery in the SDK, following bounded

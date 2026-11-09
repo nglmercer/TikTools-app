@@ -12,7 +12,7 @@ pub use tiktools_core::control::{
     CloudLibraryDocument, CloudLibraryDocumentMeta, CloudLibraryKind, CloudLibraryPage,
     CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus, SyncNowResult,
     SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, WorkspaceV2Discovery,
-    WorkspaceV2SyncResult,
+    WorkspaceV2Preview, WorkspaceV2SyncResult,
 };
 use tiktools_core::{cloud_sync::SyncStatus, control::OperationError, AppCore};
 
@@ -53,6 +53,12 @@ fn map_error(error: OperationError) -> ApiError {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<Empty, WorkspaceV2Preview, _, _>(
+        "sync.v2.preview",
+        "Reviews local migration inputs without changing or enabling synchronization",
+        false,
+        |core: Arc<AppCore>, _| async move { core.workspace_v2_preview().await.map_err(map_error) },
+    );
     router.register_typed::<Empty, bool, _, _>(
         "sync.v2.selected",
         "Reads the selected Cloud protocol without contacting the server",

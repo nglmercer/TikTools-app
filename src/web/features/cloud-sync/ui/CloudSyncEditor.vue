@@ -30,9 +30,12 @@ const v2Error = ref(false);
 const v2Selected = ref(false);
 const protocolReady = ref(false);
 const protocolLoading = ref(false);
+type V2Preview = { selections: number; pending: number; conflicts: number; retainedV1Only: number };
+const migrationPreview = ref<V2Preview | null>(null);
 type V2Result = { pushed: number; pulled: number; workspacePending: number; availableRecords: number; conflicts: string[]; moreQueued: boolean };
 const v2Result = ref<V2Result | null>(null);
 let requestGeneration = 0;
+let previewGeneration = 0;
 function validRecoveryValue(value: unknown): value is RecoveryValue {
   if (value == null || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
@@ -186,27 +189,48 @@ async function synchronizeV2(): Promise<void> {
   }
 }
 
+async function previewMigration(): Promise<void> {
+  if (!protocolReady.value || v2Selected.value || v2Busy.value || sync.working) return;
+  const generation = requestGeneration;
+  const previewTicket = ++previewGeneration;
+  v2Busy.value = true; v2Error.value = false; migrationPreview.value = null;
+  try {
+    const result = await client.call<unknown>('sync.v2.preview', {});
+    if (generation !== requestGeneration || previewTicket !== previewGeneration) return;
+    if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('Invalid preview');
+    const value = result as Record<string, unknown>;
+    if (value['migrationAvailable'] !== false || !['selections', 'pending', 'conflicts', 'retainedV1Only'].every((key) => Number.isSafeInteger(value[key]) && (value[key] as number) >= 0)) throw new Error('Invalid preview');
+    migrationPreview.value = value as unknown as V2Preview;
+  } catch {
+    if (generation === requestGeneration && previewTicket === previewGeneration) v2Error.value = true;
+  } finally {
+    if (generation === requestGeneration) v2Busy.value = false;
+  }
+}
+
 function clearReviews(): void {
-  requestGeneration += 1; uncertain.value = []; review.value = null; recoveryError.value = ''; recoveryBusy.value = false; newerNeedsReview.value = false;
-  deferredCount.value = null; v2State.value = null; v2Busy.value = false; v2Error.value = false; v2Selected.value = false; v2Result.value = null; protocolReady.value = false; protocolLoading.value = false;
+  requestGeneration += 1; previewGeneration += 1; uncertain.value = []; review.value = null; recoveryError.value = ''; recoveryBusy.value = false; newerNeedsReview.value = false;
+  deferredCount.value = null; v2State.value = null; v2Busy.value = false; v2Error.value = false; v2Selected.value = false; v2Result.value = null; migrationPreview.value = null; protocolReady.value = false; protocolLoading.value = false;
 }
 watch(() => [account.status, account.working, account.loading, enabled.value], () => {
   clearReviews();
   void loadProtocol();
 }, { flush: 'sync' });
-watch(() => sync.working, (working, previous) => { if (previous && !working && protocolReady.value && !v2Selected.value) void refreshUncertain(); });
+watch(() => sync.working, (working, previous) => { if (working) { previewGeneration += 1; migrationPreview.value = null; } if (previous && !working && protocolReady.value && !v2Selected.value) void refreshUncertain(); });
 let unsubscribeContext: (() => void) | undefined;
 let unsubscribeGap: (() => void) | undefined;
+let unsubscribePlugins: (() => void)[] = [];
 function invalidateContext(): void {
   clearReviews();
   sync.invalidate();
   void account.refresh();
 }
-onUnmounted(() => { requestGeneration += 1; unsubscribeContext?.(); unsubscribeGap?.(); });
+onUnmounted(() => { requestGeneration += 1; previewGeneration += 1; unsubscribeContext?.(); unsubscribeGap?.(); unsubscribePlugins.forEach((unsubscribe) => unsubscribe()); });
 
 onMounted(() => {
   unsubscribeContext = client.onTopic('cloud.context.invalidated', invalidateContext);
   unsubscribeGap = client.onGap(invalidateContext);
+  unsubscribePlugins = ['plugin.started', 'plugin.stopped', 'plugin.status', 'plugin.job'].map((topic) => client.onTopic(topic, () => { previewGeneration += 1; migrationPreview.value = null; }));
   void account.ensureRestored();
   void sync.refresh();
 });
@@ -247,6 +271,8 @@ onMounted(() => {
           <BaseButton variant="primary" :disabled="v2Busy || sync.working" @click="synchronizeV2">{{ t('sync.syncNow') }}</BaseButton>
         </template>
         <template v-else-if="protocolReady">
+        <BaseButton :disabled="v2Busy || sync.working" @click="previewMigration">{{ t('sync.v2.preview') }}</BaseButton>
+        <p v-if="migrationPreview" role="status">{{ t('sync.v2.previewResult', migrationPreview) }} {{ t('sync.v2.previewUnavailable') }}</p>
         <p>{{ t('sync.pending', { count: status.pending }) }}</p>
         <BaseAlert tone="info" :title="t('sync.applicationDeferred')" />
         <p v-if="deferredCount !== null" role="status">{{ t('sync.deferredCount', { count: deferredCount }) }}</p>

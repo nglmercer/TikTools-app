@@ -111,7 +111,7 @@ pub use cloud_sync::{
     WorkspaceV2SyncResult,
 };
 #[cfg(feature = "cloud-auth")]
-pub use cloud_workspace::{WorkspaceV2Discovery, WorkspaceV2DiscoveryState};
+pub use cloud_workspace::{WorkspaceV2Discovery, WorkspaceV2DiscoveryState, WorkspaceV2Preview};
 #[cfg(any(test, feature = "native-tiktok"))]
 pub(crate) use helpers::check_session_cookie_len;
 pub(crate) use helpers::{clean_plugin_id, clean_record_id, fresh_record_id};

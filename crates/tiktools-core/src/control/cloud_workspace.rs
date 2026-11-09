@@ -26,6 +26,17 @@ pub struct WorkspaceV2Discovery {
     pub selected: bool,
 }
 
+/// Informational local migration estimate; it is not an authorization token.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceV2Preview {
+    pub selections: usize,
+    pub pending: usize,
+    pub conflicts: usize,
+    pub retained_v1_only: usize,
+    pub migration_available: bool,
+}
+
 fn discovery(state: WorkspaceV2DiscoveryState) -> WorkspaceV2Discovery {
     WorkspaceV2Discovery {
         state,
@@ -39,6 +50,52 @@ fn changed() -> OperationError {
 }
 
 impl AppCore {
+    /// Review local inputs without changing either protocol or contacting Cloud.
+    pub async fn workspace_v2_preview(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<WorkspaceV2Preview, OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            let session = self.cloud.auth().session().await.ok_or_else(changed)?;
+            let core = self.clone();
+            tokio::task::spawn_blocking(move || {
+                let preview = core.preview_local_v2_cutover(session)?;
+                let candidate = preview.preview();
+                let result = WorkspaceV2Preview {
+                    selections: candidate.selections().len(),
+                    pending: candidate
+                        .entries()
+                        .iter()
+                        .filter(|entry| entry.pending.is_some())
+                        .count(),
+                    conflicts: candidate
+                        .entries()
+                        .iter()
+                        .filter(|entry| {
+                            entry.pending.as_ref().is_some_and(|pending| {
+                                pending.status == cloud_client::WorkspacePendingStatus::Conflict
+                            })
+                        })
+                        .count(),
+                    retained_v1_only: candidate.unseeded_legacy_keys().len(),
+                    migration_available: false,
+                };
+                preview.check_local_fresh(&core)?;
+                Ok(result)
+            })
+            .await
+            .map_err(|_| {
+                OperationError::unavailable("Cloud migration review worker is unavailable")
+            })?
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            Err(OperationError::unavailable(
+                "Cloud migration review requires persistence",
+            ))
+        }
+    }
+
     /// Read the selected protocol locally, without contacting Cloud. A v2
     /// selection is reported only for the current account and consent.
     pub async fn workspace_v2_selected(&self) -> Result<bool, OperationError> {

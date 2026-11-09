@@ -68,6 +68,30 @@ describe('CloudSyncEditor', () => {
     wrapper.unmount();
   });
 
+  it('shows local migration counts without activating the new protocol', async () => {
+    let pluginChanged: () => void = () => {};
+    const { client, calls } = createFakeControlClient((method) => {
+      if (method === 'cloud.status') return account();
+      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.v2.selected') return false;
+      if (method === 'sync.uncertain.list') return [];
+      if (method === 'sync.v2.preview') return { selections: 3, pending: 2, conflicts: 1, retainedV1Only: 1, migrationAvailable: false };
+      throw new Error(`unexpected ${method}`);
+    });
+    client.onTopic = (topic, handler) => { if (topic === 'plugin.started') pluginChanged = () => handler(undefined as never); return () => {}; };
+    const wrapper = mountWithPlugins(CloudSyncEditor, { global: { plugins: storePlugins(client) } });
+    await flushPromises();
+    await wrapper.findAll('button').find((item) => item.text() === 'Review Cloud v2 migration')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Local selections: 3. Pending changes: 2.');
+    expect(wrapper.text()).toContain('Migration cannot yet be enabled from the app.');
+    expect(calls.some((call) => call.method === 'sync.enable' || call.method === 'sync.v2.now')).toBe(false);
+    pluginChanged();
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Local selections: 3. Pending changes: 2.');
+    wrapper.unmount();
+  });
+
   it('uses v2 sync only for the selected account and reports cached records', async () => {
     const { client, calls } = createFakeControlClient((method) => {
       if (method === 'cloud.status') return account();

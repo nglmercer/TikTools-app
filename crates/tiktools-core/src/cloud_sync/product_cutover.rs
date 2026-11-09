@@ -361,6 +361,87 @@ mod tests {
         fn emit(&self, _: HostMessage) {}
     }
 
+    #[tokio::test]
+    async fn owner_preview_reports_local_counts_without_migrating() {
+        use secrecy::SecretString;
+        use tiktools_cloud_auth::{CloudAuth, Persistence, TokenStore, TokenStoreError};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+        };
+        struct Store;
+        impl TokenStore for Store {
+            fn persistence(&self) -> Persistence {
+                Persistence::MemoryOnly
+            }
+            fn load(&self, _: &str, _: &str) -> Result<Option<SecretString>, TokenStoreError> {
+                Ok(Some(SecretString::from("fixture-token".to_owned())))
+            }
+            fn store(&self, _: &str, _: &str, _: &Session) -> Result<(), TokenStoreError> {
+                Ok(())
+            }
+            fn delete(&self, _: &str, _: &str) -> Result<(), TokenStoreError> {
+                Ok(())
+            }
+        }
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            if let Ok((mut socket, _)) = listener.accept().await {
+                let mut buffer = [0; 4096];
+                let _ = socket.read(&mut buffer).await;
+                let body = r#"{"id":"alice"}"#;
+                let _ = socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).as_bytes()).await;
+            }
+        });
+        let root = std::env::temp_dir().join(format!(
+            "preview-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let paths = AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("builtins"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root: root.clone(),
+        };
+        paths.ensure_directories().unwrap();
+        std::fs::create_dir_all(&paths.builtin_plugins).unwrap();
+        let dir = paths.plugins.join("demo");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("plugin.json"), r#"{"schemaVersion":3,"id":"demo","name":"Demo","version":"1.0.0","runtime":"declarative"}"#).unwrap();
+        let sidecar = paths.data.join("account.json");
+        std::fs::write(
+            &sidecar,
+            serde_json::to_vec(&serde_json::json!({"origin":origin,"account_id":"alice"})).unwrap(),
+        )
+        .unwrap();
+        let auth = CloudAuth::new(Some(origin), sidecar, Arc::new(Store));
+        auth.restore().await.unwrap();
+        let mut core = Arc::new(AppCore::with_paths(
+            Arc::new(Emitter),
+            Arc::new(NoopMediaHost),
+            paths.clone(),
+        ));
+        Arc::get_mut(&mut core).unwrap().cloud = Arc::new(
+            crate::cloud_account::CloudAccount::with_test_auth(auth.clone()),
+        );
+        Arc::get_mut(&mut core).unwrap().sync =
+            Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+        core.sync.coordinator().unwrap().set_enabled(true).unwrap();
+        let result = core.workspace_v2_preview().await.unwrap();
+        assert_eq!(result.selections, 1);
+        assert_eq!(result.pending, 1);
+        assert!(!result.migration_available);
+        core.shutdown().await;
+        server.abort();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
     #[test]
     fn local_source_combines_catalog_and_persisted_state_without_dropping_installs() {
         let root = std::env::temp_dir().join(format!(
