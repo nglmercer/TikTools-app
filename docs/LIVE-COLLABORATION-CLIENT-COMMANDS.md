@@ -123,14 +123,15 @@ capacity; events without a viewer ID share a separate anonymous cooldown.
 Event IDs, global scope and viewer IDs are tracked as distinct key parts so
 colons and usernames such as `global` or `anonymous` cannot collide.
 
-**Use this status as base** requires explicit confirmation. It chooses create
+**Use this status as base** chooses create
 for an absent target and replacement for an existing one, preserving your text.
-It does not save or send. **Save proposal on this PC** separately confirms
-retaining the complete text, including sensitive values. **Send proposal for
-review** sends the saved text using the displayed host, family/ID, mode and base
-without an additional confirmation dialog. Edited text
-must be saved again; a successful submission requires a fresh inspection before
-another send. Existing Owner/foreign records remain protected by host policy.
+It does not save or send. **Save proposal on this PC** retains the complete
+text, including sensitive values. **Save and send for review** and **Save and
+apply active** combine the local save with one dispatch; the editor warns that
+the complete text is retained. Before dispatch it rechecks the saved text,
+inspection, connection and permissions. A changed context or failed save stops
+the send. A successful submission requires a fresh inspection before another
+send. Existing Owner/foreign records remain protected by host policy.
 
 Private `<profile UUID>.proposals` storage is independent of workflow drafts.
 It binds profile, HTTPS origin, host, principal and session; family-qualified

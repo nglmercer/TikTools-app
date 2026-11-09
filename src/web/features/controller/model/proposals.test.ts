@@ -8,22 +8,33 @@ afterEach(() => { for (const model of models.splice(0)) model.stop(); });
 function fixture() {
   const status = ref<ControllerStatus>({ proposalsSupported: true, epoch: '1', viewRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://host.example', errorCode: null,
     hello: { connectionId: 'connection', hostId: 'host', hostInstanceId: 'instance', principalId: 'author', sessionId: 'device', grantRevision: '1', capabilities: ['automation.read', 'automation.edit'], features: { automationDrafts: true } } });
-  let storeRevision = 0; let hostRevision = '0'; let copy: ProposalDraft | null = null; let delayed: Promise<unknown> | undefined;
+  let storeRevision = 0; let hostRevision = '0'; let copy: ProposalDraft | null = null; let delayed: Promise<unknown> | undefined; let delayedSave: Promise<unknown> | undefined;
   const identity = () => ({ epoch: status.value.epoch, connectionId: status.value.hello!.connectionId, hostInstanceId: status.value.hello!.hostInstanceId, grantRevision: status.value.hello!.grantRevision });
   const { client, calls } = createFakeControlClient((method, p) => {
     if (method === 'controller.proposals.list') return { ...identity(), storeRevision: String(storeRevision), rows: copy ? [{ kind: copy.kind, id: copy.id, mode: copy.mode, baseRevision: copy.baseRevision, updatedAt: 1, textBytes: copy.text.length }] : [], next: null };
     if (method === 'controller.proposals.get') return delayed ?? { ...identity(), storeRevision: String(storeRevision), draft: copy };
     if (method === 'controller.proposals.source') return { ...identity(), kind: p!['kind'], id: p!['id'], revision: '2', record: { id: p!['id'], name: 'Owner source', enabled: true, typeId: 'core.log', config: { message: 'shared sensitive value' } } };
     if (method === 'controller.proposals.inspect') return { ...identity(), inspectionId: `inspection-${hostRevision}`, kind: p!['kind'], id: p!['id'], revision: hostRevision, summary: hostRevision === '0' ? null : { kind: p!['kind'], id: p!['id'], name: 'Closed host summary', enabled: false, definitionRedacted: true } };
-    if (method === 'controller.proposals.save') { copy = { kind: p!['kind'] as 'action', id: String(p!['id']), mode: p!['mode'] as 'create', baseRevision: String(p!['baseRevision']), text: String(p!['text']), updatedAt: 1 }; storeRevision += 1; return { ...identity(), storeRevision: String(storeRevision) }; }
+    if (method === 'controller.proposals.save') { if (delayedSave) return delayedSave; copy = { kind: p!['kind'] as 'action', id: String(p!['id']), mode: p!['mode'] as 'create', baseRevision: String(p!['baseRevision']), text: String(p!['text']), updatedAt: 1 }; storeRevision += 1; return { ...identity(), storeRevision: String(storeRevision) }; }
     if (method === 'controller.proposals.delete') { copy = null; storeRevision += 1; return { ...identity(), storeRevision: String(storeRevision) }; }
     throw new Error(method);
   });
   let blocked = false;
   const send = vi.fn(async () => true);
   const model = createProposalModel(client, { status, blocked: () => blocked, journalMatches: () => true, send }); models.push(model);
-  return { model, status, calls, send, identity, block: () => { blocked = true; }, host: (revision: string) => { hostRevision = revision; }, changeCopy: (draft: ProposalDraft) => { copy = draft; storeRevision += 1; }, delay: (p: Promise<unknown>) => { delayed = p; } };
+  return { model, status, calls, send, identity, block: () => { blocked = true; }, host: (revision: string) => { hostRevision = revision; }, changeCopy: (draft: ProposalDraft) => { copy = draft; storeRevision += 1; }, delay: (p: Promise<unknown>) => { delayed = p; }, delaySave: (p: Promise<unknown>) => { delayedSave = p; } };
 }
+
+it('does not send after the grant changes while saving', async () => {
+  const f = fixture(); await f.model.refresh(); f.model.select('action', 'same'); await f.model.inspect();
+  const oldIdentity = f.identity(); let release: (value: unknown) => void = () => {};
+  f.delaySave(new Promise((resolve) => { release = resolve; }));
+  const submitting = f.model.submit(false);
+  f.status.value.hello!.grantRevision = '2';
+  release({ ...oldIdentity, storeRevision: '1' });
+  await submitting;
+  expect(f.send).not.toHaveBeenCalled();
+});
 async function ready(f: ReturnType<typeof fixture>) {
   await f.model.refresh(); f.model.select('action', 'same'); await f.model.inspect();
   const text = JSON.stringify({ id: 'same', enabled: false, typeId: 'core.log', config: { message: 'local secret' } }); f.model.edit(text);
