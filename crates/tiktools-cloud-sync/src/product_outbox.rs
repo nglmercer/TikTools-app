@@ -150,6 +150,27 @@ pub trait V1ProductOutbox: Send {
         Ok(None)
     }
 
+    /// Load an interrupted decision for the same origin and account after
+    /// consent changed. This only supports explicitly abandoning the old
+    /// decision; it must not renew its receipt or authorize an upload.
+    fn load_rebase_with_previous_consent(
+        &mut self,
+        _context: &V1LocalEditContext,
+        _key: &str,
+    ) -> Result<Option<crate::V1KeepLocalIntent>, SyncCoordError> {
+        Ok(None)
+    }
+
+    /// Remove only the exact previously reviewed journal after the original
+    /// conflict has been durably restored. Preserve receipts and outboxes.
+    fn abandon_rebase_with_previous_consent(
+        &mut self,
+        _context: &V1LocalEditContext,
+        _intent: &crate::V1KeepLocalIntent,
+    ) -> Result<bool, SyncCoordError> {
+        Ok(false)
+    }
+
     /// Revalidate source/consent/runtime while accepting only the old or new
     /// exact receipt state. A new host may use a fresh runtime proof only
     /// after native reconciliation and a new explicit user review.

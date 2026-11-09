@@ -260,6 +260,46 @@ impl crate::V1ProductOutbox for ProductOutbox {
             .map(|(_, intent)| intent.clone()))
     }
 
+    fn load_rebase_with_previous_consent(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        key: &str,
+    ) -> Result<Option<crate::V1KeepLocalIntent>, SyncCoordError> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .rebase
+            .as_ref()
+            .filter(|(saved, intent)| {
+                saved.origin == context.origin
+                    && saved.account_id == context.account_id
+                    && saved.config_generation != context.config_generation
+                    && intent.key() == key
+            })
+            .map(|(_, intent)| intent.clone()))
+    }
+
+    fn abandon_rebase_with_previous_consent(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        intent: &crate::V1KeepLocalIntent,
+    ) -> Result<bool, SyncCoordError> {
+        let mut state = self.0.lock().unwrap();
+        if state.fail_rebase_abandon
+            || !state.rebase.as_ref().is_some_and(|(saved, old)| {
+                saved.origin == context.origin
+                    && saved.account_id == context.account_id
+                    && saved.config_generation != context.config_generation
+                    && old == intent
+            })
+        {
+            return Ok(false);
+        }
+        state.rebase = None;
+        Ok(true)
+    }
+
     fn rebase_source_proof(
         &mut self,
         context: &crate::V1LocalEditContext,
@@ -764,6 +804,77 @@ async fn product_keep_local_rejects_changed_cloud_without_journal_or_mutation() 
         .unwrap();
     assert_eq!(before.generation, after.generation);
     assert_eq!(before.state, after.state);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn previous_consent_rebase_abandon_recovers_after_interrupted_restore() {
+    let dir = TempDir::new("previous-consent-rebase");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "previous-consent-rebase").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let original = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_finish = true;
+    assert!(sync
+        .keep_local_product_conflict(&review, &mut outbox)
+        .await
+        .is_err());
+    sync.set_enabled(false).unwrap();
+    sync.set_enabled(true).unwrap();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
+        .unwrap();
+
+    let recovery = sync
+        .review_previous_consent_rebase("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    // A new consent identity revokes the opaque review.
+    sync.set_enabled(false).unwrap();
+    sync.set_enabled(true).unwrap();
+    assert!(sync
+        .abandon_previous_consent_rebase(&recovery, &mut outbox)
+        .is_err());
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    let recovery = restarted
+        .review_previous_consent_rebase("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_abandon = true;
+    assert!(restarted
+        .abandon_previous_consent_rebase(&recovery, &mut outbox)
+        .is_err());
+    let restored = restarted
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.state, original.state);
+    assert!(outbox.0.lock().unwrap().rebase.is_some());
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    let recovery = restarted
+        .review_previous_consent_rebase("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_abandon = false;
+    restarted
+        .abandon_previous_consent_rebase(&recovery, &mut outbox)
+        .unwrap();
+    let saved = outbox.0.lock().unwrap();
+    assert!(saved.rebase.is_none());
+    assert_eq!(saved.entries["acme.one"].generation, 2);
+    assert!(saved.receipts.contains_key("acme.one"));
+    drop(saved);
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
     mock.stop();
 }
 

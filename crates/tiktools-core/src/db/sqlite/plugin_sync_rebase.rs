@@ -313,6 +313,72 @@ impl DatabaseManager {
         Ok(Some(intent))
     }
 
+    /// Inspect only this account's exact journal after consent changed.
+    /// Returning it does not reauthorize its receipt or any Cloud operation.
+    pub(crate) fn load_plugin_sync_rebase_with_previous_consent(
+        &self,
+        context: &V1LocalEditContext,
+        key: &str,
+    ) -> Result<Option<V1KeepLocalIntent>, DatabaseError> {
+        let db = self.open(&self.automation_path())?;
+        let saved: Option<(String, String)> = db.query_row("SELECT plugin_id,payload_json FROM plugin_sync_rebase_intents WHERE origin=?1 AND account_id=?2",
+            params![context.origin, context.account_id], |row| Ok((row.get(0)?, row.get(1)?))).optional()?;
+        let Some((plugin_id, encoded)) = saved else {
+            return Ok(None);
+        };
+        if plugin_id != key || encoded.len() > 16 * 1024 {
+            return Err(invalid());
+        }
+        let intent: V1KeepLocalIntent = serde_json::from_str(&encoded).map_err(|_| invalid())?;
+        if intent.origin() != context.origin
+            || intent.account_id() != context.account_id
+            || intent.key() != key
+            || intent.config_generation() == context.config_generation
+        {
+            return Err(invalid());
+        }
+        let previous = V1LocalEditContext {
+            origin: context.origin.clone(),
+            account_id: context.account_id.clone(),
+            config_generation: intent.config_generation(),
+        };
+        if payload(&previous, &intent)? != encoded {
+            return Err(invalid());
+        }
+        Ok(Some(intent))
+    }
+
+    /// Delete just the matching older-consent journal after restoring the
+    /// frozen conflict. Receipts, source generations and candidates remain.
+    pub(crate) fn abandon_plugin_sync_rebase_with_previous_consent(
+        &self,
+        context: &V1LocalEditContext,
+        intent: &V1KeepLocalIntent,
+    ) -> Result<bool, DatabaseError> {
+        if context.origin != intent.origin()
+            || context.account_id != intent.account_id()
+            || context.config_generation == intent.config_generation()
+        {
+            return Err(invalid());
+        }
+        let previous = V1LocalEditContext {
+            origin: context.origin.clone(),
+            account_id: context.account_id.clone(),
+            config_generation: intent.config_generation(),
+        };
+        let encoded = payload(&previous, intent)?;
+        let mut db = self.open(&self.automation_path())?;
+        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let removed = tx.execute("DELETE FROM plugin_sync_rebase_intents WHERE origin=?1 AND account_id=?2 AND plugin_id=?3 AND payload_json=?4",
+            params![context.origin, context.account_id, intent.key(), encoded])?;
+        if removed > 1 {
+            return Err(invalid());
+        }
+        tx.commit()?;
+        Ok(removed == 1)
+    }
+
     pub(crate) fn plugin_sync_rebase_source(
         &self,
         context: &V1LocalEditContext,
@@ -593,6 +659,89 @@ mod tests {
             f.db.load_plugin_sync_rebase(&f.context, KEY).unwrap(),
             Some(f.intent.clone())
         );
+    }
+
+    #[test]
+    fn previous_consent_abandon_is_scoped_and_preserves_newer_sources() {
+        let f = Fixture::new();
+        f.prepare();
+        let changed = V1LocalEditContext {
+            config_generation: 8,
+            ..f.context.clone()
+        };
+        let foreign = V1LocalEditContext {
+            account_id: "bob".into(),
+            ..changed.clone()
+        };
+        assert_eq!(
+            f.db.load_plugin_sync_rebase_with_previous_consent(&foreign, KEY)
+                .unwrap(),
+            None
+        );
+        assert!(f
+            .db
+            .load_plugin_sync_rebase_with_previous_consent(&f.context, KEY)
+            .is_err());
+        assert_eq!(
+            f.db.load_plugin_sync_rebase_with_previous_consent(&changed, KEY)
+                .unwrap(),
+            Some(f.intent.clone())
+        );
+        assert!(f
+            .db
+            .abandon_plugin_sync_rebase_with_previous_consent(&foreign, &f.intent)
+            .is_err());
+        assert_eq!(
+            f.db.set_plugin_state_with_sync_intent(
+                KEY,
+                true,
+                true,
+                Some(LocalPluginSyncIntent {
+                    origin: ORIGIN,
+                    account_id: "bob",
+                    config_generation: 8,
+                    version: Some("1.0.0")
+                })
+            )
+            .unwrap(),
+            2
+        );
+        let db = f.db.open(&f.db.automation_path()).unwrap();
+        db.execute_batch("CREATE TRIGGER fail_previous_consent_clear BEFORE DELETE ON plugin_sync_rebase_intents BEGIN SELECT RAISE(FAIL,'injected failure'); END;").unwrap();
+        drop(db);
+        assert!(f
+            .db
+            .abandon_plugin_sync_rebase_with_previous_consent(&changed, &f.intent)
+            .is_err());
+        let reopened = DatabaseManager::new(f.db.paths().clone());
+        assert!(reopened.has_plugin_sync_rebase(&changed).unwrap());
+        let db = reopened.open(&reopened.automation_path()).unwrap();
+        db.execute_batch("DROP TRIGGER fail_previous_consent_clear;")
+            .unwrap();
+        drop(db);
+        assert!(reopened
+            .abandon_plugin_sync_rebase_with_previous_consent(&changed, &f.intent)
+            .unwrap());
+        assert!(!reopened
+            .abandon_plugin_sync_rebase_with_previous_consent(&changed, &f.intent)
+            .unwrap());
+        assert_eq!(
+            reopened
+                .next_plugin_sync_intent(ORIGIN, "bob")
+                .unwrap()
+                .unwrap()
+                .generation,
+            2
+        );
+        let db = reopened.open(&reopened.automation_path()).unwrap();
+        let receipts: i64 = db
+            .query_row(
+                "SELECT count(*) FROM plugin_sync_receipts WHERE origin=?1 AND account_id='alice'",
+                [ORIGIN],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(receipts, 1);
     }
 
     #[test]

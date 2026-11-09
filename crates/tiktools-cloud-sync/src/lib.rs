@@ -37,7 +37,7 @@ pub mod consent_generation;
 mod product_conflict;
 pub use product_conflict::{
     V1KeepLocalAbandonReview, V1KeepLocalIntent, V1KeepLocalRecoveryReview,
-    V1ProductConflictReview, V1SupersededRebaseReview,
+    V1PreviousConsentRebaseReview, V1ProductConflictReview, V1SupersededRebaseReview,
 };
 
 use std::{

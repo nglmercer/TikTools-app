@@ -167,6 +167,26 @@ impl V1ProductOutbox for SqliteProductOutbox<'_> {
             .map_err(|_| unavailable())
     }
 
+    fn load_rebase_with_previous_consent(
+        &mut self,
+        context: &V1LocalEditContext,
+        key: &str,
+    ) -> Result<Option<V1KeepLocalIntent>, SyncCoordError> {
+        self.db
+            .load_plugin_sync_rebase_with_previous_consent(context, key)
+            .map_err(|_| unavailable())
+    }
+
+    fn abandon_rebase_with_previous_consent(
+        &mut self,
+        context: &V1LocalEditContext,
+        intent: &V1KeepLocalIntent,
+    ) -> Result<bool, SyncCoordError> {
+        self.db
+            .abandon_plugin_sync_rebase_with_previous_consent(context, intent)
+            .map_err(|_| unavailable())
+    }
+
     fn rebase_source_proof(
         &mut self,
         context: &V1LocalEditContext,
@@ -312,6 +332,23 @@ impl V1ProductOutbox for RuntimeProductOutbox<'_> {
 
     fn has_pending_rebase(&mut self, context: &V1LocalEditContext) -> Result<bool, SyncCoordError> {
         self.inner.has_pending_rebase(context)
+    }
+
+    fn load_rebase_with_previous_consent(
+        &mut self,
+        context: &V1LocalEditContext,
+        key: &str,
+    ) -> Result<Option<V1KeepLocalIntent>, SyncCoordError> {
+        self.inner.load_rebase_with_previous_consent(context, key)
+    }
+
+    fn abandon_rebase_with_previous_consent(
+        &mut self,
+        context: &V1LocalEditContext,
+        intent: &V1KeepLocalIntent,
+    ) -> Result<bool, SyncCoordError> {
+        self.inner
+            .abandon_rebase_with_previous_consent(context, intent)
     }
 }
 
