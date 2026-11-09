@@ -12,6 +12,21 @@ const COOLDOWN_SWEEP_THRESHOLD: usize = 1_024;
 /// memory without limit under adversarial key cardinality.
 const COOLDOWN_MAP_BOUND: usize = 8_192;
 
+/// Keep the event ID and scope separate: concatenated strings collide when
+/// IDs contain ':' or a viewer happens to be named 'global' or 'anonymous'.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) struct CooldownKey {
+    pub(super) event_id: String,
+    scope: CooldownScope,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum CooldownScope {
+    Global,
+    Anonymous,
+    Viewer(String),
+}
+
 impl AutomationService {
     pub fn claim_event(&self, record: &Value, event: &Value, now: u64) -> bool {
         // Matching, filter re-evaluation and viewer cooldown keys share the
@@ -46,16 +61,20 @@ impl AutomationService {
         }
         let id = record.get("id").and_then(Value::as_str).unwrap_or("event");
         let scope = if record.get("cooldownScope").and_then(Value::as_str) == Some("global") {
-            "global".to_owned()
+            CooldownScope::Global
         } else {
             event
                 .get("user")
                 .and_then(|user| user.get("uniqueId"))
                 .and_then(Value::as_str)
-                .unwrap_or("anonymous")
-                .to_owned()
+                .filter(|id| !id.is_empty())
+                .map(|id| CooldownScope::Viewer(id.to_owned()))
+                .unwrap_or(CooldownScope::Anonymous)
         };
-        let key = format!("{id}:{scope}");
+        let key = CooldownKey {
+            event_id: id.to_owned(),
+            scope,
+        };
         let mut cooldowns = recover_mutex(&self.cooldowns, "automation cooldowns");
         // A scoped caller may have waited for this mutex while its retained
         // subject/index locks were held. Recheck deadlines and shutdown now,
@@ -97,7 +116,13 @@ mod tests {
         {
             let mut cooldowns = service.cooldowns.lock().unwrap();
             for id in 0..COOLDOWN_SWEEP_THRESHOLD {
-                cooldowns.insert(format!("expired-{id}"), 0);
+                cooldowns.insert(
+                    CooldownKey {
+                        event_id: format!("expired-{id}"),
+                        scope: CooldownScope::Global,
+                    },
+                    0,
+                );
             }
         }
         let record = json!({"id":"child","filters":[],"cooldownMs":1000,"cooldownScope":"global"});
@@ -127,7 +152,13 @@ mod tests {
         );
         let cooldowns = service.cooldowns.lock().unwrap();
         assert_eq!(cooldowns.len(), 1);
-        assert_eq!(cooldowns.get("child:global"), Some(&(MAX_COOLDOWN_MS + 1)));
+        assert_eq!(
+            cooldowns.get(&CooldownKey {
+                event_id: "child".into(),
+                scope: CooldownScope::Global
+            }),
+            Some(&(MAX_COOLDOWN_MS + 1))
+        );
     }
 
     #[test]
@@ -137,5 +168,40 @@ mod tests {
         assert!(!service.claim_projected_event(&record, &json!({}), 1, || false));
         assert!(service.claim_projected_event(&record, &json!({}), 1, || true));
         assert!(service.cooldowns.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn event_and_viewer_ids_do_not_collide_or_delete_other_events() {
+        let service = AutomationService::default();
+        let nested_id = json!({"id":"gift:rose","cooldownMs":1000,"cooldownScope":"user"});
+        let prefix_id = json!({"id":"gift","cooldownMs":1000,"cooldownScope":"user"});
+        let alice = json!({"user":{"uniqueId":"alice"}});
+        let other = json!({"user":{"uniqueId":"rose:alice"}});
+        assert!(service.claim_projected_event(&nested_id, &alice, 100, || true));
+        assert!(service.claim_projected_event(&prefix_id, &other, 100, || true));
+        assert!(!service.claim_projected_event(&nested_id, &alice, 200, || true));
+        service.remove_event("gift");
+        assert!(!service.claim_projected_event(&nested_id, &alice, 200, || true));
+        assert!(service.claim_projected_event(&prefix_id, &other, 200, || true));
+    }
+
+    #[test]
+    fn global_and_missing_viewer_do_not_collide_with_literal_usernames() {
+        let service = AutomationService::default();
+        let global = json!({"id":"event","cooldownMs":1000,"cooldownScope":"global"});
+        let per_viewer = json!({"id":"event","cooldownMs":1000,"cooldownScope":"user"});
+        let global_viewer = json!({"user":{"uniqueId":"global"}});
+        let anonymous_viewer = json!({"user":{"uniqueId":"anonymous"}});
+        assert!(service.claim_projected_event(&global, &global_viewer, 100, || true));
+        assert!(service.claim_projected_event(&per_viewer, &global_viewer, 100, || true));
+        assert!(service.claim_projected_event(&per_viewer, &json!({}), 100, || true));
+        assert!(service.claim_projected_event(&per_viewer, &anonymous_viewer, 100, || true));
+        assert!(!service.claim_projected_event(
+            &per_viewer,
+            &json!({"user":{"uniqueId":""}}),
+            200,
+            || true
+        ));
+        assert!(!service.claim_projected_event(&per_viewer, &anonymous_viewer, 200, || true));
     }
 }

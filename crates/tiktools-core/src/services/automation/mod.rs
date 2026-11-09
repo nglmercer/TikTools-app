@@ -43,7 +43,7 @@ use super::ScriptService;
 pub struct AutomationService {
     script: ScriptService,
     index: RwLock<BehaviorIndex>,
-    cooldowns: Mutex<BTreeMap<String, u64>>,
+    cooldowns: Mutex<BTreeMap<cooldown::CooldownKey, u64>>,
     runs: Mutex<runs::RunHistory>,
     sequence: AtomicU64,
 }
