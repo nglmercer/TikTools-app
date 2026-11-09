@@ -1887,7 +1887,11 @@ async fn browser_controller_pairs_reads_live_updates_and_clears_on_revocation() 
         .expect("browser fixture timed out");
     }
     let _env = ENV.lock().await;
-    let fixture = Fixture::new(true).await;
+    let fixture = Fixture::configured(true, |config| {
+        config.limits.frame_bytes = 4096;
+        config.limits.params_bytes = 1024;
+    }).await;
+    fixture.core.events.publish_live_event_from_creator(json!({"kind":"chat","author":"viewer1","text":format!("Long message {}", "🔥".repeat(2048))}), Some("creator"));
     fixture.core.events.publish_live_event_from_creator(json!({"kind":"chat","author":"viewer1","text":"Browser feed message"}), Some("creator"));
     fixture
         .core

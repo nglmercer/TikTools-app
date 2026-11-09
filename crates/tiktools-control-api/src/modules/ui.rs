@@ -78,19 +78,51 @@ fn browser_feed(
             && !author.contains('*')
             && !author.chars().any(char::is_control))
         .then_some(author);
-        let projected = serde_json::json!({"cursor":entry.cursor.to_string(),"kind":kind,"author":displayed,"authorLookupId":lookup,"nickname":nickname,"text":display_text(text,2048)});
-        let size = serde_json::to_vec(&projected)
+        let mut projected = serde_json::json!({"cursor":entry.cursor.to_string(),"kind":kind,"author":displayed,"authorLookupId":lookup,"nickname":nickname,"text":display_text(text,2048)});
+        let mut size = serde_json::to_vec(&projected)
             .map_err(|_| ApiError::new("protocol", "invalid feed event"))?
             .len()
             + 1;
         if used.saturating_add(size) > budget {
-            if events.is_empty() {
+            if !events.is_empty() {
+                break;
+            }
+            // A single large event must not permanently prevent the cursor
+            // from advancing. Reduce display fields only, preserving UTF-8;
+            // a shortened author is never usable as an action target.
+            for field in ["text", "nickname", "author"] {
+                while used.saturating_add(size) > budget {
+                    let Some(value) = projected[field].as_str() else {
+                        break;
+                    };
+                    let count = value.chars().count();
+                    if count == 0 {
+                        break;
+                    }
+                    let shortened = if count > 1 {
+                        format!(
+                            "{}…",
+                            value.chars().take((count - 1) / 2).collect::<String>()
+                        )
+                    } else {
+                        String::new()
+                    };
+                    projected[field] = shortened.into();
+                    if field == "author" {
+                        projected["authorLookupId"] = serde_json::Value::Null;
+                    }
+                    size = serde_json::to_vec(&projected)
+                        .map_err(|_| ApiError::new("protocol", "invalid feed event"))?
+                        .len()
+                        + 1;
+                }
+            }
+            if used.saturating_add(size) > budget {
                 return Err(ApiError::new(
                     "too_large",
                     "feed event exceeds connection budget",
                 ));
             }
-            break;
         }
         used += size;
         previous = entry.cursor;
@@ -228,5 +260,62 @@ mod tests {
         assert_eq!(result["events"].as_array().unwrap().len(), 2);
         assert_eq!(result["nextCursor"], "2");
         assert_eq!(result["truncated"], true);
+    }
+    #[test]
+    fn oversized_event_is_shortened_and_does_not_block_following_cursors() {
+        let author = "😀".repeat(32);
+        let page = FeedBackfill {
+            oldest_cursor: 1,
+            latest_cursor: 2,
+            depth: 2,
+            gap: false,
+            truncated: false,
+            events: vec![
+                tiktools_core::events::FeedEntry {
+                    cursor: 1,
+                    event: serde_json::json!({"kind":"chat", "author":author, "nickname":"🎵".repeat(128), "text":"🔥".repeat(2048)}),
+                },
+                tiktools_core::events::FeedEntry {
+                    cursor: 2,
+                    event: serde_json::json!({"kind":"chat", "author":"alice", "text":"next"}),
+                },
+            ],
+        };
+        let result = browser_feed(page, 0, 2048).unwrap();
+        assert!(serde_json::to_vec(&result).unwrap().len() < 2048);
+        assert_eq!(result["events"][0]["cursor"], "1");
+        assert!(result["events"][0]["text"].as_str().unwrap().ends_with('…'));
+        assert!(
+            result["events"][0]["text"]
+                .as_str()
+                .unwrap()
+                .chars()
+                .count()
+                < 2048
+        );
+        assert_eq!(result["events"][0]["authorLookupId"], author);
+        assert_eq!(
+            result["nextCursor"],
+            result["events"].as_array().unwrap().last().unwrap()["cursor"]
+        );
+    }
+
+    #[test]
+    fn shortened_author_is_not_an_action_target() {
+        let author = "a".repeat(128);
+        let page = FeedBackfill {
+            oldest_cursor: 1,
+            latest_cursor: 1,
+            depth: 1,
+            gap: false,
+            truncated: false,
+            events: vec![tiktools_core::events::FeedEntry {
+                cursor: 1,
+                event: serde_json::json!({"kind":"chat", "author":author, "text":""}),
+            }],
+        };
+        let result = browser_feed(page, 0, 640).unwrap();
+        assert!(result["events"][0]["author"].as_str().unwrap().len() < 128);
+        assert!(result["events"][0]["authorLookupId"].is_null());
     }
 }

@@ -9,7 +9,8 @@ browser, loaded the embedded controller, observed a host workflow update,
 paired a LIVE-only replacement in another tab, checked that the original view
 cleared, observed disconnected LIVE status and a fixture chat message without a
 workflow subscription, and checked that revocation cleared the replacement
-view. The creator-restricted gateway test denies the unscoped browser feed;
+view. At the minimum 4 KiB frame size it also displayed a shortened multibyte
+message followed by a second message. The creator-restricted gateway test denies the unscoped browser feed;
 focused tests cover decimal cursors, filtered fields and response-budget paging.
 The gateway credential
 test also exercises authenticated app/asset delivery, source-map exclusion and

@@ -37,8 +37,9 @@ browser write commands, local profiles, persistent drafts, or other domain
 controls. It also projects the host's current LIVE connection status for a
 `live.read` grant, including LIVE-only observers without workflow access.
 The bounded, read-only LIVE feed uses decimal cursor strings and honors creator
-restrictions; it is polled and is not a durable event stream. An individual
-event exceeding the connection's response budget fails the read explicitly.
+restrictions; it is polled and is not a durable event stream. If one event
+exceeds the response budget, its display fields are shortened to allow the
+cursor to advance; a shortened author cannot be used as an action target.
 An explicitly enabled gateway build can embed and serve this mode
 after browser pairing over HTTPS. The browser session is rechecked before
 publishing workflow data and periodically while connected; another pairing tab
