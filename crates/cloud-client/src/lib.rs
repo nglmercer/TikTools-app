@@ -12,6 +12,10 @@ mod keychain;
 pub use keychain::{Keychain, KeychainError};
 mod login;
 mod store;
+mod workspace;
+mod workspace_state;
+mod workspace_store;
+pub use cloud_contracts::{WorkspaceChanges, WorkspaceRecord, WorkspaceSnapshot};
 pub use login::{LoginAttempt, LoginResult};
 use reqwest::{
     header::{HeaderValue, AUTHORIZATION, IF_MATCH, IF_NONE_MATCH},
@@ -27,6 +31,12 @@ pub use store::{StateSnapshot, StateStore, StoreError};
 use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
+pub use workspace::CloudCatalog;
+pub use workspace_state::{
+    WorkspaceEdit, WorkspaceEntry, WorkspaceKey, WorkspaceLocalEdit, WorkspacePending,
+    WorkspacePendingStatus, WorkspacePush, WorkspaceRead, WorkspaceState, WorkspaceStateError,
+};
+pub use workspace_store::{WorkspaceOperationGuard, WorkspaceStateSnapshot, WorkspaceStore};
 
 const COLLECTION: &str = "plugin-selections";
 const MAX_RESPONSE: usize = 1024 * 1024;
@@ -429,6 +439,10 @@ impl Session {
     }
     pub fn account_id(&self) -> &str {
         &self.account_id
+    }
+    /// Canonical operator instance identity, suitable for account-scoped storage.
+    pub fn instance_origin(&self) -> String {
+        self.origin.origin().ascii_serialization()
     }
     /// List Cloud-owned deletion blockers. An empty page is not a deletion guarantee.
     pub async fn deletion_blockers(

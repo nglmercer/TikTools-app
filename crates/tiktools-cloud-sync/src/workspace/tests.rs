@@ -1,0 +1,798 @@
+//! Real HTTP and private files exercise the coordinator boundary, without
+//! installing plugins, opening application databases, or using a v1 sync API.
+use super::*;
+use serde_json::{json, Value};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+    sync::oneshot,
+    task::JoinHandle,
+};
+
+#[derive(Clone, Debug)]
+struct Request {
+    method: String,
+    target: String,
+    headers: BTreeMap<String, String>,
+    body: Value,
+}
+struct Pause {
+    entered: oneshot::Sender<()>,
+    release: oneshot::Receiver<()>,
+}
+struct DurableProof {
+    root: PathBuf,
+    account: String,
+    target: WorkspaceKey,
+    edit: WorkspaceEdit,
+}
+#[derive(Default)]
+struct Remote {
+    cursors: BTreeMap<String, i64>,
+    records: BTreeMap<(String, WorkspaceKey), WorkspaceRecord>,
+    changes: BTreeMap<String, Vec<WorkspaceRecord>>,
+    requests: Vec<Request>,
+    lose_next_write: bool,
+    expire_changes: bool,
+    pause_next_write: Option<Pause>,
+    proofs: Vec<DurableProof>,
+}
+impl Remote {
+    fn put(
+        &mut self,
+        account: &str,
+        target: WorkspaceKey,
+        value: Option<Value>,
+    ) -> WorkspaceRecord {
+        if let Some(old) = self.records.get(&(account.into(), target.clone())) {
+            if old.value == value {
+                return old.clone();
+            }
+        }
+        let cursor = self.cursors.entry(account.into()).or_default();
+        *cursor += 1;
+        let record = WorkspaceRecord {
+            collection: target.collection.clone(),
+            key: target.key.clone(),
+            revision: *cursor,
+            deleted: value.is_none(),
+            value,
+        };
+        self.records
+            .insert((account.into(), target), record.clone());
+        self.changes
+            .entry(account.into())
+            .or_default()
+            .push(record.clone());
+        record
+    }
+    fn writes(&self) -> usize {
+        self.requests
+            .iter()
+            .filter(|request| matches!(request.method.as_str(), "PUT" | "DELETE"))
+            .count()
+    }
+}
+struct Server {
+    origin: String,
+    remote: Arc<Mutex<Remote>>,
+    task: JoinHandle<()>,
+}
+impl Drop for Server {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}
+async fn read_request(socket: &mut TcpStream) -> Request {
+    let mut bytes = Vec::new();
+    let end = loop {
+        let mut chunk = [0; 4096];
+        let n = socket.read(&mut chunk).await.unwrap();
+        assert!(n > 0);
+        bytes.extend_from_slice(&chunk[..n]);
+        if let Some(index) = bytes.windows(4).position(|v| v == b"\r\n\r\n") {
+            break index + 4;
+        }
+        assert!(bytes.len() < 16 * 1024);
+    };
+    let text = std::str::from_utf8(&bytes[..end]).unwrap();
+    let mut lines = text.split("\r\n");
+    let mut first = lines.next().unwrap().split_whitespace();
+    let method = first.next().unwrap().to_owned();
+    let target = first.next().unwrap().to_owned();
+    let headers: BTreeMap<_, _> = lines
+        .filter_map(|line| line.split_once(':'))
+        .map(|(k, v)| (k.to_ascii_lowercase(), v.trim().to_owned()))
+        .collect();
+    let length = headers
+        .get("content-length")
+        .map(|v| v.parse::<usize>().unwrap())
+        .unwrap_or(0);
+    assert!(length <= 256 * 1024 + 1024);
+    while bytes.len() < end + length {
+        let mut chunk = [0; 4096];
+        let n = socket.read(&mut chunk).await.unwrap();
+        assert!(n > 0);
+        bytes.extend_from_slice(&chunk[..n]);
+    }
+    let body = if length == 0 {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes[end..end + length]).unwrap()
+    };
+    Request {
+        method,
+        target,
+        headers,
+        body,
+    }
+}
+async fn reply(socket: &mut TcpStream, status: u16, value: Value) {
+    let bytes = serde_json::to_vec(&value).unwrap();
+    let head=format!("HTTP/1.1 {status} Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",bytes.len());
+    let _ = socket.write_all(head.as_bytes()).await;
+    let _ = socket.write_all(&bytes).await;
+}
+async fn start_server() -> Server {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let remote = Arc::new(Mutex::new(Remote::default()));
+    let state = remote.clone();
+    let server_origin = origin.clone();
+    let task = tokio::spawn(async move {
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let state = state.clone();
+            let origin = server_origin.clone();
+            tokio::spawn(async move {
+                let request = read_request(&mut socket).await;
+                let (status, value, lose, pause) = {
+                    let mut remote = state.lock().unwrap();
+                    remote.requests.push(request.clone());
+                    let account = match request.headers.get("authorization").map(String::as_str) {
+                        Some("Bearer device-a" | "Bearer device-b") => "account-a",
+                        Some("Bearer other-account") => "account-b",
+                        _ => "unauthorized",
+                    };
+                    let url = url::Url::parse(&format!("{origin}{}", request.target)).unwrap();
+                    let path = url.path();
+                    if account == "unauthorized" {
+                        (401, json!({}), false, None)
+                    } else if path == "/api/v1/native/me" {
+                        (200, json!({"id":account}), false, None)
+                    } else if path == "/api/v2/sync/changes" {
+                        if remote.expire_changes {
+                            (410, json!({}), false, None)
+                        } else {
+                            let after = url
+                                .query_pairs()
+                                .find(|(k, _)| k == "cursor")
+                                .unwrap()
+                                .1
+                                .parse::<i64>()
+                                .unwrap();
+                            let changes: Vec<_> = remote
+                                .changes
+                                .get(account)
+                                .into_iter()
+                                .flatten()
+                                .filter(|r| r.revision > after)
+                                .take(50)
+                                .cloned()
+                                .collect();
+                            let cursor = changes.last().map_or(after, |r| r.revision);
+                            let more = remote
+                                .changes
+                                .get(account)
+                                .into_iter()
+                                .flatten()
+                                .any(|r| r.revision > cursor);
+                            (
+                                200,
+                                json!({"changes":changes,"cursor":cursor,"has_more":more}),
+                                false,
+                                None,
+                            )
+                        }
+                    } else if path == "/api/v2/sync/export" {
+                        let records: Vec<_> = remote
+                            .records
+                            .iter()
+                            .filter(|((owner, _), _)| owner == account)
+                            .map(|(_, r)| r.clone())
+                            .collect();
+                        (
+                            200,
+                            json!({"schemaVersion":2,"cursor":remote.cursors.get(account).copied().unwrap_or(0),"records":records}),
+                            false,
+                            None,
+                        )
+                    } else if let Some(suffix) = path.strip_prefix("/api/v2/sync/collections/") {
+                        let (collection, key) = suffix.split_once('/').unwrap();
+                        let target = WorkspaceKey::new(collection, key).unwrap();
+                        let old = remote
+                            .records
+                            .get(&(account.into(), target.clone()))
+                            .cloned();
+                        if request.method == "GET" {
+                            match old {
+                                Some(record) => (200, json!(record), false, None),
+                                None => (404, json!({}), false, None),
+                            }
+                        } else {
+                            assert!(matches!(request.method.as_str(), "PUT" | "DELETE"));
+                            if let Some(index) = remote
+                                .proofs
+                                .iter()
+                                .position(|p| p.account == account && p.target == target)
+                            {
+                                let proof = remote.proofs.remove(index);
+                                let durable =
+                                    WorkspaceStore::open(&proof.root, origin.clone(), account)
+                                        .unwrap()
+                                        .load()
+                                        .unwrap()
+                                        .unwrap();
+                                let pending = durable
+                                    .state
+                                    .entry(&target)
+                                    .unwrap()
+                                    .pending
+                                    .as_ref()
+                                    .unwrap();
+                                assert_eq!(
+                                    pending.status,
+                                    WorkspacePendingStatus::Unconfirmed,
+                                    "request was sent before its durable intent"
+                                );
+                                assert_eq!(
+                                    pending.edit, proof.edit,
+                                    "durable request source differs from actual request"
+                                );
+                                assert_eq!(
+                                    pending.edit,
+                                    if request.method == "DELETE" {
+                                        WorkspaceEdit::Delete
+                                    } else {
+                                        WorkspaceEdit::Put(request.body.clone())
+                                    }
+                                );
+                            }
+                            let expected = old
+                                .as_ref()
+                                .map(|record| format!("\"{}\"", record.revision));
+                            let matched = match expected {
+                                Some(ref value) => {
+                                    request.headers.get("if-match") == Some(value)
+                                        && !request.headers.contains_key("if-none-match")
+                                }
+                                None => {
+                                    request.headers.get("if-none-match").map(String::as_str)
+                                        == Some("*")
+                                        && !request.headers.contains_key("if-match")
+                                }
+                            };
+                            if !matched {
+                                (409, json!({}), false, None)
+                            } else {
+                                let record = remote.put(
+                                    account,
+                                    target,
+                                    if request.method == "DELETE" {
+                                        None
+                                    } else {
+                                        Some(request.body.clone())
+                                    },
+                                );
+                                let lose = std::mem::take(&mut remote.lose_next_write);
+                                let pause = remote.pause_next_write.take();
+                                (200, json!(record), lose, pause)
+                            }
+                        }
+                    } else {
+                        panic!("unexpected HTTP route {path}");
+                    }
+                };
+                if let Some(pause) = pause {
+                    let _ = pause.entered.send(());
+                    let _ = pause.release.await;
+                }
+                if !lose {
+                    reply(&mut socket, status, value).await;
+                }
+            });
+        }
+    });
+    Server {
+        origin,
+        remote,
+        task,
+    }
+}
+async fn connect(server: &Server, token: &str) -> Session {
+    Session::connect(&server.origin, token.into())
+        .await
+        .unwrap()
+}
+fn coordinator(root: &Path, server: &Server, account: &str) -> WorkspaceCoordinator {
+    WorkspaceCoordinator::open(root, server.origin.clone(), account.into()).unwrap()
+}
+fn key(collection: &str, name: &str) -> WorkspaceKey {
+    WorkspaceKey::new(collection, name).unwrap()
+}
+fn preference(theme: &str) -> Value {
+    json!({"schemaVersion":1,"theme":theme})
+}
+fn template() -> Value {
+    json!({"templateVersion":1,"id":"gift-rule","title":"Gift rule","actions":[{"name":"Log","typeId":"core.log","enabled":false,"config":{"message":"Private local template"}}],"event":{"name":"Chat","enabled":false,"trigger":"tiktok.chat"}})
+}
+fn selection() -> PluginSelection {
+    PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.2.3".into(),
+        enabled: false,
+    }
+}
+fn no_v1(server: &Server) {
+    let remote = server.remote.lock().unwrap();
+    assert!(remote
+        .requests
+        .iter()
+        .all(|r| r.target == "/api/v1/native/me" || r.target.starts_with("/api/v2/sync/")));
+    assert!(remote
+        .requests
+        .iter()
+        .all(|r| !r.headers.contains_key("cookie")));
+}
+fn pending(coordinator: &WorkspaceCoordinator, target: &WorkspaceKey) -> WorkspaceEntry {
+    coordinator
+        .snapshot()
+        .unwrap()
+        .state
+        .entry(target)
+        .unwrap()
+        .clone()
+}
+
+#[tokio::test]
+async fn five_collections_two_devices_offline_restart_and_explicit_v1_bootstrap() {
+    let server = start_server().await;
+    let a = connect(&server, "device-a").await;
+    let b = connect(&server, "device-b").await;
+    let temp = tempfile::tempdir().unwrap();
+    let root_a = temp.path().join("device-a-private");
+    let root_b = temp.path().join("device-b-private");
+    let ca = coordinator(&root_a, &server, "account-a");
+    let mut legacy = a.new_state();
+    legacy.cursor = 9001;
+    legacy
+        .stage("acme.plugin".into(), cloud_client::Edit::Put(selection()))
+        .unwrap();
+    let v1 = serde_json::to_vec(&legacy).unwrap();
+    std::fs::write(root_a.join("sync-state.json"), &v1).unwrap();
+    ca.bootstrap(&[selection()], Some(&legacy)).unwrap();
+    assert_eq!(ca.snapshot().unwrap().state.cursor, 0);
+    assert!(matches!(
+        ca.bootstrap(&[], None),
+        Err(WorkspaceCoordError::AlreadyBootstrapped)
+    ));
+    let values = vec![
+        (key("rule-templates", "gift-rule"), template()),
+        (
+            key("profiles", "gift-pack"),
+            json!({"profileVersion":1,"id":"gift-pack","name":"Gift pack","templates":[{"template":template()}]}),
+        ),
+        (
+            key("plugin-settings", "acme.plugin"),
+            json!({"schemaVersion":1,"pluginId":"acme.plugin","settings":{"fontSize":18}}),
+        ),
+        (key("preferences", "desktop"), preference("dark")),
+    ];
+    let network_before = server.remote.lock().unwrap().requests.len();
+    for (target, value) in &values {
+        ca.stage(target.clone(), WorkspaceEdit::Put(value.clone()))
+            .unwrap();
+    }
+    assert_eq!(server.remote.lock().unwrap().requests.len(), network_before);
+    drop(ca);
+    let ca = coordinator(&root_a, &server, "account-a");
+    assert_eq!(ca.snapshot().unwrap().state.pending_keys().len(), 5);
+    {
+        let mut remote = server.remote.lock().unwrap();
+        for entry in &ca.snapshot().unwrap().state.entries {
+            remote.proofs.push(DurableProof {
+                root: root_a.clone(),
+                account: "account-a".into(),
+                target: entry.target.clone(),
+                edit: entry.pending.as_ref().unwrap().edit.clone(),
+            });
+        }
+    }
+    let sent = ca.sync(&a).await.unwrap();
+    assert_eq!(sent.pushed, 5);
+    assert_eq!(sent.pending, 0);
+    assert!(!sent.more_queued);
+    assert!(server.remote.lock().unwrap().proofs.is_empty());
+    assert_eq!(std::fs::read(root_a.join("sync-state.json")).unwrap(), v1);
+    let cb = coordinator(&root_b, &server, "account-a");
+    cb.bootstrap(&[], None).unwrap();
+    let received = cb.sync(&b).await.unwrap();
+    assert_eq!(received.pulled, 5);
+    assert_eq!(received.pushed, 0);
+    assert_eq!(received.remote.len(), 5);
+    cb.stage(
+        key("preferences", "desktop"),
+        WorkspaceEdit::Put(preference("light")),
+    )
+    .unwrap();
+    drop(cb);
+    let cb = coordinator(&root_b, &server, "account-a");
+    assert_eq!(cb.sync(&b).await.unwrap().pushed, 1);
+    assert_eq!(ca.sync(&a).await.unwrap().pushed, 0);
+    assert_eq!(
+        pending(&ca, &key("preferences", "desktop"))
+            .remote
+            .unwrap()
+            .value,
+        Some(preference("light"))
+    );
+    let writes = server.remote.lock().unwrap().writes();
+    assert_eq!(cb.sync(&b).await.unwrap().pushed, 0);
+    assert_eq!(server.remote.lock().unwrap().writes(), writes);
+    let removed = key("profiles", "gift-pack");
+    cb.stage(removed.clone(), WorkspaceEdit::Delete).unwrap();
+    assert_eq!(cb.sync(&b).await.unwrap().pushed, 1);
+    ca.sync(&a).await.unwrap();
+    let tombstone = pending(&ca, &removed).remote.unwrap();
+    assert!(tombstone.deleted);
+    assert!(tombstone.value.is_none());
+    no_v1(&server);
+}
+
+#[tokio::test]
+async fn lost_successful_reply_stays_unconfirmed_until_fresh_review_and_explicit_choice() {
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("private-workspace");
+    let target = key("preferences", "desktop");
+    let c = coordinator(&root, &server, "account-a");
+    c.bootstrap(&[], None).unwrap();
+    c.stage(target.clone(), WorkspaceEdit::Put(preference("dark")))
+        .unwrap();
+    {
+        let mut remote = server.remote.lock().unwrap();
+        remote.lose_next_write = true;
+        remote.proofs.push(DurableProof {
+            root: root.clone(),
+            account: "account-a".into(),
+            target: target.clone(),
+            edit: WorkspaceEdit::Put(preference("dark")),
+        });
+    }
+    assert!(matches!(
+        c.sync(&session).await,
+        Err(WorkspaceCoordError::Transport(SyncError::Network))
+    ));
+    assert_eq!(
+        pending(&c, &target).pending.unwrap().status,
+        WorkspacePendingStatus::Unconfirmed
+    );
+    drop(c);
+    let c = coordinator(&root, &server, "account-a");
+    let recovered = c.sync(&session).await.unwrap();
+    assert_eq!(recovered.pushed, 0);
+    assert_eq!(recovered.pending, 1);
+    assert!(recovered.remote.is_empty());
+    assert_eq!(server.remote.lock().unwrap().writes(), 1);
+    let review = c.review(&session, &target).await.unwrap();
+    assert_eq!(review.remote().unwrap().value, Some(preference("dark")));
+    assert_eq!(
+        review.entry().pending.as_ref().unwrap().status,
+        WorkspacePendingStatus::Unconfirmed
+    );
+    assert_eq!(server.remote.lock().unwrap().writes(), 1);
+    c.resolve(&session, &review, false).await.unwrap();
+    assert!(pending(&c, &target).pending.is_none());
+    assert_eq!(c.sync(&session).await.unwrap().pushed, 0);
+    assert_eq!(server.remote.lock().unwrap().writes(), 1);
+    no_v1(&server);
+}
+
+#[tokio::test]
+async fn expired_cursor_blocks_sync_until_explicit_readonly_rebuild_preserving_pending() {
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("private-workspace");
+    let target = key("preferences", "desktop");
+    let c = coordinator(&root, &server, "account-a");
+    c.bootstrap(&[], None).unwrap();
+    c.stage(target.clone(), WorkspaceEdit::Put(preference("light")))
+        .unwrap();
+    {
+        let mut remote = server.remote.lock().unwrap();
+        remote.put("account-a", target.clone(), Some(preference("dark")));
+        remote.expire_changes = true;
+    }
+    assert!(matches!(
+        c.sync(&session).await,
+        Err(WorkspaceCoordError::State(
+            WorkspaceStateError::NeedsRebuild
+        ))
+    ));
+    let old = c.snapshot().unwrap().state;
+    assert!(old.needs_rebuild);
+    assert_eq!(old.cursor, 0);
+    let count = server.remote.lock().unwrap().requests.len();
+    assert!(matches!(
+        c.sync(&session).await,
+        Err(WorkspaceCoordError::State(
+            WorkspaceStateError::NeedsRebuild
+        ))
+    ));
+    assert_eq!(server.remote.lock().unwrap().requests.len(), count);
+    assert!(!server
+        .remote
+        .lock()
+        .unwrap()
+        .requests
+        .iter()
+        .any(|r| r.target == "/api/v2/sync/export"));
+    c.rebuild_remote_cache(&session).await.unwrap();
+    let rebuilt = c.snapshot().unwrap().state;
+    assert!(!rebuilt.needs_rebuild);
+    assert_eq!(rebuilt.cursor, 1);
+    let entry = rebuilt.entry(&target).unwrap();
+    assert_eq!(
+        entry.pending.as_ref().unwrap().edit,
+        old.entry(&target).unwrap().pending.as_ref().unwrap().edit
+    );
+    assert_eq!(
+        entry.pending.as_ref().unwrap().status,
+        WorkspacePendingStatus::Conflict
+    );
+    assert_eq!(
+        entry.remote.as_ref().unwrap().value,
+        Some(preference("dark"))
+    );
+    assert_eq!(server.remote.lock().unwrap().writes(), 0);
+    server.remote.lock().unwrap().expire_changes = false;
+    assert_eq!(c.sync(&session).await.unwrap().pushed, 0);
+    no_v1(&server);
+}
+
+#[tokio::test]
+async fn live_network_lock_keeps_local_stage_and_promotes_next_after_original_ack() {
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("private-workspace");
+    let target = key("preferences", "desktop");
+    let c = coordinator(&root, &server, "account-a");
+    c.bootstrap(&[], None).unwrap();
+    c.stage(target.clone(), WorkspaceEdit::Put(preference("dark")))
+        .unwrap();
+    let (entered_tx, entered_rx) = oneshot::channel();
+    let (release_tx, release_rx) = oneshot::channel();
+    {
+        let mut remote = server.remote.lock().unwrap();
+        remote.pause_next_write = Some(Pause {
+            entered: entered_tx,
+            release: release_rx,
+        });
+        remote.proofs.push(DurableProof {
+            root: root.clone(),
+            account: "account-a".into(),
+            target: target.clone(),
+            edit: WorkspaceEdit::Put(preference("dark")),
+        });
+    }
+    let other = coordinator(&root, &server, "account-a");
+    let control = async {
+        entered_rx.await.unwrap();
+        let generation = other
+            .stage(target.clone(), WorkspaceEdit::Put(preference("light")))
+            .unwrap();
+        let entry = pending(&other, &target);
+        assert_eq!(
+            entry.pending.as_ref().unwrap().edit,
+            WorkspaceEdit::Put(preference("dark"))
+        );
+        assert_eq!(entry.next.as_ref().unwrap().local_generation, generation);
+        assert!(matches!(
+            other.sync(&session).await,
+            Err(WorkspaceCoordError::Busy)
+        ));
+        assert!(matches!(
+            other.review(&session, &target).await,
+            Err(WorkspaceCoordError::Busy)
+        ));
+        assert!(matches!(
+            other.bootstrap(&[], None),
+            Err(WorkspaceCoordError::Busy)
+        ));
+        release_tx.send(()).unwrap();
+    };
+    let (result, ()) = tokio::join!(c.sync(&session), control);
+    let result = result.unwrap();
+    assert_eq!(result.pushed, 1);
+    assert_eq!(result.pending, 1);
+    assert!(result.more_queued);
+    let entry = pending(&c, &target);
+    assert!(entry.next.is_none());
+    let p = entry.pending.unwrap();
+    assert_eq!(p.status, WorkspacePendingStatus::Queued);
+    assert_eq!(p.base_revision, Some(1));
+    assert_eq!(p.edit, WorkspaceEdit::Put(preference("light")));
+    assert_eq!(c.sync(&session).await.unwrap().pushed, 1);
+    assert_eq!(server.remote.lock().unwrap().writes(), 2);
+    no_v1(&server);
+}
+
+#[tokio::test]
+async fn conflict_reviews_fence_candidate_generation_live_remote_and_account_origin() {
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let other_session = connect(&server, "other-account").await;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("private-workspace");
+    let target = key("preferences", "desktop");
+    server
+        .remote
+        .lock()
+        .unwrap()
+        .put("account-a", target.clone(), Some(preference("dark")));
+    let c = coordinator(&root, &server, "account-a");
+    c.bootstrap(&[], None).unwrap();
+    c.sync(&session).await.unwrap();
+    c.stage(target.clone(), WorkspaceEdit::Put(preference("light")))
+        .unwrap();
+    server
+        .remote
+        .lock()
+        .unwrap()
+        .put("account-a", target.clone(), Some(preference("system")));
+    let conflict = c.sync(&session).await.unwrap();
+    assert_eq!(conflict.pushed, 0);
+    assert_eq!(conflict.conflicts, vec![target.clone()]);
+    let review = c.review(&session, &target).await.unwrap();
+    assert_eq!(
+        review
+            .entry()
+            .pending
+            .as_ref()
+            .unwrap()
+            .base_record
+            .as_ref()
+            .unwrap()
+            .value,
+        Some(preference("dark"))
+    );
+    c.stage(target.clone(), WorkspaceEdit::Put(preference("dark")))
+        .unwrap();
+    assert!(matches!(
+        c.resolve(&session, &review, true).await,
+        Err(WorkspaceCoordError::State(WorkspaceStateError::StaleReview))
+    ));
+    let review = c.review(&session, &target).await.unwrap();
+    server
+        .remote
+        .lock()
+        .unwrap()
+        .put("account-a", target.clone(), Some(preference("light")));
+    assert!(matches!(
+        c.resolve(&session, &review, true).await,
+        Err(WorkspaceCoordError::State(WorkspaceStateError::StaleReview))
+    ));
+    let review = c.review(&session, &target).await.unwrap();
+    let before = server.remote.lock().unwrap().requests.len();
+    assert!(matches!(
+        c.resolve(&other_session, &review, true).await,
+        Err(WorkspaceCoordError::State(
+            WorkspaceStateError::WrongIdentity
+        ))
+    ));
+    let other = coordinator(&root, &server, "account-b");
+    other.bootstrap(&[], None).unwrap();
+    assert!(matches!(
+        other.resolve(&other_session, &review, true).await,
+        Err(WorkspaceCoordError::State(
+            WorkspaceStateError::WrongIdentity
+        ))
+    ));
+    assert!(other.snapshot().unwrap().state.entries.is_empty());
+    assert_eq!(server.remote.lock().unwrap().requests.len(), before);
+    let other_origin = start_server().await;
+    let other_origin_session = connect(&other_origin, "device-a").await;
+    assert!(matches!(
+        c.resolve(&other_origin_session, &review, true).await,
+        Err(WorkspaceCoordError::State(
+            WorkspaceStateError::WrongIdentity
+        ))
+    ));
+    c.resolve(&session, &review, true).await.unwrap();
+    assert_eq!(
+        pending(&c, &target).pending.as_ref().unwrap().base_revision,
+        Some(3)
+    );
+    assert_eq!(c.sync(&session).await.unwrap().pushed, 1);
+    assert_eq!(
+        pending(&c, &target).remote.as_ref().unwrap().value,
+        Some(preference("dark"))
+    );
+    no_v1(&server);
+}
+
+#[tokio::test]
+async fn same_generation_on_another_device_cannot_resolve_an_unreviewed_local_candidate() {
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let temp = tempfile::tempdir().unwrap();
+    let target = key("preferences", "desktop");
+    let a = coordinator(&temp.path().join("a-private"), &server, "account-a");
+    let b = coordinator(&temp.path().join("b-private"), &server, "account-a");
+    a.bootstrap(&[], None).unwrap();
+    b.bootstrap(&[], None).unwrap();
+    a.stage(target.clone(), WorkspaceEdit::Put(preference("dark")))
+        .unwrap();
+    b.stage(target.clone(), WorkspaceEdit::Put(preference("light")))
+        .unwrap();
+    let review = a.review(&session, &target).await.unwrap();
+    let request_count = server.remote.lock().unwrap().requests.len();
+    assert_eq!(
+        review.local_generation(),
+        b.snapshot()
+            .unwrap()
+            .state
+            .local_generation(&target)
+            .unwrap()
+    );
+    assert!(matches!(
+        b.resolve(&session, &review, true).await,
+        Err(WorkspaceCoordError::State(WorkspaceStateError::StaleReview))
+    ));
+    assert_eq!(server.remote.lock().unwrap().requests.len(), request_count);
+    assert_eq!(
+        pending(&b, &target).pending.unwrap().edit,
+        WorkspaceEdit::Put(preference("light"))
+    );
+    assert_eq!(server.remote.lock().unwrap().writes(), 0);
+}
+
+#[tokio::test]
+async fn deleting_an_unbased_absent_record_requires_a_live_get_but_no_write() {
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("private-workspace");
+    let target = key("preferences", "desktop");
+    let c = coordinator(&root, &server, "account-a");
+    assert!(matches!(
+        c.stage(target.clone(), WorkspaceEdit::Delete),
+        Err(WorkspaceCoordError::BootstrapRequired)
+    ));
+    c.bootstrap(&[], None).unwrap();
+    c.stage(target.clone(), WorkspaceEdit::Delete).unwrap();
+    let result = c.sync(&session).await.unwrap();
+    assert_eq!(result.absent_deletes, 1);
+    assert_eq!(result.pushed, 0);
+    assert_eq!(result.pending, 0);
+    assert!(c.snapshot().unwrap().state.entry(&target).is_none());
+    let remote = server.remote.lock().unwrap();
+    assert_eq!(remote.writes(), 0);
+    assert_eq!(
+        remote
+            .requests
+            .iter()
+            .filter(|r| r.target == "/api/v2/sync/collections/preferences/desktop")
+            .count(),
+        1
+    );
+}

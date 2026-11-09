@@ -11,11 +11,21 @@ PR7 (`feat/desktop-cloud-sync`, stacked on PR6) adds opt-in sync of the
 
 ## Backend v2 handoff reviewed on 2026-11-08
 
-The sibling RemakeBackend repository is clean on `master` at `0c552b3`
-(`feat(cloud): add single-instance v2 catalog, library and workspace sync`).
+The complete Desktop implementation and acceptance requirements are in
+[Desktop Cloud v2](CLOUD-V2-DESKTOP.md). Its contract/coordinator foundation is
+implemented and locally tested. Native transport, durable state/store and
+WorkspaceCoordinator support all five collections, but the application still
+uses v1. Explicit cutover, product RPC/UI, reviewed local application and actual
+two-Desktop v2 acceptance are pending. The components, flow and historical
+validation sections below describe v1.
+
+The reviewed sibling RemakeBackend commit is `c0fb951`
+(`fix(cloud): preserve v2 JSONB identities and verify recovery`), built on the
+v2 catalog, library and workspace implementation in `0c552b3`.
 Its current contract is `docs/CLOUD-API-V2.md`; `docs/CLOUD-REDESIGN.md` and the
 latest section of `docs/IMPLEMENTATION-STATUS.md` supersede older roadmap gaps.
-This Desktop still uses the vendored v1 client/coordinator described below.
+That commit includes the digest-repair, recovery, byte-ordered pagination and
+browser/CI changes covered by this checkpoint.
 
 The backend now implements a generation-scoped plugin catalog, a revisioned
 private/public template/profile library with independent moderation, and HTTP
@@ -25,33 +35,73 @@ ETags, tombstones, account quotas and a bounded change feed with snapshot rebuil
 It serves account configuration; LIVE management continues through the host's
 separate scoped collaboration transport.
 
-The next integration must preserve the following boundaries:
+The implemented foundation preserves the following boundaries:
 
-- Port the backend-owned v2 transport/contracts while preserving Desktop auth
-  and local state fixes. Its new `workspace.rs` calls are stateless; the existing
-  backend `SyncState`/`StateStore` and this Desktop coordinator remain v1-only.
-- Add a versioned, durable v2 pending/conflict/cursor store bound to account and
-  pinned origin. Explicitly stage existing selections once, then run one engine;
-  keep v1 and v2 cursors and pending edits distinct during cutover.
-- Pin the operator's instance and independent trust roots. Complete catalog and
-  library reads before applying reviewed imports through the native atomic
+- Backend-owned portable contracts and v2 transport were added without replacing
+  Desktop authentication or v1 state. `WorkspaceState`, `WorkspaceStore` and
+  `WorkspaceCoordinator` are separate APIs; `SyncState`, `StateStore` and the
+  existing product `sync.*` integration retain their v1 meaning.
+- V2 files are private, generation-checked and partitioned by origin/account.
+  Frozen base bodies, unconfirmed writes, conflicts and newer local generations
+  survive restart. Writes become durably unconfirmed before HTTP; a matching
+  current value is not treated as proof of an unknown original result.
+- Read-only conflict review is bound to its coordinator, identity and local
+  generation. Resolution requires another fresh read. A 410 persists an explicit
+  rebuild requirement; validated cache rebuilds retain pending edits and reject
+  rewinds without applying remote source locally.
+- Release builds ignore runtime origin overrides; operators choose the origin
+  at build time and debug builds retain the development override. Independent
+  package trust roots and the remaining product selector restrictions still
+  apply.
+
+The next product integration must:
+
+- Expose opt-in and explicit reviewed cutover, stage existing selections once,
+  preserve v1 files, and run exactly one protocol for each identity. Never copy
+  v1 revisions/cursors into v2 or silently activate both coordinators.
+- Wire catalog/library views and apply reviewed imports through the native atomic
   [Owner library transition](LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions).
   Resolve local `secretRef` values through a defined local policy; preserve
   unsupported source without silently renaming, dropping or activating it.
 - Check cloud portability explicitly: backend documents have a 256 KiB ceiling,
   depth 24, 8,192 nodes, bounded strings and ASCII document IDs. The broader
   local library limits do not imply cloud portability.
-- Prove v2 populated-database upgrade/restore and actual Desktop offline,
-  lost-response, account-switch, conflict and expired-cursor rebuild behavior.
-  The maintained backend recovery drill currently stops before v2. Its admin
-  Playwright CSRF case does not exercise an authenticated rejected-Origin write,
-  and backend CI has no admin build/Playwright job; close those evidence gaps.
+- Complete the thirteen acceptance scenarios in [Desktop Cloud v2](CLOUD-V2-DESKTOP.md#required-acceptance-evidence),
+  including actual Desktop offline/lost-response/account-switch/conflict/rebuild
+  behavior and the supported local application paths for all five collections.
 
-The backend status records prior workspace/PostgreSQL/SDK checks; this handoff
-review inspected current source and tests without redeploying or migrating a
-database. Backend v2 integration and production acceptance remain separate work.
+### Current local evidence
 
-## Components
+- Foundation package suites: **86 passed** (48 client, 5 contracts, 14 auth,
+  19 coordinator), covering existing regressions plus state/storage and loopback
+  HTTP cases. Four release-origin policy tests are included in auth.
+- Core regression: **755 unit + 8 integration tests passed**; control API,
+  collaboration and client suites: **302 passed**. Clippy passed across the
+  selected 11 Rust packages. The feature-disabled core check passed, with
+  existing unused-code warnings. Rust 1.95 checks passed for the four foundation
+  packages with all targets/features; the SDK Rust 1.89 check also passed.
+  The normal Desktop/CLI build passed with the build-time origin override
+  unset and CLI remote-control/local-web features enabled.
+- The current frontend production bundle built successfully. The packaged Owner
+  library browser regression passed against rebuilt current assets (**95.87 s**),
+  covering all eight operations in EN/ES, sixteen native receipts and lost-reply
+  recovery. This remains local Owner behavior, separate from v2 product acceptance.
+- The maintained backend pre-v2 upgrade/digest-repair/actual SQL dump-and-restore
+  drill passed on native PostgreSQL (**17.31 s**) and pgrust (**18.61 s**), with
+  two pure URL-guard tests. Six v2 database cases, including ASCII punctuation
+  pagination, passed on both SQL runtimes; the earlier 67-case database suite
+  passed on native PostgreSQL. Backend Rust 1.95 workspace and Rust 1.89 SDK
+  compiler checks passed.
+- Backend authenticated rejected-Origin browser coverage passed locally on both
+  SQL runtimes (two browser cases). Admin build/Playwright coverage is now in CI
+  configuration; **GitHub Actions itself was not run**.
+
+These checks used disposable local fixtures, not the configured application or
+production database. The restore drill covers SQL data only, excluding object
+volumes, credentials and live cutover. No deployed migration, production trust
+or completed two-Desktop v2 product workflow is claimed.
+
+## Existing v1 components
 
 | Area | Location |
 | --- | --- |
@@ -62,7 +112,7 @@ database. Backend v2 integration and production acceptance remain separate work.
 | Control API | `crates/tiktools-control-api/src/modules/sync.rs` (`sync.*`, feature `cloud-auth`) |
 | Frontend | `src/web/entities/cloud-sync/`, `src/web/features/cloud-sync/ui/CloudSyncEditor.vue`, Settings wiring |
 
-## Flow
+## Existing v1 flow
 
 1. The user opts in (`sync.enable` / Settings toggle); the flag lives in
    `<data>/cloud-sync/cloud-sync.json`. Disabled means inert: staging is a
@@ -84,14 +134,14 @@ database. Backend v2 integration and production acceptance remain separate work.
    rebases for the next upload; `keepLocal:false` drops the edit and applies
    the remote value immediately. `SyncStatus.conflicts` lists them.
 
-## State isolation
+## Existing v1 state isolation
 
 - `StateStore` files live per device under `<data>/cloud-sync/` and are
   bound to `(origin, account_id)`; a mismatch is replaced, never merged.
 - Logout keeps the file (same-account re-login resumes); switching accounts
   resets to a fresh state without touching the old account's server records.
 
-## Validation (2026-11-04, local)
+## Historical v1 validation (2026-11-04, local)
 
 - `cargo test -p tiktools-cloud-sync`: **11 passed** (two-device, offline
   staging + resume, both conflict directions, cursor expiry, tombstones,

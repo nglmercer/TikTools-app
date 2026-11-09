@@ -10,6 +10,8 @@
 //! is what prevents sync loops).
 
 pub use cloud_client::{PluginSelection, SyncError, SyncState};
+mod workspace;
+pub use workspace::{WorkspaceCoordError, WorkspaceCoordinator, WorkspaceOutcome, WorkspaceReview};
 
 use std::{
     path::{Path, PathBuf},

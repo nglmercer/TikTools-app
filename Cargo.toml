@@ -17,6 +17,7 @@ members = [
     "crates/tiktools-plugin-installer",
     "crates/tiktools-plugin-devkit",
     "crates/cloud-client",
+    "crates/cloud-contracts",
     "crates/tiktools-cloud-auth",
     "crates/tiktools-cloud-sync",
     "crates/tiktools-collaboration",
@@ -41,7 +42,7 @@ rust-version = "1.95"
 
 [workspace.dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.154"
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
 ryu-js = "=1.0.3"
 semver = { version = "1.0.28", features = ["serde"] }
 schemars = "1.2.3"

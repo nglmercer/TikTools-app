@@ -37,12 +37,15 @@ of RemakeBackend at `6aead4e`). No second OAuth flow is implemented.
 
 ## Configuration
 
-- The Cloud origin resolves automatically, so a fresh install can sign in with
-  no setup. Precedence:
-  1. runtime `TIKTOOLS_CLOUD_ORIGIN` (development/staging override; an empty
-     value, `off` or `none` disables Cloud and every `cloud.*` method fails
-     closed with `cloud-not-configured`),
-  2. `TIKTOOLS_CLOUD_ORIGIN` at build time,
+- Release builds pin the Cloud instance at build time using
+  `TIKTOOLS_CLOUD_ORIGIN`, or use the built-in official origin when it is absent.
+  Runtime environment variables cannot replace or disable a release's instance.
+  Operators can compile an empty value, `off` or `none` to disable Cloud;
+  `cloud.*` then fails closed with `cloud-not-configured`.
+- Debug builds additionally accept runtime `TIKTOOLS_CLOUD_ORIGIN` for isolated
+  development/staging (including the same disable values). Their precedence is:
+  1. the runtime development override,
+  2. the operator's build-time value,
   3. the built-in official origin
      (`tiktools_cloud_auth::DEFAULT_CLOUD_ORIGIN`,
      `https://remakebackend-production-a872.up.railway.app`).

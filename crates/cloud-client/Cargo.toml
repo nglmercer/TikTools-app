@@ -11,6 +11,7 @@ system-browser = ["dep:open"]
 os-keychain = ["dep:keyring"]
 
 [dependencies]
+cloud-contracts = { path = "../cloud-contracts" }
 better-auth = { git = "https://github.com/nglmercer/better-auth-rs.git", rev = "c6940517155ff9a123221789b1efc89ef48cb19c", default-features = false }
 base64 = "0.23"
 getrandom = "0.4.3"
