@@ -43,6 +43,39 @@ external effects, and stopping a worker cannot undo effects already performed
 by native or external code. The separate implicit-start/disable race and the
 global lifecycle lock held during runtime loading are still unresolved.
 
+### Pending: bounded startup delivery and lifecycle admission
+
+The current host must not treat its startup buffer as a reliable queue. A
+complete replacement needs to reserve bounded delivery capacity **before**
+executing `onLoad`, so overload can reject admission without automatically
+rerunning code that may already have caused an external effect. Reservations
+must bind the plugin ID and worker generation, and an interrupted or cancelled
+load must remain uncertain until its worker and any detached native work are
+reconciled. Stopping a worker must invalidate its reservation and prevent a
+late result from being attributed to a later generation. Native code cannot be
+safely cancelled or its external effects rolled back merely by dropping a Rust
+future.
+
+Delivery also needs bounded per-plugin queues with one ordered consumer per
+generation. A plugin waiting for its activation/automation refresh must not
+block events from unrelated plugins. Admission, cancellation and shutdown must
+have explicit outcomes; do not silently drop an accepted batch or replay an
+uncertain `onLoad`. The transition must cover service startup, explicit enable,
+install/reinstall, package changes and implicit starts used by poll, actions
+and processors. A contended lifecycle or projection lock must not leave an
+enabled worker permanently fenced without an explicit recoverable outcome.
+Avoid holding the global lifecycle or invocation lock while waiting for plugin
+initialization, network I/O or another plugin's event processing.
+
+Acceptance requires deterministic tests for at least nine simultaneous
+startup emitters on a single-thread executor, bounded overload, one blocked
+plugin alongside an active sibling, enable/disable and reinstall while startup
+or projection refresh is pending, a late worker response after cancellation,
+same-plugin generation ordering, poisoned/contended locks, and shutdown with
+queued work. Exercise real `onLoad` emission as well as the Core integration,
+and verify that other event buses and downstream consumers report their own
+lag rather than assuming this boundary provides durable delivery.
+
 
 TypeScript-first plugins compiled to JavaScript ahead of time and executed
 through `napi_vm::RustPluginHost` — napi-vm's pure-Rust interpreter. There is
