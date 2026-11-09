@@ -1,5 +1,20 @@
 # LIVE collaboration implementation evidence
 
+## Competition updates and winner actions
+
+The host now reserves competition creation, definition and lifecycle changes in
+the coordination outbox. The competition stream supplies scoped summary
+snapshots and replayable invalidations. The native controller invalidates its
+cached command target and refreshes the visible page on receipt; its periodic
+fallback remains available for older hosts. A local TLS controller test checks
+a host edit and grant narrowing. Physical two-PC and real LIVE acceptance remain
+open, as do remote start/resume and their delayed delegated effects.
+
+Winner selection, durable result storage and action dispatch now use the same
+lookup for user winners and option winners. The challenge fixture checks that
+the persisted user-winner action actually completes through the worker; it does
+not establish delegated winner execution.
+
 ## Shared source response revalidation
 
 Before a shared automation definition is released, the API rechecks the current

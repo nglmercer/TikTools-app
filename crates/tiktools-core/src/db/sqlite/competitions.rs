@@ -1140,23 +1140,11 @@ impl DatabaseManager {
         }
         // User winners (draws and challenges) use `on_user_win`; option
         // winners use the selected option's action.
-        let user_winner = matches!(
-            definition.kind,
-            tiktools_competitions::CompetitionKind::RandomDraw
-                | tiktools_competitions::CompetitionKind::WeightedDraw
-                | tiktools_competitions::CompetitionKind::LeaderboardChallenge
-        );
-        let expected_action = result.selection.winner.as_ref().and_then(|winner| {
-            if user_winner {
-                definition.on_user_win.as_ref()
-            } else {
-                definition
-                    .options
-                    .iter()
-                    .find(|option| &option.id == winner)
-                    .and_then(|option| option.on_win.as_ref())
-            }
-        });
+        let expected_action = result
+            .selection
+            .winner
+            .as_deref()
+            .and_then(|winner| definition.winner_action(winner));
         if action != expected_action {
             return Err(DatabaseError::Invalid(
                 "winner action does not match definition".into(),

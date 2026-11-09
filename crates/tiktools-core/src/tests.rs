@@ -3078,6 +3078,14 @@ async fn user_winner_action_is_queued_once_for_a_challenge() {
         CompetitionKind, Definition, SelectionMode, TiePolicy, Transition, WinnerAction,
     };
     let (core, root) = private_core("user-winner-action");
+    core.automation_save(
+        control::AutomationKind::Action,
+        &serde_json::json!({
+            "id":"reward", "name":"Reward", "typeId":"core.log", "enabled":true,
+            "config":{"message":"Winner {{event.data.winnerId}}"}
+        }),
+    )
+    .unwrap();
     core.ranking_create(Ranking {
         schema_version: 1,
         id: "score".into(),
@@ -3149,6 +3157,29 @@ async fn user_winner_action_is_queued_once_for_a_challenge() {
             .created_at,
         action.created_at
     );
+    core.start_competition_timer();
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let action = core
+                .competition_action("challenge", result.generation)
+                .unwrap()
+                .unwrap();
+            if action.status == tiktools_competitions::ActionStatus::Completed {
+                break;
+            }
+            assert!(
+                !matches!(
+                    action.status,
+                    tiktools_competitions::ActionStatus::Failed
+                        | tiktools_competitions::ActionStatus::Uncertain
+                ),
+                "winner action failed: {action:?}"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
 }

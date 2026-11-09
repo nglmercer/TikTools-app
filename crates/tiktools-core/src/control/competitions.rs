@@ -637,29 +637,16 @@ impl AppCore {
         .map_err(|error| {
             OperationError::conflict(format!("winner selection unavailable: {error:?}"))
         })?;
-        let user_winner = participant_draw || challenge;
-        let action = if user_winner {
-            selection
-                .winner
-                .as_ref()
-                .and(definition.on_user_win.as_ref())
-        } else {
-            selection
-                .winner
-                .as_ref()
-                .and_then(|winner| {
-                    definition
-                        .options
-                        .iter()
-                        .find(|option| &option.id == winner)
-                })
-                .and_then(|option| option.on_win.as_ref())
-        };
+        let user_winner = definition.has_user_winner();
+        let action = selection
+            .winner
+            .as_deref()
+            .and_then(|winner| definition.winner_action(winner));
         let result = ResultRecord {
             schema_version: 1,
             competition_id: id.to_owned(),
             generation: state.generation,
-            ranking_id: definition.ranking_id,
+            ranking_id: definition.ranking_id.clone(),
             ranking_revision: snapshot.revision,
             finalized_at: crate::now_millis(),
             selection,

@@ -117,7 +117,8 @@ impl AppCore {
             let result = core.db.load_competition_result(&lookup.competition_id, lookup.generation).map_err(|_| "result_unavailable")?.ok_or("result_unavailable")?;
             let definition = core.competition_get(&lookup.competition_id).map_err(|_| "competition_unavailable")?;
             let winner = result.selection.winner.clone().ok_or("winner_unavailable")?;
-            if definition.options.iter().find(|option| option.id == winner).and_then(|option| option.on_win.as_ref()) != Some(&lookup.action) { return Err("action_reference_mismatch"); }
+            let user_winner = definition.has_user_winner();
+            if definition.winner_action(&winner) != Some(&lookup.action) { return Err("action_reference_mismatch"); }
             let ranking = core.ranking_get(&definition.ranking_id).map_err(|_| "ranking_unavailable")?;
             let mut action = core.automation_get(crate::control::AutomationKind::Action, &lookup.action.action_id).map_err(|_| "action_unavailable")?;
             if action.get("enabled").and_then(serde_json::Value::as_bool) == Some(false) { return Err("action_disabled"); }
@@ -133,7 +134,7 @@ impl AppCore {
             let event = serde_json::json!({"id": lookup.idempotency_key, "type": "competition.winner.selected", "timestamp": result.finalized_at,
                 "creator": {"uniqueId": ranking.creator_id, "roomId": ranking.room_id},
                 "data": {"competitionId": lookup.competition_id, "generation": lookup.generation,
-                    "optionId": winner, "winnerId": winner, "winnerScore": score,
+                    "optionId": if user_winner { None } else { Some(winner.as_str()) }, "winnerId": winner, "winnerScore": score,
                     "rankingId": result.ranking_id, "selectionMode": result.selection.mode,
                     "selectionId": lookup.idempotency_key, "actionId": lookup.action.action_id} });
             Ok((action, event))
