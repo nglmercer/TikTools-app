@@ -107,6 +107,9 @@ pub(crate) struct ApprovalCandidate {
     catalog_epoch: u64,
 }
 impl ApprovalCandidate {
+    pub(super) fn is_reusable(&self) -> bool {
+        self.approval.is_none()
+    }
     pub(crate) fn requires_scoped_input(&self) -> bool {
         self.definitions.iter().any(|fence| {
             fence.family == AutomationFamily::Event
@@ -395,31 +398,15 @@ impl RuntimeApprovalPermit {
 }
 
 impl AutomationService {
-    /// Capture only saved host-index state. This does not itself authorize a
-    /// run; authorize() resolves all subjects and checks reusable policies.
-    #[allow(dead_code)] // Runtime dispatch integration is a separate pending step.
+    /// Capture saved host state only; the caller must still authorize its subjects.
+    #[allow(dead_code)]
     pub(crate) fn reusable_candidate(
         &self,
         family: AutomationFamily,
         id: &str,
     ) -> Option<ApprovalCandidate> {
         let index = recover_rwlock_read(&self.index, "automation index");
-        let primary = match family {
-            AutomationFamily::Action => index.actions.get(id),
-            AutomationFamily::Event => index.events.get(id),
-        }?;
-        let (review, definitions) = capture_review(&index, family, &primary.definition)?;
-        if manifest::required_subjects(&review).ok()?.is_empty() {
-            return None;
-        }
-        Some(ApprovalCandidate {
-            index_identity: index.identity.clone(),
-            approval_key: (family.scope().into(), id.into()),
-            approval: None,
-            review,
-            definitions,
-            catalog_epoch: index.catalog_epoch?,
-        })
+        reusable_candidate_for_primary(&index, family, id)
     }
     /// Check that a DB review describes the currently installed runtime
     /// closure. This comparison is advisory; it cannot authorize execution.
@@ -584,6 +571,29 @@ fn execution_chain_current(
                     .iter()
                     .all(|fence| fence.authority.is_owner() && fence_current(index, fence))
         })
+}
+
+pub(super) fn reusable_candidate_for_primary(
+    index: &BehaviorIndex,
+    family: AutomationFamily,
+    id: &str,
+) -> Option<ApprovalCandidate> {
+    let primary = match family {
+        AutomationFamily::Action => index.actions.get(id),
+        AutomationFamily::Event => index.events.get(id),
+    }?;
+    let (review, definitions) = capture_review(index, family, &primary.definition)?;
+    if manifest::required_subjects(&review).ok()?.is_empty() {
+        return None;
+    }
+    Some(ApprovalCandidate {
+        index_identity: index.identity.clone(),
+        approval_key: (family.scope().into(), id.into()),
+        approval: None,
+        review,
+        definitions,
+        catalog_epoch: index.catalog_epoch?,
+    })
 }
 
 pub(super) fn candidate_current(index: &BehaviorIndex, candidate: &ApprovalCandidate) -> bool {

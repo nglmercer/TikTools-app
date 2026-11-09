@@ -494,6 +494,15 @@ impl AppCore {
         }
         #[cfg(feature = "persistence")]
         {
+            // A retained permit may already cover this exact saved action as
+            // part of its pinned closure. Recheck the full chain before reuse.
+            if incoming.is_approved()
+                && incoming
+                    .with_current_subjects(action, &self.automation, |_| Ok(()))
+                    .is_ok()
+            {
+                return Ok(incoming.clone());
+            }
             if let Some(candidate) = self.automation.approval_candidate(action, origin) {
                 return self.approved_candidate_context(candidate, incoming).await;
             }

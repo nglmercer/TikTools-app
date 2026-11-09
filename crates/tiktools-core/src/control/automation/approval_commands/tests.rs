@@ -836,3 +836,77 @@ async fn revoke_and_reapprove_during_delay_never_revives_the_captured_old_run() 
 
 mod external;
 mod scoped_flow;
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_grant_runs_saved_live_event_and_revocation_stops_it() {
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.max_points_delta = Some(5.0);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+    });
+    let auth = f.pair(permitted.clone());
+    let identity = auth.snapshot().unwrap();
+    f.draft(
+        &auth,
+        AutomationKind::Action,
+        points("reusable-points", "alice", 2.0),
+    );
+    f.draft(
+        &auth,
+        AutomationKind::Event,
+        event("reusable-event", &["reusable-points"]),
+    );
+    for (kind, id) in [
+        (AutomationKind::Action, "reusable-points"),
+        (AutomationKind::Event, "reusable-event"),
+    ] {
+        f.core().automation_set_enabled(kind, id, true).unwrap();
+        f.assert_delegated(kind, id);
+    }
+    let preflight = f
+        .core()
+        .automation_delegation_preflight(AutomationKind::Event, "reusable-event")
+        .unwrap();
+    assert_eq!(preflight.value["eligible"], true, "{preflight:?}");
+    assert_eq!(
+        f.core()
+            .automation
+            .matching_reusable_candidates(&input("alice"), false)
+            .len(),
+        1
+    );
+    f.core()
+        .run_automation_event(AutomationEvent::owner_without_delegation(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        0.0,
+        "unverified ingress cannot borrow delegation"
+    );
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "runs: {:?}",
+        f.core().automation_runs()
+    );
+    permitted.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: permitted,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 2.0);
+}

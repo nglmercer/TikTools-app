@@ -54,6 +54,56 @@ impl AutomationService {
             })
             .collect()
     }
+    /// Capture possible reusable grants without granting authority. Dispatch
+    /// resolves every saved subject before claiming a cooldown or executing.
+    #[cfg(feature = "persistence")]
+    pub(crate) fn matching_reusable_candidates(
+        &self,
+        event: &Value,
+        scoped: bool,
+    ) -> Vec<MatchedRecord> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        let Some(catalog_epoch) = index.catalog_epoch else {
+            return Vec::new();
+        };
+        let projected = crate::services::automation_approval_policy::project_event(event);
+        index
+            .events
+            .iter()
+            .filter_map(|(id, r)| {
+                if r.generation.is_none()
+                    || r.definition.get("enabled").and_then(Value::as_bool) != Some(true)
+                    || r.definition.get("trigger").and_then(Value::as_str)
+                        != projected.get("type").and_then(Value::as_str)
+                    || !trigger_allowed(
+                        r.definition.get("trigger").and_then(Value::as_str),
+                        &index.trigger_owners,
+                        &index.enabled_plugins,
+                    )
+                    || record_authorized(&index, &r.definition)
+                    || !public_filter_paths(&r.definition)
+                    || !event_record_matches(&r.definition, &projected)
+                {
+                    return None;
+                }
+                let candidate = super::approval::reusable_candidate_for_primary(
+                    &index,
+                    crate::collaboration::AutomationFamily::Event,
+                    id,
+                )?;
+                if !scoped && candidate.requires_scoped_input() {
+                    return None;
+                }
+                Some(MatchedRecord {
+                    definition: r.definition.clone(),
+                    generation: r.generation,
+                    catalog_epoch,
+                    actions: select_actions(&index, &r.definition),
+                    approval: Some(candidate),
+                })
+            })
+            .collect()
+    }
     pub(crate) fn manual_record(&self, record: &Value) -> Option<MatchedRecord> {
         let index = recover_rwlock_read(&self.index, "automation index");
         if !record_authorized(&index, record) {
@@ -116,7 +166,7 @@ impl AutomationService {
     pub(crate) fn is_match_live(&self, record: &MatchedRecord) -> bool {
         let index = recover_rwlock_read(&self.index, "automation index");
         if index.catalog_epoch != Some(record.catalog_epoch)
-            || !record_authorized(&index, &record.definition)
+            || !matched_record_authorized(&index, record)
             || !record_approval_current(&index, record)
         {
             return false;
@@ -128,7 +178,9 @@ impl AutomationService {
                 .and_then(Value::as_str)
                 .and_then(|id| index.events.get(id))
                 .is_some_and(|r| {
-                    r.generation == Some(generation) && record_allowed(&index, &r.definition)
+                    r.generation == Some(generation)
+                        && r.definition == record.definition
+                        && matched_record_allowed(&index, record)
                 })
             {
                 return false;
@@ -148,7 +200,7 @@ impl AutomationService {
     pub(crate) fn is_step_live(&self, record: &MatchedRecord, action: &MatchedAction) -> bool {
         let index = recover_rwlock_read(&self.index, "automation index");
         if index.catalog_epoch != Some(record.catalog_epoch)
-            || !record_authorized(&index, &record.definition)
+            || !matched_record_authorized(&index, record)
             || !record_approval_current(&index, record)
         {
             return false;
@@ -160,7 +212,9 @@ impl AutomationService {
                 .and_then(Value::as_str)
                 .and_then(|id| index.events.get(id))
                 .is_some_and(|r| {
-                    r.generation == Some(generation) && record_allowed(&index, &r.definition)
+                    r.generation == Some(generation)
+                        && r.definition == record.definition
+                        && matched_record_allowed(&index, record)
                 })
             {
                 return false;
@@ -260,6 +314,26 @@ fn record_allowed(index: &BehaviorIndex, record: &Value) -> bool {
         && record.get("enabled").and_then(Value::as_bool) == Some(true)
         && trigger_allowed(
             record.get("trigger").and_then(Value::as_str),
+            &index.trigger_owners,
+            &index.enabled_plugins,
+        )
+}
+fn matched_record_authorized(index: &BehaviorIndex, record: &MatchedRecord) -> bool {
+    if record_authorized(index, &record.definition) {
+        return true;
+    }
+    #[cfg(feature = "persistence")]
+    return record.approval.as_ref().is_some_and(|candidate| {
+        candidate.is_reusable() && super::approval::candidate_current(index, candidate)
+    });
+    #[cfg(not(feature = "persistence"))]
+    false
+}
+fn matched_record_allowed(index: &BehaviorIndex, record: &MatchedRecord) -> bool {
+    matched_record_authorized(index, record)
+        && record.definition.get("enabled").and_then(Value::as_bool) == Some(true)
+        && trigger_allowed(
+            record.definition.get("trigger").and_then(Value::as_str),
             &index.trigger_owners,
             &index.enabled_plugins,
         )

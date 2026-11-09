@@ -337,7 +337,7 @@ impl AppCore {
                 Err(_) => return,
             }
         };
-        let matched = if incoming.is_owner() {
+        let mut matched = if incoming.is_owner() {
             self.automation.matching_records(&event)
         } else {
             #[cfg(feature = "persistence")]
@@ -349,6 +349,21 @@ impl AppCore {
                 return;
             }
         };
+        #[cfg(feature = "persistence")]
+        for candidate in self
+            .automation
+            .matching_reusable_candidates(&event, !incoming.is_owner())
+        {
+            // Provisional candidates never affect cooldowns or effects. Resolve
+            // current grants now, and revalidate again during execution.
+            if self
+                .record_execution_context(&candidate, &incoming)
+                .await
+                .is_ok()
+            {
+                matched.push(candidate);
+            }
+        }
         // Match outcome only (counts), never event contents: key data must
         // not end up in logs.
         tracing::debug!(
