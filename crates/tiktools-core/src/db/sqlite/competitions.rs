@@ -189,7 +189,6 @@ impl DatabaseManager {
             tx.execute("UPDATE competition_state SET state_json=?2 WHERE competition_id=?1", params![id,serde_json::to_string(&state)?])?;
             let next: i64 = tx.query_row("SELECT revision FROM competition_control_revisions WHERE competition_id=?1 AND deleted=0", [id], |r| r.get(0))?;
             if revision.checked_add(1) != Some(next) { return Err(DatabaseError::Invalid("competition revision inconsistent".into())); }
-            tx.execute("INSERT INTO control_resource_outbox(kind,scope,resource_id,revision,change,committed_at) VALUES ('competition','host',?1,?2,?3,?4)", params![id,next,match operation { crate::control::CompetitionRemoteTransition::Pause => "paused", crate::control::CompetitionRemoteTransition::Cancel => "cancelled" },super::util::now()])?;
             let result = Versioned::new(serde_json::json!({"id":id,"lifecycle":state.lifecycle,"generation":state.generation.to_string()}), vec![version(next)]);
             let result = super::commands::finish(&tx, command, &hash, operation.method(), &command.request.expected_revision, result)?;
             identity.check_deadline().map_err(DatabaseError::CommandAuthorization)?;

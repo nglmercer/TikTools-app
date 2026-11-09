@@ -637,27 +637,43 @@ INSERT INTO competition_control_revisions(competition_id,revision,deleted)
   SELECT id,1,0 FROM competition_definitions
   WHERE NOT EXISTS(SELECT 1 FROM competition_revision_migration WHERE singleton=1);
 INSERT OR IGNORE INTO competition_revision_migration(singleton) VALUES (1);
-CREATE TRIGGER IF NOT EXISTS competition_revision_insert AFTER INSERT ON competition_definitions BEGIN
+DROP TRIGGER IF EXISTS competition_revision_insert;
+DROP TRIGGER IF EXISTS competition_revision_definition_update;
+DROP TRIGGER IF EXISTS competition_revision_definition_delete;
+DROP TRIGGER IF EXISTS competition_revision_state_update;
+CREATE TRIGGER competition_revision_insert AFTER INSERT ON competition_definitions BEGIN
   INSERT INTO competition_control_revisions(competition_id,revision,deleted) VALUES (NEW.id,1,0)
   ON CONFLICT(competition_id) DO UPDATE SET
     revision=CASE WHEN deleted=1 THEN revision+1 ELSE RAISE(ABORT,'competition revision inconsistent') END,
     deleted=0;
+  INSERT INTO control_resource_outbox(kind,scope,resource_id,revision,change,committed_at)
+    SELECT 'competition','host',NEW.id,revision,'created',CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)
+    FROM competition_control_revisions WHERE competition_id=NEW.id;
 END;
-CREATE TRIGGER IF NOT EXISTS competition_revision_definition_update AFTER UPDATE ON competition_definitions BEGIN
+CREATE TRIGGER competition_revision_definition_update AFTER UPDATE ON competition_definitions BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM competition_control_revisions WHERE competition_id=NEW.id AND deleted=0)
     THEN RAISE(ABORT,'competition revision missing') END;
   UPDATE competition_control_revisions SET revision=revision+1 WHERE competition_id=NEW.id;
+  INSERT INTO control_resource_outbox(kind,scope,resource_id,revision,change,committed_at)
+    SELECT 'competition','host',NEW.id,revision,'updated',CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)
+    FROM competition_control_revisions WHERE competition_id=NEW.id;
 END;
-CREATE TRIGGER IF NOT EXISTS competition_revision_definition_delete AFTER DELETE ON competition_definitions BEGIN
+CREATE TRIGGER competition_revision_definition_delete AFTER DELETE ON competition_definitions BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM competition_control_revisions WHERE competition_id=OLD.id AND deleted=0)
     THEN RAISE(ABORT,'competition revision missing') END;
   UPDATE competition_control_revisions SET revision=revision+1,deleted=1 WHERE competition_id=OLD.id;
+  INSERT INTO control_resource_outbox(kind,scope,resource_id,revision,change,committed_at)
+    SELECT 'competition','host',OLD.id,revision,'deleted',CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)
+    FROM competition_control_revisions WHERE competition_id=OLD.id;
 END;
-CREATE TRIGGER IF NOT EXISTS competition_revision_state_update AFTER UPDATE ON competition_state
+CREATE TRIGGER competition_revision_state_update AFTER UPDATE ON competition_state
 WHEN OLD.state_json IS NOT NEW.state_json BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM competition_control_revisions WHERE competition_id=NEW.competition_id AND deleted=0)
     THEN RAISE(ABORT,'competition revision missing') END;
   UPDATE competition_control_revisions SET revision=revision+1 WHERE competition_id=NEW.competition_id;
+  INSERT INTO control_resource_outbox(kind,scope,resource_id,revision,change,committed_at)
+    SELECT 'competition','host',NEW.competition_id,revision,'state-changed',CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)
+    FROM competition_control_revisions WHERE competition_id=NEW.competition_id;
 END;
 "#)?;
     tx.commit()?;
@@ -671,6 +687,7 @@ mod competition_revision_tests {
     #[test]
     fn migration_and_writers_preserve_revisions_across_delete_and_recreate() {
         let mut db = Connection::open_in_memory().unwrap();
+        db.execute_batch(COORDINATION_SCHEMA).unwrap();
         db.execute_batch("CREATE TABLE competition_definitions(id TEXT PRIMARY KEY, definition_json TEXT NOT NULL); CREATE TABLE competition_state(competition_id TEXT PRIMARY KEY, state_json TEXT NOT NULL); INSERT INTO competition_definitions VALUES ('a','old'); INSERT INTO competition_state VALUES ('a','draft');").unwrap();
         migrate_competition_revisions(&mut db).unwrap();
         let revision = |db: &Connection| {
@@ -697,6 +714,22 @@ mod competition_revision_tests {
         assert_eq!(revision(&db), (5, 0));
         migrate_competition_revisions(&mut db).unwrap();
         assert_eq!(revision(&db), (5, 0));
+        let changes: Vec<(i64, String)> = db
+            .prepare("SELECT revision,change FROM control_resource_outbox WHERE kind='competition' AND resource_id='a' ORDER BY cursor")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            changes,
+            vec![
+                (2, "state-changed".into()),
+                (3, "updated".into()),
+                (4, "deleted".into()),
+                (5, "created".into())
+            ]
+        );
         db.execute(
             "DELETE FROM competition_control_revisions WHERE competition_id='a'",
             [],
