@@ -377,8 +377,9 @@ foundation table.
    do not work around the cookie boundary by copying browser credentials.
    RemakeBackend commit `08260f3` adds a separate document moderation screen:
    it displays the exact pending or published revision and supports decisions
-   and withdrawal with a reason. Component and Chromium checks use mocked
-   HTTP; real authenticated backend/database browser acceptance remains open.
+   and withdrawal with a reason. An additional local browser test uses real
+   cookie sessions and disposable PostgreSQL to verify independent review,
+   approval and withdrawal; production deployment acceptance remains open.
    The panel only discovers the current published revision, not historical
    revisions, which remain addressable through the backend API.
 8. Session/account changes invalidate in-flight UI responses, reviews and write
