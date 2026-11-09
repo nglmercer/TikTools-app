@@ -82,5 +82,13 @@ it('previews explicitly shared source before replacing the open editor', async (
     await wrapper.findAll('button').find((button) => button.text() === 'Use this definition')!.trigger('click');
     expect(JSON.parse(model.text.value)).toMatchObject({ name: 'Owner definition', enabled: false });
     expect(model.baseRevision.value).toBe('2'); expect(model.mode.value).toBe('update');
+    const builder = wrapper.get('.proposal-builder');
+    await builder.findAll('button').find((button) => button.text() === 'Load fields from open text')!.trigger('click');
+    expect((builder.findAll('input')[1]!.element as HTMLInputElement).value).toBe('shared value');
+    await builder.findAll('input')[1]!.setValue('changed through fields');
+    await builder.findAll('button').find((button) => button.text() === 'Prepare draft')!.trigger('click');
+    await wrapper.get('dialog[open]').findAll('button').find((button) => button.text() === 'Use this draft')!.trigger('click');
+    expect(JSON.parse(model.text.value)).toMatchObject({ name: 'Owner definition', enabled: false, config: { message: 'changed through fields' } });
+    expect(model.baseRevision.value).toBe('2');
   } finally { wrapper.unmount(); model.stop(); }
 });

@@ -35,6 +35,14 @@ to be previewed over local TLS; the test checks grant narrowing and denies a
 different remote author’s source. The controller requires an explicit selection
 before replacing open text. These tests do not establish physical two-PC use.
 
+The controller's field editor can load a compatible open log, delay, points or
+TikTok event definition, retain unrelated fields, and generate an edited local
+draft. It rejects unsupported filter shapes instead of silently dropping them,
+requires a reload if the open text changes, and replaces the configuration when
+the action type changes. The JSON editor remains available for other definitions.
+The UI tests cover shared-source loading, preservation and stale-field handling;
+they do not establish physical two-PC use or LIVE behavior.
+
 ## Reusable grant: native ingress and two controllers
 
 A native TikTok chat fixture now traverses `prepare_live_event_with_generation`

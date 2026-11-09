@@ -30,6 +30,66 @@ async function setup(kind: 'action' | 'event') {
   return { status, model, wrapper, button, dialogButton, calls, send, client };
 }
 
+it('loads a shared action into fields and preserves unrelated properties', async () => {
+  const f = await setup('action');
+  try {
+    f.model.edit(JSON.stringify({ id: 'author.example', name: 'Existing', enabled: false, typeId: 'core.log', schemaVersion: 2, config: { message: 'before', custom: 'keep' }, custom: { keep: true } }));
+    await f.button('Load fields from open text').trigger('click');
+    expect((f.wrapper.findAll('input')[0]!.element as HTMLInputElement).value).toBe('Existing');
+    expect((f.wrapper.findAll('input')[1]!.element as HTMLInputElement).value).toBe('before');
+    await f.wrapper.findAll('input')[1]!.setValue('after');
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toEqual({ id: 'author.example', name: 'Existing', enabled: false, typeId: 'core.log', schemaVersion: 2, config: { message: 'after', custom: 'keep' }, custom: { keep: true } });
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('does not carry configuration from the previous action type', async () => {
+  const f = await setup('action');
+  try {
+    f.model.edit(JSON.stringify({ id:'author.example', name:'Existing', enabled:false, typeId:'core.log', schemaVersion:2, config:{ message:'before', privateOption:'old' }, custom:'keep' }));
+    await f.button('Load fields from open text').trigger('click');
+    await f.wrapper.findAll('select')[0]!.setValue('core.delay');
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toMatchObject({ typeId:'core.delay', config:{ms:1000}, custom:'keep' });
+    expect(JSON.parse(f.model.text.value).config).toEqual({ms:1000});
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('loads an existing event without dropping unrelated fields or ordered actions', async () => {
+  const f = await setup('event');
+  try {
+    f.model.edit(JSON.stringify({ id:'author.example', name:'Existing event', enabled:false, trigger:'tiktok.gift', actionIds:['one', 'two'], filters:[{path:'event.data.giftName',operator:'contains',value:'Rose'}], cooldownMs:1000, cooldownScope:'user', runMode:'random', schemaVersion:1, custom:{keep:true} }));
+    await f.button('Load fields from open text').trigger('click');
+    expect(f.wrapper.text()).toContain('one');
+    expect(f.wrapper.text()).toContain('two');
+    await f.wrapper.findAll('input')[1]!.setValue('Flower');
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toMatchObject({ name:'Existing event', actionIds:['one', 'two'], filters:[{path:'event.data.giftName',operator:'contains',value:'Flower'}], cooldownMs:1000, cooldownScope:'user', runMode:'random', custom:{keep:true} });
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('rejects unsupported filters and stale imported fields without changing text', async () => {
+  const f = await setup('event');
+  try {
+    const unsupported = JSON.stringify({ id:'author.example', name:'Complex', enabled:false, trigger:'tiktok.chat', actionIds:[], filters:[{path:'event.data.comment',operator:'eq',value:'hello'}], schemaVersion:1 });
+    f.model.edit(unsupported);
+    await f.button('Load fields from open text').trigger('click');
+    expect(f.wrapper.text()).toContain('These fields cannot be loaded');
+    expect(f.model.text.value).toBe(unsupported);
+    f.model.edit(JSON.stringify({ id:'author.example', name:'Simple', enabled:false, trigger:'tiktok.chat', actionIds:[], filters:[], schemaVersion:1 }));
+    await f.button('Load fields from open text').trigger('click');
+    f.model.edit(f.model.text.value + ' ');
+    await flushPromises();
+    expect(f.wrapper.text()).toContain('The open text changed');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
 it('creates a disabled action only after preview, retaining the open text on cancel', async () => {
   const f = await setup('action');
   try {

@@ -86,7 +86,7 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
   function select(family: Family, target: string): void {
     if (!permitted(family, target) || busy.value) return;
     generation += 1; kind.value = family; id.value = target; mode.value = 'create'; baseRevision.value = '0'; saved.value = null; inspection.value = null; sharedSource.value = null;
-    text.value = JSON.stringify(family === 'action' ? { id: target, name: '', enabled: false, typeId: 'core.log', config: {}, schemaVersion: 2 } : { id: target, name: '', enabled: false, trigger: 'tiktok.chat', actionIds: [], filters: [], cooldown: 0, cooldownScope: 'global', runMode: 'all', schemaVersion: 1 }, null, 2);
+    text.value = JSON.stringify(family === 'action' ? { id: target, name: '', enabled: false, typeId: 'core.log', config: {}, schemaVersion: 2 } : { id: target, name: '', enabled: false, trigger: 'tiktok.chat', actionIds: [], filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all', schemaVersion: 1 }, null, 2);
   }
   async function load(): Promise<void> {
     if (!editable.value) return;

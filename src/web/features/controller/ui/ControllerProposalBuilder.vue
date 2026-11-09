@@ -27,6 +27,7 @@ const labels = computed(() => locale.value === 'es' ? {
   actionLimit: 'Se muestran las primeras 50 coincidencias. Busca por nombre o ID para encontrar otras.', selectAction: 'Usar ID',
   actionDisabled: 'inactiva', actionEnabled: 'activa', actionStatusNote: 'La lista es una instantánea. El anfitrión comprobará las referencias y los permisos al activar la definición.',
   generate: 'Preparar borrador', invalid: 'Completa los campos válidos antes de preparar el borrador.',
+  loadFields: 'Cargar campos del texto abierto', loadFieldsHint: 'Carga acciones de registro, espera o puntos y eventos compatibles. Conserva los demás campos; al cambiar el tipo de acción, se reemplaza su configuración.', loadFieldsError: 'No se pueden cargar estos campos. Revisa el JSON o edítalo directamente.', staleFields: 'El texto abierto cambió. Vuelve a cargar los campos antes de preparar el borrador.',
   confirm: '¿Reemplazar el texto abierto?', warning: 'Se reemplazará el texto abierto por el borrador mostrado. No se guardará ni enviará todavía. Copia antes cualquier contenido que desees conservar.',
   apply: 'Usar este borrador', changed: 'La propuesta, los campos o el acceso cambiaron. Vuelve a revisar el borrador.', preview: 'Borrador nuevo',
 } : {
@@ -49,6 +50,7 @@ const labels = computed(() => locale.value === 'es' ? {
   actionLimit: 'Showing the first 50 matches. Search by name or ID to find others.', selectAction: 'Use ID',
   actionDisabled: 'disabled', actionEnabled: 'enabled', actionStatusNote: 'This list is a snapshot. The host checks references and permissions when activating the definition.',
   generate: 'Prepare draft', invalid: 'Complete the valid fields before preparing the draft.',
+  loadFields: 'Load fields from open text', loadFieldsHint: 'Loads supported log, delay, points and event definitions. Other fields are preserved; changing the action type replaces its configuration.', loadFieldsError: 'These fields cannot be loaded. Check the JSON or edit it directly.', staleFields: 'The open text changed. Reload the fields before preparing the draft.',
   confirm: 'Replace the open text?', warning: 'The open text will be replaced by the draft shown. It will not be saved or sent yet. Copy anything you want to keep first.',
   apply: 'Use this draft', changed: 'The proposal, fields, or access changed. Review the draft again.', preview: 'New draft',
 });
@@ -69,8 +71,11 @@ const runMode = ref<'all' | 'random'>('all');
 const actionSearch = ref('');
 const cooldown = ref('0');
 const cooldownScope = ref<'global' | 'user'>('global');
+const loadedSource = ref<{ text: string; record: Record<string, unknown> } | null>(null);
+const loadError = ref(false);
 const encoder = new TextEncoder();
 const triggers = new Set(['tiktok.chat', 'tiktok.gift', 'tiktok.like', 'tiktok.follow', 'tiktok.share', 'tiktok.join']);
+const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const integer = (value: string, max: number): number | null => {
   if (!/^(0|[1-9]\d*)$/.test(value)) return null;
   const parsed = Number(value);
@@ -114,24 +119,60 @@ function useAction(row: AutomationRow): void {
   if (!matchingActions.value.some((current) => current.version.id === row.version.id && current.version.revision === row.version.revision)) return;
   actionId.value = row.summary.id;
 }
+function loadFields(): void {
+  if (!props.model.editable.value || props.model.busy.value) return;
+  loadError.value = true;
+  let record: unknown;
+  try { record = JSON.parse(props.model.text.value); } catch { return; }
+  if (!object(record) || record['id'] !== props.model.id.value || record['enabled'] !== false || typeof record['name'] !== 'string') return;
+  if (props.model.kind.value === 'action') {
+    if (record['schemaVersion'] !== undefined && record['schemaVersion'] !== 2) return;
+    const config = record['config'];
+    if (!object(config)) return;
+    const type = record['typeId'];
+    if (type === 'core.log' && typeof config['message'] === 'string') {
+      actionType.value = type; message.value = config['message'];
+    } else if (type === 'core.delay' && typeof config['ms'] === 'number' && integer(String(config['ms']), 60_000) !== null) {
+      actionType.value = type; milliseconds.value = String(config['ms']);
+    } else if (type === 'core.points' && typeof config['uniqueId'] === 'string' && typeof config['delta'] === 'number' && pointsChange(String(config['delta'])) !== null && (config['uniqueId'] === '{{event.user.uniqueId}}' || literalViewer(config['uniqueId']))) {
+      actionType.value = type; viewerTarget.value = config['uniqueId'] === '{{event.user.uniqueId}}' ? 'event' : 'specific';
+      viewer.value = viewerTarget.value === 'specific' ? config['uniqueId'] : ''; delta.value = String(config['delta']);
+    } else return;
+  } else {
+    if (record['schemaVersion'] !== undefined && record['schemaVersion'] !== 1) return;
+    const type = record['trigger']; const ids = record['actionIds']; const filters = record['filters'];
+    const wait = record['cooldownMs'] ?? 0; const scope = record['cooldownScope'] ?? 'global'; const mode = record['runMode'] ?? 'all';
+    if (typeof type !== 'string' || !triggers.has(type) || !Array.isArray(ids) || ids.length > 512 || !ids.every((id) => typeof id === 'string' && canonicalId(id)) || new Set(ids).size !== ids.length || !Array.isArray(filters) || filters.length > 1 || typeof wait !== 'number' || integer(String(wait), 86_400_000) === null || !['global', 'user'].includes(String(scope)) || !['all', 'random'].includes(String(mode))) return;
+    const filter = filters[0];
+    if (filter !== undefined && (!object(filter) || Object.keys(filter).some((key) => !['path', 'operator', 'value'].includes(key)) || filter['operator'] !== 'contains' || typeof filter['value'] !== 'string' || !filter['value'] || !((type === 'tiktok.chat' && filter['path'] === 'event.data.comment') || (type === 'tiktok.gift' && filter['path'] === 'event.data.giftName')))) return;
+    trigger.value = type as typeof trigger.value; selectedActionIds.value = [...ids]; actionId.value = '';
+    contains.value = type === 'tiktok.chat' && object(filter) ? filter['value'] as string : '';
+    giftContains.value = type === 'tiktok.gift' && object(filter) ? filter['value'] as string : '';
+    cooldown.value = String(wait); cooldownScope.value = scope as typeof cooldownScope.value; runMode.value = mode as typeof runMode.value;
+  }
+  name.value = record['name'];
+  loadedSource.value = { text: props.model.text.value, record }; loadError.value = false;
+}
 const draft = computed<string | null>(() => {
   const id = props.model.id.value;
+  if (loadedSource.value && loadedSource.value.text !== props.model.text.value) return null;
+  const source = loadedSource.value?.record ?? {};
   if (!props.model.editable.value || !canonicalId(id) || !name.value.trim() || encoder.encode(name.value).length > 256) return null;
   if (props.model.kind.value === 'action') {
     if (actionType.value === 'core.log') {
       if (!message.value.trim() || encoder.encode(message.value).length > 8192) return null;
-      return JSON.stringify({ id, name: name.value, enabled: false, typeId: 'core.log', config: { message: message.value }, schemaVersion: 2 }, null, 2);
+      return JSON.stringify({ ...source, id, name: name.value, enabled: false, typeId: 'core.log', config: { ...(source['typeId'] === 'core.log' && object(source['config']) ? source['config'] : {}), message: message.value }, schemaVersion: 2 }, null, 2);
     }
     if (actionType.value === 'core.delay') {
       const ms = integer(milliseconds.value, 60_000);
       if (ms === null) return null;
-      return JSON.stringify({ id, name: name.value, enabled: false, typeId: 'core.delay', config: { ms }, schemaVersion: 2 }, null, 2);
+      return JSON.stringify({ ...source, id, name: name.value, enabled: false, typeId: 'core.delay', config: { ...(source['typeId'] === 'core.delay' && object(source['config']) ? source['config'] : {}), ms }, schemaVersion: 2 }, null, 2);
     }
     if (actionType.value === 'core.points') {
       const amount = pointsChange(delta.value);
       if (amount === null || !['specific', 'event'].includes(viewerTarget.value) || (viewerTarget.value === 'specific' && !literalViewer(viewer.value))) return null;
       const uniqueId = viewerTarget.value === 'event' ? '{{event.user.uniqueId}}' : viewer.value;
-      return JSON.stringify({ id, name: name.value, enabled: false, typeId: 'core.points', config: { uniqueId, delta: amount }, schemaVersion: 2 }, null, 2);
+      return JSON.stringify({ ...source, id, name: name.value, enabled: false, typeId: 'core.points', config: { ...(source['typeId'] === 'core.points' && object(source['config']) ? source['config'] : {}), uniqueId, delta: amount }, schemaVersion: 2 }, null, 2);
     }
     return null;
   }
@@ -145,7 +186,7 @@ const draft = computed<string | null>(() => {
     : trigger.value === 'tiktok.gift' && giftContains.value
       ? [{ path: 'event.data.giftName', operator: 'contains', value: giftContains.value }]
       : [];
-  return JSON.stringify({ id, name: name.value, enabled: false, trigger: trigger.value,
+  return JSON.stringify({ ...source, id, name: name.value, enabled: false, trigger: trigger.value,
     actionIds: actionIds.value, filters, cooldownMs: wait, cooldownScope: cooldownScope.value, runMode: runMode.value, schemaVersion: 1 }, null, 2);
 });
 
@@ -162,10 +203,11 @@ function apply(): void {
   const generated = capture.value.generated;
   capture.value = null;
   props.model.edit(generated);
+  if (loadedSource.value) loadedSource.value = { text: generated, record: JSON.parse(generated) as Record<string, unknown> };
 }
 // Source and form state are both private to the current connection/selection.
 watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.id.value], () => {
-  capture.value = null; name.value = ''; message.value = ''; actionId.value = ''; selectedActionIds.value = []; actionSearch.value = ''; contains.value = ''; giftContains.value = ''; viewer.value = ''; delta.value = '';
+  capture.value = null; loadedSource.value = null; loadError.value = false; name.value = ''; message.value = ''; actionId.value = ''; selectedActionIds.value = []; actionSearch.value = ''; contains.value = ''; giftContains.value = ''; viewer.value = ''; delta.value = '';
   actionType.value = 'core.log'; viewerTarget.value = 'specific'; runMode.value = 'all'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0'; cooldownScope.value = 'global';
 }, { flush: 'sync' });
 </script>
@@ -174,6 +216,10 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
   <details class="proposal-builder">
     <summary>{{ labels.title }}</summary>
     <p>{{ labels.note }}</p>
+    <p>{{ labels.loadFieldsHint }}</p>
+    <button type="button" :disabled="model.busy.value || !model.editable.value" @click="loadFields">{{ labels.loadFields }}</button>
+    <p v-if="loadError" role="alert">{{ labels.loadFieldsError }}</p>
+    <p v-if="loadedSource && loadedSource.text !== model.text.value" role="status">{{ labels.staleFields }}</p>
     <div class="fields">
       <label>{{ labels.name }}<input v-model="name" maxlength="256" :disabled="model.busy.value"></label>
       <template v-if="model.kind.value === 'action'">
