@@ -202,9 +202,10 @@ describe('account store', () => {
       throw new Error(`unexpected ${method}`);
     });
     const old = store.startLogin();
-    await store.cancelLogin();
+    const cancelled = store.cancelLogin();
+    expect(calls.map((entry) => entry.method)).toEqual(['cloud.login.begin']);
     release({ browserUrl: 'https://cloud.example/desktop/login' });
-    await old;
+    await Promise.all([old, cancelled]);
     expect(calls.map((entry) => entry.method)).toEqual(['cloud.login.begin', 'cloud.login.cancel']);
     expect(store.loginUrl).toBeNull();
     expect(store.status?.state).toBe('signed-out');
@@ -228,4 +229,87 @@ describe('account store', () => {
     await old;
     expect(store.status?.state).toBe('signed-out');
   });
+
+  it('waits for restore before login and keeps the restored account', async () => {
+    let release!: (value: AccountStatus) => void;
+    const pending = new Promise<AccountStatus>((resolve) => { release = resolve; });
+    const { store, calls } = harness((method) => {
+      if (method === 'cloud.status') return signedOut();
+      if (method === 'cloud.restore') return pending;
+      throw new Error(`unexpected ${method}`);
+    });
+    const restored = store.ensureRestored();
+    await flushPromises();
+    const login = store.startLogin();
+    expect(calls.map((entry) => entry.method)).toEqual(['cloud.status', 'cloud.restore']);
+    release(signedOut({ state: 'signed-in', accountId: 'alice' }));
+    await Promise.all([restored, login]);
+    expect(store.status?.accountId).toBe('alice');
+    expect(store.working).toBe(false);
+    expect(store.loading).toBe(false);
+  });
+
+  it('waits for an explicit restore before refreshing status', async () => {
+    let release!: (value: AccountStatus) => void;
+    const pending = new Promise<AccountStatus>((resolve) => { release = resolve; });
+    const { store, calls } = harness((method) => {
+      if (method === 'cloud.restore') return pending;
+      throw new Error(`unexpected ${method}`);
+    });
+    const restored = store.restore();
+    const refreshed = store.refresh();
+    expect(calls.map((entry) => entry.method)).toEqual(['cloud.restore']);
+    release(signedOut({ state: 'signed-in', accountId: 'alice' }));
+    await Promise.all([restored, refreshed]);
+    expect(store.status?.accountId).toBe('alice');
+  });
+
+  it('cancels a login waiting on restore without discarding its result', async () => {
+    let release!: (value: AccountStatus) => void;
+    const pending = new Promise<AccountStatus>((resolve) => { release = resolve; });
+    const { store, calls } = harness((method) => {
+      if (method === 'cloud.restore') return pending;
+      throw new Error(`unexpected ${method}`);
+    });
+    const restored = store.restore();
+    const login = store.startLogin();
+    const cancelled = store.cancelLogin();
+    release(signedOut({ state: 'signed-in', accountId: 'alice' }));
+    await Promise.all([restored, login, cancelled]);
+    expect(calls.map((entry) => entry.method)).toEqual(['cloud.restore']);
+    expect(store.status?.accountId).toBe('alice');
+    expect(store.working).toBe(false);
+  });
+
+  it('does not cancel a native login when begin fails', async () => {
+    let reject!: (error: Error) => void;
+    const pending = new Promise<{ browserUrl: string }>((_, fail) => { reject = fail; });
+    const { store, calls } = harness((method) => {
+      if (method === 'cloud.login.begin') return pending;
+      if (method === 'cloud.status') return signedOut();
+      throw new Error(`unexpected ${method}`);
+    });
+    const login = store.startLogin();
+    const cancelled = store.cancelLogin();
+    reject(new Error('begin failed'));
+    await Promise.all([login, cancelled]);
+    expect(calls.map((entry) => entry.method)).toEqual(['cloud.login.begin', 'cloud.status']);
+    expect(store.status?.state).toBe('signed-out');
+    expect(store.working).toBe(false);
+  });
+
+
+  it('reconciles native state when cancellation fails', async () => {
+    const { store, calls } = harness((method) => {
+      if (method === 'cloud.login.cancel') throw new Error('cancel unavailable');
+      if (method === 'cloud.status') return signedOut({ state: 'signing-in' });
+      throw new Error(`unexpected ${method}`);
+    });
+    await store.cancelLogin();
+    expect(calls.map((entry) => entry.method)).toEqual(['cloud.login.cancel', 'cloud.status']);
+    expect(store.status?.state).toBe('signing-in');
+    expect(store.error).toContain('cancel unavailable');
+    expect(store.working).toBe(false);
+  });
+
 });

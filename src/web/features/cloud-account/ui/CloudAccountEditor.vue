@@ -77,7 +77,7 @@ onMounted(() => {
           :label="error"
           source="account"
         />
-        <template v-if="state === 'signing-in'">
+        <template v-if="state === 'signing-in' || account.loginActive">
           <p class="cloud-account__muted">
             {{ t('account.waiting') }}
           </p>
@@ -91,7 +91,7 @@ onMounted(() => {
         </template>
         <div class="cloud-account__actions">
           <BaseButton
-            v-if="state !== 'signing-in'"
+            v-if="state !== 'signing-in' && !account.loginActive"
             variant="primary"
             :disabled="account.working"
             @click="account.startLogin()"
