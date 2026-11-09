@@ -58,6 +58,52 @@ it('does not carry configuration from the previous action type', async () => {
   } finally { f.wrapper.unmount(); f.model.stop(); }
 });
 
+it('builds and reloads a bounded internal-event action without sending it', async () => {
+  const f = await setup('action');
+  try {
+    await f.wrapper.findAll('input')[0]!.setValue('Notify overlay');
+    await f.wrapper.findAll('select')[0]!.setValue('core.emit');
+    await f.wrapper.findAll('input')[1]!.setValue('overlay.alert');
+    await f.wrapper.get('textarea').setValue('{"user":"{{event.user.uniqueId}}"}');
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toMatchObject({ typeId:'core.emit', enabled:false, config:{type:'overlay.alert', data:{user:'{{event.user.uniqueId}}'}} });
+    await f.button('Load fields from open text').trigger('click');
+    expect((f.wrapper.findAll('input')[1]!.element as HTMLInputElement).value).toBe('overlay.alert');
+    await f.wrapper.findAll('input')[1]!.setValue('INVALID TOPIC');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    await f.wrapper.findAll('input')[1]!.setValue('overlay.alert');
+    await f.wrapper.get('textarea').setValue('[1,2]');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    await f.wrapper.get('textarea').setValue('{"n":1e400}');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    await f.wrapper.get('textarea').setValue('{"deep":' + '['.repeat(40) + '0' + ']'.repeat(40) + '}');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('builds and reloads an internal-event trigger with a literal topic', async () => {
+  const f = await setup('event');
+  try {
+    await f.wrapper.findAll('input')[0]!.setValue('Overlay handler');
+    await f.wrapper.findAll('select')[0]!.setValue('custom');
+    expect(f.wrapper.text()).toContain('only receives authorized internal events');
+    await f.wrapper.findAll('input')[1]!.setValue('overlay.alert');
+    await f.wrapper.findAll('input')[2]!.setValue('action.one');
+    await f.button('Prepare draft').trigger('click');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toMatchObject({ trigger:'overlay.alert', actionIds:['action.one'], filters:[], enabled:false });
+    await f.button('Load fields from open text').trigger('click');
+    expect((f.wrapper.findAll('input')[1]!.element as HTMLInputElement).value).toBe('overlay.alert');
+    await f.wrapper.findAll('input')[1]!.setValue('tiktok.unknown');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    await f.wrapper.findAll('input')[1]!.setValue('tiktok.chat');
+    expect(f.button('Prepare draft').attributes('disabled')).toBeDefined();
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
 it('loads an existing event without dropping unrelated fields or ordered actions', async () => {
   const f = await setup('event');
   try {

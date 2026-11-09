@@ -10,6 +10,7 @@ const { locale } = useI18n();
 const labels = computed(() => locale.value === 'es' ? {
   title: 'Crear una propuesta con campos', note: 'Genera un borrador inactivo. Antes de enviarlo tendrás que guardarlo y revisar el estado del anfitrión.',
   name: 'Nombre', actionType: 'Tipo de acción', log: 'Registrar un mensaje', delay: 'Esperar', points: 'Ajustar puntos de un espectador', message: 'Mensaje', milliseconds: 'Milisegundos',
+  emit: 'Emitir evento interno', topic: 'Nombre exacto del evento', emitData: 'Datos del evento (objeto JSON)', emitHint: 'Usa hasta 64 letras minúsculas, números, puntos, guiones o guiones bajos. El anfitrión debe permitir el nombre exacto y, para campos públicos del directo, la lectura de LIVE.', custom: 'Evento interno', customHint: 'Este evento solo recibe eventos internos autorizados; no se inicia desde TikTok directamente. Usa un nombre exacto en minúsculas.',
   viewer: 'ID exacto del espectador', delta: 'Cambio de puntos', pointsNote: 'Usa un ID literal, sin @ ni variables. El anfitrión comprueba los permisos y límites concedidos para ese espectador; este borrador no ajusta puntos.',
   viewerTarget: 'Espectador que recibe el ajuste', specificViewer: 'Un espectador concreto', triggeringViewer: 'Quien origine el evento',
   dynamicPointsNote: 'El ID se tomará de cada evento. El evento debe contener un espectador y sus permisos se comprobarán en cada ejecución. La autorización debe permitir destinos dinámicos; este borrador no ajusta puntos.',
@@ -27,12 +28,13 @@ const labels = computed(() => locale.value === 'es' ? {
   actionLimit: 'Se muestran las primeras 50 coincidencias. Busca por nombre o ID para encontrar otras.', selectAction: 'Usar ID',
   actionDisabled: 'inactiva', actionEnabled: 'activa', actionStatusNote: 'La lista es una instantánea. El anfitrión comprobará las referencias y los permisos al activar la definición.',
   generate: 'Preparar borrador', invalid: 'Completa los campos válidos antes de preparar el borrador.',
-  loadFields: 'Cargar campos del texto abierto', loadFieldsHint: 'Carga acciones de registro, espera o puntos y eventos compatibles. Conserva los demás campos; al cambiar el tipo de acción, se reemplaza su configuración.', loadFieldsError: 'No se pueden cargar estos campos. Revisa el JSON o edítalo directamente.', staleFields: 'El texto abierto cambió. Vuelve a cargar los campos antes de preparar el borrador.',
+  loadFields: 'Cargar campos del texto abierto', loadFieldsHint: 'Carga acciones de registro, espera, puntos o eventos internos y eventos compatibles. Conserva los demás campos; al cambiar el tipo de acción, se reemplaza su configuración.', loadFieldsError: 'No se pueden cargar estos campos. Revisa el JSON o edítalo directamente.', staleFields: 'El texto abierto cambió. Vuelve a cargar los campos antes de preparar el borrador.',
   confirm: '¿Reemplazar el texto abierto?', warning: 'Se reemplazará el texto abierto por el borrador mostrado. No se guardará ni enviará todavía. Copia antes cualquier contenido que desees conservar.',
   apply: 'Usar este borrador', changed: 'La propuesta, los campos o el acceso cambiaron. Vuelve a revisar el borrador.', preview: 'Borrador nuevo',
 } : {
   title: 'Create a proposal with fields', note: 'Generate a disabled draft. Before sending, save it and inspect the host status.',
   name: 'Name', actionType: 'Action type', log: 'Log a message', delay: 'Wait', points: 'Adjust a viewer’s points', message: 'Message', milliseconds: 'Milliseconds',
+  emit: 'Emit an internal event', topic: 'Exact event name', emitData: 'Event data (JSON object)', emitHint: 'Use up to 64 lowercase letters, digits, dots, hyphens or underscores. The host must allow the exact name and, for public LIVE fields, LIVE read access.', custom: 'Internal event', customHint: 'This event only receives authorized internal events; TikTok does not start it directly. Use an exact lowercase name.',
   viewer: 'Exact viewer ID', delta: 'Points change', pointsNote: 'Use a literal ID without @ or variables. The host checks the granted permissions and limits for that viewer; this draft does not adjust points.',
   viewerTarget: 'Viewer receiving the adjustment', specificViewer: 'A specific viewer', triggeringViewer: 'Viewer who triggers the event',
   dynamicPointsNote: 'The ID comes from each event. The event must contain a viewer, and permissions are checked on every execution. The authorization must allow dynamic targets; this draft does not adjust points.',
@@ -50,19 +52,20 @@ const labels = computed(() => locale.value === 'es' ? {
   actionLimit: 'Showing the first 50 matches. Search by name or ID to find others.', selectAction: 'Use ID',
   actionDisabled: 'disabled', actionEnabled: 'enabled', actionStatusNote: 'This list is a snapshot. The host checks references and permissions when activating the definition.',
   generate: 'Prepare draft', invalid: 'Complete the valid fields before preparing the draft.',
-  loadFields: 'Load fields from open text', loadFieldsHint: 'Loads supported log, delay, points and event definitions. Other fields are preserved; changing the action type replaces its configuration.', loadFieldsError: 'These fields cannot be loaded. Check the JSON or edit it directly.', staleFields: 'The open text changed. Reload the fields before preparing the draft.',
+  loadFields: 'Load fields from open text', loadFieldsHint: 'Loads supported log, delay, points, emit and event definitions. Other fields are preserved; changing the action type replaces its configuration.', loadFieldsError: 'These fields cannot be loaded. Check the JSON or edit it directly.', staleFields: 'The open text changed. Reload the fields before preparing the draft.',
   confirm: 'Replace the open text?', warning: 'The open text will be replaced by the draft shown. It will not be saved or sent yet. Copy anything you want to keep first.',
   apply: 'Use this draft', changed: 'The proposal, fields, or access changed. Review the draft again.', preview: 'New draft',
 });
 
 const name = ref('');
-const actionType = ref<'core.log' | 'core.delay' | 'core.points'>('core.log');
+const actionType = ref<'core.log' | 'core.delay' | 'core.points' | 'core.emit'>('core.log');
 const message = ref('');
 const milliseconds = ref('1000');
 const viewer = ref('');
 const viewerTarget = ref<'specific' | 'event'>('specific');
 const delta = ref('');
-const trigger = ref<'tiktok.chat' | 'tiktok.gift' | 'tiktok.like' | 'tiktok.follow' | 'tiktok.share' | 'tiktok.join'>('tiktok.chat');
+const trigger = ref<'tiktok.chat' | 'tiktok.gift' | 'tiktok.like' | 'tiktok.follow' | 'tiktok.share' | 'tiktok.join' | 'custom'>('tiktok.chat');
+const emitTopic = ref(''); const emitData = ref('{}'); const customTopic = ref('');
 const contains = ref('');
 const giftContains = ref('');
 const actionId = ref('');
@@ -75,7 +78,21 @@ const loadedSource = ref<{ text: string; record: Record<string, unknown> } | nul
 const loadError = ref(false);
 const encoder = new TextEncoder();
 const triggers = new Set(['tiktok.chat', 'tiktok.gift', 'tiktok.like', 'tiktok.follow', 'tiktok.share', 'tiktok.join']);
+const validTopic = (value: string) => value.length > 0 && value.length <= 64 && !/[^a-z0-9._-]/.test(value);
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
+function boundedEmitData(value: unknown): value is Record<string, unknown> {
+  if (!object(value)) return false;
+  const pending: { value: unknown; depth: number }[] = [{ value, depth: 0 }];
+  let count = 0;
+  while (pending.length) {
+    const current = pending.pop()!;
+    if (++count > 8192 || current.depth > 32 || (typeof current.value === 'number' && !Number.isFinite(current.value))) return false;
+    if (current.value && typeof current.value === 'object') {
+      for (const child of Object.values(current.value)) pending.push({ value: child, depth: current.depth + 1 });
+    }
+  }
+  try { return encoder.encode(JSON.stringify(value)).length <= 64 * 1024; } catch { return false; }
+}
 const integer = (value: string, max: number): number | null => {
   if (!/^(0|[1-9]\d*)$/.test(value)) return null;
   const parsed = Number(value);
@@ -137,15 +154,17 @@ function loadFields(): void {
     } else if (type === 'core.points' && typeof config['uniqueId'] === 'string' && typeof config['delta'] === 'number' && pointsChange(String(config['delta'])) !== null && (config['uniqueId'] === '{{event.user.uniqueId}}' || literalViewer(config['uniqueId']))) {
       actionType.value = type; viewerTarget.value = config['uniqueId'] === '{{event.user.uniqueId}}' ? 'event' : 'specific';
       viewer.value = viewerTarget.value === 'specific' ? config['uniqueId'] : ''; delta.value = String(config['delta']);
+    } else if (type === 'core.emit' && typeof config['type'] === 'string' && validTopic(config['type']) && boundedEmitData(config['data'] ?? {})) {
+      actionType.value = type; emitTopic.value = config['type']; emitData.value = JSON.stringify(config['data'] ?? {}, null, 2);
     } else return;
   } else {
     if (record['schemaVersion'] !== undefined && record['schemaVersion'] !== 1) return;
     const type = record['trigger']; const ids = record['actionIds']; const filters = record['filters'];
     const wait = record['cooldownMs'] ?? 0; const scope = record['cooldownScope'] ?? 'global'; const mode = record['runMode'] ?? 'all';
-    if (typeof type !== 'string' || !triggers.has(type) || !Array.isArray(ids) || ids.length > 512 || !ids.every((id) => typeof id === 'string' && canonicalId(id)) || new Set(ids).size !== ids.length || !Array.isArray(filters) || filters.length > 1 || typeof wait !== 'number' || integer(String(wait), 86_400_000) === null || !['global', 'user'].includes(String(scope)) || !['all', 'random'].includes(String(mode))) return;
+    if (typeof type !== 'string' || !(triggers.has(type) || (validTopic(type) && !type.startsWith('tiktok.'))) || !Array.isArray(ids) || ids.length > 512 || !ids.every((id) => typeof id === 'string' && canonicalId(id)) || new Set(ids).size !== ids.length || !Array.isArray(filters) || filters.length > 1 || typeof wait !== 'number' || integer(String(wait), 86_400_000) === null || !['global', 'user'].includes(String(scope)) || !['all', 'random'].includes(String(mode))) return;
     const filter = filters[0];
     if (filter !== undefined && (!object(filter) || Object.keys(filter).some((key) => !['path', 'operator', 'value'].includes(key)) || filter['operator'] !== 'contains' || typeof filter['value'] !== 'string' || !filter['value'] || !((type === 'tiktok.chat' && filter['path'] === 'event.data.comment') || (type === 'tiktok.gift' && filter['path'] === 'event.data.giftName')))) return;
-    trigger.value = type as typeof trigger.value; selectedActionIds.value = [...ids]; actionId.value = '';
+    trigger.value = triggers.has(type) ? type as typeof trigger.value : 'custom'; customTopic.value = trigger.value === 'custom' ? type : ''; selectedActionIds.value = [...ids]; actionId.value = '';
     contains.value = type === 'tiktok.chat' && object(filter) ? filter['value'] as string : '';
     giftContains.value = type === 'tiktok.gift' && object(filter) ? filter['value'] as string : '';
     cooldown.value = String(wait); cooldownScope.value = scope as typeof cooldownScope.value; runMode.value = mode as typeof runMode.value;
@@ -174,10 +193,17 @@ const draft = computed<string | null>(() => {
       const uniqueId = viewerTarget.value === 'event' ? '{{event.user.uniqueId}}' : viewer.value;
       return JSON.stringify({ ...source, id, name: name.value, enabled: false, typeId: 'core.points', config: { ...(source['typeId'] === 'core.points' && object(source['config']) ? source['config'] : {}), uniqueId, delta: amount }, schemaVersion: 2 }, null, 2);
     }
+    if (actionType.value === 'core.emit') {
+      if (!validTopic(emitTopic.value) || encoder.encode(emitData.value).length > 64 * 1024) return null;
+      let data: unknown; try { data = JSON.parse(emitData.value); } catch { return null; }
+      if (!boundedEmitData(data)) return null;
+      return JSON.stringify({ ...source, id, name: name.value, enabled: false, typeId: 'core.emit', config: { ...(source['typeId'] === 'core.emit' && object(source['config']) ? source['config'] : {}), type: emitTopic.value, data }, schemaVersion: 2 }, null, 2);
+    }
     return null;
   }
   const wait = integer(cooldown.value, 86_400_000);
-  if (wait === null || !triggers.has(trigger.value) || !actionsValid.value || !['all', 'random'].includes(runMode.value) ||
+  const eventType = trigger.value === 'custom' ? customTopic.value : trigger.value;
+  if (wait === null || !(trigger.value === 'custom' ? validTopic(eventType) && !eventType.startsWith('tiktok.') : triggers.has(eventType)) || !actionsValid.value || !['all', 'random'].includes(runMode.value) ||
     !['global', 'user'].includes(cooldownScope.value) ||
     (trigger.value === 'tiktok.chat' && encoder.encode(contains.value).length > 500) ||
     (trigger.value === 'tiktok.gift' && encoder.encode(giftContains.value).length > 500)) return null;
@@ -186,7 +212,7 @@ const draft = computed<string | null>(() => {
     : trigger.value === 'tiktok.gift' && giftContains.value
       ? [{ path: 'event.data.giftName', operator: 'contains', value: giftContains.value }]
       : [];
-  return JSON.stringify({ ...source, id, name: name.value, enabled: false, trigger: trigger.value,
+  return JSON.stringify({ ...source, id, name: name.value, enabled: false, trigger: eventType,
     actionIds: actionIds.value, filters, cooldownMs: wait, cooldownScope: cooldownScope.value, runMode: runMode.value, schemaVersion: 1 }, null, 2);
 });
 
@@ -208,7 +234,7 @@ function apply(): void {
 // Source and form state are both private to the current connection/selection.
 watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.id.value], () => {
   capture.value = null; loadedSource.value = null; loadError.value = false; name.value = ''; message.value = ''; actionId.value = ''; selectedActionIds.value = []; actionSearch.value = ''; contains.value = ''; giftContains.value = ''; viewer.value = ''; delta.value = '';
-  actionType.value = 'core.log'; viewerTarget.value = 'specific'; runMode.value = 'all'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0'; cooldownScope.value = 'global';
+  actionType.value = 'core.log'; viewerTarget.value = 'specific'; runMode.value = 'all'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0'; cooldownScope.value = 'global'; emitTopic.value = ''; emitData.value = '{}'; customTopic.value = '';
 }, { flush: 'sync' });
 </script>
 
@@ -223,9 +249,13 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
     <div class="fields">
       <label>{{ labels.name }}<input v-model="name" maxlength="256" :disabled="model.busy.value"></label>
       <template v-if="model.kind.value === 'action'">
-        <label>{{ labels.actionType }}<select v-model="actionType" :disabled="model.busy.value"><option value="core.log">{{ labels.log }}</option><option value="core.delay">{{ labels.delay }}</option><option value="core.points">{{ labels.points }}</option></select></label>
+        <label>{{ labels.actionType }}<select v-model="actionType" :disabled="model.busy.value"><option value="core.log">{{ labels.log }}</option><option value="core.delay">{{ labels.delay }}</option><option value="core.points">{{ labels.points }}</option><option value="core.emit">{{ labels.emit }}</option></select></label>
         <label v-if="actionType === 'core.log'">{{ labels.message }}<input v-model="message" maxlength="8192" :disabled="model.busy.value"></label>
         <label v-else-if="actionType === 'core.delay'">{{ labels.milliseconds }}<input v-model="milliseconds" type="number" min="0" max="60000" step="1" :disabled="model.busy.value"></label>
+        <template v-else-if="actionType === 'core.emit'">
+          <label>{{ labels.topic }}<input v-model="emitTopic" maxlength="64" spellcheck="false" :disabled="model.busy.value"></label>
+          <label>{{ labels.emitData }}<textarea v-model="emitData" rows="4" spellcheck="false" :disabled="model.busy.value" /></label>
+        </template>
         <template v-else>
           <label>{{ labels.viewerTarget }}<select v-model="viewerTarget" :disabled="model.busy.value"><option value="specific">{{ labels.specificViewer }}</option><option value="event">{{ labels.triggeringViewer }}</option></select></label>
           <label v-if="viewerTarget === 'specific'">{{ labels.viewer }}<input v-model="viewer" maxlength="128" spellcheck="false" autocomplete="off" :disabled="model.busy.value"></label>
@@ -233,7 +263,8 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
         </template>
       </template>
       <template v-else>
-        <label>{{ labels.trigger }}<select v-model="trigger" :disabled="model.busy.value"><option value="tiktok.chat">{{ labels.chat }}</option><option value="tiktok.gift">{{ labels.gift }}</option><option value="tiktok.like">{{ labels.like }}</option><option value="tiktok.follow">{{ labels.follow }}</option><option value="tiktok.share">{{ labels.share }}</option><option value="tiktok.join">{{ labels.join }}</option></select></label>
+        <label>{{ labels.trigger }}<select v-model="trigger" :disabled="model.busy.value"><option value="tiktok.chat">{{ labels.chat }}</option><option value="tiktok.gift">{{ labels.gift }}</option><option value="tiktok.like">{{ labels.like }}</option><option value="tiktok.follow">{{ labels.follow }}</option><option value="tiktok.share">{{ labels.share }}</option><option value="tiktok.join">{{ labels.join }}</option><option value="custom">{{ labels.custom }}</option></select></label>
+        <label v-if="trigger === 'custom'">{{ labels.topic }}<input v-model="customTopic" maxlength="64" spellcheck="false" :disabled="model.busy.value"></label>
         <label v-if="trigger === 'tiktok.chat'">{{ labels.contains }}<input v-model="contains" maxlength="500" :disabled="model.busy.value"></label>
         <label v-if="trigger === 'tiktok.gift'">{{ labels.giftContains }}<input v-model="giftContains" maxlength="500" :disabled="model.busy.value"></label>
         <label>{{ labels.actionId }}<input v-model="actionId" maxlength="128" spellcheck="false" :disabled="model.busy.value"></label>
@@ -272,6 +303,8 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
     </section>
     <p v-if="model.kind.value === 'event'">{{ labels.actionNote }}</p>
     <p v-if="model.kind.value === 'event' && trigger === 'tiktok.gift'">{{ labels.giftHint }}</p>
+    <p v-if="model.kind.value === 'event' && trigger === 'custom'">{{ labels.customHint }}</p>
+    <p v-if="model.kind.value === 'action' && actionType === 'core.emit'">{{ labels.emitHint }}</p>
     <p v-if="model.kind.value === 'event' && cooldown !== '0'">{{ labels.cooldownNote }}</p>
     <p v-if="model.kind.value === 'action' && actionType === 'core.points'">{{ viewerTarget === 'event' ? labels.dynamicPointsNote : labels.pointsNote }}</p>
     <p v-if="draft === null" role="status">{{ labels.invalid }}</p>
@@ -289,7 +322,7 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
 .proposal-builder { margin: 12px 0; padding: 12px; border: 1px solid var(--color-border-subtle); border-radius: 6px; }
 .fields { display: flex; flex-wrap: wrap; gap: 12px; }
 label { display: flex; flex-direction: column; gap: 6px; flex: 1 1 180px; min-width: 0; }
-input, select, button { padding: 8px; color: inherit; background: var(--color-bg-panel); border: 1px solid var(--color-border-subtle); border-radius: 6px; }
+input, select, textarea, button { padding: 8px; color: inherit; background: var(--color-bg-panel); border: 1px solid var(--color-border-subtle); border-radius: 6px; }
 button:disabled { opacity: .5; } pre { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .available-actions { margin-top:12px; } .available-actions ul { max-height:14rem; overflow:auto; padding-left:1.5rem; }
 .available-actions li { margin:6px 0; overflow-wrap:anywhere; } .available-actions li button { margin-left:8px; }

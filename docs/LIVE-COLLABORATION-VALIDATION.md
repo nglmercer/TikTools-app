@@ -43,6 +43,13 @@ the action type changes. The JSON editor remains available for other definitions
 The UI tests cover shared-source loading, preservation and stale-field handling;
 they do not establish physical two-PC use or LIVE behavior.
 
+The same editor also prepares `core.emit` actions and exact custom-topic event
+triggers, and reloads compatible existing definitions. Its topic syntax and
+object payload are bounded locally; final authorization remains on the host.
+API integration creates an active chat-to-emit-to-custom-event chain under a
+single reusable grant and rejects an ungranted topic. This proves admission and
+storage, not a physical LIVE or delivery of an actual TikTok event.
+
 ## Reusable grant: native ingress and two controllers
 
 A native TikTok chat fixture now traverses `prepare_live_event_with_generation`

@@ -1341,6 +1341,71 @@ async fn malformed_remote_drafts_do_not_reveal_whether_owner_or_foreign_payload_
 }
 
 #[tokio::test]
+async fn reusable_grant_accepts_scoped_internal_event_chain_and_rejects_other_topics() {
+    use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new();
+    let mut policy = grant(&["action:send", "action:log", "event:root", "event:child"]);
+    policy
+        .capabilities
+        .extend([Capability::EventsEmit, Capability::LiveRead]);
+    policy.effects.emit_topics.insert("overlay.alert".into());
+    policy.automation_delegation = Some(AutomationDelegation {
+        effects: [
+            DelegatedAutomationEffect::Emit,
+            DelegatedAutomationEffect::Log,
+        ]
+        .into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+    });
+    let author = f.pair(policy);
+    let instance = f.instance();
+    let create = |kind: &str, record: Value| json!({"kind":kind,"record":record});
+    let log = create(
+        "action",
+        json!({"id":"log","name":"Log","enabled":true,"typeId":"core.log","config":{"message":"hello"},"schemaVersion":2}),
+    );
+    let send = create(
+        "action",
+        json!({"id":"send","name":"Emit","enabled":true,"typeId":"core.emit","config":{"type":"overlay.alert","data":{"user":"{{event.user.uniqueId}}"}},"schemaVersion":2}),
+    );
+    let root = create(
+        "event",
+        json!({"id":"root","name":"Root","enabled":true,"trigger":"tiktok.chat","actionIds":["send"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1}),
+    );
+    let child = create(
+        "event",
+        json!({"id":"child","name":"Child","enabled":true,"trigger":"overlay.alert","actionIds":["log"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1}),
+    );
+    for (index, params) in [log, send.clone(), root, child].into_iter().enumerate() {
+        let response = f
+            .remote(
+                &author,
+                "automation.create",
+                params,
+                metadata(&instance, &format!("chain-{index}"), "0"),
+            )
+            .await;
+        assert!(response.is_ok(), "chain element {index}: {response:?}");
+        assert_eq!(response.result.unwrap()["enabled"], true);
+    }
+    let mut denied = send;
+    denied["id"] = "send".into();
+    denied["record"]["config"]["type"] = "overlay.other".into();
+    let rejected = f
+        .remote(
+            &author,
+            "automation.update",
+            denied,
+            metadata(&instance, "other-topic", "1"),
+        )
+        .await;
+    assert_eq!(rejected.error.unwrap().code, "forbidden");
+    f.close().await;
+}
+
+#[tokio::test]
 async fn reusable_owner_grant_allows_disabled_edit_without_per_change_approval() {
     use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
     let f = Fixture::new();
