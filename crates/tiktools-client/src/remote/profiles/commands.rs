@@ -13,7 +13,7 @@ use std::{
 
 const BYTES: u64 = 64 * 1024;
 const HISTORY: usize = 16;
-const VERSION: u32 = 7;
+const VERSION: u32 = 8;
 pub fn timestamp() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -60,6 +60,8 @@ pub enum Operation {
     UpdateEventActive,
     CreateActionActive,
     UpdateActionActive,
+    StartCompetition,
+    ResumeCompetition,
     PauseCompetition,
     CancelCompetition,
 }
@@ -69,6 +71,8 @@ impl Operation {
             Self::Disable => "workflows.disable",
             Self::Delete => "workflows.delete",
             Self::AdjustPoints => "points.adjust",
+            Self::StartCompetition => "competitions.start",
+            Self::ResumeCompetition => "competitions.resume",
             Self::PauseCompetition => "competitions.pause",
             Self::CancelCompetition => "competitions.cancel",
             Self::DisableEvent => "automation.disable",
@@ -89,6 +93,7 @@ impl Operation {
             Self::Disable => "workflowDisable",
             Self::Delete => "workflowDelete",
             Self::AdjustPoints => "pointsAdjust",
+            Self::StartCompetition | Self::ResumeCompetition => "competitionActivation",
             Self::PauseCompetition | Self::CancelCompetition => "competitionStop",
             Self::DisableEvent | Self::DeleteEvent => "automationEventDeactivate",
             Self::EnableEvent | Self::EnableAction => "automationReusableActivation",
@@ -107,9 +112,10 @@ impl Operation {
             Self::Disable => tiktools_collaboration::Capability::WorkflowsToggle,
             Self::Delete => tiktools_collaboration::Capability::WorkflowsEdit,
             Self::AdjustPoints => tiktools_collaboration::Capability::PointsAdjust,
-            Self::PauseCompetition | Self::CancelCompetition => {
-                tiktools_collaboration::Capability::CompetitionsManage
-            }
+            Self::StartCompetition
+            | Self::ResumeCompetition
+            | Self::PauseCompetition
+            | Self::CancelCompetition => tiktools_collaboration::Capability::CompetitionsManage,
             Self::DisableEvent | Self::EnableEvent | Self::EnableAction => {
                 tiktools_collaboration::Capability::AutomationToggle
             }
@@ -127,9 +133,10 @@ impl Operation {
     pub fn kind(self) -> tiktools_collaboration::ResourceKind {
         match self {
             Self::AdjustPoints => tiktools_collaboration::ResourceKind::Viewer,
-            Self::PauseCompetition | Self::CancelCompetition => {
-                tiktools_collaboration::ResourceKind::Competition
-            }
+            Self::StartCompetition
+            | Self::ResumeCompetition
+            | Self::PauseCompetition
+            | Self::CancelCompetition => tiktools_collaboration::ResourceKind::Competition,
             Self::DisableEvent
             | Self::EnableEvent
             | Self::EnableAction
@@ -176,7 +183,13 @@ impl Operation {
         )
     }
     pub fn is_competition(self) -> bool {
-        matches!(self, Self::PauseCompetition | Self::CancelCompetition)
+        matches!(
+            self,
+            Self::StartCompetition
+                | Self::ResumeCompetition
+                | Self::PauseCompetition
+                | Self::CancelCompetition
+        )
     }
     pub fn is_activation(self) -> bool {
         matches!(self, Self::EnableEvent | Self::EnableAction)
@@ -231,6 +244,7 @@ impl Operation {
             | Self::CreateActionActive
             | Self::UpdateActionActive => matches!(version, 6..=VERSION),
             Self::PauseCompetition | Self::CancelCompetition => matches!(version, 7..=VERSION),
+            Self::StartCompetition | Self::ResumeCompetition => matches!(version, 8..=VERSION),
         }
     }
 }

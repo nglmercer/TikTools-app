@@ -264,16 +264,31 @@ fn validate_success(
             .get("deleted")
             .and_then(Value::as_bool)
             .ok_or_else(protocol)?,
-        Operation::PauseCompetition | Operation::CancelCompetition => {
+        Operation::StartCompetition
+        | Operation::ResumeCompetition
+        | Operation::PauseCompetition
+        | Operation::CancelCompetition => {
+            let expected = intent.expected_generation.as_deref().ok_or_else(protocol)?;
+            let generation =
+                tiktools_collaboration::stream_sequence(expected).map_err(|_| protocol())?;
+            let resulting = if intent.operation == Operation::StartCompetition {
+                generation
+                    .checked_add(1)
+                    .filter(|n| *n <= i64::MAX as u64)
+                    .ok_or_else(protocol)?
+                    .to_string()
+            } else {
+                expected.to_owned()
+            };
+            let lifecycle = match intent.operation {
+                Operation::StartCompetition | Operation::ResumeCompetition => "active",
+                Operation::PauseCompetition => "paused",
+                Operation::CancelCompetition => "cancelled",
+                _ => unreachable!(),
+            };
             if result.as_object().is_none_or(|o| o.len() != 3)
-                || result.get("generation").and_then(Value::as_str)
-                    != intent.expected_generation.as_deref()
-                || result.get("lifecycle").and_then(Value::as_str)
-                    != Some(if intent.operation == Operation::PauseCompetition {
-                        "paused"
-                    } else {
-                        "cancelled"
-                    })
+                || result.get("generation").and_then(Value::as_str) != Some(resulting.as_str())
+                || result.get("lifecycle").and_then(Value::as_str) != Some(lifecycle)
             {
                 return Err(protocol());
             }
@@ -842,7 +857,7 @@ fn allowed_competition(
     {
         return Err(fail("stale_view", "profile identity changed"));
     }
-    if hello.features.get("competitionStop") != Some(&true)
+    if hello.features.get(p.operation.feature()) != Some(&true)
         || hello.features.get("competitionSummaryVersions") != Some(&true)
         || !hello.capabilities.contains(&Capability::CompetitionsRead)
         || !hello.capabilities.contains(&Capability::CompetitionsManage)
@@ -875,6 +890,14 @@ fn allowed_competition(
     if row.revision.as_deref() != Some(p.expected_revision.as_str())
         || row.generation != p.expected_generation
         || !(match p.operation {
+            Operation::StartCompetition => matches!(
+                row.lifecycle,
+                tiktools_control_api::modules::competitions::Lifecycle::Draft
+            ),
+            Operation::ResumeCompetition => matches!(
+                row.lifecycle,
+                tiktools_control_api::modules::competitions::Lifecycle::Paused
+            ),
             Operation::PauseCompetition => matches!(
                 row.lifecycle,
                 tiktools_control_api::modules::competitions::Lifecycle::Active

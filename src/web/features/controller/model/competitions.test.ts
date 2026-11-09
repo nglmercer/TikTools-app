@@ -113,3 +113,25 @@ it('accepts host byte ordering for non-BMP IDs', async () => {
   await model.refresh(current.value, 1);
   expect(model.rows.value.map((item) => item.id)).toEqual(['\uE000', '\u{10000}']);
 });
+
+it('starts and resumes only when the host advertises activation', async () => {
+  const current = ref(status());
+  current.value.hello!.features['competitionSummaryVersions'] = true;
+  current.value.hello!.capabilities.push('competitions.manage', 'commands.read');
+  let lifecycle = 'draft';
+  const { client } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(current.value)) : page([{ ...row('alpha'), lifecycle, revision:'2' }]));
+  const send = vi.fn(async () => true);
+  const model = createCompetitionModel(client, { status:current, generation:() => 1, stopped:() => false, journalMatches:() => true, send });
+  await model.refresh(current.value, 1);
+  let shown = model.rows.value[0]!;
+  expect(model.canStop(shown, 'start-competition')).toBe(false);
+  current.value.hello!.features['competitionActivation'] = true;
+  expect(model.canStop(shown, 'start-competition')).toBe(true);
+  await model.stopCompetition(shown, 'start-competition');
+  expect(send).toHaveBeenCalledWith('controller.competition.command', expect.objectContaining({ operation:'start-competition', expectedGeneration:shown.generation, expectedRevision:'2' }));
+  lifecycle = 'paused'; model.invalidate(); await model.refresh(current.value, 1);
+  shown = model.rows.value[0]!;
+  expect(model.canStop(shown, 'resume-competition')).toBe(true);
+  await model.stopCompetition(shown, 'resume-competition');
+  expect(send).toHaveBeenCalledWith('controller.competition.command', expect.objectContaining({ operation:'resume-competition', expectedGeneration:shown.generation, expectedRevision:'2' }));
+});

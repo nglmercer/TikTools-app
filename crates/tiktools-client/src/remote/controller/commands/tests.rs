@@ -1147,3 +1147,41 @@ fn receipt_validation_requires_the_exact_id_resource_and_revision_transition() {
 }
 
 mod event_process_tests;
+
+#[test]
+fn competition_activation_receipt_binds_generation_and_revision() {
+    let mut intent = Intent {
+        command_id: uuid::Uuid::new_v4().to_string(),
+        operation: Operation::StartCompetition,
+        resource_id: "shared".into(),
+        host_instance_id: uuid::Uuid::new_v4().to_string(),
+        expected_revision: Some("7".into()),
+        expected_generation: Some("9007199254740993".into()),
+        delta: None,
+        currency_name: None,
+        proposal_revision: None,
+        created_at: 0,
+    };
+    let receipt = CommandReceipt {
+        command_id: intent.command_id.clone(),
+        state: CommandState::Succeeded,
+        resource: Some(tiktools_collaboration::CommandResource {
+            kind: ResourceKind::Competition,
+            scope: "host".into(),
+            id: "shared".into(),
+        }),
+        committed_at: Some(1),
+    };
+    let version = ResourceVersion {
+        kind: ResourceKind::Competition,
+        scope: "host".into(),
+        id: "shared".into(),
+        revision: "8".into(),
+    };
+    let started = json!({"id":"shared","lifecycle":"active","generation":"9007199254740994"});
+    assert!(validate_success(&intent, &receipt, std::slice::from_ref(&version), &started).is_ok());
+    let wrong = json!({"id":"shared","lifecycle":"active","generation":"9007199254740993"});
+    assert!(validate_success(&intent, &receipt, std::slice::from_ref(&version), &wrong).is_err());
+    intent.operation = Operation::ResumeCompetition;
+    assert!(validate_success(&intent, &receipt, &[version], &wrong).is_ok());
+}

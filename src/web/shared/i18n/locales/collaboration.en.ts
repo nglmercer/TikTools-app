@@ -51,7 +51,7 @@ export default {
   presetViewer: 'LIVE viewer', presetWorkflow: 'Workflow reviewer', presetAgent: 'Agent reviewer', capLive: 'Read LIVE status', capWorkflow: 'Read workflows', capCommands: 'Read own command outcomes',
   capWorkflowDisable: 'Disable workflows (requires read access)', capWorkflowDelete: 'Delete workflows (requires read access)',
   capAutomation: 'Read automation status', capEventDisable: 'Disable complete events (requires read access)', capEventDelete: 'Delete events and submit disabled drafts (requires read access)', capPoints: 'Read points', capPointsAdjust: 'Adjust points (requires read access)',
-  capCompetitions: 'Read competitions', capCompetitionStop: 'Pause or cancel competitions (includes read and command recovery)',
+  capCompetitions: 'Read competitions', capCompetitionStop: 'Manage competitions (includes read and command recovery)',
   automationIds: 'event:ID or action:ID, one per line', automationScopeHint: 'Use event: or action: before each automation ID. Only complete events can be disabled or deleted remotely. Creator restrictions prevent access to global automations.',
   futurePermissions: 'Additional permissions', futureHint: 'This host supports LIVE/workflow reads, workflow disable/delete, points adjustments, automation status and complete-event disable/delete. Remote author-only drafts must be disabled; the API can activate eligible definitions with a reusable authorization. Additional grants stay stored; unsupported operations remain denied.',
   scopes: 'Resource restrictions', all: 'All resources of this kind', selected: 'Only the listed IDs', none: 'No resources of this kind', ids: 'Exact IDs, one per line', extraGrant: 'Advanced grant JSON', applyJson: 'Use this JSON draft', grantSummary: 'Exact grant',

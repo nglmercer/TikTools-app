@@ -242,11 +242,10 @@ The host API supports remote `competitions.start`, `competitions.resume`,
 `competitions.pause` and `competitions.cancel` under scoped read/manage grants, with expected generation, revision and durable
 command metadata. The result can be recovered by command ID. Remote stops
 publish local presentation updates without granting Owner authority to plugin
-observers or competition-triggered automation. The native controller can pause
-or cancel a visible competition under the same scoped grant; its version-7
-command journal stores the generation and revision before sending and recovers
-an uncertain result using the original command ID. The native controller does
-not yet expose start/resume. Remote start/resume retain every operator's current
+observers or competition-triggered automation. The native controller can
+start, resume, pause or cancel a visible competition under the same scoped grant;
+its version-8 command journal stores the generation and revision before sending
+and recovers an uncertain result using the original command ID. Remote start/resume retain every operator's current
 grants, and winner actions remain subject to those grants. Competition lifecycle
 events from delegated generations are presentation-only until scoped lifecycle
 automation dispatch is connected; complete release acceptance remains pending.
