@@ -105,13 +105,12 @@ pub(crate) fn automation_result_allowed(
         }
         "automation.get" => summary_allowed(result),
         "automation.source.get" => {
-            grant
-                .automation_delegation
-                .as_ref()
-                .is_some_and(|p| p.allow_owner_source && p.allow_owner_edits)
-                && grant
-                    .capabilities
-                    .contains(&RemoteCapability::AutomationEdit)
+            grant.automation_delegation.as_ref().is_some_and(|p| {
+                (p.allow_owner_source && p.allow_owner_edits)
+                    || (p.allow_other_author_source && p.allow_other_author_edits)
+            }) && grant
+                .capabilities
+                .contains(&RemoteCapability::AutomationEdit)
                 && result.as_object().is_some_and(|o| {
                     o.len() == 4
                         && o.keys()

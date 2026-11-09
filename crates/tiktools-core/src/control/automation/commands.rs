@@ -324,16 +324,26 @@ impl AppCore {
             }
             let owner_draft = if remote && operation.is_remote_draft_update() {
                 let (kind, id) = operation.target();
-                let permitted = command
+                let identity = command
                     .authorization
                     .as_ref()
-                    .and_then(|auth| auth.snapshot().ok())
-                    .and_then(|identity| identity.grant.automation_delegation)
-                    .is_some_and(|policy| policy.allow_owner_edits);
-                permitted
-                    && self.db.is_owner_behavior(kind, id).map_err(|error| {
-                        behavior_command_error(error, &command.request.command_id)
-                    })?
+                    .and_then(|auth| auth.snapshot().ok());
+                if let Some(identity) = identity {
+                    let policy = identity.grant.automation_delegation.as_ref();
+                    (policy.is_some_and(|p| p.allow_owner_edits)
+                        && self.db.is_owner_behavior(kind, id).map_err(|error| {
+                            behavior_command_error(error, &command.request.command_id)
+                        })?)
+                        || (policy.is_some_and(|p| p.allow_other_author_edits)
+                            && self
+                                .db
+                                .is_other_behavior(kind, id, &identity.principal_id)
+                                .map_err(|error| {
+                                    behavior_command_error(error, &command.request.command_id)
+                                })?)
+                } else {
+                    false
+                }
             } else {
                 false
             };

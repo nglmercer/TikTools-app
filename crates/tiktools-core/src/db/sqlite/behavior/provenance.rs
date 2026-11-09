@@ -202,6 +202,7 @@ pub(super) struct AuthoringPermit {
     previous_revision: i64,
     previous_generation: Option<i64>,
     allow_owner_edits: bool,
+    allow_other_author_edits: bool,
     pub(super) affected_events: Vec<String>,
 }
 pub(super) fn authorize_authoring(
@@ -210,6 +211,7 @@ pub(super) fn authorize_authoring(
     id: &str,
     auth: &Authorization,
     allow_owner_edits: bool,
+    allow_other_author_edits: bool,
 ) -> Result<AuthoringPermit, DatabaseError> {
     let identity = auth
         .snapshot()
@@ -239,6 +241,12 @@ pub(super) fn authorize_authoring(
             .automation_delegation
             .as_ref()
             .is_some_and(|policy| policy.allow_owner_edits);
+    let allow_other_author_edits = allow_other_author_edits
+        && identity
+            .grant
+            .automation_delegation
+            .as_ref()
+            .is_some_and(|policy| policy.allow_other_author_edits);
     let affected_events = if family == crate::collaboration::AutomationFamily::Action {
         protect_action_dependents(
             db,
@@ -246,6 +254,7 @@ pub(super) fn authorize_authoring(
             &identity.principal_id,
             &identity.grant,
             allow_owner_edits,
+            allow_other_author_edits,
         )?
     } else {
         Vec::new()
@@ -260,6 +269,10 @@ pub(super) fn authorize_authoring(
                 },
             generation,
         }) if principal_id == &identity.principal_id && previous_revision > 0 => Some(generation),
+        Some(BehaviorProvenance {
+            authority: BehaviorAuthority::Delegated { .. },
+            generation,
+        }) if allow_other_author_edits && previous_revision > 0 => Some(generation),
         Some(BehaviorProvenance {
             authority: BehaviorAuthority::Owner,
             generation,
@@ -290,6 +303,7 @@ pub(super) fn authorize_authoring(
         previous_revision,
         previous_generation,
         allow_owner_edits,
+        allow_other_author_edits,
         affected_events,
     })
 }
@@ -304,6 +318,7 @@ fn protect_action_dependents(
     author: &str,
     grant: &crate::collaboration::Grant,
     allow_owner_edits: bool,
+    allow_other_author_edits: bool,
 ) -> Result<Vec<String>, DatabaseError> {
     let denied = || DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden);
     // Avoid materializing an arbitrarily large owner script merely to discover
@@ -347,7 +362,11 @@ fn protect_action_dependents(
                 && allow_owner_edits
                 && grant
                     .allows_automation(crate::collaboration::AutomationFamily::Event, &event_id);
-            if !own && !owner {
+            let other = matches!(provenance.authority, BehaviorAuthority::Delegated { .. })
+                && allow_other_author_edits
+                && grant
+                    .allows_automation(crate::collaboration::AutomationFamily::Event, &event_id);
+            if !own && !owner && !other {
                 return Err(denied());
             }
             affected.push(event_id);
@@ -381,7 +400,7 @@ pub(super) fn mark_delegated_new(
         (BehaviorAuthority::Owner, None) => true,
         (BehaviorAuthority::Owner, Some(_)) if permit.allow_owner_edits => true,
         (BehaviorAuthority::Delegated { principal_id, .. }, Some(_)) => {
-            principal_id == &permit.identity.principal_id
+            principal_id == &permit.identity.principal_id || permit.allow_other_author_edits
         }
         _ => false,
     };

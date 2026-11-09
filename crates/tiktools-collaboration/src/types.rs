@@ -88,6 +88,12 @@ pub struct AutomationDelegation {
     /// Explicitly share Owner source, which can include sensitive values.
     #[serde(default, skip_serializing_if = "is_false")]
     pub allow_owner_source: bool,
+    /// Allow scoped definitions authored by another moderator to be replaced.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub allow_other_author_edits: bool,
+    /// Share full source of scoped definitions authored by other moderators.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub allow_other_author_source: bool,
 }
 fn is_false(value: &bool) -> bool {
     !value
@@ -249,6 +255,7 @@ impl Grant {
         if let Some(policy) = &self.automation_delegation {
             if policy.effects.is_empty()
                 || (policy.allow_owner_source && !policy.allow_owner_edits)
+                || (policy.allow_other_author_source && !policy.allow_other_author_edits)
                 || ![
                     Capability::AutomationRead,
                     Capability::AutomationEdit,
@@ -731,6 +738,8 @@ mod tests {
             allow_dynamic_targets: false,
             allow_owner_edits: false,
             allow_owner_source: false,
+            allow_other_author_edits: false,
+            allow_other_author_source: false,
         });
         grant.validate().unwrap();
         let serialized = serde_json::to_value(&grant).unwrap();

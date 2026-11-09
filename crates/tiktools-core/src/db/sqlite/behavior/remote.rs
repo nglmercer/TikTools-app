@@ -18,16 +18,26 @@ fn source_grant_allows(grant: &Grant, family: AutomationFamily, id: &str) -> boo
         && grant.capabilities.contains(&Capability::AutomationEdit)
         && !grant.resources.contains_key(&ResourceKind::Live)
         && grant.allows_automation(family, id)
-        && grant
-            .automation_delegation
-            .as_ref()
-            .is_some_and(|p| p.allow_owner_source && p.allow_owner_edits)
+        && grant.automation_delegation.as_ref().is_some_and(|p| {
+            (p.allow_owner_source && p.allow_owner_edits)
+                || (p.allow_other_author_source && p.allow_other_author_edits)
+        })
 }
 
-fn source_authority_allows(authority: &provenance::BehaviorAuthority, principal: &str) -> bool {
+fn source_authority_allows(
+    authority: &provenance::BehaviorAuthority,
+    principal: &str,
+    grant: &Grant,
+) -> bool {
+    let policy = grant.automation_delegation.as_ref();
     match authority {
-        provenance::BehaviorAuthority::Owner => true,
-        provenance::BehaviorAuthority::Delegated { principal_id, .. } => principal_id == principal,
+        provenance::BehaviorAuthority::Owner => {
+            policy.is_some_and(|p| p.allow_owner_source && p.allow_owner_edits)
+        }
+        provenance::BehaviorAuthority::Delegated { principal_id, .. } => {
+            principal_id == principal
+                || policy.is_some_and(|p| p.allow_other_author_source && p.allow_other_author_edits)
+        }
     }
 }
 fn select(family: AutomationFamily) -> String {
@@ -171,8 +181,8 @@ impl DatabaseManager {
 }
 
 impl DatabaseManager {
-    /// Explicitly shared source for the scoped owner definition or this
-    /// principal's own authored definition; never returns dependencies.
+    /// Explicitly shared source for a scoped definition. Foreign authors and
+    /// the Owner require their respective sharing grant; dependencies stay private.
     pub(crate) fn behavior_shared_source(
         &self,
         family: AutomationFamily,
@@ -191,7 +201,11 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         let tx = db.transaction()?;
         let provenance = provenance::get(&tx, table, id)?.ok_or_else(denied)?;
-        if !source_authority_allows(&provenance.authority, &identity.principal_id) {
+        if !source_authority_allows(
+            &provenance.authority,
+            &identity.principal_id,
+            &identity.grant,
+        ) {
             return Err(denied());
         }
         let (record, _, version) = review::record(&tx, table, id, &mut 0)?;
@@ -244,8 +258,9 @@ impl DatabaseManager {
             params![family.scope(), id, revision], |row| row.get(0),
         )?;
         let allowed = live
-            && provenance::get(&tx, table, id)?
-                .is_some_and(|p| source_authority_allows(&p.authority, &identity.principal_id));
+            && provenance::get(&tx, table, id)?.is_some_and(|p| {
+                source_authority_allows(&p.authority, &identity.principal_id, &identity.grant)
+            });
         let latest = auth
             .snapshot()
             .map_err(DatabaseError::CommandAuthorization)?;

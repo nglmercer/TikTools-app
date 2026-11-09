@@ -193,7 +193,10 @@ pub fn register(router: &mut ControlRouter) {
                 .grant
                 .automation_delegation
                 .as_ref()
-                .is_some_and(|p| p.allow_owner_source && p.allow_owner_edits);
+                .is_some_and(|p| {
+                    (p.allow_owner_source && p.allow_owner_edits)
+                        || (p.allow_other_author_source && p.allow_other_author_edits)
+                });
             Ok(HelloResult {
                 protocol_version: 1,
                 host_id,

@@ -195,6 +195,188 @@ fn grant() -> Grant {
         ..Grant::default()
     }
 }
+
+#[test]
+fn shared_moderator_edit_requires_explicit_transfer_and_source_grants() {
+    let f = Fixture::new();
+    let author = f.pair(grant());
+    f.draft(
+        &author,
+        AutomationKind::Action,
+        log("shared-moderator", "private source"),
+    );
+    let mut access = grant();
+    access.capabilities.insert(Capability::AutomationToggle);
+    access.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let editor = f.pair(access.clone());
+    let identity = editor.snapshot().unwrap();
+    let before = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "shared-moderator")
+        .unwrap();
+    let update = || AutomationMutation::Update {
+        kind: AutomationKind::Action,
+        id: "shared-moderator".into(),
+        record: log("shared-moderator", "edited"),
+    };
+    assert!(f
+        .core()
+        .automation_shared_source(AutomationKind::Action, "shared-moderator", &editor, 65536)
+        .is_err());
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(editor.clone()),
+            f.request(&before.resource_versions[0].revision),
+            update()
+        )
+        .is_err());
+    let policy = access.automation_delegation.as_mut().unwrap();
+    policy.allow_other_author_edits = true;
+    policy.allow_other_author_source = true;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id.clone(),
+            expected_revision: identity.grant_revision,
+            grant: access.clone(),
+        })
+        .unwrap();
+    assert_eq!(
+        f.core()
+            .automation_shared_source(AutomationKind::Action, "shared-moderator", &editor, 65536)
+            .unwrap()
+            .value["record"]["config"]["message"],
+        "private source"
+    );
+    f.core()
+        .automation_command(
+            CommandCaller::Remote(editor.clone()),
+            f.request(&before.resource_versions[0].revision),
+            update(),
+        )
+        .unwrap();
+    let provenance = f
+        .core()
+        .automation_authority(AutomationKind::Action, "shared-moderator")
+        .unwrap();
+    assert_eq!(
+        provenance.value["provenance"]["authority"]["principalId"],
+        identity.principal_id
+    );
+    access.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: "2".into(),
+            grant: access,
+        })
+        .unwrap();
+    assert!(f
+        .core()
+        .automation_shared_source(AutomationKind::Action, "shared-moderator", &editor, 65536)
+        .is_err());
+}
+
+#[tokio::test]
+async fn shared_action_keeps_both_moderators_authority_for_existing_event() {
+    let f = Fixture::new();
+    let mut permission = grant();
+    permission.capabilities.insert(Capability::AutomationToggle);
+    permission.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let author = f.pair(permission.clone());
+    let author_id = author.snapshot().unwrap();
+    let mut action = log("team-action", "original");
+    action["enabled"] = true.into();
+    let mut rule = event("team-event", &["team-action"]);
+    rule["enabled"] = true.into();
+    for (kind, record) in [
+        (AutomationKind::Action, action),
+        (AutomationKind::Event, rule),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(author.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    permission
+        .automation_delegation
+        .as_mut()
+        .unwrap()
+        .allow_other_author_edits = true;
+    let editor = f.pair(permission.clone());
+    let version = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "team-action")
+        .unwrap()
+        .resource_versions[0]
+        .revision
+        .clone();
+    let mut changed = log("team-action", "replacement");
+    changed["enabled"] = true.into();
+    f.core()
+        .automation_command(
+            CommandCaller::Remote(editor),
+            f.request(&version),
+            AutomationMutation::Update {
+                kind: AutomationKind::Action,
+                id: "team-action".into(),
+                record: changed,
+            },
+        )
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    let count = f
+        .core()
+        .automation_runs()
+        .iter()
+        .filter(|run| run["actionId"] == "team-action" && run["status"] == "ok")
+        .count();
+    assert_eq!(count, 1);
+    permission.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author_id.principal_id,
+            expected_revision: author_id.grant_revision,
+            grant: permission,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.core()
+            .automation_runs()
+            .iter()
+            .filter(|run| run["actionId"] == "team-action" && run["status"] == "ok")
+            .count(),
+        count
+    );
+}
 fn enable(kind: AutomationKind, id: &str) -> ApprovalEnablement {
     ApprovalEnablement {
         kind,
@@ -855,6 +1037,8 @@ async fn reusable_multi_author_event_chain_requires_both_current_topic_grants() 
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
@@ -1004,6 +1188,8 @@ async fn native_ingress_drives_reusable_internal_event_chain_until_topic_revoked
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
@@ -1122,6 +1308,8 @@ async fn reusable_grant_runs_saved_live_event_and_revocation_stops_it() {
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
@@ -1272,6 +1460,8 @@ fn remote_activation_requires_reusable_policy_and_author_ownership() {
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let other = f.pair(permitted);
     assert!(f
@@ -1302,6 +1492,8 @@ fn remote_activation_rejects_effects_outside_reusable_grant() {
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let auth = f.pair(limited);
     f.draft(
@@ -1345,6 +1537,8 @@ async fn reusable_grant_creates_and_edits_active_automation_atomically() {
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let auth = f.pair(permitted);
     let mut action = points("active-points", "alice", 1.0);
@@ -1454,6 +1648,8 @@ async fn native_live_ingress_applies_reusable_grants_only_for_verified_generatio
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
@@ -1572,6 +1768,8 @@ async fn reusable_grant_revocation_during_delay_stops_later_effects() {
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let auth = f.pair(permitted);
     let identity = auth.snapshot().unwrap();
@@ -1641,6 +1839,8 @@ async fn reusable_event_intersects_grants_of_multiple_authors() {
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let action_author = f.pair(permission.clone());
     let event_author = f.pair(permission.clone());
@@ -1714,6 +1914,8 @@ async fn explicit_reusable_grant_can_edit_owner_action_and_revalidates_dependent
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
@@ -1818,6 +2020,8 @@ fn owner_action_edit_rejects_unscoped_or_unsupported_dependent_events() {
             allow_dynamic_targets: false,
             allow_owner_edits: true,
             allow_owner_source: false,
+            allow_other_author_edits: false,
+            allow_other_author_source: false,
         });
         if case == 0 {
             permission.resources.insert(

@@ -108,6 +108,15 @@ describe('grant restrictions', () => {
       await share.setValue(false);
       expect(grant.automationDelegation?.allowOwnerEdits).toBeUndefined();
       expect(grant.automationDelegation?.allowOwnerSource).toBeUndefined();
+      const other = checkbox('Allow edits to other moderators’ automations within this scope');
+      const otherSource = checkbox('Allow reading other moderators’ definitions');
+      expect(otherSource.attributes('disabled')).toBeDefined();
+      await other.setValue(true);
+      await otherSource.setValue(true);
+      expect(parseGrant(grant).automationDelegation?.allowOtherAuthorSource).toBe(true);
+      await other.setValue(false);
+      expect(grant.automationDelegation?.allowOtherAuthorEdits).toBeUndefined();
+      expect(grant.automationDelegation?.allowOtherAuthorSource).toBeUndefined();
     } finally { wrapper.unmount(); }
   });
   it('edits the points ceiling and rejects invalid limits before saving', async () => {

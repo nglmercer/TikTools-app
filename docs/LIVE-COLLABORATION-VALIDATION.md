@@ -35,6 +35,14 @@ both families are visible to the principal.
 
 ## Explicit edits to Owner automations
 
+Grants can also explicitly permit replacing scoped definitions authored by
+another moderator, with a separate choice to share their full source. Both
+choices default to denied. A replacement transfers the definition's authority
+to the editor; affected event closures still require their own authors' current
+grants. Source access is rechecked against the current grant and revision at
+response time. This supports reusable authorization, not a per-edit Owner
+approval, and does not make unsupported effects executable.
+
 An optional `allowOwnerEdits` policy flag defaults to false and is omitted from
 legacy-format grants. Focused core and API tests verify that an authorized
 remote update changes provenance to the editor, validates every affected event
@@ -47,7 +55,7 @@ authorize the transaction before committing. A native controller test saves a
 disabled Owner edit and then submits an active update
 over local TLS. A separate default-deny source grant now allows the scoped Owner definition
 to be previewed over local TLS; the test checks grant narrowing and denies a
-different remote author’s source. The controller requires an explicit selection
+different remote author’s source without the separate sharing grant. The controller requires an explicit selection
 before replacing open text. These tests do not establish physical two-PC use.
 
 The controller's field editor can load a compatible open log, delay, points or

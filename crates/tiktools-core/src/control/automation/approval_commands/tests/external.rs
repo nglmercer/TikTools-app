@@ -129,6 +129,8 @@ async fn reusable_audio_plays_on_host_and_stops_when_file_grant_is_removed() {
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let auth = f.pair(allowed.clone());
     let identity = auth.snapshot().unwrap();
@@ -297,6 +299,8 @@ mod http {
             allow_dynamic_targets: false,
             allow_owner_edits: false,
             allow_owner_source: false,
+            allow_other_author_edits: false,
+            allow_other_author_source: false,
         });
         let auth = f.pair(allowed.clone());
         let identity = auth.snapshot().unwrap();

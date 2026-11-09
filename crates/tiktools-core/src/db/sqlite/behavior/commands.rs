@@ -15,6 +15,16 @@ impl DatabaseManager {
             .is_some_and(|p| matches!(p.authority, provenance::BehaviorAuthority::Owner)))
     }
 
+    pub(crate) fn is_other_behavior(
+        &self,
+        kind: crate::control::AutomationKind,
+        id: &str,
+        principal: &str,
+    ) -> Result<bool, DatabaseError> {
+        let db = self.open(&self.automation_path())?;
+        Ok(provenance::get(&db, kind.table(), id)?.is_some_and(|p| matches!(p.authority, provenance::BehaviorAuthority::Delegated { principal_id, .. } if principal_id != principal)))
+    }
+
     pub(crate) fn execute_behavior_command(
         &self,
         operation: &AutomationMutation,
@@ -52,7 +62,9 @@ impl DatabaseManager {
                 command
                     .authorization
                     .as_ref()
-                    .map(|auth| provenance::authorize_authoring(tx, kind.table(), id, auth, false))
+                    .map(|auth| {
+                        provenance::authorize_authoring(tx, kind.table(), id, auth, false, false)
+                    })
                     .transpose()?
             } else {
                 None
@@ -200,8 +212,8 @@ impl DatabaseManager {
             return Ok((result, false));
         }
         let (kind, id) = operation.target();
-        // Existing authoring ownership and dependency rules also prevent an
-        // activation from changing an Owner or another author's graph.
+        // Existing ownership and dependency rules require an explicit grant
+        // for a replacement that transfers another author's definition.
         let author = provenance::authorize_authoring(
             &tx,
             kind.table(),
@@ -209,6 +221,7 @@ impl DatabaseManager {
             auth,
             matches!(operation, AutomationMutation::Update { .. })
                 || operation.is_remote_activation(),
+            matches!(operation, AutomationMutation::Update { .. }),
         )?;
         // Stage the new record inside the uncommitted transaction, so all
         // subjects are derived from its actual final closure, including new

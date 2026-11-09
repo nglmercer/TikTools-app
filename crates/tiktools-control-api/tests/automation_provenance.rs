@@ -215,6 +215,8 @@ async fn stored_reusable_policy_enables_saved_remote_definition() {
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let author = f.pair(author_grant);
     let instance = f.instance();
@@ -1358,6 +1360,8 @@ async fn reusable_grant_accepts_scoped_internal_event_chain_and_rejects_other_to
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let author = f.pair(policy);
     let instance = f.instance();
@@ -1416,6 +1420,8 @@ async fn reusable_owner_grant_allows_disabled_edit_without_per_change_approval()
         allow_dynamic_targets: false,
         allow_owner_edits: true,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let mut no_owner_edits = policy.clone();
     no_owner_edits
@@ -1504,6 +1510,8 @@ async fn remote_owner_definition_edit_requires_explicit_reusable_permission() {
         allow_dynamic_targets: false,
         allow_owner_edits: true,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let author = f.pair(author_grant);
     let response = f.remote(&author, "automation.update", json!({"kind":"action","id":"owned","record":{"id":"owned","name":"Edited","enabled":true,"typeId":"core.log","config":{"message":"moderator source"}}}), metadata(&f.instance(), "owner-edit", "1")).await;
@@ -1532,6 +1540,8 @@ async fn shared_source_requires_explicit_scoped_grant_and_current_identity() {
         allow_dynamic_targets: false,
         allow_owner_edits: true,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     let author = f.pair(author_grant.clone());
     let request = json!({"kind":"action","id":"owned"});
@@ -1684,6 +1694,15 @@ async fn shared_source_requires_explicit_scoped_grant_and_current_identity() {
         )
         .await;
     assert_eq!(hidden.error.unwrap().code, "forbidden");
+    let shared = author_grant.automation_delegation.as_mut().unwrap();
+    shared.allow_other_author_edits = true;
+    shared.allow_other_author_source = true;
+    f.core.collaboration().unwrap().set_grant(GrantSet {
+        principal_id: author.principal.clone(), expected_revision: "4".into(), grant: author_grant.clone(),
+    }).unwrap();
+    let visible = f.remote(&author, "automation.source.get", json!({"kind":"action","id":"foreign"}), Value::Null).await;
+    assert!(visible.is_ok(), "{visible:?}");
+    assert_eq!(visible.result.unwrap()["record"]["config"]["message"], "foreign-sensitive");
     let mut narrowed = author_grant;
     narrowed
         .resources
@@ -1693,7 +1712,7 @@ async fn shared_source_requires_explicit_scoped_grant_and_current_identity() {
         .unwrap()
         .set_grant(GrantSet {
             principal_id: author.principal.clone(),
-            expected_revision: "4".into(),
+            expected_revision: "5".into(),
             grant: narrowed,
         })
         .unwrap();

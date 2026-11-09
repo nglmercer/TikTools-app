@@ -53,6 +53,22 @@ function setOwnerSource(enabled: boolean): void {
   }
   model.value = value;
 }
+function setOtherAuthorEdits(enabled: boolean): void {
+  const value = copy();
+  if (value.automationDelegation) {
+    if (enabled) value.automationDelegation.allowOtherAuthorEdits = true;
+    else { delete value.automationDelegation.allowOtherAuthorEdits; delete value.automationDelegation.allowOtherAuthorSource; }
+  }
+  model.value = value;
+}
+function setOtherAuthorSource(enabled: boolean): void {
+  const value = copy();
+  if (value.automationDelegation?.allowOtherAuthorEdits) {
+    if (enabled) value.automationDelegation.allowOtherAuthorSource = true;
+    else delete value.automationDelegation.allowOtherAuthorSource;
+  }
+  model.value = value;
+}
 function setDynamicTargets(enabled: boolean): void {
   const value = copy();
   if (value.automationDelegation) value.automationDelegation.allowDynamicTargets = enabled;
@@ -187,6 +203,14 @@ function applyJson(): void {
         {{ t('collaboration.delegationOwnerSource') }}
       </BaseCheckbox>
       <p>{{ t('collaboration.delegationOwnerSourceHint') }}</p>
+      <BaseCheckbox :model-value="model.automationDelegation?.allowOtherAuthorEdits ?? false" :disabled="disabled || !model.automationDelegation" @update:model-value="setOtherAuthorEdits">
+        {{ t('collaboration.delegationOtherEdits') }}
+      </BaseCheckbox>
+      <p>{{ t('collaboration.delegationOtherEditsHint') }}</p>
+      <BaseCheckbox :model-value="model.automationDelegation?.allowOtherAuthorSource ?? false" :disabled="disabled || !model.automationDelegation?.allowOtherAuthorEdits" @update:model-value="setOtherAuthorSource">
+        {{ t('collaboration.delegationOtherSource') }}
+      </BaseCheckbox>
+      <p>{{ t('collaboration.delegationOtherSourceHint') }}</p>
       <BaseCheckbox
         :model-value="model.automationDelegation?.allowDynamicTargets ?? false"
         :disabled="disabled || !model.automationDelegation"

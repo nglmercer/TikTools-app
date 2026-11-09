@@ -627,6 +627,8 @@ async fn native_proposals_create_and_edit_active_definitions_with_reusable_grant
         allow_dynamic_targets: false,
         allow_owner_edits: false,
         allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     manager
         .install(
@@ -734,6 +736,8 @@ async fn native_controller_edits_owner_definition_under_explicit_reusable_grant(
         allow_dynamic_targets: false,
         allow_owner_edits: true,
         allow_owner_source: true,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
     });
     manager
         .install(
