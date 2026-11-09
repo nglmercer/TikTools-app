@@ -34,6 +34,43 @@ fn assert_staged_decision(workspace: &WorkspaceCoordinator, decision: &V2Product
 }
 
 #[tokio::test]
+async fn product_upload_source_rejects_new_admission_after_shutdown() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(runtime, &["acme.hotkeys"]);
+    let source = crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(
+        &core,
+        "https://cloud.example",
+        "alice",
+    );
+    drop(source.acquire_emission_guard().unwrap());
+    core.shutdown().await;
+    assert!(source.acquire_emission_guard().is_err());
+    let decision = V2ProductDecision {
+        origin: "https://cloud.example".into(),
+        account_id: "alice".into(),
+        config_generation: 42,
+        source_generation: 1,
+        plugin_id: "acme.hotkeys".into(),
+        selection: Some(PluginSelection {
+            schema_version: 1,
+            plugin_id: "acme.hotkeys".into(),
+            version: "1.0.0".into(),
+            enabled: false,
+        }),
+    };
+    let mut admitted = false;
+    assert!(source
+        .with_fenced_upload(&decision, &mut || {
+            admitted = true;
+            Ok(())
+        })
+        .is_err());
+    assert!(!admitted);
+    drop(source);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn public_plugin_state_changes_exclude_inflight_product_emission() {
     let runtime = Arc::new(FakePluginState::default());
     let (core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
@@ -324,6 +361,30 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         }),
     };
     assert_staged_decision(&workspace, &disabled_decision);
+    // Use the actual SQLite-backed upload adapter, not just a raw file lock.
+    // The shared lease must exclude both tracked and public runtime writers.
+    let in_flight = source.acquire_emission_guard().unwrap();
+    let mut admitted = false;
+    source
+        .with_fenced_upload(&disabled_decision, &mut || {
+            admitted = true;
+            Ok(())
+        })
+        .unwrap();
+    assert!(admitted);
+    assert!(core
+        .plugin_set_enabled_with_product_intent("acme.hotkeys", true)
+        .is_err());
+    assert!(core.plugin_set_enabled("acme.hotkeys", true).is_err());
+    assert!(core.plugin_start("acme.hotkeys").is_err());
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    assert!(core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .is_none());
+    assert_staged_decision(&workspace, &disabled_decision);
+    drop(in_flight);
     let before_failure = workspace.snapshot().unwrap();
 
     // A failed start persists a newer but unconfirmed intent; it cannot be

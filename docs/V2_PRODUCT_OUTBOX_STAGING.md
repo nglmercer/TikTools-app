@@ -27,6 +27,11 @@ the source changed after preparation, it sends nothing and retains the
 prepared request as unconfirmed. This is a second observation, not a source
 lock held through HTTP: changes can still occur after the check, and complete
 writer/runtime participation remains required before product activation.
+The native upload adapter also rejects new source or emission admissions once
+host shutdown has begun, including a final check inside its SQLite source
+transaction. A shutdown that starts after that check is not yet an atomic
+fence for an already admitted or in-flight request; shutdown ordering and
+server-side recovery remain necessary before activation.
 
 The dispatcher runs local disk and source checks on a blocking worker rather than a Tokio executor thread. Its caller's cancellation is propagated to that worker, and its complete operation, including waiting for capacity, has a 60-second deadline. The caller receives a timeout even if native I/O remains blocked; checks after a blocked source returns reject cancelled or expired work before a new request. Cancellation or timeout before response publication leaves the durable result `Unconfirmed` for review. An atomic rename already admitted before cancellation can finish afterward, so the caller must inspect the retained state instead of assuming the timeout kept the result unconfirmed. While awaiting HTTP, cancellation or the deadline releases the workspace and protocol leases. Native filesystem or SQLite calls cannot be forcibly interrupted: if one never returns, its worker and any leases it holds remain alive until the operation actually returns. A process-wide limit of four workers retains each permit until the worker really exits, bounding accumulation; saturation fails with a timeout. Product integration must surface this state and account for the remaining in-flight work.
 

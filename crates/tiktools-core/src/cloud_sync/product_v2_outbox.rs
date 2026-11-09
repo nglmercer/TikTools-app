@@ -86,6 +86,13 @@ impl V2ProductSource for SqliteV2ProductSource<'_> {
 
 impl V2ProductUploadSource for SqliteV2ProductSource<'_> {
     fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
         let fence = tiktools_cloud_sync::ProductEmissionFence::open(
             self.core.db.paths().data.join("plugin-sync-emission"),
         )
@@ -101,6 +108,13 @@ impl V2ProductUploadSource for SqliteV2ProductSource<'_> {
         {
             return Err(WorkspaceCoordError::Ineligible);
         }
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
         Ok(Box::new(lease))
     }
 
@@ -109,6 +123,13 @@ impl V2ProductUploadSource for SqliteV2ProductSource<'_> {
         decision: &V2ProductDecision,
         admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
     ) -> Result<(), WorkspaceCoordError> {
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
         let stale = || WorkspaceCoordError::State(cloud_client::WorkspaceStateError::StaleReview);
         if decision.origin != self.origin || decision.account_id != self.account {
             return Err(stale());
@@ -130,7 +151,17 @@ impl V2ProductUploadSource for SqliteV2ProductSource<'_> {
                 &decision.plugin_id,
                 decision.source_generation,
                 selection.enabled,
-                || Ok(admit()),
+                || {
+                    if self
+                        .core
+                        .shutdown_started
+                        .load(std::sync::atomic::Ordering::Acquire)
+                    {
+                        Ok(Err(WorkspaceCoordError::Ineligible))
+                    } else {
+                        Ok(admit())
+                    }
+                },
             )
             .map_err(|_| stale())?
     }
