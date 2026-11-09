@@ -20,6 +20,14 @@ export type RemoteBrowserHello = Identity & {
   features: Readonly<Record<string, boolean>>;
   resourceRestrictions: Readonly<Record<string, readonly string[]>>;
 };
+export interface RemoteBrowserTransport extends ControlTransport {
+  connect(): Promise<RemoteBrowserHello>;
+  currentHello(): RemoteBrowserHello | undefined;
+  /** Raw envelope, including subscription, resource and sequence metadata. */
+  onReliableEvent(handler: (event: unknown) => void): () => void;
+  /** Also fires on explicit detach so private projections can be cleared. */
+  onConnectionLost(handler: (reason: string) => void): () => void;
+}
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -92,7 +100,7 @@ function hello(value: unknown, expected: Identity): RemoteBrowserHello {
 export function createRemoteBrowserTransport(options: {
   fetch?: typeof fetch;
   socket?: (url: string) => WebSocket;
-} = {}): ControlTransport & { connect(): Promise<RemoteBrowserHello> } {
+} = {}): RemoteBrowserTransport {
   const fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
   const makeSocket = options.socket ?? ((url: string) => new WebSocket(url));
   let generation = 0;
@@ -105,6 +113,8 @@ export function createRemoteBrowserTransport(options: {
   let disconnected: ((reason: string) => void) | undefined;
   let reconnected: (() => void) | undefined;
   let missedDisconnect: string | undefined;
+  const reliableListeners = new Set<(event: unknown) => void>();
+  const lossListeners = new Set<(reason: string) => void>();
   const buffered: string[] = [];
   let bufferedBytes = 0;
   const current = (epoch: number): void => {
@@ -119,6 +129,9 @@ export function createRemoteBrowserTransport(options: {
     opening = false;
     buffered.length = 0; bufferedBytes = 0;
     previous?.close();
+    if (wasReady) for (const listener of lossListeners) {
+      try { listener(reason); } catch { /* other views must still be invalidated */ }
+    }
     if (notify && wasReady) {
       if (disconnected) disconnected(reason);
       else missedDisconnect = reason;
@@ -183,6 +196,13 @@ export function createRemoteBrowserTransport(options: {
           const isResponse = typeof value['id'] === 'string' || typeof value['id'] === 'number';
           const isEvent = value['method'] === 'event' || value['method'] === 'event.gap';
           if (!isResponse && !isEvent) { close('invalid remote frame', true); return; }
+          if (value['method'] === 'event') {
+            for (const listener of reliableListeners) {
+              try { listener(value['params']); }
+              catch { close('remote event handler failed', true); return; }
+              if (!ready || epoch !== generation) return;
+            }
+          }
           const message = isResponse ? JSON.stringify({ type: 'rpc-response', response: value }) : event.data;
           if (receive) receive(message);
           else {
@@ -215,6 +235,15 @@ export function createRemoteBrowserTransport(options: {
   }
   return {
     connect,
+    currentHello() { return ready; },
+    onReliableEvent(handler) {
+      reliableListeners.add(handler);
+      return () => { reliableListeners.delete(handler); };
+    },
+    onConnectionLost(handler) {
+      lossListeners.add(handler);
+      return () => { lossListeners.delete(handler); };
+    },
     send(message) {
       if (!ready || socket?.readyState !== 1) throw new Error('remote browser connection is unavailable');
       let request: unknown;
@@ -236,6 +265,7 @@ export function createRemoteBrowserTransport(options: {
       close('remote browser detached', false);
       receive = undefined; disconnected = undefined; reconnected = undefined;
       missedDisconnect = undefined;
+      reliableListeners.clear(); lossListeners.clear();
     },
   };
 }

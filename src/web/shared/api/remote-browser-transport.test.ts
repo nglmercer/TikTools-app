@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { createRemoteBrowserTransport } from './remote-browser-transport.ts';
 import { createControlClient } from './control-client.ts';
+import { createBrowserWorkflowRecovery } from '@/features/controller/model/browser-workflow-recovery.ts';
 
 const session = { csrfToken: 'csrf-test', identity: { clientKind: 'browser', principalId: 'principal-a', sessionId: 'session-a', grantRevision: '3' } };
-const negotiation = { protocolVersion: 1, principalId: 'principal-a', sessionId: 'session-a', grantRevision: '3', hostId: 'host-a', hostInstanceId: 'instance-a', connectionId: 'connection-a', capabilities: ['live.read'], subscriptionDomains: ['workflows'], serverTime: 1700000000000, features: { subscriptions: true }, resourceRestrictions: {}, limits: { frameBytes: 4096, paramsBytes: 2048, requestsPerSecond: 1, requestBurst: 1, pendingCalls: 4 } };
+const negotiation = { protocolVersion: 1, principalId: 'principal-a', sessionId: 'session-a', grantRevision: '3', hostId: 'host-a', hostInstanceId: 'instance-a', connectionId: 'connection-a', capabilities: ['live.read', 'workflows.read'], subscriptionDomains: ['workflows'], serverTime: 1700000000000, features: { subscriptions: true }, resourceRestrictions: {}, limits: { frameBytes: 4096, paramsBytes: 2048, requestsPerSecond: 1, requestBurst: 1, pendingCalls: 4 } };
 class Socket {
   readyState = 0;
   bufferedAmount = 0;
@@ -39,7 +40,7 @@ test('uses a same-origin session and single-use ticket, negotiates identity, and
   const connecting = transport.connect(); await flush(); socket.open();
   const hello = await connecting;
   expect(hello.sessionId).toBe('session-a');
-  expect(hello.capabilities).toEqual(['live.read']);
+  expect(hello.capabilities).toEqual(['live.read', 'workflows.read']);
   expect(Object.isFrozen(hello)).toBe(true);
   expect(factory).toHaveBeenCalledWith('wss://host.test/remote/v1/ws');
   expect(fetcher.mock.calls[0]?.[0]).toBe('/remote/v1/session');
@@ -151,4 +152,46 @@ test('a gap closes the connection and reports it even before a listener attaches
   expect(socket.readyState).toBe(3);
   expect(() => transport.send('{}')).toThrow('unavailable');
   transport.detach();
+});
+
+test('recovery listeners receive the full envelope and clear state on detach', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(ok(session)).mockResolvedValueOnce(ok({}));
+  const socket = new Socket();
+  const transport = createRemoteBrowserTransport({ fetch: fetcher as unknown as typeof fetch, socket: () => socket as unknown as WebSocket });
+  const event = vi.fn(), lost = vi.fn();
+  const removeEvent = transport.onReliableEvent(event);
+  const removeLoss = transport.onConnectionLost(lost);
+  const connecting = transport.connect(); await flush(); socket.open(); await connecting;
+  const envelope = { topic: 'workflow.changed', subscriptionId: 'sub-a', hostInstanceId: 'instance-a', sequence: '12', eventId: 'event-a', resource: { kind: 'workflow', scope: 'host', id: 'welcome', revision: '5' }, data: {} };
+  socket.message({ jsonrpc: '2.0', method: 'event', params: envelope });
+  expect(event).toHaveBeenCalledWith(envelope);
+  removeEvent();
+  socket.message({ jsonrpc: '2.0', method: 'event', params: envelope });
+  expect(event).toHaveBeenCalledOnce();
+  transport.detach(); expect(lost).toHaveBeenCalledOnce();
+  removeLoss();
+});
+
+test('browser recovery retains sequence metadata across the actual control-client adapter', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(ok(session)).mockResolvedValueOnce(ok({}));
+  const socket = new Socket();
+  const transport = createRemoteBrowserTransport({ fetch: fetcher as unknown as typeof fetch, socket: () => socket as unknown as WebSocket });
+  const client = createControlClient({ transport }); client.attach();
+  const connecting = transport.connect(); await flush(); socket.open();
+  const hello = await connecting;
+  const recovery = createBrowserWorkflowRecovery(client, transport, hello);
+  const starting = recovery.start(); await flush();
+  const subscribe = JSON.parse(socket.sent[1]!) as { id: string };
+  socket.message({ jsonrpc: '2.0', id: subscribe.id, result: { subscriptionId: 'sub', hostInstanceId: 'instance-a', grantRevision: '3', domains: ['workflows'] } });
+  await flush();
+  const snapshot = JSON.parse(socket.sent[2]!) as { id: string };
+  const event = { topic: 'workflow.changed', subscriptionId: 'sub', hostInstanceId: 'instance-a', sequence: '1', eventId: 'event-1', resource: { kind: 'workflow', scope: 'host', id: 'welcome', revision: '2' }, actor: { principalId: 'owner' }, data: { id: 'welcome' } };
+  socket.message({ jsonrpc: '2.0', method: 'event', params: event });
+  socket.message({ jsonrpc: '2.0', id: snapshot.id, result: { subscriptionId: 'sub', snapshotId: 'snapshot', hostInstanceId: 'instance-a', grantRevision: '3', throughSequence: '0', domains: ['workflows'], workflows: [{ id: 'welcome' }], resourceVersions: [{ kind: 'workflow', scope: 'host', id: 'welcome', revision: '1' }], nextPageToken: null } });
+  await starting;
+  expect(recovery.baseline()).toHaveLength(1);
+  expect(recovery.next()?.sequence).toBe('1');
+  socket.close();
+  expect(recovery.baseline()).toBeNull(); expect(recovery.next()).toBeNull();
+  recovery.close(); client.detach();
 });

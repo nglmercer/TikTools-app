@@ -24,6 +24,13 @@ mock fetch and sockets and exercise the existing control-client response
 adapter. This transport is not yet connected to a browser controller adapter,
 served app bundle or pairing flow; the native controller bridge cannot simply
 be reused in a browser. Real-browser gateway acceptance remains outstanding.
+An experimental browser workflow recovery primitive now retains the complete
+reliable event envelope, verifies all snapshot pages and workflow restrictions
+before exposing a baseline, buffers bounded events through capture, requires
+ordered acknowledgement and clears the view on disconnect, malformed data,
+gaps or overflow. It retries only explicit pre-dispatch rate limits. Tests use
+mock sockets and responses, including the existing control-client adapter;
+it is not yet a complete browser controller or connected to product UI.
 
 ## Build and connect
 
