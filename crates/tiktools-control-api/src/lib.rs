@@ -166,7 +166,7 @@ impl ControlApi {
             "workflows.delete",
             policy::RemotePolicy::Capability(RemoteCapability::WorkflowsEdit),
         );
-        for name in ["automation.list", "automation.get"] {
+        for name in ["automation.list", "automation.get", "automation.source.get"] {
             router.set_remote_policy(
                 name,
                 policy::RemotePolicy::Capability(RemoteCapability::AutomationRead),
@@ -619,7 +619,9 @@ impl ControlApi {
                 | "points.adjust"
                 | "automation.list"
                 | "automation.get"
+                | "automation.source.get"
                 | "automation.disable"
+                | "automation.enable"
                 | "automation.delete"
                 | "automation.create"
                 | "automation.update"

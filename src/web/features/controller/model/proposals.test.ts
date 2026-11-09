@@ -13,6 +13,7 @@ function fixture() {
   const { client, calls } = createFakeControlClient((method, p) => {
     if (method === 'controller.proposals.list') return { ...identity(), storeRevision: String(storeRevision), rows: copy ? [{ kind: copy.kind, id: copy.id, mode: copy.mode, baseRevision: copy.baseRevision, updatedAt: 1, textBytes: copy.text.length }] : [], next: null };
     if (method === 'controller.proposals.get') return delayed ?? { ...identity(), storeRevision: String(storeRevision), draft: copy };
+    if (method === 'controller.proposals.source') return { ...identity(), kind: p!['kind'], id: p!['id'], revision: '2', record: { id: p!['id'], name: 'Owner source', enabled: true, typeId: 'core.log', config: { message: 'shared sensitive value' } } };
     if (method === 'controller.proposals.inspect') return { ...identity(), inspectionId: `inspection-${hostRevision}`, kind: p!['kind'], id: p!['id'], revision: hostRevision, summary: hostRevision === '0' ? null : { kind: p!['kind'], id: p!['id'], name: 'Closed host summary', enabled: false, definitionRedacted: true } };
     if (method === 'controller.proposals.save') { copy = { kind: p!['kind'] as 'action', id: String(p!['id']), mode: p!['mode'] as 'create', baseRevision: String(p!['baseRevision']), text: String(p!['text']), updatedAt: 1 }; storeRevision += 1; return { ...identity(), storeRevision: String(storeRevision) }; }
     if (method === 'controller.proposals.delete') { copy = null; storeRevision += 1; return { ...identity(), storeRevision: String(storeRevision) }; }
@@ -87,4 +88,20 @@ it('sends an active change only when the host advertises the reusable grant', as
   await f.model.confirm(target);
   expect(f.send).toHaveBeenCalledExactlyOnceWith('controller.proposals.submit', expect.objectContaining({ kind: 'action', id: 'same', active: true, expectedStoreRevision: '2' }));
   expect(f.model.prepare('send-active')).toBeNull();
+});
+
+
+it('previews shared source without overwriting new edits and clears it when access changes', async () => {
+  const f = fixture(); await ready(f);
+  expect(f.model.canReadShared.value).toBe(false);
+  f.status.value.hello!.features['automationSharedSource'] = true;
+  await f.model.loadShared();
+  expect(f.model.sharedSource.value?.text).toContain('shared sensitive value');
+  const before = f.model.text.value; f.model.edit(`${before} `); f.model.useShared();
+  expect(f.model.text.value).toBe(`${before} `);
+  await f.model.loadShared(); f.model.useShared();
+  expect(JSON.parse(f.model.text.value)).toMatchObject({ name: 'Owner source', enabled: false });
+  expect(f.model.baseRevision.value).toBe('2'); expect(f.model.mode.value).toBe('update');
+  await f.model.loadShared(); f.status.value.hello!.grantRevision = '2';
+  expect(f.model.sharedSource.value).toBeNull(); expect(f.model.text.value).toBe('');
 });

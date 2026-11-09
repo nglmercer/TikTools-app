@@ -150,3 +150,69 @@ impl DatabaseManager {
         Ok(result)
     }
 }
+
+impl DatabaseManager {
+    /// Explicitly shared source for the scoped owner definition or this
+    /// principal's own authored definition; never returns dependencies.
+    pub(crate) fn behavior_shared_source(
+        &self,
+        family: AutomationFamily,
+        id: &str,
+        auth: &crate::collaboration::Authorization,
+        budget: usize,
+    ) -> Result<Versioned<Value>, DatabaseError> {
+        use crate::collaboration::Capability;
+        let denied = || DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden);
+        let identity = auth
+            .snapshot()
+            .map_err(DatabaseError::CommandAuthorization)?;
+        if identity.grant.validate().is_err()
+            || !identity
+                .grant
+                .capabilities
+                .contains(&Capability::AutomationRead)
+            || !identity
+                .grant
+                .capabilities
+                .contains(&Capability::AutomationEdit)
+            || identity.grant.resources.contains_key(&ResourceKind::Live)
+            || !identity.grant.allows_automation(family, id)
+            || !identity
+                .grant
+                .automation_delegation
+                .as_ref()
+                .is_some_and(|p| p.allow_owner_source && p.allow_owner_edits)
+        {
+            return Err(denied());
+        }
+        let table = table(family);
+        let mut db = self.open(&self.automation_path())?;
+        let tx = db.transaction()?;
+        let provenance = provenance::get(&tx, table, id)?.ok_or_else(denied)?;
+        match &provenance.authority {
+            provenance::BehaviorAuthority::Owner => {}
+            provenance::BehaviorAuthority::Delegated { principal_id, .. }
+                if *principal_id == identity.principal_id => {}
+            _ => return Err(denied()),
+        }
+        let (record, _, version) = review::record(&tx, table, id, &mut 0)?;
+        let record = record.ok_or_else(denied)?;
+        let value =
+            json!({"kind":family.scope(),"id":id,"revision":version.revision,"record":record});
+        if serde_json::to_vec(&value)?.len() > budget {
+            return Err(DatabaseError::SnapshotTooLarge);
+        }
+        let latest = auth
+            .snapshot()
+            .map_err(DatabaseError::CommandAuthorization)?;
+        if latest.principal_id != identity.principal_id
+            || latest.session_id != identity.session_id
+            || latest.grant_revision != identity.grant_revision
+            || latest.grant != identity.grant
+        {
+            return Err(denied());
+        }
+        tx.commit()?;
+        Ok(Versioned::new(value, vec![version]))
+    }
+}

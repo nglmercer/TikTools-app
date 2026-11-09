@@ -471,6 +471,7 @@ impl Controller {
             "controller.proposals.save"=>self.proposal_save(parse(params)?).await,
             "controller.proposals.delete"=>self.proposal_delete(parse(params)?).await,
             "controller.proposals.inspect"=>self.proposal_inspect(parse(params)?).await,
+            "controller.proposals.source"=>self.proposal_source(parse(params)?).await,
             "controller.proposals.submit"=>self.proposal_command(parse(params)?).await,
             "controller.automations"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,automation_revision:String,#[serde(default)]offset:usize}let p:P=parse(params)?;self.automations(&p.epoch,&p.automation_revision,p.offset)},
             "controller.command.resolve"=>{

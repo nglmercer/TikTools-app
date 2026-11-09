@@ -71,6 +71,42 @@ pub(crate) fn automation_result_allowed(
                 })
         }
         "automation.get" => summary_allowed(result),
+        "automation.source.get" => {
+            grant
+                .automation_delegation
+                .as_ref()
+                .is_some_and(|p| p.allow_owner_source && p.allow_owner_edits)
+                && grant
+                    .capabilities
+                    .contains(&RemoteCapability::AutomationEdit)
+                && result.as_object().is_some_and(|o| {
+                    o.len() == 4
+                        && o.keys()
+                            .all(|k| matches!(k.as_str(), "kind" | "id" | "revision" | "record"))
+                })
+                && result
+                    .get("kind")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(AutomationFamily::from_scope)
+                    .is_some_and(|family| {
+                        result
+                            .get("id")
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|id| {
+                                grant.allows_automation(family, id)
+                                    && result
+                                        .pointer("/record/id")
+                                        .and_then(serde_json::Value::as_str)
+                                        == Some(id)
+                            })
+                    })
+                && result
+                    .get("revision")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|v| {
+                        tiktools_core::collaboration::stream_sequence(v).is_ok_and(|n| n > 0)
+                    })
+        }
         "automation.create" | "automation.update" => {
             result.as_object().is_some_and(|o| {
                 o.len() == 4

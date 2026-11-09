@@ -66,10 +66,14 @@ describe('grant restrictions', () => {
       expect(grant.automationDelegation?.allowOwnerEdits).toBeUndefined();
       await share.setValue(true);
       expect(parseGrant(grant).automationDelegation?.allowOwnerEdits).toBe(true);
+      const source = checkbox('Allow this identity to read owner automation source');
+      await source.setValue(true);
+      expect(parseGrant(grant).automationDelegation?.allowOwnerSource).toBe(true);
       await checkbox('Delay').setValue(true);
       expect(grant.automationDelegation?.allowOwnerEdits).toBe(true);
       await share.setValue(false);
       expect(grant.automationDelegation?.allowOwnerEdits).toBeUndefined();
+      expect(grant.automationDelegation?.allowOwnerSource).toBeUndefined();
     } finally { wrapper.unmount(); }
   });
   it('edits the points ceiling and rejects invalid limits before saving', async () => {

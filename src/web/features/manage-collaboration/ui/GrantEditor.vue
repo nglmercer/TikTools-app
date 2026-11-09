@@ -42,7 +42,15 @@ function setOwnerEdits(enabled: boolean): void {
   const value = copy();
   if (value.automationDelegation) {
     if (enabled) value.automationDelegation.allowOwnerEdits = true;
-    else delete value.automationDelegation.allowOwnerEdits;
+    else { delete value.automationDelegation.allowOwnerEdits; delete value.automationDelegation.allowOwnerSource; }
+  }
+  model.value = value;
+}
+function setOwnerSource(enabled: boolean): void {
+  const value = copy();
+  if (value.automationDelegation && value.automationDelegation.allowOwnerEdits) {
+    if (enabled) value.automationDelegation.allowOwnerSource = true;
+    else delete value.automationDelegation.allowOwnerSource;
   }
   model.value = value;
 }
@@ -170,6 +178,14 @@ function applyJson(): void {
         {{ t('collaboration.delegationOwnerEdits') }}
       </BaseCheckbox>
       <p>{{ t('collaboration.delegationOwnerEditsHint') }}</p>
+      <BaseCheckbox
+        :model-value="model.automationDelegation?.allowOwnerSource ?? false"
+        :disabled="disabled || !model.automationDelegation?.allowOwnerEdits"
+        @update:model-value="setOwnerSource"
+      >
+        {{ t('collaboration.delegationOwnerSource') }}
+      </BaseCheckbox>
+      <p>{{ t('collaboration.delegationOwnerSourceHint') }}</p>
       <BaseCheckbox
         :model-value="model.automationDelegation?.allowDynamicTargets ?? false"
         :disabled="disabled || !model.automationDelegation"

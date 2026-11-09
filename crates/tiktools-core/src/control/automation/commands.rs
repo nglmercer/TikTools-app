@@ -370,3 +370,29 @@ pub(super) fn behavior_command_error(error: crate::db::DatabaseError, id: &str) 
         other => super::super::commands::command_error(other, id),
     }
 }
+
+impl AppCore {
+    /// Fetch only a definition explicitly shared with this authenticated identity.
+    pub fn automation_shared_source(
+        &self,
+        kind: AutomationKind,
+        id: &str,
+        auth: &Authorization,
+        budget: usize,
+    ) -> Result<Versioned<Value>, OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            let id = clean_record_id(id, kind.label())?;
+            self.db
+                .behavior_shared_source(kind.family(), &id, auth, budget)
+                .map_err(|error| behavior_command_error(error, "source-read"))
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = (kind, id, auth, budget);
+            Err(OperationError::capability_unavailable(
+                "source sharing requires persistence",
+            ))
+        }
+    }
+}

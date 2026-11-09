@@ -31,6 +31,7 @@ function tuple(reply: Identity, expected: Identity): boolean { return reply.epoc
 export function createProposalModel(control: ControlClient, deps: Dependencies) {
   const kind = ref<Family>('action'); const id = ref(''); const mode = ref<Mode>('create'); const baseRevision = ref('0'); const text = ref('');
   const rows = ref<ProposalRow[]>([]); const saved = ref<ProposalDraft | null>(null); const inspection = ref<Inspection | null>(null);
+  const sharedSource = ref<{ kind: Family; id: string; revision: string; text: string; before: string } | null>(null);
   const storeRevision = ref<string | null>(null); const busy = ref(false); const error = ref(''); let generation = 0; let loaded = ''; let disposed = false;
   const identityKey = computed(() => binding(deps.status.value));
   const allowed = computed(() => deps.status.value.proposalsSupported === true && !!identity(deps.status.value) && !!deps.status.value.hello?.capabilities.includes('automation.read') && !Object.hasOwn(deps.status.value.hello?.resourceRestrictions ?? {}, 'live'));
@@ -39,8 +40,9 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
   const matches = computed(() => !!saved.value && saved.value.kind === kind.value && saved.value.id === id.value && saved.value.mode === mode.value && saved.value.baseRevision === baseRevision.value && saved.value.text === text.value);
   const inspected = computed(() => !!inspection.value && inspection.value.kind === kind.value && inspection.value.id === id.value && inspection.value.revision === baseRevision.value && (inspection.value.summary !== null) === (mode.value === 'update'));
   const canSend = computed(() => editable.value && !busy.value && matches.value && inspected.value && !deps.blocked() && deps.journalMatches() && deps.status.value.hello?.capabilities.includes('automation.edit') === true && deps.status.value.hello.features['automationDrafts'] === true);
+  const canReadShared = computed(() => editable.value && !busy.value && deps.status.value.hello?.capabilities.includes('automation.edit') === true && deps.status.value.hello.features['automationSharedSource'] === true);
   const canSendActive = computed(() => canSend.value && deps.status.value.hello?.features['automationReusableWrite'] === true && deps.status.value.hello.capabilities.includes('automation.toggle'));
-  function reset(): void { generation += 1; rows.value = []; saved.value = null; inspection.value = null; storeRevision.value = null; text.value = ''; id.value = ''; baseRevision.value = '0'; mode.value = 'create'; error.value = ''; busy.value = false; loaded = ''; }
+  function reset(): void { generation += 1; rows.value = []; saved.value = null; inspection.value = null; sharedSource.value = null; storeRevision.value = null; text.value = ''; id.value = ''; baseRevision.value = '0'; mode.value = 'create'; error.value = ''; busy.value = false; loaded = ''; }
   const unwatch = watch(identityKey, reset, { flush: 'sync' });
   function active(g: number, b: string): boolean { return !disposed && generation === g && identityKey.value === b && allowed.value; }
   async function local<T>(method: string, params: Record<string, unknown>, apply: (reply: T) => void): Promise<void> {
@@ -83,7 +85,7 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
   async function reloadInventory(): Promise<void> { loaded = ''; await refresh(); }
   function select(family: Family, target: string): void {
     if (!permitted(family, target) || busy.value) return;
-    generation += 1; kind.value = family; id.value = target; mode.value = 'create'; baseRevision.value = '0'; saved.value = null; inspection.value = null;
+    generation += 1; kind.value = family; id.value = target; mode.value = 'create'; baseRevision.value = '0'; saved.value = null; inspection.value = null; sharedSource.value = null;
     text.value = JSON.stringify(family === 'action' ? { id: target, name: '', enabled: false, typeId: 'core.log', config: {}, schemaVersion: 2 } : { id: target, name: '', enabled: false, trigger: 'tiktok.chat', actionIds: [], filters: [], cooldown: 0, cooldownScope: 'global', runMode: 'all', schemaVersion: 1 }, null, 2);
   }
   async function load(): Promise<void> {
@@ -104,6 +106,26 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
       if (r.kind !== target.kind || r.id !== target.id || !revision(r.revision) || typeof r.inspectionId !== 'string' || !r.inspectionId || (r.summary !== null && (Object.keys(r.summary).length !== 5 || r.summary.kind !== target.kind || r.summary.id !== target.id || typeof r.summary.name !== 'string' || [...r.summary.name].length > 160 || typeof r.summary.enabled !== 'boolean' || r.summary.definitionRedacted !== true || r.revision === '0'))) throw new Error('protocol');
       inspection.value = r;
     });
+  }
+  async function loadShared(): Promise<void> {
+    if (!canReadShared.value) return;
+    const target = { kind: kind.value, id: id.value }; const before = text.value;
+    sharedSource.value = null;
+    await local<Identity & { kind: Family; id: string; revision: string; record: unknown }>('controller.proposals.source', target, (reply) => {
+      if (reply.kind !== target.kind || reply.id !== target.id || !revision(reply.revision) || reply.revision === '0' ||
+          !reply.record || typeof reply.record !== 'object' || Array.isArray(reply.record) ||
+          (reply.record as Record<string, unknown>)['id'] !== target.id || typeof (reply.record as Record<string, unknown>)['enabled'] !== 'boolean') throw new Error('protocol');
+      const record = { ...(reply.record as Record<string, unknown>), enabled: false };
+      const source = JSON.stringify(record, null, 2);
+      if (encoder.encode(source).length > 256 * 1024) throw new Error('proposal_invalid');
+      sharedSource.value = { ...target, revision: reply.revision, text: source, before };
+    });
+  }
+  function useShared(): void {
+    const source = sharedSource.value;
+    if (!source || !canReadShared.value || source.kind !== kind.value || source.id !== id.value || source.before !== text.value) return;
+    text.value = source.text; baseRevision.value = source.revision; mode.value = 'update';
+    inspection.value = null; sharedSource.value = null;
   }
   function edit(value: string): void { if (editable.value && !busy.value) text.value = value; }
   function prepare(operation: ProposalConfirmation['operation']): ProposalConfirmation | null {
@@ -131,6 +153,6 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
     await refresh();
   }
   function stop(): void { disposed = true; unwatch(); reset(); }
-  return { kind, id, mode, baseRevision, text, rows, saved, inspection, storeRevision, busy, error, identityKey, allowed, editable, matches, inspected, canSend, canSendActive, refresh, reloadInventory, reset, select, load, inspect, edit, prepare, current, confirm, stop };
+  return { kind, id, mode, baseRevision, text, rows, saved, inspection, sharedSource, storeRevision, busy, error, identityKey, allowed, editable, matches, inspected, canSend, canSendActive, canReadShared, refresh, reloadInventory, reset, select, load, loadShared, useShared, inspect, edit, prepare, current, confirm, stop };
 }
 export type ProposalModel = ReturnType<typeof createProposalModel>;

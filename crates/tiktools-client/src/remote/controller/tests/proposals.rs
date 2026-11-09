@@ -625,6 +625,7 @@ async fn native_proposals_create_and_edit_active_definitions_with_reusable_grant
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     manager
         .install(
@@ -731,6 +732,7 @@ async fn native_controller_edits_owner_definition_under_explicit_reusable_grant(
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: true,
+        allow_owner_source: true,
     });
     manager
         .install(
@@ -743,9 +745,24 @@ async fn native_controller_edits_owner_definition_under_explicit_reusable_grant(
         .unwrap();
     let c = Controller::new(manager);
     c.connect("desk").await.unwrap();
+    let mut source_request = params(&c);
+    source_request["kind"] = "action".into();
+    source_request["id"] = "same".into();
+    let source = c
+        .manage("controller.proposals.source", source_request)
+        .await
+        .unwrap();
+    assert_eq!(source["record"]["config"]["message"], "owner source");
+    assert_eq!(source["revision"], "1");
+    assert!(!serde_json::to_string(&c.status().command_journal)
+        .unwrap()
+        .contains("owner source"));
     let inspected = inspect(&c, "action").await;
     assert_eq!(inspected["revision"], "1");
-    let edited = json!({"id":"same","name":"Moderator edit","enabled":false,"typeId":"core.log","config":{"message":"moderator source"}});
+    let mut edited = source["record"].clone();
+    edited["name"] = "Moderator edit".into();
+    edited["enabled"] = false.into();
+    edited["config"]["message"] = "moderator source".into();
     let saved = save(&c, "action", "update", "1", "0", &edited.to_string()).await;
     let mut input = submit(
         &c,
@@ -763,6 +780,15 @@ async fn native_controller_edits_owner_definition_under_explicit_reusable_grant(
         result["recent"][0]["intent"]["operation"],
         "update-action-active"
     );
+    let mut reread = params(&c);
+    reread["kind"] = "action".into();
+    reread["id"] = "same".into();
+    let changed = c
+        .manage("controller.proposals.source", reread)
+        .await
+        .unwrap();
+    assert_eq!(changed["revision"], "2");
+    assert_eq!(changed["record"]["config"]["message"], "moderator source");
     let after = f
         .core
         .automation_get(AutomationKind::Action, "same")

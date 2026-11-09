@@ -16,8 +16,10 @@ legacy-format grants. Focused core and API tests verify that an authorized
 remote update changes provenance to the editor, validates every affected event
 closure, rejects unscoped references, private filters and unsupported effects,
 and stops after revocation. A native controller test submits an active update
-over local TLS. The editor still requires the moderator to supply a local source
-copy; this does not establish remote source sharing or physical two-PC use.
+over local TLS. A separate default-deny source grant now allows the scoped Owner definition
+to be previewed over local TLS; the test checks grant narrowing and denies a
+different remote author’s source. The controller requires an explicit selection
+before replacing open text. These tests do not establish physical two-PC use.
 
 ## Reusable grant: native ingress and two controllers
 

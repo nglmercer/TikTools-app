@@ -26,10 +26,15 @@ resource restrictions and effect-specific limits continue to apply. An optional
 update scoped Owner definitions under the same policy. Updated definitions are
 attributed to the remote identity; its later revocation can stop their execution.
 For an action, every referencing Owner event must also be in scope and its full
-closure must pass policy before the edit commits. The controller still receives
-only summaries of existing definitions and cannot import their source; users must
-supply their own copy to edit them. Older clients may reject grants containing
-new fields; mixed-version compatibility has not yet been established.
+closure must pass policy before the edit commits. The separate
+`allowOwnerSource` flag additionally permits scoped source reads;
+it is false by default and requires `allowOwnerEdits`. Source can contain
+sensitive values, so the Owner UI describes that disclosure before granting it.
+The controller previews a shared Owner definition, or one previously authored by
+the same identity, before replacing local text and rechecks identity and revision.
+Definitions authored by another remote principal
+remain private. Older clients may reject grants containing new fields;
+mixed-version compatibility has not yet been established.
 
 The host now permits a remote author to activate an existing saved action or
 event through `automation.enable` when the complete post-activation closure
@@ -40,7 +45,8 @@ ownership and dependent graph restrictions, and rolls back on an unsupported or
 out-of-scope closure. A remote activation does not convert provenance to Owner.
 The API also accepts an enabled remote create or update when the complete new
 closure passes the same policy in the commit transaction; otherwise it rolls
-back without changing the live definition. The graphical controller exposes activation for action and event summaries,
+back without changing the live definition. The graphical controller exposes
+activation for action and event summaries,
 and its editor can submit a retained local copy either as a disabled draft or
 as an active definition when the host advertises reusable authoring. Its
 command journal retains uncertain outcomes for recovery.

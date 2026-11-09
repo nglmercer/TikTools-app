@@ -765,6 +765,7 @@ async fn reusable_grant_activates_authored_action_and_event_through_native_contr
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let credentials = f.pair(delegated).await;
     let auth = f
@@ -854,6 +855,7 @@ async fn native_activation_receipt_recovers_original_id_without_reapplying() {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let credentials = f.pair(permitted).await;
     let auth = f

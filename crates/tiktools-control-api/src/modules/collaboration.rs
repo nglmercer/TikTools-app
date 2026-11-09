@@ -189,6 +189,11 @@ pub fn register(router: &mut ControlRouter) {
                 })
                 .await??;
             let reusable_automation = identity.grant.automation_delegation.is_some();
+            let shared_automation_source = identity
+                .grant
+                .automation_delegation
+                .as_ref()
+                .is_some_and(|p| p.allow_owner_source && p.allow_owner_edits);
             Ok(HelloResult {
                 protocol_version: 1,
                 host_id,
@@ -216,6 +221,10 @@ pub fn register(router: &mut ControlRouter) {
                     ("competitionSummary".into(), cfg!(feature = "persistence")),
                     ("automationSummary".into(), cfg!(feature = "persistence")),
                     ("automationDrafts".into(), cfg!(feature = "persistence")),
+                    (
+                        "automationSharedSource".into(),
+                        cfg!(feature = "persistence") && shared_automation_source,
+                    ),
                     (
                         "automationReusableActivation".into(),
                         cfg!(feature = "persistence") && reusable_automation,

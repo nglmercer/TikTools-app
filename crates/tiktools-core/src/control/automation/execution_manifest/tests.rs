@@ -223,6 +223,7 @@ fn reusable_preflight_uses_current_saved_grant_and_does_not_activate() {
             effects: [DelegatedAutomationEffect::Log].into(),
             allow_dynamic_targets: false,
             allow_owner_edits: false,
+            allow_owner_source: false,
         }),
         ..Grant::default()
     };
@@ -357,6 +358,7 @@ fn reusable_preflight_requires_policy_from_every_delegated_author() {
             effects: [DelegatedAutomationEffect::Log].into(),
             allow_dynamic_targets: false,
             allow_owner_edits: false,
+            allow_owner_source: false,
         }),
         ..Grant::default()
     };
@@ -433,6 +435,7 @@ fn reusable_runtime_candidate_pins_definition_and_current_subject_grant() {
             effects: [DelegatedAutomationEffect::Log].into(),
             allow_dynamic_targets: false,
             allow_owner_edits: false,
+            allow_owner_source: false,
         }),
         ..Grant::default()
     };

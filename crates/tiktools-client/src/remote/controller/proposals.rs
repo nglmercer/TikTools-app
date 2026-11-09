@@ -254,6 +254,68 @@ impl Controller {
         selected(&self.shared, p.identity(), Some((p.kind, &p.id)), false)?;
         Ok(reply(p.identity(), &rev))
     }
+    pub(super) async fn proposal_source(&self, p: Inspect) -> Result<Value, ClientError> {
+        let selection = selected(&self.shared, p.identity(), Some((p.kind, &p.id)), false)?;
+        if selection
+            .remote
+            .hello()
+            .features
+            .get("automationSharedSource")
+            != Some(&true)
+            || !selection
+                .remote
+                .hello()
+                .capabilities
+                .contains(&Capability::AutomationEdit)
+        {
+            return Err(fail("forbidden", "shared source is unavailable"));
+        }
+        let reply = selection
+            .remote
+            .call_value_with_meta(
+                "automation.source.get",
+                json!({"kind":p.kind,"id":p.id}),
+                None,
+            )
+            .await?;
+        let meta = reply.meta.ok_or_else(protocol)?;
+        if meta.command.is_some() {
+            return Err(protocol());
+        }
+        let rev = version(
+            &serde_json::to_value(meta.resource_versions).map_err(|_| protocol())?,
+            p.kind,
+            &p.id,
+            true,
+        )?;
+        let body = &reply.result;
+        if body.as_object().is_none_or(|o| {
+            o.len() != 4
+                || !o
+                    .keys()
+                    .all(|key| matches!(key.as_str(), "kind" | "id" | "revision" | "record"))
+        }) || body.get("kind").and_then(Value::as_str) != Some(p.kind.scope())
+            || body.get("id").and_then(Value::as_str) != Some(p.id.as_str())
+            || body.get("revision").and_then(Value::as_str) != Some(rev.as_str())
+            || body.pointer("/record/id").and_then(Value::as_str) != Some(p.id.as_str())
+            || serde_json::to_vec(body).map_err(|_| protocol())?.len() > 256 * 1024
+        {
+            return Err(protocol());
+        }
+        let latest = selected(&self.shared, p.identity(), Some((p.kind, &p.id)), false)?;
+        if latest.remote.hello().features.get("automationSharedSource") != Some(&true)
+            || !latest
+                .remote
+                .hello()
+                .capabilities
+                .contains(&Capability::AutomationEdit)
+        {
+            return Err(fail("forbidden", "shared source is unavailable"));
+        }
+        Ok(
+            json!({"epoch":p.epoch,"connectionId":p.connection_id,"hostInstanceId":p.host_instance_id,"grantRevision":p.grant_revision,"kind":p.kind,"id":p.id,"revision":rev,"record":body["record"]}),
+        )
+    }
     pub(super) async fn proposal_inspect(&self, p: Inspect) -> Result<Value, ClientError> {
         let s = selected(&self.shared, p.identity(), Some((p.kind, &p.id)), false)?;
         let response = s

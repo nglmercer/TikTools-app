@@ -85,6 +85,9 @@ pub struct AutomationDelegation {
     /// Explicitly allow scoped changes to existing Owner definitions.
     #[serde(default, skip_serializing_if = "is_false")]
     pub allow_owner_edits: bool,
+    /// Explicitly share Owner source, which can include sensitive values.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub allow_owner_source: bool,
 }
 fn is_false(value: &bool) -> bool {
     !value
@@ -245,6 +248,7 @@ impl Grant {
         self.effects.validate()?;
         if let Some(policy) = &self.automation_delegation {
             if policy.effects.is_empty()
+                || (policy.allow_owner_source && !policy.allow_owner_edits)
                 || ![
                     Capability::AutomationRead,
                     Capability::AutomationEdit,
@@ -726,6 +730,7 @@ mod tests {
             .into(),
             allow_dynamic_targets: false,
             allow_owner_edits: false,
+            allow_owner_source: false,
         });
         grant.validate().unwrap();
         let serialized = serde_json::to_value(&grant).unwrap();
@@ -743,6 +748,19 @@ mod tests {
         let encoded = serde_json::to_value(&shared).unwrap();
         assert_eq!(encoded["automationDelegation"]["allowOwnerEdits"], true);
         assert_eq!(serde_json::from_value::<Grant>(encoded).unwrap(), shared);
+        let mut source_only = grant.clone();
+        source_only
+            .automation_delegation
+            .as_mut()
+            .unwrap()
+            .allow_owner_source = true;
+        assert!(source_only.validate().is_err());
+        shared
+            .automation_delegation
+            .as_mut()
+            .unwrap()
+            .allow_owner_source = true;
+        assert!(shared.validate().is_ok());
         let mut extra = serialized.clone();
         extra["automationDelegation"]["effects"] = serde_json::json!(["plugin"]);
         assert!(serde_json::from_value::<Grant>(extra).is_err());

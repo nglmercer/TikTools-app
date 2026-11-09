@@ -63,3 +63,24 @@ it('applies a saved active definition without a repeated approval dialog', async
     expect(wrapper.find('dialog[open]').exists()).toBe(false);
   } finally { wrapper.unmount(); model.stop(); }
 });
+
+it('previews explicitly shared source before replacing the open editor', async () => {
+  await activateLocale('en');
+  const status = ref<ControllerStatus>({ proposalsSupported: true, epoch: '1', viewRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://owner.example', errorCode: null,
+    hello: { connectionId: 'connection', hostId: 'host', hostInstanceId: 'instance', principalId: 'author', sessionId: 'device', grantRevision: '1', capabilities: ['automation.read', 'automation.edit'], features: { automationDrafts: true, automationSharedSource: true } } });
+  const identity = { epoch: '1', connectionId: 'connection', hostInstanceId: 'instance', grantRevision: '1' };
+  const { client } = createFakeControlClient((method) => {
+    if (method === 'controller.proposals.list') return { ...identity, storeRevision: '0', rows: [], next: null };
+    if (method === 'controller.proposals.source') return { ...identity, kind: 'action', id: 'same', revision: '2', record: { id: 'same', name: 'Owner definition', enabled: true, typeId: 'core.log', config: { message: 'shared value' } } };
+    throw new Error(method);
+  });
+  const model = createProposalModel(client, { status, blocked: () => false, journalMatches: () => true, send: async () => true }); await model.refresh(); model.select('action', 'same');
+  const before = model.text.value; const wrapper = mount(ControllerProposals, { props: { model }, global: { plugins: [i18n] } });
+  try {
+    await wrapper.findAll('button').find((button) => button.text() === 'Read shared definition')!.trigger('click'); await flushPromises();
+    expect(wrapper.text()).toContain('shared value'); expect(model.text.value).toBe(before);
+    await wrapper.findAll('button').find((button) => button.text() === 'Use this definition')!.trigger('click');
+    expect(JSON.parse(model.text.value)).toMatchObject({ name: 'Owner definition', enabled: false });
+    expect(model.baseRevision.value).toBe('2'); expect(model.mode.value).toBe('update');
+  } finally { wrapper.unmount(); model.stop(); }
+});

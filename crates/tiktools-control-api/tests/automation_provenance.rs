@@ -214,6 +214,7 @@ async fn stored_reusable_policy_enables_saved_remote_definition() {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let author = f.pair(author_grant);
     let instance = f.instance();
@@ -809,6 +810,8 @@ async fn draft_receipts_are_reauthorized_for_exact_family_after_grants_change() 
     let RequestContext::Remote(session) = &author.context else {
         panic!()
     };
+    assert!(f.api.authorize_remote_failure(session, "automation.enable", Some(&json!({"resourceVersions":[{"kind":"automation","scope":"event","id":"draft","revision":"1"}]}))).is_err());
+    assert!(f.api.authorize_remote_failure(session, "automation.enable", Some(&json!({"resourceVersions":[{"kind":"automation","scope":"action","id":"draft","revision":"1"}]}))).is_ok());
     for (kind, receipt, outcome) in receipts {
         if kind == "action" {
             assert!(f
@@ -1347,6 +1350,7 @@ async fn remote_owner_definition_edit_requires_explicit_reusable_permission() {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: true,
+        allow_owner_source: false,
     });
     let author = f.pair(author_grant);
     let response = f.remote(&author, "automation.update", json!({"kind":"action","id":"owned","record":{"id":"owned","name":"Edited","enabled":true,"typeId":"core.log","config":{"message":"moderator source"}}}), metadata(&f.instance(), "owner-edit", "1")).await;
@@ -1360,6 +1364,141 @@ async fn remote_owner_definition_edit_requires_explicit_reusable_permission() {
         &author,
         "action",
         "owned",
+    );
+    f.close().await;
+}
+
+#[tokio::test]
+async fn shared_source_requires_explicit_scoped_grant_and_current_identity() {
+    use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new();
+    f.core.automation_create(AutomationKind::Action, json!({"id":"owned","name":"Owner","enabled":true,"typeId":"core.log","config":{"message":"sensitive-owner-value"}})).unwrap();
+    let mut author_grant = grant(&["action:owned", "action:foreign"]);
+    author_grant.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: true,
+        allow_owner_source: false,
+    });
+    let author = f.pair(author_grant.clone());
+    let request = json!({"kind":"action","id":"owned"});
+    let denied = f
+        .remote(
+            &author,
+            "automation.source.get",
+            request.clone(),
+            Value::Null,
+        )
+        .await;
+    assert_eq!(denied.error.unwrap().code, "forbidden");
+    let principal = f
+        .core
+        .collaboration()
+        .unwrap()
+        .principal(&author.principal)
+        .unwrap();
+    author_grant
+        .automation_delegation
+        .as_mut()
+        .unwrap()
+        .allow_owner_source = true;
+    f.core
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author.principal.clone(),
+            expected_revision: principal.grant_revision,
+            grant: author_grant.clone(),
+        })
+        .unwrap();
+    let allowed = f
+        .remote(
+            &author,
+            "automation.source.get",
+            request.clone(),
+            Value::Null,
+        )
+        .await;
+    assert!(allowed.is_ok(), "{allowed:?}");
+    let body = allowed.result.unwrap();
+    assert_eq!(body["record"]["config"]["message"], "sensitive-owner-value");
+    assert_eq!(body["revision"], "1");
+    let RequestContext::Remote(session) = &author.context else {
+        panic!()
+    };
+    assert!(f
+        .core
+        .automation_shared_source(
+            AutomationKind::Action,
+            "owned",
+            &session.authorization().unwrap(),
+            16
+        )
+        .is_err());
+    let mut removed = author_grant.clone();
+    removed
+        .automation_delegation
+        .as_mut()
+        .unwrap()
+        .allow_owner_source = false;
+    f.core
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author.principal.clone(),
+            expected_revision: "2".into(),
+            grant: removed,
+        })
+        .unwrap();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_err());
+    f.core
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author.principal.clone(),
+            expected_revision: "3".into(),
+            grant: author_grant.clone(),
+        })
+        .unwrap();
+    let foreign = f.pair(grant(&["action:foreign"]));
+    let created = f.remote(&foreign, "automation.create", json!({"kind":"action","record":{"id":"foreign","name":"Other","enabled":false,"typeId":"core.log","config":{"message":"foreign-sensitive"}}}), metadata(&f.instance(), "foreign-source", "0")).await;
+    assert!(created.is_ok(), "{created:?}");
+    let hidden = f
+        .remote(
+            &author,
+            "automation.source.get",
+            json!({"kind":"action","id":"foreign"}),
+            Value::Null,
+        )
+        .await;
+    assert_eq!(hidden.error.unwrap().code, "forbidden");
+    let mut narrowed = author_grant;
+    narrowed
+        .resources
+        .insert(ResourceKind::Automation, [].into());
+    f.core
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author.principal.clone(),
+            expected_revision: "4".into(),
+            grant: narrowed,
+        })
+        .unwrap();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_err());
+    assert_eq!(
+        f.remote(&author, "automation.source.get", request, Value::Null)
+            .await
+            .error
+            .unwrap()
+            .code,
+        "forbidden"
     );
     f.close().await;
 }

@@ -216,6 +216,28 @@ pub struct AutomationAdoptParams {
     pub reviewed_versions: Option<Vec<tiktools_core::collaboration::ResourceVersion>>,
 }
 pub fn register(router: &mut ControlRouter) {
+    router.register_versioned::<AutomationGetParams, Value, _, _>(
+        "automation.source.get",
+        "Reads an explicitly shared automation definition",
+        false,
+        |core, context, params, meta| async move {
+            owner_metadata(crate::RequestContext::LocalOwner, meta, false)?;
+            let crate::RequestContext::Remote(session) = context else {
+                return Err(crate::context::forbidden());
+            };
+            let kind = parse_kind(params.kind.as_deref(), AutomationKind::Event)?;
+            let auth = session.authorization()?;
+            let budget = session.connection_limits().map_or(128 * 1024, |limits| {
+                (limits.frame_bytes / 4).min(128 * 1024)
+            });
+            crate::modules::blocking_task("automation.source.get", move || {
+                core.automation_shared_source(kind, &params.id, &auth, budget)
+            })
+            .await?
+            .map_err(ApiError::from)
+            .map_err(|e| e.scoped_not_found("automation_not_found"))
+        },
+    );
     router.register_versioned::<AutomationManifestParams, Value, _, _>(
         "automation.delegation.preflight",
         "Owner-only advisory reusable-grant check; never an execution permit",

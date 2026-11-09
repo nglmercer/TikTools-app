@@ -847,6 +847,7 @@ async fn reusable_grant_runs_saved_live_event_and_revocation_stops_it() {
         effects: [DelegatedAutomationEffect::Points].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
@@ -996,6 +997,7 @@ fn remote_activation_requires_reusable_policy_and_author_ownership() {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let other = f.pair(permitted);
     assert!(f
@@ -1025,6 +1027,7 @@ fn remote_activation_rejects_effects_outside_reusable_grant() {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let auth = f.pair(limited);
     f.draft(
@@ -1067,6 +1070,7 @@ async fn reusable_grant_creates_and_edits_active_automation_atomically() {
         effects: [DelegatedAutomationEffect::Points].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let auth = f.pair(permitted);
     let mut action = points("active-points", "alice", 1.0);
@@ -1175,6 +1179,7 @@ async fn native_live_ingress_applies_reusable_grants_only_for_verified_generatio
         effects: [DelegatedAutomationEffect::Points].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
@@ -1292,6 +1297,7 @@ async fn reusable_grant_revocation_during_delay_stops_later_effects() {
         .into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let auth = f.pair(permitted);
     let identity = auth.snapshot().unwrap();
@@ -1360,6 +1366,7 @@ async fn reusable_event_intersects_grants_of_multiple_authors() {
         effects: [DelegatedAutomationEffect::Points].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let action_author = f.pair(permission.clone());
     let event_author = f.pair(permission.clone());
@@ -1432,6 +1439,7 @@ async fn explicit_reusable_grant_can_edit_owner_action_and_revalidates_dependent
         effects: [DelegatedAutomationEffect::Points].into(),
         allow_dynamic_targets: false,
         allow_owner_edits: false,
+        allow_owner_source: false,
     });
     let auth = f.pair(permitted.clone());
     let identity = auth.snapshot().unwrap();
@@ -1535,6 +1543,7 @@ fn owner_action_edit_rejects_unscoped_or_unsupported_dependent_events() {
             effects: [DelegatedAutomationEffect::Log].into(),
             allow_dynamic_targets: false,
             allow_owner_edits: true,
+            allow_owner_source: false,
         });
         if case == 0 {
             permission.resources.insert(

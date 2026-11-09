@@ -11,9 +11,9 @@ function automationId(value: string): boolean {
   return (family === 'action' || family === 'event') && raw.length > 0 && raw.trim() === raw && bytes.encode(raw).length <= 128;
 }
 function validDelegation(value: unknown, caps: unknown[]): boolean {
-  if (!record(value) || Object.keys(value).some((k) => !['effects', 'allowDynamicTargets', 'allowOwnerEdits'].includes(k)) ||
+  if (!record(value) || Object.keys(value).some((k) => !['effects', 'allowDynamicTargets', 'allowOwnerEdits', 'allowOwnerSource'].includes(k)) ||
       !Array.isArray(value['effects']) || value['effects'].length === 0 || value['effects'].length > 7 ||
-      new Set(value['effects']).size !== value['effects'].length || typeof value['allowDynamicTargets'] !== 'boolean' || (Object.hasOwn(value, 'allowOwnerEdits') && typeof value['allowOwnerEdits'] !== 'boolean') ||
+      new Set(value['effects']).size !== value['effects'].length || typeof value['allowDynamicTargets'] !== 'boolean' || (Object.hasOwn(value, 'allowOwnerEdits') && typeof value['allowOwnerEdits'] !== 'boolean') || (Object.hasOwn(value, 'allowOwnerSource') && typeof value['allowOwnerSource'] !== 'boolean') || (value['allowOwnerSource'] === true && value['allowOwnerEdits'] !== true) ||
       !['automation.read', 'automation.edit', 'automation.toggle'].every((cap) => caps.includes(cap))) return false;
   const needed: Record<string, string | null> = { log: null, delay: null, points: 'points.adjust', http: 'http.request', audio: 'audio.play', emit: 'events.emit', script: 'scripts.execute' };
   return value['effects'].every((effect) => typeof effect === 'string' && Object.hasOwn(needed, effect) && (needed[effect] === null || caps.includes(needed[effect])));
