@@ -330,6 +330,107 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         .unwrap();
     assert_eq!(pending.base_record, None);
     assert_eq!(pending.base_revision, None);
+
+    // Independent synthetic fixture state: the preceding candidate is not
+    // actually uploaded, so reset the workspace only for this test scenario.
+    let snapshot = store.load().unwrap().unwrap();
+    let mut clean = cloud_client::WorkspaceState::new(origin.clone(), "alice".into()).unwrap();
+    clean
+        .install_rebuild(cloud_client::WorkspaceSnapshot {
+            schema_version: 2,
+            cursor: 0,
+            records: vec![],
+        })
+        .unwrap();
+    clean.mark_bootstrap_complete();
+    clean.mark_product_guarded();
+    store.save(Some(snapshot.generation), &clean).unwrap();
+    core.db
+        .set_plugin_state_with_sync_intent(
+            "acme.hotkeys",
+            true,
+            true,
+            Some(crate::db::LocalPluginSyncIntent {
+                origin: &origin,
+                account_id: "alice",
+                config_generation: 41,
+                version: Some("1.0.0"),
+            }),
+        )
+        .unwrap();
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection
+        .execute(
+            "UPDATE plugin_sync_outbox SET reviewed_base=NULL WHERE plugin_id='acme.hotkeys'",
+            [],
+        )
+        .unwrap();
+    drop(connection);
+    let legacy = source
+        .review_reconciled_runtime("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.other".into())
+        .await
+        .unwrap();
+    assert!(sync
+        .with_v2_reconciliation_barrier(&proof, |admission| source
+            .review_legacy_candidate_under_barrier(&legacy, admission))
+        .await
+        .is_err());
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
+        .await
+        .unwrap();
+    core.plugins.stop("acme.hotkeys").unwrap();
+    assert!(sync
+        .with_v2_reconciliation_barrier(&proof, |admission| source
+            .review_legacy_candidate_under_barrier(&legacy, admission))
+        .await
+        .is_err());
+    assert_eq!(
+        core.db
+            .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
+            .unwrap()
+            .unwrap()
+            .reviewed_base,
+        None
+    );
+    core.plugins.start("acme.hotkeys").unwrap();
+    let legacy = source
+        .review_reconciled_runtime("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    let proof = sync
+        .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
+        .await
+        .unwrap();
+    sync.with_v2_reconciliation_barrier(&proof, |admission| {
+        source.review_legacy_candidate_under_barrier(&legacy, admission)
+    })
+    .await
+    .unwrap();
+    let recovered = core
+        .db
+        .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    assert_eq!(recovered.reviewed_base.as_deref(), Some("null"));
+    assert_eq!(recovered.config_generation, 42);
+    assert_eq!(recovered.runtime_epoch, None);
+    assert!(sync.stage_v2_product_decision(&source).is_err());
+    let runtime_review = source
+        .review_reconciled_runtime("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    source.confirm_reconciled_runtime(&runtime_review).unwrap();
+    sync.stage_v2_product_decision(&source).unwrap();
+    assert!(core
+        .db
+        .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
+        .unwrap()
+        .is_none());
     core.shutdown().await;
     drop(source);
     server.abort();

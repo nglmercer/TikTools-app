@@ -166,8 +166,14 @@ that no different edit is pending; the workspace persists the same base for
 the conditional write. A later remote change must conflict rather than becoming
 an unreviewed base. SQLite confirmation and acknowledgement compare the stored
 base as well. Candidates from older development builds do not distinguish
-reviewed and direct changes and are refused by the v2 source adapter until a
-separate reviewed recovery is provided. This path still needs complete product
+reviewed and direct changes and are refused by the v2 source adapter. An
+experimental explicit recovery can bind an installed candidate with a known
+previous consent generation to a fresh barrier, exact remote record, current
+consent and local runtime observation. Its atomic update rejects another
+account's candidate, untracked edits, receipts and package/apply/rebase
+journals, and resets runtime confirmation. Unknown legacy consent, tombstones,
+and ambiguous pending workspace requests remain outside this recovery; it is
+not connected to a product UI. This path still needs complete product
 integration and real two-device acceptance. The primitive does not itself
 collect an explicit user choice or show a complete local and remote comparison.
 The native local-review adapter can consume the callback's non-serializable

@@ -190,6 +190,68 @@ impl<'a> SqliteV2ProductSource<'a> {
         }))
     }
 
+    /// Bind an unclassified older candidate to the reviewed remote value.
+    /// The caller must present an explicit user choice and the coordinator's
+    /// fresh, single-use admission; this is not a product/UI entry point.
+    #[allow(dead_code)]
+    pub(crate) fn review_legacy_candidate_under_barrier(
+        &self,
+        review: &ReconciledRuntimeReview,
+        admission: &tiktools_cloud_sync::V2ReconciliationAdmission<'_>,
+    ) -> Result<(), WorkspaceCoordError> {
+        let context = admission.context();
+        let entry = &review.entry;
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+            || context.origin != self.origin
+            || context.account_id != self.account
+            || entry.origin != self.origin
+            || entry.account_id != self.account
+            || admission.target().collection != "plugin-selections"
+            || admission.target().key != entry.plugin_id
+            || entry.reviewed_base.is_some()
+            || entry.generation != entry.source_generation
+            || !admission
+                .matches_source_dir(&self.core.db.paths().data.join("plugin-sync-emission"))
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        let runtime = self
+            .core
+            .try_plugin_sync_runtime_guard()
+            .map_err(|_| WorkspaceCoordError::Ineligible)?;
+        let (Some(version), Some(enabled)) = (entry.version.as_deref(), entry.enabled) else {
+            return Err(WorkspaceCoordError::Ineligible);
+        };
+        if self
+            .core
+            .sync
+            .runtime_epoch()
+            .map_err(|_| WorkspaceCoordError::Ineligible)?
+            != review.runtime_epoch
+            || !runtime.matches_selection(&entry.plugin_id, version, enabled)
+            || self
+                .core
+                .shutdown_started
+                .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        let base = serde_json::to_string(&admission.remote())
+            .map_err(|_| WorkspaceCoordError::Ineligible)?;
+        if !self
+            .core
+            .db
+            .review_legacy_plugin_sync_base(entry, context.config_generation, &base)
+            .map_err(|_| WorkspaceCoordError::Ineligible)?
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        Ok(())
+    }
+
     /// Confirm the exact reconciled outbox candidate against this host's
     /// current runtime. This performs no Cloud operation and grants no
     /// consent; the later staging path must independently recheck identity

@@ -413,6 +413,56 @@ impl DatabaseManager {
         Ok(changed == 1)
     }
 
+    /// Bind an older unclassified candidate to an explicit, post-barrier Cloud
+    /// review. The caller owns the source, identity, consent and runtime gates.
+    /// No old runtime confirmation survives the review.
+    #[allow(dead_code)]
+    pub(crate) fn review_legacy_plugin_sync_base(
+        &self,
+        entry: &PluginSyncOutboxEntry,
+        current_config_generation: u128,
+        reviewed_base: &str,
+    ) -> Result<bool, DatabaseError> {
+        let base: Option<cloud_client::WorkspaceRecord> = serde_json::from_str(reviewed_base)
+            .map_err(|_| DatabaseError::Invalid("invalid reviewed Cloud base".into()))?;
+        if entry.reviewed_base.is_some()
+            || entry.generation <= 0
+            || entry.config_generation == 0
+            || current_config_generation == 0
+            || entry.version.is_none()
+            || entry.enabled.is_none()
+            || reviewed_base.len() > 512 * 1024
+            || base.as_ref().is_some_and(|r| {
+                r.collection != "plugin-selections" || r.key != entry.plugin_id || r.revision <= 0
+            })
+        {
+            return Err(DatabaseError::Invalid(
+                "invalid legacy plugin review".into(),
+            ));
+        }
+        let db = self.open(&self.automation_path())?;
+        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        let changed = db.execute(
+            "UPDATE plugin_sync_outbox SET reviewed_base=?9,config_generation=?10,runtime_epoch=NULL
+             WHERE origin=?1 AND account_id=?2 AND plugin_id=?3 AND generation=?4
+               AND config_generation=?5 AND version IS ?6 AND enabled IS ?7 AND runtime_epoch IS ?8
+               AND reviewed_base IS NULL
+               AND EXISTS(SELECT 1 FROM plugin_sync_source_versions s WHERE s.plugin_id=?3 AND s.generation=?4)
+               AND EXISTS(SELECT 1 FROM behavior_plugins b WHERE b.id=?3 AND b.installed=1 AND b.enabled=?7)
+               AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=?3 AND (o.origin<>?1 OR o.account_id<>?2))
+               AND NOT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u WHERE u.plugin_id=?3)
+               AND NOT EXISTS(SELECT 1 FROM plugin_sync_receipts q WHERE q.plugin_id=?3)
+               AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=?3 OR p.plugin_id IS NULL)
+               AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_intents a WHERE a.plugin_id=?3)
+               AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations f WHERE f.plugin_id=?3)
+               AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=?3)",
+            params![entry.origin, entry.account_id, entry.plugin_id, entry.generation,
+                entry.config_generation.to_string(), entry.version, entry.enabled.map(bool_int),
+                entry.runtime_epoch, reviewed_base, current_config_generation.to_string()],
+        )?;
+        Ok(changed == 1)
+    }
+
     /// Only the exact generation and current host lifetime may be
     /// acknowledged after durable staging. A concurrent newer edit, a
     /// restart, or an unreconciled runtime is never removed.
@@ -701,6 +751,81 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.root);
         }
+    }
+
+    #[test]
+    fn legacy_base_review_preserves_candidate_until_exact_atomic_commit() {
+        let f = Fixture::new();
+        f.db.set_plugin_state_with_sync_intent("hotkeys", true, true, Some(f.intent("alice")))
+            .unwrap();
+        let db = f.db.open(&f.db.automation_path()).unwrap();
+        db.execute("UPDATE plugin_sync_outbox SET reviewed_base=NULL,runtime_epoch=?1 WHERE plugin_id='hotkeys'", ["a".repeat(64)]).unwrap();
+        let old =
+            f.db.plugin_sync_intent_for("https://cloud.example", "alice", "hotkeys")
+                .unwrap()
+                .unwrap();
+        let mut stale = old.clone();
+        stale.generation += 1;
+        assert!(!f
+            .db
+            .review_legacy_plugin_sync_base(&stale, 8, "null")
+            .unwrap());
+        assert!(f
+            .db
+            .review_legacy_plugin_sync_base(&old, 8, "not-json")
+            .is_err());
+        let wrong_target = serde_json::json!({"collection":"plugin-selections","key":"other","revision":1,"deleted":true,"value":null}).to_string();
+        assert!(f
+            .db
+            .review_legacy_plugin_sync_base(&old, 8, &wrong_target)
+            .is_err());
+        db.execute("INSERT INTO plugin_sync_outbox(origin,account_id,plugin_id,generation,config_generation,version,enabled) VALUES ('https://cloud.example','bob','hotkeys',?1,'7','1.0.0',1)", [old.generation]).unwrap();
+        assert!(!f
+            .db
+            .review_legacy_plugin_sync_base(&old, 8, "null")
+            .unwrap());
+        db.execute("DELETE FROM plugin_sync_outbox WHERE account_id='bob'", [])
+            .unwrap();
+        db.execute_batch("CREATE TRIGGER reject_legacy_review BEFORE UPDATE ON plugin_sync_outbox BEGIN SELECT RAISE(ABORT, 'injected'); END;").unwrap();
+        assert!(f
+            .db
+            .review_legacy_plugin_sync_base(&old, 8, "null")
+            .is_err());
+        assert_eq!(
+            f.db.plugin_sync_intent_for("https://cloud.example", "alice", "hotkeys")
+                .unwrap()
+                .unwrap(),
+            old
+        );
+        db.execute_batch("DROP TRIGGER reject_legacy_review")
+            .unwrap();
+        db.execute(
+            "INSERT INTO plugin_sync_untracked_local(plugin_id,generation) VALUES ('hotkeys',?1)",
+            [old.generation],
+        )
+        .unwrap();
+        assert!(!f
+            .db
+            .review_legacy_plugin_sync_base(&old, 8, "null")
+            .unwrap());
+        db.execute(
+            "DELETE FROM plugin_sync_untracked_local WHERE plugin_id='hotkeys'",
+            [],
+        )
+        .unwrap();
+        let base = serde_json::json!({"collection":"plugin-selections","key":"hotkeys","revision":4,"deleted":false,"value":{"schemaVersion":1,"pluginId":"hotkeys","version":"1.0.0","enabled":false}}).to_string();
+        assert!(f.db.review_legacy_plugin_sync_base(&old, 8, &base).unwrap());
+        let current =
+            f.db.plugin_sync_intent_for("https://cloud.example", "alice", "hotkeys")
+                .unwrap()
+                .unwrap();
+        assert_eq!(current.reviewed_base.as_deref(), Some(base.as_str()));
+        assert_eq!(current.config_generation, 8);
+        assert_eq!(current.runtime_epoch, None);
+        assert!(!f
+            .db
+            .review_legacy_plugin_sync_base(&old, 8, "null")
+            .unwrap());
     }
 
     #[test]
