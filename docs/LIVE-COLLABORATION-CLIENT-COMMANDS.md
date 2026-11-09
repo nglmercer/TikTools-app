@@ -28,12 +28,20 @@ instance, command, resource, result and revision match the saved intent.
 Unknown or failed outcomes stay pending. Chromium tests use a simulated remote
 response and exercise a session change during the query.
 
-Neither helper is wired to browser commands. A completed IndexedDB
+An experimental workflow dispatch helper now checks the selected view,
+permissions and session, commits one ID before sending, rechecks before
+dispatch, and verifies the host receipt and resource revision before recording
+success. A lost or malformed response retains the pending ID for recovery;
+there is no automatic mutation retry. A stale view detected before dispatch is
+recorded as unsent. Chromium tests use simulated host replies and cover a
+confirmed response, lost response and pre-dispatch session change.
+
+These helpers are not wired to browser commands. A completed IndexedDB
 transaction is not proof against browser data clearing, eviction, device loss or
 every platform's power-loss behavior. Before enabling mutations, the controller
 still needs storage-loss detection and recovery policy, permission-filtered
-views, dispatch identity and connection fences, verified immediate receipts,
-explicit review and end-to-end crash/lost-reply tests. Browser actions remain
+views, integration of selection/connection fences, explicit review and actual
+gateway crash/lost-reply tests. Browser actions remain
 disabled until that complete path is in place.
 
 ## Automation events

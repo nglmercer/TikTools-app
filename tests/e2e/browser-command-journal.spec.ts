@@ -122,3 +122,53 @@ test('recovery queries the original command without replay and persists only ver
   expect(result.after.recent[0].revision).toBe('3');
   expect(result.calls).toEqual(['collaboration.commands.get', 'collaboration.commands.get', 'collaboration.commands.get']);
 });
+
+test('workflow dispatch commits intent before sending and retains unknown outcomes', async ({ page, context, baseURL }) => {
+  await context.route('https://host.example/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/__journal-test') await route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Journal fixture</title>' });
+    else await route.fulfill({ response: await context.request.get(new URL(path, baseURL).href) });
+  });
+  await page.goto('https://host.example/__journal-test');
+  const result = await page.evaluate(async ({ modulePath }) => {
+    const journal = await import(/* @vite-ignore */ modulePath);
+    const commandPath = '/features/controller/model/browser-workflow-command.ts';
+    const command = await import(/* @vite-ignore */ commandPath);
+    async function scenario(sessionId: string, mode: 'success' | 'lost' | 'stale' | 'forged') {
+      const binding = { origin: location.origin, hostId: 'host', principalId: 'principal', sessionId };
+      const hello = { ...binding, hostInstanceId: 'instance', capabilities: ['commands.read', 'workflows.read', 'workflows.toggle'],
+        resourceRestrictions: { workflow: ['workflow'] }, features: { workflowDisable: true } };
+      let checks = 0; const calls: string[] = []; let intentWasPersisted = false;
+      const transport = { currentHello: () => hello, verifySession: async () => ++checks !== (mode === 'stale' ? 2 : -1) };
+      const remote = { call: async (method: string, params: { id: string }, options: { meta: { commandId: string }; onMetadata: (v: unknown) => void }) => {
+        calls.push(method);
+        const pending = await journal.withBrowserCommandJournal(binding, (record: { pending: { commandId: string } | null }) => structuredClone(record.pending));
+        intentWasPersisted = pending?.commandId === options.meta.commandId;
+        if (mode === 'lost') throw new Error('connection lost');
+        options.onMetadata({ hostInstanceId: 'instance', command: { commandId: options.meta.commandId, state: 'succeeded', committedAt: 1,
+          resource: { kind: 'workflow', id: params.id, scope: 'host' } }, resourceVersions: [{ kind: 'workflow', id: params.id, scope: 'host', revision: mode === 'forged' ? '7' : '3' }] });
+        return { id: params.id, enabled: false };
+      } };
+      let failed = false;
+      try { await command.sendBrowserWorkflowCommand({ remote, transport, expected: hello, binding,
+        target: { operation: 'disable', resourceId: 'workflow', expectedRevision: '2' }, isCurrent: () => true }); }
+      catch { failed = true; }
+      const stored = await journal.withBrowserCommandJournal(binding, (record: unknown) => structuredClone(record));
+      return { calls, failed, intentWasPersisted, stored };
+    }
+    return { success: await scenario('success', 'success'), lost: await scenario('lost', 'lost'), stale: await scenario('stale', 'stale'), forged: await scenario('forged', 'forged') };
+  }, { modulePath });
+  expect(result.success.calls).toEqual(['workflows.disable']);
+  expect(result.success.intentWasPersisted).toBe(true);
+  expect(result.success.stored.pending).toBeNull();
+  expect(result.success.stored.recent[0].outcome).toBe('succeeded');
+  expect(result.lost.calls).toEqual(['workflows.disable']);
+  expect(result.lost.failed).toBe(true);
+  expect(result.lost.intentWasPersisted).toBe(true);
+  expect(result.lost.stored.pending.operation).toBe('disable');
+  expect(result.stale.calls).toEqual([]);
+  expect(result.stale.stored.pending).toBeNull();
+  expect(result.stale.stored.recent[0].outcome).toBe('rejected');
+  expect(result.forged.failed).toBe(true);
+  expect(result.forged.stored.pending.operation).toBe('disable');
+});
