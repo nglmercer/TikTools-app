@@ -21,16 +21,24 @@ frames and requests are bounded by negotiated limits. Disconnects and stream
 gaps invalidate the connection, and reconnection never replays requests.
 Credentials and CSRF values are not written to browser storage. Unit tests use
 mock fetch and sockets and exercise the existing control-client response
-adapter. This transport is not yet connected to a browser controller adapter,
-served app bundle or pairing flow; the native controller bridge cannot simply
-be reused in a browser. Real-browser gateway acceptance remains outstanding.
+adapter. The native controller bridge cannot simply be reused in a browser.
+The gateway does not yet serve the app bundle or connect the pairing flow;
+real-browser gateway acceptance remains outstanding.
 An experimental browser workflow recovery primitive now retains the complete
 reliable event envelope, verifies all snapshot pages and workflow restrictions
 before exposing a baseline, buffers bounded events through capture, requires
 ordered acknowledgement and clears the view on disconnect, malformed data,
 gaps or overflow. It retries only explicit pre-dispatch rate limits. Tests use
 mock sockets and responses, including the existing control-client adapter;
-it is not yet a complete browser controller or connected to product UI.
+it is not yet a complete browser controller.
+The existing controller screen now has a `remote-web` build mode backed by a
+browser-local adapter for read-only workflows. The adapter exposes a view only
+after recovery, refreshes invalidated records against their host revisions,
+and clears it on disconnect or a sequence gap. It deliberately exposes no
+browser write commands, local profiles, persistent drafts, or other domain
+controls. The remote gateway does not yet serve or advertise this mode; these
+changes alone do not make the browser app available. Mocked Vue/transport tests
+do not replace a browser-to-gateway or physical two-PC acceptance test.
 
 ## Build and connect
 

@@ -12,6 +12,7 @@ import ControllerCompetitions from './ControllerCompetitions.vue';
 import type { LiveFeedEvent } from '../model/live-feed.ts';
 import type { DraftSaveTarget } from '../model/drafts.ts';
 
+const props = defineProps<{ browserMode?: boolean }>();
 const control = useControlClient();
 const model = createControllerModel(control);
 const { status, profiles, rows, points, pointsError, pointsAllowed, error, busy, ready, commandSending } = model;
@@ -169,7 +170,7 @@ async function pair(): Promise<void> {
   } catch (failure) { pairing.value = false; error.value = failure instanceof Error ? failure.message : 'Pairing failed'; }
 }
 async function disconnect(): Promise<void> { if (pollTimer) clearTimeout(pollTimer); pending.value = ''; pairing.value = false; await model.disconnect(); }
-onMounted(() => { void model.start(window.__tiktools_controller__?.profile).then(() => {
+onMounted(() => { void model.start(props.browserMode ? 'browser' : window.__tiktools_controller__?.profile).then(() => {
   if (status.value.phase === 'pairing' && !stopped) {
     pending.value = status.value.pairingRequestId ?? ''; pairing.value = true; void poll();
   }
@@ -183,7 +184,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
       class="controller__banner"
       aria-live="polite"
     >
-      <div><h1>{{ status.origin ? `${labels.controlling} ${status.origin}` : labels.title }}</h1><p>{{ phase }} <span v-if="status.errorCode">· {{ status.errorCode }}</span></p><small v-if="status.hello">Host {{ status.hello.hostId }}</small></div>
+      <div><h1>{{ status.origin ? `${props.browserMode ? (locale === 'es' ? 'Viendo' : 'Viewing') : labels.controlling} ${status.origin}` : labels.title }}</h1><p>{{ phase }} <span v-if="status.errorCode">· {{ status.errorCode }}</span></p><small v-if="status.hello">Host {{ status.hello.hostId }}</small></div>
       <button
         v-if="status.phase !== 'idle'"
         :disabled="busy"
@@ -282,7 +283,10 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
         </details>
       </template>
     </section>
-    <section class="controller__panel">
+    <section
+      v-if="!props.browserMode"
+      class="controller__panel"
+    >
       <h2>{{ labels.profiles }}</h2><p v-if="!profiles.length">
         {{ labels.noProfiles }}
       </p>
@@ -305,8 +309,15 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
         </button>
       </div>
     </section>
+    <button
+      v-if="props.browserMode && ['idle', 'failed'].includes(status.phase)"
+      :disabled="busy"
+      @click="model.connect('browser')"
+    >
+      {{ labels.connect }}
+    </button>
     <details
-      v-if="['idle', 'failed'].includes(status.phase)"
+      v-if="!props.browserMode && ['idle', 'failed'].includes(status.phase)"
       class="controller__panel"
     >
       <summary>{{ labels.pair }}</summary>
@@ -490,7 +501,11 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
       v-if="ready && status.hello?.capabilities.includes('workflows.read')"
       class="controller__panel"
     >
-      <h2>{{ labels.workflows }}</h2><p>{{ labels.readOnly }}</p><p v-if="!rows.length">
+      <h2>{{ labels.workflows }}</h2>
+      <p>
+        {{ props.browserMode ? (locale === 'es' ? 'La vista web solo permite consultar workflows por ahora.' : 'The web view currently supports workflow reads only.') : labels.readOnly }}
+      </p>
+      <p v-if="!rows.length">
         {{ labels.empty }}
       </p>
       <div class="controller__workflows">
@@ -535,7 +550,10 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
               {{ cmd.delete }}
             </button>
           </div>
-          <h3>{{ labels.draft }}</h3><p>{{ row ? labels.keep : cmd.hostUnavailableDraft }}</p><p
+          <h3>{{ props.browserMode ? (locale === 'es' ? 'Detalles del workflow' : 'Workflow details') : labels.draft }}</h3>
+          <p v-if="!props.browserMode">
+            {{ row ? labels.keep : cmd.hostUnavailableDraft }}
+          </p><p
             v-if="conflict"
             role="status"
           >
@@ -563,8 +581,9 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
           </section>
           <textarea
             :value="draftText"
-            :aria-label="labels.draft"
+            :aria-label="props.browserMode ? (locale === 'es' ? 'Detalles del workflow' : 'Workflow details') : labels.draft"
             spellcheck="false"
+            :readonly="props.browserMode"
             :disabled="draftBusy || draftLoading"
             @input="row ? model.edit(row, ($event.target as HTMLTextAreaElement).value) : model.editRetainedDraft(selected, ($event.target as HTMLTextAreaElement).value)"
           /><button
@@ -619,7 +638,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
         </div>
       </div>
       <details>
-        <summary>{{ labels.rights }}</summary><ul>
+        <summary>{{ props.browserMode ? (locale === 'es' ? 'Funciones disponibles aquí' : 'Available in this view') : labels.rights }}</summary><ul>
           <li
             v-for="capability in status.hello?.capabilities"
             :key="capability"

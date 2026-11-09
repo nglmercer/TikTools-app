@@ -22,6 +22,7 @@ export type RemoteBrowserHello = Identity & {
 };
 export interface RemoteBrowserTransport extends ControlTransport {
   connect(): Promise<RemoteBrowserHello>;
+  disconnect(): void;
   currentHello(): RemoteBrowserHello | undefined;
   /** Raw envelope, including subscription, resource and sequence metadata. */
   onReliableEvent(handler: (event: unknown) => void): () => void;
@@ -235,6 +236,7 @@ export function createRemoteBrowserTransport(options: {
   }
   return {
     connect,
+    disconnect() { close('remote browser disconnected', true); },
     currentHello() { return ready; },
     onReliableEvent(handler) {
       reliableListeners.add(handler);

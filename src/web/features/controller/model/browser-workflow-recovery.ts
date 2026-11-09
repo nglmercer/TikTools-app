@@ -204,6 +204,9 @@ export function createBrowserWorkflowRecovery(
         rows = baseline; ready = true; signal();
       } catch (error) { invalidate(); throw error; }
     },
+    isReady(): boolean {
+      return ready && valid && rows !== undefined && transport.currentHello() === hello;
+    },
     baseline(): BrowserWorkflowRow[] | null {
       if (transport.currentHello() !== hello) invalidate();
       return ready && valid && rows ? structuredClone(rows) : null;
