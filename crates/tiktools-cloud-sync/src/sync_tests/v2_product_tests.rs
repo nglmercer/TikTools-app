@@ -551,7 +551,13 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
     // Both acknowledged and conflicted writes require the session that sent
     // them. Control runs prove both mock responses can actually commit.
     for status in [200, 409] {
-        for transition in ["logout", "replace", "unchanged", "cancel"] {
+        for transition in [
+            "logout",
+            "replace",
+            "unchanged",
+            "cancel",
+            "cancel_before_commit",
+        ] {
             let dir = TempDir::new("v2-product-http-auth");
             let mock = MockSync::start("v2-http-user").await;
             let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
@@ -603,7 +609,13 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                 calls: std::sync::atomic::AtomicUsize::new(0),
             });
             mock.inner.lock().unwrap().v2_put_status = Some(status);
-            mock.held_v2_write.armed.store(true, Ordering::SeqCst);
+            if transition == "cancel_before_commit" {
+                mock.held_v2_before_route
+                    .armed
+                    .store(true, Ordering::SeqCst);
+            } else {
+                mock.held_v2_write.armed.store(true, Ordering::SeqCst);
+            }
             let worker = sync.clone();
             let captured = session.clone();
             let upload_for_worker = upload.clone();
@@ -611,12 +623,14 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                 tokio::spawn(
                     async move { worker.sync_v2_product(captured, upload_for_worker).await },
                 );
-            tokio::time::timeout(
-                Duration::from_secs(3),
-                mock.held_v2_write.committed.notified(),
-            )
-            .await
-            .expect("dispatcher must send the request");
+            let reached_server = if transition == "cancel_before_commit" {
+                mock.held_v2_before_route.started.notified()
+            } else {
+                mock.held_v2_write.committed.notified()
+            };
+            tokio::time::timeout(Duration::from_secs(3), reached_server)
+                .await
+                .expect("dispatcher must send the request");
             let key = WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
             let prepared = workspace.snapshot().unwrap();
             assert_eq!(
@@ -631,12 +645,15 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                 WorkspacePendingStatus::Unconfirmed
             );
             assert_eq!(upload.calls.load(Ordering::SeqCst), 1);
-            assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
+            assert_eq!(
+                mock.inner.lock().unwrap().v2_put_requests,
+                usize::from(transition != "cancel_before_commit")
+            );
             assert!(matches!(
                 upload.fence.try_untracked_edit(),
                 Err(crate::ProtocolFenceError::Busy)
             ));
-            if transition == "cancel" {
+            if transition == "cancel" || transition == "cancel_before_commit" {
                 task.abort();
                 assert!(task.await.err().unwrap().is_cancelled());
                 tokio::time::timeout(Duration::from_secs(3), async {
@@ -653,8 +670,22 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                 let after = workspace.snapshot().unwrap();
                 assert_eq!(after.generation, prepared.generation);
                 assert_eq!(after.state, prepared.state);
-                assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
-                mock.held_v2_write.release.notify_one();
+                if transition == "cancel_before_commit" {
+                    // The client is gone and the local lease is free, but
+                    // an already received request can still execute later.
+                    assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 0);
+                    mock.held_v2_before_route.release.notify_one();
+                    tokio::time::timeout(Duration::from_secs(3), async {
+                        while mock.inner.lock().unwrap().v2_put_requests == 0 {
+                            tokio::time::sleep(Duration::from_millis(10)).await;
+                        }
+                    })
+                    .await
+                    .expect("server must be able to execute after client cancellation");
+                } else {
+                    assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
+                    mock.held_v2_write.release.notify_one();
+                }
                 continue;
             }
             if transition != "unchanged" {

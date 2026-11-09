@@ -2,6 +2,7 @@
 
 mod remote_apply_tests;
 mod v2_product_tests;
+mod v2_remote_apply_tests;
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -2930,6 +2931,7 @@ struct MockSync {
     task: tokio::task::JoinHandle<()>,
     held_write: Arc<HeldWrite>,
     held_v2_write: Arc<HeldWrite>,
+    held_v2_before_route: Arc<HeldExport>,
     held_export: Arc<HeldExport>,
     held_pull: Arc<HeldExport>,
     inner: Arc<Mutex<MockInner>>,
@@ -2980,12 +2982,14 @@ impl MockSync {
         }));
         let held_write = Arc::new(HeldWrite::default());
         let held_v2_write = Arc::new(HeldWrite::default());
+        let held_v2_before_route = Arc::new(HeldExport::default());
         let held_export = Arc::new(HeldExport::default());
         let held_pull = Arc::new(HeldExport::default());
         let task = tokio::spawn({
             let inner = inner.clone();
             let held_write = held_write.clone();
             let held_v2_write = held_v2_write.clone();
+            let held_v2_before_route = held_v2_before_route.clone();
             let held_export = held_export.clone();
             let held_pull = held_pull.clone();
             async move {
@@ -2996,6 +3000,7 @@ impl MockSync {
                     let inner = inner.clone();
                     let held_write = held_write.clone();
                     let held_v2_write = held_v2_write.clone();
+                    let held_v2_before_route = held_v2_before_route.clone();
                     let held_export = held_export.clone();
                     let held_pull = held_pull.clone();
                     tokio::spawn(async move {
@@ -3019,6 +3024,15 @@ impl MockSync {
                             .collect();
                         let body_start = request.find("\r\n\r\n").map(|i| i + 4).unwrap_or(0);
                         let body = request[body_start.min(request.len())..].to_owned();
+                        if method == "PUT"
+                            && path.starts_with("/api/v2/sync/collections/")
+                            && held_v2_before_route
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            held_v2_before_route.started.notify_one();
+                            held_v2_before_route.release.notified().await;
+                        }
                         let (status, payload) =
                             route(&method, path, query, &headers, &body, &inner);
                         if method == "GET"
@@ -3083,6 +3097,7 @@ impl MockSync {
             task,
             held_write,
             held_v2_write,
+            held_v2_before_route,
             held_export,
             held_pull,
             inner,

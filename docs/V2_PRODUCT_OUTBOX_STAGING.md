@@ -79,3 +79,17 @@ private keep-local primitive does not supply that guarantee by itself.
 The prepared request is persisted as unconfirmed before the emission lease and
 marker check. Therefore a busy lease or an existing marker can require review
 even when no request was sent. This is conservative and may reduce availability.
+
+The native coordinator can now capture an exact, durable cached v2 plugin
+selection and revalidate it under the same account session, scoped consent,
+protocol, product-outbox marker and workspace state lock before a short local admission callback. It
+rejects missing or rebuilding caches, pending local edits and any changed
+workspace generation. This is not a fresh server read, and the callback must
+itself fence the source, runtime, package, outboxes, untracked marker and
+application journal. The primitive does not apply or activate a plugin and is
+not connected to the product. The opaque review exposes no record outside its
+revalidated callback; a future UI must also fence any later asynchronous
+response against account or session changes. Account permits and workspace locks can be held
+during native I/O, so a product adapter needs bounded worker admission. The
+server barrier described above and durable application recovery remain required
+before enabling remote application.

@@ -34,6 +34,60 @@ fn assert_staged_decision(workspace: &WorkspaceCoordinator, decision: &V2Product
 }
 
 #[tokio::test]
+async fn v2_without_identity_records_untracked_change_under_emission_fence() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (mut core, _, root) = core_with_fake_plugins(runtime, &["acme.hotkeys"]);
+    let paths = core.db.paths().clone();
+    let origin = "https://cloud.example";
+    let auth = CloudAuth::new(
+        Some(origin.into()),
+        paths.data.join("missing-account.json"),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    let coordinator = core.sync.coordinator().unwrap();
+    coordinator.set_enabled(true).unwrap();
+    let scope = Sha256Digest::of_bytes(
+        &serde_json::to_vec(&("tiktools-v2-consent", origin, "alice")).unwrap(),
+    );
+    std::fs::write(
+        paths.data.join("cloud-sync/cloud-sync.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "version": 2, "enabled": true, "generation": 42, "scope": scope.as_bytes()
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(matches!(
+        coordinator
+            .with_product_local_edit(|choice| choice)
+            .unwrap(),
+        tiktools_cloud_sync::ProductLocalEditContext::V2(None)
+    ));
+    let fence =
+        tiktools_cloud_sync::ProductEmissionFence::open(paths.data.join("plugin-sync-emission"))
+            .unwrap();
+    let in_flight = fence.try_emission().unwrap();
+    assert!(core
+        .plugin_set_enabled_with_product_intent("acme.hotkeys", true)
+        .is_err());
+    assert!(!core.db.has_untracked_plugin_sync().unwrap());
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    drop(in_flight);
+
+    core.plugin_set_enabled_with_product_intent("acme.hotkeys", true)
+        .unwrap();
+    assert!(core.plugins.get("acme.hotkeys").unwrap().running);
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
+    assert!(crate::db::DatabaseManager::new(paths)
+        .has_untracked_plugin_sync()
+        .unwrap());
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_runtime() {
     let runtime = Arc::new(FakePluginState::default());
     let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);

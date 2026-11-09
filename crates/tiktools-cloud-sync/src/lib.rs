@@ -39,6 +39,8 @@ mod product_outbox;
 pub use product_outbox::{V1ConflictSourceProof, V1OutboxCandidate, V1ProductOutbox};
 mod product_remote_apply;
 pub use product_remote_apply::V1RemoteApplyReview;
+mod v2_product_remote_apply;
+pub use v2_product_remote_apply::V2RemoteApplyReview;
 #[doc(hidden)]
 pub mod consent_generation;
 mod product_conflict;
