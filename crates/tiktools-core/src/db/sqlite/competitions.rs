@@ -24,6 +24,9 @@ pub(crate) struct CompetitionExecutionFence {
     subjects: Vec<(String, String, String, String)>,
 }
 impl CompetitionExecutionFence {
+    pub(crate) fn host_id(&self) -> &str {
+        &self.host_id
+    }
     pub(crate) fn subjects(&self) -> Vec<(String, String)> {
         self.subjects
             .iter()

@@ -196,6 +196,118 @@ fn grant() -> Grant {
     }
 }
 
+#[test]
+fn competition_winner_candidate_requires_every_inherited_operator_grant() {
+    let f = Fixture::new();
+    let mut action = log("winner-action", "winner");
+    action["enabled"] = true.into();
+    f.core()
+        .automation_create(AutomationKind::Action, action.clone())
+        .unwrap();
+    let mut allowed = grant();
+    allowed.capabilities.extend([
+        Capability::AutomationToggle,
+        Capability::CompetitionsRead,
+        Capability::CompetitionsManage,
+    ]);
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let first = f.pair(allowed.clone()).snapshot().unwrap();
+    let second = f.pair(allowed.clone()).snapshot().unwrap();
+    let db = rusqlite::Connection::open(f.paths.automation_database()).unwrap();
+    db.execute(
+        "INSERT INTO competition_control_revisions VALUES('shared',1,0)",
+        [],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO competition_state VALUES('shared',?1)",
+        [
+            json!({"lifecycle":"active","generation":1,"deadlineMs":null,"remainingMs":null})
+                .to_string(),
+        ],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO competition_execution_generations VALUES('shared',1,'delegated')",
+        [],
+    )
+    .unwrap();
+    for identity in [&first, &second] {
+        db.execute(
+            "INSERT INTO competition_execution_subjects VALUES('shared',1,?1,?2,?3)",
+            rusqlite::params![
+                identity.principal_id,
+                identity.session_id,
+                identity.grant_revision
+            ],
+        )
+        .unwrap();
+    }
+    let service = f.core().collaboration().unwrap();
+    let fence = f
+        .core()
+        .db
+        .capture_competition_execution_fence(&service, "shared", 1)
+        .unwrap();
+    let operators = fence.subjects();
+    let subjects = service.execution_authorizations(&operators).unwrap();
+    let candidate = f
+        .core()
+        .automation
+        .competition_action_candidate("winner-action")
+        .unwrap();
+    assert!(candidate.required_subjects().unwrap().is_empty());
+    assert!(subjects
+        .with_current(|ids| candidate.clone().authorize_competition(&ids[..1], &fence))
+        .unwrap()
+        .is_err());
+    let permit = subjects
+        .with_current(|ids| candidate.clone().authorize_competition(ids, &fence))
+        .unwrap()
+        .unwrap();
+    assert!(permit.authorizes_action(
+        &f.core()
+            .automation_get(AutomationKind::Action, "winner-action")
+            .unwrap()
+    ));
+    let saved = f
+        .core()
+        .automation_get(AutomationKind::Action, "winner-action")
+        .unwrap();
+    assert!(f
+        .core()
+        .automation
+        .with_current_approvals(&[permit.clone()], &[], &saved, || Ok(()))
+        .is_err());
+    assert!(subjects
+        .with_current(|ids| permit.check_subjects(ids))
+        .unwrap()
+        .is_ok());
+    allowed.automation_delegation = None;
+    service
+        .set_grant(GrantSet {
+            principal_id: second.principal_id,
+            expected_revision: second.grant_revision,
+            grant: allowed,
+        })
+        .unwrap();
+    assert!(subjects
+        .with_current(|ids| permit.check_subjects(ids))
+        .unwrap()
+        .is_err());
+    assert!(subjects
+        .with_current(|ids| candidate.authorize_competition(ids, &fence))
+        .unwrap()
+        .is_err());
+}
+
 #[tokio::test]
 async fn competition_activation_transaction_retains_operators_and_replays_original_command() {
     use crate::db::{CommandTransaction, CompetitionActivation};

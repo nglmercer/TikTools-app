@@ -442,6 +442,17 @@ pub(crate) fn build(
     review: &Versioned<Value>,
     subjects: ManifestSubjects<'_>,
 ) -> Result<ExecutionManifest, ManifestError> {
+    build_with_inherited_subjects(review, subjects, &[])
+}
+
+/// Trusted host callers may add inherited principals to the saved authors.
+/// This never accepts identities from editable definition JSON. The caller
+/// must bind the extra set to a current competition generation separately.
+pub(super) fn build_with_inherited_subjects(
+    review: &Versioned<Value>,
+    subjects: ManifestSubjects<'_>,
+    inherited: &[(String, String)],
+) -> Result<ExecutionManifest, ManifestError> {
     if !canonical_id(subjects.host_id, 256) {
         return Err(ManifestError::InvalidSubjects);
     }
@@ -449,7 +460,20 @@ pub(crate) fn build(
     if entries[0].record.is_none() {
         return Err(ManifestError::MissingPrimary);
     }
-    let expected = identities(&entries);
+    if inherited.len() > 16 {
+        return Err(ManifestError::InvalidSubjects);
+    }
+    let mut expected: BTreeSet<_> = identities(&entries).into_iter().collect();
+    let mut unique = BTreeSet::new();
+    for (principal, session) in inherited {
+        if !canonical_id(principal, 256)
+            || !canonical_id(session, 256)
+            || !unique.insert((principal.clone(), session.clone()))
+        {
+            return Err(ManifestError::InvalidSubjects);
+        }
+        expected.insert((principal.clone(), session.clone()));
+    }
     let mut actual = BTreeSet::new();
     let mut subject_bindings = Vec::new();
     for subject in subjects.subjects {
@@ -472,7 +496,7 @@ pub(crate) fn build(
             configuration_revision: subject.configuration_revision.into(),
         });
     }
-    if actual.into_iter().collect::<Vec<_>>() != expected {
+    if actual != expected {
         return Err(ManifestError::InvalidSubjects);
     }
     subject_bindings

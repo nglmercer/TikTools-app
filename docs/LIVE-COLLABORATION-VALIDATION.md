@@ -31,6 +31,11 @@ unknown origins before publishing to plugin observers. A delegated generation
 is limited to presentation and carries a restricted private context; the
 current automation queue rejects that context until a scoped competition-event
 execution policy is implemented. Missing authority never becomes Owner input.
+The internal winner-action preflight can combine the saved action's authors
+with all operators from a trusted competition binding and check their reusable
+effect grants. The resulting candidate cannot use the generic effect executor:
+the generation fence still has to be held at each sink and winner inputs must
+be bound to the saved competition before delegated dispatch is enabled.
 
 The host now reserves competition creation, definition and lifecycle changes in
 the coordination outbox. The competition stream supplies scoped summary

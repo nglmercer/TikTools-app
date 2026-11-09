@@ -129,6 +129,7 @@ pub(crate) struct RuntimeApprovalPermit {
     candidate: ApprovalCandidate,
     manifest: manifest::ExecutionManifest,
     configuration_revisions: BTreeMap<(String, String), String>,
+    competition: Option<crate::db::CompetitionExecutionFence>,
 }
 
 /// Receiving approved scoped input never transfers Owner authority. This
@@ -302,6 +303,36 @@ impl ApprovalCandidate {
         self,
         identities: &[ExecutionIdentity],
     ) -> Result<RuntimeApprovalPermit, &'static str> {
+        self.authorize_with_inherited(identities, &[], None)
+    }
+
+    /// Call inside the competition fence's current-subject transaction. The
+    /// permit still needs that fence at each effect sink; it never conveys
+    /// competition authority by itself. Persisted approvals cannot be widened.
+    #[allow(dead_code)]
+    pub(crate) fn authorize_competition(
+        self,
+        identities: &[ExecutionIdentity],
+        fence: &crate::db::CompetitionExecutionFence,
+    ) -> Result<RuntimeApprovalPermit, &'static str> {
+        let operators = fence.subjects();
+        if operators.is_empty()
+            || self.approval.is_some()
+            || identities
+                .iter()
+                .any(|identity| identity.host_id() != fence.host_id())
+        {
+            return Err("competition operator binding is unavailable");
+        }
+        self.authorize_with_inherited(identities, &operators, Some(fence.clone()))
+    }
+
+    fn authorize_with_inherited(
+        self,
+        identities: &[ExecutionIdentity],
+        inherited: &[(String, String)],
+        competition: Option<crate::db::CompetitionExecutionFence>,
+    ) -> Result<RuntimeApprovalPermit, &'static str> {
         let host = identities
             .first()
             .ok_or("saved approval subjects are unavailable")?
@@ -319,12 +350,13 @@ impl ApprovalCandidate {
                 grant: identity.grant(),
             })
             .collect();
-        let manifest = manifest::build(
+        let manifest = manifest::build_with_inherited_subjects(
             &self.review,
             manifest::ManifestSubjects {
                 host_id: host,
                 subjects: &subjects,
             },
+            inherited,
         )
         .map_err(|_| "saved approval manifest is unavailable")?;
         if let Some(approval) = &self.approval {
@@ -355,6 +387,7 @@ impl ApprovalCandidate {
             candidate: self,
             manifest,
             configuration_revisions,
+            competition,
         };
         permit.check_subjects(identities)?;
         Ok(permit)
@@ -398,6 +431,23 @@ impl RuntimeApprovalPermit {
 }
 
 impl AutomationService {
+    /// Candidate only: the saved competition winner reference and generation
+    /// must be revalidated under the business writer before it can be used.
+    #[allow(dead_code)]
+    pub(crate) fn competition_action_candidate(&self, id: &str) -> Option<ApprovalCandidate> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        let primary = index.actions.get(id)?;
+        let (review, definitions) =
+            capture_review(&index, AutomationFamily::Action, &primary.definition)?;
+        Some(ApprovalCandidate {
+            index_identity: index.identity.clone(),
+            approval_key: ("action".into(), id.into()),
+            approval: None,
+            review,
+            definitions,
+            catalog_epoch: index.catalog_epoch?,
+        })
+    }
     /// Capture saved host state only; the caller must still authorize its subjects.
     #[allow(dead_code)]
     pub(crate) fn reusable_candidate(
@@ -561,7 +611,9 @@ fn execution_chain_current(
     owner_rules: &[RuntimeOwnerRuleFence],
 ) -> bool {
     !permits.is_empty()
-        && permits.iter().all(|permit| permit_current(index, permit))
+        // Competition permits need a generation fence held through the sink.
+        // Until that path is connected they cannot use the generic executor.
+        && permits.iter().all(|permit| permit.competition.is_none() && permit_current(index, permit))
         && owner_rules.iter().all(|rule| {
             std::sync::Arc::ptr_eq(&index.identity, &rule.index_identity)
                 && index.authority_available
