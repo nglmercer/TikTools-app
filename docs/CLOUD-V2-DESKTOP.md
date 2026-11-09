@@ -69,8 +69,13 @@ These APIs are exported, but the application still calls the v1 coordinator.
 The coordinator now offers guarded sync, review, resolution and rebuild calls
 bound to one session and eligibility permit. The authentication manager can
 recognize that exact session after logout and same-account sign-in. A native
-cutover preview captures and rechecks the legacy snapshot and selected inputs;
-it does not itself activate v2. A cooperative cross-process protocol fence
+cutover preview captures and rechecks the legacy snapshot, session and consent;
+it does not itself activate v2 and covers plugin selections only. It builds
+the candidate outside the admission and identity locks and rejects changed
+inputs afterward. The caller still needs a local-source fence. There is no
+product preview RPC/UI: Cloud account and consent changes are not yet
+broadcast to other windows with ordered invalidation, so a displayed preview
+could otherwise expose stale account data. A cooperative cross-process protocol fence
 and per-identity v1 partitions are being validated; product wiring still needs
 session/opt-in invalidation and a local-source fence. Guard
 checks cannot recall an HTTP request already dispatched, or replace an atomic
@@ -127,7 +132,10 @@ An experimental runtime quarantine blocks known unfinished plugin applications
 after restart and rejects several activation and late-response paths. Finalized
 records now have a separate witness written in the same SQLite transaction;
 startup validates retained records and witnesses, failing closed if evidence is
-missing, malformed or orphaned. Retention is capped at 4096 records; reaching
+missing, malformed or orphaned. A build without Cloud support validates only
+the basic finalized identity and matching witness, not the complete Cloud
+contract. Matching copies do not protect against coordinated modification of
+both tables. Retention is capped at 4096 records; reaching
 the cap blocks new application until a safe compaction and recovery protocol is
 implemented. Finalized records made by earlier experimental builds have no
 witness and require explicit review and migration; they are not silently

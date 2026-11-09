@@ -13,7 +13,7 @@ use std::{
 use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore, TokenStore};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::{SyncCoordError, SyncCoordinator};
+use crate::{PluginSelection, ProtocolFenceError, SyncCoordError, SyncCoordinator};
 
 #[derive(Default)]
 struct ProductOutboxState {
@@ -2351,6 +2351,106 @@ async fn login(auth: &CloudAuth, code: &str) {
     waiter.await.unwrap().unwrap();
 }
 
+#[tokio::test]
+async fn v2_cutover_preview_is_read_only_and_requires_the_exact_current_session() {
+    let dir = TempDir::new("v2-cutover-product-preview");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "first").await;
+    sync.record_local_change("acme.plugin", "1.0.0", false)
+        .unwrap();
+    let session = auth.session().await.unwrap();
+    let before = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let selections = [PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.0.0".into(),
+        enabled: true,
+    }];
+    let preview = sync.preview_v2_cutover(&session, &selections).unwrap();
+    assert_eq!(preview.entries().len(), 1);
+    assert!(preview.entries()[0].pending.is_some());
+    assert!(preview.entries()[0].next.is_some());
+    let after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(before.generation, after.generation);
+    assert_eq!(before.state, after.state);
+    assert!(matches!(
+        sync.protocol.try_v2(&mock.origin, "user-a"),
+        Err(ProtocolFenceError::StaleCutover)
+    ));
+    let oversized: Vec<_> = (0..1001)
+        .map(|index| PluginSelection {
+            schema_version: 1,
+            plugin_id: format!("acme.plugin{index}"),
+            version: "1.0.0".into(),
+            enabled: true,
+        })
+        .collect();
+    assert!(matches!(
+        sync.preview_v2_cutover(&session, &oversized),
+        Err(SyncCoordError::Local(_))
+    ));
+    assert_eq!(
+        sync.protocol
+            .legacy_snapshot(&mock.origin, "user-a")
+            .unwrap()
+            .unwrap()
+            .state,
+        before.state
+    );
+    sync.set_enabled(false).unwrap();
+    assert!(matches!(
+        sync.preview_v2_cutover(&session, &selections),
+        Err(SyncCoordError::StaleReview)
+    ));
+    sync.set_enabled(true).unwrap();
+    auth.logout().await.unwrap();
+    login(&auth, "second").await;
+    assert!(matches!(
+        sync.preview_v2_cutover(&session, &selections),
+        Err(SyncCoordError::StaleReview)
+    ));
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn v2_cutover_preview_releases_admission_during_candidate_build_and_rechecks_consent() {
+    let dir = TempDir::new("v2-cutover-preview-admission");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "preview-admission").await;
+    let session = auth.session().await.unwrap();
+    let (ready_send, ready_recv) = std::sync::mpsc::channel();
+    let (resume_send, resume_recv) = std::sync::mpsc::channel();
+    let worker = {
+        let sync = sync.clone();
+        std::thread::spawn(move || {
+            sync.preview_v2_cutover_with_snapshot_hook(&session, &[], || {
+                ready_send.send(()).unwrap();
+                resume_recv.recv_timeout(Duration::from_secs(5)).unwrap();
+            })
+        })
+    };
+    ready_recv.recv_timeout(Duration::from_secs(5)).unwrap();
+    // This needs exclusive protocol access and can only succeed if the
+    // preview has released both its session and admission/protocol leases.
+    sync.set_enabled(false).unwrap();
+    resume_send.send(()).unwrap();
+    assert!(matches!(
+        worker.join().unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    mock.stop();
+}
+
 fn coordinator(
     dir: &TempDir,
     mock: &MockSync,
@@ -2864,6 +2964,11 @@ async fn held_v1_ack_preserves_newer_stage_and_frozen_original_on_cas_conflict()
     assert!(
         matches!(&saved.state.entries["acme.held"].pending.as_ref().unwrap().edit, cloud_client::Edit::Put(value) if value.version == "2.0.0" && value.enabled)
     );
+    let session = auth.session().await.unwrap();
+    assert!(matches!(
+        sync.preview_v2_cutover(&session, &[]),
+        Err(SyncCoordError::Protocol(ProtocolFenceError::UncertainV1))
+    ));
     let gate = crate::ProtocolFence::open(dir.join("a-sync"))
         .unwrap()
         .try_cutover()

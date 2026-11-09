@@ -24,6 +24,11 @@ impl CutoverPreview {
         selections: &[PluginSelection],
         legacy: Option<&StateSnapshot>,
     ) -> Result<Self, WorkspaceStateError> {
+        // The portable workspace holds at most 1000 records. Reject an
+        // oversized installed set before repeatedly validating candidates.
+        if selections.len() > 1000 {
+            return Err(WorkspaceStateError::TooLarge);
+        }
         let mut candidate = WorkspaceState::new(origin.clone(), account_id.clone())?;
         let mut selected = BTreeMap::new();
         for selection in selections {
@@ -58,6 +63,30 @@ impl CutoverPreview {
     /// newer, differing installed selections. V1 revisions are not reused.
     pub fn entries(&self) -> &[WorkspaceEntry] {
         &self.candidate.entries
+    }
+
+    /// Legacy keys that have neither a current local selection nor a pending
+    /// v1 edit in this candidate. The old records remain in v1; callers must
+    /// report them, not imply that they were migrated or intentionally deleted.
+    pub fn unseeded_legacy_keys(&self) -> Vec<&str> {
+        let seeded: std::collections::BTreeSet<_> = self
+            .candidate
+            .entries
+            .iter()
+            .map(|entry| entry.target.key.as_str())
+            .collect();
+        self.legacy
+            .as_ref()
+            .map(|legacy| {
+                legacy
+                    .state
+                    .entries
+                    .keys()
+                    .filter(|key| !seeded.contains(key.as_str()))
+                    .map(String::as_str)
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Verify the source of consent while the caller holds the product-wide
@@ -239,5 +268,35 @@ mod tests {
             preview.entries(),
             coordinator.snapshot().unwrap().state.entries
         );
+    }
+
+    #[test]
+    fn preview_reports_legacy_records_that_would_not_be_seeded() {
+        let mut state = SyncState::new("https://cloud.example".into(), "account".into());
+        state.entries.insert(
+            "acme.old".into(),
+            cloud_client::Entry {
+                remote: Some(cloud_client::Record {
+                    collection: "plugin-selections".into(),
+                    key: "acme.old".into(),
+                    revision: 1,
+                    deleted: true,
+                    value: None,
+                }),
+                pending: None,
+            },
+        );
+        let preview = CutoverPreview::new(
+            "https://cloud.example".into(),
+            "account".into(),
+            &[],
+            Some(&StateSnapshot {
+                generation: 1,
+                state,
+            }),
+        )
+        .unwrap();
+        assert_eq!(preview.unseeded_legacy_keys(), vec!["acme.old"]);
+        assert!(preview.entries().is_empty());
     }
 }
