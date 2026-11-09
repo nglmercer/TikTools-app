@@ -886,6 +886,29 @@ impl WorkspaceCoordinator {
         if self.snapshot()?.state.is_product_guarded() != product_proof.is_some() {
             return Err(crate::ProtocolFenceError::ProductOutboxRequired.into());
         }
+        if product_proof.is_some() {
+            // Fence the original request, not a newer staged-next decision.
+            // A legacy uncertain request without a recorded epoch cannot be
+            // given one retroactively and must remain pending for recovery.
+            let original_epoch = self
+                .snapshot()?
+                .state
+                .entry(target)
+                .and_then(|entry| entry.pending.as_ref())
+                .and_then(|pending| pending.write_epoch.clone())
+                .ok_or(WorkspaceCoordError::Ineligible)?;
+            check_eligibility(eligibility, session)?;
+            let policy = session.workspace_write_epoch().await?;
+            check_eligibility(eligibility, session)?;
+            if policy.epoch_required() != Some(true) {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+            let barrier = session.workspace_write_barrier().await?;
+            check_eligibility(eligibility, session)?;
+            if !barrier.is_after(&original_epoch)? {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+        }
         check_eligibility(eligibility, session)?;
         let read = session.workspace_read_for_resolution(target).await?;
         check_eligibility(eligibility, session)?;

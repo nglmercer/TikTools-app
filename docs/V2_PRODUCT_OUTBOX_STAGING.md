@@ -97,10 +97,14 @@ the product, and other existing writers do not yet record the marker.
 Dropping a local HTTP future does not cancel work already received by the
 server: the server can commit that request after the lease is released, after
 a local edit, or even after a subsequent authenticated GET. Such a GET is
-not a quiescence barrier. Before enabling review, clearing the marker or
-publishing a rebase, recovery needs a server-backed barrier or a verified
-protocol that rules out any later commit of the older request; the current
-private keep-local primitive does not supply that guarantee by itself.
+not a quiescence barrier. The private product keep-local review now requires
+the original pending request's persisted epoch, a fresh authenticated check
+that the server requires epochs, and a successful server barrier that advances
+beyond that original epoch before it reads the remote record. Legacy uncertain
+requests without an epoch remain pending; no epoch is assigned retroactively.
+This relies on every backend instance enforcing the epoch policy and does not
+cover legacy or noncooperating servers. It does not yet enable product review,
+clear the local marker, or provide durable local application recovery.
 The prepared request is persisted as unconfirmed before the emission lease and
 marker check. Therefore a busy lease or an existing marker can require review
 even when no request was sent. This is conservative and may reduce availability.

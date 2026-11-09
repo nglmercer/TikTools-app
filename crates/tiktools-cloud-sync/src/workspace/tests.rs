@@ -40,6 +40,9 @@ struct Remote {
     lose_next_write: bool,
     conflict_next_write: bool,
     expire_changes: bool,
+    barrier_count: i64,
+    barrier_failure: bool,
+    barrier_no_advance: bool,
     pause_next_write: Option<Pause>,
     proofs: Vec<DurableProof>,
 }
@@ -204,10 +207,25 @@ async fn start_server() -> Server {
                         assert_eq!(request.method, "GET");
                         (
                             200,
-                            json!({"writeEpoch":"7", "epochRequired":true}),
+                            json!({"writeEpoch":(7 + remote.barrier_count).to_string(), "epochRequired":true}),
                             false,
                             None,
                         )
+                    } else if path == "/api/v2/sync/write-barrier" {
+                        assert_eq!(request.method, "POST");
+                        if remote.barrier_failure {
+                            (503, json!({}), false, None)
+                        } else {
+                            if !remote.barrier_no_advance {
+                                remote.barrier_count += 1;
+                            }
+                            (
+                                200,
+                                json!({"writeEpoch":(7 + remote.barrier_count).to_string()}),
+                                false,
+                                None,
+                            )
+                        }
                     } else if path == "/api/v2/sync/export" {
                         let records: Vec<_> = remote
                             .records
@@ -693,10 +711,81 @@ async fn product_recovery_rebases_only_latest_staged_decision_without_replaying(
     let entry = pending(&coordinator, &target);
     assert_eq!(entry.pending.as_ref(), Some(&original));
     assert_eq!(entry.next.as_ref().unwrap().edit, latest);
+    // Old on-disk unconfirmed requests may lack an epoch. A fresh barrier
+    // cannot retroactively prove which epoch such a request actually used.
+    let saved = coordinator.snapshot().unwrap();
+    let mut legacy = saved.state.clone();
+    legacy
+        .entries
+        .iter_mut()
+        .find(|entry| entry.target == target)
+        .unwrap()
+        .pending
+        .as_mut()
+        .unwrap()
+        .write_epoch = None;
+    let legacy = coordinator
+        .store
+        .save(Some(saved.generation), &legacy)
+        .unwrap();
+    let requests_before = server.remote.lock().unwrap().requests.len();
+    assert!(coordinator
+        .review_product_guarded(&session, &target, &eligibility)
+        .await
+        .is_err());
+    assert_eq!(
+        server.remote.lock().unwrap().requests.len(),
+        requests_before
+    );
+    coordinator
+        .store
+        .save(Some(legacy.generation), &saved.state)
+        .unwrap();
+    server.remote.lock().unwrap().barrier_failure = true;
+    let before_failed_barrier = coordinator.snapshot().unwrap();
+    assert!(coordinator
+        .review_product_guarded(&session, &target, &eligibility)
+        .await
+        .is_err());
+    let after_failed_barrier = coordinator.snapshot().unwrap();
+    assert_eq!(
+        before_failed_barrier.generation,
+        after_failed_barrier.generation
+    );
+    assert_eq!(before_failed_barrier.state, after_failed_barrier.state);
+    server.remote.lock().unwrap().barrier_failure = false;
+    server.remote.lock().unwrap().barrier_no_advance = true;
+    assert!(coordinator
+        .review_product_guarded(&session, &target, &eligibility)
+        .await
+        .is_err());
+    assert_eq!(
+        coordinator.snapshot().unwrap().state,
+        before_failed_barrier.state
+    );
+    server.remote.lock().unwrap().barrier_no_advance = false;
     let review = coordinator
         .review_product_guarded(&session, &target, &eligibility)
         .await
         .unwrap();
+    {
+        let remote = server.remote.lock().unwrap();
+        let barrier = remote
+            .requests
+            .iter()
+            .rposition(|request| request.target == "/api/v2/sync/write-barrier")
+            .unwrap();
+        let read = remote
+            .requests
+            .iter()
+            .rposition(|request| {
+                request.method == "GET"
+                    && request.target.contains("/collections/plugin-selections/")
+            })
+            .unwrap();
+        assert!(barrier < read);
+        assert_eq!(remote.writes(), 1);
+    }
     assert_eq!(review.local_generation(), latest_generation);
 
     // The old source cannot approve even an otherwise-current review.
