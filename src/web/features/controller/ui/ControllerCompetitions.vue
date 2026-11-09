@@ -6,7 +6,7 @@ import type { CompetitionModel } from '../model/competitions.ts';
 defineProps<{ model: CompetitionModel }>();
 const { locale } = useI18n();
 const text = computed(() => locale.value === 'es' ? {
-  title: 'Competiciones', description: 'Estado de las competiciones autorizadas. Se actualiza periódicamente.',
+  title: 'Competiciones', description: 'Estado de las competiciones autorizadas.',
   loading: 'Consultando competiciones…', error: 'No se pudo consultar el estado de las competiciones.',
   empty: 'No hay competiciones disponibles en esta página.', previous: 'Anterior', next: 'Siguiente', page: 'Página',
   pause: 'Pausar', cancel: 'Cancelar competición',

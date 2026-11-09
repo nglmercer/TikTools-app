@@ -202,8 +202,8 @@ publish local presentation updates without granting Owner authority to plugin
 observers or competition-triggered automation. The native controller can pause
 or cancel a visible competition under the same scoped grant; its version-7
 command journal stores the generation and revision before sending and recovers
-an uncertain result using the original command ID. Start/resume, competition
-event streams and complete release acceptance remain pending.
+an uncertain result using the original command ID. Start/resume and complete
+release acceptance remain pending.
 For either RPC, send `params: {id, expectedGeneration}` and
 `meta: {commandId, hostInstanceId, expectedRevision}` using the generation and
 revision from the scoped summary. The durable result identifies the
@@ -218,7 +218,9 @@ actions stay on the host. A grant restricted by LIVE creator is denied until
 competitions have a verified creator association. The host rechecks the grant
 against the rows immediately before remote delivery; the native controller
 also binds a reply to the current connection and grant, and its UI clears
-stale results on scope changes. The UI polls periodically; at very low gateway
+stale results on scope changes. On a compatible host the UI also refreshes on
+reliable competition invalidations, coalescing changes while a read is in
+flight; periodic reads remain a fallback. At very low gateway
 request limits it rotates among LIVE, feed and competition reads and leaves
 capacity for the native heartbeat or points refresh. Keyset pages are live,
 not a coherent replayable snapshot. At advertised limits of at most two
@@ -236,8 +238,7 @@ scope, reconnect and redaction path. A separate local TLS test exercises a
 competition-only grant at one request per second and burst one. Frontend tests
 cover pagination, stale replies, malformed data, escaped rendering and a
 simulated low-rate polling schedule. These tests do not
-demonstrate remote competition mutations, a real TikTok LIVE or two physical
-PCs.
+demonstrate a real TikTok LIVE or two physical PCs.
 
 Recovery retries only explicit pre-dispatch rate-limit rejections for
 subscribe, snapshot pages and resume; transport failures and timeouts are not

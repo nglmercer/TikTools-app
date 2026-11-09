@@ -73,6 +73,24 @@ it('never displays delayed rows after scope change or a denied LIVE restriction'
   expect(calls.filter((call) => call.method === 'controller.competitions')).toHaveLength(1);
 });
 
+it('coalesces live invalidations during a pending page and discards its stale reply', async () => {
+  const current = ref(status()); let release!: (value: unknown) => void;
+  let reads = 0;
+  const { client } = createFakeControlClient((method) => {
+    if (method === 'controller.status') return JSON.parse(JSON.stringify(current.value));
+    reads += 1;
+    return reads === 1 ? new Promise((resolve) => { release = resolve; }) : page([{ ...row('alpha'), name:'Updated' }]);
+  });
+  const model = createCompetitionModel(client, { status:current, generation:() => 1, stopped:() => false });
+  const pending = model.refresh(current.value, 1);
+  model.invalidate(); await model.refresh(current.value, 1);
+  model.invalidate(); await model.refresh(current.value, 1);
+  expect(reads).toBe(1);
+  release(page([row('alpha')])); await pending;
+  await vi.waitFor(() => expect(model.rows.value[0]?.name).toBe('Updated'));
+  expect(reads).toBe(2);
+});
+
 it('rejects hidden IDs, malformed pages and noncanonical counters', async () => {
   const current = ref(status());
   const responses = [page([row('hidden')]), page([{ ...row('alpha'), generation:'01' }]), page([row('charlie'), row('alpha')])];

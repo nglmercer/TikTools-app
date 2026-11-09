@@ -59,15 +59,18 @@ export function createCompetitionModel(control: ControlClient, deps: Dependencie
   const rows = ref<CompetitionSummary[]>([]); const error = ref(''); const loading = ref(false);
   const pageIndex = ref(0); const allowed = computed(() => readable(deps.status.value));
   const nextAfter = ref<string | null>(null); const cursors = ref<(string | null)[]>([null]);
-  let token = 0; let nextPoll = 0; let loadedBinding = '';
-  function clear(): void { token += 1; rows.value = []; error.value = ''; loading.value = false; pageIndex.value = 0; nextAfter.value = null; cursors.value = [null]; nextPoll = 0; loadedBinding = ''; }
-  function invalidate(): void { token += 1; loading.value = false; nextPoll = 0; }
+  let token = 0; let inFlight = 0; let invalidated = false; let nextPoll = 0; let loadedBinding = '';
+  function clear(): void { token += 1; inFlight = 0; invalidated = false; rows.value = []; error.value = ''; loading.value = false; pageIndex.value = 0; nextAfter.value = null; cursors.value = [null]; nextPoll = 0; loadedBinding = ''; }
+  function invalidate(): void {
+    nextPoll = 0;
+    if (loading.value) { invalidated = true; token += 1; }
+  }
   async function refresh(current: ControllerStatus, generation: number): Promise<void> {
     if (!readable(current)) { clear(); return; }
     const captured = binding(current);
     if (loadedBinding && loadedBinding !== captured) clear();
     if (loading.value || performance.now() < nextPoll) return;
-    const request = ++token; const after = cursors.value[pageIndex.value] ?? null;
+    const request = ++token; inFlight = request; invalidated = false; const after = cursors.value[pageIndex.value] ?? null;
     loading.value = true; loadedBinding = captured; nextPoll = performance.now() + 2000;
     try {
       const response = await control.call<unknown>('controller.competitions', { epoch: current.epoch, connectionId: current.hello!.connectionId, after });
@@ -79,7 +82,15 @@ export function createCompetitionModel(control: ControlClient, deps: Dependencie
     } catch {
       if (deps.stopped() || request !== token || generation !== deps.generation()) return;
       rows.value = []; nextAfter.value = null; error.value = 'Competition status unavailable';
-    } finally { if (request === token) loading.value = false; }
+    } finally {
+      if (inFlight === request) {
+        inFlight = 0; loading.value = false;
+        if (invalidated && !deps.stopped()) {
+          invalidated = false;
+          if ((deps.status.value.hello?.limits?.requestsPerSecond ?? 30) > 2) void refresh(deps.status.value, deps.generation());
+        }
+      }
+    }
   }
   async function next(): Promise<void> {
     if (loading.value || nextAfter.value === null) return;

@@ -60,6 +60,7 @@ export function createControllerModel(control: ControlClient) {
   let unsubscribe: (() => void) | undefined;
   let nextLowRatePoll = 0;
   let lowRateTurn = 0;
+  let competitionUrgent = false;
   let readBinding = '';
   const key = (s: ControllerStatus) => `${s.epoch}:${s.viewRevision}`;
   const ready = computed(() => status.value.phase === 'ready' && loaded.value === key(status.value));
@@ -102,19 +103,20 @@ export function createControllerModel(control: ControlClient) {
             // Never keep the previous scope visible while low-rate polling
             // waits for its next turn.
             live.clear(); liveFeed.clear(); competitions.clear();
-            nextLowRatePoll = 0; lowRateTurn = 0; readBinding = currentReadBinding;
+            nextLowRatePoll = 0; lowRateTurn = 0; competitionUrgent = false; readBinding = currentReadBinding;
           }
           const rate = current.hello?.limits?.requestsPerSecond ?? 30;
-          if (competitionChanged) { competitions.invalidate(); void competitions.refresh(current, generation); }
+          if (competitionChanged) { competitions.invalidate(); competitionUrgent = true; }
           if (rate <= 2 && competitions.allowed.value) {
             // Share a small request budget across optional live/competition
             // reads, leaving capacity for the native heartbeat and points.
             if (performance.now() >= nextLowRatePoll) {
               const reads = [live, liveFeed, competitions];
               for (let offset = 0; offset < reads.length; offset += 1) {
-                const index = (lowRateTurn + offset) % reads.length;
+                const index = competitionUrgent ? 2 : (lowRateTurn + offset) % reads.length;
                 const read = reads[index]!;
                 if (!read.allowed.value) continue;
+                if (index === 2) competitionUrgent = false;
                 lowRateTurn = (index + 1) % reads.length;
                 nextLowRatePoll = performance.now() + (rate <= 1 ? 3000 : 1500);
                 void read.refresh(current, generation);
@@ -122,6 +124,7 @@ export function createControllerModel(control: ControlClient) {
               }
             }
           } else {
+            competitionUrgent = false;
             void live.refresh(current, generation);
             void liveFeed.refresh(current, generation);
             void competitions.refresh(current, generation);
