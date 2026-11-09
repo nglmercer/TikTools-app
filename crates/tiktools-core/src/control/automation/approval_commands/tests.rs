@@ -238,6 +238,16 @@ fn competition_activation_transaction_retains_operators_and_replays_original_com
         .unwrap();
     assert!(fresh);
     assert_eq!(started.value["generation"], "1");
+    let first_fence = f
+        .core()
+        .db
+        .capture_competition_execution_fence(&service, "shared", 1)
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence(&service, &first_fence, |_, _| Ok(()))
+        .is_ok());
     let (replayed, fresh) = f
         .core()
         .db
@@ -261,6 +271,11 @@ fn competition_activation_transaction_retains_operators_and_replays_original_com
             Some("host-owner"),
         )
         .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence(&service, &first_fence, |_, _| Ok(()))
+        .is_err());
     let revision = f
         .core()
         .db
@@ -316,6 +331,36 @@ fn competition_activation_transaction_retains_operators_and_replays_original_com
         .unwrap();
     assert!(fresh);
     assert_eq!(resumed.value["lifecycle"], "active");
+    let resumed_fence = f
+        .core()
+        .db
+        .capture_competition_execution_fence(&service, "shared", 1)
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence(&service, &resumed_fence, |_, _| Ok(()))
+        .is_ok());
+    let current_second = second.snapshot().unwrap();
+    let mut updated_grant = current_second.grant.clone();
+    updated_grant.capabilities.insert(Capability::CommandsRead);
+    service
+        .set_grant(GrantSet {
+            principal_id: current_second.principal_id,
+            expected_revision: current_second.grant_revision,
+            grant: updated_grant,
+        })
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence(&service, &resumed_fence, |_, _| Ok(()))
+        .is_err());
+    let resumed_fence = f
+        .core()
+        .db
+        .capture_competition_execution_fence(&service, "shared", 1)
+        .unwrap();
     assert_eq!(
         f.core()
             .db
@@ -330,6 +375,11 @@ fn competition_activation_transaction_retains_operators_and_replays_original_com
             grant: revoked,
         })
         .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence(&service, &resumed_fence, |_, _| Ok(()))
+        .is_err());
     let (again, fresh) = f
         .core()
         .db

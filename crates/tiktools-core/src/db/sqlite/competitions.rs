@@ -12,6 +12,67 @@ pub(crate) enum ActionClaimOutcome {
     Claimed(ActionClaim),
 }
 
+/// A trusted snapshot of the generation and each current operator. It is
+/// deliberately not deserializable and grants no effect by itself.
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CompetitionExecutionFence {
+    id: String,
+    generation: u64,
+    revision: i64,
+    host_id: String,
+    subjects: Vec<(String, String, String, String)>,
+}
+
+fn competition_execution_fence(
+    tx: &rusqlite::Transaction<'_>,
+    id: &str,
+    generation: u64,
+    identities: &[crate::collaboration::ExecutionIdentity],
+) -> Result<CompetitionExecutionFence, DatabaseError> {
+    let denied = || DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden);
+    let row: Option<(String,i64)> = tx.query_row(
+        "SELECT s.state_json,r.revision FROM competition_state s JOIN competition_control_revisions r ON r.competition_id=s.competition_id AND r.deleted=0 WHERE s.competition_id=?1",
+        [id], |row| Ok((row.get(0)?,row.get(1)?)),
+    ).optional()?;
+    let (state, revision) = row.ok_or_else(denied)?;
+    let state: LifecycleState = serde_json::from_str(&state).map_err(|_| denied())?;
+    if state.generation != generation
+        || revision <= 0
+        || matches!(
+            state.lifecycle,
+            Lifecycle::Draft | Lifecycle::Cancelled | Lifecycle::Failed
+        )
+    {
+        return Err(denied());
+    }
+    let host_id = identities.first().ok_or_else(denied)?.host_id().to_owned();
+    if identities
+        .iter()
+        .any(|identity| identity.host_id() != host_id)
+    {
+        return Err(denied());
+    }
+    let subjects = identities
+        .iter()
+        .map(|identity| {
+            (
+                identity.principal_id().to_owned(),
+                identity.session_id().to_owned(),
+                identity.grant_revision().to_owned(),
+                identity.configuration_revision().to_owned(),
+            )
+        })
+        .collect();
+    Ok(CompetitionExecutionFence {
+        id: id.into(),
+        generation,
+        revision,
+        host_id,
+        subjects,
+    })
+}
+
 /// Internal transaction only. Remote dispatch remains disabled until event
 /// and winner effects can carry this generation's delegated authority.
 #[allow(dead_code)]
@@ -685,6 +746,42 @@ impl DatabaseManager {
             })
             .map_err(DatabaseError::CommandAuthorization)??;
         Ok(result)
+    }
+
+    /// Capture a generation binding before queueing work. Grant changes and
+    /// any later lifecycle/definition change invalidate this exact binding.
+    #[allow(dead_code)]
+    pub(crate) fn capture_competition_execution_fence(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        id: &str,
+        generation: u64,
+    ) -> Result<CompetitionExecutionFence, DatabaseError> {
+        self.with_competition_delegation(service, id, generation, |tx, identities| {
+            competition_execution_fence(tx, id, generation, identities)
+        })
+    }
+
+    /// Revalidate the exact binding while holding the business transaction
+    /// and all current grants through the supplied synchronous DB operation.
+    #[allow(dead_code)]
+    pub(crate) fn with_competition_execution_fence<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        fence: &CompetitionExecutionFence,
+        apply: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            &[crate::collaboration::ExecutionIdentity],
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
+        self.with_competition_delegation(service, &fence.id, fence.generation, |tx, identities| {
+            if competition_execution_fence(tx, &fence.id, fence.generation, identities)? != *fence {
+                return Err(DatabaseError::CommandAuthorization(
+                    crate::collaboration::Error::Forbidden,
+                ));
+            }
+            apply(tx, identities)
+        })
     }
     /// Atomically consume a clean shutdown checkpoint and mark this run open.
     /// Missing checkpoints (including older schemas) fail closed.

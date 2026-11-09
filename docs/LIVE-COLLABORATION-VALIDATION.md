@@ -22,6 +22,10 @@ rechecks all earlier operators as well as the new caller; a retained receipt
 can be recovered without executing the transition again. This remains private
 until the competition event and winner-action paths can propagate delegated
 authority to every effect.
+An internal execution binding also captures the exact competition revision and
+all current operator/configuration revisions. A later lifecycle change or grant
+change invalidates that binding; a fresh binding can be captured under the
+current reusable grants. The effect pipeline does not yet consume this binding.
 
 The host now reserves competition creation, definition and lifecycle changes in
 the coordination outbox. The competition stream supplies scoped summary
