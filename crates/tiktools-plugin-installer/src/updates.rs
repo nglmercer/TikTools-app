@@ -1,7 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tiktools_plugin_api::{manifest::parse_version, HostCompat};
-use tiktools_plugin_registry::{latest_compatible, Advisory, AutoUpdate, RegistryClient, Release};
+use tiktools_plugin_registry::{
+    latest_compatible, Advisory, AutoUpdate, LiveReleaseStatus, PackageDocument, RegistryClient,
+    Release,
+};
 
 use crate::{InstallReceipt, PackageOrigin, PermissionDiff};
 
@@ -32,6 +35,10 @@ pub struct UpdateInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub changelog: Option<String>,
     pub auto_applicable: bool,
+    #[serde(default)]
+    pub current_status: LiveReleaseStatus,
+    #[serde(default)]
+    pub latest_status: LiveReleaseStatus,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -63,37 +70,52 @@ pub async fn check_updates(
                 continue;
             }
         };
-        let advisory = document
-            .release(&receipt.version)
-            .and_then(|release| release.advisory.clone());
-        let latest = latest_compatible(&document, &receipt.policy.channel, host)
-            .filter(|resolved| is_newer(&resolved.release.version, &receipt.version));
-        if latest.is_none() && advisory.is_none() {
-            continue;
+        if let Some(update) = update_for_document(receipt, name, &document, host) {
+            report.updates.push(update);
         }
-        let release = latest.as_ref().map(|resolved| &resolved.release);
-        let kind = release.and_then(|release| update_kind(&receipt.version, &release.version));
-        let permission_diff = release
-            .map(|release| permission_diff(receipt, release))
-            .unwrap_or_default();
-        report.updates.push(UpdateInfo {
-            id: receipt.id.clone(),
-            registry: name.clone(),
-            current: receipt.version.clone(),
-            latest: release.map(|release| release.version.clone()),
-            kind,
-            channel: receipt.policy.channel.clone(),
-            pinned: receipt.policy.pinned,
-            auto_applicable: release.is_some()
-                && !receipt.policy.pinned
-                && !permission_diff.adds_access()
-                && policy_allows(receipt.policy.auto_update, kind),
-            permission_diff,
-            advisory,
-            changelog: release.and_then(|release| release.changelog.clone()),
-        });
     }
     report
+}
+
+/// Build an update from the exact document already selected by a caller.
+/// Cloud product callers can bind its live status to the same generation.
+pub fn update_for_document(
+    receipt: &InstallReceipt,
+    name: &str,
+    document: &PackageDocument,
+    host: &HostCompat,
+) -> Option<UpdateInfo> {
+    let advisory = document
+        .release(&receipt.version)
+        .and_then(|release| release.advisory.clone());
+    let latest = latest_compatible(document, &receipt.policy.channel, host)
+        .filter(|resolved| is_newer(&resolved.release.version, &receipt.version));
+    if latest.is_none() && advisory.is_none() {
+        return None;
+    }
+    let release = latest.as_ref().map(|resolved| &resolved.release);
+    let kind = release.and_then(|release| update_kind(&receipt.version, &release.version));
+    let permission_diff = release
+        .map(|release| permission_diff(receipt, release))
+        .unwrap_or_default();
+    Some(UpdateInfo {
+        id: receipt.id.clone(),
+        registry: name.to_owned(),
+        current: receipt.version.clone(),
+        latest: release.map(|release| release.version.clone()),
+        kind,
+        channel: receipt.policy.channel.clone(),
+        pinned: receipt.policy.pinned,
+        auto_applicable: release.is_some()
+            && !receipt.policy.pinned
+            && !permission_diff.adds_access()
+            && policy_allows(receipt.policy.auto_update, kind),
+        permission_diff,
+        advisory,
+        changelog: release.and_then(|release| release.changelog.clone()),
+        current_status: LiveReleaseStatus::Unknown,
+        latest_status: LiveReleaseStatus::Unknown,
+    })
 }
 
 fn is_newer(candidate: &str, current: &str) -> bool {

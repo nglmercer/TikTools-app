@@ -120,6 +120,16 @@ async fn finished(core: &AppCore, id: &str) -> JobSnapshot {
     .expect("package operation must finish")
 }
 
+#[tokio::test]
+async fn update_checks_reject_overlap_before_they_can_publish_out_of_order() {
+    let fixture = Fixture::new();
+    let packages = fixture.core.packages().unwrap();
+    let slow_check = packages.updates_gate.lock().await;
+    assert!(fixture.core.plugin_updates_check().await.is_err());
+    drop(slow_check);
+    assert!(fixture.core.plugin_updates_check().await.is_ok());
+}
+
 async fn install_both_versions(fixture: &Fixture) {
     let archives = [fixture.archive.clone(), fixture.second_version()];
     for archive in &archives {

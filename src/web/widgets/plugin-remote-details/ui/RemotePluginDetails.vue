@@ -57,14 +57,20 @@ watch(key, load);
       </div>
       <BaseButton
         variant="primary"
-        :disabled="!latest"
-        @click="install()"
+        :disabled="!latest || view?.liveStatuses?.[latest] !== 'approved'"
+        @click="install(latest)"
       >
         {{ t('packages.remote.install') }}
       </BaseButton>
     </header>
 
     <div class="remote-details__pane">
+      <BaseButton
+        size="sm"
+        @click="load"
+      >
+        {{ t('packages.liveStatus.refresh') }}
+      </BaseButton>
       <BaseAlert
         v-if="error"
         :title="t('packages.remote.loadFailed')"
@@ -81,6 +87,9 @@ watch(key, load);
         {{ t('packages.review.loading') }}
       </p>
       <template v-else>
+        <p class="remote-details__muted">
+          {{ t('packages.liveStatus.hint') }}
+        </p>
         <BaseMarkdown
           v-if="document.description"
           :source="document.description"
@@ -138,6 +147,7 @@ watch(key, load);
           >
             <span class="remote-details__mono">{{ release.version }}</span>
             <span class="remote-details__muted">{{ release.channel }} · {{ formatDate(release.publishedAt * 1000, locale) }}</span>
+            <span class="remote-details__flag">{{ t(`packages.liveStatus.${view?.liveStatuses?.[release.version] ?? 'unknown'}`) }}</span>
             <span
               v-if="release.yanked"
               class="remote-details__flag"
@@ -148,7 +158,7 @@ watch(key, load);
             >{{ t(`packages.advisory.${release.advisory.severity}`) }}</span>
             <BaseButton
               size="sm"
-              :disabled="release.yanked"
+              :disabled="release.yanked || view?.liveStatuses?.[release.version] !== 'approved'"
               @click="install(release.version)"
             >
               {{ t('packages.remote.installVersion') }}

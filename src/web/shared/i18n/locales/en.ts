@@ -1081,6 +1081,17 @@ export default {
       high: 'Security advisory',
       critical: 'Critical advisory',
     },
+    liveStatus: {
+      hint: 'Status reflects the last check and can change. Installation checks again.',
+      refresh: 'Check status again',
+      unknown: 'Current status unavailable',
+      approved: 'Last check: available',
+      yanked: 'Withdrawn',
+      'key-revoked': 'Signing key revoked',
+      'publisher-unapproved': 'Publisher not approved',
+      advisory: 'Active security advisory',
+      incompatible: 'Not compatible with this device',
+    },
     remote: {
       install: 'Review and install',
       installVersion: 'Install',

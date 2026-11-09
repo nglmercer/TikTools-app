@@ -119,6 +119,17 @@ pub struct RetainedVersion {
     pub retained_at: u64,
 }
 
+/// Artifact provenance recorded by the trusted Cloud install path after its
+/// signed metadata and current generation have been verified. Older receipts
+/// intentionally have no such proof and cannot infer it from today’s index.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudArtifactIdentity {
+    pub target: String,
+    /// Decimal string preserves backend generation precision across clients.
+    pub generation: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallReceipt {
@@ -127,6 +138,8 @@ pub struct InstallReceipt {
     pub origin: PackageOrigin,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub archive_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cloud_artifact: Option<CloudArtifactIdentity>,
     pub signature: SignatureState,
     pub runtime: String,
     #[serde(default)]

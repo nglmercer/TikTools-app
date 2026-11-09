@@ -72,11 +72,19 @@ advisory cannot currently be installed through this path. A server-side
 change after the final check can still race the local commit; eliminating
 that distributed window requires backend coordination.
 
-The signed registry version list, release details and update summaries can
-still show an older yank or advisory status when the live catalog changes
-without a new generation. Their absence is not evidence of current approval;
-the current status check above is repeated during installation. Presenting
-the live status consistently across these views remains pending.
+The signed registry version list, release details and update summaries show
+the last observed live status for the exact host artifact. A bounded catalog
+query checks its generation, target, digest and size, and rejects duplicate or
+incomplete results. Missing or stale-generation data is shown as unknown and
+does not enable installation or automatic update. Existing receipts without
+provenance keep the installed artifact's status unknown. New verified Cloud
+installs record the original target and generation as part of the local
+receipt; later checks bind that historical target to the current signed
+artifact, publisher, signing key and live status rather than inferring them
+from a digest. Update checks admit
+only one run at a time and share a 30-second batch deadline; remaining items
+become unknown. A shown status is an observation, not a lease: the server may
+change it immediately afterwards, so installation repeats the check.
 
 The product rollback action currently restores only local-file packages with
 local installation enabled. The exact retained tree must match an integrity

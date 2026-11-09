@@ -141,6 +141,25 @@ fn implicit(replace_existing: bool) -> CommitOptions {
     }
 }
 
+#[test]
+fn local_packages_cannot_claim_verified_cloud_artifact_identity() {
+    let root = TempDir::new("local-no-cloud-identity");
+    let path = demo_package(&root, "acme.demo", "1.0.0", serde_json::json!({}));
+    let installer = installer(&root);
+    let mut prepared = installer
+        .prepare(
+            &path,
+            PackageOrigin::File,
+            SignaturePolicy::AllowWithConsent,
+        )
+        .unwrap();
+    assert!(prepared.bind_verified_cloud_artifact("any", 1).is_err());
+    let outcome = installer
+        .commit(&prepared, &implicit(false), &NoopHooks, &NoopReporter)
+        .unwrap();
+    assert!(outcome.receipt.cloud_artifact.is_none());
+}
+
 fn install_file(
     installer: &Installer,
     path: &Path,
@@ -2118,6 +2137,53 @@ fn signed_package(root: &TempDir, key: &SigningKey, id: &str, version: &str) -> 
 }
 
 #[test]
+fn fixed_cloud_release_rejects_archive_signed_by_a_different_trusted_key() {
+    let root = TempDir::new("cloud-signer-binding");
+    let indexed_key = publisher_key();
+    let archive_key =
+        SigningKey::generate(KeyId::parse("acme-2").unwrap(), Some("acme".to_owned())).unwrap();
+    let archive = signed_package(&root, &archive_key, "acme.demo", "1.0.0");
+    let mut keys = TrustStore::new();
+    for key in [&indexed_key, &archive_key] {
+        keys.insert(
+            TrustedKey::new(key.public_key(), KeyRole::Publisher).publisher("acme"),
+            "official",
+        );
+    }
+    let installer = installer_with(&root, Arc::new(RwLock::new(keys)));
+    let prepared = installer
+        .prepare(
+            &archive,
+            PackageOrigin::Registry {
+                registry: "official".into(),
+                url: "https://cloud.example/api/v1/registry/generations/1/files".into(),
+            },
+            SignaturePolicy::Require,
+        )
+        .unwrap();
+    assert_eq!(prepared.signature.key_id.as_deref(), Some("acme-2"));
+    let mut expected = crate::ExpectedRelease {
+        id: prepared.manifest.id.clone(),
+        version: prepared.manifest.semver().unwrap(),
+        runtime: prepared.manifest.runtime.to_string(),
+        permissions: prepared.manifest.permissions.clone(),
+        capabilities: prepared.manifest.capabilities.clone(),
+        expected_signer: Some(("acme".into(), "acme-1".into())),
+    };
+    // Both keys are trusted for this plugin, but current Cloud status for the
+    // indexed key cannot authorize an archive signed by the other key.
+    assert_eq!(
+        expected.check(&prepared).unwrap_err().code,
+        InstallErrorCode::InvalidPackage
+    );
+    assert!(installer.receipt("acme.demo").unwrap().is_none());
+    expected.expected_signer = Some(("other-publisher".into(), "acme-2".into()));
+    assert!(expected.check(&prepared).is_err());
+    expected.expected_signer = Some(("acme".into(), "acme-2".into()));
+    assert!(expected.check(&prepared).is_ok());
+}
+
+#[test]
 fn installed_evidence_requires_current_trust_consistent_receipt_and_exact_tree() {
     let root = TempDir::new("installed-evidence");
     let key = publisher_key();
@@ -2561,6 +2627,104 @@ async fn registry_loop_installs_by_id_and_reports_updates() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn fixed_cloud_source_rejects_archive_signed_by_other_trusted_key() {
+    let root = TempDir::new("fixed-cloud-signer-binding");
+    let root_key = SigningKey::generate(KeyId::parse("root-1").unwrap(), None).unwrap();
+    let index_key = SigningKey::generate(KeyId::parse("index-1").unwrap(), None).unwrap();
+    let indexed_key = publisher_key();
+    let archive_key =
+        SigningKey::generate(KeyId::parse("acme-2").unwrap(), Some("acme".into())).unwrap();
+    let origin = root.join("origin");
+    let generation = origin.join("api/v1/registry/generations/1/files");
+    let writer = IndexWriter::open(
+        &generation,
+        "test",
+        Some(SigningKey::from_json(&index_key.to_json()).unwrap()),
+    );
+    writer
+        .init(
+            &root_key,
+            vec![
+                TrustedKey::new(index_key.public_key(), KeyRole::Index),
+                TrustedKey::new(indexed_key.public_key(), KeyRole::Publisher).publisher("acme"),
+                TrustedKey::new(archive_key.public_key(), KeyRole::Publisher).publisher("acme"),
+            ],
+            None,
+            None,
+        )
+        .unwrap();
+    writer
+        .add(
+            &signed_package(&root, &archive_key, "acme.demo", "1.0.0"),
+            "stable",
+            None,
+        )
+        .unwrap();
+    // Simulate a correctly index-signed but inconsistent registry: the catalog
+    // describes key A while the exact digest identifies an archive signed by B.
+    let index = generation.join("index/ac/me/acme.demo.json");
+    let mut document: serde_json::Value =
+        serde_json::from_slice(&fs::read(&index).unwrap()).unwrap();
+    document["releases"][0]["artifacts"][0]["keyId"] = serde_json::json!("acme-1");
+    let bytes = serde_json::to_vec(&document).unwrap();
+    fs::write(&index, &bytes).unwrap();
+    fs::write(
+        generation.join("index/ac/me/acme.demo.json.sig"),
+        index_key.sign_detached(&bytes).to_bytes(),
+    )
+    .unwrap();
+    fs::create_dir_all(origin.join("api/v1/registry")).unwrap();
+    fs::write(
+        origin.join("api/v1/registry/current"),
+        serde_json::json!({"generation":1}).to_string(),
+    )
+    .unwrap();
+    let server = StaticServer::start(origin).await;
+    let trust = Arc::new(RwLock::new(TrustStore::new()));
+    let source = cloud_source("official", &server.base, vec![root_key.public_key()]).unwrap();
+    let registry = Arc::new(
+        RegistryClient::new_fixed(
+            root.join("store/registries"),
+            root.join("store/registries.json"),
+            vec![source],
+            trust.clone(),
+        )
+        .unwrap(),
+    );
+    let sources = PackageSources::new_fixed(
+        registry,
+        Downloader::new_fixed(root.join("store/cache")).unwrap(),
+    );
+    let installer = installer_with(&root, trust);
+    let job = JobRegistry::new(None).start(JobKind::Install, None, Some("acme.demo".into()));
+    let spec: PackageSpec = "official:acme.demo".parse().unwrap();
+    let resolved = sources
+        .fetch(
+            &spec,
+            "stable",
+            installer.host(),
+            &job,
+            &AtomicBool::new(false),
+        )
+        .await
+        .unwrap();
+    let prepared = installer
+        .prepare(&resolved.path, resolved.origin.clone(), resolved.policy)
+        .unwrap();
+    assert_eq!(prepared.signature.key_id.as_deref(), Some("acme-2"));
+    assert_eq!(
+        resolved
+            .expected
+            .unwrap()
+            .check(&prepared)
+            .unwrap_err()
+            .code,
+        InstallErrorCode::InvalidPackage
+    );
+    assert!(installer.receipt("acme.demo").unwrap().is_none());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cloud_registry_installs_verified_package_and_update() {
     let root = TempDir::new("cloud-loop");
     let root_key = SigningKey::generate(KeyId::parse("root-1").unwrap(), None).unwrap();
@@ -2633,9 +2797,12 @@ async fn cloud_registry_installs_verified_package_and_update() {
         .await
         .unwrap();
     assert_eq!(resolved.policy, SignaturePolicy::Require);
-    let prepared = installer
+    let target = resolved.target.clone().expect("registry target");
+    let mut prepared = installer
         .prepare(&resolved.path, resolved.origin.clone(), resolved.policy)
         .unwrap();
+    assert!(prepared.bind_verified_cloud_artifact(&target, 0).is_err());
+    prepared.bind_verified_cloud_artifact(&target, 1).unwrap();
     let preview = installer.preview(&prepared);
     assert_eq!(preview.signature.status, SignatureStatus::Verified);
     let outcome = installer
@@ -2653,6 +2820,23 @@ async fn cloud_registry_installs_verified_package_and_update() {
         matches!(outcome.receipt.origin, PackageOrigin::Registry { ref registry, .. } if registry == "official")
     );
     assert!(outcome.receipt.signature.is_verified());
+    let identity = outcome
+        .receipt
+        .cloud_artifact
+        .as_ref()
+        .expect("persisted Cloud artifact identity");
+    assert_eq!(
+        (&identity.target, identity.generation.as_str()),
+        (&target, "1")
+    );
+    assert_eq!(
+        installer
+            .receipt("acme.demo")
+            .unwrap()
+            .unwrap()
+            .cloud_artifact,
+        outcome.receipt.cloud_artifact
+    );
 
     // Publish 1.0.1 in a new generation, yank 1.0.0, advance the pointer.
     let gen2 = origin.join("api/v1/registry/generations/2/files");

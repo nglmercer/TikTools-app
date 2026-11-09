@@ -20,8 +20,9 @@ use crate::{
     native_libs::backfill_native_libs,
     preview::{consent_token, requires_sideload_consent},
     receipt::{read_receipt, write_atomic, write_receipt},
-    ChangeKind, InstallError, InstallErrorCode, InstallReceipt, PackageOrigin, PackagePreview,
-    PermissionDiff, ReceiptStore, RetainedVersion, SignatureState, SignatureStatus, UpdatePolicy,
+    ChangeKind, CloudArtifactIdentity, InstallError, InstallErrorCode, InstallReceipt,
+    PackageOrigin, PackagePreview, PermissionDiff, ReceiptStore, RetainedVersion, SignatureState,
+    SignatureStatus, UpdatePolicy,
 };
 
 pub const DEFAULT_RETAINED_VERSIONS: usize = 2;
@@ -141,6 +142,7 @@ pub struct PreparedPackage {
     pub signature: SignatureState,
     pub changelog: Option<String>,
     checksums: Option<Vec<u8>>,
+    cloud_artifact: Option<CloudArtifactIdentity>,
 }
 
 impl PreparedPackage {
@@ -150,6 +152,34 @@ impl PreparedPackage {
 
     pub fn size(&self) -> u64 {
         self.archive.size()
+    }
+
+    /// The trusted product caller invokes this only after verifying the exact
+    /// artifact against signed metadata and the current Cloud generation.
+    pub fn bind_verified_cloud_artifact(
+        &mut self,
+        target: &str,
+        generation: u64,
+    ) -> Result<(), InstallError> {
+        if !matches!(self.origin, PackageOrigin::Registry { .. })
+            || !self.signature.is_verified()
+            || generation == 0
+            || target.is_empty()
+            || target.len() > 128
+            || !target
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
+        {
+            return Err(InstallError::new(
+                InstallErrorCode::InvalidPackage,
+                "invalid verified Cloud artifact identity",
+            ));
+        }
+        self.cloud_artifact = Some(CloudArtifactIdentity {
+            target: target.to_owned(),
+            generation: generation.to_string(),
+        });
+        Ok(())
     }
 }
 
@@ -960,6 +990,7 @@ impl Installer {
             signature,
             changelog: inspection.changelog,
             checksums: inspection.checksums,
+            cloud_artifact: None,
         })
     }
 
@@ -1115,6 +1146,7 @@ impl Installer {
             version: extracted.manifest.version.clone(),
             origin: prepared.origin.clone(),
             archive_digest: Some(prepared.digest.to_string()),
+            cloud_artifact: prepared.cloud_artifact.clone(),
             signature: prepared.signature.clone(),
             runtime: extracted.manifest.runtime.to_string(),
             granted_permissions: extracted.manifest.permissions.clone(),
@@ -1808,6 +1840,7 @@ fn adopted_receipt_parts(
         version: version.to_owned(),
         origin: PackageOrigin::Adopted,
         archive_digest: None,
+        cloud_artifact: None,
         signature: SignatureState::unsigned(),
         runtime: runtime.to_owned(),
         granted_permissions: permissions,

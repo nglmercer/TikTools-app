@@ -1083,6 +1083,17 @@ export default {
       high: 'Aviso de seguridad',
       critical: 'Aviso crítico',
     },
+    liveStatus: {
+      hint: 'El estado corresponde a la última consulta y puede cambiar. Se revisará otra vez al instalar.',
+      refresh: 'Volver a consultar estado',
+      unknown: 'Estado actual no disponible',
+      approved: 'Última consulta: disponible',
+      yanked: 'Retirada',
+      'key-revoked': 'Clave de firma revocada',
+      'publisher-unapproved': 'Publicador no aprobado',
+      advisory: 'Aviso de seguridad activo',
+      incompatible: 'No compatible con este dispositivo',
+    },
     remote: {
       install: 'Revisar e instalar',
       installVersion: 'Instalar',

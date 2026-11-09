@@ -56,7 +56,7 @@ const { t } = useI18n();
 const specInput = ref('');
 
 const installedCount = computed(() => props.plugins.filter((plugin) => plugin.installed).length);
-const pendingUpdates = computed(() => props.updates.filter((entry) => entry.latest));
+const pendingUpdates = computed(() => props.updates.filter((entry) => entry.latest && entry.latestStatus === 'approved' && !entry.pinned));
 const tabs = computed(() => [
   { value: 'browse' as const, label: t('plugins.catalog.browse') },
   { value: 'installed' as const, label: `${t('plugins.catalog.installed')} (${installedCount.value})` },
@@ -214,13 +214,19 @@ function submitSpec(): void {
           <BaseButton
             size="sm"
             variant="primary"
-            :disabled="!pendingUpdates.length"
+            :disabled="checkingUpdates || !pendingUpdates.length"
             @click="emit('update-all')"
           >
             {{ t('plugins.catalog.updateAll') }}
           </BaseButton>
         </div>
       </div>
+      <p
+        v-if="tab === 'updates'"
+        class="plugin-catalog__notice"
+      >
+        {{ t('packages.liveStatus.hint') }}
+      </p>
       <!-- No `disabled` binding: it would be read before the right-clicked
            row is selected. Rows without commands get an empty (hidden) menu. -->
       <BaseContextMenu
@@ -257,16 +263,29 @@ function submitSpec(): void {
               >{{ item.entry.latest }}</span>
               <template v-else>
                 <span
+                  class="plugin-catalog__tag"
+                  :class="{ 'plugin-catalog__tag--warning': item.update.currentStatus !== 'approved' }"
+                >
+                  {{ t(`packages.liveStatus.${item.update.currentStatus ?? 'unknown'}`) }}
+                </span>
+                <span
                   v-if="item.update.advisory"
                   class="plugin-catalog__tag plugin-catalog__tag--warning"
                 >{{ t(`packages.advisory.${item.update.advisory.severity}`) }}</span>
                 <BaseButton
                   v-if="item.update.latest"
                   size="sm"
+                  :disabled="checkingUpdates || item.update.latestStatus !== 'approved'"
                   @click.stop="emit('update', item.update.id, item.update.latest)"
                 >
                   {{ item.update.current }} → {{ item.update.latest }}
                 </BaseButton>
+                <span
+                  v-if="item.update.latest && item.update.latestStatus !== 'approved'"
+                  class="plugin-catalog__tag plugin-catalog__tag--warning"
+                >
+                  {{ t(`packages.liveStatus.${item.update.latestStatus ?? 'unknown'}`) }}
+                </span>
               </template>
             </span>
           </template>

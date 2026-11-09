@@ -410,7 +410,16 @@ impl RegistryClient {
     }
 
     pub fn is_revoked(&self, digest: &Sha256Digest) -> bool {
-        self.state.lock().is_ok_and(|state| {
+        self.try_is_revoked(digest).unwrap_or(true)
+    }
+
+    /// Fail closed when the signed registry state cannot be read.
+    pub fn try_is_revoked(&self, digest: &Sha256Digest) -> Result<bool, RegistryError> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| RegistryError::document("registry", "registry state is unavailable"))?;
+        Ok({
             state.values().any(|entry| {
                 entry.config.as_ref().is_some_and(|config| {
                     config

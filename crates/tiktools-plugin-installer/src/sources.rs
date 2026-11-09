@@ -23,16 +23,25 @@ pub struct ExpectedRelease {
     pub runtime: String,
     pub permissions: Vec<String>,
     pub capabilities: Vec<String>,
+    /// Fixed Cloud registries bind the signed index publisher and artifact
+    /// key to the actual verified archive signature. Generic registries may
+    /// omit this additional Cloud-specific requirement.
+    pub expected_signer: Option<(String, String)>,
 }
 
 impl ExpectedRelease {
-    fn from_release(id: &str, release: &Release) -> Option<Self> {
+    fn from_release(
+        id: &str,
+        release: &Release,
+        expected_signer: Option<(String, String)>,
+    ) -> Option<Self> {
         Some(Self {
             id: id.to_owned(),
             version: release.semver()?,
             runtime: release.runtime.clone(),
             permissions: sorted(&release.permissions),
             capabilities: sorted(&release.capabilities),
+            expected_signer,
         })
     }
 
@@ -43,7 +52,15 @@ impl ExpectedRelease {
             && manifest.runtime.to_string() == self.runtime
             && sorted(&manifest.permissions) == self.permissions
             && sorted(&manifest.capabilities) == self.capabilities;
-        if matches {
+        let signer_matches = self
+            .expected_signer
+            .as_ref()
+            .is_none_or(|(publisher, key_id)| {
+                prepared.signature.is_verified()
+                    && prepared.signature.publisher.as_deref() == Some(publisher.as_str())
+                    && prepared.signature.key_id.as_deref() == Some(key_id.as_str())
+            });
+        if matches && signer_matches {
             Ok(())
         } else {
             Err(InstallError::new(
@@ -182,6 +199,19 @@ impl PackageSources {
                         rejections,
                     })
                 })?;
+                let expected_signer = if self.fixed_sources {
+                    Some(fixed_cloud_signer(&document, &resolved.artifact)?)
+                } else {
+                    None
+                };
+                let expected =
+                    ExpectedRelease::from_release(id, &resolved.release, expected_signer)
+                        .ok_or_else(|| {
+                            InstallError::new(
+                                InstallErrorCode::InvalidPackage,
+                                "registry release cannot be bound to the downloaded package",
+                            )
+                        })?;
                 reporter.check()?;
                 self.reject_revoked(&resolved.artifact.sha256)?;
                 if self.fixed_sources && !fixed_artifact_path(id, &resolved.artifact.url) {
@@ -212,7 +242,7 @@ impl PackageSources {
                     } else {
                         SignaturePolicy::AllowWithConsent
                     },
-                    expected: ExpectedRelease::from_release(id, &resolved.release),
+                    expected: Some(expected),
                     target: Some(resolved.artifact.target.clone()),
                     trust_guard,
                 })
@@ -228,6 +258,27 @@ impl PackageSources {
             ));
         }
         Ok(())
+    }
+}
+
+/// Cloud's snapshot publisher requires both fields and verifies them against
+/// the archive at promotion. Recheck that binding independently on install;
+/// a live approval for a different key must not authorize this archive.
+fn fixed_cloud_signer(
+    document: &tiktools_plugin_registry::PackageDocument,
+    artifact: &tiktools_plugin_registry::Artifact,
+) -> Result<(String, String), InstallError> {
+    let publisher = document
+        .publisher
+        .as_deref()
+        .filter(|value| !value.is_empty());
+    let key_id = artifact.key_id.as_deref().filter(|value| !value.is_empty());
+    match (publisher, key_id) {
+        (Some(publisher), Some(key_id)) => Ok((publisher.to_owned(), key_id.to_owned())),
+        _ => Err(InstallError::new(
+            InstallErrorCode::InvalidPackage,
+            "Cloud release is missing its publisher or artifact signing key",
+        )),
     }
 }
 
@@ -281,12 +332,36 @@ fn resolve_package(
 
 #[cfg(test)]
 mod fixed_source_tests {
-    use super::{fixed_artifact_path, resolve_package, PackageSources};
+    use super::{fixed_artifact_path, fixed_cloud_signer, resolve_package, PackageSources};
     use crate::{NoopReporter, PackageSpec};
     use std::sync::{atomic::AtomicBool, Arc, RwLock};
     use tiktools_plugin_api::HostCompat;
     use tiktools_plugin_package::TrustStore;
     use tiktools_plugin_registry::{Downloader, RegistryClient};
+
+    #[test]
+    fn fixed_cloud_requires_publisher_and_exact_artifact_key() {
+        let mut document: tiktools_plugin_registry::PackageDocument = serde_json::from_value(serde_json::json!({
+            "id": "acme.plugin", "name": "Example", "releases": [{
+                "version": "1.2.3", "runtime": "process", "schemaVersion": 3, "protocolVersion": 1,
+                "artifacts": [{"target": "any", "url": "packages/acme.plugin/a.plugin", "size": 1, "sha256": "0".repeat(64)}]
+            }]
+        })).unwrap();
+        let mut artifact = document.releases[0].artifacts[0].clone();
+        assert!(fixed_cloud_signer(&document, &artifact).is_err());
+        document.publisher = Some("acme".into());
+        assert!(fixed_cloud_signer(&document, &artifact).is_err());
+        artifact.key_id = Some("acme-key".into());
+        assert_eq!(
+            fixed_cloud_signer(&document, &artifact).unwrap(),
+            ("acme".into(), "acme-key".into())
+        );
+        artifact.key_id = Some(String::new());
+        assert!(fixed_cloud_signer(&document, &artifact).is_err());
+        document.publisher = Some(String::new());
+        artifact.key_id = Some("acme-key".into());
+        assert!(fixed_cloud_signer(&document, &artifact).is_err());
+    }
 
     #[test]
     fn cloud_artifact_is_confined_to_its_canonical_package_tree() {
