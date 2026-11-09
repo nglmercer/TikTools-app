@@ -35,6 +35,18 @@ it('does not send after the grant changes while saving', async () => {
   await submitting;
   expect(f.send).not.toHaveBeenCalled();
 });
+
+it('inspects, saves and submits in one action without silently replacing a newer host revision', async () => {
+  const f = fixture(); await f.model.refresh(); f.model.select('action', 'same');
+  await f.model.submit(false);
+  expect(f.calls.filter((call) => call.method === 'controller.proposals.inspect')).toHaveLength(1);
+  expect(f.calls.filter((call) => call.method === 'controller.proposals.save')).toHaveLength(1);
+  expect(f.send).toHaveBeenCalledTimes(1);
+  f.host('2'); f.model.edit(`${f.model.text.value}\n`);
+  await f.model.submit(false);
+  expect(f.model.error.value).toBe('proposal_base_changed');
+  expect(f.send).toHaveBeenCalledTimes(1);
+});
 async function ready(f: ReturnType<typeof fixture>) {
   await f.model.refresh(); f.model.select('action', 'same'); await f.model.inspect();
   const text = JSON.stringify({ id: 'same', enabled: false, typeId: 'core.log', config: { message: 'local secret' } }); f.model.edit(text);

@@ -39,8 +39,8 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
   const editable = computed(() => permitted(kind.value, id.value));
   const matches = computed(() => !!saved.value && saved.value.kind === kind.value && saved.value.id === id.value && saved.value.mode === mode.value && saved.value.baseRevision === baseRevision.value && saved.value.text === text.value);
   const inspected = computed(() => !!inspection.value && inspection.value.kind === kind.value && inspection.value.id === id.value && inspection.value.revision === baseRevision.value && (inspection.value.summary !== null) === (mode.value === 'update'));
-  const canSubmit = computed(() => editable.value && !busy.value && storeRevision.value !== null && encoder.encode(text.value).length <= 256 * 1024 && inspected.value && !deps.blocked() && deps.journalMatches() && deps.status.value.hello?.capabilities.includes('automation.edit') === true && deps.status.value.hello.features['automationDrafts'] === true);
-  const canSend = computed(() => canSubmit.value && matches.value);
+  const canSubmit = computed(() => editable.value && !busy.value && storeRevision.value !== null && encoder.encode(text.value).length <= 256 * 1024 && (inspection.value === null || inspected.value) && !deps.blocked() && deps.journalMatches() && deps.status.value.hello?.capabilities.includes('automation.edit') === true && deps.status.value.hello.features['automationDrafts'] === true);
+  const canSend = computed(() => canSubmit.value && matches.value && inspected.value);
   const canReadShared = computed(() => editable.value && !busy.value && deps.status.value.hello?.capabilities.includes('automation.edit') === true && deps.status.value.hello.features['automationSharedSource'] === true);
   const canSendActive = computed(() => canSend.value && deps.status.value.hello?.features['automationReusableWrite'] === true && deps.status.value.hello.capabilities.includes('automation.toggle'));
   const canSubmitActive = computed(() => canSubmit.value && deps.status.value.hello?.features['automationReusableWrite'] === true && deps.status.value.hello.capabilities.includes('automation.toggle'));
@@ -156,8 +156,18 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
   }
   async function submit(active: boolean): Promise<void> {
     if (!(active ? canSubmitActive.value : canSubmit.value)) return;
-    const initial = prepare('save');
+    let initial = prepare('save');
     if (!initial || !current(initial)) return;
+    if (!inspection.value) {
+      const before = initial;
+      await inspect();
+      // The host read may complete after the author or selected profile has
+      // changed. It must never silently choose a different replacement base.
+      if (identityKey.value !== before.binding || kind.value !== before.kind || id.value !== before.id || mode.value !== before.mode || baseRevision.value !== before.baseRevision || text.value !== before.text || !inspection.value) return;
+      if (!inspected.value) { error.value = 'proposal_base_changed'; return; }
+      initial = prepare('save');
+      if (!initial || !current(initial)) return;
+    }
     if (!matches.value) await confirm(initial);
     // A save may be delayed while the session, permission, inspection or text
     // changes. Never dispatch a different proposal than the one selected.

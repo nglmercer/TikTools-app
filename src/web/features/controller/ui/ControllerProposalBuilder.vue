@@ -8,7 +8,7 @@ import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 const props = defineProps<{ model: ProposalModel; automation?: AutomationModel }>();
 const { locale } = useI18n();
 const labels = computed(() => locale.value === 'es' ? {
-  title: 'Crear una propuesta con campos', note: 'Genera un borrador inactivo. Antes de enviarlo tendrás que guardarlo y revisar el estado del anfitrión.',
+  title: 'Crear una propuesta con campos', note: 'Genera un borrador inactivo. Al enviarlo, la aplicación consulta el estado del anfitrión y guarda la copia local.',
   name: 'Nombre', actionType: 'Tipo de acción', log: 'Registrar un mensaje', delay: 'Esperar', points: 'Ajustar puntos de un espectador', message: 'Mensaje', milliseconds: 'Milisegundos',
   emit: 'Emitir evento interno', topic: 'Nombre exacto del evento', emitData: 'Datos del evento (objeto JSON)', emitHint: 'Usa hasta 64 letras minúsculas, números, puntos, guiones o guiones bajos. El anfitrión debe permitir el nombre exacto y, para campos públicos del directo, la lectura de LIVE.', custom: 'Evento interno', customHint: 'Este evento solo recibe eventos internos autorizados; no se inicia desde TikTok directamente. Usa un nombre exacto en minúsculas.',
   fetch: 'Enviar solicitud HTTP', fetchUrl: 'URL de destino', fetchMethod: 'Método', fetchHeaders: 'Cabeceras (objeto JSON de texto)', fetchBody: 'Cuerpo de la solicitud', fetchTimeout: 'Tiempo límite (ms)', fetchResponse: 'Límite de respuesta (bytes)', fetchPrivate: 'Permitir red privada', fetchHint: 'El anfitrión debe autorizar el destino, método, cabeceras, cuerpo y límites. Las respuestas no se comparten como eventos.',
@@ -35,7 +35,7 @@ const labels = computed(() => locale.value === 'es' ? {
   confirm: '¿Reemplazar el texto abierto?', warning: 'Se reemplazará el texto abierto por el borrador mostrado. No se guardará ni enviará todavía. Copia antes cualquier contenido que desees conservar.',
   apply: 'Usar este borrador', changed: 'La propuesta, los campos o el acceso cambiaron. Vuelve a revisar el borrador.', preview: 'Borrador nuevo',
 } : {
-  title: 'Create a proposal with fields', note: 'Generate a disabled draft. Before sending, save it and inspect the host status.',
+  title: 'Create a proposal with fields', note: 'Generate a disabled draft. When you send it, the app checks host status and saves the local copy.',
   name: 'Name', actionType: 'Action type', log: 'Log a message', delay: 'Wait', points: 'Adjust a viewer’s points', message: 'Message', milliseconds: 'Milliseconds',
   emit: 'Emit an internal event', topic: 'Exact event name', emitData: 'Event data (JSON object)', emitHint: 'Use up to 64 lowercase letters, digits, dots, hyphens or underscores. The host must allow the exact name and, for public LIVE fields, LIVE read access.', custom: 'Internal event', customHint: 'This event only receives authorized internal events; TikTok does not start it directly. Use an exact lowercase name.',
   fetch: 'Send an HTTP request', fetchUrl: 'Destination URL', fetchMethod: 'Method', fetchHeaders: 'Headers (JSON object of strings)', fetchBody: 'Request body', fetchTimeout: 'Timeout (ms)', fetchResponse: 'Response limit (bytes)', fetchPrivate: 'Allow private network', fetchHint: 'The host must authorize the destination, method, headers, body and limits. Responses are not emitted as events.',

@@ -127,8 +127,10 @@ colons and usernames such as `global` or `anonymous` cannot collide.
 for an absent target and replacement for an existing one, preserving your text.
 It does not save or send. **Save proposal on this PC** retains the complete
 text, including sensitive values. **Save and send for review** and **Save and
-apply active** combine the local save with one dispatch; the editor warns that
-the complete text is retained. Before dispatch it rechecks the saved text,
+apply active** inspect the host when necessary and combine the local save with
+one dispatch; the editor warns that the complete text is retained. A newer host
+revision is shown for an explicit base choice, never silently overwritten.
+Before dispatch it rechecks the saved text,
 inspection, connection and permissions. A changed context or failed save stops
 the send. A successful submission requires a fresh inspection before another
 send. Existing Owner/foreign records remain protected by host policy.

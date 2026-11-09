@@ -21,7 +21,7 @@ const labels = computed(() => locale.value === 'es' ? {
   sendTitle: '¿Enviar esta propuesta al anfitrión?', sendNote: 'Se enviará una sola vez la copia guardada que se muestra. Debe estar inactiva. La ejecución requiere la autorización reutilizable aplicable o una aprobación del propietario.',
   removeTitle: '¿Eliminar la copia guardada?', removeNote: 'Se eliminará el texto guardado en esta PC. El texto abierto se conserva hasta cerrar o cambiar de perfil.',
   baseTitle: '¿Cambiar la base de reemplazo?', baseNote: 'La revisión consultada será la nueva base de esta propuesta. Compara su estado, revisa tu texto y guarda esta elección antes de enviar.',
-  changed: 'La propuesta o el acceso cambió. Cierra la confirmación y vuelve a revisarla.', limit: 'Máximo: 256 KiB. El JSON debe incluir el mismo ID y enabled: false.', retry: 'Actualizar copias guardadas',
+  changed: 'La propuesta o el acceso cambió. Cierra la confirmación y vuelve a revisarla.', baseChanged: 'El estado del anfitrión cambió. Revisa la revisión consultada y elige si deseas usarla como nueva base.', limit: 'Máximo: 256 KiB. El JSON debe incluir el mismo ID y enabled: false.', retry: 'Actualizar copias guardadas',
 } : {
   title: 'Automations', note: 'The host returns a summary; the editable text is your local copy. You can apply the definition active if your grant allows it.',
   family: 'Proposal type', action: 'Action', event: 'Event', id: 'Proposal ID', start: 'Prepare new proposal', stored: 'Copies saved on this PC',
@@ -32,7 +32,7 @@ const labels = computed(() => locale.value === 'es' ? {
   sendTitle: 'Send this proposal to the host?', sendNote: 'The saved copy shown is sent once. It must be disabled. Execution requires an applicable reusable authorization or owner approval.',
   removeTitle: 'Remove the saved copy?', removeNote: 'The text saved on this PC will be removed. The open text stays until you close or change the profile.',
   baseTitle: 'Change the replacement base?', baseNote: 'The inspected revision becomes this proposal’s new base. Compare its status, review your text and save this choice before sending.',
-  changed: 'The proposal or access changed. Close this confirmation and review it again.', limit: 'Maximum: 256 KiB. JSON must include the same ID and enabled: false.', retry: 'Refresh saved copies',
+  changed: 'The proposal or access changed. Close this confirmation and review it again.', baseChanged: 'The host state changed. Review the inspected revision and choose whether to use it as the new base.', limit: 'Maximum: 256 KiB. JSON must include the same ID and enabled: false.', retry: 'Refresh saved copies',
 });
 function choose(): void { props.model.select(family.value, targetId.value); }
 async function load(kind: 'action' | 'event', id: string): Promise<void> { if (props.model.kind.value !== kind || props.model.id.value !== id) props.model.select(kind, id); await props.model.load(); }
@@ -61,7 +61,7 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
       v-if="model.error.value"
       role="alert"
     >
-      {{ model.error.value }}
+      {{ model.error.value === 'proposal_base_changed' ? labels.baseChanged : model.error.value }}
     </p>
     <button
       :disabled="model.busy.value"
