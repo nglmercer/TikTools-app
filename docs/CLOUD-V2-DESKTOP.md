@@ -136,8 +136,12 @@ publication. Disabling sync remains possible in Preparing or V2 and preserves
 both stores. A private native adapter now also holds cooperative invocation,
 package-store, SQLite and catalog fences for the reviewed commit; it cannot
 fence every root or noncooperating writer, and it may delay plugin operations
-while durable disk writes complete. Later local mutations are not yet routed to
-v2. Independent authentication managers and product wiring remain unfinished.
+while durable disk writes complete. The public plugin enable/disable operation now selects the current protocol
+under admission and persists a v2 candidate with its local state when a v2
+product identity is eligible. If admission fails before a source write, it
+falls back to a local, untracked edit for later reconciliation. The v2 drain,
+installed-state and package writers, independent authentication managers and
+remaining product wiring are not yet connected.
 The primitive is not a user-facing migration and does not authorize local
 application.
 
@@ -169,13 +173,13 @@ upload resolution, including keep-local, until those protections are wired.
 An internal SQLite transaction can now persist a plugin state, source
 generation and identity/consent-bound outbox candidate together; this storage
 primitive is not yet connected to product mutations or coordinator delivery.
-An internal enable/disable adapter now joins that reservation to the local
-runtime change and confirms only the same source generation after success.
-It is not selected by product operations: runtime failure/restart recovery,
-package mutations, fenced outbox draining and legacy-writer coordination must
-be integrated together. Even local-only edits currently require an available
-coordinator in this experimental adapter; the final product path must retain
-independent local operation.
+The v1 outbox adapter joins that reservation to the local runtime change and
+confirms only the same source generation after success, but is not selected by
+v1 product operations. The public enable/disable path uses selected-protocol
+admission for eligible v2 identities and falls back to an untracked local edit
+when admission fails before a source write. Runtime failure/restart recovery,
+package mutations, fenced outbox draining and legacy-writer coordination still
+need integration.
 The in-progress coordinator bridge moves staged candidates to durable receipts
 and rechecks the exact pending edit, source generation, consent and runtime
 epoch before upload. Its private native wrapper requires a previously created

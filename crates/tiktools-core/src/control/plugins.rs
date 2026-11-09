@@ -6,9 +6,9 @@ use crate::*;
 use serde::Deserialize;
 use serde::Serialize;
 
-/// A local mutation's durable sync candidate. This is not yet connected to
-/// the product lifecycle: a v1 network drain must share its admission lease
-/// and check the outbox before legacy staging can safely be removed.
+/// A local mutation's durable sync candidate. Public enable/disable uses the
+/// selected protocol; other writers and the v2 drain remain to be integrated.
+/// Legacy v1 staging remains separate until its drain joins this boundary.
 #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
 struct ReservedLocalPluginMutation {
     candidate: Option<crate::db::PluginSyncOutboxEntry>,
@@ -211,7 +211,7 @@ fn reserve_local_plugin_mutation_prepared_for<T>(
         LocalMutationProtocol::Selected => sync.with_product_local_edit(|selected| {
             use tiktools_cloud_sync::ProductLocalEditContext;
             match selected {
-                ProductLocalEditContext::Legacy => operation(None, true, false),
+                ProductLocalEditContext::Legacy => operation(None, true, true),
                 ProductLocalEditContext::OptedOut | ProductLocalEditContext::V2(None) => {
                     operation(None, false, true)
                 }
@@ -651,7 +651,12 @@ impl AppCore {
         id: &str,
         enabled: bool,
     ) -> Result<(), OperationError> {
-        self.plugin_set_enabled_with_durable_intent_for(id, enabled, LocalMutationProtocol::V1)
+        self.plugin_set_enabled_with_durable_intent_for(
+            id,
+            enabled,
+            LocalMutationProtocol::V1,
+            None,
+        )
     }
 
     /// V2 counterpart for the future product path. This remains private until
@@ -664,7 +669,12 @@ impl AppCore {
         id: &str,
         enabled: bool,
     ) -> Result<(), OperationError> {
-        self.plugin_set_enabled_with_durable_intent_for(id, enabled, LocalMutationProtocol::V2)
+        self.plugin_set_enabled_with_durable_intent_for(
+            id,
+            enabled,
+            LocalMutationProtocol::V2,
+            None,
+        )
     }
 
     #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
@@ -673,6 +683,7 @@ impl AppCore {
         id: &str,
         enabled: bool,
         protocol: LocalMutationProtocol,
+        source_attempted: Option<&std::cell::Cell<bool>>,
     ) -> Result<(), OperationError> {
         let invocation =
             self.plugin_state.invocation_gate.lock().map_err(|_| {
@@ -700,6 +711,9 @@ impl AppCore {
             enabled,
             protocol,
             |has_candidate| {
+                if let Some(source_attempted) = source_attempted {
+                    source_attempted.set(true);
+                }
                 if has_candidate {
                     self.sync.runtime_epoch().map(Some).map_err(|_| {
                         OperationError::unavailable("plugin runtime identity is unavailable")
@@ -1002,18 +1016,37 @@ impl AppCore {
     }
 
     pub fn plugin_set_enabled(&self, id: &str, enabled: bool) -> Result<(), OperationError> {
-        let plugin = self.require_discovered(id)?;
-        let id = plugin.manifest.id.clone();
-        #[cfg(feature = "cloud-auth")]
-        let version = plugin.manifest.version.clone();
-        self.set_enabled_impl(&id, enabled, false)?;
-        #[cfg(feature = "cloud-auth")]
-        self.stage_selection(&id, &version, enabled);
-        Ok(())
+        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        {
+            // Fall back only when admission failed before any source write.
+            // An uncertain runtime or SQLite result must never be repeated.
+            let attempted = std::cell::Cell::new(false);
+            return match self.plugin_set_enabled_with_durable_intent_for(
+                id,
+                enabled,
+                LocalMutationProtocol::Selected,
+                Some(&attempted),
+            ) {
+                Err(_) if !attempted.get() => {
+                    self.plugin_set_enabled_with_untracked_intent(id, enabled)
+                }
+                result => result,
+            };
+        }
+        #[cfg(not(all(feature = "cloud-auth", feature = "persistence")))]
+        {
+            let plugin = self.require_discovered(id)?;
+            let id = plugin.manifest.id.clone();
+            #[cfg(feature = "cloud-auth")]
+            let version = plugin.manifest.version.clone();
+            self.set_enabled_impl(&id, enabled, false)?;
+            #[cfg(feature = "cloud-auth")]
+            self.stage_selection(&id, &version, enabled);
+            Ok(())
+        }
     }
 
-    /// Product-selector prototype. Not reachable from product operations
-    /// until network emission and local-only fallback share a durable fence.
+    /// Exercise selected-protocol admission without the public fallback.
     #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
     #[allow(dead_code)]
     pub(crate) fn plugin_set_enabled_with_product_intent(
@@ -1025,6 +1058,7 @@ impl AppCore {
             id,
             enabled,
             LocalMutationProtocol::Selected,
+            None,
         )
     }
 

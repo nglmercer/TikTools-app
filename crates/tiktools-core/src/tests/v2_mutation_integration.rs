@@ -935,9 +935,7 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         tiktools_cloud_sync::ProductEmissionFence::open(paths.data.join("plugin-sync-emission"))
             .unwrap();
     let in_flight = emission_fence.try_emission().unwrap();
-    assert!(core
-        .plugin_set_enabled_with_product_intent("acme.hotkeys", false)
-        .is_err());
+    assert!(core.plugin_set_enabled("acme.hotkeys", false).is_err());
     assert!(core
         .db
         .next_plugin_sync_intent(origin, account)
@@ -945,8 +943,7 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         .is_none());
     drop(in_flight);
 
-    core.plugin_set_enabled_with_product_intent("acme.hotkeys", false)
-        .unwrap();
+    core.plugin_set_enabled("acme.hotkeys", false).unwrap();
     let disabled = core
         .db
         .next_plugin_sync_intent(origin, account)
@@ -1234,6 +1231,19 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
     assert!(core.db.has_untracked_plugin_sync().unwrap());
     assert!(source.acquire_emission_guard().is_err());
     drop(source);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn public_plugin_toggle_stays_local_when_cloud_admission_is_damaged() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(runtime, &["acme.hotkeys"]);
+    core.sync.coordinator().unwrap().set_enabled(true).unwrap();
+    std::fs::remove_file(core.db.paths().data.join("cloud-sync/cloud-sync.json")).unwrap();
+    core.plugin_set_enabled("acme.hotkeys", true).unwrap();
+    assert!(core.plugins.get("acme.hotkeys").unwrap().running);
+    assert!(core.db.has_untracked_plugin_sync().unwrap());
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
 }
