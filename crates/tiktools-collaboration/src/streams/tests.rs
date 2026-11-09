@@ -456,6 +456,88 @@ fn immutable_pages_hold_the_watermark_and_wait_for_complete_baseline() {
         Err(Error::ResyncRequired)
     ));
 }
+
+#[test]
+fn impossible_snapshot_rate_budget_fails_before_returning_a_page() {
+    let hub = StreamHub::default();
+    let user = identity();
+    let limits = RemoteLimits {
+        requests_per_second: 1,
+        request_burst: 1,
+        ..RemoteLimits::default()
+    };
+    let sub = hub
+        .subscribe(
+            &user,
+            "conn",
+            "instance-a",
+            SubscribeParams {
+                domains: [StreamDomain::Workflows].into(),
+                feed: false,
+                points_limit: None,
+            },
+            &limits,
+        )
+        .unwrap();
+    let records = |count| {
+        (0..count)
+            .map(|i| {
+                let id = format!("wf-{i:02}");
+                (json!({"id":id,"body":"x".repeat(600)}), version(&id, 1))
+            })
+            .collect()
+    };
+    // One record per page. The first page is in the capture response; the
+    // other 31 are the optimistic ceiling for a 30s TTL and a full bucket.
+    let within = hub
+        .capture(&user, "conn", &sub.subscription_id, records(32), 1024)
+        .unwrap();
+    assert!(within.next_page_token.is_some());
+    assert!(matches!(
+        hub.capture(&user, "conn", &sub.subscription_id, records(33), 1024),
+        Err(Error::SnapshotRateBudget)
+    ));
+    // A failed replacement discards the previous snapshot and keeps the
+    // baseline incomplete, rather than returning a partial projection.
+    assert!(matches!(
+        hub.page(
+            &user,
+            "conn",
+            &sub.subscription_id,
+            within.next_page_token.as_deref().unwrap()
+        ),
+        Err(Error::ResyncRequired)
+    ));
+    let state = hub.state.lock().unwrap();
+    let stream = &state.streams[&sub.subscription_id];
+    assert!(stream.snapshot.is_none());
+    assert!(!stream.baseline_complete);
+}
+
+#[test]
+fn resumed_stream_uses_new_snapshot_rate_limits() {
+    let hub = StreamHub::default();
+    let user = identity();
+    let sub = ready(&hub, &user, "old");
+    hub.detach("old");
+    let low = RemoteLimits {
+        requests_per_second: 1,
+        request_burst: 1,
+        ..RemoteLimits::default()
+    };
+    hub.resume(&user, "new", "instance-a", resume(&sub, "0"), &low)
+        .unwrap();
+    let records = (0..33)
+        .map(|i| {
+            let id = format!("wf-{i:02}");
+            (json!({"id":id,"body":"x".repeat(600)}), version(&id, 1))
+        })
+        .collect();
+    assert!(matches!(
+        hub.capture(&user, "new", &sub.subscription_id, records, 1024),
+        Err(Error::SnapshotRateBudget)
+    ));
+}
 #[test]
 fn unsent_count_and_byte_overflow_break_the_stream_without_blocking_publication() {
     for by_bytes in [false, true] {

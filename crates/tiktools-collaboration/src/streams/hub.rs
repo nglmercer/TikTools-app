@@ -27,6 +27,8 @@ pub(super) struct Stream {
     pub detached_at: Option<Instant>,
     pub host_instance: String,
     pub domains: BTreeSet<StreamDomain>,
+    pub requests_per_second: u32,
+    pub request_burst: u32,
     pub sequence: u64,
     pub sent: u64,
     pub events: VecDeque<Retained>,
@@ -256,6 +258,8 @@ impl StreamHub {
                 detached_at: None,
                 host_instance: instance.into(),
                 domains: params.domains,
+                requests_per_second: limits.requests_per_second,
+                request_burst: limits.request_burst,
                 sequence: 0,
                 sent: 0,
                 events: VecDeque::new(),
@@ -377,6 +381,8 @@ impl StreamHub {
         s.connection = Some(connection.into());
         s.detached_at = None;
         s.identity = identity.clone();
+        s.requests_per_second = limits.requests_per_second;
+        s.request_burst = limits.request_burst;
         s.sent = sequence;
         Ok(ResumeResult {
             subscription_id: params.subscription_id,

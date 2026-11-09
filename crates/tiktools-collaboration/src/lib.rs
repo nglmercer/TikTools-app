@@ -25,6 +25,8 @@ pub enum Error {
     Overloaded,
     #[error("collaboration snapshot exceeds its bounded budget")]
     TooLarge,
+    #[error("snapshot cannot be read before expiry at the configured request rate; narrow the scope or increase the request limit")]
+    SnapshotRateBudget,
     #[error("requested collaboration domain or feed is not yet supported")]
     Unsupported,
     #[error("collaboration is disabled")]
@@ -67,6 +69,7 @@ impl Error {
             Self::ResyncRequired => "resync_required",
             Self::Overloaded => "overloaded",
             Self::TooLarge => "too_large",
+            Self::SnapshotRateBudget => "snapshot_rate_budget",
             Self::Unsupported => "unsupported_remote",
             Self::Disabled => "capability_unavailable",
             Self::GatewayUnavailable => "unsupported_remote",

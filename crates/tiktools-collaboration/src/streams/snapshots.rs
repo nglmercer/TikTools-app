@@ -155,6 +155,17 @@ impl StreamHub {
             }
             page.resource_versions.push(version);
         }
+        // Even under ideal conditions, a full bucket at capture followed by
+        // an uninterrupted refill cannot admit more requests than this. The
+        // first page is returned by the capture call and costs no additional
+        // request. Other traffic, network latency and bucket state can still
+        // make a smaller snapshot expire; this is an impossibility check, not
+        // a promise that the budget will be available to this connection.
+        let optimistic_requests =
+            u64::from(s.request_burst) + u64::from(s.requests_per_second) * SNAPSHOT_SECONDS;
+        if pages.len().saturating_sub(1) as u64 > optimistic_requests {
+            return Err(Error::SnapshotRateBudget);
+        }
         let tokens: Vec<_> = (0..pages.len())
             .map(|_| Uuid::new_v4().to_string())
             .collect();

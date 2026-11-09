@@ -7,6 +7,25 @@ import ControllerRoot from './ControllerRoot.vue';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import type { ControllerStatus } from '../model/controller.ts';
 
+it('explains a snapshot rate budget failure without retrying a connection', async () => {
+  i18n.global.locale.value = 'es';
+  const { client, calls } = createFakeControlClient((method) => {
+    if (method === 'controller.profiles') return [];
+    if (method === 'controller.status') return { epoch: '1', viewRevision: '1', phase: 'failed', profile: 'desk', origin: 'https://host.example', hello: null, errorCode: 'snapshot_rate_budget' };
+    throw new Error(`Unexpected native call: ${method}`);
+  });
+  const wrapper = mount(ControllerRoot, { global: { plugins: [i18n], provide: { [controlClientKey as symbol]: client } } });
+  try {
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toContain('reduzca los recursos permitidos');
+    expect(wrapper.text()).toContain('aumente el límite de solicitudes o el tamaño de mensaje');
+    expect(calls.some((call) => call.method === 'controller.connect')).toBe(false);
+    i18n.global.locale.value = 'en';
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toContain('narrow the permitted resources');
+  } finally { wrapper.unmount(); }
+});
+
 it('requires confirmation before forgetting a reviewed local profile', async () => {
   i18n.global.locale.value = 'en';
   let profiles = [{ name: 'desk', profileId: 'instance-1', origin: 'https://host.example', hostId: 'host-A' }];

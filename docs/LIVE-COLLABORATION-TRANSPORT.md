@@ -153,6 +153,13 @@ The host withholds notifications until all baseline pages have been requested.
 Pages reserve half the configured frame budget for state, capped at 512 KiB;
 snapshots retain at most 4 MiB including page/token metadata. An individual
 record that cannot fit fails with `too_large`; nothing is silently truncated.
+If the page count cannot fit even the configured burst plus every token that
+could refill during the 30-second snapshot lifetime, capture fails before
+returning the first page with `snapshot_rate_budget`. Narrow the resource
+grant or increase the configured frame or request limits before retrying.
+This is an optimistic upper bound: concurrent requests, network latency,
+capture time and an initially depleted bucket can still cause expiry below
+that threshold. A larger request limit does not extend retained event history.
 Points snapshots are complete permitted sets, not the 1,000-row leaderboard
 window. A large full set can exceed the snapshot budget; narrow its viewer
 grant. Use the snapshot method when the bounded `workflows.list` response is too large.

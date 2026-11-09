@@ -412,6 +412,50 @@ async fn recovery_resumes_unacknowledged_events_and_replaces_the_baseline_after_
 }
 
 #[tokio::test]
+async fn recovery_reports_impossible_rate_budget_before_receiving_partial_snapshot() {
+    let f = Fixture::configured(
+        |_| {},
+        |config| {
+            config.limits.requests_per_second = 1;
+            config.limits.request_burst = 1;
+            config.limits.frame_bytes = 4096;
+            config.limits.params_bytes = 4096;
+        },
+    )
+    .await;
+    // Each permitted record occupies its own 2048-byte page. Thirty-two
+    // follow-up pages cannot fit within the optimistic token budget of 31.
+    for n in 0..33 {
+        f.core
+            .workflow_save(json!({
+                "id": format!("large-workflow-{n:02}"),
+                "name": "Workflow",
+                "body": "x".repeat(1200),
+            }))
+            .unwrap();
+    }
+    let creds = f
+        .pair(tiktools_collaboration::Grant {
+            capabilities: [tiktools_collaboration::Capability::WorkflowsRead].into(),
+            ..Default::default()
+        })
+        .await;
+    let manager = manager(&f, Arc::new(Store::default()));
+    manager
+        .install("large-recovery", &f.endpoint, creds, ClientKind::Agent)
+        .await
+        .unwrap();
+    let remote = manager.open("large-recovery").await.unwrap();
+    let result = RecoveryStream::start(remote.clone(), [StreamDomain::Workflows].into()).await;
+    match result {
+        Err(error) => assert_eq!(error.code, "snapshot_rate_budget"),
+        Ok(_) => panic!("an impossible baseline must fail before returning a projection"),
+    }
+    remote.close();
+    f.finish().await;
+}
+
+#[tokio::test]
 async fn recovery_resumes_at_minimum_gateway_rate() {
     let f = Fixture::configured(
         |_| {},

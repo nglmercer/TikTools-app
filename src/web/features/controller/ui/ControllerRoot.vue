@@ -23,6 +23,9 @@ const labels = computed(() => locale.value === 'es' ? {
   title: 'Remote controller', controlling: 'Controlling', profiles: 'Saved profiles', connect: 'Connect', disconnect: 'Disconnect', pair: 'Connect to another PC', origin: 'Host HTTPS address', profile: 'Profile name', label: 'This device name', invite: 'Private invitation or join link', fingerprint: 'Approved SHA-256 fingerprint (optional)', verify: 'I compared this fingerprint with the owner', probe: 'Inspect unverified fingerprint', unverified: 'Unverified fingerprint: compare it with the owner before approving it.', submit: 'Request access', pending: 'Waiting for owner approval. Request:', workflows: 'Host workflows', empty: 'No workflows are available for this access.', draft: 'Local draft', keep: 'Drafts survive reconnection. They are not sent to the host.', conflict: 'The host changed this workflow; your draft was retained.', discard: 'Discard draft', readOnly: 'Saving and enabling definitions are not available yet. Permitted changes require host confirmation.', rights: 'Effective permissions', noProfiles: 'Create a profile to connect to the host.', idle: 'Disconnected', pairing: 'Waiting for approval', connecting: 'Connecting', ready: 'Connected', reconnecting: 'Reconnecting; recovering state', failed: 'Connection failed', hidden: 'Host data will appear after the connection recovers.',
 });
 const phase = computed(() => labels.value[status.value.phase as 'idle' | 'pairing' | 'connecting' | 'ready' | 'reconnecting' | 'failed'] ?? status.value.phase);
+const snapshotBudgetHelp = computed(() => locale.value === 'es'
+  ? 'El estado autorizado es demasiado grande para recuperarlo con el límite de solicitudes actual. Pide al propietario que reduzca los recursos permitidos o aumente el límite de solicitudes o el tamaño de mensaje y vuelve a conectar.'
+  : 'The permitted state is too large to recover under the current request limit. Ask the owner to narrow the permitted resources or increase the request limit or message size, then reconnect.');
 const forgetLabels = computed(() => locale.value === 'es' ? {
   action: 'Olvidar perfil', title: '¿Olvidar este perfil?',
   message: 'Se eliminarán las credenciales, borradores e historial de comandos guardados en esta PC. Los comandos pendientes impiden eliminarlo. Las conexiones ya abiertas pueden seguir activas hasta que caduquen o el propietario revoque el acceso en el anfitrión.',
@@ -189,6 +192,13 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
         {{ labels.disconnect }}
       </button>
     </header>
+    <p
+      v-if="status.errorCode === 'snapshot_rate_budget'"
+      role="alert"
+      class="controller__error"
+    >
+      {{ snapshotBudgetHelp }}
+    </p>
     <p
       v-if="error"
       role="alert"

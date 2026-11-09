@@ -75,8 +75,15 @@ workflow, points and LIVE grants, as well as a multipage workflow baseline,
 resume and revocation. Snapshot pages retain the existing 30-second lifetime.
 At a very low request rate, a sufficiently large multipage baseline can expire
 before it is fully read, so recovery for every allowed baseline size is not
-guaranteed at the minimum gateway quota. An explicit early capacity check and
-recovery of larger baselines remain future work.
+guaranteed at the minimum gateway quota. The hub rejects a capture with
+`snapshot_rate_budget` before returning its first page if even a full request
+bucket and its maximum 30-second refill cannot cover the remaining pages.
+The test suite covers the boundary, discarding a superseded snapshot on failure,
+and refreshed rate limits after resume. This upper bound does not reserve rate
+capacity or prevent expiry for a smaller baseline; recovery of larger baselines
+remains future work. A local TLS SDK test verifies the error for a baseline
+with 33 pages at one request per second; the controller shows the operator
+guidance in English and Spanish and stops automatic reconnection for that error.
 
 ## Creator-scoped LIVE feed
 
