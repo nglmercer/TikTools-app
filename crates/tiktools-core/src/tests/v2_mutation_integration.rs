@@ -444,15 +444,30 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         crate::cloud_account::CloudAccount::with_test_auth(auth.clone()),
     );
     assert!(core.workspace_v2_selected().await.unwrap());
-    let result = core.sync_v2_now().await.unwrap();
+    core.start_cloud_sync_worker();
+    core.start_cloud_sync_worker();
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        loop {
+            let snapshot = workspace.snapshot().unwrap();
+            let key = WorkspaceKey::new("plugin-selections", "acme.hotkeys").unwrap();
+            if snapshot
+                .state
+                .entry(&key)
+                .is_some_and(|entry| entry.remote.is_some() && entry.pending.is_none())
+            {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("background sync did not upload the confirmed selection");
+    core.stop_cloud_sync_worker().await;
     assert!(core
         .db
         .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
         .unwrap()
         .is_none());
-    assert_eq!(result.pushed, 1);
-    assert_eq!(result.workspace_pending, 0);
-    assert!(!result.more_queued);
     // A successful package operation under the same session can transfer its
     // fresh marker into the ordinary v2 outbox without another approval.
     {
@@ -501,6 +516,8 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     };
     assert!(old_account.is_some());
     auth.logout().await.unwrap();
+    assert!(core.sync_v2_with_restore(false).await.is_err());
+    assert!(auth.session().await.is_none());
     {
         let _invocation = core.plugin_state.invocation_gate.lock().unwrap();
         let _lease = crate::plugin_packages::try_product_mutation_lease(&core).unwrap();

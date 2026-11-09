@@ -188,6 +188,13 @@ impl AppCore {
     pub async fn sync_v2_now(
         self: &std::sync::Arc<Self>,
     ) -> Result<WorkspaceV2SyncResult, OperationError> {
+        self.sync_v2_with_restore(true).await
+    }
+
+    pub(crate) async fn sync_v2_with_restore(
+        self: &std::sync::Arc<Self>,
+        restore: bool,
+    ) -> Result<WorkspaceV2SyncResult, OperationError> {
         #[cfg(feature = "persistence")]
         {
             use tiktools_cloud_sync::ProductLocalEditContext;
@@ -206,7 +213,7 @@ impl AppCore {
                     "Cloud v2 is not enabled for the current account",
                 ));
             };
-            if self.cloud.auth().session().await.is_none() {
+            if restore && self.cloud.auth().session().await.is_none() {
                 let _ = self.cloud.auth().restore().await;
             }
             let session = self
@@ -298,6 +305,7 @@ impl AppCore {
         }
         #[cfg(not(feature = "persistence"))]
         {
+            let _ = restore;
             Err(OperationError::unavailable(
                 "Cloud v2 sync requires persistence",
             ))

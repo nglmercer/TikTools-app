@@ -798,6 +798,8 @@ impl AppCore {
         self.automation_write_settled.notify_waiters();
         #[cfg(feature = "persistence")]
         {
+            #[cfg(feature = "cloud-auth")]
+            self.stop_cloud_sync_worker().await;
             self.stop_coordination().await;
             self.stop_competition_action_worker().await;
         }

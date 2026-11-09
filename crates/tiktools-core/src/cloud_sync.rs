@@ -31,6 +31,10 @@ pub(crate) struct CloudSync {
     #[cfg(feature = "persistence")]
     #[allow(dead_code)] // Pending the product outbox drain.
     runtime_epoch: OnceLock<Result<String, String>>,
+    #[cfg(feature = "persistence")]
+    stopping: tokio_util::sync::CancellationToken,
+    #[cfg(feature = "persistence")]
+    worker: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 pub use tiktools_cloud_sync::SyncStatus;
@@ -47,6 +51,10 @@ impl CloudSync {
             recovery: tokio::sync::Mutex::new(None),
             #[cfg(feature = "persistence")]
             runtime_epoch: OnceLock::new(),
+            #[cfg(feature = "persistence")]
+            stopping: tokio_util::sync::CancellationToken::new(),
+            #[cfg(feature = "persistence")]
+            worker: std::sync::Mutex::new(None),
         }
     }
 
@@ -70,5 +78,85 @@ impl CloudSync {
             })
             .as_deref()
             .map_err(String::as_str)
+    }
+}
+
+impl crate::AppCore {
+    /// Start the already-consented v2 sync loop on the host runtime.
+    pub fn start_cloud_sync_worker_on(
+        self: &std::sync::Arc<Self>,
+        runtime: &tokio::runtime::Handle,
+    ) {
+        #[cfg(feature = "persistence")]
+        {
+            use std::time::Duration;
+            let mut task =
+                tiktools_plugin_api::sync::recover_mutex(&self.sync.worker, "cloud sync worker");
+            if self.is_shutdown() || task.is_some() || self.sync.stopping.is_cancelled() {
+                return;
+            }
+            let weak = std::sync::Arc::downgrade(self);
+            let stop = self.sync.stopping.clone();
+            *task = Some(runtime.spawn(async move {
+                let mut delay = Duration::ZERO;
+                let mut failures = 0u32;
+                loop {
+                    tokio::select! {
+                        _ = stop.cancelled() => break,
+                        _ = tokio::time::sleep(delay) => {}
+                    }
+                    let Some(core) = weak.upgrade() else { break };
+                    if core.is_shutdown() {
+                        break;
+                    }
+                    // Background work never restores a logged-out session.
+                    let signed_in = tokio::select! {
+                        _ = stop.cancelled() => break,
+                        session = core.cloud.auth().session() => session.is_some(),
+                    };
+                    if !signed_in {
+                        failures = 0;
+                        delay = Duration::from_secs(5);
+                        continue;
+                    }
+                    let result = tokio::select! {
+                        _ = stop.cancelled() => break,
+                        result = core.sync_v2_with_restore(false) => result,
+                    };
+                    delay = match result {
+                        Ok(result) => {
+                            failures = 0;
+                            if result.more_queued {
+                                Duration::from_secs(1)
+                            } else {
+                                Duration::from_secs(5)
+                            }
+                        }
+                        Err(_) => {
+                            failures = failures.saturating_add(1).min(4);
+                            Duration::from_secs((5u64 << failures).min(30))
+                        }
+                    };
+                }
+            }));
+        }
+        #[cfg(not(feature = "persistence"))]
+        let _ = runtime;
+    }
+
+    pub fn start_cloud_sync_worker(self: &std::sync::Arc<Self>) {
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            self.start_cloud_sync_worker_on(&runtime);
+        }
+    }
+
+    #[cfg(feature = "persistence")]
+    pub(crate) async fn stop_cloud_sync_worker(&self) {
+        self.sync.stopping.cancel();
+        let task =
+            tiktools_plugin_api::sync::recover_mutex(&self.sync.worker, "cloud sync worker").take();
+        if let Some(task) = task {
+            let _ = task.await;
+        }
     }
 }

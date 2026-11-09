@@ -80,6 +80,8 @@ impl ControlApi {
     pub fn new(core: Arc<AppCore>) -> Self {
         core.start_competition_timer();
         core.start_coordination_worker();
+        #[cfg(feature = "cloud-auth")]
+        core.start_cloud_sync_worker();
         let mut router = ControlRouter::new();
         Self::register_all(&mut router);
         Self { core, router }

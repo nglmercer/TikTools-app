@@ -19,12 +19,14 @@ uses v1. Explicit cutover, product RPC/UI, reviewed local application and actual
 two-Desktop v2 acceptance are pending. The components, flow and historical
 validation sections below describe v1.
 
-An explicit local-Owner `sync.v2.now` operation can stage confirmed plugin
-intents and run a bounded v2 network pass for an identity that has already
+An explicit local-Owner `sync.v2.now` operation and a background worker can
+stage confirmed plugin intents and run bounded v2 network passes for an identity that has already
 completed the guarded cutover and enabled account-scoped consent. It caches
 downloaded records without applying them locally. It does not select v2,
 replace the existing `sync.now` operation, or complete the product UI and
-two-device workflow. `workspacePending` counts workspace edits; `moreQueued`
+two-device workflow. The worker polls every five seconds when caught up, drains
+additional queued work sooner, backs off on errors, and never restores a logged-out
+session. `workspacePending` counts workspace edits; `moreQueued`
 also signals additional local intents or a bounded network pass.
 Settings reads the selected protocol locally for the signed-in account and
 offers the matching explicit sync pass. For v2 it shows cache, pending and
@@ -49,7 +51,7 @@ runtime match, or the removed package and stopped runtime are verified. An
 absent remote removal requires a server write barrier before it is completed;
 an unexpected remote selection becomes a conflict. Existing untracked work and
 uncertain operations retain their markers. Recovery of interrupted operations
-and automatic delivery are still pending.
+is still pending.
 
 The reviewed sibling RemakeBackend commit is `cb37900`, including canonical
 registry shards and bounded v2 capability discovery in the SDK, following bounded
