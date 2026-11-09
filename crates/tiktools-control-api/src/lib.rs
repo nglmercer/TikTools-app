@@ -49,6 +49,26 @@ use crate::registry::MethodRegistry;
 /// two minutes (manifest `timeoutMs`), so the RPC budget sits above that.
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(150);
 
+/// Login completion waits up to 180 seconds for the browser callback before
+/// redeeming it; other handlers keep the standard budget.
+pub fn request_timeout_for(method: &str) -> Duration {
+    if method == "cloud.login.complete" {
+        Duration::from_secs(240)
+    } else {
+        REQUEST_TIMEOUT
+    }
+}
+
+/// The local IPC client must wait past the server's login deadline so the
+/// authoritative timeout response can arrive. Other methods are unchanged.
+pub fn client_timeout_for(method: &str) -> Duration {
+    if method == "cloud.login.complete" {
+        Duration::from_secs(270)
+    } else {
+        REQUEST_TIMEOUT
+    }
+}
+
 /// Thin adapter over [`AppCore`]. Business logic stays in core services;
 /// handlers only validate typed params and map results/errors.
 pub struct ControlApi {
@@ -684,7 +704,7 @@ impl ControlApi {
             }
         }
         let outcome = tokio::time::timeout(
-            REQUEST_TIMEOUT,
+            request_timeout_for(&request.method),
             (entry.handler)(self.core.clone(), context.clone(), params, request.meta),
         )
         .await;
@@ -851,6 +871,27 @@ pub fn gap_notification(lost: u64) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloud_login_deadlines_leave_time_for_callback_and_server_response() {
+        assert_eq!(
+            request_timeout_for("cloud.login.complete"),
+            Duration::from_secs(240)
+        );
+        assert_eq!(
+            client_timeout_for("cloud.login.complete"),
+            Duration::from_secs(270)
+        );
+        for other in [
+            "cloud.login.begin",
+            "cloud.login.cancel",
+            "cloud.login.complete.extra",
+            "",
+        ] {
+            assert_eq!(request_timeout_for(other), REQUEST_TIMEOUT);
+            assert_eq!(client_timeout_for(other), REQUEST_TIMEOUT);
+        }
+    }
 
     #[tokio::test]
     async fn remote_storage_failures_omit_owner_diagnostics_but_local_failures_keep_them() {

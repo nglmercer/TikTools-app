@@ -16,7 +16,8 @@ export const useAccountStore = defineStore('cloud-account', () => {
   // transition, even if the same account is signed in again.
   let generation = 0;
   let reading: { ticket: number; kind: 'refresh' | 'restore'; promise: Promise<void> } | null = null;
-  let loginBegin: Promise<CloudLoginUrlResult> | null = null;
+  let loginReservation: Promise<{ operationId: string }> | null = null;
+  let loginOperationId: string | null = null;
   let cancelling: Promise<void> | null = null;
   let cancelRequested = false;
   let restored = false;
@@ -106,7 +107,7 @@ export const useAccountStore = defineStore('cloud-account', () => {
   }
 
   async function startLogin(): Promise<void> {
-    if (working.value) return;
+    if (working.value || loginActive.value || loginOperationId || status.value?.state === 'signing-in') return;
     // Reserve the action without invalidating an in-flight restore. The native
     // restore must settle before begin is sent, or it can finish behind us.
     working.value = true;
@@ -120,26 +121,48 @@ export const useAccountStore = defineStore('cloud-account', () => {
       if (!current(ticket) || cancelRequested) return;
       if (status.value?.state === 'signed-in') return;
       ticket = ++generation;
-      const begin = client.call<CloudLoginUrlResult>('cloud.login.begin', {});
-      loginBegin = begin;
+      const reservation = client.call<{ operationId: string }>('cloud.login.reserve', {});
+      loginReservation = reservation;
+      const { operationId } = await reservation;
+      if (!current(ticket) || cancelRequested) return;
+      if (typeof operationId !== 'string' || !/^[0-9a-f]{32}$/.test(operationId)) {
+        throw new Error('Invalid login reservation');
+      }
+      loginOperationId = operationId;
+      const params = { operationId };
+      const begin = client.call<CloudLoginUrlResult>('cloud.login.begin', params);
       began = true;
       const begun = await begin;
       if (!current(ticket)) return;
       loginUrl.value = begun.browserUrl;
       try {
-        await client.call('cloud.login.open', {});
+        await client.call('cloud.login.open', params);
       } catch {
         // The URL stays on screen for manual opening; not fatal.
       }
       if (!current(ticket)) return;
-      const next = await client.call<AccountStatus>('cloud.login.complete', {});
+      // The native callback waits up to 180 seconds; allow time for its
+      // bounded network redemption and response before canceling uncertainty.
+      const next = await client.call<AccountStatus>('cloud.login.complete', params, { timeoutMs: 300_000 });
       if (!current(ticket)) return;
       status.value = next;
       error.value = next.error ?? null;
       loginUrl.value = null;
+      loginOperationId = null;
     } catch (failure) {
       if (!current(ticket)) return;
       error.value = errorMessage(failure);
+      // A rejected or timed-out begin may still be running in native code.
+      // Invalidate its reservation before allowing another login.
+      if (loginOperationId) {
+        try {
+          await client.call<AccountStatus>('cloud.login.cancel', { operationId: loginOperationId });
+          if (!current(ticket)) return;
+          loginOperationId = null;
+        } catch {
+          // Keep the operation and Cancel button available for retry.
+        }
+      }
       try {
         const next = await client.call<AccountStatus>('cloud.status', {});
         if (current(ticket)) status.value = next;
@@ -149,16 +172,18 @@ export const useAccountStore = defineStore('cloud-account', () => {
     } finally {
       if (current(ticket)) {
         if (began) restored = true;
-        loginBegin = null;
-        if (!cancelRequested) { loginActive.value = false; working.value = false; }
+        loginReservation = null;
+        if (!cancelRequested) { loginActive.value = loginOperationId !== null; working.value = false; }
       }
     }
   }
 
   function cancelLogin(): Promise<void> {
     if (cancelling) return cancelling;
-    const begin = loginBegin;
-    const waitingForRead = !begin && loginActive.value && reading && current(reading.ticket) ? reading : null;
+    const reservation = loginReservation;
+    const operationId = loginOperationId
+      ?? (status.value?.state === 'signing-in' ? status.value.loginOperationId ?? null : null);
+    const waitingForRead = !reservation && !operationId && loginActive.value && reading && current(reading.ticket) ? reading : null;
     cancelRequested = true;
     const ticket = waitingForRead ? generation : ++generation;
     let failed = false;
@@ -170,20 +195,24 @@ export const useAccountStore = defineStore('cloud-account', () => {
           await waitingForRead.promise;
           return;
         }
-        // The native cancel API cannot cancel a begin that has not yet
-        // installed its pending attempt. Wait until it exists first.
-        if (begin) {
-          try { await begin; }
-          catch {
-            const next = await client.call<AccountStatus>('cloud.status', {});
-            if (current(ticket)) { status.value = next; error.value = next.error ?? null; }
-            return;
-          }
-        } else if (loginActive.value) {
-          // Login was waiting for a read; no native login has started.
+        const id = operationId;
+        if (!id && reservation) {
+          // No begin was sent. Release the UI immediately; a late reservation
+          // is inert and the generation fence prevents it from starting one.
+          // Discard it best-effort once its ID arrives to free native capacity.
+          void reservation.then(({ operationId: lateId }) => {
+            if (typeof lateId === 'string' && /^[0-9a-f]{32}$/.test(lateId)) {
+              void client.call('cloud.login.cancel', { operationId: lateId }).catch(() => {});
+            }
+          }).catch(() => {});
+          await Promise.resolve();
           return;
         }
-        const next = await client.call<AccountStatus>('cloud.login.cancel', {});
+        if (typeof id !== 'string' || !/^[0-9a-f]{32}$/.test(id)) {
+          throw new Error('Cannot cancel without the observed login reservation');
+        }
+        if (id) loginOperationId = id;
+        const next = await client.call<AccountStatus>('cloud.login.cancel', { operationId: id });
         if (!current(ticket)) return;
         status.value = next;
         error.value = next.error ?? null;
@@ -202,9 +231,10 @@ export const useAccountStore = defineStore('cloud-account', () => {
       } finally {
         if (current(ticket)) {
           if (!waitingForRead) restored = true;
-          loginBegin = null;
+          loginReservation = null;
+          if (!failed) loginOperationId = null;
           if (!failed) loginUrl.value = null;
-          loginActive.value = false;
+          loginActive.value = failed && loginOperationId !== null;
           cancelRequested = false;
           working.value = false;
         }
@@ -225,6 +255,7 @@ export const useAccountStore = defineStore('cloud-account', () => {
       status.value = next;
       error.value = status.value.error ?? null;
       loginUrl.value = null;
+      loginOperationId = null;
     } catch (failure) {
       if (current(ticket)) error.value = errorMessage(failure);
     } finally {

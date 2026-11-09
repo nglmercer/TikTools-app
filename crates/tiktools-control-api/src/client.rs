@@ -23,8 +23,8 @@ use tiktools_plugin_api::sync::recover_mutex;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, ReadBuf};
 
 use crate::{
-    owner_request_bytes, transport, CallResult, RequestMetadata, ResponseMetadata, RpcId,
-    RpcRequest, REQUEST_TIMEOUT,
+    client_timeout_for, owner_request_bytes, transport, CallResult, RequestMetadata,
+    ResponseMetadata, RpcId, RpcRequest,
 };
 
 /// Connected-control event broadcast capacity. Slow subscribers lag and skip,
@@ -329,7 +329,7 @@ impl ControlClient {
             recover_mutex(&self.pending, "control client pending").remove(&id);
             return Err(error);
         }
-        match tokio::time::timeout(REQUEST_TIMEOUT, receiver).await {
+        match tokio::time::timeout(client_timeout_for(method), receiver).await {
             Ok(Ok(outcome)) => outcome,
             Ok(Err(_)) => Err(ClientError::transport("host closed the connection")),
             Err(_) => {

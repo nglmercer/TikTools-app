@@ -144,10 +144,16 @@ effect cannot be recalled and quarantine is not propagated live to another
 process. The product must keep remote application disabled until these gaps and
 recovery are addressed.
 
-Account UI transitions now coordinate restore, login and cancellation, but a
-lost or timed-out login-begin response can leave a native attempt completing
-after the UI has checked status. Reliable cancellation of that uncertain begin
-still needs native operation correlation or equivalent protocol support.
+Account UI transitions coordinate restore, login and cancellation. The current
+desktop flow reserves an opaque, bounded, expiring operation identity before
+starting login, then binds begin, completion and cancellation to that identity.
+After an uncertain begin, cancellation invalidates the same attempt even if
+the callback setup finishes late; a stale cancellation cannot stop a newer
+correlated attempt. Older clients that call the uncorrelated begin and cancel
+methods retain their original cancellation race. Lost reservation responses
+leave inert entries that expire; a maximum of 128 can be held for five minutes.
+The desktop bridge and browser wait longer for login completion than the
+native callback deadline, while other RPC deadlines remain unchanged.
 Legacy conflict resolution must also share the outbox admission boundary: a
 conflict based on an older staged value cannot be rebased or discarded while
 a newer local candidate awaits confirmation or delivery. A keep-local decision

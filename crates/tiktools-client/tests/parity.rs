@@ -10,6 +10,31 @@ use std::collections::BTreeSet;
 use tiktools_client::TikToolsClient;
 use tiktools_control_api::{ControlApi, ControlRouter};
 
+#[cfg(feature = "cloud-auth")]
+#[test]
+fn cloud_login_correlation_parameters_match_the_registry() {
+    assert!(
+        tiktools_client::validate_params("cloud.login.reserve", &serde_json::json!({})).is_ok()
+    );
+    for method in [
+        "cloud.login.begin",
+        "cloud.login.open",
+        "cloud.login.complete",
+        "cloud.login.cancel",
+    ] {
+        assert!(tiktools_client::validate_params(method, &serde_json::json!({})).is_ok());
+        assert!(tiktools_client::validate_params(
+            method,
+            &serde_json::json!({"operationId": "0123456789abcdef0123456789abcdef"})
+        )
+        .is_ok());
+        assert!(
+            tiktools_client::validate_params(method, &serde_json::json!({"unexpected": true}))
+                .is_err()
+        );
+    }
+}
+
 #[test]
 fn client_covers_every_registered_method() {
     let mut router = ControlRouter::new();

@@ -4,12 +4,13 @@ pub use crate::store::OsTokenStore;
 pub use crate::store::{MemoryTokenStore, TokenStore, TokenStoreError};
 
 use std::{
+    collections::HashMap,
     path::PathBuf,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use cloud_client::{LoginAttempt, LoginResult, Session, SyncError};
@@ -21,6 +22,8 @@ use crate::resolve_cloud_origin;
 
 /// How long [`CloudAuth::complete_login`] waits for the browser callback.
 pub const LOGIN_TIMEOUT: Duration = Duration::from_secs(180);
+const RESERVATION_TTL: Duration = Duration::from_secs(300);
+const MAX_LOGIN_RESERVATIONS: usize = 128;
 
 /// Nonsecret sidecar remembering which account was signed in. The token
 /// itself stays in the credential store; this file only lets restore find
@@ -109,6 +112,9 @@ struct Inner {
     profile: Option<AccountProfile>,
     pending: Option<PendingLogin>,
     cancel_tx: Option<oneshot::Sender<()>>,
+    active_login_reservation: Option<String>,
+    active_login_legacy: bool,
+    login_reservations: HashMap<String, Instant>,
     last_error: Option<String>,
     epoch: u64,
     offline_identity_allowed: bool,
@@ -120,6 +126,50 @@ fn login_waiting(inner: &Inner) -> bool {
             .cancel_tx
             .as_ref()
             .is_some_and(|sender| !sender.is_closed())
+}
+
+// Called only after a transition has established exclusive admission. When a
+// complete future is aborted, its receiver closes without executing its
+// normal cleanup. A live completion still owns a transition and cannot race
+// this cleanup, including while it persists credentials after the callback.
+fn cleanup_abandoned_login(inner: &mut Inner) {
+    if inner.pending.is_none()
+        && inner
+            .cancel_tx
+            .as_ref()
+            .is_some_and(|sender| sender.is_closed())
+    {
+        inner.cancel_tx = None;
+        inner.active_login_reservation = None;
+        inner.active_login_legacy = false;
+    }
+}
+
+fn check_login_reservation(inner: &Inner, operation: Option<&str>) -> Result<(), AuthError> {
+    match (inner.active_login_reservation.as_deref(), operation) {
+        (None, None) => Ok(()),
+        (Some(current), Some(requested)) if current == requested => Ok(()),
+        (Some(_), None) if inner.active_login_legacy => Ok(()),
+        (_, Some(_)) => Err(AuthError::Cancelled),
+        (Some(_), None) => Err(AuthError::AlreadyInProgress),
+    }
+}
+
+fn fresh_login_id(inner: &Inner) -> Result<String, AuthError> {
+    for _ in 0..4 {
+        let mut random = [0u8; 16];
+        getrandom::fill(&mut random)
+            .map_err(|_| AuthError::Failed("could not create login reservation".into()))?;
+        let id: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+        if !inner.login_reservations.contains_key(&id)
+            && inner.active_login_reservation.as_deref() != Some(&id)
+        {
+            return Ok(id);
+        }
+    }
+    Err(AuthError::Failed(
+        "could not create login reservation".into(),
+    ))
 }
 
 fn normalized_origin(raw: &str) -> Option<String> {
@@ -196,6 +246,223 @@ mod session_snapshot_tests {
         drop(locked);
         assert!(matches!(auth.try_session_snapshot(), Ok(None)));
     }
+
+    fn configured() -> CloudAuth {
+        CloudAuth::new(
+            Some("http://127.0.0.1:8471".into()),
+            PathBuf::from("unused-test-sidecar"),
+            Arc::new(MemoryTokenStore::new()),
+        )
+    }
+
+    #[tokio::test]
+    async fn login_reservations_are_independent_and_stale_cancel_does_not_stop_newer_login() {
+        let auth = configured();
+        let first = auth.reserve_login().await.unwrap();
+        let second = auth.reserve_login().await.unwrap();
+        assert_ne!(first, second);
+        auth.cancel_login_for(Some(&first)).await.unwrap();
+        assert!(matches!(
+            auth.begin_login_for(Some(&first)).await,
+            Err(AuthError::Cancelled)
+        ));
+        auth.begin_login_for(Some(&second)).await.unwrap();
+        auth.cancel_login_for(Some(&first)).await.unwrap();
+        assert!(matches!(
+            auth.complete_login_for(Some(&first)).await,
+            Err(AuthError::Cancelled)
+        ));
+        assert!(matches!(
+            auth.cancel_login().await,
+            Err(AuthError::AlreadyInProgress)
+        ));
+        assert!(login_waiting(&*auth.inner.lock().await));
+        auth.cancel_login_for(Some(&second)).await.unwrap();
+        assert!(!login_waiting(&*auth.inner.lock().await));
+    }
+
+    #[tokio::test]
+    async fn cancel_during_begin_fences_late_callback_installation() {
+        let auth = configured();
+        let id = auth.reserve_login().await.unwrap();
+        let (entered_tx, entered_rx) = oneshot::channel();
+        let (release_tx, release_rx) = oneshot::channel();
+        let other = auth.clone();
+        let attempt_id = id.clone();
+        let task = tokio::spawn(async move {
+            other
+                .begin_login_after(Some(&attempt_id), async move {
+                    let _ = entered_tx.send(());
+                    let _ = release_rx.await;
+                })
+                .await
+        });
+        entered_rx.await.unwrap();
+        auth.cancel_login_for(Some(&id)).await.unwrap();
+        release_tx.send(()).unwrap();
+        assert!(matches!(task.await.unwrap(), Err(AuthError::Cancelled)));
+        assert!(!login_waiting(&*auth.inner.lock().await));
+        auth.begin_login().await.unwrap();
+        auth.cancel_login().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn aborted_begin_does_not_block_an_independent_login() {
+        let auth = configured();
+        let id = auth.reserve_login().await.unwrap();
+        let (entered_tx, entered_rx) = oneshot::channel();
+        let (_release_tx, release_rx) = oneshot::channel::<()>();
+        let other = auth.clone();
+        let task = tokio::spawn(async move {
+            other
+                .begin_login_after(Some(&id), async move {
+                    let _ = entered_tx.send(());
+                    let _ = release_rx.await;
+                })
+                .await
+        });
+        entered_rx.await.unwrap();
+        task.abort();
+        let _ = task.await;
+        let next = auth.reserve_login().await.unwrap();
+        auth.begin_login_for(Some(&next)).await.unwrap();
+        auth.cancel_login_for(Some(&next)).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn aborted_complete_releases_the_active_operation() {
+        let auth = configured();
+        let id = auth.reserve_login().await.unwrap();
+        auth.begin_login_for(Some(&id)).await.unwrap();
+        let other = auth.clone();
+        let task_id = id.clone();
+        let task = tokio::spawn(async move { other.complete_login_for(Some(&task_id)).await });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if auth.inner.lock().await.pending.is_none() {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        task.abort();
+        let _ = task.await;
+        let status = auth.status().await;
+        assert_eq!(status.state, AccountState::SignedOut);
+        assert_eq!(status.login_operation_id, None);
+        let next = auth.reserve_login().await.unwrap();
+        auth.begin_login_for(Some(&next)).await.unwrap();
+        auth.cancel_login_for(Some(&next)).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn status_keeps_operation_visible_while_completion_persists() {
+        let auth = configured();
+        let id = auth.reserve_login().await.unwrap();
+        auth.begin_login_for(Some(&id)).await.unwrap();
+        // Model the part of completion after the callback receiver was
+        // consumed but before its transition/persistence has finished.
+        let live = TransitionGuard::begin(&auth.transitions);
+        {
+            let mut inner = auth.inner.lock().await;
+            let pending = inner.pending.take().unwrap();
+            drop(pending);
+        }
+        let status = auth.status().await;
+        assert_eq!(status.state, AccountState::SigningIn);
+        assert_eq!(status.login_operation_id.as_deref(), Some(id.as_str()));
+        assert!(matches!(
+            auth.reserve_login().await,
+            Err(AuthError::AlreadyInProgress)
+        ));
+        auth.cancel_login_for(Some(&id)).await.unwrap();
+        drop(live);
+        assert_eq!(auth.status().await.state, AccountState::SignedOut);
+    }
+
+    #[tokio::test]
+    async fn observed_cancel_fences_a_completion_that_keeps_running() {
+        let auth = configured();
+        let id = auth.reserve_login().await.unwrap();
+        auth.begin_login_for(Some(&id)).await.unwrap();
+        let other = auth.clone();
+        let complete_id = id.clone();
+        let task = tokio::spawn(async move { other.complete_login_for(Some(&complete_id)).await });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if auth.inner.lock().await.pending.is_none() {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        let observed = auth.status().await.login_operation_id.unwrap();
+        assert_eq!(observed, id);
+        auth.cancel_login_for(Some(&observed)).await.unwrap();
+        assert!(task.await.unwrap().is_err());
+        let next = auth.reserve_login().await.unwrap();
+        auth.begin_login_for(Some(&next)).await.unwrap();
+        auth.cancel_login_for(Some(&observed)).await.unwrap();
+        assert_eq!(
+            auth.status().await.login_operation_id.as_deref(),
+            Some(next.as_str())
+        );
+        auth.cancel_login_for(Some(&next)).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn observed_legacy_login_id_cannot_cancel_a_later_correlated_attempt() {
+        let auth = configured();
+        auth.begin_login().await.unwrap();
+        let old = auth.status().await.login_operation_id.unwrap();
+        auth.cancel_login().await.unwrap();
+        let next = auth.reserve_login().await.unwrap();
+        auth.begin_login_for(Some(&next)).await.unwrap();
+        auth.cancel_login_for(Some(&old)).await.unwrap();
+        assert_eq!(
+            auth.status().await.login_operation_id.as_deref(),
+            Some(next.as_str())
+        );
+        assert!(matches!(
+            auth.cancel_login().await,
+            Err(AuthError::AlreadyInProgress)
+        ));
+        auth.cancel_login_for(Some(&next)).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn lost_reservations_are_bounded_and_expire_without_starting_login() {
+        let auth = configured();
+        let mut first = String::new();
+        for index in 0..MAX_LOGIN_RESERVATIONS {
+            let id = auth.reserve_login().await.unwrap();
+            if index == 0 {
+                first = id;
+            }
+        }
+        assert!(matches!(
+            auth.reserve_login().await,
+            Err(AuthError::Failed(_))
+        ));
+        assert!(!login_waiting(&*auth.inner.lock().await));
+        {
+            let mut inner = auth.inner.lock().await;
+            for expiry in inner.login_reservations.values_mut() {
+                *expiry = Instant::now();
+            }
+        }
+        let next = auth.reserve_login().await.unwrap();
+        assert!(matches!(
+            auth.begin_login_for(Some(&first)).await,
+            Err(AuthError::Cancelled)
+        ));
+        auth.begin_login_for(Some(&next)).await.unwrap();
+        auth.cancel_login_for(Some(&next)).await.unwrap();
+    }
 }
 
 impl CloudAuth {
@@ -222,6 +489,9 @@ impl CloudAuth {
                 profile: None,
                 pending: None,
                 cancel_tx: None,
+                active_login_reservation: None,
+                active_login_legacy: false,
+                login_reservations: HashMap::new(),
                 last_error: None,
                 epoch: 0,
                 offline_identity_allowed: true,
@@ -243,8 +513,14 @@ impl CloudAuth {
     }
 
     pub async fn status(&self) -> AccountStatus {
-        let inner = self.inner.lock().await;
-        let state = if login_waiting(&inner) {
+        let mut inner = self.inner.lock().await;
+        // While the lock is held a new completion cannot consume pending. A
+        // live completion has already raised the transition count; a closed
+        // receiver with no transition is therefore an abandoned attempt.
+        if self.transitions.load(Ordering::SeqCst) == 0 {
+            cleanup_abandoned_login(&mut inner);
+        }
+        let state = if login_waiting(&inner) || inner.active_login_reservation.is_some() {
             AccountState::SigningIn
         } else if inner.session.is_some() {
             AccountState::SignedIn
@@ -256,6 +532,11 @@ impl CloudAuth {
         AccountStatus {
             origin: inner.origin.clone(),
             state,
+            login_operation_id: if state == AccountState::SigningIn {
+                inner.active_login_reservation.clone()
+            } else {
+                None
+            },
             account_id: inner
                 .session
                 .as_ref()
@@ -412,28 +693,89 @@ impl CloudAuth {
             .map(|sidecar| (sidecar.origin, sidecar.account_id))
     }
 
-    /// Bind the loopback receiver first, then hand out the URL to open in
-    /// the system browser. The attempt (PKCE verifier, state) never leaves
-    /// this process. Fails when signed in (explicit logout first) or when a
-    /// login is already running.
+    /// Create an independent, bounded and expiring reservation. It cannot
+    /// start a browser callback until a subsequent begin consumes it.
+    pub async fn reserve_login(&self) -> Result<String, AuthError> {
+        let _transition = TransitionGuard::begin(&self.transitions);
+        if self.transitions.load(Ordering::SeqCst) != 1 {
+            return Err(AuthError::AlreadyInProgress);
+        }
+        let mut inner = self.inner.lock().await;
+        if self.transitions.load(Ordering::SeqCst) != 1 {
+            return Err(AuthError::AlreadyInProgress);
+        }
+        cleanup_abandoned_login(&mut inner);
+        if inner.session.is_some() {
+            return Err(AuthError::AlreadySignedIn);
+        }
+        if inner.origin.is_none() {
+            return Err(AuthError::Unconfigured);
+        }
+        if login_waiting(&inner) {
+            return Err(AuthError::AlreadyInProgress);
+        }
+        let now = Instant::now();
+        inner.login_reservations.retain(|_, expires| *expires > now);
+        if inner.login_reservations.len() >= MAX_LOGIN_RESERVATIONS {
+            return Err(AuthError::Failed("too many login reservations".into()));
+        }
+        let id = fresh_login_id(&inner)?;
+        inner
+            .login_reservations
+            .insert(id.clone(), now + RESERVATION_TTL);
+        Ok(id)
+    }
+
     pub async fn begin_login(&self) -> Result<LoginBegin, AuthError> {
+        self.begin_login_for(None).await
+    }
+
+    /// Bind begin to a reservation when provided, so cancellation can fence a
+    /// request that has not arrived or whose response was lost.
+    pub async fn begin_login_for(&self, operation: Option<&str>) -> Result<LoginBegin, AuthError> {
+        self.begin_login_after(operation, std::future::ready(()))
+            .await
+    }
+
+    async fn begin_login_after<F: std::future::Future<Output = ()>>(
+        &self,
+        operation: Option<&str>,
+        after_reservation: F,
+    ) -> Result<LoginBegin, AuthError> {
         let _transition = TransitionGuard::begin(&self.transitions);
         if self.transitions.load(Ordering::SeqCst) != 1 {
             return Err(AuthError::AlreadyInProgress);
         }
         let (origin, epoch) = {
-            let inner = self.inner.lock().await;
+            let mut inner = self.inner.lock().await;
+            if self.transitions.load(Ordering::SeqCst) != 1 {
+                return Err(AuthError::AlreadyInProgress);
+            }
+            cleanup_abandoned_login(&mut inner);
             if inner.session.is_some() {
                 return Err(AuthError::AlreadySignedIn);
             }
             if login_waiting(&inner) {
                 return Err(AuthError::AlreadyInProgress);
             }
+            if inner.active_login_reservation.is_some() {
+                return Err(AuthError::AlreadyInProgress);
+            }
+            if let Some(id) = operation {
+                if !inner
+                    .login_reservations
+                    .get(id)
+                    .is_some_and(|expires| *expires > Instant::now())
+                {
+                    return Err(AuthError::Cancelled);
+                }
+            }
             (
                 inner.origin.clone().ok_or(AuthError::Unconfigured)?,
                 inner.epoch,
             )
         };
+        after_reservation.await;
         let attempt = LoginAttempt::begin(&origin)
             .await
             .map_err(|_| AuthError::Failed("could not start the login callback".to_owned()))?;
@@ -444,10 +786,28 @@ impl CloudAuth {
             if inner.session.is_some() || login_waiting(&inner) || inner.epoch != epoch {
                 return Err(AuthError::AlreadyInProgress);
             }
-            inner.epoch = inner
+            if inner.active_login_reservation.is_some() {
+                return Err(AuthError::AlreadyInProgress);
+            }
+            let next_epoch = inner
                 .epoch
                 .checked_add(1)
                 .ok_or_else(|| AuthError::Failed("account generation exhausted".into()))?;
+            if let Some(id) = operation {
+                if !inner
+                    .login_reservations
+                    .remove(id)
+                    .is_some_and(|expires| expires > Instant::now())
+                {
+                    return Err(AuthError::Cancelled);
+                }
+                inner.active_login_reservation = Some(id.to_owned());
+                inner.active_login_legacy = false;
+            } else {
+                inner.active_login_reservation = Some(fresh_login_id(&inner)?);
+                inner.active_login_legacy = true;
+            }
+            inner.epoch = next_epoch;
             inner.last_error = None;
             inner.pending = Some(PendingLogin {
                 attempt: Some(attempt),
@@ -463,8 +823,13 @@ impl CloudAuth {
     /// `system-browser` feature; otherwise callers show the URL from
     /// [`CloudAuth::begin_login`] for manual opening.
     pub async fn open_browser(&self) -> Result<(), AuthError> {
+        self.open_browser_for(None).await
+    }
+
+    pub async fn open_browser_for(&self, operation: Option<&str>) -> Result<(), AuthError> {
         let url = {
             let inner = self.inner.lock().await;
+            check_login_reservation(&inner, operation)?;
             inner
                 .pending
                 .as_ref()
@@ -489,9 +854,17 @@ impl CloudAuth {
     /// then verify the session and persist it. Consumes the pending attempt;
     /// a concurrent [`CloudAuth::cancel_login`] aborts the wait.
     pub async fn complete_login(&self) -> Result<AccountStatus, AuthError> {
+        self.complete_login_for(None).await
+    }
+
+    pub async fn complete_login_for(
+        &self,
+        operation: Option<&str>,
+    ) -> Result<AccountStatus, AuthError> {
         let _transition = TransitionGuard::begin(&self.transitions);
         let (attempt, cancel_rx, origin, epoch) = {
             let mut inner = self.inner.lock().await;
+            check_login_reservation(&inner, operation)?;
             let mut pending = inner.pending.take().ok_or(AuthError::NoLoginInProgress)?;
             let attempt = pending.attempt.take().ok_or(AuthError::NoLoginInProgress)?;
             let cancel_rx = pending.cancel_rx.take();
@@ -504,6 +877,8 @@ impl CloudAuth {
         let mut inner = self.inner.lock().await;
         if inner.epoch == epoch {
             inner.cancel_tx = None;
+            inner.active_login_reservation = None;
+            inner.active_login_legacy = false;
         }
         drop(inner);
         finished?;
@@ -513,11 +888,34 @@ impl CloudAuth {
     /// Abort an in-flight login and drop its secrets, including a wait
     /// already blocked inside [`CloudAuth::complete_login`].
     pub async fn cancel_login(&self) -> Result<AccountStatus, AuthError> {
+        self.cancel_login_for(None).await
+    }
+
+    pub async fn cancel_login_for(
+        &self,
+        operation: Option<&str>,
+    ) -> Result<AccountStatus, AuthError> {
         let _transition = TransitionGuard::begin(&self.transitions);
         let mut inner = self.inner.lock().await;
+        if operation.is_none()
+            && inner.active_login_reservation.is_some()
+            && !inner.active_login_legacy
+        {
+            return Err(AuthError::AlreadyInProgress);
+        }
+        // A scoped retry is idempotent and never cancels a newer attempt.
+        if operation.is_some() && inner.active_login_reservation.as_deref() != operation {
+            if let Some(id) = operation {
+                inner.login_reservations.remove(id);
+            }
+            drop(inner);
+            return Ok(self.status().await);
+        }
+        let had_reservation = inner.active_login_reservation.take().is_some();
+        inner.active_login_legacy = false;
         let had_pending = inner.pending.take().is_some();
         let had_waiter = inner.cancel_tx.take().map(|sender| sender.send(()));
-        if !had_pending && had_waiter.is_none() {
+        if !had_reservation && !had_pending && had_waiter.is_none() {
             return Err(AuthError::NoLoginInProgress);
         }
         inner.epoch = inner
@@ -627,6 +1025,9 @@ impl CloudAuth {
             inner.profile = None;
             inner.offline_identity_allowed = false;
             inner.pending = None;
+            inner.active_login_reservation = None;
+            inner.active_login_legacy = false;
+            inner.login_reservations.clear();
             inner.last_error = None;
             (inner.origin.clone(), session)
         };

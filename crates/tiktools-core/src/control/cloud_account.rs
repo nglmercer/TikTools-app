@@ -53,9 +53,24 @@ impl AppCore {
     }
 
     pub async fn cloud_begin_login(&self) -> Result<CloudLoginUrl, OperationError> {
+        self.cloud_begin_login_for(None).await
+    }
+
+    pub async fn cloud_reserve_login(&self) -> Result<String, OperationError> {
         self.cloud()
             .auth()
-            .begin_login()
+            .reserve_login()
+            .await
+            .map_err(auth_error)
+    }
+
+    pub async fn cloud_begin_login_for(
+        &self,
+        operation: Option<&str>,
+    ) -> Result<CloudLoginUrl, OperationError> {
+        self.cloud()
+            .auth()
+            .begin_login_for(operation)
             .await
             .map(|begin| CloudLoginUrl {
                 browser_url: begin.browser_url,
@@ -64,15 +79,33 @@ impl AppCore {
     }
 
     pub async fn cloud_open_browser(&self) -> Result<(), OperationError> {
-        self.cloud().auth().open_browser().await.map_err(auth_error)
+        self.cloud_open_browser_for(None).await
+    }
+
+    pub async fn cloud_open_browser_for(
+        &self,
+        operation: Option<&str>,
+    ) -> Result<(), OperationError> {
+        self.cloud()
+            .auth()
+            .open_browser_for(operation)
+            .await
+            .map_err(auth_error)
     }
 
     pub async fn cloud_complete_login(
         &self,
     ) -> Result<tiktools_cloud_auth::AccountStatus, OperationError> {
+        self.cloud_complete_login_for(None).await
+    }
+
+    pub async fn cloud_complete_login_for(
+        &self,
+        operation: Option<&str>,
+    ) -> Result<tiktools_cloud_auth::AccountStatus, OperationError> {
         self.cloud()
             .auth()
-            .complete_login()
+            .complete_login_for(operation)
             .await
             .map_err(auth_error)
     }
@@ -80,7 +113,18 @@ impl AppCore {
     pub async fn cloud_cancel_login(
         &self,
     ) -> Result<tiktools_cloud_auth::AccountStatus, OperationError> {
-        self.cloud().auth().cancel_login().await.map_err(auth_error)
+        self.cloud_cancel_login_for(None).await
+    }
+
+    pub async fn cloud_cancel_login_for(
+        &self,
+        operation: Option<&str>,
+    ) -> Result<tiktools_cloud_auth::AccountStatus, OperationError> {
+        self.cloud()
+            .auth()
+            .cancel_login_for(operation)
+            .await
+            .map_err(auth_error)
     }
 
     pub async fn cloud_restore(

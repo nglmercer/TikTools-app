@@ -26,6 +26,8 @@ use tiktools_control_api::modules::automation_effects::{EffectGetParams, EffectH
 use tiktools_control_api::modules::automation_library::{
     OwnerLibraryEmpty, OwnerLibraryReviewUnknown, OwnerLibrarySubmit,
 };
+#[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::cloud::CloudLoginOperationParams;
 use tiktools_control_api::modules::competitions::{
     CompetitionActionId, CompetitionId, CompetitionResultsRequest,
     Definition as CompetitionDefinition, ResolveCompetitionAction, SelectWinner,
@@ -461,13 +463,14 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "registry.package" => validate::<RegistryPackageParams>(params),
         "registry.defaults.set" => validate::<RegistryDefaults>(params),
         #[cfg(feature = "cloud-auth")]
-        "cloud.status"
-        | "cloud.login.begin"
+        "cloud.status" | "cloud.login.reserve" | "cloud.restore" | "cloud.logout" => {
+            validate::<Empty>(params)
+        }
+        #[cfg(feature = "cloud-auth")]
+        "cloud.login.begin"
         | "cloud.login.open"
         | "cloud.login.complete"
-        | "cloud.login.cancel"
-        | "cloud.restore"
-        | "cloud.logout" => validate::<Empty>(params),
+        | "cloud.login.cancel" => validate::<CloudLoginOperationParams>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.status"
         | "sync.enable"

@@ -170,6 +170,27 @@ describe('createControlClient', () => {
       control.detach();
     });
 
+    it('uses a bounded per-call timeout without extending other requests', async () => {
+      vi.useFakeTimers();
+      try {
+        const ipc = installMockIpc();
+        const control = createControlClient({ timeoutMs: 5 });
+        control.attach();
+        const pending = control.call('cloud.login.complete', {}, { timeoutMs: 50 });
+        let settled = false;
+        void pending.then(() => { settled = true; });
+        await vi.advanceTimersByTimeAsync(5);
+        expect(settled).toBe(false);
+        respond(sentId(), { result: { state: 'signed-in' } });
+        await expect(pending).resolves.toEqual({ state: 'signed-in' });
+        await expect(control.call('system.ping', {}, { timeoutMs: 300_001 })).rejects.toMatchObject({ code: 'client' });
+        expect(ipc.sent).toHaveLength(1);
+        control.detach();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('bounds pending admission and releases every slot on detach', async () => {
       const ipc = installMockIpc();
       const control = createControlClient();

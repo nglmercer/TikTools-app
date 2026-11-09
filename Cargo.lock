@@ -5888,6 +5888,7 @@ name = "tiktools-cloud-auth"
 version = "4.0.2"
 dependencies = [
  "cloud-client",
+ "getrandom 0.4.3",
  "open",
  "reqwest 0.13.5",
  "schemars",

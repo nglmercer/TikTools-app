@@ -92,6 +92,7 @@ describe('CloudAccountEditor', () => {
     const { client } = createFakeControlClient((method) => {
       if (method === 'cloud.status') return out;
       if (method === 'cloud.restore') throw new ControlCallError('unavailable', 'no saved session', { reason: 'no-saved-session' });
+      if (method === 'cloud.login.reserve') return { operationId: '0123456789abcdef0123456789abcdef' };
       if (method === 'cloud.login.begin') return { browserUrl: 'https://cloud.example/desktop/login' };
       if (method === 'cloud.login.open') throw new Error('browser unavailable');
       if (method === 'cloud.login.complete') return pending;

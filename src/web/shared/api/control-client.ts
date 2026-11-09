@@ -38,6 +38,8 @@ export interface ResponseMetadata {
 }
 export interface ControlCallOptions {
   signal?: AbortSignal;
+  /** Optional bounded deadline for a call whose native contract is longer. */
+  timeoutMs?: number;
   meta?: RequestMetadata;
   onMetadata?: (meta: ResponseMetadata | undefined) => void;
 }
@@ -344,6 +346,10 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
     call<T = unknown>(method: string, params?: RpcParams, options?: ControlCallOptions): Promise<T> {
       return new Promise<T>((resolve, reject) => {
         const signal = options?.signal;
+        if (options?.timeoutMs !== undefined && (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 1 || options.timeoutMs > 300_000)) {
+          reject(new ControlCallError('client', 'invalid control request timeout'));
+          return;
+        }
         if (signal?.aborted) { reject(new ControlCallError('cancelled', 'control request owner disposed')); return; }
         if (detached) {
           reject(new ControlCallError('transport', 'control client detached'));
@@ -396,7 +402,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
           const error = new ControlCallError('timeout', `request ${method} timed out`);
           reportTransportError(error.message);
           reject(error);
-        }, timeoutMs);
+        }, options?.timeoutMs ?? timeoutMs);
         pending.set(id, {
           resolve: (result, meta) => {
             try { options?.onMetadata?.(meta); }
