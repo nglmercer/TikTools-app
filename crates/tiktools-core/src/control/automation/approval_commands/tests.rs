@@ -374,6 +374,7 @@ async fn competition_activation_transaction_retains_operators_and_replays_origin
             &start,
             &service,
             "host-owner",
+            false,
         )
         .unwrap();
     assert!(fresh);
@@ -432,6 +433,7 @@ async fn competition_activation_transaction_retains_operators_and_replays_origin
             &start,
             &service,
             "host-owner",
+            false,
         )
         .unwrap();
     assert!(!fresh);
@@ -477,7 +479,8 @@ async fn competition_activation_transaction_retains_operators_and_replays_origin
             CompetitionActivation::Resume,
             &resume,
             &service,
-            "host-owner"
+            "host-owner",
+            false
         )
         .is_err());
     assert_eq!(
@@ -501,6 +504,7 @@ async fn competition_activation_transaction_retains_operators_and_replays_origin
             &resume,
             &service,
             "host-owner",
+            false,
         )
         .unwrap();
     assert!(fresh);
@@ -564,6 +568,7 @@ async fn competition_activation_transaction_retains_operators_and_replays_origin
             &resume,
             &service,
             "host-owner",
+            false,
         )
         .unwrap();
     assert!(!fresh);

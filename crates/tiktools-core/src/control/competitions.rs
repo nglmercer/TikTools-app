@@ -28,11 +28,12 @@ pub struct CompetitionSummaryPage {
     pub next_after: Option<String>,
 }
 
-/// Remote transitions that stop competition activity without introducing
-/// new winner actions. Start/resume require delegated-effect attribution.
+/// Revision-bound remote competition lifecycle transitions.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum CompetitionRemoteTransition {
+    Start,
+    Resume,
     Pause,
     Cancel,
 }
@@ -40,6 +41,8 @@ impl CompetitionRemoteTransition {
     #[cfg(feature = "persistence")]
     pub(crate) fn method(self) -> &'static str {
         match self {
+            Self::Start => "competitions.start",
+            Self::Resume => "competitions.resume",
             Self::Pause => "competitions.pause",
             Self::Cancel => "competitions.cancel",
         }
@@ -47,6 +50,8 @@ impl CompetitionRemoteTransition {
     #[cfg(feature = "persistence")]
     pub(crate) fn transition(self) -> tiktools_competitions::Transition {
         match self {
+            Self::Start => tiktools_competitions::Transition::Start,
+            Self::Resume => tiktools_competitions::Transition::Resume,
             Self::Pause => tiktools_competitions::Transition::Pause,
             Self::Cancel => tiktools_competitions::Transition::Cancel,
         }
@@ -56,7 +61,7 @@ impl CompetitionRemoteTransition {
 impl AppCore {
     /// Atomic, recoverable stop transition for a scoped remote controller.
     pub fn competition_remote_command(
-        &self,
+        self: &std::sync::Arc<Self>,
         auth: crate::collaboration::Authorization,
         request: crate::collaboration::CommandRequest,
         id: &str,
@@ -131,9 +136,34 @@ impl AppCore {
                     command.max_ids_per_principal,
                 )
                 .map_err(|e| super::commands::command_error(e, &command.request.command_id))?;
-            let (result, fresh) = self
-                .db
-                .execute_competition_stop(
+            let operation = match transition {
+                CompetitionRemoteTransition::Start => Some(crate::db::CompetitionActivation::Start),
+                CompetitionRemoteTransition::Resume => {
+                    Some(crate::db::CompetitionActivation::Resume)
+                }
+                _ => None,
+            };
+            let outcome = if let Some(operation) = operation {
+                let definition = self.competition_get(id)?;
+                let ranking_paused = self.ranking_snapshot(&definition.ranking_id)?.paused;
+                let owner = self
+                    .aggregations
+                    .checkpoint_owner
+                    .as_deref()
+                    .ok_or_else(|| {
+                        OperationError::unavailable("competition integrity owner unavailable")
+                    })?;
+                self.db.execute_competition_activation(
+                    id,
+                    generation,
+                    operation,
+                    &command,
+                    &service,
+                    owner,
+                    ranking_paused,
+                )
+            } else {
+                self.db.execute_competition_stop(
                     id,
                     generation,
                     transition,
@@ -141,27 +171,46 @@ impl AppCore {
                     &service,
                     self.aggregations.checkpoint_owner.as_deref(),
                 )
-                .map_err(|e| match e {
-                    crate::db::DatabaseError::RevisionConflict(version) => OperationError {
-                        code: "revision_conflict",
-                        message: "competition changed; refresh its status".into(),
-                        data: Some(serde_json::json!({"resourceVersions":[version]})),
-                    },
-                    other => super::commands::command_error(other, &command.request.command_id),
-                })?;
+            };
+            let (result, fresh) = outcome.map_err(|e| match e {
+                crate::db::DatabaseError::RevisionConflict(version) => OperationError {
+                    code: "revision_conflict",
+                    message: "competition changed; refresh its status".into(),
+                    data: Some(serde_json::json!({"resourceVersions":[version]})),
+                },
+                crate::db::DatabaseError::Invalid(reason)
+                    if reason == "competition ranking is paused" =>
+                {
+                    OperationError::conflict("resume the competition ranking first")
+                }
+                other => super::commands::command_error(other, &command.request.command_id),
+            })?;
             if fresh {
-                if let Some(data) = self.competition_context(id, generation) {
-                    let event = match transition {
+                let resulting_generation = result
+                    .value
+                    .get("generation")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .unwrap_or(generation);
+                if let Some(data) = self.competition_context(id, resulting_generation) {
+                    match transition {
+                        CompetitionRemoteTransition::Start => {
+                            self.publish_competition_event("competition.started", data)
+                        }
+                        CompetitionRemoteTransition::Resume => {
+                            self.publish_competition_event("competition.resumed", data)
+                        }
                         CompetitionRemoteTransition::Pause => {
-                            crate::events::DomainEvent::CompetitionPaused(data)
+                            self.events.publish_presentation_domain(
+                                crate::events::DomainEvent::CompetitionPaused(data),
+                            )
                         }
                         CompetitionRemoteTransition::Cancel => {
-                            crate::events::DomainEvent::CompetitionCancelled(data)
+                            self.events.publish_presentation_domain(
+                                crate::events::DomainEvent::CompetitionCancelled(data),
+                            )
                         }
-                    };
-                    // Remote stops must not acquire Owner authority through
-                    // plugin observers or competition-triggered automations.
-                    self.events.publish_presentation_domain(event);
+                    }
                 }
             }
             Ok(result)

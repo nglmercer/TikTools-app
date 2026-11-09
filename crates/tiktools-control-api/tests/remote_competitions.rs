@@ -216,12 +216,24 @@ async fn scoped_competition_summary_is_bounded_redacted_and_reauthorized() {
             .code,
         "revision_conflict"
     );
-    core.competition_transition("charlie", tiktools_competitions::Transition::Start)
-        .unwrap();
+    let start = json!({"id":6,"method":"competitions.start","params":{"id":"charlie","expectedGeneration":"0"},"meta":{"commandId":"start-charlie","hostInstanceId":service.instance_id(),"expectedRevision":"1"}});
+    let started = api.execute_value_with_context(&context, &start).await;
+    assert!(started.is_ok(), "{started:?}");
+    assert_eq!(started.result.as_ref().unwrap()["lifecycle"], "active");
+    assert_eq!(
+        api.execute_value_with_context(&context, &start)
+            .await
+            .result,
+        started.result
+    );
     let pause = json!({"id":5,"method":"competitions.pause","params":{"id":"charlie","expectedGeneration":"1"},"meta":{"commandId":"pause-charlie","hostInstanceId":service.instance_id(),"expectedRevision":"2"}});
     let paused = api.execute_value_with_context(&context, &pause).await;
     assert!(paused.is_ok(), "{paused:?}");
     assert_eq!(paused.result.unwrap()["lifecycle"], "paused");
+    let resume = json!({"id":7,"method":"competitions.resume","params":{"id":"charlie","expectedGeneration":"1"},"meta":{"commandId":"resume-charlie","hostInstanceId":service.instance_id(),"expectedRevision":"3"}});
+    let resumed = api.execute_value_with_context(&context, &resume).await;
+    assert!(resumed.is_ok(), "{resumed:?}");
+    assert_eq!(resumed.result.unwrap()["lifecycle"], "active");
     assert!(api
         .execute_value_with_context(
             &context,

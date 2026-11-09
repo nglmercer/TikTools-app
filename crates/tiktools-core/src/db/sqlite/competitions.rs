@@ -158,9 +158,7 @@ fn competition_execution_fence(
     })
 }
 
-/// Internal transaction only. Remote dispatch remains disabled until event
-/// and winner effects can carry this generation's delegated authority.
-#[allow(dead_code)]
+/// Revision-bound start/resume with retained delegated operators.
 #[derive(Clone, Copy)]
 pub(crate) enum CompetitionActivation {
     Start,
@@ -301,6 +299,7 @@ impl DatabaseManager {
         command: &super::CommandTransaction,
         service: &std::sync::Arc<crate::collaboration::CollaborationService>,
         owner: &str,
+        ranking_paused: bool,
     ) -> Result<(crate::collaboration::Versioned<serde_json::Value>, bool), DatabaseError> {
         use crate::collaboration::{Capability, Error, ResourceKind, ResourceVersion, Versioned};
         let denied = || DatabaseError::CommandAuthorization(Error::Forbidden);
@@ -368,6 +367,11 @@ impl DatabaseManager {
                     Ok((result, false))
                 })
                 .map_err(DatabaseError::CommandAuthorization)?;
+        }
+        if ranking_paused {
+            return Err(DatabaseError::Invalid(
+                "competition ranking is paused".into(),
+            ));
         }
         let row: Option<(String,String,i64)> = tx.query_row(
             "SELECT d.definition_json,s.state_json,r.revision FROM competition_definitions d JOIN competition_state s ON s.competition_id=d.id JOIN competition_control_revisions r ON r.competition_id=d.id AND r.deleted=0 WHERE d.id=?1",

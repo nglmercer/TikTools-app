@@ -24,6 +24,7 @@ pub(crate) fn competition_stop_result_allowed(
             .is_some_and(|id| grant.allows_resource(ResourceKind::Competition, id))
         && value.get("lifecycle").and_then(serde_json::Value::as_str)
             == match method {
+                "competitions.start" | "competitions.resume" => Some("active"),
                 "competitions.pause" => Some("paused"),
                 "competitions.cancel" => Some("cancelled"),
                 _ => None,

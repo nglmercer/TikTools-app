@@ -224,6 +224,10 @@ pub fn register(router: &mut ControlRouter) {
                     ("competitionSummary".into(), cfg!(feature = "persistence")),
                     ("competitionStop".into(), cfg!(feature = "persistence")),
                     (
+                        "competitionActivation".into(),
+                        cfg!(feature = "persistence"),
+                    ),
+                    (
                         "competitionSummaryVersions".into(),
                         cfg!(feature = "persistence"),
                     ),

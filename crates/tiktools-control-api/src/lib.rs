@@ -176,7 +176,12 @@ impl ControlApi {
             "competitions.summary",
             policy::RemotePolicy::Capability(RemoteCapability::CompetitionsRead),
         );
-        for name in ["competitions.pause", "competitions.cancel"] {
+        for name in [
+            "competitions.start",
+            "competitions.resume",
+            "competitions.pause",
+            "competitions.cancel",
+        ] {
             router.set_remote_policy(
                 name,
                 policy::RemotePolicy::Capability(RemoteCapability::CompetitionsManage),
@@ -278,17 +283,26 @@ impl ControlApi {
         let grant = session.grant()?;
         if matches!(
             method,
-            "competitions.summary" | "competitions.pause" | "competitions.cancel"
+            "competitions.summary"
+                | "competitions.start"
+                | "competitions.resume"
+                | "competitions.pause"
+                | "competitions.cancel"
         ) && grant
             .resources
             .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
         {
             return Err(context::forbidden());
         }
-        if matches!(method, "competitions.pause" | "competitions.cancel")
-            && !grant
-                .capabilities
-                .contains(&RemoteCapability::CompetitionsRead)
+        if matches!(
+            method,
+            "competitions.start"
+                | "competitions.resume"
+                | "competitions.pause"
+                | "competitions.cancel"
+        ) && !grant
+            .capabilities
+            .contains(&RemoteCapability::CompetitionsRead)
         {
             return Err(context::forbidden());
         }
@@ -352,8 +366,13 @@ impl ControlApi {
     ) -> Result<(), ApiError> {
         self.authorize_remote(session, method)?;
         let grant = session.grant()?;
-        if matches!(method, "competitions.pause" | "competitions.cancel")
-            && !policy::competition_stop_result_allowed(&grant, method, result)
+        if matches!(
+            method,
+            "competitions.start"
+                | "competitions.resume"
+                | "competitions.pause"
+                | "competitions.cancel"
+        ) && !policy::competition_stop_result_allowed(&grant, method, result)
         {
             return Err(context::forbidden());
         }
@@ -710,6 +729,8 @@ impl ControlApi {
                 | "points.leaderboard"
                 | "points.view"
                 | "points.adjust"
+                | "competitions.start"
+                | "competitions.resume"
                 | "competitions.pause"
                 | "competitions.cancel"
                 | "automation.list"

@@ -257,25 +257,17 @@ pub fn register(router: &mut ControlRouter) {
             .map_err(ApiError::from)
         },
     );
-    for (method, transition) in [
-        ("competitions.start", Transition::Start),
-        ("competitions.resume", Transition::Resume),
-    ] {
-        router.register_typed::<CompetitionId, LifecycleState, _, _>(
-            method,
-            "Transition competition lifecycle",
-            true,
-            move |core: Arc<AppCore>, params: CompetitionId| async move {
-                core.start_competition_timer();
-                crate::modules::blocking_task("competition transition", move || {
-                    core.competition_transition(&params.id, transition)
-                })
-                .await?
-                .map_err(ApiError::from)
-            },
-        );
-    }
     for (method, transition, local_transition) in [
+        (
+            "competitions.start",
+            tiktools_core::control::CompetitionRemoteTransition::Start,
+            Transition::Start,
+        ),
+        (
+            "competitions.resume",
+            tiktools_core::control::CompetitionRemoteTransition::Resume,
+            Transition::Resume,
+        ),
         (
             "competitions.pause",
             tiktools_core::control::CompetitionRemoteTransition::Pause,
@@ -289,11 +281,18 @@ pub fn register(router: &mut ControlRouter) {
     ] {
         router.register_versioned::<CompetitionStopParams, serde_json::Value, _, _>(
             method,
-            "Stop a competition with a revision-bound command",
+            "Transition a competition with a revision-bound command",
             true,
             move |core: Arc<AppCore>, context, params, metadata| async move {
                 crate::modules::blocking_task("competition stop", move || match context {
                     crate::RequestContext::Remote(session) => {
+                        if matches!(
+                            transition,
+                            tiktools_core::control::CompetitionRemoteTransition::Start
+                                | tiktools_core::control::CompetitionRemoteTransition::Resume
+                        ) {
+                            core.start_competition_timer();
+                        }
                         let meta = metadata.ok_or_else(|| {
                             ApiError::invalid_params("command metadata is required")
                         })?;
