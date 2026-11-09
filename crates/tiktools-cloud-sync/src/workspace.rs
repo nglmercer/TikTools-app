@@ -658,13 +658,13 @@ impl WorkspaceCoordinator {
             } else {
                 None
             };
-            let ticket = if let Some(product) = product {
+            let (ticket, prepared_proof) = if let Some(product) = product {
                 self.admit_product(
                     &key,
                     eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
                     product,
                     |proof| {
-                        self.update_product(
+                        let ticket = self.update_product(
                             eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
                             |state| {
                                 Ok(state.prepare_product_push_fenced(
@@ -674,11 +674,12 @@ impl WorkspaceCoordinator {
                                         .ok_or(WorkspaceCoordError::Ineligible)?,
                                 )?)
                             },
-                        )
+                        )?;
+                        Ok((ticket, Some(proof.clone())))
                     },
                 )?
             } else {
-                self.update(|state| Ok(state.prepare_push(&key)?))?
+                (self.update(|state| Ok(state.prepare_push(&key)?))?, None)
             };
             attempts += 1;
             // Take the cross-process product fence after durable prepare and
@@ -688,6 +689,20 @@ impl WorkspaceCoordinator {
             let emission_guard = product
                 .map(|product| product.source.acquire_emission_guard())
                 .transpose()?;
+            // The source can change between durable preparation and emission
+            // admission. Recheck the original receipt under its native source
+            // fence after obtaining the cooperating emission lease. A stale
+            // source leaves the already prepared ticket unconfirmed.
+            if let Some(product) = product {
+                self.admit_product_proof(
+                    prepared_proof
+                        .as_ref()
+                        .ok_or(WorkspaceCoordError::Ineligible)?,
+                    eligibility.ok_or(WorkspaceCoordError::Ineligible)?,
+                    product,
+                    |_| Ok(()),
+                )?;
+            }
             // Configuration reads may block. Do them before taking the
             // account's owned session permit. The v2 protocol lease held by
             // the product caller excludes cooperating consent changes.

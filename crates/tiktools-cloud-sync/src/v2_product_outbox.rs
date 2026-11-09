@@ -190,6 +190,10 @@ pub trait V2ProductUploadSource: Send + Sync {
         Err(crate::WorkspaceCoordError::Ineligible)
     }
 
+    /// Validate the exact decision under the native source/runtime fence and
+    /// retain that fence through `admit`. The dispatcher can call this more
+    /// than once for the same decision, including a read-only recheck after
+    /// durable preparation; validation itself must not consume the decision.
     fn with_fenced_upload(
         &self,
         decision: &V2ProductDecision,

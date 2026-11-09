@@ -674,7 +674,7 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
             )
             .unwrap();
             assert_eq!(reopened.snapshot().unwrap().state, prepared.state);
-            assert_eq!(upload.calls.load(Ordering::SeqCst), 1);
+            assert_eq!(upload.calls.load(Ordering::SeqCst), 2);
             assert_eq!(
                 mock.inner.lock().unwrap().v2_put_requests,
                 usize::from(transition != "cancel_before_commit")
@@ -958,7 +958,7 @@ async fn logout_after_session_admission_before_final_check_prevents_send() {
     let pending = state.entry(&key).unwrap().pending.as_ref().unwrap();
     assert_eq!(pending.status, WorkspacePendingStatus::Unconfirmed);
     assert_eq!(pending.write_epoch.as_ref().unwrap().decimal(), "7");
-    assert_eq!(source_check.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(source_check.calls.load(Ordering::SeqCst), 2);
     mock.stop();
 }
 

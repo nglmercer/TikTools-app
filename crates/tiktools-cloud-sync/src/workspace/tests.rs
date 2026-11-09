@@ -637,6 +637,73 @@ struct ProductUploadFixture {
 }
 
 #[tokio::test]
+async fn changed_source_after_prepare_is_not_sent() {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    struct ChangedOnEmission(ProductUploadFixture);
+    impl crate::V2ProductUploadSource for ChangedOnEmission {
+        fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
+            self.0.generation.store(8, Ordering::SeqCst);
+            Ok(Box::new(()))
+        }
+        fn with_fenced_upload(
+            &self,
+            decision: &crate::V2ProductDecision,
+            admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+        ) -> Result<(), WorkspaceCoordError> {
+            crate::V2ProductUploadSource::with_fenced_upload(&self.0, decision, admit)
+        }
+    }
+    let server = start_server().await;
+    let session = Arc::new(connect(&server, "device-a").await);
+    let temp = tempfile::tempdir().unwrap();
+    let coordinator = coordinator(&temp.path().join("private"), &server, "account-a");
+    coordinator.bootstrap(&[], None).unwrap();
+    guard_product_fixture(&coordinator);
+    let target = key("plugin-selections", "acme.plugin");
+    let decision = crate::V2ProductDecision {
+        origin: server.origin.clone(),
+        account_id: "account-a".into(),
+        config_generation: 42,
+        source_generation: 7,
+        plugin_id: "acme.plugin".into(),
+        selection: Some(selection()),
+    };
+    coordinator
+        .stage_product_decision(
+            target.clone(),
+            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
+            7,
+            &decision.digest().unwrap(),
+        )
+        .unwrap();
+    let source = ChangedOnEmission(ProductUploadFixture {
+        generation: AtomicU64::new(7),
+        consent: 42,
+        expire_eligibility: None,
+    });
+    let eligibility =
+        WorkspaceEligibility::new(session.clone(), || true).with_test_publication_guard();
+    let admission = ProductUploadAdmission {
+        source: &source,
+        config_generation: 42,
+    };
+    assert!(coordinator
+        .sync_product_guarded(&session, &eligibility, &admission)
+        .await
+        .is_err());
+    assert_eq!(server.remote.lock().unwrap().writes(), 0);
+    let retained = pending(&coordinator, &target).pending.unwrap();
+    assert_eq!(retained.status, WorkspacePendingStatus::Unconfirmed);
+    assert_eq!(retained.write_epoch.as_ref().unwrap().decimal(), "7");
+    coordinator
+        .sync_product_guarded(&session, &eligibility, &admission)
+        .await
+        .unwrap();
+    assert_eq!(server.remote.lock().unwrap().writes(), 0);
+    assert_eq!(pending(&coordinator, &target).pending.unwrap(), retained);
+}
+
+#[tokio::test]
 async fn product_review_barrier_rejects_a_cancelled_write_that_arrives_late() {
     use std::sync::atomic::{AtomicU64, Ordering};
 
