@@ -134,8 +134,8 @@ impl DatabaseManager {
 }
 
 impl DatabaseManager {
-    /// Commit activation only while the caller and every saved author remain
-    /// current, and only if the complete post-write closure is permitted.
+    /// Commit an activation or enabled authoring write only while the caller
+    /// and every saved author remain current and the final closure is permitted.
     pub(crate) fn execute_reusable_behavior_activation(
         &self,
         operation: &AutomationMutation,
@@ -145,7 +145,7 @@ impl DatabaseManager {
         use crate::services::automation_manifest::{
             self as manifest, ManifestSubject, ManifestSubjects,
         };
-        if !operation.is_remote_activation() {
+        if !operation.is_remote_activation() && !operation.is_reusable_write() {
             return Err(DatabaseError::CommandAuthorization(
                 crate::collaboration::Error::Forbidden,
             ));
@@ -187,11 +187,46 @@ impl DatabaseManager {
         // Existing authoring ownership and dependency rules also prevent an
         // activation from changing an Owner or another author's graph.
         let author = provenance::authorize_authoring(&tx, kind.table(), id, auth)?;
-        let before = review::snapshot(&tx, kind.table(), id)?;
-        if before.value.get("record").is_none_or(Value::is_null) {
-            return Err(DatabaseError::NotFound);
-        }
-        let mut required = manifest::required_subjects(&before)
+        // Stage the new record inside the uncommitted transaction, so all
+        // subjects are derived from its actual final closure, including new
+        // dependencies and a changed author session.
+        let result = match operation {
+            AutomationMutation::SetEnabled { .. } => set_enabled(
+                &tx,
+                kind.table(),
+                id,
+                true,
+                Some(&command.request.expected_revision),
+            )?,
+            AutomationMutation::Create { record, .. }
+            | AutomationMutation::Update { record, .. } => {
+                let mut disabled = record.clone();
+                disabled["enabled"] = Value::Bool(false);
+                let normalized = drafts::normalize(kind.table(), &disabled)?;
+                let mode = if matches!(operation, AutomationMutation::Create { .. }) {
+                    BehaviorSave::Create
+                } else {
+                    BehaviorSave::Update
+                };
+                let result = save_record(
+                    &tx,
+                    kind.table(),
+                    &normalized,
+                    Some(&command.request.expected_revision),
+                    mode,
+                )?;
+                provenance::mark_delegated_new(&tx, kind.table(), id, &author)?;
+                toggle(&tx, kind.table(), id, true)?.ok_or(DatabaseError::NotFound)?;
+                result
+            }
+            _ => {
+                return Err(DatabaseError::CommandAuthorization(
+                    crate::collaboration::Error::Forbidden,
+                ))
+            }
+        };
+        let after = review::snapshot(&tx, kind.table(), id)?;
+        let mut required = manifest::required_subjects(&after)
             .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?;
         let caller_pair = (command.principal_id.clone(), command.session_id.clone());
         if !required.contains(&caller_pair) {
@@ -223,14 +258,6 @@ impl DatabaseManager {
                         crate::collaboration::Error::Forbidden,
                     ));
                 }
-                let result = set_enabled(
-                    &tx,
-                    kind.table(),
-                    id,
-                    true,
-                    Some(&command.request.expected_revision),
-                )?;
-                let after = review::snapshot(&tx, kind.table(), id)?;
                 let authors = manifest::required_subjects(&after)
                     .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?;
                 let selected: Vec<_> = identities
@@ -264,7 +291,13 @@ impl DatabaseManager {
                     .map_err(|_| {
                         DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden)
                     })?;
-                let result = result.map(|_| json!({"kind":kind,"id":id,"enabled":true}));
+                let result = result.map(|_| {
+                    if operation.is_reusable_write() {
+                        json!({"kind":kind,"id":id,"enabled":true,"pendingReview":false})
+                    } else {
+                        json!({"kind":kind,"id":id,"enabled":true})
+                    }
+                });
                 let result = super::super::commands::finish(
                     &tx,
                     command,

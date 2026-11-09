@@ -942,6 +942,23 @@ fn remote_activation_requires_reusable_policy_and_author_ownership() {
     let mut no_policy = grant();
     no_policy.capabilities.insert(Capability::AutomationToggle);
     let auth = f.pair(no_policy);
+    let mut active = log("no-policy-create", "hello");
+    active["enabled"] = true.into();
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(auth.clone()),
+            f.request("0"),
+            AutomationMutation::Create {
+                kind: AutomationKind::Action,
+                record: active
+            }
+        )
+        .is_err());
+    assert!(f
+        .core()
+        .automation_get(AutomationKind::Action, "no-policy-create")
+        .is_err());
     f.draft(&auth, AutomationKind::Action, log("unpermitted", "hello"));
     let revision = f
         .core()
@@ -1035,4 +1052,108 @@ fn remote_activation_rejects_effects_outside_reusable_grant() {
         .unwrap();
     assert_eq!(before.value, after.value);
     assert_eq!(before.resource_versions, after.resource_versions);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_grant_creates_and_edits_active_automation_atomically() {
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.max_points_delta = Some(5.0);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+    });
+    let auth = f.pair(permitted);
+    let mut action = points("active-points", "alice", 1.0);
+    action["enabled"] = true.into();
+    let mut rule = event("active-event", &["active-points"]);
+    rule["enabled"] = true.into();
+    for (kind, record) in [
+        (AutomationKind::Action, action),
+        (AutomationKind::Event, rule),
+    ] {
+        let id = record["id"].as_str().unwrap().to_owned();
+        let result = f
+            .core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+        assert_eq!(
+            result.value,
+            json!({"kind":kind,"id":id,"enabled":true,"pendingReview":false})
+        );
+        f.assert_delegated(kind, &id);
+    }
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 1.0);
+    let before = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "active-points")
+        .unwrap();
+    let revision = before.resource_versions[0].revision.clone();
+    let mut changed = points("active-points", "alice", 2.0);
+    changed["enabled"] = true.into();
+    let update = || AutomationMutation::Update {
+        kind: AutomationKind::Action,
+        id: "active-points".into(),
+        record: changed.clone(),
+    };
+    let request = f.request(&revision);
+    let result = f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(auth.clone()),
+            request.clone(),
+            update(),
+        )
+        .unwrap();
+    assert_eq!(result.value["enabled"], true);
+    assert_eq!(
+        f.core()
+            .automation_command(CommandCaller::Remote(auth.clone()), request, update())
+            .unwrap()
+            .resource_versions,
+        result.resource_versions
+    );
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 3.0);
+    let before_denied = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "active-points")
+        .unwrap();
+    let mut forbidden = log("active-points", "outside allowed effects");
+    forbidden["enabled"] = true.into();
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(auth),
+            f.request(&before_denied.resource_versions[0].revision),
+            AutomationMutation::Update {
+                kind: AutomationKind::Action,
+                id: "active-points".into(),
+                record: forbidden
+            }
+        )
+        .is_err());
+    let after_denied = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "active-points")
+        .unwrap();
+    assert_eq!(before_denied.value, after_denied.value);
+    assert_eq!(
+        before_denied.resource_versions,
+        after_denied.resource_versions
+    );
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 5.0);
 }

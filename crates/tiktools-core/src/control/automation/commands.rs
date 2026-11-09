@@ -1,6 +1,6 @@
 //! Behavior commands share IDs/capacity with workflows and points. Remote
 //! callers may remove/deactivate complete events, author disabled drafts, or
-//! activate eligible saved definitions under a current reusable delegation.
+//! create, edit and activate definitions under a current reusable delegation.
 use super::*;
 use crate::{collaboration::*, control::CommandCaller};
 
@@ -49,12 +49,19 @@ impl AutomationMutation {
         matches!(self, Self::SetEnabled { enabled: true, .. })
     }
     #[cfg(feature = "persistence")]
+    pub(crate) fn is_reusable_write(&self) -> bool {
+        matches!(self, Self::Create { record, .. } | Self::Update { record, .. } if record.get("enabled") == Some(&Value::Bool(true)))
+    }
+    #[cfg(feature = "persistence")]
     pub(crate) fn is_remote_draft(&self) -> bool {
         matches!(self,Self::Create{record,..}|Self::Update{record,..} if record.get("enabled")==Some(&Value::Bool(false)))
     }
     #[cfg(feature = "persistence")]
     pub(crate) fn authorize_remote(&self, auth: &Authorization) -> Result<Authenticated, Error> {
-        if !self.is_remote_deactivation() && !self.is_remote_draft() && !self.is_remote_activation()
+        if !self.is_remote_deactivation()
+            && !self.is_remote_draft()
+            && !self.is_remote_activation()
+            && !self.is_reusable_write()
         {
             return Err(Error::Forbidden);
         }
@@ -241,6 +248,7 @@ impl AppCore {
                 && !operation.is_remote_deactivation()
                 && !operation.is_remote_draft()
                 && !operation.is_remote_activation()
+                && !operation.is_reusable_write()
             {
                 return Err(OperationError::forbidden(
                     "remote action/definition execution policy is unavailable",
@@ -310,13 +318,14 @@ impl AppCore {
                         other => behavior_command_error(other, &command.request.command_id),
                     })?;
             }
-            let (result, fresh) = if remote && operation.is_remote_activation() {
-                self.db
-                    .execute_reusable_behavior_activation(&operation, &command, &service)
-            } else {
-                self.db.execute_behavior_command(&operation, &command)
-            }
-            .map_err(|e| behavior_command_error(e, &command.request.command_id))?;
+            let (result, fresh) =
+                if remote && (operation.is_remote_activation() || operation.is_reusable_write()) {
+                    self.db
+                        .execute_reusable_behavior_activation(&operation, &command, &service)
+                } else {
+                    self.db.execute_behavior_command(&operation, &command)
+                }
+                .map_err(|e| behavior_command_error(e, &command.request.command_id))?;
             if fresh {
                 // Commit + runtime index installation is one admission barrier;
                 // metadata replay never reinstalls a historical definition.

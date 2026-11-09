@@ -32,10 +32,12 @@ existing durable receipt and expected revision. It holds the business writer
 and the current collaboration identities through the commit, checks author
 ownership and dependent graph restrictions, and rolls back on an unsupported or
 out-of-scope closure. A remote activation does not convert provenance to Owner.
-The graphical controller exposes activation for action and event summaries when
-the host advertises a reusable grant. It records the command in its durable
-journal and retains uncertain outcomes for recovery. Remote creates and edits
-remain disabled drafts, so a complete editing experience is still pending.
+The API also accepts an enabled remote create or update when the complete new
+closure passes the same policy in the commit transaction; otherwise it rolls
+back without changing the live definition. The graphical controller exposes
+activation for action and event summaries and retains uncertain outcomes for
+recovery. Its proposal editor still submits disabled drafts, so the active
+editing experience in that controller remains pending.
 
 Runtime event dispatch captures the saved closure, resolves its authors and
 checks current reusable policies before claiming a cooldown or executing an

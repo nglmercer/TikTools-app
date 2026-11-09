@@ -209,7 +209,7 @@ fn assert_pending(response: &RpcResponse, kind: &str, id: &str, revision: &str) 
 async fn stored_reusable_policy_enables_saved_remote_definition() {
     use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
     let f = Fixture::new();
-    let mut author_grant = grant(&["action:draft"]);
+    let mut author_grant = grant(&["action:draft", "action:active"]);
     author_grant.automation_delegation = Some(AutomationDelegation {
         effects: [DelegatedAutomationEffect::Log].into(),
         allow_dynamic_targets: false,
@@ -219,7 +219,8 @@ async fn stored_reusable_policy_enables_saved_remote_definition() {
     let clean = json!({"id":"draft","name":"Log","enabled":false,"typeId":"core.log","config":{"message":"hello"}});
     let mut enabled = clean.clone();
     enabled["enabled"] = true.into();
-    let rejected = f
+    enabled["id"] = "active".into();
+    let active = f
         .remote(
             &author,
             "automation.create",
@@ -227,7 +228,17 @@ async fn stored_reusable_policy_enables_saved_remote_definition() {
             metadata(&instance, "enabled-create", "0"),
         )
         .await;
-    assert_eq!(rejected.error.unwrap().code, "forbidden");
+    assert!(active.is_ok(), "{active:?}");
+    assert_eq!(
+        active.result.unwrap(),
+        json!({"kind":"action","id":"active","enabled":true,"pendingReview":false})
+    );
+    let updated = f.remote(&author, "automation.update", json!({"kind":"action","id":"active","record":{"id":"active","name":"Log updated","enabled":true,"typeId":"core.log","config":{"message":"new"}}}), metadata(&instance, "enabled-update", "1")).await;
+    assert!(updated.is_ok(), "{updated:?}");
+    assert_eq!(
+        updated.result.unwrap(),
+        json!({"kind":"action","id":"active","enabled":true,"pendingReview":false})
+    );
     let created = f
         .remote(
             &author,

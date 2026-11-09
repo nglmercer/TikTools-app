@@ -76,8 +76,10 @@ pub(crate) fn automation_result_allowed(
                 o.len() == 4
                     && o.keys()
                         .all(|k| matches!(k.as_str(), "kind" | "id" | "enabled" | "pendingReview"))
-            }) && result.get("enabled") == Some(&serde_json::Value::Bool(false))
-                && result.get("pendingReview") == Some(&serde_json::Value::Bool(true))
+            }) && ((result.get("enabled") == Some(&serde_json::Value::Bool(false))
+                && result.get("pendingReview") == Some(&serde_json::Value::Bool(true)))
+                || (result.get("enabled") == Some(&serde_json::Value::Bool(true))
+                    && result.get("pendingReview") == Some(&serde_json::Value::Bool(false))))
                 && result
                     .get("kind")
                     .and_then(serde_json::Value::as_str)
