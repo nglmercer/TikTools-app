@@ -10,13 +10,22 @@ function automationId(value: string): boolean {
   const raw = value.slice(separator + 1);
   return (family === 'action' || family === 'event') && raw.length > 0 && raw.trim() === raw && bytes.encode(raw).length <= 128;
 }
+function validDelegation(value: unknown, caps: unknown[]): boolean {
+  if (!record(value) || Object.keys(value).some((k) => !['effects', 'allowDynamicTargets'].includes(k)) ||
+      !Array.isArray(value['effects']) || value['effects'].length === 0 || value['effects'].length > 7 ||
+      new Set(value['effects']).size !== value['effects'].length || typeof value['allowDynamicTargets'] !== 'boolean' ||
+      !['automation.read', 'automation.edit', 'automation.toggle'].every((cap) => caps.includes(cap))) return false;
+  const needed: Record<string, string | null> = { log: null, delay: null, points: 'points.adjust', http: 'http.request', audio: 'audio.play', emit: 'events.emit', script: 'scripts.execute' };
+  return value['effects'].every((effect) => typeof effect === 'string' && Object.hasOwn(needed, effect) && (needed[effect] === null || caps.includes(needed[effect])));
+}
 /** Validate local edits without silently removing unknown grants or restrictions. */
 export function parseGrant(input: unknown): Grant {
-  if (!record(input) || Object.keys(input).some((key) => !['capabilities', 'resources', 'settingsFields', 'actions', 'maxPointsDelta', 'effects'].includes(key)) ||
+  if (!record(input) || Object.keys(input).some((key) => !['capabilities', 'resources', 'settingsFields', 'actions', 'maxPointsDelta', 'effects', 'automationDelegation'].includes(key)) ||
     !Array.isArray(input['capabilities']) || input['capabilities'].some((v) => !capabilities.includes(v)) ||
     !record(input['resources']) || Object.keys(input['resources']).some((k) => !resourceKinds.includes(k as typeof resourceKinds[number])) ||
     Object.values(input['resources']).some((v) => !ids(v)) || !record(input['settingsFields']) || !record(input['actions']) ||
-    Object.hasOwn(input, 'effects') && !validEffectGrants(input['effects'])) throw new Error('invalid_grant');
+    Object.hasOwn(input, 'effects') && !validEffectGrants(input['effects']) ||
+    Object.hasOwn(input, 'automationDelegation') && !validDelegation(input['automationDelegation'], input['capabilities'])) throw new Error('invalid_grant');
   const automation = input['resources']['automation'];
   if (Array.isArray(automation) && !automation.every(automationId)) throw new Error('invalid_grant');
   for (const map of [input['settingsFields'], input['actions']]) {

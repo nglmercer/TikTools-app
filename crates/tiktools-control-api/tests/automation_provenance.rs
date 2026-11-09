@@ -206,6 +206,55 @@ fn assert_pending(response: &RpcResponse, kind: &str, id: &str, revision: &str) 
 }
 
 #[tokio::test]
+async fn stored_reusable_policy_does_not_yet_enable_remote_definitions() {
+    use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new();
+    let mut author_grant = grant(&["action:draft"]);
+    author_grant.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+    });
+    let author = f.pair(author_grant);
+    let instance = f.instance();
+    let mut enabled = draft("action", "draft");
+    enabled["enabled"] = true.into();
+    let rejected = f
+        .remote(
+            &author,
+            "automation.create",
+            json!({"kind":"action","record":enabled}),
+            metadata(&instance, "enabled-create", "0"),
+        )
+        .await;
+    assert_eq!(rejected.error.unwrap().code, "forbidden");
+    let created = f
+        .remote(
+            &author,
+            "automation.create",
+            json!({"kind":"action","record":draft("action", "draft")}),
+            metadata(&instance, "disabled-create", "0"),
+        )
+        .await;
+    assert_pending(&created, "action", "draft", "1");
+    let enable = f
+        .remote(
+            &author,
+            "automation.enable",
+            json!({"kind":"action","id":"draft"}),
+            metadata(&instance, "enable-draft", "1"),
+        )
+        .await;
+    assert_eq!(enable.error.unwrap().code, "forbidden");
+    assert_delegated(
+        &f.authority("action", "draft").await,
+        &author,
+        "action",
+        "draft",
+    );
+    f.close().await;
+}
+
+#[tokio::test]
 async fn disabled_remote_drafts_are_author_bound_family_scoped_and_never_reveal_definition_receipts(
 ) {
     let f = Fixture::new();

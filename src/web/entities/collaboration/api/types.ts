@@ -14,6 +14,8 @@ export interface HttpEffectGrant {
 }
 export interface AudioEffectGrant { fileRefs: string[]; output: 'host-default'; maxVolume: number; overlaps: ('allow' | 'restart' | 'drop')[] }
 export interface EffectGrants { http: HttpEffectGrant[]; audio: AudioEffectGrant[]; emitTopics: string[] }
+/** Stored future policy; current hosts do not yet enable delegated execution from it. */
+export interface AutomationDelegation { effects: ('log' | 'delay' | 'points' | 'http' | 'audio' | 'emit' | 'script')[]; allowDynamicTargets: boolean }
 export interface Grant {
   capabilities: Capability[];
   resources: Partial<Record<ResourceKind, string[]>>;
@@ -22,6 +24,7 @@ export interface Grant {
   maxPointsDelta: number | null;
   /** Missing effects always denies external sinks, even when a capability is selected. */
   effects?: EffectGrants;
+  automationDelegation?: AutomationDelegation;
 }
 export const viewerGrant = (): Grant => ({ capabilities: ['live.read'], resources: {}, settingsFields: {}, actions: {}, maxPointsDelta: null });
 export interface RemoteLimits {

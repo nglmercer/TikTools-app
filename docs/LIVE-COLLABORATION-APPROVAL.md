@@ -25,6 +25,17 @@ current proposals are still disabled and need the existing per-closure approval
 or owner adoption. Removing a client confirmation does not change that host
 boundary.
 
+The grant contract now reserves an optional `automationDelegation` with a closed
+set of effect classes and an explicit dynamic-target flag. Old grants omit it;
+grant validation requires the automation read/edit/toggle capabilities and the
+corresponding effect capability where applicable. Grant revisions persist and
+revoke the field like other permissions. The grant editor preserves the field in
+advanced JSON but offers no enablement control. **This field is not an execution
+permit:** no runtime or remote activation consumes it yet, and it must not be
+presented to users as working preauthorization. Clients predating the field may
+reject an advanced grant containing it; do not use it in a deployed mixed-version
+environment until the complete feature and compatibility path are implemented.
+
 Implement this as an explicit, revocable owner-managed delegation policy, not
 as an implicit consequence of `automation.edit` or a role name. Existing grants
 must retain their present meaning after upgrades. The policy must identify the
