@@ -13,7 +13,7 @@ use std::{
 
 const BYTES: u64 = 64 * 1024;
 const HISTORY: usize = 16;
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 pub fn timestamp() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -49,6 +49,8 @@ pub enum Operation {
     Delete,
     AdjustPoints,
     DisableEvent,
+    EnableEvent,
+    EnableAction,
     DeleteEvent,
     CreateEventDraft,
     UpdateEventDraft,
@@ -62,6 +64,7 @@ impl Operation {
             Self::Delete => "workflows.delete",
             Self::AdjustPoints => "points.adjust",
             Self::DisableEvent => "automation.disable",
+            Self::EnableEvent | Self::EnableAction => "automation.enable",
             Self::DeleteEvent => "automation.delete",
             Self::CreateEventDraft | Self::CreateActionDraft => "automation.create",
             Self::UpdateEventDraft | Self::UpdateActionDraft => "automation.update",
@@ -73,6 +76,7 @@ impl Operation {
             Self::Delete => "workflowDelete",
             Self::AdjustPoints => "pointsAdjust",
             Self::DisableEvent | Self::DeleteEvent => "automationEventDeactivate",
+            Self::EnableEvent | Self::EnableAction => "automationReusableActivation",
             Self::CreateEventDraft
             | Self::UpdateEventDraft
             | Self::CreateActionDraft
@@ -84,7 +88,9 @@ impl Operation {
             Self::Disable => tiktools_collaboration::Capability::WorkflowsToggle,
             Self::Delete => tiktools_collaboration::Capability::WorkflowsEdit,
             Self::AdjustPoints => tiktools_collaboration::Capability::PointsAdjust,
-            Self::DisableEvent => tiktools_collaboration::Capability::AutomationToggle,
+            Self::DisableEvent | Self::EnableEvent | Self::EnableAction => {
+                tiktools_collaboration::Capability::AutomationToggle
+            }
             Self::DeleteEvent => tiktools_collaboration::Capability::AutomationEdit,
             Self::CreateEventDraft
             | Self::UpdateEventDraft
@@ -96,6 +102,8 @@ impl Operation {
         match self {
             Self::AdjustPoints => tiktools_collaboration::ResourceKind::Viewer,
             Self::DisableEvent
+            | Self::EnableEvent
+            | Self::EnableAction
             | Self::DeleteEvent
             | Self::CreateEventDraft
             | Self::UpdateEventDraft
@@ -105,7 +113,10 @@ impl Operation {
         }
     }
     pub fn scope(self) -> &'static str {
-        if matches!(self, Self::CreateActionDraft | Self::UpdateActionDraft) {
+        if matches!(
+            self,
+            Self::EnableAction | Self::CreateActionDraft | Self::UpdateActionDraft
+        ) {
             "action"
         } else if self.is_event() || matches!(self, Self::CreateEventDraft | Self::UpdateEventDraft)
         {
@@ -115,7 +126,16 @@ impl Operation {
         }
     }
     pub fn is_event(self) -> bool {
-        matches!(self, Self::DisableEvent | Self::DeleteEvent)
+        matches!(
+            self,
+            Self::DisableEvent | Self::DeleteEvent | Self::EnableEvent
+        )
+    }
+    pub fn is_activation(self) -> bool {
+        matches!(self, Self::EnableEvent | Self::EnableAction)
+    }
+    pub fn is_automation_command(self) -> bool {
+        self.is_event() || self.is_activation()
     }
     pub fn is_delete(self) -> bool {
         matches!(self, Self::Delete | Self::DeleteEvent)
@@ -141,10 +161,11 @@ impl Operation {
             Self::Disable | Self::Delete => matches!(version, 1..=VERSION),
             Self::AdjustPoints => matches!(version, 2..=VERSION),
             Self::DisableEvent | Self::DeleteEvent => matches!(version, 3..=VERSION),
+            Self::EnableEvent | Self::EnableAction => matches!(version, 5..=VERSION),
             Self::CreateEventDraft
             | Self::UpdateEventDraft
             | Self::CreateActionDraft
-            | Self::UpdateActionDraft => version == VERSION,
+            | Self::UpdateActionDraft => matches!(version, 4..=VERSION),
         }
     }
 }
@@ -324,7 +345,7 @@ impl Record {
                     return Err(invalid());
                 }
                 if (self.error_code.as_deref() == Some("automation_not_found")
-                    && !self.intent.operation.is_event()
+                    && !self.intent.operation.is_automation_command()
                     && !self.intent.operation.is_proposal())
                     || self.revision.is_some()
                     || !matches!(

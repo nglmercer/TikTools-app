@@ -134,8 +134,16 @@ fn journal_migration_process_fixture() {
 }
 
 #[test]
-fn older_formats_migrate_to_v4_preserving_pending_ids_and_mixed_history_at_every_crash_boundary() {
-    for (version, pending_points) in [(1, false), (2, false), (2, true), (3, false), (3, true)] {
+fn older_formats_migrate_preserving_pending_ids_and_mixed_history_at_every_crash_boundary() {
+    for (version, pending_points) in [
+        (1, false),
+        (2, false),
+        (2, true),
+        (3, false),
+        (3, true),
+        (4, false),
+        (4, true),
+    ] {
         for stage in ["before", "renamed", "after"] {
             let (_t, root, p) = fixture();
             let j = Journal::open(&root, &p).unwrap();
@@ -153,12 +161,18 @@ fn older_formats_migrate_to_v4_preserving_pending_ids_and_mixed_history_at_every
                 });
                 j.finish(r).unwrap();
             }
-            if version == 3 {
+            if version >= 3 {
                 let completed = event_intent(Operation::DeleteEvent);
                 j.begin(completed.clone()).unwrap();
                 j.finish(record(completed)).unwrap();
             }
-            let pending = if version == 3 && !pending_points {
+            let pending = if version == 4 && !pending_points {
+                Intent {
+                    operation: Operation::UpdateActionDraft,
+                    proposal_revision: Some("1".into()),
+                    ..event_intent(Operation::UpdateActionDraft)
+                }
+            } else if version == 3 && !pending_points {
                 event_intent(Operation::DisableEvent)
             } else if pending_points {
                 points_intent()

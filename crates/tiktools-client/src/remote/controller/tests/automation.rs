@@ -752,3 +752,91 @@ async fn switching_profiles_while_syncing_an_event_intent_never_dispatches_and_p
     assert_private_home(home.path());
     f.finish().await;
 }
+
+#[tokio::test]
+async fn reusable_grant_activates_authored_action_and_event_through_native_controller() {
+    use secrecy::ExposeSecret;
+    use tiktools_collaboration::{AutomationDelegation, CommandRequest, DelegatedAutomationEffect};
+    use tiktools_core::control::{AutomationMutation, CommandCaller};
+    let f = Fixture::new().await;
+    let mut delegated = grant();
+    delegated.capabilities.insert(Capability::LiveRead);
+    delegated.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+    });
+    let credentials = f.pair(delegated).await;
+    let auth = f
+        .service
+        .authenticate_live(credentials.access.expose_secret(), false, false)
+        .unwrap();
+    let instance = f.service.instance_id().to_owned();
+    for (kind, record) in [
+        (
+            AutomationKind::Action,
+            json!({"id":"same","name":"Log","enabled":false,"typeId":"core.log","config":{"message":"hello"}}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"same","name":"Chat","enabled":false,"trigger":"tiktok.chat","actionIds":["same"]}),
+        ),
+    ] {
+        f.core
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                CommandRequest {
+                    command_id: uuid::Uuid::new_v4().to_string(),
+                    host_instance_id: instance.clone(),
+                    expected_revision: "0".into(),
+                },
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    manager
+        .install("desk", &f.endpoint, credentials, ClientKind::Agent)
+        .await
+        .unwrap();
+    let controller = Controller::new(manager);
+    controller.connect("desk").await.unwrap();
+    for (family, operation) in [("action", "enable-action"), ("event", "enable-event")] {
+        let page = wait_rows(&controller, |rows| {
+            rows.iter()
+                .any(|r| r["summary"]["kind"] == family && r["summary"]["enabled"] == false)
+        })
+        .await;
+        let row = page["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["summary"]["kind"] == family)
+            .unwrap();
+        let s = controller.status();
+        let hello = s.hello.as_ref().unwrap();
+        assert_eq!(
+            hello.features.get("automationReusableActivation"),
+            Some(&true)
+        );
+        let request = json!({"epoch":s.epoch,"automationRevision":s.automation_revision,"connectionId":hello.connection_id,
+            "hostInstanceId":hello.host_instance_id,"grantRevision":hello.grant_revision,"id":"same",
+            "expectedRevision":row["version"]["revision"],"operation":operation});
+        controller
+            .manage("controller.automation.command", request)
+            .await
+            .unwrap();
+        wait_rows(&controller, |rows| {
+            rows.iter()
+                .any(|r| r["summary"]["kind"] == family && r["summary"]["enabled"] == true)
+        })
+        .await;
+        assert_eq!(
+            controller.status().command_journal.as_ref().unwrap().recent[0].outcome,
+            Outcome::Succeeded
+        );
+    }
+    controller.disconnect().await;
+    f.finish().await;
+}

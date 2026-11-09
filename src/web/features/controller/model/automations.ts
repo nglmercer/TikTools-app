@@ -2,7 +2,7 @@ import { computed, ref, type Ref } from 'vue';
 import type { ControlClient, ResourceVersion } from '@/shared/api/control-client.ts';
 import type { ControllerStatus } from './controller.ts';
 
-export type EventOperation = 'disable-event' | 'delete-event';
+export type EventOperation = 'disable-event' | 'delete-event' | 'enable-event' | 'enable-action';
 export interface AutomationSummary { kind: 'event' | 'action'; id: string; name: string; enabled: boolean; definitionRedacted: true }
 export interface AutomationRow { summary: AutomationSummary; version: ResourceVersion }
 export interface AutomationPage { epoch: string; automationRevision: string; rows: AutomationRow[]; next: number | null }
@@ -83,10 +83,13 @@ export function createAutomationModel(control: ControlClient, deps: Dependencies
   }
   function canChange(item: AutomationRow, operation: EventOperation): boolean {
     const s = deps.status.value; const h = s.hello;
-    return ['disable-event', 'delete-event'].includes(operation) && ready.value && deps.journalMatches() && !deps.blocked() && !!h?.connectionId && !!h.grantRevision &&
-      h.features['automationEventDeactivate'] === true && h.capabilities.includes(operation === 'disable-event' ? 'automation.toggle' : 'automation.edit') &&
-      item.summary.kind === 'event' && (operation !== 'disable-event' || item.summary.enabled) && permitted(s, 'event', item.summary.id) &&
-      rows.value.some((r) => r.summary.kind === 'event' && r.summary.id === item.summary.id && r.version.revision === item.version.revision && r.summary.name === item.summary.name && r.summary.enabled === item.summary.enabled);
+    const activation = operation === 'enable-event' || operation === 'enable-action';
+    const family = operation === 'enable-action' ? 'action' : 'event';
+    return ready.value && deps.journalMatches() && !deps.blocked() && !!h?.connectionId && !!h.grantRevision &&
+      h.features[activation ? 'automationReusableActivation' : 'automationEventDeactivate'] === true &&
+      h.capabilities.includes(operation === 'delete-event' ? 'automation.edit' : 'automation.toggle') &&
+      item.summary.kind === family && (activation ? !item.summary.enabled : operation !== 'disable-event' || item.summary.enabled) && permitted(s, family, item.summary.id) &&
+      rows.value.some((r) => r.summary.kind === family && r.summary.id === item.summary.id && r.version.revision === item.version.revision && r.summary.name === item.summary.name && r.summary.enabled === item.summary.enabled);
   }
   function prepare(item: AutomationRow, operation: EventOperation): AutomationTarget | null {
     const s = deps.status.value; const h = s.hello;
@@ -96,7 +99,8 @@ export function createAutomationModel(control: ControlClient, deps: Dependencies
   }
   function current(target: AutomationTarget): boolean {
     const s = deps.status.value; const h = s.hello;
-    const item = rows.value.find((r) => r.summary.kind === 'event' && r.summary.id === target.id && r.version.revision === target.expectedRevision && r.summary.name === target.name);
+    const family = target.operation === 'enable-action' ? 'action' : 'event';
+    const item = rows.value.find((r) => r.summary.kind === family && r.summary.id === target.id && r.version.revision === target.expectedRevision && r.summary.name === target.name);
     return !!h && !!item && canChange(item, target.operation) && target.epoch === s.epoch && target.profile === s.profile && target.automationRevision === s.automationRevision &&
       target.connectionId === h.connectionId && target.grantRevision === h.grantRevision && target.origin === s.origin && target.hostId === h.hostId &&
       target.hostInstanceId === h.hostInstanceId && target.principalId === h.principalId && target.sessionId === h.sessionId;

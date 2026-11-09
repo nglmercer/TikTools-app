@@ -19,7 +19,7 @@ export interface ControllerStatus {
   hello: { connectionId?: string; grantRevision?: string; hostId: string; principalId: string; sessionId: string; hostInstanceId: string; capabilities: string[]; features: Record<string, boolean>; resourceRestrictions?: Record<string, string[]>; limits?: { requestsPerSecond: number; requestBurst: number } } | null;
 }
 export type WorkflowOperation = 'disable' | 'delete';
-export interface PendingCommand { commandId: string; operation: WorkflowOperation | 'adjust-points' | 'disable-event' | 'delete-event' | 'create-event-draft' | 'update-event-draft' | 'create-action-draft' | 'update-action-draft'; resourceId: string; hostInstanceId: string; expectedRevision?: string; delta?: number; currencyName?: string; proposalRevision?: string; createdAt: number }
+export interface PendingCommand { commandId: string; operation: WorkflowOperation | 'adjust-points' | 'disable-event' | 'delete-event' | 'enable-event' | 'enable-action' | 'create-event-draft' | 'update-event-draft' | 'create-action-draft' | 'update-action-draft'; resourceId: string; hostInstanceId: string; expectedRevision?: string; delta?: number; currencyName?: string; proposalRevision?: string; createdAt: number }
 export interface CommandJournal {
   binding: { profileId: string; origin: string; hostId: string; principalId: string; sessionId: string };
   pending: PendingCommand | null; unavailable: boolean;

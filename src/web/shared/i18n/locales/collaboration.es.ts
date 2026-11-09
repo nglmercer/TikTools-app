@@ -27,7 +27,7 @@ export default {
   grantSave: 'Aplicar permisos', grantTitle: '¿Cambiar estos permisos?', grantMessage: 'Revisa los permisos exactos y las restricciones de recursos. Los controladores existentes se recuperarán con este nuevo acceso.',
   invalidGrant: 'Permisos no válidos. Usa permisos conocidos e IDs exactos; no se permiten comodines.',
   delegationTitle: 'Autorización reutilizable de automatización',
-  delegationHint: 'Elige los efectos que esta identidad podrá usar en automatizaciones guardadas compatibles. Al seleccionar un efecto también se activan los permisos necesarios. Siguen aplicándose las restricciones de recursos y efectos externos. La activación desde el controlador gráfico aún no está disponible.',
+  delegationHint: 'Elige los efectos que esta identidad podrá usar en automatizaciones guardadas compatibles. Al seleccionar un efecto también se activan los permisos necesarios. Siguen aplicándose las restricciones de recursos y efectos externos.',
   delegationDynamic: 'Permitir destinos dinámicos compatibles dentro de los límites concedidos',
   delegationEffects: { log: 'Mensajes de registro', delay: 'Esperas', points: 'Ajustar puntos', http: 'Solicitudes HTTP', audio: 'Reproducir audio', emit: 'Emitir eventos internos', script: 'Ejecutar scripts' },
   effectRules: 'Efectos externos y reglas exactas', capHttp: 'Realizar solicitudes HTTP aprobadas', capAudio: 'Reproducir audio aprobado en este anfitrión', capEmit: 'Emitir temas internos aprobados', capScript: 'Ejecutar scripts de código exacto revisado',

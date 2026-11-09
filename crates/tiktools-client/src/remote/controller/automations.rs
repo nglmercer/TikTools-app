@@ -234,8 +234,12 @@ impl Controller {
         )
     }
 }
-pub(super) fn event_row<'a>(v: &'a View, id: &str) -> Option<&'a AutomationRow> {
-    v.automation.rows.get(&(AutomationFamily::Event, id.into()))
+pub(super) fn automation_row<'a>(
+    v: &'a View,
+    family: AutomationFamily,
+    id: &str,
+) -> Option<&'a AutomationRow> {
+    v.automation.rows.get(&(family, id.into()))
 }
 
 fn projection_bytes(rows: &BTreeMap<(AutomationFamily, String), AutomationRow>) -> usize {

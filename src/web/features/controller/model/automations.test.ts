@@ -49,6 +49,22 @@ it('keeps equal family IDs separate and confirms only an event with native-gener
   expect(f.calls.every((c) => c.method.startsWith('controller.') && c.method !== 'controller.forward')).toBe(true);
 });
 
+it('enables only a disabled item of the matching family under a reusable grant', async () => {
+  const f = fixture();
+  f.status.hello!.features['automationReusableActivation'] = true;
+  const event = automationRow('event'); const action = automationRow('action');
+  event.summary.enabled = false; action.summary.enabled = false;
+  f.setRows([event, action]); await f.model.start();
+  expect(f.model.automation.prepare(f.model.automation.rows.value[0]!, 'enable-action')).toBeNull();
+  expect(f.model.automation.prepare(f.model.automation.rows.value[1]!, 'enable-event')).toBeNull();
+  const target = f.model.automation.prepare(f.model.automation.rows.value[1]!, 'enable-action')!;
+  expect(await f.model.automation.change(target)).toBe(true);
+  expect(f.calls.find((call) => call.method === 'controller.automation.command')?.params).toMatchObject({ operation: 'enable-action', id: 'same', expectedRevision: '1' });
+  f.status.hello!.features['automationReusableActivation'] = false; f.status.hello!.grantRevision = '2'; await f.model.refresh();
+  expect(f.model.automation.current(target)).toBe(false);
+  expect(f.model.automation.prepare(f.model.automation.rows.value[0]!, 'enable-event')).toBeNull();
+});
+
 it('preserves event confirmation through unrelated workflow/points display revisions but fences its event update', async () => {
   const f = fixture(); await f.model.start(); const target = f.model.automation.prepare(f.model.automation.rows.value[0]!, 'delete-event')!;
   f.status.viewRevision = '2'; f.status.pointsRevision = '99'; await f.model.refresh();

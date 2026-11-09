@@ -72,3 +72,29 @@ it.each(['grant', 'read', 'connection'] as const)('removes inaccessible event la
     expect(calls.some((c) => c.method === 'controller.automation.command')).toBe(false);
   } finally { wrapper.unmount(); model.stop(); }
 });
+
+it('shows enable buttons for disabled action and event when reusable activation is advertised', async () => {
+  await activateLocale('en');
+  const { createControllerModel } = await import('../model/controller.ts');
+  const { default: ControllerAutomations } = await import('./ControllerAutomations.vue');
+  const status: ControllerStatus = { epoch: '1', viewRevision: '1', automationRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://host.example', errorCode: null,
+    hello: { connectionId: 'connection', grantRevision: '1', hostId: 'host', principalId: 'mod', sessionId: 'device', hostInstanceId: 'instance', capabilities: ['automation.read', 'automation.toggle'], features: { automationSummary: true, automationReusableActivation: true } },
+    commandJournal: { binding: { profileId: 'desk', origin: 'https://host.example', hostId: 'host', principalId: 'mod', sessionId: 'device' }, pending: null, recent: [], unavailable: false } };
+  const rows: AutomationRow[] = ['event', 'action'].map((kind) => ({ summary: { kind: kind as 'event' | 'action', id: 'same', name: kind, enabled: false, definitionRedacted: true }, version: { kind: 'automation', scope: kind, id: 'same', revision: '1' } }));
+  const { client, calls } = createFakeControlClient((method) => {
+    if (method === 'controller.profiles') return [];
+    if (method === 'controller.status') return structuredClone(status);
+    if (method === 'controller.workflows') return { epoch: status.epoch, viewRevision: status.viewRevision, rows: [], next: null };
+    if (method === 'controller.automations') return { epoch: status.epoch, automationRevision: status.automationRevision, rows, next: null };
+    if (method === 'controller.automation.command') return {};
+    throw new Error(method);
+  });
+  const model = createControllerModel(client); await model.start();
+  const wrapper = mount(ControllerAutomations, { props: { model: model.automation, epoch: '1', busy: false }, global: { plugins: [i18n] } });
+  try {
+    const button = wrapper.findAll('li')[1]!.findAll('button').find((item) => item.text() === 'Enable')!;
+    expect(button.attributes('disabled')).toBeUndefined();
+    await button.trigger('click'); await flushPromises();
+    expect(calls.find((call) => call.method === 'controller.automation.command')?.params).toMatchObject({ operation: 'enable-action', id: 'same' });
+  } finally { wrapper.unmount(); model.stop(); }
+});

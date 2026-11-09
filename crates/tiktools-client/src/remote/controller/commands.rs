@@ -207,7 +207,10 @@ fn validate_success(
             Err(protocol())
         };
     }
-    if intent.operation.is_event() && result.as_object().is_none_or(|o| o.len() != 2) {
+    if intent.operation.is_event()
+        && !intent.operation.is_activation()
+        && result.as_object().is_none_or(|o| o.len() != 2)
+    {
         return Err(protocol());
     }
     let before = tiktools_collaboration::stream_sequence(
@@ -228,6 +231,15 @@ fn validate_success(
         return Ok(versions[0].revision.clone());
     }
     let changed = match intent.operation {
+        Operation::EnableEvent | Operation::EnableAction => {
+            if result.as_object().is_none_or(|o| o.len() != 3)
+                || result.get("kind").and_then(Value::as_str) != Some(intent.operation.scope())
+                || result.get("enabled") != Some(&Value::Bool(true))
+            {
+                return Err(protocol());
+            }
+            true
+        }
         Operation::Disable | Operation::DisableEvent => {
             if result.get("enabled") != Some(&Value::Bool(false)) {
                 return Err(protocol());
@@ -757,11 +769,8 @@ fn allowed_automation(
     p: &AutomationCommand,
     remote: &RemoteClient,
 ) -> Result<(), ClientError> {
-    if !p.operation.is_event() {
-        return Err(fail(
-            "invalid_params",
-            "only complete event operations are permitted",
-        ));
+    if !p.operation.is_automation_command() {
+        return Err(fail("invalid_params", "unsupported automation operation"));
     }
     let v = shared.view.read().unwrap_or_else(|p| p.into_inner());
     let h = remote.hello();
@@ -801,18 +810,23 @@ fn allowed_automation(
         || !h.capabilities.contains(&p.operation.capability())
         || h.resource_restrictions
             .get(&ResourceKind::Automation)
-            .is_some_and(|ids| !ids.contains(&format!("event:{}", p.id)))
+            .is_some_and(|ids| !ids.contains(&format!("{}:{}", p.operation.scope(), p.id)))
     {
         return Err(fail("forbidden", "event operation is unavailable"));
     }
-    let row = automations::event_row(&v, &p.id)
+    let family = tiktools_collaboration::AutomationFamily::from_scope(p.operation.scope())
+        .ok_or_else(protocol)?;
+    let row = automations::automation_row(&v, family, &p.id)
         .ok_or_else(|| fail("stale_view", "event is no longer available"))?;
     if row.version.revision != p.expected_revision
         || row.version.kind != ResourceKind::Automation
-        || row.version.scope != "event"
+        || row.version.scope != p.operation.scope()
         || row.version.id != p.id
     {
         return Err(fail("stale_view", "event revision changed; review again"));
+    }
+    if p.operation.is_activation() && row.summary.enabled {
+        return Err(fail("stale_view", "automation is already enabled"));
     }
     Ok(())
 }
@@ -860,7 +874,7 @@ async fn mutate_automation(
     let reply = remote
         .call_value_with_meta(
             intent.operation.method(),
-            json!({"kind":"event","id":intent.resource_id}),
+            json!({"kind":intent.operation.scope(),"id":intent.resource_id}),
             Some(RequestMetadata {
                 command_id: Some(intent.command_id.clone()),
                 host_instance_id: Some(intent.host_instance_id.clone()),

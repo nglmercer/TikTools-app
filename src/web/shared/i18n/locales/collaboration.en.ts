@@ -26,7 +26,7 @@ export default {
   grantSave: 'Apply permissions', grantTitle: 'Change these permissions?', grantMessage: 'Review the exact permissions and resource restrictions. Existing controllers will recover with this new grant.',
   invalidGrant: 'Invalid grant. Use known permissions and exact resource IDs; wildcards are not allowed.',
   delegationTitle: 'Reusable automation authorization',
-  delegationHint: 'Choose the effects this identity may use in supported saved automations. Selecting an effect also enables its required permissions. Existing resource and external effect restrictions still apply. Activation from the graphical controller is not yet available.',
+  delegationHint: 'Choose the effects this identity may use in supported saved automations. Selecting an effect also enables its required permissions. Existing resource and external effect restrictions still apply.',
   delegationDynamic: 'Allow supported dynamic targets within the granted limits',
   delegationEffects: { log: 'Log messages', delay: 'Delay', points: 'Adjust points', http: 'HTTP requests', audio: 'Play audio', emit: 'Emit internal events', script: 'Run scripts' },
   effectRules: 'External effects and exact rules', capHttp: 'Make approved HTTP requests', capAudio: 'Play approved audio on this host', capEmit: 'Emit approved internal topics', capScript: 'Run exact reviewed scripts',
