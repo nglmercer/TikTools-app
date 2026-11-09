@@ -51,19 +51,31 @@ identify other creators or expose their activity counts. The desktop selects
 among the current grant's creators and clears old rows on a scope or connection
 change; it polls every two seconds and retains at most 100 displayed rows.
 
-The gap flag does not cover events shed by LIVE ingress before feed publication.
-A future loss signal should associate a sticky loss generation with the
-trusted connection generation and its verified creator, expose it only in that
-creator's authorized stream, and avoid revealing global drop counts or other
-creators' activity. Saturation and reconnect races need dedicated tests before
-such a signal can be relied on.
+The gap flag also reports known ingress drops attributable to a stamped native
+generation. The pump binds a generation from its native Connected event, and
+the worker can bind from a matching trusted context; event JSON cannot bind a
+creator. A drop observed first remains pending until that generation is bound.
+Each bound creator stream keeps a sticky warning without counts until its
+bounded in-memory stream is evicted or the process restarts. Conflicting
+generation bindings or more than 128 unresolved generations make the scoped
+feed unavailable, rather than attributing loss to an uncertain creator.
+The 128 most recent generation bindings are retained; a later loss for an
+evicted generation again waits for a trusted binding. This is a conservative
+signal: a dropped packet can be a type omitted from the scoped projection.
+Upstream `broadcast::Lagged` has no generation and cannot be attributed safely;
+loss of unknown generations that never bind, an aborted worker's remaining
+items, and process failure may also go unreported. A false gap result does not
+prove a complete LIVE archive.
 
-Executed evidence: three EventBus cases cover creator isolation, independent
-retention, forged JSON and entropy failure; a protobuf TikTok fixture covers
-matching, stale and absent host connection context. An actual local TLS
+Executed evidence: five EventBus cases cover creator isolation, independent
+retention, pending and ambiguous loss, forged JSON and entropy failure; 17
+native ingress cases include queue saturation, a reconnect across two creators,
+discard of queued events from an old connection, and a drop observed before its
+creator is known. A protobuf TikTok fixture covers matching, stale and absent
+host connection context, including the scoped loss warning. An actual local TLS
 controller fixture verifies two creators, a disallowed read, grant change and
-stale connection rejection. Twelve focused frontend model/component cases
-cover selection, stale in-flight pages, cursor resets and rendering; Vue type
+stale connection rejection. Thirteen focused frontend model/component cases
+cover selection, switching after a feed error, stale in-flight pages, cursor resets and rendering; Vue type
 checking also passed. These use local fixtures and do not prove a real TikTok
 LIVE, two physical PCs, sustained-load behavior, or durable feed replay.
 

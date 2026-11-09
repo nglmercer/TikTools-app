@@ -382,7 +382,16 @@ pub(crate) async fn admit_stamped_event(
     }
     if core.live_admission.is_cancelled() {
         stats.admission_cancelled.fetch_add(1, Ordering::Relaxed);
+        if matches!(&event, ClientEvent::Event(_)) {
+            core.events.record_live_ingress_gap(generation);
+        }
         return;
+    }
+    if let ClientEvent::Connected(info) = &event {
+        // This identity comes from the stamped native lifecycle, before the
+        // worker can be delayed behind its queue; it is not event JSON.
+        core.events
+            .bind_live_generation(generation, &info.unique_id);
     }
     match event {
         // Lifecycle transitions are rare and ordering-sensitive: wait for
@@ -419,6 +428,7 @@ pub(crate) async fn admit_stamped_event(
             match sender.try_reserve() {
                 Ok(permit) => publish_reserved(stats, permit, item),
                 Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                    core.events.record_live_ingress_gap(generation);
                     tracing::debug!("live ingress worker is gone; pump stops");
                 }
                 Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
@@ -454,6 +464,7 @@ async fn admit_full(
         _ => false,
     };
     if !critical {
+        core.events.record_live_ingress_gap(item.generation);
         if let ClientEvent::Event(data) = &item.event {
             if let tiktools_tiktok::events::CanonicalLiveEvent::Like(like) = &data.base {
                 stats.dropped_like_batches.fetch_add(1, Ordering::Relaxed);
@@ -480,6 +491,7 @@ async fn admit_full(
         biased;
         () = core.live_admission.cancelled() => {
             stats.admission_cancelled.fetch_add(1, Ordering::Relaxed);
+            core.events.record_live_ingress_gap(item.generation);
             return;
         }
         reserved = tokio::time::timeout(CRITICAL_SEND_TIMEOUT, sender.reserve()) => reserved,
@@ -487,9 +499,11 @@ async fn admit_full(
     match reserved {
         Ok(Ok(permit)) => publish_reserved(stats, permit, item),
         Ok(Err(_)) => {
+            core.events.record_live_ingress_gap(item.generation);
             tracing::debug!("live ingress worker is gone; pump stops");
         }
         Err(_) => {
+            core.events.record_live_ingress_gap(item.generation);
             stats.dropped_critical.fetch_add(1, Ordering::Relaxed);
             core.aggregations.ingress_loss(1);
             core.record_event_gap();
@@ -621,14 +635,17 @@ async fn run_ingress_dispatch(
         core.live_ingress.in_flight.fetch_add(1, Ordering::Relaxed);
         // Stale-generation fence: a newer connection exists, so this data
         // item belongs to an older session and must not be credited to the
-        // current creator. Lifecycle items always pass; they establish the
-        // generation this fence compares against.
+        // current creator. Stale lifecycle items are fenced as well; an
+        // accepted Connected item establishes the new worker generation.
         let current = core
             .live
             .connection_snapshot()
             .generation
             .max(core.connection_sequence.load(Ordering::Acquire));
         if item.generation < current {
+            if matches!(&item.event, ClientEvent::Event(_)) {
+                core.events.record_live_ingress_gap(item.generation);
+            }
             core.live_ingress.in_flight.fetch_sub(1, Ordering::Relaxed);
             core.live_ingress.stale.fetch_add(1, Ordering::Relaxed);
             continue;
@@ -682,7 +699,10 @@ async fn run_ingress_dispatch(
     // everything (this loop runs with an empty queue), emergency shutdown
     // accounts for whatever is still buffered.
     receiver.close();
-    while receiver.try_recv().is_ok() {
+    while let Ok(item) = receiver.try_recv() {
+        if matches!(item.event, ClientEvent::Event(_)) {
+            core.events.record_live_ingress_gap(item.generation);
+        }
         core.live_ingress.queued.fetch_sub(1, Ordering::Relaxed);
         core.live_ingress.cancelled.fetch_add(1, Ordering::Relaxed);
     }
@@ -736,6 +756,124 @@ mod tests {
             }),
             None,
         )
+    }
+
+    fn connected(creator: &str) -> ClientEvent {
+        ClientEvent::Connected(tiktools_tiktok::ConnectionInfo {
+            unique_id: creator.to_owned(),
+            room_id: "room".into(),
+            title: String::new(),
+            nickname: String::new(),
+            avatar_url: None,
+            viewers: 0,
+            total_users: 0,
+            gifts: Vec::new(),
+        })
+    }
+
+    #[tokio::test]
+    async fn saturated_ingress_attributes_gap_to_stamped_creator_across_reconnect() {
+        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(1);
+        let stamped = |generation, event| tiktools_tiktok::StampedClientEvent { generation, event };
+        admit_stamped_event(&core, &sender, stamped(1, connected("alice"))).await;
+        // Connected is still queued, so the worker has not set the context.
+        admit_stamped_event(&core, &sender, stamped(1, ClientEvent::Event(chat()))).await;
+        let alice = core
+            .events
+            .creator_feed("alice", None, 0, 64, 2048)
+            .unwrap();
+        assert!(alice.gap);
+        assert!(
+            !core
+                .events
+                .creator_feed("bob", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        receiver.recv().await.unwrap();
+        admit_stamped_event(&core, &sender, stamped(2, connected("bob"))).await;
+        // A late old-generation packet is never attributed to Bob.
+        admit_stamped_event(&core, &sender, stamped(1, ClientEvent::Event(chat()))).await;
+        assert!(
+            !core
+                .events
+                .creator_feed("bob", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        admit_stamped_event(&core, &sender, stamped(2, ClientEvent::Event(chat()))).await;
+        assert!(
+            core.events
+                .creator_feed("bob", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        assert!(
+            core.events
+                .creator_feed("alice", alice.stream_id.as_deref(), 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+    }
+
+    #[tokio::test]
+    async fn unresolved_shed_loss_is_bound_only_after_matching_connected_event() {
+        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(1);
+        sender
+            .send(IngressItem {
+                generation: 9,
+                event: ClientEvent::Event(chat()),
+            })
+            .await
+            .unwrap();
+        admit_stamped_event(
+            &core,
+            &sender,
+            tiktools_tiktok::StampedClientEvent {
+                generation: 7,
+                event: ClientEvent::Event(chat()),
+            },
+        )
+        .await;
+        assert!(
+            !core
+                .events
+                .creator_feed("alice", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        assert!(
+            !core
+                .events
+                .creator_feed("bob", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        receiver.recv().await.unwrap();
+        admit_stamped_event(
+            &core,
+            &sender,
+            tiktools_tiktok::StampedClientEvent {
+                generation: 7,
+                event: connected("alice"),
+            },
+        )
+        .await;
+        assert!(
+            core.events
+                .creator_feed("alice", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        assert!(
+            !core
+                .events
+                .creator_feed("bob", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
     }
 
     fn gift_final() -> NativeLiveEvent {
@@ -983,6 +1121,42 @@ mod tests {
         assert_eq!(core.live_ingress.queued.load(Ordering::Relaxed), 0);
         assert_eq!(core.live_ingress.in_flight.load(Ordering::Relaxed), 0);
         assert_eq!(core.live_ingress.outstanding(), 0);
+    }
+
+    #[tokio::test]
+    async fn stale_queued_events_report_loss_only_for_their_creator() {
+        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+        for (generation, event) in [
+            (1, connected("alice")),
+            (1, ClientEvent::Event(chat())),
+            (2, connected("bob")),
+        ] {
+            admit_stamped_event(
+                &core,
+                &sender,
+                tiktools_tiktok::StampedClientEvent { generation, event },
+            )
+            .await;
+        }
+        core.connection_sequence.store(2, Ordering::Release);
+        drop(sender);
+        run_ingress_worker(
+            Arc::clone(&core),
+            receiver,
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await;
+        let alice = core
+            .events
+            .creator_feed("alice", None, 0, 64, 2048)
+            .unwrap();
+        let bob = core.events.creator_feed("bob", None, 0, 64, 2048).unwrap();
+        assert!(alice.gap);
+        assert!(alice.events.is_empty());
+        assert!(!bob.gap);
+        assert!(bob.events.is_empty());
+        assert_eq!(core.live_ingress.stale.load(Ordering::Relaxed), 2);
     }
 
     #[tokio::test]

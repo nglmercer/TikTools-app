@@ -350,12 +350,18 @@ struct CreatorFeedStream {
     id: String,
     next: u64,
     last_global: u64,
+    /// Sticky for the lifetime of this bounded stream. A drop can precede
+    /// the first retained event, so no cursor position can describe it.
+    ingress_gap: bool,
     events: std::collections::VecDeque<CreatorFeedEvent>,
 }
 #[derive(Default)]
 struct FeedHistoryState {
     entries: std::collections::VecDeque<FeedHistoryEntry>,
     creators: std::collections::BTreeMap<String, CreatorFeedStream>,
+    /// Host-only bindings; event payload JSON never supplies these values.
+    live_generations: std::collections::BTreeMap<u64, String>,
+    pending_ingress_gaps: std::collections::BTreeSet<u64>,
     scoped_unavailable: bool,
 }
 type FeedHistory = Arc<Mutex<FeedHistoryState>>;
@@ -396,6 +402,7 @@ impl FeedHistoryState {
                     id,
                     next: 0,
                     last_global: sequence,
+                    ingress_gap: false,
                     events: std::collections::VecDeque::new(),
                 },
             );
@@ -488,6 +495,73 @@ impl EventBus {
     /// cannot place a generic event into a creator-scoped feed.
     pub fn publish_live_event_from_creator(&self, event: Value, creator: Option<&str>) {
         self.publish(DomainEvent::LiveUiEvent { event }, true, creator);
+    }
+
+    /// Bind a native transport generation to a creator obtained from its
+    /// stamped Connected event or a matching trusted connection context.
+    /// Only the ingress pipeline may call this; payload fields are untrusted.
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) fn bind_live_generation(&self, generation: u64, creator: &str) {
+        if !valid_creator_id(creator) {
+            return;
+        }
+        // Match the publication lock order: sequence, then history.
+        let sequence = *self.ui_sequence.lock().unwrap_or_else(|e| e.into_inner());
+        let mut history = self.feed_history.lock().unwrap_or_else(|e| e.into_inner());
+        if history.scoped_unavailable {
+            return;
+        }
+        if history
+            .live_generations
+            .get(&generation)
+            .is_some_and(|id| id != creator)
+        {
+            // An ambiguous generation must never send another creator's
+            // loss indication to this caller.
+            history.scoped_unavailable = true;
+            return;
+        }
+        history
+            .live_generations
+            .insert(generation, creator.to_owned());
+        while history.live_generations.len() > 128 {
+            history.live_generations.pop_first();
+        }
+        if history.pending_ingress_gaps.remove(&generation) {
+            if let Some(stream) =
+                history.creator_stream(creator, sequence, |bytes| getrandom::fill(bytes).is_ok())
+            {
+                stream.ingress_gap = true;
+                stream.last_global = sequence;
+            }
+        }
+    }
+
+    /// Record loss for its stamped native generation without exposing counts.
+    /// Unknown generations stay pending until a trusted identity is observed.
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) fn record_live_ingress_gap(&self, generation: u64) {
+        let sequence = *self.ui_sequence.lock().unwrap_or_else(|e| e.into_inner());
+        let mut history = self.feed_history.lock().unwrap_or_else(|e| e.into_inner());
+        if history.scoped_unavailable {
+            return;
+        }
+        if let Some(creator) = history.live_generations.get(&generation).cloned() {
+            if let Some(stream) =
+                history.creator_stream(&creator, sequence, |bytes| getrandom::fill(bytes).is_ok())
+            {
+                stream.ingress_gap = true;
+                stream.last_global = sequence;
+            }
+        } else if !history.pending_ingress_gaps.contains(&generation) {
+            // A bounded failure is safer than silently attributing or
+            // forgetting losses from unknown generations.
+            if history.pending_ingress_gaps.len() >= 128 {
+                history.scoped_unavailable = true;
+            } else {
+                history.pending_ingress_gaps.insert(generation);
+            }
+        }
     }
 
     /// Preserve state/history/UI delivery without invoking arbitrary plugin
@@ -689,7 +763,8 @@ impl EventBus {
             oldest_cursor: oldest.to_string(),
             latest_cursor: latest.to_string(),
             next_cursor: last.to_string(),
-            gap: reset
+            gap: current.is_some_and(|s| s.ingress_gap)
+                || reset
                 || exhausted
                 || (oldest > 0
                     && ((after == 0 && oldest > 1)
@@ -1522,6 +1597,60 @@ mod feed_history_tests {
         assert_eq!(recovered.next_cursor, "1");
         assert_eq!(recovered.events.len(), 1);
         assert_eq!(recovered.events[0].text, "new");
+    }
+
+    #[cfg(feature = "native-tiktok")]
+    #[test]
+    fn creator_feed_loss_waits_for_trusted_generation_and_remains_scoped() {
+        let bus = EventBus::new(2);
+        // Data can be shed before the worker processes the Connected item.
+        bus.record_live_ingress_gap(10);
+        publish_creator(&bus, "bob", "private");
+        let bob = bus.creator_feed("bob", None, 0, 64, 2048).unwrap();
+        assert!(!bob.gap);
+        assert!(!bus.creator_feed("alice", None, 0, 64, 2048).unwrap().gap);
+        bus.bind_live_generation(11, "bob");
+        assert!(!bus.creator_feed("bob", None, 0, 64, 2048).unwrap().gap);
+        bus.bind_live_generation(10, "alice");
+        let alice = bus.creator_feed("alice", None, 0, 64, 2048).unwrap();
+        assert!(alice.gap);
+        assert!(alice.stream_id.is_some());
+        assert!(alice.events.is_empty());
+        publish_creator(&bus, "alice", "after loss");
+        let tail = bus
+            .creator_feed("alice", alice.stream_id.as_deref(), 0, 64, 2048)
+            .unwrap();
+        assert!(tail.gap);
+        assert_eq!(tail.events[0].text, "after loss");
+        let next = bus
+            .creator_feed("alice", alice.stream_id.as_deref(), 1, 64, 2048)
+            .unwrap();
+        assert!(
+            next.gap,
+            "loss remains visible to late and multiple readers"
+        );
+        let bob_after = bus
+            .creator_feed("bob", bob.stream_id.as_deref(), 0, 64, 2048)
+            .unwrap();
+        assert!(!bob_after.gap);
+        assert_eq!(bob_after.events[0].text, "private");
+    }
+
+    #[cfg(feature = "native-tiktok")]
+    #[test]
+    fn creator_feed_ambiguous_or_unbounded_generation_state_fails_closed() {
+        let bus = EventBus::new(2);
+        bus.bind_live_generation(1, "alice");
+        bus.bind_live_generation(1, "bob");
+        assert!(bus.creator_feed("alice", None, 0, 64, 2048).is_err());
+        assert!(bus.creator_feed("bob", None, 0, 64, 2048).is_err());
+        let bus = EventBus::new(2);
+        for generation in 0..128 {
+            bus.record_live_ingress_gap(generation);
+        }
+        assert!(bus.creator_feed("alice", None, 0, 64, 2048).is_ok());
+        bus.record_live_ingress_gap(128);
+        assert!(bus.creator_feed("alice", None, 0, 64, 2048).is_err());
     }
 
     #[test]

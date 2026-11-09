@@ -481,6 +481,14 @@ impl AppCore {
                         .filter(|c| c.connection_id == format!("connection-{generation}"))
                 })
                 .map(|c| c.unique_id.as_str());
+            if let (Some(generation), Some(creator)) = (generation, creator) {
+                self.events.bind_live_generation(generation, creator);
+            } else if let Some(generation) = generation {
+                // The global UI still receives the event, but a mismatched or
+                // absent context prevents scoped delivery. Attribute that
+                // loss only through the native generation binding.
+                self.events.record_live_ingress_gap(generation);
+            }
             self.events.publish_live_event_from_creator(ui, creator);
             if let (tiktools_tiktok::events::CanonicalLiveEvent::Like(like), Some(context)) =
                 (&event.base, context.as_ref())

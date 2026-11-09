@@ -151,10 +151,13 @@ rows. Creator-specific cursors do not expose the shared feed sequence, and
 retention expiry or a host restart is marked as a gap. Scoped projection
 limits author/nickname to 64 characters and message text to 128 characters.
 This is polling, not durable replay or a complete LIVE archive.
-The gap indicator covers retained-history loss and stream resets; it does not
-currently report events dropped before they enter the feed, such as when LIVE
-ingress is overloaded. Activity can therefore be missing even when no gap is
-shown.
+The gap indicator covers retained-history loss, stream resets, and known
+ingress drops attributable to the selected creator's stamped native
+connection. That ingress warning remains visible for the lifetime of the
+in-memory creator stream; it reports no event counts. Some loss still cannot
+be attributed, including upstream broadcast lag (which carries no connection
+generation) and abrupt worker termination. Activity can therefore be missing
+even when no gap is shown.
 
 The LIVE activity panel can filter its bounded, locally displayed
 entries by kind and search author, nickname or text. Filters do not query the

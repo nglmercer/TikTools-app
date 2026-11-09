@@ -545,13 +545,18 @@ mod regression_tests {
             .prepare_live_event_with_generation(gift, Some(7))
             .is_some());
         assert_eq!(core.events.feed_backfill(0, 64).events.len(), 3);
-        assert_eq!(
-            core.events
-                .creator_feed("fixture-creator", scoped.stream_id.as_deref(), 1, 64, 2048)
-                .unwrap()
+        let after_context_loss = core
+            .events
+            .creator_feed("fixture-creator", scoped.stream_id.as_deref(), 1, 64, 2048)
+            .unwrap();
+        assert!(after_context_loss.events.is_empty());
+        assert!(after_context_loss.gap);
+        assert!(
+            !core
                 .events
-                .len(),
-            0
+                .creator_feed("other-creator", None, 0, 64, 2048)
+                .unwrap()
+                .gap
         );
         let mut gift_ui = false;
         let mut original = false;
