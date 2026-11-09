@@ -41,6 +41,13 @@ pub struct WorkspaceOperationGuard {
     _file: File,
 }
 
+struct WorkspaceStateGuard(File);
+impl Drop for WorkspaceStateGuard {
+    fn drop(&mut self) {
+        let _ = FileExt::unlock(&self.0);
+    }
+}
+
 fn private_directory(path: &Path) -> Result<(), StoreError> {
     let mut builder = fs::DirBuilder::new();
     builder.recursive(true);
@@ -170,6 +177,25 @@ impl WorkspaceStore {
     pub fn load(&self) -> Result<Option<WorkspaceStateSnapshot>, StoreError> {
         let _guard = self.lock()?;
         self.read_locked()
+    }
+    /// Invoke a synchronous callback while holding the same private state
+    /// lock used by `save`. Returns `None` instead of waiting for a competing
+    /// writer. The callback must not reenter this store, await or do network
+    /// I/O; callers performing filesystem work must use a blocking thread.
+    /// This coordinates only writers that honor the workspace state lock.
+    pub fn try_with_locked_snapshot<T, E: From<StoreError>>(
+        &self,
+        operation: impl FnOnce(Option<WorkspaceStateSnapshot>) -> Result<T, E>,
+    ) -> Result<Option<T>, E> {
+        let file = self.lock_file("workspace-state.lock").map_err(E::from)?;
+        match FileExt::try_lock_exclusive(&file) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(None),
+            Err(error) => return Err(E::from(StoreError::Io(error))),
+        }
+        let _guard = WorkspaceStateGuard(file);
+        let snapshot = self.read_locked().map_err(E::from)?;
+        Ok(Some(operation(snapshot)?))
     }
     /// A rename may commit before a directory-fsync failure is returned. Reload
     /// on storage error; neither retry a prepared request nor erase uncertainty.

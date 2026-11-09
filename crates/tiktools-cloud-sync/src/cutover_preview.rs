@@ -65,6 +65,14 @@ impl CutoverPreview {
         &self.candidate.entries
     }
 
+    /// Check the full state, including its next local generation, against the
+    /// exact candidate produced by review.
+    pub(crate) fn matches_bootstrap(&self, actual: &WorkspaceState) -> bool {
+        let mut expected = self.candidate.clone();
+        expected.mark_bootstrap_complete();
+        expected == *actual
+    }
+
     /// Canonical, versioned review material. A prepared migration must bind
     /// the entire source snapshot, including records that do not become v2
     /// entries, not merely the resulting staged edits.

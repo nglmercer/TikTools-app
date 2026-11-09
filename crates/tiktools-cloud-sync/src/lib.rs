@@ -20,6 +20,10 @@ pub use workspace::{
 };
 mod cutover_preview;
 pub use cutover_preview::CutoverPreview;
+#[allow(dead_code)] // No product source/package fence exists yet.
+mod cutover_execution;
+#[cfg(test)]
+pub(crate) use cutover_execution::CutoverExecution;
 mod protocol_fence;
 pub use protocol_fence::{
     CutoverLease, ProtocolFence, ProtocolFenceError, V1UncertainUpload, V2Lease,
@@ -412,11 +416,14 @@ impl SyncCoordinator {
     }
 
     /// Flip the opt-in flag. Disabling stops staging and syncing but keeps
-    /// the stored state, so re-enabling resumes where it left off.
+    /// the stored state. Enabling currently supports the v1 product path;
+    /// enabling an account already switched to v2 requires product wiring.
     pub fn set_enabled(&self, enabled: bool) -> Result<SyncStatus, SyncCoordError> {
         let lease = self.protocol.try_exclusive_v1()?;
-        if let Some((origin, account)) = self.current_identity()? {
-            lease.ensure_v1(&origin, &account)?;
+        if enabled {
+            if let Some((origin, account)) = self.current_identity()? {
+                lease.ensure_v1(&origin, &account)?;
+            }
         }
         self.ensure_consent_marker()?;
         // The previous file can be missing or corrupt. A counter restarted

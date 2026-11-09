@@ -677,6 +677,57 @@ impl V1Lease {
 }
 
 impl CutoverLease {
+    /// Reconstruct an interrupted preparation for a new explicit review.
+    /// The v1 inputs, installed selections and resulting candidate must hash
+    /// to the original prepared marker; no migration state is changed.
+    pub(crate) fn preview_preparing(
+        &self,
+        origin: &str,
+        account: &str,
+        selections: &[PluginSelection],
+    ) -> Result<CutoverPreview, ProtocolFenceError> {
+        self.ensure_legacy_allowed(origin, account)?;
+        if self.uncertain_uploads(origin, account)? != 0 {
+            return Err(ProtocolFenceError::UncertainV1);
+        }
+        let record = self
+            .fence
+            .read_record(origin, account)?
+            .ok_or(ProtocolFenceError::StaleCutover)?;
+        if record.format_version != 2 || record.mode != ProtocolMode::Preparing {
+            return Err(ProtocolFenceError::StaleCutover);
+        }
+        let legacy = self.fence.legacy_store(origin, account)?.0.load()?;
+        let preview =
+            CutoverPreview::new(origin.into(), account.into(), selections, legacy.as_ref())
+                .map_err(|_| ProtocolFenceError::StaleCutover)?;
+        if record.candidate_sha256 != candidate_hash(&preview)? {
+            return Err(ProtocolFenceError::StaleCutover);
+        }
+        Ok(preview)
+    }
+
+    /// Detect a repeated acknowledgement of the same completed cutover.
+    /// Workspace content can legitimately evolve after completion, so the
+    /// immutable protocol record is the evidence, not the present snapshot.
+    pub(crate) fn completed_matching(
+        &self,
+        preview: &CutoverPreview,
+        origin: &str,
+        account: &str,
+    ) -> Result<bool, ProtocolFenceError> {
+        let Some(record) = self.fence.read_record(origin, account)? else {
+            return Ok(false);
+        };
+        if record.mode != ProtocolMode::V2 {
+            return Ok(false);
+        }
+        if record.format_version != 2 || record.candidate_sha256 != candidate_hash(preview)? {
+            return Err(ProtocolFenceError::StaleCutover);
+        }
+        Ok(true)
+    }
+
     pub(crate) fn ensure_legacy_allowed(
         &self,
         origin: &str,
@@ -835,6 +886,16 @@ impl CutoverLease {
         origin: &str,
         account: &str,
     ) -> Result<(), ProtocolFenceError> {
+        self.finish_with_hook(preview, origin, account, || {})
+    }
+
+    fn finish_with_hook(
+        &self,
+        preview: &CutoverPreview,
+        origin: &str,
+        account: &str,
+        before_commit: impl FnOnce(),
+    ) -> Result<(), ProtocolFenceError> {
         let mut record = self
             .fence
             .read_record(origin, account)?
@@ -849,21 +910,19 @@ impl CutoverLease {
         preview
             .verify_inputs(origin, account, &preview.selections(), legacy.as_ref())
             .map_err(|_| ProtocolFenceError::StaleCutover)?;
-        let state = WorkspaceStore::open(&self.fence.dir, origin, account)?
-            .load()?
-            .ok_or(ProtocolFenceError::StaleCutover)?
-            .state;
-        if state.origin != origin
-            || state.account_id != account
-            || !state.bootstrap_complete
-            || state.needs_rebuild
-            || state.cursor != 0
-            || state.entries != preview.entries()
-        {
-            return Err(ProtocolFenceError::StaleCutover);
-        }
-        record.mode = ProtocolMode::V2;
-        self.fence.write_record(&record)
+        let store = WorkspaceStore::open(&self.fence.dir, origin, account)?;
+        store
+            .try_with_locked_snapshot(|snapshot| {
+                let state = snapshot.ok_or(ProtocolFenceError::StaleCutover)?.state;
+                if !preview.matches_bootstrap(&state) {
+                    return Err(ProtocolFenceError::StaleCutover);
+                }
+                before_commit();
+                record.mode = ProtocolMode::V2;
+                self.fence.write_record(&record)
+            })?
+            .ok_or(ProtocolFenceError::Busy)?;
+        Ok(())
     }
 }
 
@@ -1005,6 +1064,11 @@ mod tests {
             cutover.finish(&preview, ORIGIN, ACCOUNT),
             Err(ProtocolFenceError::StaleCutover)
         ));
+        let store = WorkspaceStore::open(&dir, ORIGIN, ACCOUNT).unwrap();
+        assert!(store
+            .try_with_locked_snapshot::<_, StoreError>(|_| Ok(()))
+            .unwrap()
+            .is_some());
         let workspace =
             crate::WorkspaceCoordinator::open(&dir, ORIGIN.into(), ACCOUNT.into()).unwrap();
         workspace
@@ -1020,6 +1084,60 @@ mod tests {
             Err(ProtocolFenceError::NotV1)
         ));
         assert_eq!(fs::read(dir.join("sync-state.json")).unwrap(), old_bytes);
+    }
+
+    #[test]
+    fn finish_holds_workspace_state_lock_until_protocol_marker_is_written() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("private");
+        let fence = ProtocolFence::open(&dir).unwrap();
+        let preview = CutoverPreview::new(ORIGIN.into(), ACCOUNT.into(), &[], None).unwrap();
+        let cutover = fence.try_cutover().unwrap();
+        cutover.prepare(&preview, ORIGIN, ACCOUNT, &[]).unwrap();
+        let coordinator =
+            crate::WorkspaceCoordinator::open(&dir, ORIGIN.into(), ACCOUNT.into()).unwrap();
+        coordinator.bootstrap(&[], None).unwrap();
+        let store = WorkspaceStore::open(&dir, ORIGIN, ACCOUNT).unwrap();
+        let snapshot = store.load().unwrap().unwrap();
+        let mut newer = snapshot.state.clone();
+        let key = cloud_client::WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
+        let selection = PluginSelection {
+            schema_version: 1,
+            plugin_id: "acme.plugin".into(),
+            version: "1.0.0".into(),
+            enabled: true,
+        };
+        newer
+            .stage(
+                key,
+                cloud_client::WorkspaceEdit::Put(serde_json::to_value(selection).unwrap()),
+            )
+            .unwrap();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let writer_dir = dir.clone();
+        let mut writer = None;
+        cutover
+            .finish_with_hook(&preview, ORIGIN, ACCOUNT, || {
+                assert!(store
+                    .try_with_locked_snapshot::<_, StoreError>(|_| Ok(()))
+                    .unwrap()
+                    .is_none());
+                writer = Some(std::thread::spawn(move || {
+                    let store = WorkspaceStore::open(&writer_dir, ORIGIN, ACCOUNT).unwrap();
+                    started_tx.send(()).unwrap();
+                    let result = store.save(Some(snapshot.generation), &newer);
+                    done_tx.send(result.is_ok()).unwrap();
+                }));
+                started_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+                assert!(done_rx.recv_timeout(Duration::from_millis(100)).is_err());
+            })
+            .unwrap();
+        assert!(done_rx.recv_timeout(Duration::from_secs(3)).unwrap());
+        writer.unwrap().join().unwrap();
+        assert_eq!(store.load().unwrap().unwrap().state.entries.len(), 1);
+        drop(cutover);
+        assert!(fence.try_v2(ORIGIN, ACCOUNT).is_ok());
     }
 
     #[test]

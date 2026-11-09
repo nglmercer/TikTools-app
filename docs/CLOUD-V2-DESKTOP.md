@@ -119,6 +119,17 @@ inventory can be accounted for.
 Other processes, worker health and a final local-source fence still need
 coverage; this preview is not a product RPC or authority to cut over.
 
+An internal coordinator primitive now sequences reviewed preparation, v2
+bootstrap and protocol selection under the cooperative protocol lease and the
+same CloudAuth manager's session gate. It can reconstruct an interrupted
+preparation only from the exact original inputs and a new review. Bootstrap
+rejects a nonempty or otherwise noncanonical incomplete workspace without
+overwriting it; selection of v2 holds the workspace state lock through marker
+publication. Disabling sync remains possible in Preparing or V2 and preserves
+both stores. Re-enabling v2, cross-process source/package fencing, independent
+authentication managers and product wiring remain unfinished. The primitive
+is not a user-facing migration and does not authorize local application.
+
 The in-progress v1 uncertain-upload recovery must not be treated as a finished
 product flow. A plugin change can currently be applied locally before its
 sync staging succeeds, including while an exclusive recovery lease is held.

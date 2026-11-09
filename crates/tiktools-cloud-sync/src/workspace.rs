@@ -20,6 +20,8 @@ pub enum WorkspaceCoordError {
     BootstrapRequired,
     #[error("workspace cutover was already completed; existing edits were preserved")]
     AlreadyBootstrapped,
+    #[error("unfinished workspace contains data; review it before cutover")]
+    BootstrapNeedsReview,
     #[error("another workspace network or review operation is in progress")]
     Busy,
     #[error("workspace session or opt-in changed during the operation")]
@@ -179,6 +181,9 @@ impl WorkspaceCoordinator {
         self.update(|state| {
             if state.bootstrap_complete {
                 return Err(WorkspaceCoordError::AlreadyBootstrapped);
+            }
+            if *state != WorkspaceState::new(self.origin.clone(), self.account_id.clone())? {
+                return Err(WorkspaceCoordError::BootstrapNeedsReview);
             }
             for selection in selections {
                 let key = WorkspaceKey::new("plugin-selections", selection.plugin_id.clone())?;

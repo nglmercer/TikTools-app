@@ -2114,6 +2114,377 @@ async fn v1_local_edit_and_epoch_bind_identity_and_consent() {
 }
 
 #[tokio::test]
+async fn opt_out_remains_available_during_and_after_cutover_without_discarding_data() {
+    for finish in [false, true] {
+        let dir = TempDir::new("cutover-opt-out");
+        let mock = MockSync::start("cutover-user").await;
+        let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+        login(&auth, "cutover-opt-out").await;
+        sync.record_local_change("acme.plugin", "1.0.0", false)
+            .unwrap();
+        let session = auth.session().await.unwrap();
+        let epoch = sync.capture_config_epoch(&session).unwrap();
+        let before = sync
+            .protocol
+            .legacy_snapshot(&mock.origin, "cutover-user")
+            .unwrap()
+            .unwrap();
+        let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+        let lease = sync.protocol.try_cutover().unwrap();
+        lease
+            .prepare(&preview, &mock.origin, "cutover-user", &[])
+            .unwrap();
+        assert!(matches!(
+            sync.set_enabled(false),
+            Err(SyncCoordError::Protocol(ProtocolFenceError::Busy))
+        ));
+        let workspace = crate::WorkspaceCoordinator::open(
+            dir.join("a-sync"),
+            mock.origin.clone(),
+            "cutover-user".into(),
+        )
+        .unwrap();
+        if finish {
+            workspace
+                .bootstrap(&preview.selections(), preview.legacy())
+                .unwrap();
+            lease
+                .finish(&preview, &mock.origin, "cutover-user")
+                .unwrap();
+        }
+        let state = workspace.snapshot().unwrap().state;
+        drop(lease);
+        assert!(!sync.set_enabled(false).unwrap().enabled);
+        assert!(!sync.is_config_epoch_current(&epoch, &session));
+        let after = sync
+            .protocol
+            .legacy_snapshot(&mock.origin, "cutover-user")
+            .unwrap()
+            .unwrap();
+        assert_eq!(before.generation, after.generation);
+        assert_eq!(before.state, after.state);
+        assert_eq!(state, workspace.snapshot().unwrap().state);
+        assert!(matches!(
+            sync.protocol
+                .try_v1()
+                .unwrap()
+                .ensure_v1(&mock.origin, "cutover-user"),
+            Err(ProtocolFenceError::NotV1)
+        ));
+        assert_eq!(
+            sync.protocol.try_v2(&mock.origin, "cutover-user").is_ok(),
+            finish
+        );
+        assert!(sync.set_enabled(true).is_err());
+        mock.stop();
+    }
+}
+
+#[tokio::test]
+async fn guarded_cutover_resumes_interrupted_durable_steps_and_retries_once() {
+    use crate::CutoverExecution;
+    let dir = TempDir::new("guarded-cutover-restart");
+    let mock = MockSync::start("cutover-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "cutover-resume").await;
+    sync.record_local_change("acme.plugin", "1.0.0", false)
+        .unwrap();
+    let session = auth.session().await.unwrap();
+    let source = vec![PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.0.0".into(),
+        enabled: true,
+    }];
+    let review = sync.guarded_cutover_review(&session, &source).unwrap();
+    let legacy_before = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "cutover-user")
+        .unwrap()
+        .unwrap();
+    let mut changed = source.clone();
+    changed[0].enabled = false;
+    assert!(sync.execute_guarded_cutover(&review, &changed).is_err());
+    let v1 = sync.protocol.try_v1().unwrap();
+    assert!(v1.ensure_v1(&mock.origin, "cutover-user").is_ok());
+    assert!(matches!(
+        sync.execute_guarded_cutover(&review, &source),
+        Err(SyncCoordError::Protocol(ProtocolFenceError::Busy))
+    ));
+    drop(v1);
+    assert!(sync
+        .execute_guarded_cutover_with_hooks(
+            &review,
+            &source,
+            || Err(SyncCoordError::Local("interrupt after prepare".into())),
+            || Ok(())
+        )
+        .is_err());
+    assert!(matches!(
+        sync.protocol
+            .try_v1()
+            .unwrap()
+            .ensure_v1(&mock.origin, "cutover-user"),
+        Err(ProtocolFenceError::NotV1)
+    ));
+    assert!(sync.protocol.try_v2(&mock.origin, "cutover-user").is_err());
+    // A new host/session must explicitly reconstruct and re-review the same
+    // durable inputs; no in-memory approval survives this restart.
+    drop(review);
+    drop(session);
+    drop(sync);
+    drop(auth);
+    let auth = CloudAuth::new(
+        Some(mock.origin.clone()),
+        dir.join("restarted-account.json"),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    login(&auth, "cutover-restarted").await;
+    let session = auth.session().await.unwrap();
+    let sync = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    assert!(sync.guarded_cutover_review(&session, &changed).is_err());
+    let review = sync.guarded_cutover_review(&session, &source).unwrap();
+    assert!(sync
+        .execute_guarded_cutover_with_hooks(
+            &review,
+            &source,
+            || Ok(()),
+            || Err(SyncCoordError::Local("interrupt after bootstrap".into()))
+        )
+        .is_err());
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "cutover-user".into(),
+    )
+    .unwrap();
+    let frozen = workspace.snapshot().unwrap();
+    assert!(frozen.state.bootstrap_complete);
+    assert_eq!(frozen.state.cursor, 0);
+    // The review is coordinator-bound and cannot be transferred to a fresh
+    // coordinator; reconstruction again leaves staged values untouched.
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    assert!(matches!(
+        restarted.execute_guarded_cutover(&review, &source),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let review = restarted.guarded_cutover_review(&session, &source).unwrap();
+    let sync = restarted;
+    assert_eq!(
+        sync.execute_guarded_cutover(&review, &source).unwrap(),
+        CutoverExecution::Completed
+    );
+    assert_eq!(workspace.snapshot().unwrap().state, frozen.state);
+    assert_eq!(
+        sync.execute_guarded_cutover(&review, &source).unwrap(),
+        CutoverExecution::AlreadyCompleted
+    );
+    assert!(sync.protocol.try_v2(&mock.origin, "cutover-user").is_ok());
+    let legacy_after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "cutover-user")
+        .unwrap()
+        .unwrap();
+    assert_eq!(legacy_before.generation, legacy_after.generation);
+    assert_eq!(legacy_before.state, legacy_after.state);
+    assert!(mock.inner.lock().unwrap().records.is_empty());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn guarded_cutover_refuses_stale_consent_or_replaced_session() {
+    let dir = TempDir::new("guarded-cutover-stale");
+    let mock = MockSync::start("cutover-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "old-session").await;
+    let session = auth.session().await.unwrap();
+    let review = sync.guarded_cutover_review(&session, &[]).unwrap();
+    sync.set_enabled(false).unwrap();
+    sync.set_enabled(true).unwrap();
+    assert!(matches!(
+        sync.execute_guarded_cutover(&review, &[]),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let review = sync.guarded_cutover_review(&session, &[]).unwrap();
+    auth.logout().await.unwrap();
+    login(&auth, "new-session").await;
+    assert!(matches!(
+        sync.execute_guarded_cutover(&review, &[]),
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(sync
+        .protocol
+        .try_v1()
+        .unwrap()
+        .ensure_v1(&mock.origin, "cutover-user")
+        .is_ok());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn guarded_cutover_never_replaces_a_different_bootstrapped_workspace() {
+    let dir = TempDir::new("guarded-cutover-bootstrap-conflict");
+    let mock = MockSync::start("cutover-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "bootstrap-conflict").await;
+    let session = auth.session().await.unwrap();
+    let source = vec![PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.0.0".into(),
+        enabled: true,
+    }];
+    let review = sync.guarded_cutover_review(&session, &source).unwrap();
+    let mut different = source.clone();
+    different[0].enabled = false;
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "cutover-user".into(),
+    )
+    .unwrap();
+    workspace.bootstrap(&different, None).unwrap();
+    let existing = workspace.snapshot().unwrap();
+    assert!(matches!(
+        sync.execute_guarded_cutover(&review, &source),
+        Err(SyncCoordError::Protocol(ProtocolFenceError::StaleCutover))
+    ));
+    let after = workspace.snapshot().unwrap();
+    assert_eq!(existing.generation, after.generation);
+    assert_eq!(existing.state, after.state);
+    assert!(sync.protocol.try_v2(&mock.origin, "cutover-user").is_err());
+    assert!(sync
+        .protocol
+        .try_v1()
+        .unwrap()
+        .ensure_v1(&mock.origin, "cutover-user")
+        .is_ok());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn incomplete_workspace_pending_edits_survive_cutover_preflight_and_bootstrap() {
+    for existing_key in ["acme.plugin", "other.plugin"] {
+        let dir = TempDir::new("cutover-unfinished-workspace");
+        let mock = MockSync::start("cutover-user").await;
+        let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+        login(&auth, "unfinished-workspace").await;
+        let session = auth.session().await.unwrap();
+        let source = vec![PluginSelection {
+            schema_version: 1,
+            plugin_id: "acme.plugin".into(),
+            version: "1.0.0".into(),
+            enabled: true,
+        }];
+        let review = sync.guarded_cutover_review(&session, &source).unwrap();
+        let root = dir.join("a-sync");
+        let store =
+            cloud_client::WorkspaceStore::open(&root, mock.origin.clone(), "cutover-user").unwrap();
+        let mut unfinished =
+            cloud_client::WorkspaceState::new(mock.origin.clone(), "cutover-user".into()).unwrap();
+        let key = cloud_client::WorkspaceKey::new("plugin-selections", existing_key).unwrap();
+        let value = PluginSelection {
+            schema_version: 1,
+            plugin_id: existing_key.into(),
+            version: "1.0.0".into(),
+            enabled: false,
+        };
+        unfinished
+            .stage(
+                key,
+                cloud_client::WorkspaceEdit::Put(serde_json::to_value(value).unwrap()),
+            )
+            .unwrap();
+        let saved = store.save(None, &unfinished).unwrap();
+        let partition = std::fs::read_dir(root.join("workspace-v2"))
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        let path = partition.join("workspace-state.json");
+        let original_bytes = std::fs::read(&path).unwrap();
+        let workspace =
+            crate::WorkspaceCoordinator::open(&root, mock.origin.clone(), "cutover-user".into())
+                .unwrap();
+        assert!(matches!(
+            workspace.bootstrap(&source, None),
+            Err(crate::WorkspaceCoordError::BootstrapNeedsReview)
+        ));
+        assert!(sync.execute_guarded_cutover(&review, &source).is_err());
+        let after = workspace.snapshot().unwrap();
+        assert_eq!(after.generation, saved.generation);
+        assert_eq!(after.state, saved.state);
+        assert_eq!(std::fs::read(&path).unwrap(), original_bytes);
+        assert!(sync
+            .protocol
+            .try_v1()
+            .unwrap()
+            .ensure_v1(&mock.origin, "cutover-user")
+            .is_ok());
+        mock.stop();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn guarded_cutover_linearizes_before_queued_logout_and_blocks_opt_out() {
+    use crate::CutoverExecution;
+    let dir = TempDir::new("guarded-cutover-logout");
+    let mock = MockSync::start("cutover-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "cutover-logout").await;
+    let session = auth.session().await.unwrap();
+    let review = Arc::new(sync.guarded_cutover_review(&session, &[]).unwrap());
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let worker_sync = sync.clone();
+    let worker_review = review.clone();
+    let worker = tokio::task::spawn_blocking(move || {
+        worker_sync.execute_guarded_cutover_with_hooks(
+            &worker_review,
+            &[],
+            || {
+                ready_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                Ok(())
+            },
+            || Ok(()),
+        )
+    });
+    tokio::time::timeout(Duration::from_secs(3), ready_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        sync.set_enabled(false),
+        Err(SyncCoordError::Protocol(ProtocolFenceError::Busy))
+    ));
+    let logout_auth = auth.clone();
+    let logout = tokio::spawn(async move { logout_auth.logout().await });
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!logout.is_finished());
+    tokio::time::timeout(Duration::from_secs(1), auth.status())
+        .await
+        .unwrap();
+    release_tx.send(()).unwrap();
+    assert_eq!(worker.await.unwrap().unwrap(), CutoverExecution::Completed);
+    logout.await.unwrap().unwrap();
+    assert!(matches!(
+        sync.execute_guarded_cutover(&review, &[]),
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(sync.guarded_cutover_review(&session, &[]).is_err());
+    assert!(sync.protocol.try_v2(&mock.origin, "cutover-user").is_ok());
+    mock.stop();
+}
+
+#[tokio::test]
 async fn consent_identity_never_reuses_legacy_epoch_after_config_loss_or_corruption() {
     let dir = TempDir::new("v1-consent-identity");
     let mock = MockSync::start("v1-user").await;

@@ -1,0 +1,150 @@
+//! Local v1-to-v2 migration orchestration; no network or local application.
+//!
+//! This is a coordinator primitive, not a product cutover. The caller must
+//! retain an independently reviewed, cross-process source/package fence and
+//! explicit user approval through the complete call. Existing Desktop paths
+//! do not yet provide that fence and must not expose this operation.
+use std::sync::Arc;
+
+use cloud_client::{PluginSelection, Session, WorkspaceState};
+
+use crate::{
+    CutoverPreview, SyncConfigEpoch, SyncCoordError, SyncCoordinator, WorkspaceCoordError,
+    WorkspaceCoordinator,
+};
+
+/// Opaque native review; UI input cannot reconstruct its identity or consent.
+pub(crate) struct GuardedCutoverReview {
+    session: Arc<Session>,
+    consent: SyncConfigEpoch,
+    preview: CutoverPreview,
+}
+
+impl GuardedCutoverReview {
+    pub(crate) fn preview(&self) -> &CutoverPreview {
+        &self.preview
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CutoverExecution {
+    Completed,
+    AlreadyCompleted,
+}
+
+impl SyncCoordinator {
+    /// Capture the exact live session and opt-in decision along with the
+    /// informational preview. A separate product consent step is required.
+    pub(crate) fn guarded_cutover_review(
+        &self,
+        session: &Arc<Session>,
+        selections: &[PluginSelection],
+    ) -> Result<GuardedCutoverReview, SyncCoordError> {
+        let consent = self
+            .capture_config_epoch(session)
+            .ok_or(SyncCoordError::StaleReview)?;
+        let preview = match self.preview_v2_cutover(session, selections) {
+            Ok(preview) => preview,
+            Err(SyncCoordError::Protocol(crate::ProtocolFenceError::NotV1)) => {
+                let lease = self.protocol.try_cutover()?;
+                self.auth
+                    .with_current_session_permit(session, || {
+                        if !self.is_config_epoch_current(&consent, session) {
+                            return Err(SyncCoordError::StaleReview);
+                        }
+                        Ok(lease.preview_preparing(
+                            &session.instance_origin(),
+                            session.account_id(),
+                            selections,
+                        )?)
+                    })
+                    .map_err(|_| SyncCoordError::StaleReview)??
+            }
+            Err(error) => return Err(error),
+        };
+        self.auth
+            .with_current_session_permit(session, || {
+                if !self.is_config_epoch_current(&consent, session) {
+                    return Err(SyncCoordError::StaleReview);
+                }
+                Ok(())
+            })
+            .map_err(|_| SyncCoordError::StaleReview)??;
+        Ok(GuardedCutoverReview {
+            session: session.clone(),
+            consent,
+            preview,
+        })
+    }
+
+    /// Commit reviewed migration under an exclusive cross-process protocol
+    /// lease and this manager's session gate. `selections` must have been
+    /// freshly captured and remain fenced by the caller throughout this call;
+    /// the coordinator cannot enforce package or source locks by itself. Run
+    /// off async executor threads: local durable writes may block. No HTTP is
+    /// performed. Older binaries and other CloudAuth managers are not fenced.
+    pub(crate) fn execute_guarded_cutover(
+        &self,
+        review: &GuardedCutoverReview,
+        selections: &[PluginSelection],
+    ) -> Result<CutoverExecution, SyncCoordError> {
+        self.execute_guarded_cutover_with_hooks(review, selections, || Ok(()), || Ok(()))
+    }
+
+    pub(crate) fn execute_guarded_cutover_with_hooks(
+        &self,
+        review: &GuardedCutoverReview,
+        selections: &[PluginSelection],
+        after_prepare: impl FnOnce() -> Result<(), SyncCoordError>,
+        after_bootstrap: impl FnOnce() -> Result<(), SyncCoordError>,
+    ) -> Result<CutoverExecution, SyncCoordError> {
+        let lease = self.protocol.try_cutover()?;
+        self.auth
+            .with_current_session_permit(&review.session, || {
+                if !self.is_config_epoch_current(&review.consent, &review.session) {
+                    return Err(SyncCoordError::StaleReview);
+                }
+                let origin = review.session.instance_origin();
+                let account = review.session.account_id();
+                if lease.completed_matching(&review.preview, &origin, account)? {
+                    return Ok(CutoverExecution::AlreadyCompleted);
+                }
+                let root = self
+                    .config_path
+                    .parent()
+                    .ok_or_else(|| SyncCoordError::Io("invalid config directory".into()))?;
+                let workspace =
+                    WorkspaceCoordinator::open(root, origin.clone(), account.to_owned())
+                        .map_err(|error| SyncCoordError::Local(error.to_string()))?;
+                // Avoid entering Preparing when existing workspace data is
+                // already incompatible. bootstrap repeats the empty-state
+                // check inside its generation-checked update.
+                let current = workspace
+                    .snapshot()
+                    .map_err(|error| SyncCoordError::Local(error.to_string()))?
+                    .state;
+                if current.bootstrap_complete {
+                    if !review.preview.matches_bootstrap(&current) {
+                        return Err(crate::ProtocolFenceError::StaleCutover.into());
+                    }
+                } else if current
+                    != WorkspaceState::new(origin.clone(), account.to_owned())
+                        .map_err(|error| SyncCoordError::Local(error.to_string()))?
+                {
+                    return Err(SyncCoordError::Local(
+                        WorkspaceCoordError::BootstrapNeedsReview.to_string(),
+                    ));
+                }
+                lease.prepare(&review.preview, &origin, account, selections)?;
+                after_prepare()?;
+                match workspace.bootstrap(&review.preview.selections(), review.preview.legacy()) {
+                    Ok(()) | Err(WorkspaceCoordError::AlreadyBootstrapped) => {}
+                    Err(error) => return Err(SyncCoordError::Local(error.to_string())),
+                }
+                after_bootstrap()?;
+                lease.finish(&review.preview, &origin, account)?;
+                Ok(CutoverExecution::Completed)
+            })
+            .map_err(|_| SyncCoordError::StaleReview)?
+    }
+}
