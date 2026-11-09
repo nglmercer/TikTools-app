@@ -874,12 +874,13 @@ async fn document_pages_and_reads_reject_malformed_metadata_identity_and_source(
 }
 
 #[tokio::test]
-async fn catalog_uses_manifest_ids_without_changing_sync_key_rules() {
+async fn catalog_uses_manifest_ids_and_v2_sync_supports_legacy_plugins() {
     for id in [
         "foo".to_owned(),
         "hotkeys".to_owned(),
         "textintel".to_owned(),
         "a..b".to_owned(),
+        "ab..c".to_owned(),
         format!("a{}", "b".repeat(127)),
     ] {
         let chars: Vec<_> = id.chars().collect();
@@ -890,12 +891,12 @@ async fn catalog_uses_manifest_ids_without_changing_sync_key_rules() {
         };
         let mut entry = plugin();
         entry["id"] = json!(id);
-        entry["metadataPath"] = json!(format!(
-            "/api/v1/registry/generations/17/files/index/{}/{}/{}.json",
-            shard(0),
-            shard(2),
-            id
-        ));
+        let path = if shard(2) == ".." {
+            format!("index/{id}.json")
+        } else {
+            format!("index/{}/{}/{id}.json", shard(0), shard(2))
+        };
+        entry["metadataPath"] = json!(format!("/api/v1/registry/generations/17/files/{path}"));
         let (origin, task) = mock(vec![
             Reply::json(json!({"generation":17,"items":[entry.clone()],"nextCursor":null})),
             Reply::json(json!({"generation":17,"plugin":entry})),
@@ -908,8 +909,8 @@ async fn catalog_uses_manifest_ids_without_changing_sync_key_rules() {
         assert!(catalog.plugins("", Some(&id), Some(17)).await.is_ok());
         assert_eq!(task.await.unwrap().len(), 3);
     }
-    assert!(!portable::valid_key("plugin-selections", "foo"));
-    assert!(!portable::valid_key("plugin-selections", "a..b"));
+    assert!(portable::valid_key("plugin-selections", "hotkeys"));
+    assert!(portable::valid_key("plugin-selections", "a..b"));
     let mut unsafe_shard = plugin();
     unsafe_shard["id"] = json!("ab..c");
     unsafe_shard["metadataPath"] =
@@ -1185,4 +1186,128 @@ async fn workspace_write_acknowledgement_accepts_jsonb_decimal_normalization_wit
         ));
         task.await.unwrap();
     }
+}
+
+#[tokio::test]
+async fn bounded_catalog_pages_validate_cursors_and_keep_integer_precision() {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+    let encode = |value: Value| URL_SAFE_NO_PAD.encode(serde_json::to_vec(&value).unwrap());
+    let summary_cursor = encode(
+        json!({"kind":"summary","generation":9007199254740993_i64,"q":"acme","target":"linux","last":"acme.plugin"}),
+    );
+    let version_cursor = encode(
+        json!({"kind":"versions","generation":9007199254740993_i64,"id":"acme.plugin","target":"linux","version":"1.0.0","last_target":"any"}),
+    );
+    let path = "/api/v1/registry/generations/9007199254740993/files/index/ac/me/acme.plugin.json";
+    let summary = |id: &str| json!({"id":id,"metadataPath":format!("/api/v1/registry/generations/9007199254740993/files/index/ac/me/{id}.json"),"latestStableVersion":"1.0.0"});
+    let version = |number: &str| json!({"version":number,"target":"any","sha256":"a".repeat(64),"size":"9007199254740995","yanked":false,"keyRevoked":false,"publisherApproved":true,"advisory":null});
+    let (origin, task) = mock(vec![
+        Reply::json(json!({"schemaVersion":1,"summaryPath":"/api/v2/catalog/plugin-summaries","versionPagePath":"/api/v2/catalog/plugins/{id}/version-pages","maxItems":50,"maxBytes":524288,"versionOrder":"ascii-version-target"})),
+        Reply::json(json!({"generation":"9007199254740993","items":[summary("acme.plugin")],"nextCursor":summary_cursor})),
+        Reply::json(json!({"generation":"9007199254740993","items":[summary("acme.second")],"nextCursor":null})),
+        Reply::json(json!({"generation":"9007199254740993","id":"acme.plugin","metadataPath":path,"items":[version("1.0.0")],"nextCursor":version_cursor})),
+        Reply::json(json!({"generation":"9007199254740993","id":"acme.plugin","metadataPath":path,"items":[version("1.0.1")],"nextCursor":null})),
+    ]).await;
+    let catalog = CloudCatalog::new(&origin).unwrap();
+    catalog.pagination_capabilities().await.unwrap();
+    let first = catalog
+        .plugin_summaries(Some("acme"), Some("linux"), None, None)
+        .await
+        .unwrap();
+    assert_eq!(first.generation.as_deref(), Some("9007199254740993"));
+    let next = first.next_cursor.as_deref().unwrap();
+    assert!(matches!(
+        catalog
+            .plugin_summaries(
+                Some("other"),
+                Some("linux"),
+                Some(9007199254740993),
+                Some(next)
+            )
+            .await,
+        Err(SyncError::Configuration)
+    ));
+    let second = catalog
+        .plugin_summaries(
+            Some("acme"),
+            Some("linux"),
+            Some(9007199254740993),
+            Some(next),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second.items[0].id, "acme.second");
+    let first = catalog
+        .plugin_version_page("acme.plugin", Some("linux"), Some(9007199254740993), None)
+        .await
+        .unwrap();
+    assert_eq!(first.items[0].size, "9007199254740995");
+    let next = first.next_cursor.as_deref().unwrap();
+    assert!(matches!(
+        catalog
+            .plugin_version_page("other", Some("linux"), Some(9007199254740993), Some(next))
+            .await,
+        Err(SyncError::Configuration)
+    ));
+    let second = catalog
+        .plugin_version_page(
+            "acme.plugin",
+            Some("linux"),
+            Some(9007199254740993),
+            Some(next),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second.items[0].version, "1.0.1");
+    let requests = task.await.unwrap();
+    assert_eq!(requests.len(), 5);
+    assert!(requests
+        .iter()
+        .all(|r| !r.headers.contains_key("authorization")));
+    assert!(requests[2].target.contains("generation=9007199254740993"));
+}
+
+#[tokio::test]
+async fn bounded_catalog_rejects_wrong_paths_extra_fields_and_oversized_bodies() {
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+    let wrong_cursor = URL_SAFE_NO_PAD.encode(
+        serde_json::to_vec(
+            &json!({"kind":"summary","generation":18,"q":null,"target":null,"last":"hotkeys"}),
+        )
+        .unwrap(),
+    );
+    let cases = [
+        json!({"generation":"17","items":[{"id":"ab..foo","metadataPath":"/api/v1/registry/generations/17/files/index/ab/../ab..foo.json","latestStableVersion":null}],"nextCursor":null}),
+        json!({"generation":"17","items":[],"nextCursor":null,"extra":1}),
+        json!({"generation":"017","items":[],"nextCursor":null}),
+        json!({"generation":"17","items":[{"id":"hotkeys","metadataPath":"/api/v1/registry/generations/17/files/index/ho/tk/hotkeys.json","latestStableVersion":null}],"nextCursor":wrong_cursor}),
+    ];
+    for value in cases {
+        let (origin, task) = mock(vec![Reply::json(value)]).await;
+        assert!(matches!(
+            CloudCatalog::new(&origin)
+                .unwrap()
+                .plugin_summaries(None, None, Some(17), None)
+                .await,
+            Err(SyncError::Protocol)
+        ));
+        task.await.unwrap();
+    }
+    let (origin, task) = mock(vec![Reply::json(json!({"generation":"17","items":[{"id":"ab..foo","metadataPath":"/api/v1/registry/generations/17/files/index/ab..foo.json","latestStableVersion":null}],"nextCursor":null}))]).await;
+    assert!(CloudCatalog::new(&origin)
+        .unwrap()
+        .plugin_summaries(None, None, Some(17), None)
+        .await
+        .is_ok());
+    task.await.unwrap();
+    let (origin, task) = mock(vec![Reply::json(
+        json!({"generation":"17","items":[],"nextCursor":null,"padding":"x".repeat(512*1024)}),
+    )])
+    .await;
+    assert!(CloudCatalog::new(&origin)
+        .unwrap()
+        .plugin_summaries(None, None, Some(17), None)
+        .await
+        .is_err());
+    task.await.unwrap();
 }

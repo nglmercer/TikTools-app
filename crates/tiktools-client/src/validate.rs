@@ -61,9 +61,9 @@ use tiktools_control_api::modules::rankings::{
     Definition, ExternalContribution, RankingId, RankingUpdate,
 };
 use tiktools_control_api::modules::registry::{
-    CloudCatalogQuery, RegistryAddInput, RegistryDefaults, RegistryEnableParams,
-    RegistryNameParams, RegistryPackageParams, RegistryRefreshParams, RegistryUrlParams,
-    SearchQuery,
+    CloudCatalogQuery, CloudCatalogSummariesQuery, CloudCatalogVersionsQuery, RegistryAddInput,
+    RegistryDefaults, RegistryEnableParams, RegistryNameParams, RegistryPackageParams,
+    RegistryRefreshParams, RegistryUrlParams, SearchQuery,
 };
 use tiktools_control_api::modules::rpc::SchemaParams;
 use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsSet};
@@ -444,6 +444,7 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         | "plugins.updates.list"
         | "plugins.jobs.list"
         | "registry.list"
+        | "registry.cloudCatalogPaginationCapabilities"
         | "registry.defaults.get" => validate::<Empty>(params),
         "registry.root" => validate::<RegistryUrlParams>(params),
         "registry.add" => validate::<RegistryAddInput>(params),
@@ -452,6 +453,8 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "registry.refresh" => validate::<RegistryRefreshParams>(params),
         "registry.search" => validate::<SearchQuery>(params),
         "registry.cloudCatalog" => validate::<CloudCatalogQuery>(params),
+        "registry.cloudCatalogSummaries" => validate::<CloudCatalogSummariesQuery>(params),
+        "registry.cloudCatalogVersions" => validate::<CloudCatalogVersionsQuery>(params),
         "registry.package" => validate::<RegistryPackageParams>(params),
         "registry.defaults.set" => validate::<RegistryDefaults>(params),
         #[cfg(feature = "cloud-auth")]

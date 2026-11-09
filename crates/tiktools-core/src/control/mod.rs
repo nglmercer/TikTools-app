@@ -88,7 +88,11 @@ pub use automation::{
 #[cfg(feature = "cloud-auth")]
 pub use cloud_account::CloudLoginUrl;
 #[cfg(feature = "plugin-install")]
-pub use cloud_catalog::{CloudCatalogPage, CloudCatalogQuery};
+pub use cloud_catalog::{
+    CloudCatalogAdvisory, CloudCatalogPage, CloudCatalogPaginationCapabilities, CloudCatalogQuery,
+    CloudCatalogSummariesPage, CloudCatalogSummariesQuery, CloudCatalogSummary,
+    CloudCatalogVersion, CloudCatalogVersionsPage, CloudCatalogVersionsQuery,
+};
 #[cfg(feature = "cloud-auth")]
 pub use cloud_sync::SyncNowResult;
 #[cfg(any(test, feature = "native-tiktok"))]

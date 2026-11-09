@@ -306,14 +306,23 @@ pub fn validate(collection: &str, key: &str, value: &Value) -> bool {
 }
 
 fn valid_plugin_id(id: &str) -> bool {
-    id.len() <= 128
+    // Retain all previously valid v2 keys while supporting the manifest ID
+    // grammar, including official legacy IDs such as `hotkeys` and `textintel`.
+    let legacy = id.len() <= 128
         && id.split_once('.').is_some()
         && id.split('.').all(|part| {
             !part.is_empty()
                 && part
                     .bytes()
                     .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"-_".contains(&b))
-        })
+        });
+    let bytes = id.as_bytes();
+    let manifest = (2..=128).contains(&bytes.len())
+        && bytes[0].is_ascii_lowercase()
+        && bytes[1..].iter().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'_' | b'-')
+        });
+    legacy || manifest
 }
 fn plugin_selection(key: &str, value: &Value) -> bool {
     object(value, &["schemaVersion", "pluginId", "version", "enabled"])
@@ -322,7 +331,7 @@ fn plugin_selection(key: &str, value: &Value) -> bool {
         && value["enabled"].is_boolean()
         && value["version"]
             .as_str()
-            .is_some_and(|s| s.len() <= 64 && semver::Version::parse(s).is_ok())
+            .is_some_and(|s| s.len() <= 128 && semver::Version::parse(s).is_ok())
 }
 
 /// Compare JSON data across PostgreSQL JSONB numeric normalization. Numbers
@@ -418,6 +427,32 @@ mod tests {
             "preferences",
             "desktop",
             &json!({"schemaVersion":1,"locale":"es-PE","theme":"dark"})
+        ));
+    }
+    #[test]
+    fn workspace_accepts_manifest_ids_and_existing_keys_without_truncating_versions() {
+        let version = format!("1.0.0+{}", "a".repeat(122));
+        assert_eq!(version.len(), 128);
+        for id in ["hotkeys", "textintel", "ab..foo", "1.old"] {
+            assert!(valid_key("plugin-selections", id));
+            assert!(valid_key("plugin-settings", id));
+            assert!(validate(
+                "plugin-selections",
+                id,
+                &json!({
+                    "schemaVersion":1,"pluginId":id,"version":version,"enabled":true
+                })
+            ));
+        }
+        assert!(!valid_key("plugin-selections", "A.bad"));
+        assert!(!valid_key("plugin-selections", "../outside"));
+        let overlong = format!("{version}a");
+        assert!(!validate(
+            "plugin-selections",
+            "hotkeys",
+            &json!({
+                "schemaVersion":1,"pluginId":"hotkeys","version":overlong,"enabled":true
+            })
         ));
     }
     #[test]

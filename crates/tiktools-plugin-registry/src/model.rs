@@ -261,5 +261,14 @@ pub fn shard_path(id: &str) -> String {
             .map(|index| characters.get(index).copied().unwrap_or('_'))
             .collect()
     };
-    format!("index/{}/{}/{id}.json", pad(0..2), pad(2..4))
+    let first = pad(0..2);
+    let second = pad(2..4);
+    // A literal parent component is resolved by URL and filesystem clients.
+    // Use its canonical location beneath index/ so writers and readers sign
+    // and fetch the same bytes; other identifiers retain their legacy paths.
+    if second == ".." {
+        format!("index/{id}.json")
+    } else {
+        format!("index/{first}/{second}/{id}.json")
+    }
 }

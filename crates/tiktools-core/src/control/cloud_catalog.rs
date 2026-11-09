@@ -4,7 +4,7 @@ use super::OperationError;
 use crate::AppCore;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 // Leave ample room for RPC envelopes under the 1 MiB remote frame limit.
 const MAX_CATALOG_RESULT_BYTES: usize = 768 * 1024;
@@ -26,6 +26,107 @@ pub struct CloudCatalogPage {
     pub generation: Option<String>,
     pub items: Vec<Value>,
     pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogSummariesQuery {
+    pub query: Option<String>,
+    pub target: Option<String>,
+    pub generation: Option<String>,
+    pub cursor: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogVersionsQuery {
+    pub id: String,
+    pub target: Option<String>,
+    pub generation: Option<String>,
+    pub cursor: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogPaginationCapabilities {
+    pub schema_version: u32,
+    pub summary_path: String,
+    pub version_page_path: String,
+    pub max_items: u32,
+    pub max_bytes: u32,
+    pub version_order: String,
+}
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogSummary {
+    pub id: String,
+    pub metadata_path: String,
+    pub latest_stable_version: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogSummariesPage {
+    pub generation: Option<String>,
+    pub items: Vec<CloudCatalogSummary>,
+    pub next_cursor: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogAdvisory {
+    pub severity: String,
+    pub message: Option<String>,
+    pub url: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogVersion {
+    pub version: String,
+    pub target: String,
+    pub sha256: String,
+    pub size: String,
+    pub yanked: bool,
+    pub key_revoked: bool,
+    pub publisher_approved: bool,
+    pub advisory: Option<CloudCatalogAdvisory>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogVersionsPage {
+    pub generation: String,
+    pub id: String,
+    pub metadata_path: String,
+    pub items: Vec<CloudCatalogVersion>,
+    pub next_cursor: Option<String>,
+}
+
+fn convert_catalog<T: serde::de::DeserializeOwned>(
+    value: impl Serialize,
+) -> Result<T, OperationError> {
+    let value = serde_json::to_value(value)
+        .map_err(|_| OperationError::internal("invalid catalog response"))?;
+    serde_json::from_value(value).map_err(|_| OperationError::internal("invalid catalog response"))
+}
+fn catalog_error(error: cloud_client::SyncError) -> OperationError {
+    match error {
+        cloud_client::SyncError::Configuration => {
+            OperationError::invalid("invalid cloud catalog query or cursor")
+        }
+        _ => OperationError::unavailable("cloud catalog is unavailable"),
+    }
+}
+fn pagination_capability_error(error: cloud_client::SyncError) -> OperationError {
+    match error {
+        cloud_client::SyncError::Http(404) => OperationError {
+            code: "capability_unavailable",
+            message: "this Cloud instance does not expose bounded catalog pagination".into(),
+            data: Some(json!({"reason":"bounded_catalog_unsupported"})),
+        },
+        other => catalog_error(other),
+    }
+}
+fn configured_catalog() -> Result<cloud_client::CloudCatalog, OperationError> {
+    let origin = tiktools_cloud_auth::resolve_cloud_origin()
+        .ok_or_else(|| OperationError::unavailable("cloud is not configured"))?;
+    cloud_client::CloudCatalog::new(&origin)
+        .map_err(|_| OperationError::unavailable("cloud catalog is not configured"))
 }
 
 fn parse_generation(value: Option<&str>) -> Result<Option<i64>, OperationError> {
@@ -125,6 +226,48 @@ async fn fetch_catalog(
 }
 
 impl AppCore {
+    pub async fn cloud_catalog_pagination_capabilities(
+        &self,
+    ) -> Result<CloudCatalogPaginationCapabilities, OperationError> {
+        convert_catalog(
+            configured_catalog()?
+                .pagination_capabilities()
+                .await
+                .map_err(pagination_capability_error)?,
+        )
+    }
+    pub async fn cloud_catalog_summaries(
+        &self,
+        query: CloudCatalogSummariesQuery,
+    ) -> Result<CloudCatalogSummariesPage, OperationError> {
+        let generation = parse_generation(query.generation.as_deref())?;
+        let page = configured_catalog()?
+            .plugin_summaries(
+                query.query.as_deref(),
+                query.target.as_deref(),
+                generation,
+                query.cursor.as_deref(),
+            )
+            .await
+            .map_err(catalog_error)?;
+        convert_catalog(page)
+    }
+    pub async fn cloud_catalog_versions(
+        &self,
+        query: CloudCatalogVersionsQuery,
+    ) -> Result<CloudCatalogVersionsPage, OperationError> {
+        let generation = parse_generation(query.generation.as_deref())?;
+        let page = configured_catalog()?
+            .plugin_version_page(
+                &query.id,
+                query.target.as_deref(),
+                generation,
+                query.cursor.as_deref(),
+            )
+            .await
+            .map_err(catalog_error)?;
+        convert_catalog(page)
+    }
     /// Read-only discovery, not proof that a package can be installed.
     pub async fn cloud_catalog_plugins(
         &self,
@@ -141,6 +284,24 @@ mod tests {
     use super::*;
     use serde_json::json;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    #[test]
+    fn pagination_fallback_is_only_for_explicit_missing_endpoint() {
+        let absent = pagination_capability_error(cloud_client::SyncError::Http(404));
+        assert_eq!(absent.code, "capability_unavailable");
+        assert_eq!(
+            absent.data.unwrap()["reason"],
+            "bounded_catalog_unsupported"
+        );
+        for error in [
+            cloud_client::SyncError::Network,
+            cloud_client::SyncError::Protocol,
+            cloud_client::SyncError::Http(500),
+        ] {
+            let failure = pagination_capability_error(error);
+            assert_eq!(failure.code, "unavailable");
+            assert!(failure.data.is_none());
+        }
+    }
     #[test]
     fn catalog_projection_keeps_large_integers_exact() {
         let page = project(json!({"generation":9007199254740993_i64,"nextCursor":null,"items":[{"id":"a","versions":[{"size":9007199254740995_i64}]}]})).unwrap();

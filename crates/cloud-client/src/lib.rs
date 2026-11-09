@@ -31,7 +31,10 @@ pub use store::{StateSnapshot, StateStore, StoreError};
 use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
-pub use workspace::CloudCatalog;
+pub use workspace::{
+    CatalogAdvisory, CatalogPageCapabilities, CatalogSummary, CatalogSummaryPage, CatalogVersion,
+    CatalogVersionPage, CloudCatalog,
+};
 pub use workspace_state::{
     WorkspaceEdit, WorkspaceEntry, WorkspaceKey, WorkspaceLocalEdit, WorkspacePending,
     WorkspacePendingStatus, WorkspacePush, WorkspaceRead, WorkspaceState, WorkspaceStateError,

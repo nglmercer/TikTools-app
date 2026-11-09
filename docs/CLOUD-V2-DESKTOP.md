@@ -1,10 +1,11 @@
 # Desktop Cloud v2 implementation and acceptance specification
 
-Status: **the native v2 contract, durable state/store and coordinator foundation is implemented and locally tested. Product cutover, UI/local application and full Desktop v2 acceptance are pending.**
+Status: **the native v2 foundation and read-only Cloud catalog UI are implemented. Product sync cutover, local application and full Desktop v2 acceptance are pending.**
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
-library delivery e6728c9. The reviewed backend commit is RemakeBackend 995d496,
-following the integrity and recovery changes c0fb951 and v2 foundation 0c552b3, and its
+library delivery e6728c9. The reviewed backend commit is RemakeBackend e6c6601,
+following bounded pagination 9f7e642, catalog compatibility 995d496, integrity
+changes c0fb951 and v2 foundation 0c552b3, and its
 docs/CLOUD-REDESIGN.md, docs/CLOUD-API-V2.md and latest
 docs/IMPLEMENTATION-STATUS.md. The backend owns portable cloud contracts.
 Import its reviewed contract/client changes without replacing Desktop-specific
@@ -32,7 +33,7 @@ a local Owner and a delegated LIVE controller are separate authorities.
 | Atomic local profile/template/graph changes and original-outcome recovery | Existing native Owner library implementation | Reuse for reviewed local imports |
 | Backend portable v2 contracts, native transport and all-five-collection state/store/coordinator | Implemented and locally tested; additive exports preserve v1 | Product adapters and explicit cutover pending |
 | Release Cloud origin policy | Runtime overrides ignored in release; build-time provisioning and debug override retained | Four policy unit tests passed; broader trust/product restrictions still pending |
-| Single-instance product catalog, private/public library and expanded sync UI | Current UI still uses v1/custom registries and local imports | Pending |
+| Single-instance product catalog, private/public library and expanded sync UI | Read-only Cloud catalog is present; custom registries and local imports remain | Verified installation, source restrictions, library and sync UI pending |
 | Actual two-Desktop v2 offline/recovery acceptance | Not established by prior local Owner tests or v1 mock E2E | Pending |
 | Production trust, deployed migration and external infrastructure review | Separate backend/operator gates | Not established by this specification |
 
@@ -72,14 +73,14 @@ shared cross-process protocol fence and session/opt-in invalidation. Guard
 checks cannot recall an HTTP request already dispatched, or replace an atomic
 local-application consent fence.
 
-The read-only `registry.cloudCatalog` RPC queries the configured Cloud origin;
-generation and package sizes are decimal strings and catalog metadata does not
-authorize installation. Results above 768 KiB fail explicitly without truncation
-to fit existing transport limits. The backend must support bounded version
-pagination for a single plugin whose versions cannot fit in one page. The
-transport validates item content, but the RPC item schema is still generic;
-typed item schemas remain to be added. The existing product UI and source
-controls are not yet switched to this RPC.
+The read-only Cloud catalog uses typed summary and version-page RPCs against
+the configured origin, with generation and sizes as decimal strings. Bounded
+pages retain filter and generation identity; catalog data never authorizes
+installation. The UI offers a user-selected legacy fallback only when the
+backend explicitly reports the new capability absent. Existing custom source
+controls and verified installation remain separate work. The local signed
+registry canonicalizes the legacy `..` shard; the Cloud backend still rejects
+that shard pending a separately verified compatibility rollout.
 
 No v2 product sync RPC/UI, account eligibility integration, single-engine cutover,
 collection-specific local application or durable local-application outcome
@@ -103,6 +104,7 @@ it does not constitute product migration consent or a completed cutover.
 | Session fencing and cutover preview | 15 authentication and 26 sync/coordinator tests passed locally, including same-account re-login, in-flight acknowledgement and preview/bootstrap ordering; product wiring remains pending |
 | Cloud catalog adapter | Loopback HTTP pagination, exact 64-bit values and oversized-response rejection passed locally; installation and actual Desktop browsing are separate |
 | Catalog compatibility and client surface | Five SDK catalog tests passed in each repository; a PostgreSQL pagination test checked legacy-ID routing; client parity (10 tests) and the CLI catalog parser passed |
+| Bounded catalog, local registry and UI | PostgreSQL exercised byte-bound pagination and legacy workspace IDs; bounded SDK tests passed in both repositories; a signed local registry round-trip and 31 web tests passed. The packaged Chromium fixture passed against native IPC and loopback Cloud HTTP in English, Spanish and mobile layouts, including 50+1 pages and an exact generation above 2^53; this is not a two-PC acceptance test |
 | Backend populated pre-v2 upgrade, explicit digest repair and actual SQL archive restore | Passed on native PostgreSQL (17.31 s) and pgrust (18.61 s), plus 2 pure URL-guard tests; database-only scope |
 | Earlier backend v2 PostgreSQL cases | At the preceding checkpoint, 6 passed on each SQL runtime, including byte-ordered punctuation pagination; the earlier 67-case suite also passed on native PostgreSQL |
 | Backend declared minimum compiler checks | Rust 1.95 workspace and Rust 1.89 SDK checks passed |

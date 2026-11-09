@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 use tiktools_core::AppCore;
 pub use tiktools_core::{
     control::{
-        CloudCatalogPage, CloudCatalogQuery, RegistryAddInput, RegistryPackageView,
-        RegistryRootPreview,
+        CloudCatalogPage, CloudCatalogPaginationCapabilities, CloudCatalogQuery,
+        CloudCatalogSummariesPage, CloudCatalogSummariesQuery, CloudCatalogVersionsPage,
+        CloudCatalogVersionsQuery, RegistryAddInput, RegistryPackageView, RegistryRootPreview,
     },
     plugin_registry::{RegistryDefaults, RegistryStatus, SearchQuery, SearchResults},
 };
@@ -64,6 +65,36 @@ pub struct RegistryPackageParams {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<Empty, CloudCatalogPaginationCapabilities, _, _>(
+        "registry.cloudCatalogPaginationCapabilities",
+        "Discovers bounded Cloud catalog pagination capabilities",
+        false,
+        |core: Arc<AppCore>, _: Empty| async move {
+            core.cloud_catalog_pagination_capabilities()
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<CloudCatalogSummariesQuery, CloudCatalogSummariesPage, _, _>(
+        "registry.cloudCatalogSummaries",
+        "Reads bounded Cloud plugin summaries without granting installation trust",
+        false,
+        |core: Arc<AppCore>, params: CloudCatalogSummariesQuery| async move {
+            core.cloud_catalog_summaries(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<CloudCatalogVersionsQuery, CloudCatalogVersionsPage, _, _>(
+        "registry.cloudCatalogVersions",
+        "Reads one bounded Cloud plugin version page",
+        false,
+        |core: Arc<AppCore>, params: CloudCatalogVersionsQuery| async move {
+            core.cloud_catalog_versions(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
     router.register_typed::<CloudCatalogQuery, CloudCatalogPage, _, _>(
         "registry.cloudCatalog",
         "Discovers plugin metadata from the configured Cloud instance; installation requires separate signature verification",

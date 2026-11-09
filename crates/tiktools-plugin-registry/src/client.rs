@@ -303,6 +303,9 @@ impl RegistryClient {
         id: &str,
         registry: Option<&str>,
     ) -> Result<(RegistrySource, PackageDocument), RegistryError> {
+        if !tiktools_plugin_api::manifest::is_valid_plugin_id(id) {
+            return Err(RegistryError::document(id, "invalid plugin ID"));
+        }
         let candidates: Vec<RegistrySource> = match registry {
             Some(name) => vec![self.source(name)?],
             None => self

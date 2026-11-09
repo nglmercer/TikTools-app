@@ -25,4 +25,8 @@ Screenshots and browser evidence are in /tmp/settings-implementation. Library up
 
 ## Integration status
 
-No push, PR update or merge performed. PR #62 is currently CONFLICTING/DIRTY. Read-only merge-tree inspection against remake identifies a content conflict in src/web/pages/plugins/ui/PluginsPage.vue from newer catalog work. No worktree merge was attempted and no remote work was overwritten. Resolve that separately before publication.
+Integrated origin/remake b24ddbe7c6dbf5c42b875c25f1c7cc5725e9f677 locally after the user's conflict-resolution request. Resolved the sole content conflict in PluginsPage.vue by retaining MasterDetailLayout/CollectionToolbar and the new CloudPluginCatalog import. Cloud view routing, persistence, translations, bounded catalog code and tests from remake are preserved. Native crates and the Cloud catalog widget match remake exactly, as do AutomationsPage.vue and its tests.
+
+Post-integration validation: 151 files / 863 Vitest tests passed, vue-tsc and ESLint passed, frontend production build passed. No additional browser/native integration tests were run for this import conflict; earlier screenshots and browser results above predate the catalog integration.
+
+No push, remote PR update, PR merge or deployment performed. GitHub PR #62 remains CONFLICTING until this local result is published to its branch. No unresolved files remain locally.
