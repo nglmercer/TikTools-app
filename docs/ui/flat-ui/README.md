@@ -1,3 +1,5 @@
+> Current diagnostics captures: [debug-current](../debug-current/README.md). Diagnostics images below are historical.
+
 > Historical gallery. The latest settings and OBS-like connections screenshots are in [settings-obs](../settings-obs/README.md).
 
 > Historical captures from the initial component redesign. For the current PR settings screenshots, see [the updated gallery](../settings-current/README.md). Automation captures below predate the layout restoration and are not current evidence.

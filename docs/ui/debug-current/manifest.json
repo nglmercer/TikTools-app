@@ -1,0 +1,40 @@
+{
+  "source_commit": "cff05952bc9a7f8560ebff29c92f9d4c6be307c8",
+  "date": "2026-11-09",
+  "mocked_api": false,
+  "synthetic_logs": false,
+  "images": [
+    {
+      "file": "empty-filter-desktop-es.png",
+      "sha256": "7d2cbef63fb78f55cc5829ed6fb18ac3744fe06380a85d55528226fcfc93bce8"
+    },
+    {
+      "file": "empty-filter-mobile-es.png",
+      "sha256": "f7bc7fae5d9eef7f2f2cf0da975fb9a33950b9180b31c8ef9298ae03f1651371"
+    },
+    {
+      "file": "entry-desktop-es.png",
+      "sha256": "0a14a33f7949df937e673b2dff6a01c64ff1feea4ecf84caea35841c0258b546"
+    },
+    {
+      "file": "entry-mobile-es.png",
+      "sha256": "64958ae8ecdca84bfd5f33e165af32a650bac05df7e066087f69e17affb32d30"
+    },
+    {
+      "file": "filters-desktop-es.png",
+      "sha256": "41051ca2bff0aa269fb941ff5b52d1dc32b7b0f473b2b13b49e0691077bd7f00"
+    },
+    {
+      "file": "filters-mobile-es.png",
+      "sha256": "cc7be8607540d1bc30944c58eddc4a2e840f0290b80db06eb4e4a0a48ed98822"
+    },
+    {
+      "file": "overview-desktop-es.png",
+      "sha256": "5cf5bd5993e7ecd06d3871bcfb3b5d637ca7ae3fc6fd36108d684af23c3d571c"
+    },
+    {
+      "file": "overview-mobile-es.png",
+      "sha256": "b20d17671932657e126579acec457d748cadd21a7903306904322f8b1dd6db7c"
+    }
+  ]
+}
