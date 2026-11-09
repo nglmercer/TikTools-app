@@ -2562,7 +2562,7 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             std::fs::write(f.paths.data.join("alert.wav"), b"audio fixture").unwrap();
         }
         let mut action = if is_points {
-            points("winner-action", "alice", 1.0)
+            points("winner-action", "{{event.user.uniqueId}}", 1.0)
         } else if is_audio {
             json!({"id":"winner-action","name":"Audio","enabled":true,"typeId":"audio.play","config":{"fileRef":"alert.wav","volume":0.5,"overlap":"drop"}})
         } else if is_emit {
@@ -2623,7 +2623,7 @@ async fn competition_winner_actions_execute_with_current_delegation() {
                 DelegatedAutomationEffect::Log
             }]
             .into(),
-            allow_dynamic_targets: false,
+            allow_dynamic_targets: is_points,
             allow_owner_edits: false,
             allow_owner_source: false,
             allow_other_author_edits: false,
@@ -2652,24 +2652,40 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             schema_version: 1,
             id: "shared".into(),
             name: "Shared".into(),
-            kind: CompetitionKind::Poll,
+            kind: if is_points {
+                CompetitionKind::LeaderboardChallenge
+            } else {
+                CompetitionKind::Poll
+            },
             ranking_id: "rank".into(),
-            options: vec![OptionDefinition {
-                id: "a".into(),
-                label: "A".into(),
-                commands: vec![],
-                gift_ids: vec![],
-                image_url: None,
-                on_win: Some(winner_action.clone()),
-            }],
-            selection_mode: SelectionMode::WeightedRandom,
+            options: if is_points {
+                vec![]
+            } else {
+                vec![OptionDefinition {
+                    id: "a".into(),
+                    label: "A".into(),
+                    commands: vec![],
+                    gift_ids: vec![],
+                    image_url: None,
+                    on_win: Some(winner_action.clone()),
+                }]
+            },
+            selection_mode: if is_points {
+                SelectionMode::HighestScore
+            } else {
+                SelectionMode::WeightedRandom
+            },
             tie_policy: TiePolicy::Stable,
             duration_ms: Some(10),
             vote_limit: 1,
             allow_switch: false,
             minimum_participants: 1,
             target_score: None,
-            on_user_win: None,
+            on_user_win: if is_points {
+                Some(winner_action.clone())
+            } else {
+                None
+            },
         };
         let db = &f.core().db;
         db.insert_competition_definition(&definition).unwrap();
@@ -2685,13 +2701,25 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             ranking_revision: 1,
             finalized_at: 123,
             selection: Selection {
-                mode: SelectionMode::WeightedRandom,
+                mode: if is_points {
+                    SelectionMode::HighestScore
+                } else {
+                    SelectionMode::WeightedRandom
+                },
                 tie_policy: TiePolicy::Stable,
                 eligible: vec![Candidate {
-                    key: "a".into(),
+                    key: if is_points {
+                        "alice".into()
+                    } else {
+                        "a".into()
+                    },
                     weight: 1,
                 }],
-                winner: Some("a".into()),
+                winner: Some(if is_points {
+                    "alice".into()
+                } else {
+                    "a".into()
+                }),
             },
         };
         db.store_competition_result(&result, Some(&winner_action))
@@ -2737,7 +2765,7 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             std::time::Duration::from_secs(3),
             f.core().execute_action_with_context(
                 &effective,
-                &json!({"type":"competition.winner.selected","data":{}}),
+                &json!({"type":"competition.winner.selected","user":{"uniqueId":"alice"},"data":{}}),
                 None,
                 &context,
                 false,

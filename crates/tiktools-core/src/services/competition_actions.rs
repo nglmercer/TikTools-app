@@ -162,6 +162,9 @@ impl AppCore {
             let score = result.selection.eligible.iter().find(|candidate| candidate.key == winner).ok_or("winner_unavailable")?.weight;
             let event = serde_json::json!({"id": lookup.idempotency_key, "type": "competition.winner.selected", "timestamp": result.finalized_at,
                 "creator": {"uniqueId": ranking.creator_id, "roomId": ranking.room_id},
+                // User-based contests expose the selected viewer through the
+                // same bounded public field used by other delegated events.
+                "user": if user_winner { Some(serde_json::json!({"uniqueId": winner})) } else { None },
                 "data": {"competitionId": lookup.competition_id, "generation": lookup.generation,
                     "optionId": if user_winner { None } else { Some(winner.as_str()) }, "winnerId": winner, "winnerScore": score,
                     "rankingId": result.ranking_id, "selectionMode": result.selection.mode,
