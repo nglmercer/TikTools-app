@@ -105,6 +105,111 @@ fn package_lease_fences_racing_starts_and_preserves_other_plugins() {
 }
 
 #[test]
+fn admitted_event_delivery_excludes_package_mutation_for_only_its_plugin() {
+    let root = temp_root();
+    write_plugin_with_runtime(&root, "first", "process");
+    write_plugin_with_runtime(&root, "second", "process");
+    let mut runtimes = RuntimeRegistry::default();
+    runtimes.register(Arc::new(TestRuntime));
+    let manager = Arc::new(PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    ));
+    manager.scan().unwrap();
+    let generation = manager.start_generation("first").unwrap();
+    manager.start("second").unwrap();
+
+    assert!(manager
+        .try_reserve_event_delivery("first", generation + 1)
+        .is_none());
+    let first = manager
+        .try_reserve_event_delivery("first", generation)
+        .unwrap();
+    let second = manager
+        .try_reserve_event_delivery("first", generation)
+        .unwrap();
+    assert!(manager.begin_package_mutation("first").is_err());
+    manager
+        .begin_package_mutation("second")
+        .unwrap()
+        .finish()
+        .unwrap();
+    drop(first);
+    assert!(manager.begin_package_mutation("first").is_err());
+    drop(second);
+
+    let lease = manager.begin_package_mutation("first").unwrap();
+    assert!(manager
+        .try_reserve_event_delivery("first", generation)
+        .is_none());
+    lease.finish().unwrap();
+    assert!(manager
+        .try_reserve_event_delivery("first", generation)
+        .is_some());
+    assert!(manager.stop_all_checked());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn concurrent_delivery_and_package_admission_have_only_one_winner() {
+    let root = temp_root();
+    write_plugin_with_runtime(&root, "racing", "process");
+    let mut runtimes = RuntimeRegistry::default();
+    runtimes.register(Arc::new(TestRuntime));
+    let manager = Arc::new(PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    ));
+    manager.scan().unwrap();
+    let generation = manager.start_generation("racing").unwrap();
+    for _ in 0..16 {
+        let start = Arc::new(std::sync::Barrier::new(3));
+        let admitted = Arc::new(std::sync::Barrier::new(3));
+        let event = {
+            let (manager, start, admitted) = (
+                Arc::clone(&manager),
+                Arc::clone(&start),
+                Arc::clone(&admitted),
+            );
+            std::thread::spawn(move || {
+                start.wait();
+                let permit = manager.try_reserve_event_delivery("racing", generation);
+                admitted.wait();
+                permit.is_some()
+            })
+        };
+        let package = {
+            let (manager, start, admitted) = (
+                Arc::clone(&manager),
+                Arc::clone(&start),
+                Arc::clone(&admitted),
+            );
+            std::thread::spawn(move || {
+                start.wait();
+                let lease = manager.begin_package_mutation("racing").ok();
+                admitted.wait();
+                let won = lease.is_some();
+                if let Some(lease) = lease {
+                    lease.finish().unwrap();
+                }
+                won
+            })
+        };
+        start.wait();
+        admitted.wait();
+        assert_ne!(event.join().unwrap(), package.join().unwrap());
+    }
+    assert!(manager.stop_all_checked());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn interrupted_package_and_shutdown_stay_fail_closed() {
     let manager = Arc::new(PluginManager::new(Vec::new()));
     let lease = manager.begin_package_mutation("first").unwrap();

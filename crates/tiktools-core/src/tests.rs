@@ -1886,6 +1886,160 @@ async fn pushed_events_from_stopped_generation_are_not_delivered_after_restart()
     let _ = std::fs::remove_dir_all(root);
 }
 
+#[tokio::test]
+async fn pushed_event_is_not_delivered_during_package_mutation() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(state, &["hotkeys"]);
+    let generation = core.plugins.start_generation("hotkeys").unwrap();
+    let mut domain = core.events.subscribe_domain();
+    let lease = core.plugins.begin_package_mutation("hotkeys").unwrap();
+    core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "hotkeys".to_owned(),
+        generation,
+        event_type: "hotkey.pressed".to_owned(),
+        data: fake_press("k", "ctrl"),
+    })
+    .await;
+    assert!(domain.try_recv().is_err());
+    lease.finish().unwrap();
+    core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "hotkeys".to_owned(),
+        generation,
+        event_type: "hotkey.pressed".to_owned(),
+        data: fake_press("k", "ctrl"),
+    })
+    .await;
+    assert!(matches!(
+        domain.try_recv(),
+        Ok(crate::events::DomainEvent::PluginEvent { .. })
+    ));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn polled_events_reject_stale_or_package_fenced_generation() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(state, &["hotkeys"]);
+    let old = core.plugins.start_generation("hotkeys").unwrap();
+    core.plugins.stop("hotkeys").unwrap();
+    let current = core.plugins.start_generation("hotkeys").unwrap();
+    let mut domain = core.events.subscribe_domain();
+    let response = || json!({"events": [fake_press("k", "ctrl")]});
+    let declared = || vec!["hotkey.pressed".to_owned()];
+    let source = json!({});
+
+    core.handle_poll_outcome("hotkeys".into(), declared(), Ok((old, response())), &source)
+        .await;
+    assert!(
+        domain.try_recv().is_err(),
+        "the replaced worker must not publish"
+    );
+    let lease = core.plugins.begin_package_mutation("hotkeys").unwrap();
+    core.handle_poll_outcome(
+        "hotkeys".into(),
+        declared(),
+        Ok((current, response())),
+        &source,
+    )
+    .await;
+    assert!(
+        domain.try_recv().is_err(),
+        "a fenced package must not publish"
+    );
+    lease.finish().unwrap();
+    core.handle_poll_outcome(
+        "hotkeys".into(),
+        declared(),
+        Ok((current, response())),
+        &source,
+    )
+    .await;
+    assert!(matches!(
+        domain.try_recv(),
+        Ok(crate::events::DomainEvent::PluginEvent { .. })
+    ));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn poll_and_push_revalidate_the_exact_worker_manifest_after_catalog_change() {
+    let state = Arc::new(FakePluginState::default());
+    state
+        .poll_batches
+        .lock()
+        .unwrap()
+        .push_back(vec![fake_press("k", "ctrl")]);
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
+    let old = core.plugins.start_generation("hotkeys").unwrap();
+    let old_declared = vec!["hotkey.pressed".to_owned()];
+    let source = json!({});
+    let mut domain = core.events.subscribe_domain();
+    let path = root.join("hotkeys/plugin.json");
+    let mut updated: Value = serde_json::from_str(FAKE_HOTKEY_MANIFEST).unwrap();
+    updated["capabilities"] = json!(["events.subscribe"]);
+    std::fs::write(&path, serde_json::to_vec(&updated).unwrap()).unwrap();
+    core.plugins.scan().unwrap();
+
+    // A rescan can revoke the catalog declaration even before the old
+    // worker stops; its old generation cannot bypass the current policy.
+    core.handle_poll_outcome(
+        "hotkeys".into(),
+        old_declared.clone(),
+        Ok((old, json!({"events": [fake_press("k", "ctrl")]}))),
+        &source,
+    )
+    .await;
+    assert!(domain.try_recv().is_err());
+    core.plugins.stop("hotkeys").unwrap();
+    let no_capability = core.plugins.start_generation("hotkeys").unwrap();
+    let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&core.plugins));
+    let request = serde_json::to_value(tiktools_plugin_sdk::PluginCall::Poll).unwrap();
+    assert!(invoker
+        .call_poll_identified("hotkeys", &request, PLUGIN_POLL_DEADLINE)
+        .await
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        state.poll_batches.lock().unwrap().len(),
+        1,
+        "worker without a poll capability must not be called"
+    );
+    core.handle_poll_outcome(
+        "hotkeys".into(),
+        old_declared.clone(),
+        Ok((no_capability, json!({"events": [fake_press("k", "ctrl")]}))),
+        &source,
+    )
+    .await;
+    core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "hotkeys".into(),
+        generation: no_capability,
+        event_type: "hotkey.pressed".into(),
+        data: fake_press("k", "ctrl"),
+    })
+    .await;
+    assert!(domain.try_recv().is_err());
+
+    // A replacement can keep events.publish while removing one event type;
+    // the earlier candidate's allowlist must not authorize it.
+    core.plugins.stop("hotkeys").unwrap();
+    updated["capabilities"] = json!(["events.publish", "events.subscribe"]);
+    updated["eventTypes"] = json!([{"type":"hotkey.status","title":{"default":"Hotkey status"}}]);
+    std::fs::write(&path, serde_json::to_vec(&updated).unwrap()).unwrap();
+    core.plugins.scan().unwrap();
+    let narrower = core.plugins.start_generation("hotkeys").unwrap();
+    core.handle_poll_outcome(
+        "hotkeys".into(),
+        old_declared,
+        Ok((narrower, json!({"events": [fake_press("k", "ctrl")]}))),
+        &source,
+    )
+    .await;
+    assert!(domain.try_recv().is_err());
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn startup_push_reaches_core_on_service_start_and_reenable() {
     let state = Arc::new(FakePluginState::default());

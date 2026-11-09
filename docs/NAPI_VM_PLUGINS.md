@@ -39,10 +39,23 @@ the host reports a lag gap, but cannot reconstruct the lost events. An event
 released while enabling a plugin can also be handled before the processor
 index and automation snapshot have been refreshed. Thus startup buffering does
 not guarantee onLoad delivery or execution against the final host configuration.
-Generation checks are snapshots, not a lease over subsequent automation or
-external effects, and stopping a worker cannot undo effects already performed
-by native or external code. The separate implicit-start/disable race and the
-global lifecycle lock held during runtime loading are still unresolved.
+Push delivery now holds a per-plugin, per-generation admission permit through
+the awaited publication and automation path. A package mutation fails quickly
+while an admitted delivery is running; once a package fence is acquired, new
+deliveries from that plugin are rejected, while other plugins remain
+independent. Successful poll responses also retain their producing generation
+and use the same permit through their event batch, so stale results cannot be
+attributed to a replacement worker. Authorization checks both the immutable
+manifest used to start that exact worker and the current catalog snapshot;
+polling also checks the worker manifest before dispatch. A later catalog scan
+or direct stop can still race publication, and changes outside the cooperative
+package boundary are not fenced by this permit. This in-process boundary does not fence
+direct stop/disable, effects that have already escaped the host, or isolated
+dispatch; it does not provide replay or a durable gap record. Failed poll calls
+do not yet retain a generation for diagnostic updates. Stopping a worker cannot
+undo effects already performed by native or external code. The separate
+implicit-start/disable race and global lifecycle lock held during runtime
+loading are still unresolved.
 
 If a managed QuickJS startup exceeds its deadline, the manager retains the
 worker's join handle and marks that plugin's startup outcome unknown. It

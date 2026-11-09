@@ -12,7 +12,7 @@ use std::{
 use serde_json::Value;
 use tiktools_plugin_api::{
     sync::{recover_mutex, recover_rwlock_read, recover_rwlock_write},
-    PluginRuntimeKind,
+    PluginManifest, PluginRuntimeKind,
 };
 use tokio::sync::{broadcast, mpsc, oneshot};
 
@@ -200,6 +200,10 @@ pub struct PluginManager {
     /// Once checked shutdown begins, no later start can be admitted.
     shutdown_admission_closed: AtomicBool,
     package_fences: Mutex<BTreeMap<String, u64>>,
+    /// Count event publications that have crossed admission for each plugin.
+    /// Package fence admission is serialized with increments under
+    /// `package_fences`; the count may remain held across asynchronous work.
+    event_deliveries: Arc<Mutex<BTreeMap<String, usize>>>,
     next_package_token: AtomicU64,
     next_token: AtomicU64,
     emit_bus: broadcast::Sender<EmittedEvent>,
@@ -233,6 +237,35 @@ pub struct PluginPackageLease {
     failed: AtomicBool,
     finished: AtomicBool,
     started: Mutex<Option<u64>>,
+}
+
+/// A host event admitted for a specific live plugin generation. Holding this
+/// permit prevents a package transaction from beginning until delivery has
+/// completed or the future is dropped. It does not fence non-package stops or
+/// effects already dispatched by the event.
+pub struct PluginEventDeliveryPermit {
+    deliveries: Arc<Mutex<BTreeMap<String, usize>>>,
+    id: String,
+    manifest: Arc<PluginManifest>,
+}
+
+impl PluginEventDeliveryPermit {
+    /// The immutable manifest with which this exact worker was started.
+    pub fn manifest(&self) -> &PluginManifest {
+        &self.manifest
+    }
+}
+
+impl Drop for PluginEventDeliveryPermit {
+    fn drop(&mut self) {
+        let mut deliveries = recover_mutex(&self.deliveries, "plugin event deliveries");
+        if let Some(count) = deliveries.get_mut(&self.id) {
+            *count = count.saturating_sub(1);
+            if *count == 0 {
+                deliveries.remove(&self.id);
+            }
+        }
+    }
 }
 
 impl PluginPackageLease {
@@ -408,6 +441,16 @@ impl PluginManager {
                 "plugin package mutation is already active or requires recovery".into(),
             ));
         }
+        if self
+            .event_deliveries
+            .lock()
+            .map_err(|_| lock_poisoned("plugin event deliveries"))?
+            .contains_key(id)
+        {
+            return Err(PluginLoaderError::RuntimeUnavailable(
+                "plugin event publication is still in progress".into(),
+            ));
+        }
         let token = self
             .next_package_token
             .try_update(Ordering::AcqRel, Ordering::Acquire, |token| {
@@ -442,6 +485,7 @@ impl PluginManager {
             starts_inflight: AtomicU64::new(0),
             shutdown_admission_closed: AtomicBool::new(false),
             package_fences: Mutex::new(BTreeMap::new()),
+            event_deliveries: Arc::new(Mutex::new(BTreeMap::new())),
             next_package_token: AtomicU64::new(1),
             next_token: AtomicU64::new(1),
             emit_bus: broadcast::channel(EMIT_BUS_CAPACITY).0,
@@ -989,6 +1033,7 @@ impl PluginManager {
         // recovers instead of failing midway through the mutation.
         let instance = Arc::new(RunningInstance {
             token,
+            manifest: Arc::new(plugin.manifest.clone()),
             events: worker_ctx.emit_sender(),
             artifact_fingerprint,
             kind: plugin.manifest.runtime,
@@ -1391,6 +1436,37 @@ impl PluginManager {
             return false;
         };
         worker.as_ref().is_some_and(|handle| !handle.is_finished())
+    }
+
+    /// Atomically admit event delivery for the exact live worker and exclude
+    /// package mutation for this plugin until the returned permit is dropped.
+    /// A blocked delivery makes package mutation fail quickly; it never holds
+    /// a mutex across an await or prevents unrelated plugins from mutating.
+    pub fn try_reserve_event_delivery(
+        &self,
+        id: &str,
+        generation: u64,
+    ) -> Option<PluginEventDeliveryPermit> {
+        let fences = self.package_fences.lock().ok()?;
+        if fences.contains_key(id) {
+            return None;
+        }
+        let instances = self.instances.read().ok()?;
+        let instance = instances
+            .get(id)
+            .filter(|instance| instance.token == generation)?;
+        let worker = instance.worker.lock().ok()?;
+        if worker.as_ref().is_none_or(|handle| handle.is_finished()) {
+            return None;
+        }
+        let mut deliveries = self.event_deliveries.lock().ok()?;
+        let count = deliveries.get(id).copied().unwrap_or(0).checked_add(1)?;
+        deliveries.insert(id.to_owned(), count);
+        Some(PluginEventDeliveryPermit {
+            deliveries: Arc::clone(&self.event_deliveries),
+            id: id.to_owned(),
+            manifest: Arc::clone(&instance.manifest),
+        })
     }
 
     /// Exact package identity captured before this runtime generation loaded.

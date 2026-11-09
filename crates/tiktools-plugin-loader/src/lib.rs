@@ -23,7 +23,10 @@ pub use artifact::plugin_artifact_fingerprint;
 pub use declarative::DeclarativePluginRuntime;
 pub use discovery::plugin_roots;
 pub use isolated::{IsolatedPluginCall, PreparedIsolatedPlugin};
-pub use manager::{PluginManager, PluginPackageLease, PluginWorkerObservation, RuntimeRegistry};
+pub use manager::{
+    PluginEventDeliveryPermit, PluginManager, PluginPackageLease, PluginWorkerObservation,
+    RuntimeRegistry,
+};
 pub use native::NativePluginRuntime;
 pub use process::ProcessPluginRuntime;
 pub use quickjs::{
