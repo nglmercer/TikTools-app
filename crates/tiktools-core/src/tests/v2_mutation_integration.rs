@@ -575,30 +575,49 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         core.plugins.observe_worker("acme.hotkeys").unwrap(),
         tiktools_plugin_loader::PluginWorkerObservation::Stopped
     );
-    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
-    connection
-        .execute(
-            "DELETE FROM plugin_sync_apply_finalizations WHERE intent_id=?1",
-            [&intent.intent_id],
-        )
-        .unwrap();
-    connection
-        .execute(
-            "DELETE FROM plugin_sync_apply_intents WHERE intent_id=?1",
-            [&intent.intent_id],
-        )
-        .unwrap();
-    drop(connection);
+    // Retain the finalization witness: a later local edit must still sync.
     core.plugin_set_enabled_with_product_intent("acme.hotkeys", true)
         .unwrap();
+    let candidate = core
+        .db
+        .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    let decision = V2ProductDecision {
+        origin: origin.clone(),
+        account_id: "alice".into(),
+        config_generation: 42,
+        source_generation: candidate.generation as u64,
+        plugin_id: "acme.hotkeys".into(),
+        selection: Some(PluginSelection {
+            schema_version: 1,
+            plugin_id: "acme.hotkeys".into(),
+            version: "1.0.0".into(),
+            enabled: true,
+        }),
+    };
+    let source =
+        crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&core, &origin, "alice");
+    sync.stage_v2_product_decision(&source).unwrap();
+    source
+        .with_fenced_upload(&decision, &mut || Ok(()))
+        .unwrap();
     let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
     connection
         .execute(
-            "DELETE FROM plugin_sync_outbox WHERE plugin_id='acme.hotkeys'",
-            [],
+            "UPDATE plugin_sync_apply_finalizations SET payload_json='{}' WHERE intent_id=?1",
+            [&intent.intent_id],
         )
         .unwrap();
+    assert!(source
+        .with_fenced_upload(&decision, &mut || Ok(()))
+        .is_err());
+    connection.execute("UPDATE plugin_sync_apply_finalizations SET payload_json=(SELECT payload_json FROM plugin_sync_apply_intents WHERE intent_id=?1) WHERE intent_id=?1", [&intent.intent_id]).unwrap();
     drop(connection);
+    source
+        .with_fenced_upload(&decision, &mut || Ok(()))
+        .unwrap();
+    drop(source);
     // A successful package operation under the same session can transfer its
     // fresh marker into the ordinary v2 outbox without another approval.
     {

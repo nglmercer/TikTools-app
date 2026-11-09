@@ -66,6 +66,65 @@ fn package_source_available(db: &rusqlite::Connection, id: &str) -> Result<bool,
     )?)
 }
 
+/// Retained, independently witnessed finalized applications are history, not
+/// pending work. Validate both copies under the caller's SQLite transaction;
+/// an active, malformed, orphaned or future-generation record blocks syncing.
+fn apply_history_allows_source(db: &rusqlite::Connection, id: &str) -> Result<bool, DatabaseError> {
+    use super::plugin_sync_apply::{decode_stored, PluginApplyPhase};
+    let generation: Option<i64> = db
+        .query_row(
+            "SELECT generation FROM plugin_sync_source_versions WHERE plugin_id=?1",
+            [id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let mut query = db.prepare(
+        "SELECT i.intent_id,i.plugin_id,i.phase,i.payload_json,i.committed_generation,i.runtime_epoch,
+                f.intent_id,f.plugin_id,f.payload_json,f.committed_generation,f.runtime_epoch
+         FROM plugin_sync_apply_intents i LEFT JOIN plugin_sync_apply_finalizations f ON f.intent_id=i.intent_id
+         WHERE i.plugin_id=?1 OR f.plugin_id=?1
+         UNION ALL
+         SELECT NULL,NULL,NULL,NULL,NULL,NULL,f.intent_id,f.plugin_id,f.payload_json,f.committed_generation,f.runtime_epoch
+         FROM plugin_sync_apply_finalizations f LEFT JOIN plugin_sync_apply_intents i ON i.intent_id=f.intent_id
+         WHERE i.intent_id IS NULL AND f.plugin_id=?1 LIMIT ?2"
+    )?;
+    let mut rows = query.query(params![
+        id,
+        (super::plugin_apply_quarantine::MAX_RETAINED + 1) as i64
+    ])?;
+    let mut count = 0usize;
+    while let Some(row) = rows.next()? {
+        count += 1;
+        if count > super::plugin_apply_quarantine::MAX_RETAINED {
+            return Ok(false);
+        }
+        let Some(intent_id): Option<String> = row.get(0)? else {
+            return Ok(false);
+        };
+        let plugin_id: String = row.get(1)?;
+        let phase: String = row.get(2)?;
+        let payload: String = row.get(3)?;
+        let committed: Option<i64> = row.get(4)?;
+        let epoch: Option<String> = row.get(5)?;
+        if plugin_id != id
+            || phase != "finalized"
+            || row.get::<_, Option<String>>(6)?.as_deref() != Some(intent_id.as_str())
+            || row.get::<_, Option<String>>(7)?.as_deref() != Some(id)
+            || row.get::<_, Option<String>>(8)?.as_deref() != Some(payload.as_str())
+            || row.get::<_, Option<i64>>(9)? != committed
+            || row.get::<_, Option<String>>(10)? != epoch
+            || !matches!((generation, committed), (Some(current), Some(saved)) if current >= saved)
+        {
+            return Ok(false);
+        }
+        let parsed = decode_stored(&intent_id, (plugin_id, phase, payload, committed, epoch))?;
+        if parsed.phase != PluginApplyPhase::Finalized {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 impl DatabaseManager {
     /// Transfer a fresh package marker to the same admitted v2 account only
     /// after the caller observes the exact installed version and runtime.
@@ -99,7 +158,10 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         db.execute_batch("PRAGMA synchronous=FULL;")?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let allowed: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u JOIN plugin_sync_source_versions s ON s.plugin_id=u.plugin_id WHERE u.plugin_id=?1 AND u.generation=?2 AND s.generation=?2 AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=?1) AND NOT EXISTS(SELECT 1 FROM plugin_sync_receipts r WHERE r.plugin_id=?1) AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=?1 OR p.plugin_id IS NULL) AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_intents a WHERE a.plugin_id=?1) AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations f WHERE f.plugin_id=?1) AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=?1))", params![id, marker_generation], |row| row.get(0))?;
+        if !apply_history_allows_source(&tx, id)? {
+            return Ok(false);
+        }
+        let allowed: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u JOIN plugin_sync_source_versions s ON s.plugin_id=u.plugin_id WHERE u.plugin_id=?1 AND u.generation=?2 AND s.generation=?2 AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=?1) AND NOT EXISTS(SELECT 1 FROM plugin_sync_receipts r WHERE r.plugin_id=?1) AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=?1 OR p.plugin_id IS NULL) AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=?1))", params![id, marker_generation], |row| row.get(0))?;
         if !allowed {
             return Ok(false);
         }
@@ -140,13 +202,16 @@ impl DatabaseManager {
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(DatabaseError::from)
             .map_err(E::from)?;
+        if !apply_history_allows_source(&tx, plugin_id).map_err(E::from)? {
+            return Err(E::from(DatabaseError::Invalid(
+                "v2 application history needs review".into(),
+            )));
+        }
         let valid: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM plugin_sync_source_versions s JOIN behavior_plugins b ON b.id=s.plugin_id
              WHERE s.plugin_id=?1 AND s.generation=?2 AND b.installed=CASE WHEN ?3 IS NULL THEN 0 ELSE 1 END AND (?3 IS NULL OR b.enabled=?3)
              AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=s.plugin_id)
              AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=s.plugin_id OR p.plugin_id IS NULL)
-             AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_intents a WHERE a.plugin_id=s.plugin_id)
-             AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations f WHERE f.plugin_id=s.plugin_id)
              AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=s.plugin_id))",
             params![plugin_id, generation, enabled.map(bool_int)], |row| row.get(0),
         ).map_err(DatabaseError::from).map_err(E::from)?;
@@ -274,8 +339,13 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         db.execute_batch("PRAGMA synchronous=FULL;")?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if !apply_history_allows_source(&tx, &review.plugin_id)? {
+            return Err(DatabaseError::Invalid(
+                "plugin application history needs review".into(),
+            ));
+        }
         let valid: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u JOIN plugin_sync_source_versions s ON s.plugin_id=u.plugin_id JOIN behavior_plugins b ON b.id=u.plugin_id WHERE u.plugin_id=?1 AND u.generation=?2 AND s.generation=?2 AND b.installed=1 AND b.enabled=?3 AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=u.plugin_id) AND NOT EXISTS(SELECT 1 FROM plugin_sync_receipts q WHERE q.plugin_id=u.plugin_id) AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=u.plugin_id OR p.plugin_id IS NULL) AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_intents a WHERE a.plugin_id=u.plugin_id) AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations f WHERE f.plugin_id=u.plugin_id) AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=u.plugin_id))",
+            "SELECT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u JOIN plugin_sync_source_versions s ON s.plugin_id=u.plugin_id JOIN behavior_plugins b ON b.id=u.plugin_id WHERE u.plugin_id=?1 AND u.generation=?2 AND s.generation=?2 AND b.installed=1 AND b.enabled=?3 AND NOT EXISTS(SELECT 1 FROM plugin_sync_outbox o WHERE o.plugin_id=u.plugin_id) AND NOT EXISTS(SELECT 1 FROM plugin_sync_receipts q WHERE q.plugin_id=u.plugin_id) AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=u.plugin_id OR p.plugin_id IS NULL) AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=u.plugin_id))",
             params![review.plugin_id, review.generation, bool_int(review.enabled)], |r| r.get(0),
         )?;
         if !valid {
@@ -491,9 +561,13 @@ impl DatabaseManager {
                 "invalid legacy plugin review".into(),
             ));
         }
-        let db = self.open(&self.automation_path())?;
+        let mut db = self.open(&self.automation_path())?;
         db.execute_batch("PRAGMA synchronous=FULL;")?;
-        let changed = db.execute(
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if !apply_history_allows_source(&tx, &entry.plugin_id)? {
+            return Ok(false);
+        }
+        let changed = tx.execute(
             "UPDATE plugin_sync_outbox SET reviewed_base=?9,config_generation=?10,runtime_epoch=NULL
              WHERE origin=?1 AND account_id=?2 AND plugin_id=?3 AND generation=?4
                AND config_generation=?5 AND version IS ?6 AND enabled IS ?7 AND runtime_epoch IS ?8
@@ -504,13 +578,12 @@ impl DatabaseManager {
                AND NOT EXISTS(SELECT 1 FROM plugin_sync_untracked_local u WHERE u.plugin_id=?3)
                AND NOT EXISTS(SELECT 1 FROM plugin_sync_receipts q WHERE q.plugin_id=?3)
                AND NOT EXISTS(SELECT 1 FROM plugin_package_mutation_intents p WHERE p.plugin_id=?3 OR p.plugin_id IS NULL)
-               AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_intents a WHERE a.plugin_id=?3)
-               AND NOT EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations f WHERE f.plugin_id=?3)
                AND NOT EXISTS(SELECT 1 FROM plugin_sync_rebase_intents r WHERE r.plugin_id=?3)",
             params![entry.origin, entry.account_id, entry.plugin_id, entry.generation,
                 entry.config_generation.to_string(), entry.version, entry.enabled.map(bool_int),
                 entry.runtime_epoch, reviewed_base, current_config_generation.to_string()],
         )?;
+        tx.commit()?;
         Ok(changed == 1)
     }
 
