@@ -77,12 +77,15 @@ At a very low request rate, a sufficiently large multipage baseline can expire
 before it is fully read, so recovery for every allowed baseline size is not
 guaranteed at the minimum gateway quota. The hub rejects a capture with
 `snapshot_rate_budget` before returning its first page if even a full request
-bucket and its maximum 30-second refill cannot cover the remaining pages.
+bucket and its maximum refill strictly before the 30-second expiry cannot cover
+the remaining pages. The expiry boundary itself is not an available refill.
+The hub requires forward pages in order while allowing a previously returned
+page to be retransmitted; a skipped page cannot complete the baseline.
 The test suite covers the boundary, discarding a superseded snapshot on failure,
 and refreshed rate limits after resume. This upper bound does not reserve rate
 capacity or prevent expiry for a smaller baseline; recovery of larger baselines
 remains future work. A local TLS SDK test verifies the error for a baseline
-with 33 pages at one request per second; the controller shows the operator
+with 32 pages at one request per second; the controller shows the operator
 guidance in English and Spanish and stops automatic reconnection for that error.
 
 ## Creator-scoped LIVE feed

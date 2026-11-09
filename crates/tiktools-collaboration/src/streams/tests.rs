@@ -488,13 +488,13 @@ fn impossible_snapshot_rate_budget_fails_before_returning_a_page() {
             .collect()
     };
     // One record per page. The first page is in the capture response; the
-    // other 31 are the optimistic ceiling for a 30s TTL and a full bucket.
+    // other 30 are the strict upper bound before the inclusive 30s expiry.
     let within = hub
-        .capture(&user, "conn", &sub.subscription_id, records(32), 1024)
+        .capture(&user, "conn", &sub.subscription_id, records(31), 1024)
         .unwrap();
     assert!(within.next_page_token.is_some());
     assert!(matches!(
-        hub.capture(&user, "conn", &sub.subscription_id, records(33), 1024),
+        hub.capture(&user, "conn", &sub.subscription_id, records(32), 1024),
         Err(Error::SnapshotRateBudget)
     ));
     // A failed replacement discards the previous snapshot and keeps the
@@ -512,6 +512,59 @@ fn impossible_snapshot_rate_budget_fails_before_returning_a_page() {
     let stream = &state.streams[&sub.subscription_id];
     assert!(stream.snapshot.is_none());
     assert!(!stream.baseline_complete);
+}
+
+#[test]
+fn snapshot_requires_pages_in_order_but_permits_retransmission() {
+    let hub = StreamHub::default();
+    let user = identity();
+    let sub = subscribe(&hub, &user, "conn");
+    let records = (0..3)
+        .map(|i| {
+            let id = format!("wf-{i}");
+            (json!({"id":id,"body":"x".repeat(600)}), version(&id, 1))
+        })
+        .collect();
+    let first = hub
+        .capture(&user, "conn", &sub.subscription_id, records, 1024)
+        .unwrap();
+    hub.publish(&changed("wf-0", 2)).unwrap();
+    let first_token = first.next_page_token.unwrap();
+    let leaked_later_token = {
+        let state = hub.state.lock().unwrap();
+        state.streams[&sub.subscription_id]
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .tokens[2]
+            .clone()
+    };
+    assert!(matches!(
+        hub.page(&user, "conn", &sub.subscription_id, &leaked_later_token),
+        Err(Error::ResyncRequired)
+    ));
+    assert!(!hub.state.lock().unwrap().streams[&sub.subscription_id].baseline_complete);
+    assert!(hub.next(&user, "conn").unwrap().is_none());
+    let second = hub
+        .page(&user, "conn", &sub.subscription_id, &first_token)
+        .unwrap();
+    let replay = hub
+        .page(&user, "conn", &sub.subscription_id, &first_token)
+        .unwrap();
+    assert_eq!(second, replay);
+    assert!(!hub.state.lock().unwrap().streams[&sub.subscription_id].baseline_complete);
+    assert!(hub.next(&user, "conn").unwrap().is_none());
+    let third = hub
+        .page(
+            &user,
+            "conn",
+            &sub.subscription_id,
+            second.next_page_token.as_deref().unwrap(),
+        )
+        .unwrap();
+    assert!(third.next_page_token.is_none());
+    assert!(hub.state.lock().unwrap().streams[&sub.subscription_id].baseline_complete);
+    assert_eq!(hub.next(&user, "conn").unwrap().unwrap().sequence, "1");
 }
 
 #[test]

@@ -9,7 +9,8 @@ use uuid::Uuid;
 pub(super) struct Snapshot {
     pub created: Instant,
     pages: Vec<SnapshotPage>,
-    tokens: Vec<String>,
+    pub(super) tokens: Vec<String>,
+    next_page: usize,
 }
 impl StreamHub {
     pub fn begin_snapshot(
@@ -161,8 +162,11 @@ impl StreamHub {
         // request. Other traffic, network latency and bucket state can still
         // make a smaller snapshot expire; this is an impossibility check, not
         // a promise that the budget will be available to this connection.
-        let optimistic_requests =
-            u64::from(s.request_burst) + u64::from(s.requests_per_second) * SNAPSHOT_SECONDS;
+        // Expiry is inclusive: a request admitted exactly at 30 seconds
+        // cannot read the snapshot. Exclude that last refill from the upper
+        // bound even when the bucket was full when capture completed.
+        let optimistic_requests = u64::from(s.request_burst)
+            + (u64::from(s.requests_per_second) * SNAPSHOT_SECONDS).saturating_sub(1);
         if pages.len().saturating_sub(1) as u64 > optimistic_requests {
             return Err(Error::SnapshotRateBudget);
         }
@@ -179,6 +183,7 @@ impl StreamHub {
             created: now,
             pages,
             tokens,
+            next_page: 1,
         });
         Ok(first)
     }
@@ -192,14 +197,22 @@ impl StreamHub {
         let mut state = self.state.lock().map_err(|_| Error::ResyncRequired)?;
         gc(&mut state, Instant::now());
         let s = authorized(&mut state, identity, connection, id)?;
-        let snapshot = s.snapshot.as_ref().ok_or(Error::ResyncRequired)?;
+        let snapshot = s.snapshot.as_mut().ok_or(Error::ResyncRequired)?;
         let index = snapshot
             .tokens
             .iter()
             .position(|v| v == token)
             .ok_or(Error::ResyncRequired)?;
+        // A replay of an already returned page is harmless, but a caller
+        // must not finish a baseline by skipping an undispatched page.
+        if index == 0 || index > snapshot.next_page {
+            return Err(Error::ResyncRequired);
+        }
         let page = snapshot.pages[index].clone();
-        if page.next_page_token.is_none() {
+        if index == snapshot.next_page {
+            snapshot.next_page += 1;
+        }
+        if snapshot.next_page == snapshot.pages.len() && page.next_page_token.is_none() {
             s.baseline_complete = true;
         }
         Ok(page)

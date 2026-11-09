@@ -423,9 +423,9 @@ async fn recovery_reports_impossible_rate_budget_before_receiving_partial_snapsh
         },
     )
     .await;
-    // Each permitted record occupies its own 2048-byte page. Thirty-two
-    // follow-up pages cannot fit within the optimistic token budget of 31.
-    for n in 0..33 {
+    // Each permitted record occupies its own 2048-byte page. Thirty-one
+    // follow-up pages cannot fit strictly before the 30-second expiry.
+    for n in 0..32 {
         f.core
             .workflow_save(json!({
                 "id": format!("large-workflow-{n:02}"),

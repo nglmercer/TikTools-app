@@ -149,12 +149,14 @@ and `nextPageToken`. Versions identify rows by `(kind,scope,id)`, not by a
 shared workflow/viewer ID or positional alignment across mixed arrays. Follow
 each token with `collaboration.snapshot {subscriptionId,pageToken}`. Pages are
 immutable for 30 seconds; complete the whole baseline before allowing edits.
-The host withholds notifications until all baseline pages have been requested.
+The host accepts forward pages in order and permits retransmission of an
+already returned page; skipping a page requires resynchronization. The host
+withholds notifications until all baseline pages have been requested.
 Pages reserve half the configured frame budget for state, capped at 512 KiB;
 snapshots retain at most 4 MiB including page/token metadata. An individual
 record that cannot fit fails with `too_large`; nothing is silently truncated.
 If the page count cannot fit even the configured burst plus every token that
-could refill during the 30-second snapshot lifetime, capture fails before
+could refill strictly before the 30-second snapshot expiry, capture fails before
 returning the first page with `snapshot_rate_budget`. Narrow the resource
 grant or increase the configured frame or request limits before retrying.
 This is an optimistic upper bound: concurrent requests, network latency,
